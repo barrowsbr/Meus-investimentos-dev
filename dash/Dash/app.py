@@ -7,42 +7,6 @@ import os
 import numpy as np
 from datetime import datetime, date
 
-import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
-
-# Configuração dos usuários (Idealmente, coloque isso num arquivo separado ou secrets)
-config = {
-    'credentials': {
-        'usernames': {
-            'kita': {
-                'name': 'Kita',
-                'password': '123', # Na prática, use senhas hashadas!
-                'email': 'kita@gmail.com',
-            }
-        }
-    },
-    'cookie': {'expiry_days': 30, 'key': 'random_signature_key', 'name': 'random_cookie_name'}
-}
-
-# 1. Apenas chame o login (sem colocar "name, status =" antes)
-authenticator.login(location='main')
-
-# 2. Verifique o status acessando o st.session_state
-if st.session_state['authentication_status']:
-    # O botão de logout agora também precisa saber a location
-    authenticator.logout(location='main')  
-    
-    st.write(f'Bem-vindo, *{st.session_state["name"]}*')
-    
-    # --- SEU CÓDIGO PRINCIPAL AQUI ---
-    st.title('Área de Investimentos')
-    
-elif st.session_state['authentication_status'] is False:
-    st.error('Usuário ou senha incorretos')
-    
-elif st.session_state['authentication_status'] is None:
-    st.warning('Por favor, insira usuário e senha')
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
