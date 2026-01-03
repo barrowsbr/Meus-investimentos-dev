@@ -17,9 +17,9 @@ config = {
     'credentials': {
         'usernames': {
             'admin': {
-                'name': 'Admin Investidor',
-                'email': 'admin@gmail.com',
-                'password': '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW' 
+                'name': 'Lucas',
+                'email': 'lucasbarroso@gmail.com',
+                'password': '123' 
             }
         }
     },
