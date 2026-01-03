@@ -756,7 +756,7 @@ def main():
                     hole=0.5, 
                     color_discrete_sequence=['#2E7D32', '#1565C0', '#F9A825', '#757575']
                 )
-                fig_moeda.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=400, showlegend=True)
+                fig_moeda.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=300, showlegend=True)
                 st.plotly_chart(fig_moeda, use_container_width=True)
                 
                 st.markdown("---")
@@ -772,7 +772,7 @@ def main():
                     hole=0.5, 
                     color_discrete_sequence=px.colors.qualitative.Safe
                 )
-                fig_local.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=370, showlegend=True)
+                fig_local.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=300, showlegend=True)
                 st.plotly_chart(fig_local, use_container_width=True)
 
             st.markdown("---")
