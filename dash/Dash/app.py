@@ -707,13 +707,7 @@ def main():
                 ativo_low = df_grafico.loc[df_grafico['Rent. (%)'].idxmin()]
                 
                 k1.metric("🚀 Maior Rentabilidade", ativo_top['Ticker'], f"{ativo_top['Rent. (%)']:.1f}%")
-                k2.metric(
-                    "🐢 Menor Rentabilidade",
-                    f"{ativo_low['Ticker']}",
-                    f"{ativo_low['Rent. (%)']:.1f}%",
-                    delta=ativo_low['Rent. (%)'],
-                    delta_color="normal"   # verde = positivo | vermelho = negativo
-                )
+                k2.metric("🐢 Menor Rentabilidade", ativo_low['Ticker'], f"{ativo_low['Rent. (%)']:.1f}%", delta_color="inverse")
                 k3.metric("📊 Patrimônio Gráfico", f"R$ {total_view:,.2f}", help="Total considerado nestes gráficos")
 
             # --- 2. HEATMAP (GLOBAL) ---
