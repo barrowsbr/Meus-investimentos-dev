@@ -10,6 +10,13 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
+try:
+    # Tenta gerar o hash para a senha "123"
+    hash_gerado = stauth.Hasher(['123']).generate()
+    st.warning(f"COPIE ESTE CÓDIGO: {hash_gerado[0]}")
+except Exception as e:
+    st.error(f"Erro ao gerar hash: {e}")
+
 # --- CONFIGURAÇÃO DE USUÁRIOS ---
 # Para testar rápido, deixei a config aqui. 
 # A senha abaixo é o hash para "123".
