@@ -6,6 +6,44 @@ import plotly.graph_objects as go
 import os
 import numpy as np
 from datetime import datetime, date
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
+
+# Configuração dos usuários (Idealmente, coloque isso num arquivo separado ou secrets)
+config = {
+    'credentials': {
+        'usernames': {
+            'kita': {
+                'name': 'Kita',
+                'password': '123', # Na prática, use senhas hashadas!
+                'email': 'kita@gmail.com',
+            }
+        }
+    },
+    'cookie': {'expiry_days': 30, 'key': 'random_signature_key', 'name': 'random_cookie_name'}
+}
+
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days'],
+)
+
+# Cria o widget de login
+name, authentication_status, username = authenticator.login('Login', 'main')
+
+if authentication_status:
+    authenticator.logout('Logout', 'main')
+    st.write(f'Bem-vindo, *{name}*')
+    # --- SEU CÓDIGO AQUI ---
+    st.title('Área de Investimentos')
+    
+elif authentication_status == False:
+    st.error('Usuário ou senha incorretos')
+elif authentication_status == None:
+    st.warning('Por favor, insira usuário e senha')
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
