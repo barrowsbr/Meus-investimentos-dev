@@ -772,7 +772,7 @@ def main():
                     hole=0.5, 
                     color_discrete_sequence=px.colors.qualitative.Safe
                 )
-                fig_local.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=350, showlegend=True)
+                fig_local.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=370, showlegend=True)
                 st.plotly_chart(fig_local, use_container_width=True)
 
             st.markdown("---")
