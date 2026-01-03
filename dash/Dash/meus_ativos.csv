@@ -1,4 +1,4 @@
-Data;Tipo de transação;Símbolo;Quantidade;Preço;Valor bruto;Taxa de corretagem;Valor líquido;Moeda;Corretora
+﻿Data;Tipo de transação;Símbolo;Quantidade;Preço;Valor bruto;Taxa de corretagem;Valor líquido;Moeda;Corretora
 27/01/2025;Compra;AAXJ;7;71.69;501.83;0.36;502.19;USD;IBKR
 05/03/2025;Venda;AAXJ;7;74.84;523.88;0.35;524.23;USD;IBKR
 25/09/2024;Compra;ARGT;1;68.53;68.53;0.35;68.88;USD;IBKR
@@ -6,7 +6,7 @@ Data;Tipo de transação;Símbolo;Quantidade;Preço;Valor bruto;Taxa de corretag
 04/10/2024;Compra;ARGT;1;67.3;67.3;0.0;67.3;USD;IBKR
 27/01/2025;Compra;ARGT;3;84.3;254.49;0.35;254.84;USD;IBKR
 09/05/2025;Venda;ARGT;6;89.6;538.14;0.36;537.78;USD;IBKR
-12/06/2025;Compra;ASML.AS;1;680.5;788.36;1.72;790.08;EUR;IBKR
+12/06/2025;Compra;ASML;1;680.5;788.36;1.72;790.08;EUR;IBKR
 22/04/2024;Compra;CMIG4.SA;390;10.08;3930.0;0.0;3930.0;BRL;IBKR
 22/10/2024;Compra;DPM.TO;10;14.54;105.23;0.54;105.77;CAD;IBKR
 27/01/2025;Compra;DPM.TO;8;14.30;79.59;0.41;80.0;CAD;IBKR
@@ -63,5 +63,4 @@ Data;Tipo de transação;Símbolo;Quantidade;Preço;Valor bruto;Taxa de corretag
 29/12/2024;Compra;SPY;1;687.25;687.25;0.35;687.6;USD;IBKR
 29/12/2025;Venda;KO;7;70.24;491.68;1.5;493.18;USD;XP
 29/12/2025;Compra;KO;7;70.23;491.68;0.35;492.03;USD;IBKR
-29/09/2025;Compra;BTC-USD;0,00857981;89321.32;766.36;0.00;766.36;USD;Binance
-29/12/2025;Compra;MSFT;1;487.40;487.40;0.35;487.76;USD;IBKR
+29/09/2025;Compra;BTC-USD;0,00857981;113717;766.36;0.00;766.36;USD;Binance
