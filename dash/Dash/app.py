@@ -743,7 +743,7 @@ def main():
                     color='Setor', 
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
-                fig_sun.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=1200)
+                fig_sun.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=800)
                 fig_sun.update_traces(textinfo="label+percent entry") 
                 st.plotly_chart(fig_sun, use_container_width=True)
 
