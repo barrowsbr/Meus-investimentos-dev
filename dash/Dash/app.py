@@ -6,6 +6,66 @@ import plotly.graph_objects as go
 import os
 import numpy as np
 from datetime import datetime, date
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
+
+# --- CONFIGURAÇÃO DE USUÁRIOS ---
+# Para testar rápido, deixei a config aqui. 
+# A senha abaixo é o hash para "123".
+config = {
+    'credentials': {
+        'usernames': {
+            'admin': {
+                'name': 'Admin Investidor',
+                'email': 'admin@gmail.com',
+                'password': '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW' 
+            }
+        }
+    },
+    'cookie': {
+        'expiry_days': 30,
+        'key': 'chave_aleatoria_segura_dash',
+        'name': 'cookie_investimentos'
+    },
+    'preauthorized': {'emails': []}
+}
+
+# --- INICIALIZAÇÃO DO AUTHENTICATOR ---
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days'],
+)
+
+# --- LÓGICA DE LOGIN ---
+# Esta linha cria o formulário na tela principal
+authenticator.login(location='main')
+
+# Verifica o status no session_state (Correção do erro TypeError)
+if st.session_state["authentication_status"] is False:
+    st.error('Usuário ou senha incorretos')
+    st.stop() # Para a execução aqui se a senha estiver errada
+elif st.session_state["authentication_status"] is None:
+    st.warning('Por favor, insira seus dados de acesso')
+    st.stop() # Para a execução aqui se ninguém digitou nada
+
+# --- ÁREA LOGADA ---
+# Se o código passou pelos "st.stop()" acima, o usuário está logado.
+
+# Botão de sair na barra lateral (ou main)
+authenticator.logout('Sair', 'sidebar')
+
+st.write(f'Bem-vindo de volta, *{st.session_state["name"]}*')
+st.divider()
+
+# ========================================================
+# COLE O SEU CÓDIGO DE 1500 LINHAS A PARTIR DAQUI PARA BAIXO
+# (Não precisa dar espaço/indentação extra)
+# ========================================================
+
+st.title("Meu Dashboard Financeiro")
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
