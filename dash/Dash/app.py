@@ -25,25 +25,23 @@ config = {
     'cookie': {'expiry_days': 30, 'key': 'random_signature_key', 'name': 'random_cookie_name'}
 }
 
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days'],
-)
+# 1. Apenas chame o login (sem colocar "name, status =" antes)
+authenticator.login(location='main')
 
-# Cria o widget de login
-name, authentication_status, username = authenticator.login('Login', 'main')
-
-if authentication_status:
-    authenticator.logout('Logout', 'main')
-    st.write(f'Bem-vindo, *{name}*')
-    # --- SEU CÓDIGO AQUI ---
+# 2. Verifique o status acessando o st.session_state
+if st.session_state['authentication_status']:
+    # O botão de logout agora também precisa saber a location
+    authenticator.logout(location='main')  
+    
+    st.write(f'Bem-vindo, *{st.session_state["name"]}*')
+    
+    # --- SEU CÓDIGO PRINCIPAL AQUI ---
     st.title('Área de Investimentos')
     
-elif authentication_status == False:
+elif st.session_state['authentication_status'] is False:
     st.error('Usuário ou senha incorretos')
-elif authentication_status == None:
+    
+elif st.session_state['authentication_status'] is None:
     st.warning('Por favor, insira usuário e senha')
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
