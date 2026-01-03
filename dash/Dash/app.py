@@ -912,7 +912,6 @@ def main():
                 lucro_real_total = df_detalhes['Lucro Realizado (BRL)'].sum()
 
                 st.markdown("---")
-                st.markdown("---")
                 st.markdown("### 🏅 Destaques — Lucro NÃO Realizado (BRL)")
                 df_rank = df_kpi.sort_values('Lucro Não Realizado (BRL)', ascending=False)
                 col_top, col_bottom = st.columns(2)
@@ -925,18 +924,40 @@ def main():
 
                 st.markdown("---")
                 st.markdown("### 📊 Tabela Consolidada — Ativos Atuais + Encerrados")
+
+                # 1. Criamos a coluna que soma tudo: Lucro de posição aberta + Lucro já realizado + Dividendos
+                df_detalhes['Resultado Total (R$)'] = (
+                    df_detalhes['Lucro Não Realizado (BRL)'].fillna(0) + 
+                    df_detalhes['Lucro Realizado (BRL)'].fillna(0) + 
+                    df_detalhes['Proventos (R$)'].fillna(0)
+                )
+
+                # 2. Adicionamos essa nova coluna na seleção da tabela
                 tabela = df_detalhes.rename(columns={'Valor Atual BRL': 'Valor Mercado (R$)'})[[
                     'Ticker', 'Setor', 'Moeda', 'Qtd', 'PM Compra', 'Preço Atual',
                     'Custo BRL', 'Valor Mercado (R$)', 'Volume Vendas (R$)',
-                    'Lucro Não Realizado (BRL)', 'Lucro Realizado (BRL)', 'Proventos (R$)', 'Rent. BRL (%)'
+                    'Lucro Não Realizado (BRL)', 'Lucro Realizado (BRL)', 'Proventos (R$)', 
+                    'Resultado Total (R$)', 'Rent. BRL (%)'
                 ]].copy()
+
                 tabela = tabela.sort_values('Valor Mercado (R$)', ascending=False)
+
+                # 3. Ajustamos a formatação para incluir a nova coluna e aplicamos o gradiente nela
                 st.dataframe(tabela.style.format({
-                    'Qtd': '{:,.2f}', 'PM Compra': '{:,.2f}', 'Preço Atual': '{:,.2f}',
-                    'Custo BRL': 'R$ {:,.2f}', 'Valor Mercado (R$)': 'R$ {:,.2f}', 
-                    'Volume Vendas (R$)': 'R$ {:,.2f}', 'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
-                    'Lucro Realizado (BRL)': 'R$ {:,.2f}', 'Proventos (R$)': 'R$ {:,.2f}', 'Rent. BRL (%)': '{:.2f}%'
-                }).background_gradient(subset=['Lucro Não Realizado (BRL)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
+                    'Qtd': '{:,.2f}', 
+                    'PM Compra': '{:,.2f}', 
+                    'Preço Atual': '{:,.2f}',
+                    'Custo BRL': 'R$ {:,.2f}', 
+                    'Valor Mercado (R$)': 'R$ {:,.2f}', 
+                    'Volume Vendas (R$)': 'R$ {:,.2f}', 
+                    'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
+                    'Lucro Realizado (BRL)': 'R$ {:,.2f}', 
+                    'Proventos (R$)': 'R$ {:,.2f}', 
+                    'Resultado Total (R$)': 'R$ {:,.2f}',  # Formatação da nova coluna
+                    'Rent. BRL (%)': '{:.2f}%'
+                })
+                # O gradiente agora destaca o Resultado Total, que é o que importa no final das contas
+                .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
                 .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1), use_container_width=True, height=600)
             else: 
                 st.info("Nenhuma posição de Renda Variável encontrada.")
