@@ -33,7 +33,7 @@ authenticator = stauth.Authenticate(
 )
 
 # Cria o widget de login
-name, authentication_status, username = authenticator.login('Login', 'main')
+name, authentication_status, username = authenticator.login(location='main')
 
 if authentication_status:
     authenticator.logout('Logout', 'main')
