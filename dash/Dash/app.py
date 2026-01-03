@@ -7,7 +7,6 @@ import os
 import numpy as np
 from datetime import datetime, date
 
-
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Carteira de Investimentos",
