@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go  
 import os
 import numpy as np
+import shutil
 from datetime import datetime, date
 
 
@@ -336,11 +337,247 @@ def obter_precos_online(tickers):
                 
     return mapa_precos
 
+# --- FUNÇÃO DA NOVA TAB: EDITOR DE DADOS (InvesTool Pro) ---
+def exibir_editor_dados():
+    st.header("📝 Editor de Registros & Lançamentos")
+    st.caption("Adicione, edite ou corrija transações. O sistema fará um backup automático antes de salvar.")
+
+    # --- CONFIGURAÇÃO DOS ARQUIVOS (METADADOS) ---
+    FILES_CONFIG = {
+        "meus_ativos.csv": {
+            "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
+            "icon": "📈", "label": "Ações & ETFs", "date_cols": ["Data"],
+            "form_fields": {
+                "Símbolo": "text_suggest", "Tipo de transação": ["Compra", "Venda"], 
+                "Quantidade": "number", "Preço": "currency", "Corretora": ["IBKR", "XP", "Avenue", "Binance"],
+                "Moeda": ["USD", "BRL"], "Data": "date"
+            },
+            "column_types": {
+                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "Tipo de transação": st.column_config.SelectboxColumn("Operação", options=["Compra", "Venda"]),
+                "Símbolo": st.column_config.TextColumn("Ticker", width="small", validate="^[A-Za-z0-9.]+$"),
+                "Quantidade": st.column_config.NumberColumn("Qtd", format="%.4f"),
+                "Preço": st.column_config.NumberColumn("Preço", format="$ %.2f"),
+                "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f"),
+                "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"]),
+            }
+        },
+        "meus_proventos.csv": {
+            "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
+            "icon": "💵", "label": "Proventos", "date_cols": ["data"],
+            "form_fields": {
+                "ticker": "text_suggest", "data": "date",
+                "lancamento": ["Dividendo", "JUROS S/ CAPITAL", "Rendimento", "Imposto"],
+                "categoria": ["Ação", "Ação Internacional", "FII", "ETF", "BDR"],
+                "valor": "currency", "moeda": ["USD", "BRL", "EUR"]
+            },
+            "column_types": {
+                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "ticker": st.column_config.TextColumn("Ticker", width="small"),
+                "lancamento": st.column_config.SelectboxColumn("Lançamento", options=["Dividendo", "JUROS S/ CAPITAL", "Rendimento", "Imposto"]),
+                "categoria": st.column_config.SelectboxColumn("Categoria", options=["Ação", "Ação Internacional", "FII"]),
+                "valor": st.column_config.NumberColumn("Valor", format="%.2f"),
+                "mes": st.column_config.TextColumn("Mês Ref", disabled=True)
+            }
+        },
+        "renda_fixa.csv": {
+            "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
+            "icon": "💰", "label": "Renda Fixa", "date_cols": ["Compra"],
+            "form_fields": {
+                "Ticker": "text_suggest", "Valor": "currency", "Valor atual": "currency",
+                "Tipo de transação": ["Compra", "Venda", "Resgate", "Vencimento"], "Compra": "date"
+            },
+            "column_types": {
+                "Compra": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "Valor": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
+                "Valor atual": st.column_config.NumberColumn("Atual", format="R$ %.2f"),
+                "Tipo de transação": st.column_config.SelectboxColumn("Tipo", options=["Compra", "Venda", "Resgate", "Vencimento"]),
+            }
+        },
+        "cambio.csv": {
+            "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
+            "icon": "💱", "label": "Câmbio", "date_cols": ["Data"],
+            "form_fields": {
+                "Moeda Origem": ["BRL", "USD", "EUR"], "Moeda Destino": ["USD", "BRL", "EUR"],
+                "Valor Total entrada": "currency", "Valor Total saída": "currency", "Data": "date"
+            },
+            "column_types": {
+                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "VET": st.column_config.NumberColumn("VET", format="%.4f"),
+                "Valor Total entrada": st.column_config.NumberColumn("Entrada", format="%.2f"),
+                "Valor Total saída": st.column_config.NumberColumn("Saída", format="%.2f")
+            }
+        },
+        "composicao.csv": {
+            "sep": ";", "decimal": ".", "thousands": ",", "encoding": "utf-8",
+            "icon": "📊", "label": "Composição (Carteira)", "date_cols": [],
+            "form_fields": {
+                "Símbolo (Symbol)": "text", "Descrição (Description)": "text", 
+                "Valor Líquido (Net Value)": "currency", 
+                "Setor (Sector)": ["Technology", "Financials", "Healthcare", "Consumer", "Cash"]
+            },
+            "column_types": {
+                "Valor Líquido (Net Value)": st.column_config.NumberColumn("Valor Líquido", format="$ %.2f"),
+                "Setor (Sector)": st.column_config.SelectboxColumn("Setor", options=["Technology", "Financials", "Consumer", "Cash"])
+            }
+        }
+    }
+
+    # Helpers Internos do Editor
+    def get_file_path(filename):
+        return os.path.join(PASTA_ATUAL, filename)
+
+    def backup_file(filepath):
+        if os.path.exists(filepath):
+            try:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_dir = os.path.join(PASTA_ATUAL, "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                shutil.copy(filepath, os.path.join(backup_dir, f"{os.path.basename(filepath)}_{timestamp}.bak"))
+            except: pass
+
+    def load_data_editor(filename, config):
+        filepath = get_file_path(filename)
+        if not os.path.exists(filepath): return None
+        try:
+            df = pd.read_csv(filepath, sep=config["sep"], decimal=config["decimal"], 
+                           thousands=config.get("thousands"), encoding=config["encoding"])
+            for col in config.get("date_cols", []):
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
+            return df
+        except Exception as e:
+            st.error(f"Erro leitura: {e}"); return None
+
+    # --- SELEÇÃO DO ARQUIVO (No topo da aba) ---
+    col_sel, col_btn = st.columns([3, 1])
+    with col_sel:
+        selected_key = st.selectbox(
+            "Selecione o Arquivo para Editar:", list(FILES_CONFIG.keys()),
+            format_func=lambda x: f"{FILES_CONFIG[x]['icon']} {FILES_CONFIG[x]['label']}"
+        )
+    with col_btn:
+        st.write("") # Espaçamento
+        st.write("") 
+        if st.button("🔄 Recarregar Tabela", use_container_width=True):
+            st.session_state.pop('editor_df', None)
+            st.rerun()
+
+    # Estado Local do Editor
+    if 'editor_df' not in st.session_state or st.session_state.get('editor_file') != selected_key:
+        st.session_state.editor_file = selected_key
+        st.session_state.editor_df = load_data_editor(selected_key, FILES_CONFIG[selected_key])
+
+    df = st.session_state.editor_df
+    cfg = FILES_CONFIG[selected_key]
+    filepath = get_file_path(selected_key)
+
+    if df is not None:
+        # --- ÁREA DE INPUT RÁPIDO ---
+        with st.expander("⚡ Adicionar Novo Lançamento", expanded=False):
+            form_cols = st.columns(4)
+            input_data = {}
+            
+            # Histórico para sugestões
+            history_tickers = []
+            if not df.empty:
+                possible_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
+                for c in possible_cols:
+                    if c in df.columns:
+                        history_tickers = df[c].dropna().unique().tolist()
+                        break
+            
+            fields = cfg.get("form_fields", {})
+            idx = 0
+            for field_name, field_type in fields.items():
+                c = form_cols[idx % 4]
+                idx += 1
+                
+                if field_type == "text_suggest":
+                    # Dropdown com opção de digitar
+                    val_sel = c.selectbox(f"{field_name}", options=[""] + sorted([str(x) for x in history_tickers]), key=f"in_{field_name}")
+                    if val_sel == "":
+                        input_data[field_name] = c.text_input(f"Novo {field_name}?", key=f"in_new_{field_name}")
+                    else:
+                        input_data[field_name] = val_sel
+                elif isinstance(field_type, list):
+                    input_data[field_name] = c.selectbox(field_name, options=field_type, key=f"in_{field_name}")
+                elif field_type == "text":
+                    input_data[field_name] = c.text_input(field_name, key=f"in_{field_name}")
+                elif field_type == "date":
+                    input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY", key=f"in_{field_name}")
+                elif field_type == "currency" or field_type == "number":
+                    input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f", key=f"in_{field_name}")
+
+            if st.button("➕ Adicionar Linha", type="primary"):
+                if any(str(v).strip() == "" for v in input_data.values()):
+                    st.warning("Preencha todos os campos.")
+                else:
+                    new_row = pd.DataFrame([input_data])
+                    
+                    # Regras específicas de Proventos
+                    if selected_key == "meus_proventos.csv":
+                        d_obj = pd.to_datetime(input_data['data'])
+                        meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
+                        new_row['mes'] = f"{meses[d_obj.month]}/{str(d_obj.year)[-2:]}"
+                        new_row['ano'] = d_obj.year
+                        # Compatibilidade com campos antigos
+                        if 'decisao' in df.columns: new_row['decisao'] = input_data['lancamento']
+
+                    # Padroniza Datas no DF
+                    for d_col in cfg.get("date_cols", []):
+                        if d_col in new_row.columns: new_row[d_col] = pd.to_datetime(new_row[d_col])
+
+                    st.session_state.editor_df = pd.concat([st.session_state.editor_df, new_row], ignore_index=True)
+                    st.rerun()
+
+        st.markdown("---")
+        
+        # --- TABELA EDITÁVEL (GRID) ---
+        df_edited = st.data_editor(
+            st.session_state.editor_df,
+            column_config=cfg.get("column_types", {}),
+            num_rows="dynamic",
+            use_container_width=True,
+            height=500,
+            key=f"editor_grid_{selected_key}"
+        )
+
+        col_save, col_discard = st.columns([1, 4])
+        with col_save:
+            if st.button("💾 SALVAR DEFINITIVO", type="primary", use_container_width=True):
+                try:
+                    backup_file(filepath)
+                    final_df = df_edited.copy()
+                    
+                    # Converte datas para string no formato do CSV original antes de salvar
+                    for d_col in cfg.get("date_cols", []):
+                        if d_col in final_df.columns:
+                             final_df[d_col] = pd.to_datetime(final_df[d_col]).dt.strftime('%d/%m/%Y')
+                    
+                    final_df.to_csv(filepath, sep=cfg["sep"], decimal=cfg["decimal"], index=False, encoding=cfg["encoding"])
+                    st.session_state.editor_df = df_edited
+                    
+                    # Limpa o cache do streamlit para que os gráficos atualizem na hora!
+                    st.cache_data.clear()
+                    
+                    st.toast("Arquivo salvo com sucesso! Dashboard atualizado.", icon="✅")
+                    
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+        
+        with col_discard:
+            if st.button("❌ Descartar Alterações"):
+                st.session_state.pop('editor_df', None)
+                st.rerun()
+    else:
+        st.error(f"Arquivo {selected_key} não encontrado na pasta: {PASTA_ATUAL}")
+
 # --- DASHBOARD PRINCIPAL ---
 def main():
     with st.sidebar:
         st.header("🔍 Filtros Globais")
-        if st.button("🔄 Atualizar Dados"):
+        if st.button("🔄 Atualizar Dados", key="btn_sidebar_refresh_master"):
             st.cache_data.clear()
             st.rerun()
         
@@ -735,8 +972,9 @@ def main():
 
     st.markdown("---")
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📊 Consolidado", "📋 Renda Variável - Detalhamento", "₿ Cripto/Específico", "💱 Câmbio", "💰 Proventos", "🦁 Imposto", "🏦 Renda Fixa"
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📊 Consolidado", "📋 Renda Variável - Detalhamento", "₿ Cripto/Específico", 
+        "💱 Câmbio", "💰 Proventos", "🦁 Imposto", "🏦 Renda Fixa", "✏️ Editor de Dados"
     ])
     
     with tab1:
@@ -1902,6 +2140,8 @@ def main():
             )
         elif opcao_ativo == "Não" and df_realizado.empty:
             st.info("Nenhum histórico de operações finalizadas encontrado.")
+    with tab8:
+        exibir_editor_dados()
 
 if __name__ == "__main__":
-    main()
+    main()            
