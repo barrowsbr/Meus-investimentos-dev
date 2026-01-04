@@ -1587,31 +1587,34 @@ def main():
 
     with tab6:
         st.subheader("🦁 Central Fiscal Inteligente (Brasil & Exterior)")
-        st.info("ℹ️ **Compliance:** Apuração pelo regime de competência (Mês da Venda).")
+        st.info("ℹ️ **Compliance:** Apuração pelo regime de competência (Mês da Venda). Compensação de prejuízos automática na mesma categoria.")
 
-        # --- 1. ENGINE FISCAL (CÁLCULO DE LUCRO REAL) ---
-        df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() else pd.DataFrame()
-        
-        carteira_tax_br = {}   
-        carteira_tax_ex = {}   
-        transacoes_fiscais = []
+        # --- 0. FUNÇÕES AUXILIARES ---
+        def obter_ptax(data_operacao):
+            return 5.50  # Placeholder
 
         def classificar_ativo_fiscal(ticker, mercado='BR'):
             t = str(ticker).upper().strip()
             if mercado == 'BR':
                 lista_fiis = ['KNCR11', 'HGCR11', 'HGLG11', 'MXRF11', 'XPML11', 'HCTR11', 'DEVA11', 'CPTS11']
                 if any(fii in t for fii in lista_fiis) or (t.endswith('11') and 'FII' in t): 
-                    return 'FII', 0.20, False 
+                    return 'FII', 0.20, False # FIIs não misturam com Ações/ETFs
                 
                 etfs_br = ['BOVA11', 'SMAL11', 'IVVB11', 'HASH11', 'WRLD11']
-                if t in etfs_br: return 'ETF', 0.15, False
+                if t in etfs_br: return 'ETF', 0.15, False # ETF entra no bolo "Comum" mas sem isenção 20k
                 
-                return 'Ações BR', 0.15, True 
+                return 'Ações', 0.15, True # Swing Trade Ações
             else:
-                if t in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC']: return 'Cripto', 0.15, True
+                if t in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC']: return 'Criptomoedas', 0.15, True
                 return 'Ativos Financeiros Exterior', 0.15, False
 
-        # --- PROCESSAMENTO (Engine Mantida, foco no UX abaixo) ---
+        # --- 1. ENGINE DE DADOS (PREPARAÇÃO) ---
+        df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() else pd.DataFrame()
+        
+        carteira_tax_br = {}   
+        carteira_tax_ex = {}   
+        transacoes_fiscais = []
+
         if not df_tax.empty:
             for _, row in df_tax.iterrows():
                 tkr = row['ticker']
@@ -1621,12 +1624,11 @@ def main():
                 data_op = row['data']
                 
                 eh_exterior = False
-                moeda_origem = 'BRL'
-                # Regra simples de detecção exterior
                 if '.SA' not in tkr and (len(tkr) <= 5 or tkr in ['VT', 'VNQ', 'VOO', 'DPM', 'ASML', 'TSM']):
-                     eh_exterior = True
+                      eh_exterior = True
                 
                 if not eh_exterior:
+                    # --- LÓGICA BRASIL ---
                     classe, aliquota, tem_isencao = classificar_ativo_fiscal(tkr, 'BR')
                     if tkr not in carteira_tax_br: carteira_tax_br[tkr] = {'qtd': 0.0, 'custo_total': 0.0}
                     
@@ -1650,20 +1652,23 @@ def main():
                             'ano': data_op.year,
                             'ticker': tkr,
                             'jurisdicao': 'Brasil',
-                            'classe': classe,
+                            'classe': classe, # Ações, ETF ou FII
                             'aliquota': aliquota,
                             'regra_isencao': tem_isencao,
                             'volume_venda': valor_venda_total,
-                            'lucro_apurado': lucro_brl
+                            'lucro_apurado': lucro_brl,
+                            # Colunas placeholder para exterior
+                            'ptax_compra': None, 'valor_compra_brl': None, 'ptax_venda': None
                         })
                 else:
-                    # Lógica Exterior (Simplificada para manter compatibilidade)
+                    # --- LÓGICA EXTERIOR (Simplificada para manter foco na BR) ---
                     classe, aliquota, tem_isencao = classificar_ativo_fiscal(tkr, 'EX')
-                    ptax_dia = 5.50 
+                    ptax_dia = obter_ptax(data_op)
+                    
                     if tkr not in carteira_tax_ex: carteira_tax_ex[tkr] = {'qtd': 0.0, 'custo_total_brl': 0.0}
                     
                     if 'compra' in tipo:
-                        custo_reais = (qtd * preco_operacao) * ptax_dia
+                        custo_reais = (qtd * preco_operacao) * ptax_dia 
                         carteira_tax_ex[tkr]['qtd'] += qtd
                         carteira_tax_ex[tkr]['custo_total_brl'] += custo_reais
                     
@@ -1686,116 +1691,207 @@ def main():
                             'aliquota': aliquota,
                             'regra_isencao': tem_isencao,
                             'volume_venda': valor_venda_reais,
-                            'lucro_apurado': lucro_cambial_real
+                            'lucro_apurado': lucro_cambial_real,
+                            'ptax_compra': 0, 'valor_compra_brl': custo_venda_reais, 'ptax_venda': ptax_dia
                         })
 
         df_fiscal = pd.DataFrame(transacoes_fiscais)
 
-        # --- 2. INTERFACE REFINADA ---
+        # --- 2. APURAÇÃO MENSAL ---
         if not df_fiscal.empty:
             anos_disponiveis = sorted(df_fiscal['ano'].unique(), reverse=True)
-            col_ano, col_gap = st.columns([1, 4])
+            col_ano, _ = st.columns([1, 4])
             with col_ano:
-                ano_sel = st.selectbox("Ano Base:", anos_disponiveis)
+                ano_sel = st.selectbox("Ano Fiscal:", anos_disponiveis)
             
             df_ano = df_fiscal[df_fiscal['ano'] == ano_sel]
 
-            t_br, t_ex = st.tabs(["🇧🇷 Apuração Mensal (B3)", "🇺🇸 Apuração Anual (Offshore)"])
+            t_br, t_ex = st.tabs(["🇧🇷 Apuração Mensal (DARF)", "🇺🇸 Apuração Anual"])
             
-            # --- TAB A: BRASIL ---
+            # --- TAB A: BRASIL - Lógica de Compensação ---
             with t_br:
                 df_br = df_ano[df_ano['jurisdicao'] == 'Brasil'].copy()
                 
                 if not df_br.empty:
-                    df_consolidado_br = df_br.groupby(['competencia', 'classe']).agg({
-                        'volume_venda': 'sum',
-                        'lucro_apurado': 'sum',
-                        'aliquota': 'first',
-                        'regra_isencao': 'first'
-                    }).reset_index().sort_values('competencia')
-
-                    # Lógica de Status para UX
-                    def definir_status(row):
-                        lucro = row['lucro_apurado']
-                        venda = row['volume_venda']
-                        
-                        if lucro <= 0: 
-                            return "Prejuízo (Compensável)", 0.0
-                        
-                        if row['regra_isencao'] and venda < 20000:
-                            return "Isento (Vendas < 20k)", 0.0
-                        
-                        imp = lucro * row['aliquota']
-                        return "Tributável", imp
-
-                    # Aplica lógica
-                    res = df_consolidado_br.apply(definir_status, axis=1, result_type='expand')
-                    df_consolidado_br['Status'] = res[0]
-                    df_consolidado_br['DARF'] = res[1]
-
-                    # Totais
-                    total_darf_br = df_consolidado_br['DARF'].sum()
-                    col_k1, col_k2 = st.columns(2)
-                    col_k1.metric("DARF Total (Ano)", f"R$ {total_darf_br:,.2f}")
-                    col_k2.markdown("###### Status do Período")
-                    if total_darf_br > 0:
-                        col_k2.warning("⚠️ Imposto a pagar identificado.")
-                    else:
-                        col_k2.success("✅ Nenhuma pendência fiscal apurada.")
-
-                    # Tabela Visual Profissional (Column Config)
+                    # Passo 1: Mostrar todas as operações individuais primeiro
+                    st.markdown("##### 1. Detalhamento das Operações")
                     st.dataframe(
-                        df_consolidado_br[['competencia', 'classe', 'volume_venda', 'lucro_apurado', 'aliquota', 'Status', 'DARF']],
+                        df_br[['data', 'ticker', 'classe', 'volume_venda', 'lucro_apurado']],
                         column_config={
-                            "competencia": st.column_config.TextColumn("Mês"),
-                            "classe": st.column_config.TextColumn("Classe de Ativo"),
-                            "volume_venda": st.column_config.NumberColumn("Total Vendas", format="R$ %.2f"),
-                            "lucro_apurado": st.column_config.NumberColumn("Lucro/Prejuízo Real", format="R$ %.2f"),
-                            "aliquota": st.column_config.NumberColumn("Alíquota", format="%.0f%%"), # Formata 0.15 como 15%
-                            "Status": st.column_config.Column(
-                                "Situação Fiscal",
-                                help="Motivo da isenção ou tributação",
-                                width="medium"
-                            ),
-                            "DARF": st.column_config.NumberColumn("DARF a Pagar", format="R$ %.2f")
+                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            "lucro_apurado": st.column_config.NumberColumn("Resultado", format="R$ %.2f"),
+                            "volume_venda": st.column_config.NumberColumn("Venda Total", format="R$ %.2f"),
                         },
-                        hide_index=True,
-                        use_container_width=True
+                        hide_index=True, use_container_width=True
                     )
+
+                    st.divider()
+                    st.markdown("##### 2. Calculadora de DARF (Mensal)")
+                    
+                    # --- CORE DA LÓGICA FISCAL ---
+                    # Agrupar dados por mês para processar o netting
+                    meses_unicos = sorted(df_br['competencia'].unique())
+                    
+                    # Saldos de prejuízo acumulado (carregados mês a mês)
+                    # "Comum" inclui Ações + ETF. "FII" é separado.
+                    prejuizo_acum_comum = 0.0
+                    prejuizo_acum_fii = 0.0
+                    
+                    resumo_darf = []
+
+                    for mes in meses_unicos:
+                        df_m = df_br[df_br['competencia'] == mes]
+                        
+                        # --- BUCKET 1: OPERAÇÕES COMUNS (Ações + ETFs) ---
+                        # Aqui acontece a mágica: Lucro IVVB11 soma com Prejuízo VALE3
+                        df_acoes = df_m[df_m['classe'] == 'Ações']
+                        df_etf = df_m[df_m['classe'] == 'ETF']
+                        
+                        # Vendas totais de AÇÕES no mês (para regra dos 20k)
+                        vendas_acoes = df_acoes['volume_venda'].sum()
+                        lucro_acoes = df_acoes['lucro_apurado'].sum()
+                        
+                        lucro_etf = df_etf['lucro_apurado'].sum() # ETF paga 15% sempre, não tem isenção 20k
+                        
+                        # Regra de Isenção 20k: 
+                        # Se vendeu < 20k em AÇÕES e teve LUCRO, esse lucro é isento.
+                        # Se teve PREJUÍZO em Ações, ele conta para abater sempre.
+                        lucro_tributavel_acoes = 0.0
+                        
+                        if vendas_acoes < 20000 and lucro_acoes > 0:
+                            lucro_tributavel_acoes = 0.0 # Isento
+                        else:
+                            lucro_tributavel_acoes = lucro_acoes # Tributável ou Prejuízo (negativo)
+                        
+                        # Resultado Líquido do Mês (Bucket Comum)
+                        # Ex: Prejuizo VALE (-1000) + Lucro IVVB (1500) = Resultado Bruto (+500)
+                        resultado_bruto_comum = lucro_tributavel_acoes + lucro_etf
+                        
+                        # Compensação de Prejuízos Anteriores
+                        base_calculo_comum = 0.0
+                        abatimento_comum = 0.0
+                        
+                        if resultado_bruto_comum > 0:
+                            # Tentar abater com prejuízo acumulado
+                            if prejuizo_acum_comum < 0:
+                                # Se tenho lucro de 500 e prejuizo de -200: Sobra 300 base
+                                # Se tenho lucro de 500 e prejuizo de -800: Sobra -300 prejuizo, base 0
+                                saldo_temp = resultado_bruto_comum + prejuizo_acum_comum
+                                if saldo_temp > 0:
+                                    abatimento_comum = prejuizo_acum_comum # Usei tudo que tinha
+                                    base_calculo_comum = saldo_temp
+                                    prejuizo_acum_comum = 0.0
+                                else:
+                                    abatimento_comum = resultado_bruto_comum # Usei parte do prejuizo para zerar o lucro
+                                    base_calculo_comum = 0.0
+                                    prejuizo_acum_comum = saldo_temp
+                            else:
+                                base_calculo_comum = resultado_bruto_comum
+                        else:
+                            # Se o resultado do mês já foi negativo, acumula no prejuízo
+                            prejuizo_acum_comum += resultado_bruto_comum
+                            base_calculo_comum = 0.0
+
+                        imposto_comum = base_calculo_comum * 0.15
+
+                        # --- BUCKET 2: FIIs (Separado) ---
+                        df_fii = df_m[df_m['classe'] == 'FII']
+                        resultado_fii = df_fii['lucro_apurado'].sum()
+                        
+                        base_calculo_fii = 0.0
+                        abatimento_fii = 0.0
+                        
+                        if resultado_fii > 0:
+                            if prejuizo_acum_fii < 0:
+                                saldo_temp_fii = resultado_fii + prejuizo_acum_fii
+                                if saldo_temp_fii > 0:
+                                    abatimento_fii = prejuizo_acum_fii
+                                    base_calculo_fii = saldo_temp_fii
+                                    prejuizo_acum_fii = 0.0
+                                else:
+                                    abatimento_fii = resultado_fii
+                                    base_calculo_fii = 0.0
+                                    prejuizo_acum_fii = saldo_temp_fii
+                            else:
+                                base_calculo_fii = resultado_fii
+                        else:
+                            prejuizo_acum_fii += resultado_fii
+                        
+                        imposto_fii = base_calculo_fii * 0.20
+
+                        # Salvar linha do mês
+                        resumo_darf.append({
+                            'Mês': mes,
+                            'Res. Ações': lucro_acoes,
+                            'Res. ETF': lucro_etf,
+                            'Res. FII': resultado_fii,
+                            'Saldo Prejuízo Ant. (Comum)': prejuizo_acum_comum, # Visualizar o que sobrou
+                            'Prejuízo Abatido': abatimento_comum, # O que o usuário pediu para ver descontando
+                            'Base DARF (15%)': base_calculo_comum,
+                            'Base DARF (20%)': base_calculo_fii,
+                            'DARF Total': imposto_comum + imposto_fii
+                        })
+
+                    df_darf_view = pd.DataFrame(resumo_darf)
+                    
+                    # Exibição da Tabela "Smart"
+                    st.dataframe(
+                        df_darf_view,
+                        column_config={
+                            "Mês": st.column_config.TextColumn("Competência"),
+                            "Res. Ações": st.column_config.NumberColumn("Res. Ações", format="R$ %.2f"),
+                            "Res. ETF": st.column_config.NumberColumn("Res. ETF", format="R$ %.2f"),
+                            "Prejuízo Abatido": st.column_config.NumberColumn("Prej. Compensado", format="R$ %.2f", help="Valor descontado da base de cálculo"),
+                            "Base DARF (15%)": st.column_config.NumberColumn("Base Tributável (15%)", format="R$ %.2f"),
+                            "Base DARF (20%)": st.column_config.NumberColumn("Base FII (20%)", format="R$ %.2f"),
+                            "DARF Total": st.column_config.NumberColumn("DARF a Pagar", format="R$ %.2f")
+                        },
+                        hide_index=True, use_container_width=True
+                    )
+                    
+                    total_pagar = df_darf_view['DARF Total'].sum()
+                    if total_pagar > 0:
+                        st.error(f"💸 **Total Acumulado de DARF no ano:** R$ {total_pagar:,.2f}")
+                    else:
+                        st.success("✅ Você não tem impostos a pagar neste ano (Isento ou Prejuízo compensado).")
+
                 else:
-                    st.info("Sem operações no Brasil para este ano.")
+                    st.info("Sem operações no Brasil.")
 
             # --- TAB B: EXTERIOR ---
             with t_ex:
                 df_ex = df_ano[df_ano['jurisdicao'] == 'Exterior'].copy()
                 if not df_ex.empty:
-                    # Lógica Financeira (Lei 14.754)
-                    df_fin = df_ex[df_ex['classe'] == 'Ativos Financeiros Exterior']
-                    lucro_anual = df_fin['lucro_apurado'].sum()
-                    imposto_anual = max(0, lucro_anual * 0.15)
+                    st.markdown("### 🇺🇸 Detalhamento de Operações (Dólar PTAX)")
                     
-                    c1, c2 = st.columns(2)
-                    c1.metric("Resultado Global (Netting)", f"R$ {lucro_anual:,.2f}", 
-                             delta="Base de Cálculo Anual", delta_color="off")
-                    c2.metric("Imposto Devido (AAI)", f"R$ {imposto_anual:,.2f}", 
-                             help="Pagar na Declaração Anual")
+                    df_ex_view = df_ex[[
+                        'data', 'ticker', 
+                        'ptax_compra', 'valor_compra_brl', 
+                        'ptax_venda', 'volume_venda', 
+                        'lucro_apurado'
+                    ]].copy()
 
-                    st.markdown("##### Extrato de Operações (Exterior)")
                     st.dataframe(
-                        df_fin[['data', 'ticker', 'volume_venda', 'lucro_apurado']],
+                        df_ex_view,
                         column_config={
-                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                            "ticker": "Ativo",
-                            "volume_venda": st.column_config.NumberColumn("Venda (R$ PTAX)", format="R$ %.2f"),
+                            "data": st.column_config.DateColumn("Data Venda", format="DD/MM/YYYY"),
+                            "ptax_compra": st.column_config.NumberColumn("PTax Compra (Médio)", format="R$ %.4f"),
+                            "valor_compra_brl": st.column_config.NumberColumn("Valor Real (Compra)", format="R$ %.2f"),
+                            "ptax_venda": st.column_config.NumberColumn("PTax Venda", format="R$ %.4f"),
+                            "volume_venda": st.column_config.NumberColumn("Valor Real (Venda)", format="R$ %.2f"),
                             "lucro_apurado": st.column_config.NumberColumn("Ganho de Capital", format="R$ %.2f")
                         },
-                        hide_index=True,
-                        use_container_width=True
+                        hide_index=True, use_container_width=True
                     )
+                    
+                    lucro_global = df_ex['lucro_apurado'].sum()
+                    imposto_anual_real = max(0, lucro_global * 0.15)
+
+                    c1, c2 = st.columns(2)
+                    c1.metric("Lucro Líquido Anual", f"R$ {lucro_global:,.2f}")
+                    c2.metric("Imposto Devido (AAI)", f"R$ {imposto_anual_real:,.2f}")
                 else:
                     st.info("Sem operações no exterior.")
-        else:
-            st.warning("Nenhuma venda encontrada para gerar relatório fiscal.")
 
     with tab7:
         st.subheader("🏦 Gestão de Renda Fixa & Liquidez")
