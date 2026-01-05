@@ -2,15 +2,17 @@ import streamlit as st
 import pandas as pd
 import os
 import shutil
+import sqlite3
 from datetime import datetime
 
 # --- CONFIGURAÇÃO ---
-# AJUSTE REALIZADO: ".." indica para o sistema buscar os arquivos na pasta ANTERIOR (a pasta Dash)
-PASTA_DADOS = ".."
+PASTA_DADOS = "Dash" # Caminho onde está o investimentos.db
+NOME_DB = "investimentos.db"
+CAMINHO_DB = os.path.join(PASTA_DADOS, NOME_DB)
 
-st.set_page_config(page_title="Investment Pro", layout="wide", page_icon="🏦")
+st.set_page_config(page_title="Investment Editor SQL", layout="wide", page_icon="🗄️")
 
-# --- CSS CUSTOMIZADO PARA VISUAL "PRO" ---
+# --- CSS CUSTOMIZADO ---
 st.markdown("""
 <style>
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
@@ -18,27 +20,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 1. CONFIGURAÇÃO DOS METADADOS (INTELIGÊNCIA DO SISTEMA) ---
-FILES_CONFIG = {
-    "renda_fixa.csv": {
-        "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
-        "icon": "💰",
-        "label": "Renda Fixa",
-        "date_cols": ["Compra"],
-        "form_fields": {
-            "Ticker": "text_suggest", "Valor": "currency", "Valor atual": "currency",
-            "Tipo de transação": ["Compra", "Venda", "Resgate", "Vencimento"], "Compra": "date"
-        },
-        "column_types": {
-            "Compra": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-            "Valor": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
-            "Valor atual": st.column_config.NumberColumn("Atual", format="R$ %.2f"),
-            "Tipo de transação": st.column_config.SelectboxColumn("Tipo", options=["Compra", "Venda", "Resgate", "Vencimento"]),
-        }
-    },
-    "meus_ativos.csv": {
-        "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
-        "icon": "📈",
+# --- 1. CONFIGURAÇÃO (AGORA MAPEANDO TABELAS DO BANCO) ---
+# Removemos configurações de CSV (sep, decimal) pois o SQL não precisa.
+TABLES_CONFIG = {
+    "meus_ativos": {
+        "icon": "📈", 
         "label": "Ações & ETFs",
         "date_cols": ["Data"],
         "form_fields": {
@@ -56,19 +42,15 @@ FILES_CONFIG = {
             "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"]),
         }
     },
-    # --- PROVENTOS (MANTIDO: DECISÃO -> LANÇAMENTO) ---
-    "meus_proventos.csv": {
-        "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
+    "meus_proventos": {
         "icon": "💵",
         "label": "Proventos",
         "date_cols": ["data"],
         "form_fields": {
-            "ticker": "text_suggest", 
-            "data": "date",
+            "ticker": "text_suggest", "data": "date",
             "lancamento": ["Dividendo", "JUROS S/ CAPITAL", "Rendimento", "Imposto"],
             "categoria": ["Ação", "Ação Internacional", "FII", "ETF", "BDR"],
-            "valor": "currency", 
-            "moeda": ["USD", "BRL", "EUR"]
+            "valor": "currency", "moeda": ["USD", "BRL", "EUR"]
         },
         "column_types": {
             "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
@@ -79,9 +61,22 @@ FILES_CONFIG = {
             "mes": st.column_config.TextColumn("Mês Ref", disabled=True)
         }
     },
-    # -----------------------------------------------------
-    "cambio.csv": {
-        "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
+    "renda_fixa": {
+        "icon": "💰",
+        "label": "Renda Fixa",
+        "date_cols": ["Compra"],
+        "form_fields": {
+            "Ticker": "text_suggest", "Valor": "currency", "Valor atual": "currency",
+            "Tipo de transação": ["Compra", "Venda", "Resgate", "Vencimento"], "Compra": "date"
+        },
+        "column_types": {
+            "Compra": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            "Valor": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
+            "Valor atual": st.column_config.NumberColumn("Atual", format="R$ %.2f"),
+            "Tipo de transação": st.column_config.SelectboxColumn("Tipo", options=["Compra", "Venda", "Resgate", "Vencimento"]),
+        }
+    },
+    "cambio": {
         "icon": "💱",
         "label": "Câmbio",
         "date_cols": ["Data"],
@@ -96,8 +91,7 @@ FILES_CONFIG = {
             "Valor Total saída": st.column_config.NumberColumn("Saída", format="%.2f")
         }
     },
-    "composicao.csv": {
-        "sep": ";", "decimal": ".", "thousands": ",", "encoding": "utf-8",
+    "composicao": {
         "icon": "📊",
         "label": "Composição (Carteira)",
         "date_cols": [],
@@ -113,78 +107,94 @@ FILES_CONFIG = {
     }
 }
 
-# --- 2. FUNÇÕES DE BACKEND ---
-def get_file_path(filename):
-    # Garante que a pasta exista antes de tentar ler
-    if not os.path.exists(PASTA_DADOS):
-        try:
-            os.makedirs(PASTA_DADOS)
-        except:
-            st.error(f"Erro: A pasta {PASTA_DADOS} não foi encontrada e não pôde ser criada.")
-    return os.path.join(PASTA_DADOS, filename)
+# --- 2. FUNÇÕES DE BACKEND (SQLITE) ---
 
-def backup_file(filepath):
-    if os.path.exists(filepath):
+def get_db_connection():
+    """Cria conexão com o banco e retorna o objeto conexão."""
+    if not os.path.exists(CAMINHO_DB):
+        st.error(f"❌ Banco de dados não encontrado em: {CAMINHO_DB}")
+        return None
+    try:
+        return sqlite3.connect('Dash/investimentos.db')
+    except Exception as e:
+        st.error(f"Erro ao conectar no banco: {e}")
+        return None
+
+def backup_db():
+    """Faz backup do arquivo .db inteiro antes de salvar."""
+    if os.path.exists(CAMINHO_DB):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            # Salva backup dentro de Dash/add/backups (ou Dash/backups dependendo do path relativo)
-            backup_dir = os.path.join(PASTA_DADOS, "backups")
+            backup_dir = os.path.join(PASTA_DADOS, "backups_db")
             os.makedirs(backup_dir, exist_ok=True)
-            shutil.copy(filepath, os.path.join(backup_dir, f"{os.path.basename(filepath)}_{timestamp}.bak"))
-        except: pass
+            shutil.copy(CAMINHO_DB, os.path.join(backup_dir, f"{NOME_DB}_{timestamp}.bak"))
+        except Exception as e:
+            print(f"Erro no backup: {e}") # Apenas loga no console para não travar a UI
 
-def load_data_safe(filename, config):
-    filepath = get_file_path(filename)
-    if not os.path.exists(filepath): return None
+def load_data_sql(table_name, config):
+    """Lê a tabela do SQL e converte datas."""
+    conn = get_db_connection()
+    if conn is None: return None
+    
     try:
-        df = pd.read_csv(filepath, sep=config["sep"], decimal=config["decimal"], 
-                           thousands=config.get("thousands"), encoding=config["encoding"])
+        # Lê tudo da tabela
+        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+        conn.close()
+        
+        # Converte colunas de data (SQLite salva como string YYYY-MM-DD)
         for col in config.get("date_cols", []):
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
+            # Procura a coluna ignorando maiúsculas/minúsculas
+            match_col = next((c for c in df.columns if c.lower() == col.lower()), None)
+            if match_col:
+                df[match_col] = pd.to_datetime(df[match_col], errors='coerce')
+        
         return df
     except Exception as e:
-        st.error(f"Erro leitura: {e}"); return None
+        st.error(f"Erro ao ler tabela '{table_name}': {e}")
+        return None
 
 # --- 3. INTERFACE PRINCIPAL ---
 
 with st.sidebar:
-    st.title("InvesTool Pro")
-    selected_key = st.radio(
-        "Selecione o Módulo:", list(FILES_CONFIG.keys()),
-        format_func=lambda x: f"{FILES_CONFIG[x]['icon']} {FILES_CONFIG[x]['label']}"
+    st.title("Editor SQL")
+    # Seleciona a Tabela (Chave do Dict)
+    selected_table = st.radio(
+        "Selecione a Tabela:", list(TABLES_CONFIG.keys()),
+        format_func=lambda x: f"{TABLES_CONFIG[x]['icon']} {TABLES_CONFIG[x]['label']}"
     )
     st.divider()
-    if st.button("🔄 Forçar Recarga dos Dados"):
-        for key in st.session_state.keys(): del st.session_state[key]
+    if st.button("🔄 Recarregar Dados"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
-if 'current_df' not in st.session_state or st.session_state.get('loaded_file') != selected_key:
-    st.session_state.loaded_file = selected_key
-    st.session_state.current_df = load_data_safe(selected_key, FILES_CONFIG[selected_key])
+# Lógica de Carregamento (Session State)
+if 'current_df' not in st.session_state or st.session_state.get('loaded_table') != selected_table:
+    st.session_state.loaded_table = selected_table
+    st.session_state.current_df = load_data_sql(selected_table, TABLES_CONFIG[selected_table])
 
 df = st.session_state.current_df
-cfg = FILES_CONFIG[selected_key]
-filepath = get_file_path(selected_key)
+cfg = TABLES_CONFIG[selected_table]
 
 col_tit, col_act = st.columns([4, 1])
-with col_tit: st.subheader(f"{cfg['icon']} Gestão de {cfg['label']}")
-with col_act: st.caption(f"Arquivo: {selected_key}")
+with col_tit: st.subheader(f"{cfg['icon']} Tabela: {cfg['label']}")
+with col_act: st.caption(f"DB: {NOME_DB}")
 
 if df is not None:
     
-    # --- ÁREA DE SMART INPUT ---
-    with st.expander("⚡ Adicionar Novo Lançamento Rápido", expanded=False):
+    # --- ÁREA DE INPUT (ADICIONAR LINHA) ---
+    with st.expander("⚡ Adicionar Novo Registro", expanded=False):
         form_cols = st.columns(4)
         input_data = {}
         
-        # Histórico para sugestões
+        # Histórico para sugestões (Autocomplete)
         history_tickers = []
         if not df.empty:
-            possible_ticker_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
+            possible_ticker_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)", "Ativo"]
             for col in possible_ticker_cols:
-                if col in df.columns:
-                    history_tickers = df[col].dropna().unique().tolist()
+                # Busca case-insensitive
+                match_c = next((c for c in df.columns if c.lower() == col.lower()), None)
+                if match_c:
+                    history_tickers = df[match_c].dropna().unique().tolist()
                     break
         
         fields = cfg.get("form_fields", {})
@@ -196,49 +206,48 @@ if df is not None:
             
             if field_type == "text_suggest":
                 input_data[field_name] = c.selectbox(
-                    f"{field_name} (Histórico)", 
+                    f"{field_name}", 
                     options=[""] + sorted([str(x) for x in history_tickers]),
-                    key=f"input_{field_name}"
+                    key=f"in_{field_name}"
                 )
                 if input_data[field_name] == "":
-                    input_data[field_name] = c.text_input(f"Ou digite novo {field_name}", key=f"input_new_{field_name}")
+                    input_data[field_name] = c.text_input(f"Novo {field_name}", key=f"in_new_{field_name}")
             
             elif isinstance(field_type, list):
-                input_data[field_name] = c.selectbox(field_name, options=field_type)
+                input_data[field_name] = c.selectbox(field_name, options=field_type, key=f"in_{field_name}")
                 
             elif field_type == "text":
-                input_data[field_name] = c.text_input(field_name)
+                input_data[field_name] = c.text_input(field_name, key=f"in_{field_name}")
 
             elif field_type == "date":
-                input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY")
+                input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY", key=f"in_{field_name}")
                 
             elif field_type == "currency" or field_type == "number":
-                input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f")
+                input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f", key=f"in_{field_name}")
 
-        if st.button("➕ Adicionar à Tabela", use_container_width=True):
+        if st.button("➕ Adicionar Linha", use_container_width=True):
             if any(str(v).strip() == "" for v in input_data.values()):
-                st.toast("⚠️ Preencha todos os campos obrigatórios!", icon="⚠️")
+                st.toast("⚠️ Preencha todos os campos!", icon="⚠️")
             else:
                 new_row = pd.DataFrame([input_data])
                 
-                # --- LÓGICA AUTOMÁTICA PARA PROVENTOS ---
-                if selected_key == "meus_proventos.csv":
-                    data_obj = pd.to_datetime(input_data['data'])
+                # Regras de Negócio (Ex: Proventos)
+                if selected_table == "meus_proventos":
+                    d_obj = pd.to_datetime(input_data['data'])
                     meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
                              7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
-                    
-                    new_row['mes'] = f"{meses[data_obj.month]}/{str(data_obj.year)[-2:]}"
-                    new_row['ano'] = data_obj.year
-                    # Auto-preenche a coluna 'decisao' com o valor de 'lancamento'
-                    new_row['decisao'] = input_data['lancamento']
+                    new_row['mes'] = f"{meses[d_obj.month]}/{str(d_obj.year)[-2:]}"
+                    new_row['ano'] = d_obj.year
+                    if 'decisao' in df.columns: # Se existir coluna legado
+                        new_row['decisao'] = input_data['lancamento']
 
-                # Tratamento de datas
+                # Converter datas para datetime para ficar compatível com o DF atual
                 for d_col in cfg.get("date_cols", []):
-                    if d_col in new_row.columns:
-                        new_row[d_col] = pd.to_datetime(new_row[d_col])
+                    match_col = next((c for c in new_row.columns if c.lower() == d_col.lower()), None)
+                    if match_col:
+                        new_row[match_col] = pd.to_datetime(new_row[match_col])
 
                 st.session_state.current_df = pd.concat([st.session_state.current_df, new_row], ignore_index=True)
-                st.toast("Lançamento adicionado com sucesso!", icon="✅")
                 st.rerun()
 
     st.divider()
@@ -250,35 +259,59 @@ if df is not None:
         num_rows="dynamic",
         use_container_width=True,
         height=500,
-        key=f"editor_{selected_key}"
+        key=f"editor_grid_{selected_table}"
     )
 
-    # --- AÇÕES ---
+    # --- SALVAR NO BANCO ---
     st.markdown("---")
     c1, c2, c3 = st.columns([1, 1, 3])
     
     with c1:
-        if st.button("💾 SALVAR DEFINITIVO", type="primary", use_container_width=True):
+        if st.button("💾 SALVAR NO BANCO", type="primary", use_container_width=True):
             try:
-                backup_file(filepath)
-                final_df = df_edited.copy()
-                for d_col in cfg.get("date_cols", []):
-                    if d_col in final_df.columns:
-                         final_df[d_col] = final_df[d_col].dt.strftime('%d/%m/%Y')
+                # 1. Backup
+                backup_db()
                 
-                final_df.to_csv(filepath, sep=cfg["sep"], decimal=cfg["decimal"], index=False, encoding=cfg["encoding"])
+                # 2. Conectar
+                conn = get_db_connection()
+                final_df = df_edited.copy()
+                
+                @st.cache_data(ttl=60)
+                def carregar_tabela_sql_padrao(nome_tabela):
+                    conn = get_db_connection()
+                    if conn is None: return pd.DataFrame()
+                    
+                    try:
+                        df = pd.read_sql(f"SELECT * FROM {nome_tabela}", conn)
+                        conn.close()
+                        
+                        if df.empty: return pd.DataFrame()
+
+                        # TRUQUE DE MESTRE: Padroniza todas colunas para minúsculo e sem espaços
+                        # Isso resolve 90% dos erros de "KeyError"
+                        df.columns = df.columns.str.strip().str.lower()
+                        
+                        return df
+                    except Exception as e:
+                        st.error(f"Erro ao ler {nome_tabela}: {e}")
+                        return pd.DataFrame()                # 4. Salvar (Replace = apaga tabela antiga e cria nova com os dados editados)
+                final_df.to_sql(selected_table, conn, if_exists='replace', index=False)
+                conn.close()
+                
                 st.session_state.current_df = df_edited
-                st.toast("Arquivo salvo com sucesso no Disco!", icon="💾")
+                st.toast("Tabela atualizada no Banco de Dados!", icon="✅")
+                
+                # Limpa cache do Streamlit para o Dashboard principal atualizar também
+                st.cache_data.clear()
+                
             except Exception as e:
-                st.error(f"Erro crítico: {e}")
+                st.error(f"Erro ao gravar no banco: {e}")
     
     with c2:
-        if st.button("❌ Descartar Mudanças"):
-            st.session_state.current_df = None
+        if st.button("❌ Descartar"):
+            st.session_state.pop('current_df', None)
             st.rerun()
 
 else:
-    # Mensagem de ajuda caso o arquivo não exista
-    st.warning(f"""
-
-    """)
+    st.info(f"A tabela '{selected_table}' não foi encontrada no banco de dados ou está vazia.")
+    st.warning("Verifique se o arquivo 'investimentos.db' está na pasta correta.")
