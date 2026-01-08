@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import os
 import numpy as np
 import shutil
-from datetime import datetime, date
+import plotly.graph_objects as go
+from datetime import datetime, date, time, timedelta
 
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
@@ -581,12 +582,13 @@ def main():
             st.cache_data.clear()
             st.rerun()
         
-        # --- CARREGAMENTO INICIAL ---
+        # --- CARREGAMENTO INICIAL (SEM FILTROS DE TEMPO AQUI) ---
+        # Carregamos tudo full history para garantir cálculos fiscais (Tab 6) e PM corretos
         df_bruto = carregar_dados()
         df_proventos_bruto = carregar_proventos()
         df_rf_raw = carregar_renda_fixa()
         
-        # Pré-processamento leve para filtros
+        # Pré-processamento leve para filtros visuais
         if not df_bruto.empty:
             df_bruto['setor_calc'] = df_bruto['ticker'].apply(identificar_setor_ativo)
             if 'moeda' not in df_bruto.columns: df_bruto['moeda'] = 'BRL'
@@ -931,47 +933,361 @@ def main():
     rend_prov_pct = f"{(total_proventos_kpi / custo_total_global * 100):.1f}%" if custo_total_global > 0 else None
     rend_tot_pct = f"{(lucro_total_absoluto / custo_total_global * 100):.1f}%" if custo_total_global > 0 else None
 
-# --- 6. EXIBIÇÃO KPIs (ATUALIZADO COM VARIAÇÃO DIÁRIA) ---
+# --- 6. DASHBOARD UNIFICADO: PERFORMANCE & EVOLUÇÃO ---
+    st.markdown("---")
+    st.markdown("### 🏦 Performance & Atribuição de Resultados")
+
+    # 1. Configuração de Período (Único Seletor)
+    # Adicionada a opção "Todo o Período" (20 anos como proxy de Max)
+    periodos_map = {
+        "Intraday (Hoje)": 0,
+        "1 Semana": 7,
+        "1 Mês": 30,
+        "3 Meses": 90,
+        "YTD (Ano Atual)": (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+        "1 Ano": 365,
+        "Todo o Período (Max)": 365 * 20 
+    }
+
+    col_sel, _ = st.columns([1, 4])
+    with col_sel:
+        filtro_periodo = st.selectbox(
+            "📅 Janela de Análise:", 
+            list(periodos_map.keys()), 
+            index=2, # Default: 1 Mês
+            key="seletor_periodo_unico"
+        )
+
+    dias_back = periodos_map[filtro_periodo]
+    delta_patrimonio_brl = 0.0
+
+    # 2. Engine de Cálculo (KPIs)
+    # Lógica: Se for Hoje (Intraday) usa variação do dia. Se for histórico, reconstrói a carteira.
     
-    # 1. Calcular Variação Diária em Reais (Apenas ativos em carteira)
-    lucro_diario_brl = 0.0
-    if not df_view.empty and 'mapa_variacao' in locals():
-        for _, row in df_view.iterrows():
-            if row['Qtd'] > 0: # Só calcula se tiver posição
-                tkr = row['Ticker']
-                var_unitaria = mapa_variacao.get(tkr, 0.0)
+    if dias_back == 0:
+        # --- CÁLCULO INTRADAY ---
+        if 'mapa_variacao' in locals() and not df_view.empty:
+             for _, row in df_view.iterrows():
+                if row['Qtd'] > 0:
+                    tkr = row['Ticker']
+                    var_unitaria = mapa_variacao.get(tkr, 0.0) # Variação em R$ ou $ do ativo
+                    
+                    # Definição Câmbio Atual
+                    fator = 1.0
+                    if row['Moeda'] == 'USD': fator = usd
+                    elif row['Moeda'] == 'CAD': fator = cad
+                    elif row['Moeda'] == 'EUR': fator = eur
+                    
+                    delta_patrimonio_brl += (row['Qtd'] * var_unitaria * fator)
+    else:
+        # --- CÁLCULO HISTÓRICO (MTM) ---
+        if not df_view.empty:
+            data_corte = datetime.now() - timedelta(days=dias_back)
+            
+            # Filtra apenas ativos de risco para buscar histórico
+            lista_tickers = df_view[
+                (df_view['Qtd'] > 0) & 
+                (~df_view['Setor'].isin(['Renda Fixa', 'Caixa', 'Liquidez']))
+            ]['Ticker'].unique().tolist()
+            
+            tickers_busca = lista_tickers + ['BRL=X']
+
+            try:
+                # Download Otimizado (Apenas Ponta a Ponta para o KPI)
+                hist_data = yf.download(tickers_busca, start=data_corte, progress=False)['Close']
+                hist_data = hist_data.ffill().bfill()
                 
-                # Fator moeda
-                fator = 1.0
-                if row['Moeda'] == 'USD': fator = usd
-                elif row['Moeda'] == 'CAD': fator = cad
-                elif row['Moeda'] == 'EUR': fator = eur
-                
-                # Qtd * (Preço Hoje - Preço Ontem) * Câmbio
-                lucro_diario_brl += (row['Qtd'] * var_unitaria * fator)
+                if not hist_data.empty and len(hist_data) > 1:
+                    # Garante que pega a data mais antiga disponível no range
+                    px_inicio = hist_data.iloc[0] 
+                    px_fim = hist_data.iloc[-1]
+                    
+                    usd_inicio = px_inicio.get('BRL=X', 5.00)
+                    usd_fim = px_fim.get('BRL=X', usd)
 
-    # 2. Calcular % Relativa ao Patrimônio TOTAL
-    pct_dia_total = 0.0
-    if patrimonio_total > 0:
-        pct_dia_total = (lucro_diario_brl / patrimonio_total) * 100
+                    for _, row in df_view.iterrows():
+                        tkr = row['Ticker']
+                        # Só calcula se o ticker existia na data inicial
+                        if tkr in px_inicio.index and row['Qtd'] > 0:
+                            p0, p1 = float(px_inicio[tkr]), float(px_fim[tkr])
+                            
+                            # Câmbio nas duas pontas
+                            fx0, fx1 = 1.0, 1.0
+                            if row['Moeda'] == 'USD': fx0, fx1 = usd_inicio, usd_fim
+                            elif row['Moeda'] == 'CAD': fx0, fx1 = usd_inicio*0.74, usd_fim*0.74
+                            
+                            val_t0 = p0 * fx0 * row['Qtd']
+                            val_t1 = p1 * fx1 * row['Qtd']
+                            
+                            delta_patrimonio_brl += (val_t1 - val_t0)
+            except Exception as e:
+                pass # Falha silenciosa no histórico para não quebrar a UI
 
-    st.title("🚀 Dashboard de Investimentos 🚀")
+    # 3. Consolidação e Exibição dos KPIs
+    resultado_liquido_global = lucro_aberto_total + lucro_realizado_total_global + total_proventos_kpi
+    roi_global_pct = (resultado_liquido_global / custo_total_global * 100) if custo_total_global > 0 else 0
+    delta_pct_periodo = (delta_patrimonio_brl / patrimonio_total * 100) if patrimonio_total > 0 else 0
     
-    # Layout Ajustado: Lucro Diário ao lado do Patrimônio Total
-    c1, c2, c3, c4, c5 = st.columns(5)
-    
-    c1.metric("Patrimônio Total", f"R$ {patrimonio_total:,.2f}")
-    
-    # AQUI ESTÁ A MÁGICA: O Delta é a % sobre o TOTAL do patrimônio
-    cor_delta = "normal" if lucro_diario_brl >= 0 else "inverse"
-    c2.metric("Lucro/Prej. Diário", f"R$ {lucro_diario_brl:,.2f}", delta=f"{pct_dia_total:.2f}% (do Total)")
-    
-    c3.metric("Lucro Aberto (RV+RF)", f"R$ {lucro_aberto_total:,.2f}", delta=delta_lucro)
-    c4.metric("Proventos Totais", f"R$ {total_proventos_kpi:,.2f}", delta=rend_prov_pct)
-    c5.metric("Lucro Realizado", f"R$ {lucro_realizado_total_global:,.2f}", delta=rend_real_pct)
+    # CSS para aumentar números
+    st.markdown("""<style>div[data-testid="stMetricValue"] { font-size: 26px; }</style>""", unsafe_allow_html=True)
 
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("💰 Patrimônio (AUM)", f"R$ {patrimonio_total:,.2f}", help="Valor total atual")
+    c2.metric(f"📈 P&L ({filtro_periodo})", f"R$ {delta_patrimonio_brl:,.2f}", delta=f"{delta_pct_periodo:.2f}%", delta_color="normal")
+    c3.metric("🏆 Retorno Total (Net)", f"R$ {resultado_liquido_global:,.2f}", delta=f"{roi_global_pct:.2f}% (Global)")
+    c4.metric("👥 Equity Familiar", f"R$ {patrimonio_total * 2:,.2f}", delta="2x Visão")
+
+    # Linha de Detalhamento Rápido
     st.markdown("---")
 
+    # 4. Gráficos de Série Temporal (Apenas se não for Intraday)
+    if dias_back > 0 and not df_view.empty:
+        import plotly.graph_objects as go
+        
+        with st.spinner(f"Gerando gráficos de evolução para {filtro_periodo}..."):
+            try:
+                # Recarrega dados com margem de segurança para gráfico liso
+                data_start_graf = datetime.now() - timedelta(days=dias_back + 5)
+                
+                # Reutiliza a lista de tickers definida acima
+                if 'tickers_busca' not in locals():
+                     tickers_busca = df_view[
+                        (df_view['Qtd'] > 0) & 
+                        (~df_view['Setor'].isin(['Renda Fixa', 'Caixa', 'Liquidez']))
+                    ]['Ticker'].unique().tolist() + ['BRL=X']
+
+                df_hist_g = yf.download(tickers_busca, start=data_start_graf, progress=False)['Close']
+                df_hist_g = df_hist_g.ffill().bfill()
+                
+                # Filtra exatamente a janela pedida para plotagem
+                mask_date = df_hist_g.index >= (datetime.now() - timedelta(days=dias_back))
+                df_hist_g = df_hist_g[mask_date]
+
+                # Reconstrói a curva de patrimônio dia a dia
+                serie_patrimonio = pd.Series(0.0, index=df_hist_g.index)
+                serie_usd = df_hist_g['BRL=X'] if 'BRL=X' in df_hist_g.columns else pd.Series(usd, index=df_hist_g.index)
+
+                for _, row in df_view.iterrows():
+                    tkr = row['Ticker']
+                    if tkr in df_hist_g.columns and row['Qtd'] > 0:
+                        prices = df_hist_g[tkr]
+                        if row['Moeda'] == 'USD':
+                            serie_patrimonio += (prices * serie_usd * row['Qtd'])
+                        elif row['Moeda'] == 'CAD':
+                            serie_patrimonio += (prices * serie_usd * 0.74 * row['Qtd'])
+                        else:
+                            serie_patrimonio += (prices * row['Qtd'])
+
+
+
+            except Exception as e:
+                st.warning(f"Dados insuficientes para gerar gráfico histórico completo: {e}")
+    
+    # --- 7. GRÁFICOS DE EVOLUÇÃO (TIME SERIES) ---
+    import plotly.graph_objects as go
+
+    # Só geramos gráficos se houver histórico (dias_back > 0) e carteira populada
+    if dias_back > 0 and not df_view.empty:
+        
+        with st.spinner(f"Processando série temporal de {filtro_periodo}..."):
+            ativos_grafico = df_view[
+                (df_view['Qtd'] > 0) & 
+                (~df_view['Setor'].isin(['Renda Fixa', 'Caixa', 'Liquidez']))
+            ]['Ticker'].unique().tolist()
+            
+            tickers_full = ativos_grafico + ['BRL=X']
+            data_start_graf = datetime.now() - timedelta(days=dias_back + 5)
+            
+            try:
+                df_hist = yf.download(tickers_full, start=data_start_graf, progress=False)['Close']
+                df_hist = df_hist.ffill().bfill()
+                df_hist = df_hist[df_hist.index >= (datetime.now() - timedelta(days=dias_back))]
+
+                serie_patrimonio = pd.Series(0.0, index=df_hist.index)
+                
+                if 'BRL=X' in df_hist.columns:
+                    serie_usd = df_hist['BRL=X']
+                else:
+                    serie_usd = pd.Series(usd, index=df_hist.index)
+                
+                for _, row in df_view.iterrows():
+                    tkr = row['Ticker']
+                    qtd = row['Qtd']
+                    moeda = row['Moeda']
+                    
+                    if tkr in df_hist.columns and qtd > 0:
+                        preco_dia = df_hist[tkr]
+                        if moeda == 'USD':
+                            valor_dia_brl = preco_dia * serie_usd * qtd
+                        elif moeda == 'CAD':
+                            valor_dia_brl = preco_dia * (serie_usd * 0.74) * qtd 
+                        else:
+                            valor_dia_brl = preco_dia * qtd
+                        serie_patrimonio += valor_dia_brl
+
+                val_inicial = serie_patrimonio.iloc[0]
+                if val_inicial > 0:
+                    serie_rentabilidade = ((serie_patrimonio / val_inicial) - 1) * 100
+                else:
+                    serie_rentabilidade = pd.Series(0, index=serie_patrimonio.index)
+
+                st.subheader("📊 Dinâmica da Carteira")
+                g_col1, g_col2 = st.columns(2)
+                
+                with g_col1:
+                    fig_rent = go.Figure()
+                    fig_rent.add_trace(go.Scatter(
+                        x=serie_rentabilidade.index, y=serie_rentabilidade.values,
+                        mode='lines', name='Carteira',
+                        line=dict(color='#00C805', width=2), fill='tozeroy', fillcolor='rgba(0, 200, 5, 0.1)'
+                    ))
+                    fig_rent.update_layout(title=f"Rentabilidade Acumulada (%)", template="plotly_dark", height=350, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig_rent, use_container_width=True)
+
+                with g_col2:
+                    fig_pat = go.Figure()
+                    fig_pat.add_trace(go.Scatter(
+                        x=serie_patrimonio.index, y=serie_patrimonio.values,
+                        mode='lines', name='Patrimônio',
+                        line=dict(color='#00a6ff', width=2)
+                    ))
+                    fig_pat.update_layout(title="Evolução do Patrimônio (R$)", template="plotly_dark", height=350, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig_pat, use_container_width=True)
+                    
+            except Exception as e:
+                st.warning(f"Não foi possível gerar gráficos históricos: {e}")
+    
+    elif dias_back == 0:
+        st.info("ℹ️ Selecione um período maior que 'Intraday' para visualizar os gráficos de evolução.")    # 1. Engine de Inteligência Temporal (Mark-to-Market Dinâmico)
+    periodos_map = {
+        "Intraday (Hoje)": 0,
+        "1 Semana": 7,
+        "1 Mês": 30,
+        "3 Meses": 90,
+        "YTD (Ano Atual)": (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+        "1 Ano": 365,
+        "Todo o Período (Max)": 365 * 20 # Busca até 20 anos atrás
+    }
+    
+    # Lógica de Cálculo de Variação (MtM)
+    delta_patrimonio_brl = 0.0
+    dias_back = periodos_map[filtro_periodo]
+    
+    # Se for Intraday, usamos a lógica simples de variação diária que já temos
+    if dias_back == 0:
+        if 'mapa_variacao' in locals():
+             for _, row in df_view.iterrows():
+                if row['Qtd'] > 0:
+                    tkr = row['Ticker']
+                    # Variação unitária em valor (R$) = variação do preço * cambio
+                    # Nota: mapa_variacao traz a diferença de preço (Preço Hoje - Ontem)
+                    var_unitaria = mapa_variacao.get(tkr, 0.0)
+                    
+                    fator = 1.0
+                    if row['Moeda'] == 'USD': fator = usd
+                    elif row['Moeda'] == 'CAD': fator = cad
+                    elif row['Moeda'] == 'EUR': fator = eur
+                    
+                    # Cálculo: Qtd * Variação Preço * Câmbio
+                    delta_patrimonio_brl += (row['Qtd'] * var_unitaria * fator)
+    # Se for Janela Histórica (Lógica de Gestor)
+    else:
+        if not df_view.empty:
+            data_corte = datetime.now() - timedelta(days=dias_back)
+            
+            # Filtra ativos de risco (Equity/FIIs/Crypto)
+            lista_tickers = df_view[
+                (df_view['Qtd'] > 0) & 
+                (~df_view['Setor'].isin(['Renda Fixa', 'Caixa', 'Liquidez']))
+            ]['Ticker'].unique().tolist()
+            
+            # Adiciona Benchmark Cambial (USD) para cálculo de paridade
+            tickers_busca = lista_tickers + ['BRL=X'] 
+
+            try:
+                # Batch Download (Mais eficiente)
+                hist_data = yf.download(tickers_busca, start=data_corte, progress=False)['Close']
+                
+                # Tratamento de dados (Forward Fill para cobrir feriados/FDS)
+                hist_data = hist_data.ffill().bfill()
+                
+                if not hist_data.empty and len(hist_data) > 1:
+                    px_inicio = hist_data.iloc[0] # Preço no início da janela
+                    px_fim = hist_data.iloc[-1]   # Preço atual/fechamento
+                    
+                    # Câmbio Histórico (USD/BRL)
+                    usd_inicio = px_inicio.get('BRL=X', 5.00)
+                    usd_fim = px_fim.get('BRL=X', usd) 
+                    
+                    # Cálculo de Atribuição por Ativo
+                    for _, row in df_view.iterrows():
+                        tkr = row['Ticker']
+                        if tkr in px_inicio.index and row['Qtd'] > 0:
+                            # Preços Nativos
+                            p0 = float(px_inicio[tkr])
+                            p1 = float(px_fim[tkr])
+                            
+                            # Definição do Câmbio do Ativo nas duas pontas
+                            fx0 = 1.0
+                            fx1 = 1.0
+                            
+                            if row['Moeda'] == 'USD':
+                                fx0 = usd_inicio
+                                fx1 = usd_fim
+                            elif row['Moeda'] == 'CAD': 
+                                # Cross-rate simples via USD se não tiver CADBRL histórico
+                                # (Assumindo paridade estável USD/CAD ou simplificando para BRL direto se tiver)
+                                # Para "Gestor Gigante", o ideal é baixar CADBRL=X. 
+                                # Aqui usaremos o USD como proxy de volatilidade cambial se não tivermos CAD
+                                fx0 = usd_inicio * 0.74 # Proxy estático ou baixe CADBRL=X
+                                fx1 = usd_fim * 0.74 
+                            # (Adicione lógica para EUR se necessário)
+
+                            # Valor na Data Inicial (Mark-to-Market T-x)
+                            val_t0 = p0 * fx0 * row['Qtd']
+                            
+                            # Valor na Data Final (Mark-to-Market T0)
+                            val_t1 = p1 * fx1 * row['Qtd']
+                            
+                            delta_patrimonio_brl += (val_t1 - val_t0)
+                            
+            except Exception as e:
+                st.error(f"Erro no cálculo de atribuição histórica: {e}")
+    
+    # 2. Consolidação dos KPIs (O "Bottom Line")
+    
+    # A) Lucro Total do Projeto (Realizado + Aberto + Dividendos)
+    # Essa é a métrica que diz se o esforço de investir valeu a pena até hoje.
+    resultado_liquido_global = lucro_aberto_total + lucro_realizado_total_global + total_proventos_kpi
+    
+    # B) Retorno sobre Capital Investido (ROIC Global)
+    roi_global_pct = (resultado_liquido_global / custo_total_global * 100) if custo_total_global > 0 else 0
+    
+    # C) Patrimônio Familiar
+    equity_family = patrimonio_total * 2
+    
+    # D) Direcional do Período (Setinha da Variação)
+    delta_pct_periodo = (delta_patrimonio_brl / patrimonio_total * 100) if patrimonio_total > 0 else 0
+    
+    # 3. Exibição Estilo "Bloomberg Terminal"
+    
+    # Container CSS customizado para dar peso aos números (Opcional, mas ajuda no visual)
+    st.markdown("""
+        <style>
+        div[data-testid="stMetricValue"] { font-size: 24px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+        
+    # Linha de Detalhe (Breakdown)
+    st.markdown("---")
+    c_d1, c_d2, c_d3, c_d4 = st.columns(4)
+    c_d1.info(f"**Latente (Aberto):** R$ {lucro_aberto_total:,.2f}")
+    c_d2.success(f"**Realizado (Bolso):** R$ {lucro_realizado_total_global:,.2f}")
+    c_d3.warning(f"**Yield (Proventos):** R$ {total_proventos_kpi:,.2f}")
+    c_d4.caption(f"*Custo Global de Aquisição: R$ {custo_total_global:,.2f}*")
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📊 Consolidado", "📋 Renda Variável - Detalhamento", "₿ Cripto/Específico", 
         "💱 Câmbio", "💰 Proventos", "🦁 Imposto", "🏦 Renda Fixa", "✏️ Editor de Dados"
@@ -1104,7 +1420,7 @@ def main():
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
                 
-                fig_sun.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=7003)
+                fig_sun.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=700)
                 fig_sun.update_traces(textinfo="label+percent entry", insidetextorientation='radial') 
                 st.plotly_chart(fig_sun, use_container_width=True)
 
