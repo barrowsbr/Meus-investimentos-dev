@@ -1,7 +1,7 @@
-Compra;Ticker;Valor;Valor atual;Tipo de transação
-30/01/2025;CDB BANCO MASTER DE INVESTIME - ABR/2030 Pré;9085,14;11076;Compra
-04/08/2023;CDB BCO Master Pós;6000;7889;Compra
-27/06/2023;CDB BCO Master Pré;4000;5381;Compra
+﻿Compra;Ticker;Valor;Valor atual;Tipo
+30/01/2025;CDB BANCO MASTER DE INVESTIME - ABR/2030 PrÃ©;9085,14;11076;Compra
+04/08/2023;CDB BCO Master PÃ³s;6000;7889;Compra
+27/06/2023;CDB BCO Master PrÃ©;4000;5381;Compra
 26/06/2023;CDB BMG ;5000,09;5000,09;Compra
 06/12/2024;CDB BMG ;5943,28;5943,28;Venda
 06/12/2024;CDB BMG ;165,06;165,06;Imposto
@@ -28,4 +28,3 @@ Compra;Ticker;Valor;Valor atual;Tipo de transação
 02/09/2024;Tesouro Selic 2024;458,64;458,64;Vencimento
 02/09/2024;Tesouro Selic 2024;17,79;17,79;Imposto
 01/01/2026;Caixa;21000;21000;Compra
-01/01/2026;Caixa;3500;3500;Compra

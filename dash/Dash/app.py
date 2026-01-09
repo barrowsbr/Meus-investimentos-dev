@@ -136,36 +136,73 @@ def carregar_composicao_extra():
 
 # 4. Carrega Renda Fixa
 @st.cache_data
+@st.cache_data
+@st.cache_data
 def carregar_renda_fixa():
     if not os.path.exists(CAMINHO_FIXA):
         return pd.DataFrame()
     
     try:
-        df = pd.read_csv(CAMINHO_FIXA, sep=';')
+        # Tenta ler com latin1 (padrão Excel Brasil), se falhar tenta utf-8
+        try:
+            df = pd.read_csv(CAMINHO_FIXA, sep=';', encoding='latin1')
+        except:
+            df = pd.read_csv(CAMINHO_FIXA, sep=';', encoding='utf-8')
+        
+        # Padroniza colunas (minúsculo e sem espaços)
         df.columns = df.columns.str.strip().str.lower()
+
+        # --- RENOMEAÇÃO INTELIGENTE (Procura por palavras-chave) ---
+        mapa_colunas = {}
         
-        rename_map = {
-            'compra': 'data', 'ticker': 'ativo', 'valor': 'valor_investido', 
-            'valor atual': 'valor_atual', 'tipo de transação': 'tipo'
-        }
-        df.rename(columns=rename_map, inplace=True)
+        # 1. Caça a coluna DATA
+        col_data = next((c for c in df.columns if 'data' in c or 'compra' in c or 'date' in c), None)
+        if col_data: mapa_colunas[col_data] = 'Data'
         
-        df['data'] = pd.to_datetime(df['data'], dayfirst=True, errors='coerce')
-        df['ativo'] = df['ativo'].str.strip()
-        df['tipo'] = df['tipo'].str.strip().str.title() 
+        # 2. Caça a coluna TICKER/ATIVO
+        col_ticker = next((c for c in df.columns if 'ticker' in c or 'ativo' in c or 'papel' in c or 'produto' in c), None)
+        if col_ticker: mapa_colunas[col_ticker] = 'Ticker'
         
-        cols_num = ['valor_investido', 'valor_atual']
-        for col in cols_num:
+        # 3. Caça a coluna TIPO
+        col_tipo = next((c for c in df.columns if 'tipo' in c or 'moviment' in c or 'operacao' in c), None)
+        if col_tipo: mapa_colunas[col_tipo] = 'Tipo'
+        
+        # 4. Caça VALOR INVESTIDO
+        col_valor = next((c for c in df.columns if ('valor' in c and 'atual' not in c) or 'investido' in c or 'aplicado' in c), None)
+        if col_valor: mapa_colunas[col_valor] = 'Valor'
+
+        # 5. Caça VALOR ATUAL
+        col_atual = next((c for c in df.columns if 'atual' in c or 'bruto' in c or 'saldo' in c), None)
+        if col_atual: mapa_colunas[col_atual] = 'Valor Atual'
+
+        # Aplica a renomeação
+        df.rename(columns=mapa_colunas, inplace=True)
+
+        # --- TRATAMENTO DE ERROS (Se não achou, cria vazio para não travar o app) ---
+        if 'Data' not in df.columns: df['Data'] = datetime.now()
+        if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
+        if 'Tipo' not in df.columns: df['Tipo'] = 'Compra'
+        
+        # Conversão de Tipos
+        df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+        df['Tipo'] = df['Tipo'].astype(str).str.strip().str.title()
+        df['Ticker'] = df['Ticker'].astype(str).str.strip()
+
+        # Limpeza de Números
+        for col in ['Valor', 'Valor Atual']:
             if col in df.columns:
                 if df[col].dtype == 'object':
                     df[col] = df[col].astype(str).str.replace('R$', '', regex=False).str.strip()
                     df[col] = df[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                
-        return df.sort_values(by='data')
+            else:
+                df[col] = 0.0
+
+        return df.sort_values(by='Data')
+
     except Exception as e:
         st.error(f"Erro ao ler Renda Fixa: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame()    
 
 # --- LÓGICA DE SETORIZAÇÃO ---
 def identificar_setor_ativo(ticker):
@@ -574,6 +611,7 @@ def exibir_editor_dados():
     else:
         st.error(f"Arquivo {selected_key} não encontrado na pasta: {PASTA_ATUAL}")
 
+
 # --- DASHBOARD PRINCIPAL ---
 def main():
     with st.sidebar:
@@ -633,7 +671,7 @@ def main():
         # --- 4. TICKER / ATIVO (Unificado RV + RF) ---
         # Pega o que sobrou de RV e o que sobrou de RF para montar a lista
         tickers_rv_disp = df_rv_cascata['ticker'].unique().tolist()
-        tickers_rf_disp = df_rf_cascata['ativo'].unique().tolist()
+        tickers_rf_disp = df_rf_cascata['Ticker'].unique().tolist()
         opcoes_ticker = sorted(list(set(tickers_rv_disp + tickers_rf_disp)))
         
         filtro_ticker = st.multiselect("Filtrar Ativos Específicos:", opcoes_ticker, key="sidebar_filtro_ticker")
@@ -649,7 +687,7 @@ def main():
         # --- 5. STATUS (Carteira vs Encerrado) ---
         # Esse filtro fica por último pois depende do cálculo de posição (que é pesado para rodar na cascata)
         # Vamos manter a lógica original de filtrar o resultado final
-        opcao_ativo = st.selectbox("Ativo na carteira?", ["Todos", "Sim", "Não"], index=1, key="sidebar_ativo_status")
+        opcao_ativo = st.selectbox("Ativo na carteira?", ["Todos", "Sim", "Não"], index=0, key="sidebar_ativo_status")
 
         # --- PREPARAÇÃO PARA O RESTO DO CÓDIGO ---
         # O resto do seu código espera 'df_aux' para RV e vamos precisar filtrar RF manualmente depois
@@ -696,36 +734,43 @@ def main():
         lista_rf_completa = []
         
         if not df_rf_raw.empty:
-            grupos_rf = df_rf_raw.groupby('ativo')
+            # Agrupa pelo Ticker
+            grupos_rf = df_rf_raw.groupby('Ticker')
+            
             for ativo, dados in grupos_rf:
-                dados = dados.sort_values('data')
-                dados_validos = dados[dados['tipo'] != 'Imposto']
+                dados = dados.sort_values('Data')
+                dados_validos = dados[dados['Tipo'] != 'Imposto']
                 
                 if not dados_validos.empty:
-                    ultimo_tipo = dados_validos.iloc[-1]['tipo']
+                    ultimo_tipo = dados_validos.iloc[-1]['Tipo']
                     status = 'Ativo' if ultimo_tipo == 'Compra' else 'Encerrado'
                     
                     if status == 'Ativo':
-                        compras = dados[dados['tipo'] == 'Compra']
-                        investido = compras['valor_investido'].sum()
-                        atual = compras['valor_atual'].sum()
+                        compras = dados[dados['Tipo'] == 'Compra']
+                        investido = compras['Valor'].sum()
+                        atual = compras['Valor Atual'].sum()
                         lucro = atual - investido
-                        data_ref = dados_validos.iloc[0]['data']
+                        data_ref = dados_validos.iloc[0]['Data']
                     else:
-                        entradas = dados[dados['tipo'].isin(['Venda', 'Vencimento'])]['valor_investido'].sum()
-                        saidas = dados[dados['tipo'] == 'Compra']['valor_investido'].sum()
+                        entradas = dados[dados['Tipo'].isin(['Venda', 'Vencimento', 'Resgate'])]['Valor'].sum()
+                        saidas = dados[dados['Tipo'] == 'Compra']['Valor'].sum()
                         investido = saidas
                         atual = entradas 
                         lucro = entradas - saidas
-                        data_ref = dados_validos.iloc[-1]['data']
+                        data_ref = dados_validos.iloc[-1]['Data']
                     
                     lista_rf_completa.append({
-                        'Ativo': ativo, 'Status': status, 'Data': data_ref,
-                        'Investido': investido, 'Atual': atual, 'Lucro': lucro,
+                        'Ticker': ativo,   # <--- ADICIONADO: Garante que o filtro 'Ticker' funcione
+                        'Ativo': ativo,    # <--- MANTIDO: Garante que os gráficos 'Ativo' funcionem
+                        'Status': status, 
+                        'Data': data_ref,
+                        'Investido': investido, 
+                        'Atual': atual, 
+                        'Lucro': lucro,
                         'Rent. %': ((lucro)/investido * 100) if investido > 0 else 0
                     })
 
-    df_rf_completo = pd.DataFrame(lista_rf_completa)
+        df_rf_completo = pd.DataFrame(lista_rf_completa)
     # --- CÁLCULOS FINAIS (VARIAVEIS GLOBAIS) ---
     usd = mapa_precos.get('BRL=X', 5.00)
     cad = mapa_precos.get('CADBRL=X', 3.70)
@@ -744,41 +789,6 @@ def main():
             elif m == 'EUR': fator_prov = eur
             
             prov_por_ticker[t] = prov_por_ticker.get(t, 0.0) + (val * fator_prov)
-
-    # --- 1. PROCESSAMENTO DA RENDA FIXA (Bloco Restaurado) ---
-    lista_rf_completa = []
-    
-    if not df_rf_raw.empty:
-        grupos_rf = df_rf_raw.groupby('ativo')
-        for ativo, dados in grupos_rf:
-            dados = dados.sort_values('data')
-            dados_validos = dados[dados['tipo'] != 'Imposto']
-            
-            if not dados_validos.empty:
-                ultimo_tipo = dados_validos.iloc[-1]['tipo']
-                status = 'Ativo' if ultimo_tipo == 'Compra' else 'Encerrado'
-                
-                if status == 'Ativo':
-                    compras = dados[dados['tipo'] == 'Compra']
-                    investido = compras['valor_investido'].sum()
-                    atual = compras['valor_atual'].sum()
-                    lucro = atual - investido
-                    data_ref = dados_validos.iloc[0]['data']
-                else:
-                    entradas = dados[dados['tipo'].isin(['Venda', 'Vencimento'])]['valor_investido'].sum()
-                    saidas = dados[dados['tipo'] == 'Compra']['valor_investido'].sum()
-                    investido = saidas
-                    atual = entradas 
-                    lucro = entradas - saidas
-                    data_ref = dados_validos.iloc[-1]['data']
-                
-                lista_rf_completa.append({
-                    'Ativo': ativo, 'Status': status, 'Data': data_ref,
-                    'Investido': investido, 'Atual': atual, 'Lucro': lucro,
-                    'Rent. %': ((lucro)/investido * 100) if investido > 0 else 0
-                })
-
-    df_rf_completo = pd.DataFrame(lista_rf_completa)
 
     # --- 2. CÁLCULO DE TOTAIS GLOBAIS DE RF ---
     patrimonio_rf = 0.0
@@ -878,6 +888,23 @@ def main():
 
     df_view = pd.DataFrame(lista_final)    
     
+    
+    if not df_view.empty and not df_rf_filtrado.empty:
+        # Pega a lista de ativos que já calculamos na Renda Variável
+        tickers_rv_existentes = set(df_view['Ticker'].unique())
+        
+        # Identifica duplicatas
+        duplicados = df_rf_filtrado[df_rf_filtrado['Ticker'].isin(tickers_rv_existentes)]['Ticker'].unique()
+        
+        if len(duplicados) > 0:
+            st.warning(f"🔂 **Duplicidade Detectada:** Os ativos {list(duplicados)} foram encontrados em ambos os arquivos. O sistema ignorou o valor manual (Renda Fixa) e manteve o cálculo automático (RV).")
+            
+            # Remove da tabela de Renda Fixa para não somar duas vezes
+            df_rf_filtrado = df_rf_filtrado[~df_rf_filtrado['Ticker'].isin(tickers_rv_existentes)]
+
+    # --- 4. GERAÇÃO DO DF_VIEW ... (o código segue normal aqui)
+
+
     # --- 5. CÁLCULO DOS KPIs GLOBAIS (RV + RF) ---
     if not df_view.empty:
         lucro_nao_realizado_rv = df_view['Lucro Aberto (R$)'].sum()
@@ -944,7 +971,7 @@ def main():
     # --- DEFINIÇÃO DAS TABS (Nomes Ajustados) ---
     tab_perf, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🚀 Performance", 
-        "💎 Global", 
+        "💎 Composição", 
         "📊 Ações/FIIs", 
         "₿ Cripto", 
         "💱 Câmbio", 
@@ -976,7 +1003,7 @@ def main():
             filtro_periodo = st.selectbox(
                 "📅 Janela de Análise:", 
                 list(periodos_map.keys()), 
-                index=2, 
+                index=0, 
                 key="seletor_periodo_unico"
             )
 
@@ -1003,11 +1030,21 @@ def main():
                     if row['Moeda'] == 'USD': fx_ativo = usd
                     elif row['Moeda'] == 'CAD': fx_ativo = cad
                     elif row['Moeda'] == 'EUR': fx_ativo = eur
-                    
                     lucro_periodo_aberto += (row['Qtd'] * var_unitaria * fx_ativo)
         else:
-            # Histórico (Calcula Diferença de Patrimônio em R$)
-            tickers_carteira = df_view[df_view['Qtd'] > 0]['Ticker'].unique().tolist()
+            tickers_carteira = [] 
+            # --------------------------------------------
+
+            if not df_view.empty:
+                df_view.columns = df_view.columns.str.strip()
+                
+                # Verifica qual coluna usar para filtrar
+                if 'Qtd' in df_view.columns:
+                    tickers_carteira = df_view[df_view['Qtd'] > 0]['Ticker'].unique().tolist()
+                elif 'Ticker' in df_view.columns:
+                    tickers_carteira = df_view['Ticker'].unique().tolist()
+            
+            # Agora a linha 1032 não vai mais quebrar, pois a variável existe (mesmo que vazia)
             if tickers_carteira:
                 tickers_busca = tickers_carteira + ['BRL=X']
                 try:
@@ -1186,6 +1223,8 @@ def main():
 
                     except Exception as e:
                         st.warning(f"Não foi possível gerar os gráficos históricos: {e}")
+
+                        
         with tab1:
             st.subheader("💎 Visão do Gestor (Portfólio Global)")
         
@@ -1446,6 +1485,7 @@ def main():
         st.subheader("🌍 Renda Variável - Detalhamento")
         if not df_view.empty:
             df_detalhes = df_view[df_view['Setor'].isin(['Ações Brasil', 'Ações Internacional', 'ETF', 'FIIs', 'Cripto', 'Commodities', 'REITs'])].copy()
+            
             if not df_detalhes.empty:
                 usd = mapa_precos.get('BRL=X', 5.00)
                 cad = mapa_precos.get('CADBRL=X', 3.70)
@@ -1495,7 +1535,7 @@ def main():
                 st.markdown("---")
                 
                 # ==============================================================================
-                # CÁLCULOS FINAIS PARA TABELA E GRÁFICO
+                # CÁLCULOS FINAIS
                 # ==============================================================================
                 
                 # 1. Resultado Total Absoluto
@@ -1517,55 +1557,7 @@ def main():
                 df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
 
                 # ==============================================================================
-                # 📊 NOVO GRÁFICO: PERFORMANCE TOTAL POR ATIVO
-                # ==============================================================================
-                st.markdown("### 🧬 Rentabilidade Total por Ativo (N realizado, realizado + proventos))")
-                st.caption("Considera: Valorização + Lucro Realizado + Dividendos / Custo Total")
-
-                # Prepara dados para o gráfico (Ordena do maior para o menor retorno)
-                df_chart = df_detalhes.sort_values('Rent. BRL (%)', ascending=True).copy()
-                
-                # Altura dinâmica: Se tiver muitos ativos, o gráfico cresce para não ficar espremido
-                altura_grafico = max(500, len(df_chart) * 25)
-
-                fig_perf = px.bar(
-                    df_chart, 
-                    x='Rent. BRL (%)', 
-                    y='Ticker',
-                    orientation='h',
-                    text='Rent. BRL (%)',
-                    hover_data=['Resultado Total (R$)', 'Proventos (R$)', 'Lucro Realizado (BRL)'],
-                    color='Rent. BRL (%)',
-                    color_continuous_scale=['#FF5252', '#FFEB3B', '#4CAF50'], # Vermelho -> Amarelo -> Verde
-                    color_continuous_midpoint=0
-                )
-
-                fig_perf.update_traces(
-                    texttemplate='%{text:.1f}%', 
-                    textposition='outside',
-                    marker_line_width=0,
-                    opacity=0.9
-                )
-                
-                fig_perf.update_layout(
-                    height=altura_grafico,
-                    xaxis_title="Rentabilidade Total (%)",
-                    yaxis_title=None,
-                    showlegend=False,
-                    coloraxis_showscale=False, # Esconde a barra de cores lateral para limpar o visual
-                    margin=dict(l=0, r=40, t=30, b=30),
-                    yaxis=dict(type='category') # Garante que mostre todos os tickers
-                )
-                
-                # Linha vertical no zero para referência
-                fig_perf.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
-
-                st.plotly_chart(fig_perf, use_container_width=True)
-                
-                st.markdown("---")
-
-                # ==============================================================================
-                # TABELA CONSOLIDADA
+                # 1º - TABELA CONSOLIDADA (AGORA VEM ANTES)
                 # ==============================================================================
                 st.markdown("### 📊 Tabela Consolidada — Ativos Atuais + Encerrados")
 
@@ -1605,10 +1597,62 @@ def main():
                 .map(color_rent, subset=['Rent. BRL (%)'])
                 .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
                 .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1), use_container_width=True, height=600)
+
+                st.markdown("---")
+
+                # ==============================================================================
+                # 2º - GRÁFICO: PERFORMANCE TOTAL POR ATIVO (AGORA VEM DEPOIS)
+                # ==============================================================================
+                st.markdown("### 🧬 Rentabilidade Total por Ativo (N realizado, realizado + proventos))")
+                st.caption("Considera: Valorização + Lucro Realizado + Dividendos / Custo Total")
+
+                # Prepara dados para o gráfico (Ordena do maior para o menor retorno)
+                df_chart = df_detalhes.sort_values('Rent. BRL (%)', ascending=True).copy()
+                
+                # Altura dinâmica
+                altura_grafico = max(500, len(df_chart) * 25)
+
+                fig_perf = px.bar(
+                    df_chart, 
+                    x='Rent. BRL (%)', 
+                    y='Ticker',
+                    orientation='h',
+                    text='Rent. BRL (%)',
+                    hover_data=['Resultado Total (R$)', 'Proventos (R$)', 'Lucro Realizado (BRL)'],
+                    color='Rent. BRL (%)',
+                    color_continuous_scale=['#FF5252', '#FFEB3B', '#4CAF50'], 
+                    color_continuous_midpoint=0
+                )
+
+                fig_perf.update_traces(
+                    texttemplate='%{text:.1f}%', 
+                    textposition='outside',
+                    marker_line_width=0,
+                    opacity=0.9
+                )
+                
+                fig_perf.update_layout(
+                    height=altura_grafico,
+                    xaxis_title="Rentabilidade Total (%)",
+                    yaxis_title=None,
+                    showlegend=False,
+                    coloraxis_showscale=False,
+                    margin=dict(l=0, r=40, t=30, b=30),
+                    yaxis=dict(type='category')
+                )
+                
+                # Linha vertical no zero
+                fig_perf.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
+
+                st.plotly_chart(fig_perf, use_container_width=True)
+                
+                st.markdown("---")
+
             else: 
                 st.info("Nenhuma posição de Renda Variável encontrada.")
         else: 
             st.info("Nenhum dado disponível para visualização.")
+
 
     with tab3:
         # --- CABEÇALHO ---
@@ -1794,6 +1838,15 @@ def main():
         # ==============================================================================
         carteiras = {}
         moedas_encontradas = set()
+
+        # --- MONITOR FOOTER ---
+        st.markdown("")
+        with st.container(border=True):
+            st.markdown("**🌍 Monitor FX (BRL)**")
+            cols = st.columns(6)
+            for i, (l, t) in enumerate([('USD', 'BRL=X'), ('EUR', 'EURBRL=X'), ('CAD', 'CADBRL=X'), ('GBP', 'GBPBRL=X'), ('CHF', 'CHFBRL=X'), ('JPY', 'JPYBRL=X')]):
+                cols[i].metric(l, f"R$ {mapa_precos.get(t, 0.0):.3f}")
+
 
         # A. Câmbio Realizado
         try:
@@ -2005,14 +2058,6 @@ def main():
                         st.dataframe(df_f[['Data', 'Valor Total entrada', 'Valor Total saída', 'VET']], hide_index=True, use_container_width=True, height=250)
                     else:
                         st.info("Sem dados.")
-
-        # --- MONITOR FOOTER ---
-        st.markdown("")
-        with st.container(border=True):
-            st.markdown("**🌍 Monitor FX (BRL)**")
-            cols = st.columns(6)
-            for i, (l, t) in enumerate([('USD', 'BRL=X'), ('EUR', 'EURBRL=X'), ('CAD', 'CADBRL=X'), ('GBP', 'GBPBRL=X'), ('CHF', 'CHFBRL=X'), ('JPY', 'JPYBRL=X')]):
-                cols[i].metric(l, f"R$ {mapa_precos.get(t, 0.0):.3f}")
                 
     with tab5:
         if not df_proventos_bruto.empty:
@@ -2339,7 +2384,7 @@ def main():
         # --- 1. SEGMENTAÇÃO DE CARTEIRA (PROFESSIONAL VIEW) ---
         # Separa o que é "Caixa/Disponível" do que é "Investimento/Título"
         # Filtra por palavras-chave comuns para caixa
-        mask_caixa = df_rf_filtrado['Ativo'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
+        mask_caixa = df_rf_filtrado['Ticker'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
         
         df_liquidez = df_rf_filtrado[mask_caixa]
         df_alocacao = df_rf_filtrado[~mask_caixa]
