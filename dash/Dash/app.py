@@ -932,7 +932,14 @@ def main():
     rend_real_pct = f"{(lucro_ja_realizado_kpi / custo_total_global * 100):.1f}%" if custo_total_global > 0 else None
     rend_prov_pct = f"{(total_proventos_kpi / custo_total_global * 100):.1f}%" if custo_total_global > 0 else None
     rend_tot_pct = f"{(lucro_total_absoluto / custo_total_global * 100):.1f}%" if custo_total_global > 0 else None
-    st.title("Barrows")
+    caminho_logo_main = os.path.join(PASTA_ATUAL, 'add', 'IMG_3080.PNG')
+    
+    # Exibe a imagem se ela existir
+    if os.path.exists(caminho_logo_main):
+        # Ajuste o 'width' conforme o tamanho que você quer na tela (ex: 150, 200, 300)
+        st.image(caminho_logo_main, width=3000) 
+    else:
+        st.warning(f"Imagem não encontrada: {caminho_logo_main}")
 
     # --- DEFINIÇÃO DAS TABS (Nomes Ajustados) ---
     tab_perf, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
@@ -1604,320 +1611,409 @@ def main():
             st.info("Nenhum dado disponível para visualização.")
 
     with tab3:
+        # --- CABEÇALHO ---
+        col_head, col_logo = st.columns([5, 1])
+        with col_head:
+            st.header("₿ Cripto Command Center")
+            st.caption("Monitoramento de ativos digitais, volatilidade e custódia.")
+        
+        st.divider()
+
         if not df_view.empty:
+            # Filtra apenas Cripto
             df_cripto = df_view[df_view['Setor'] == 'Cripto'].copy()
+            
             if not df_cripto.empty:
-                st.subheader("₿ Criptomoedas")
-                altura_cripto = (len(df_cripto) + 1) * 35 + 3
-                st.dataframe(df_cripto, use_container_width=True, height=altura_cripto)
-                st.markdown("---")
-                row_btc = df_cripto[df_cripto['Ticker'].str.contains('BTC')].head(1)
-                if not row_btc.empty:
-                    ticker_btc = row_btc['Ticker'].values[0]
-                    pm_btc = row_btc['PM Compra'].values[0]
-                    st.markdown(f"### 📈 Evolução BTC ({ticker_btc})")
+                # CORREÇÃO DO ERRO: Cria a coluna de Custo BRL que faltava
+                # Lógica: Custo = Valor Atual - Lucro
+                df_cripto['Custo BRL'] = df_cripto['Valor Hoje (R$)'] - df_cripto['Lucro Aberto (R$)']
+
+                # ==============================================================================
+                # 1. KPIs GERAIS DO SETOR
+                # ==============================================================================
+                total_cripto = df_cripto['Valor Hoje (R$)'].sum()
+                custo_cripto = df_cripto['Custo BRL'].sum()
+                pnl_cripto = df_cripto['Lucro Aberto (R$)'].sum()
+                pnl_pct_cripto = (pnl_cripto / custo_cripto * 100) if custo_cripto > 0 else 0
+                
+                # Identifica Top Performer
+                top_asset = df_cripto.loc[df_cripto['Rent. (%)'].idxmax()]
+                
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("Patrimônio Cripto", f"R$ {total_cripto:,.2f}", help="Valor de mercado atual consolidado")
+                k2.metric("Resultado (PnL)", f"R$ {pnl_cripto:,.2f}", f"{pnl_pct_cripto:.2f}%")
+                k3.metric("Custo de Aquisição", f"R$ {custo_cripto:,.2f}")
+                k4.metric("🚀 Top Performer", top_asset['Ticker'], f"{top_asset['Rent. (%)']:.1f}%")
+                
+                st.divider()
+
+                # ==============================================================================
+                # 2. ÁREA DE ANÁLISE (GRÁFICO + ALOCAÇÃO)
+                # ==============================================================================
+                col_chart, col_dist = st.columns([2, 1])
+
+                with col_chart:
+                    # --- SELETOR DE ATIVO ---
+                    lista_ativos = df_cripto['Ticker'].unique().tolist()
+                    # Tenta colocar BTC como padrão se existir
+                    index_def = next((i for i, x in enumerate(lista_ativos) if 'BTC' in x), 0)
+                    
+                    st.markdown("##### 🔎 Análise Técnica do Ativo")
+                    ativo_sel = st.selectbox("Selecione o Ativo:", lista_ativos, index=index_def, label_visibility="collapsed")
+                    
+                    # Dados do ativo selecionado
+                    row_ativo = df_cripto[df_cripto['Ticker'] == ativo_sel].iloc[0]
+                    pm_ativo = row_ativo['PM Compra']
+                    
+                    # --- CHART ENGINE ---
                     @st.cache_data(ttl=3600)
-                    def get_btc_chart(tkr):
+                    def get_crypto_chart(tkr):
                         try:
-                            d = yf.download(tkr, period="1y", interval="1d", progress=False)
+                            # Yahoo Finance geralmente usa Ticker-USD para cripto (ex: BTC-USD)
+                            if '-' not in tkr: 
+                                symbol = f"{tkr}-USD"
+                            else:
+                                symbol = tkr
+                                
+                            d = yf.download(symbol, period="1y", interval="1d", progress=False)
                             if isinstance(d.columns, pd.MultiIndex): d.columns = d.columns.get_level_values(0)
                             return d[['Close']]
                         except: return pd.DataFrame()
-                    df_btc_chart = get_btc_chart(ticker_btc)
-                    if not df_btc_chart.empty:
-                        fig_btc = px.line(df_btc_chart, x=df_btc_chart.index, y='Close', title=f"Histórico 1 Ano - {ticker_btc}")
-                        fig_btc.update_traces(line_color='#F7931A', name='Preço BTC')
-                        if pm_btc > 0:
-                            fig_btc.add_hline(y=pm_btc, line_dash="dash", line_color="green", annotation_text=f"Meu Preço: {pm_btc:,.2f}", annotation_position="top left")
-                        fig_btc.update_layout(height=450, hovermode="x unified", yaxis_title="Preço (USD/BRL)")
-                        st.plotly_chart(fig_btc, use_container_width=True)
-                    else: 
-                        st.warning("Não foi possível carregar o gráfico do Yahoo Finance.")
-                else: 
-                    st.info("Ativo BTC não encontrado.")
-            else: 
-                st.info("Nenhuma cripto nos filtros atuais.")
+
+                    df_chart = get_crypto_chart(ativo_sel)
+
+                    if not df_chart.empty:
+                        current_price = df_chart['Close'].iloc[-1]
+                        
+                        # Médias Móveis
+                        df_chart['SMA21'] = df_chart['Close'].rolling(21).mean()
+                        
+                        # Plot
+                        fig_c = go.Figure()
+                        
+                        # Área de Preço
+                        fig_c.add_trace(go.Scatter(
+                            x=df_chart.index, y=df_chart['Close'], 
+                            mode='lines', name='Preço',
+                            fill='tozeroy',
+                            line=dict(color='#F7931A' if 'BTC' in ativo_sel else '#627EEA', width=2), 
+                            fillcolor='rgba(247, 147, 26, 0.1)' if 'BTC' in ativo_sel else 'rgba(98, 126, 234, 0.1)'
+                        ))
+                        
+                        # Média Móvel
+                        fig_c.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA21'], mode='lines', name='MM 21d', line=dict(color='white', width=1, dash='dot')))
+
+                        # Linha de PM (Lógica de exibição segura)
+                        if pm_ativo > 0:
+                            ratio = abs(pm_ativo - current_price) / current_price
+                            # Só exibe se a escala for compatível (evita misturar BRL/USD no visual)
+                            if ratio < 50: 
+                                color_pm = "#4CAF50" if current_price >= pm_ativo else "#FF5252"
+                                fig_c.add_hline(
+                                    y=pm_ativo, line_dash="dash", line_color=color_pm, line_width=2,
+                                    annotation_text=f"Seu PM: {pm_ativo:,.2f}", annotation_position="top right", annotation_font_color=color_pm
+                                )
+
+                        fig_c.update_layout(
+                            height=350, 
+                            hovermode="x unified", 
+                            margin=dict(l=0, r=0, t=10, b=0),
+                            yaxis_title="Preço (Cotação)",
+                            template="plotly_dark",
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig_c, use_container_width=True)
+                    else:
+                        st.warning(f"Gráfico indisponível para {ativo_sel} (Tente verificar o ticker no Yahoo Finance).")
+
+                with col_dist:
+                    st.markdown("##### 🍰 Alocação")
+                    fig_pie = px.pie(
+                        df_cripto, 
+                        values='Valor Hoje (R$)', 
+                        names='Ticker', 
+                        hole=0.6,
+                        color_discrete_sequence=px.colors.qualitative.Bold
+                    )
+                    fig_pie.update_layout(
+                        showlegend=True, 
+                        legend=dict(orientation="h", y=-0.2), 
+                        margin=dict(t=0, b=0, l=0, r=0), 
+                        height=380
+                    )
+                    fig_pie.update_traces(textinfo='percent+label', textposition='inside')
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                st.divider()
+
+                # ==============================================================================
+                # 3. TABELA DETALHADA
+                # ==============================================================================
+                st.subheader("📋 Detalhamento de Posições")
+                
+                cols_show = ['Ticker', 'Qtd', 'PM Compra', 'Preço Atual', 'Valor Hoje (R$)', 'Lucro Aberto (R$)', 'Rent. (%)', 'Custo BRL']
+                
+                st.dataframe(
+                    df_cripto[cols_show].sort_values('Valor Hoje (R$)', ascending=False),
+                    column_config={
+                        "Ticker": st.column_config.TextColumn("Ativo"),
+                        "Qtd": st.column_config.NumberColumn("Qtd", format="%.6f"),
+                        "PM Compra": st.column_config.NumberColumn("PM Médio", format="%.2f"),
+                        "Preço Atual": st.column_config.NumberColumn("Cotação", format="%.2f"),
+                        "Valor Hoje (R$)": st.column_config.NumberColumn("Saldo (R$)", format="R$ %.2f"),
+                        "Lucro Aberto (R$)": st.column_config.NumberColumn("PnL (R$)", format="R$ %.2f"),
+                        "Custo BRL": st.column_config.NumberColumn("Investido (R$)", format="R$ %.2f"),
+                        "Rent. (%)": st.column_config.ProgressColumn(
+                            "Rentabilidade", 
+                            format="%.1f%%", 
+                            min_value=-100, 
+                            max_value=100
+                        ),
+                    },
+                    use_container_width=True,
+                    height=max(200, len(df_cripto) * 35 + 38)
+                )
+
+            else:
+                st.info("ℹ️ Nenhuma criptomoeda encontrada na sua carteira. Adicione transações com setor 'Cripto'.")
+        else:
+            st.info("Carregando dados...")
+
 
     with tab4:
-        st.subheader("💱 Terminal de Câmbio Global & Hedge (Caixa + Custódia)")
+        # --- CABEÇALHO ---
+        c_head, c_refresh = st.columns([5,1])
+        with c_head:
+            st.header("💱 FX Command Center & Hedge")
+            st.caption("Gestão profissional de custódia internacional, caixa e exposição cambial.")
         
-        # --- 1. ENGINE DE DADOS (CARGA E INTEGRAÇÃO DE CUSTÓDIA) ---
+        st.divider()
+
+        # ==============================================================================
+        # 1. ENGINE DE DADOS (CARGA)
+        # ==============================================================================
         carteiras = {}
         moedas_encontradas = set()
-        
-        # A. Processamento do Fluxo de Caixa (Câmbio Realizado - APORTE)
-        # O PM é sagrado: vem estritamente do dinheiro que você enviou (cambio.csv)
+
+        # A. Câmbio Realizado
         try:
             if os.path.exists(CAMINHO_CAMBIO) and os.path.getsize(CAMINHO_CAMBIO) > 0:
                 df_cambio = pd.read_csv(CAMINHO_CAMBIO, sep=";")
-                
-                # Limpeza Numérica
-                cols_num = ['Valor Total entrada', 'Valor Total saída', 'VET']
-                for col in cols_num:
+                for col in ['Valor Total entrada', 'Valor Total saída', 'VET']:
                     if col in df_cambio.columns:
-                        df_cambio[col] = df_cambio[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+                        df_cambio[col] = df_cambio[col].astype(str).str.replace('R$', '', regex=False).str.strip()
+                        df_cambio[col] = df_cambio[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
                         df_cambio[col] = pd.to_numeric(df_cambio[col], errors='coerce').fillna(0)
-                
+
                 df_cambio['Moeda Origem'] = df_cambio['Moeda Origem'].str.upper().str.strip()
                 df_cambio['Moeda Destino'] = df_cambio['Moeda Destino'].str.upper().str.strip()
                 df_cambio['Data'] = pd.to_datetime(df_cambio['Data'], dayfirst=True, errors='coerce')
-                
-                todas_moedas_cambio = set(df_cambio['Moeda Origem'].unique()) | set(df_cambio['Moeda Destino'].unique())
-                moedas_encontradas = set(todas_moedas_cambio - {'BRL'})
-                
-                # Cálculo Inicial (Apenas Caixa)
+
+                todas_moedas = set(df_cambio['Moeda Origem'].unique()) | set(df_cambio['Moeda Destino'].unique())
+                moedas_encontradas = set(todas_moedas - {'BRL'})
+
                 for moeda in moedas_encontradas:
-                    # Saldo Financeiro (Cash)
                     entradas = df_cambio[df_cambio['Moeda Destino'] == moeda]['Valor Total saída'].sum()
                     saidas = df_cambio[df_cambio['Moeda Origem'] == moeda]['Valor Total entrada'].sum()
                     saldo_cash = entradas - saidas
-                    
-                    # Definição de Moeda Base (BRL ou USD) para PM
-                    filt_entrada = df_cambio[df_cambio['Moeda Destino'] == moeda]
-                    moeda_base_calculo = 'BRL'
-                    if moeda != 'USD':
-                        if not filt_entrada[filt_entrada['Moeda Origem'] == 'USD'].empty:
-                            moeda_base_calculo = 'USD'
-                    
-                    # PM Financeiro (Custo de Aquisição da Moeda - APORTE REAL)
-                    aportes_origem = filt_entrada[filt_entrada['Moeda Origem'] == moeda_base_calculo]
-                    investido_base = aportes_origem['Valor Total entrada'].sum()
-                    qtd_comprada_base = aportes_origem['Valor Total saída'].sum()
-                    
-                    pm = investido_base / qtd_comprada_base if qtd_comprada_base > 0 else 0
-                    
-                    carteiras[moeda] = {
-                        'saldo': saldo_cash, # Saldo APENAS de caixa por enquanto
-                        'saldo_equity': 0.0, # Será preenchido abaixo
-                        'pm': pm, 
-                        'investido': investido_base,
-                        'moeda_base': moeda_base_calculo
-                    }
-        except Exception as e:
-            st.error(f"Erro no processamento de câmbio: {e}")
 
-        # B. Integração de Custódia (Mark-to-Market dos Ativos)
-        # Soma o valor das ações (ASML, DPM) ao saldo da moeda para ver a EXPOSIÇÃO TOTAL
+                    filt_entrada = df_cambio[df_cambio['Moeda Destino'] == moeda]
+                    moeda_base_calc = 'BRL'
+                    if moeda != 'USD' and not filt_entrada[filt_entrada['Moeda Origem'] == 'USD'].empty:
+                        moeda_base_calc = 'USD'
+
+                    aportes = filt_entrada[filt_entrada['Moeda Origem'] == moeda_base_calc]
+                    inv = aportes['Valor Total entrada'].sum()
+                    qtd = aportes['Valor Total saída'].sum()
+                    pm_calc = inv / qtd if qtd > 0 else 0
+
+                    carteiras[moeda] = {'saldo_caixa': saldo_cash, 'saldo_equity': 0.0, 'pm': pm_calc, 'moeda_base': moeda_base_calc}
+        except Exception as e:
+            st.error(f"Erro Engine Câmbio: {e}")
+
+        # B. Integração de Ativos
         if 'df_view' in locals() and not df_view.empty:
-            for index, row in df_view.iterrows():
+            for _, row in df_view.iterrows():
                 tkr = str(row['Ticker']).upper()
                 val_r = row['Valor Hoje (R$)']
                 
-                # Regras de Negócio (Geografia do Ativo)
-                moeda_asset = 'USD' # Default global
-                
-                # 1. Tenta identificar pela coluna Moeda se existir
+                m_asset = 'USD'
                 if 'Moeda' in df_view.columns:
-                     m_temp = str(row['Moeda']).upper()
-                     if m_temp in ['EUR', 'CAD', 'GBP', 'CHF', 'JPY']: moeda_asset = m_temp
+                     mc = str(row['Moeda']).upper()
+                     if mc in ['EUR', 'CAD', 'GBP', 'CHF', 'JPY']: m_asset = mc
                 
-                # 2. Overrides Específicos (Solicitação do Cliente)
-                if 'ASML' in tkr: moeda_asset = 'EUR'
-                if 'DPM' in tkr or '.TO' in tkr: moeda_asset = 'CAD'
-                if 'TSM' in tkr: moeda_asset = 'USD'
+                if 'ASML' in tkr: m_asset = 'EUR'
+                if 'DPM' in tkr or '.TO' in tkr: m_asset = 'CAD'
+                if 'TSM' in tkr: m_asset = 'USD'
                 
-                if moeda_asset == 'BRL': continue
-                
-                # Adiciona moeda à lista de encontradas se for nova
-                moedas_encontradas.add(moeda_asset)
-                
-                # Inicializa carteira se não existir no câmbio
-                if moeda_asset not in carteiras:
-                    carteiras[moeda_asset] = {'saldo': 0.0, 'saldo_equity': 0.0, 'pm': 0.0, 'investido': 0.0, 'moeda_base': 'BRL'}
-                
-                # Conversão Reversa (R$ -> Moeda) para estimar "Quantidade Nocional"
-                ticker_pair = f"{moeda_asset}BRL=X"
+                if m_asset == 'BRL': continue
+
+                moedas_encontradas.add(m_asset)
+                if m_asset not in carteiras:
+                    carteiras[m_asset] = {'saldo_caixa': 0.0, 'saldo_equity': 0.0, 'pm': 0.0, 'moeda_base': 'BRL'}
+
+                # Conversão Reversa
+                ticker_pair = f"{m_asset}BRL=X"
                 rate = mapa_precos.get(ticker_pair, 0)
                 if rate == 0: 
-                    if moeda_asset == 'USD': rate = 5.0
-                    elif moeda_asset == 'EUR': rate = 5.5
-                    elif moeda_asset == 'CAD': rate = 4.0
-                    else: rate = 1.0
+                    defaults = {'USD': 5.0, 'EUR': 5.5, 'CAD': 4.0}
+                    rate = defaults.get(m_asset, 1.0)
                 
-                qtd_nocional = val_r / rate
-                carteiras[moeda_asset]['saldo_equity'] += qtd_nocional
+                carteiras[m_asset]['saldo_equity'] += (val_r / rate)
 
-        # Atualiza lista final ordenada
-        lista_moedas_final = sorted(list(moedas_encontradas))
+        lista_moedas = sorted(list(moedas_encontradas))
 
-        # --- 2. CONTROLE DE MESA ---
-        col_sel, col_kpi_top = st.columns([1, 4])
-        with col_sel:
-            idx_def = 0
-            if 'USD' in lista_moedas_final: idx_def = lista_moedas_final.index('USD')
-            st.markdown("##### Ativo Objeto")
-            moeda_sel = st.pills("Selecione:", lista_moedas_final, default=lista_moedas_final[idx_def] if lista_moedas_final else None)
-        
-        # Recupera dados completos
-        dados = carteiras.get(moeda_sel, {'saldo':0, 'saldo_equity':0, 'pm':0, 'investido':0, 'moeda_base':'BRL'})
-        
-        # Exposição Total = Caixa + Ações
-        saldo_caixa = dados['saldo']
-        saldo_equity = dados['saldo_equity']
-        saldo_total = saldo_caixa + saldo_equity
-        
-        pm = dados['pm']
-        moeda_base = dados['moeda_base']
-
-        # Definição de Ticker e Símbolo
-        if moeda_base == 'USD':
-            if moeda_sel == 'CAD': ticker_atual = 'CADUSD=X'
-            elif moeda_sel == 'EUR': ticker_atual = 'EURUSD=X'
-            elif moeda_sel == 'GBP': ticker_atual = 'GBPUSD=X'
-            else: ticker_atual = f'{moeda_sel}{moeda_base}=X'
-            
-            # Ajuste fino Yahoo
-            if moeda_sel == 'CAD': ticker_atual = 'CAD=X'
-            
-            simbolo_ref = "US$"
+        # ==============================================================================
+        # 2. CONTROLE & VARIÁVEIS (SOLUÇÃO DOS ERROS)
+        # ==============================================================================
+        if not lista_moedas:
+            st.info("Nenhuma exposição em moeda estrangeira identificada.")
         else:
-            ticker_atual = f'{moeda_sel}BRL=X'
-            simbolo_ref = "R$"
+            # Menu de Seleção
+            col_menu, _ = st.columns([2, 5])
+            with col_menu:
+                idx_ini = lista_moedas.index('USD') if 'USD' in lista_moedas else 0
+                moeda_sel = st.selectbox("🏳️ Moeda de Análise", lista_moedas, index=idx_ini)
 
-        cotacao_atual = mapa_precos.get(ticker_atual, 0.0)
-        if cotacao_atual == 0:
-             try:
-                 temp = yf.Ticker(ticker_atual).history(period='1d')
-                 if not temp.empty: cotacao_atual = temp['Close'].iloc[-1]
-             except: pass
-        
-        # Lógica de Inversão (Para CAD/USD onde o Yahoo manda invertido)
-        # O PM é (USD gastos / CAD comprados), ex: 0.70. O Ticker CAD=X é 1.40.
-        # Precisamos inverter o ticker para comparar bananas com bananas.
-        cotacao_calculo = cotacao_atual
-        inverter_grafico = False
-        
-        if moeda_sel == 'CAD' and moeda_base == 'USD' and cotacao_atual > 1:
-             cotacao_calculo = 1 / cotacao_atual
-             inverter_grafico = True
+            # --- DEFINIÇÃO SEGURA DAS VARIÁVEIS ---
+            dados = carteiras[moeda_sel]
+            qtd_caixa = dados['saldo_caixa']
+            qtd_equity = dados['saldo_equity']
+            qtd_total = qtd_caixa + qtd_equity
+            pm = dados['pm']
+            moeda_base = dados['moeda_base']
 
-        # --- 3. DASHBOARD DE POSIÇÃO (Total View) ---
-        if saldo_total > 0.01:
-            val_mercado = saldo_total * cotacao_calculo
-            custo_posicao = saldo_total * pm
-            lucro = val_mercado - custo_posicao
-            pct_retorno = ((cotacao_calculo - pm) / pm * 100) if pm > 0 else 0
+            simbolo_base = "R$" if moeda_base == 'BRL' else "US$"
+            ticker_yahoo = f"{moeda_sel}{moeda_base}=X"
             
-            with col_kpi_top:
-                st.markdown(f"##### Exposição Total ({moeda_sel} via {moeda_base})")
-                k1, k2, k3, k4 = st.columns(4)
-                
-                help_saldo = f"Caixa: {saldo_caixa:,.2f} | Ativos: {saldo_equity:,.2f}"
-                k1.metric(f"Exposição Nominal", f"{saldo_total:,.2f}", help=help_saldo)
-                k2.metric(f"Preço Médio ({moeda_base})", f"{simbolo_ref} {pm:,.4f}", help="Baseado no histórico de conversão (cambio.csv)")
-                k3.metric(f"Mark-to-Market ({moeda_base})", f"{simbolo_ref} {val_mercado:,.2f}")
-                k4.metric("Unrealized PnL", f"{simbolo_ref} {lucro:,.2f}", f"{pct_retorno:.2f}%", delta_color="normal")
+            if moeda_base == 'USD' and moeda_sel == 'CAD': ticker_yahoo = 'CAD=X'
+
+            cotacao = mapa_precos.get(ticker_yahoo, 0.0)
+            if cotacao == 0:
+                try:
+                    hist_temp = yf.Ticker(ticker_yahoo).history(period='2d')
+                    if not hist_temp.empty: cotacao = hist_temp['Close'].iloc[-1]
+                except: pass
+
+            cotacao_calc = cotacao
+            inverter_grafico = False
+            if moeda_sel == 'CAD' and moeda_base == 'USD' and cotacao > 1.0:
+                cotacao_calc = 1 / cotacao
+                inverter_grafico = True
+
+            custo_total_base = qtd_total * pm
+            val_mercado_base = qtd_total * cotacao_calc
+            pnl_fin = val_mercado_base - custo_total_base
+            pnl_pct = (pnl_fin / custo_total_base * 100) if custo_total_base > 0 else 0
+
+            # ==============================================================================
+            # 3. DASHBOARD VISUAL
+            # ==============================================================================
             
+            # --- KPIs ---
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric(f"Exposição Total ({moeda_sel})", f"{qtd_total:,.2f}", help=f"Caixa: {qtd_caixa:,.2f} | Ativos: {qtd_equity:,.2f}")
+            c2.metric("Resultado (PnL)", f"{simbolo_base} {pnl_fin:,.2f}", f"{pnl_pct:.2f}%", delta_color="normal" if pnl_fin>=0 else "inverse")
+            c3.metric(f"Preço Médio ({moeda_base})", f"{simbolo_base} {pm:.4f}")
+            c4.metric(f"Cotação Atual", f"{simbolo_base} {cotacao_calc:.4f}")
+
             st.markdown("---")
-            
-            # --- 4. VISUALIZAÇÃO TÉCNICA ---
-            col_gauge, col_chart = st.columns([1, 2])
-            
-            with col_gauge:
-                st.markdown("###### 🧭 Termômetro (Spot vs PM)")
-                max_g = max(cotacao_calculo, pm) * 1.25 if pm > 0 else (cotacao_calculo * 1.2 if cotacao_calculo > 0 else 1)
-                min_g = pm * 0.75 if pm > 0 else 0
-                
-                fig_g = go.Figure(go.Indicator(
-                    mode="gauge+number+delta", value=cotacao_calculo,
-                    title={'text': f"Cotação ({moeda_base})"},
-                    delta={'reference': pm, 'increasing':{'color':'#4CAF50'}, 'decreasing':{'color':'#FF5252'}} if pm > 0 else None,
-                    gauge={
-                        'axis': {'range': [min_g, max_g]},
-                        'bar': {'color': "#2196F3"},
-                        'steps': [{'range': [min_g, pm], 'color': '#FFEBEE'}, {'range': [pm, max_g], 'color': '#E8F5E9'}] if pm > 0 else [],
-                        'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': pm} if pm > 0 else None
-                    }
-                ))
-                fig_g.update_layout(height=280, margin=dict(l=30,r=30,t=40,b=20))
-                st.plotly_chart(fig_g, use_container_width=True)
 
+            # --- GRÁFICOS ---
+            col_chart, col_doughnut = st.columns([3, 1])
+            
+            with col_doughnut:
+                st.markdown("###### 📊 Alocação")
+                if qtd_total > 0:
+                    df_comp = pd.DataFrame([{'Tipo': 'Caixa', 'Valor': qtd_caixa}, {'Tipo': 'Ativos', 'Valor': qtd_equity}])
+                    fig_pie = px.pie(df_comp, values='Valor', names='Tipo', hole=0.6, color='Tipo', color_discrete_map={'Caixa': '#00E676', 'Ativos': '#2979FF'})
+                    fig_pie.update_layout(showlegend=True, legend=dict(orientation="h", y=-0.2), margin=dict(t=0, b=0, l=0, r=0), height=250)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            
             with col_chart:
-                st.markdown(f"###### 📈 Histórico: {ticker_atual}")
+                st.markdown(f"###### 📈 Performance: {moeda_sel} vs {moeda_base}")
                 @st.cache_data(ttl=3600)
-                def get_chart_data_fx(t):
-                    try:
-                        d = yf.download(t, period="1y", interval="1d", progress=False)
-                        if isinstance(d.columns, pd.MultiIndex): d.columns = d.columns.get_level_values(0)
-                        return d[['Close']]
+                def get_fx_hist(t):
+                    try: return yf.download(t, period="2y", interval="1d", progress=False)['Close']
                     except: return pd.DataFrame()
                 
-                df_chart = get_chart_data_fx(ticker_atual)
-                
-                if not df_chart.empty:
-                    # Aplica a inversão no gráfico também, para bater com o PM e Cotação de Cálculo
-                    if inverter_grafico:
-                        df_chart['Close'] = 1 / df_chart['Close']
-
-                    df_chart['SMA50'] = df_chart['Close'].rolling(50).mean()
+                df_hist = get_fx_hist(ticker_yahoo)
+                if not df_hist.empty:
+                    if isinstance(df_hist, pd.Series): df_hist = df_hist.to_frame()
+                    if isinstance(df_hist.columns, pd.MultiIndex): df_hist.columns = df_hist.columns.get_level_values(0)
+                    if inverter_grafico: df_hist = 1 / df_hist
                     
-                    fig_line = px.line(df_chart, x=df_chart.index, y='Close')
-                    fig_line.update_traces(line_color='#1976D2', name=f'Spot ({moeda_base})')
-                    fig_line.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA50'], mode='lines', name='Média 50d', line=dict(color='#FF9800', dash='dot')))
+                    fig_main = go.Figure()
+                    fig_main.add_trace(go.Scatter(x=df_hist.index, y=df_hist.iloc[:, 0], mode='lines', name='Cotação', fill='tozeroy', line=dict(color='#29B6F6', width=2), fillcolor='rgba(41, 182, 246, 0.1)'))
                     
-                    # LINHA DE PM (Ajustada e Garantida)
-                    if pm > 0: 
-                        fig_line.add_hline(
-                            y=pm, 
-                            line_dash="solid", 
-                            line_color="#4CAF50", 
-                            line_width=2,
-                            annotation_text=f"Seu PM: {simbolo_ref}{pm:.3f}", 
-                            annotation_position="bottom right",
-                            annotation_font_color="green"
-                        )
-                    
-                    fig_line.update_layout(height=280, hovermode="x unified", margin=dict(l=0, r=0, t=20, b=0), legend=dict(orientation="h", y=1.1))
-                    st.plotly_chart(fig_line, use_container_width=True)
-                else:
-                    st.warning("Dados históricos indisponíveis.")
-
-            # --- 5. STRESS TEST (Sobre EXPOSIÇÃO TOTAL) ---
-            st.markdown("---")
-            st.markdown(f"### 🔬 Stress Test (Cash + Equity)")
-            st.caption(f"Aplicando choque sobre **{simbolo_ref} {val_mercado:,.2f}** (Valor de Mercado Total).")
-            
-            with st.container(border=True):
-                c_risk1, c_risk2 = st.columns([1, 2])
-                with c_risk1:
-                    cenario_fx = st.slider(f"Choque {moeda_sel} vs {moeda_base}", -30, 30, 0, format="%d%%")
                     if pm > 0:
-                        dist = (cotacao_calculo - pm) / cotacao_calculo * 100
-                        cor_s = "green" if dist > 0 else "red"
-                        lbl = "Margem Segurança" if dist > 0 else "Drawdown p/ PM"
-                        st.markdown(f"<span style='color:{cor_s}; font-weight:bold'>{lbl}: {dist:+.2f}%</span>", unsafe_allow_html=True)
+                        fig_main.add_hline(y=pm, line_dash="dash", line_color="#E91E63", line_width=2)
+                        fig_main.add_annotation(x=df_hist.index[-1], y=pm, text=f"PM: {pm:.4f}", showarrow=False, yshift=10, font=dict(color="#E91E63"))
+
+                    fig_main.update_layout(height=350, hovermode="x unified", margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+                    st.plotly_chart(fig_main, use_container_width=True)
+
+            # ==============================================================================
+            # 4. FERRAMENTAS AVANÇADAS (STRESS TEST CORRIGIDO)
+            # ==============================================================================
+            st.divider()
+            
+            # ATENÇÃO: Todo este bloco está DENTRO do else, onde as variáveis existem
+            with st.expander("🛠️ Ferramentas Avançadas (Stress Test & Extrato)", expanded=True):
+                c_stress, c_log = st.columns([1, 1])
                 
-                with c_risk2:
-                    cot_sim = cotacao_calculo * (1 + cenario_fx / 100)
-                    val_sim = saldo_total * cot_sim
-                    pnl_sim = val_sim - custo_posicao
-                    delta = val_sim - val_mercado
+                with c_stress:
+                    st.markdown("##### ⚡ Stress Test")
                     
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Cotação Simulada", f"{simbolo_ref} {cot_sim:.3f}")
-                    c2.metric("Impacto Financeiro", f"{simbolo_ref} {delta:,.2f}", delta=f"{cenario_fx}%")
-                    c3.metric("PnL Projetado", f"{simbolo_ref} {pnl_sim:,.2f}")
-                    st.progress(min(max((50 + cenario_fx), 0), 100) / 100)
+                    # Seletor de Base de Cálculo
+                    tipo_sim = st.radio("Aplicar choque sobre:", ["Patrimônio Total", "Apenas Caixa"], horizontal=True)
+                    
+                    if tipo_sim == "Apenas Caixa":
+                        base_qtd = qtd_caixa
+                        # Estima custo proporcional do caixa
+                        base_custo = qtd_caixa * pm 
+                    else:
+                        base_qtd = qtd_total
+                        base_custo = custo_total_base
 
-            # --- 6. EXTRATO (Apenas Caixa) ---
-            st.markdown("---")
-            with st.expander("📂 Histórico Financeiro (Fluxo de Caixa)", expanded=False):
-                if 'df_cambio' in locals():
-                     df_filt = df_cambio[(df_cambio['Moeda Origem'] == moeda_sel) | (df_cambio['Moeda Destino'] == moeda_sel)].sort_values('Data', ascending=False)
-                     st.dataframe(df_filt[['Data', 'Moeda Origem', 'Valor Total entrada', 'Moeda Destino', 'Valor Total saída']], use_container_width=True, hide_index=True)
-        else:
-            with col_kpi_top:
-                st.info(f"Sem exposição identificada em {moeda_sel}.")
-                st.metric("Cotação", f"{simbolo_ref} {cotacao_calculo:.3f}")
+                    # Validador Visual
+                    st.caption(f"Base Real: {base_qtd:,.2f} {moeda_sel} | Custo Base: {simbolo_base} {base_custo:,.2f}")
 
-        # --- 7. MONITOR GLOBAL ---
-        st.markdown("### 🌐 Monitor de Paridades")
-        cols_m = st.columns(6)
-        lista_paineis = [('USD', 'BRL=X'), ('EUR', 'EURBRL=X'), ('CAD', 'CADBRL=X'), ('GBP', 'GBPBRL=X'), ('CHF', 'CHFBRL=X'), ('JPY', 'JPYBRL=X')]
-        for i, (nome, tkr) in enumerate(lista_paineis):
-            p = mapa_precos.get(tkr, 0.0)
-            cols_m[i].metric(nome, f"R$ {p:.3f}")
+                    # Slider
+                    shock = st.slider(f"Choque na Cotação", -50, 50, 0, format="%+d%%")
+                    
+                    # Cálculos do Cenário
+                    new_price = cotacao_calc * (1 + shock/100)
+                    val_atual = base_qtd * cotacao_calc
+                    val_sim = base_qtd * new_price
+                    
+                    diff = val_sim - val_atual
+                    pnl_proj = val_sim - base_custo
+                    
+                    cor_res = "green" if pnl_proj > 0 else "red"
+                    
+                    cc1, cc2 = st.columns(2)
+                    cc1.metric("Cotação Simulada", f"{simbolo_base} {new_price:.4f}")
+                    cc2.metric("Impacto Financeiro", f"{simbolo_base} {diff:,.2f}", delta=f"{shock}%", delta_color="off")
+                    
+                    st.markdown(f"**PnL Projetado:** <span style='color:{cor_res}; font-size:1.1em'><b>{simbolo_base} {pnl_proj:,.2f}</b></span>", unsafe_allow_html=True)
 
+                with c_log:
+                    st.markdown("##### 📜 Extrato (Caixa)")
+                    if 'df_cambio' in locals():
+                        df_f = df_cambio[(df_cambio['Moeda Origem'] == moeda_sel) | (df_cambio['Moeda Destino'] == moeda_sel)].sort_values('Data', ascending=False).head(10)
+                        st.dataframe(df_f[['Data', 'Valor Total entrada', 'Valor Total saída', 'VET']], hide_index=True, use_container_width=True, height=250)
+                    else:
+                        st.info("Sem dados.")
+
+        # --- MONITOR FOOTER ---
+        st.markdown("")
+        with st.container(border=True):
+            st.markdown("**🌍 Monitor FX (BRL)**")
+            cols = st.columns(6)
+            for i, (l, t) in enumerate([('USD', 'BRL=X'), ('EUR', 'EURBRL=X'), ('CAD', 'CADBRL=X'), ('GBP', 'GBPBRL=X'), ('CHF', 'CHFBRL=X'), ('JPY', 'JPYBRL=X')]):
+                cols[i].metric(l, f"R$ {mapa_precos.get(t, 0.0):.3f}")
+                
     with tab5:
         if not df_proventos_bruto.empty:
             df_p = df_proventos_bruto.copy()
