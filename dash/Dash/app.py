@@ -1932,9 +1932,9 @@ def main():
             
             with col_chart:
                 st.markdown(f"###### 📈 Performance: {moeda_sel} vs {moeda_base}")
-                @st.cache_data(ttl=3600)
+                @st.cache_data(ttl=3000)
                 def get_fx_hist(t):
-                    try: return yf.download(t, period="2y", interval="1d", progress=False)['Close']
+                    try: return yf.download(t, period="5y", interval="1d", progress=False)['Close']
                     except: return pd.DataFrame()
                 
                 df_hist = get_fx_hist(ticker_yahoo)
