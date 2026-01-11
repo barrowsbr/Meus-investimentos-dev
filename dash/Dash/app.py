@@ -2890,7 +2890,7 @@ def main():
                             st.info("Sem dados.")
 
                         # --- GUIA FISCAL EXTERIOR ---
-                        st.markdown("### 📚 Guia Fiscal (Lei 14.754)")
+                        st.markdown("### 📚 Guia Fiscal")
                         
                         with st.expander("🌎 Regra Geral (2024+)", expanded=True):
                             st.markdown("""
