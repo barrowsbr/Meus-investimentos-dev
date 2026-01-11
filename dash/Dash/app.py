@@ -134,59 +134,68 @@ def carregar_composicao_extra():
         st.error(f"Erro ao ler composição: {e}")
         return pd.DataFrame()
 
-# 4. Carrega Renda Fixa
-@st.cache_data
-@st.cache_data
+# 4. Carrega Renda Fixa (ATUALIZADO COM COLUNA MOEDA)
 @st.cache_data
 def carregar_renda_fixa():
     if not os.path.exists(CAMINHO_FIXA):
         return pd.DataFrame()
     
     try:
-        # Tenta ler com latin1 (padrão Excel Brasil), se falhar tenta utf-8
         try:
             df = pd.read_csv(CAMINHO_FIXA, sep=';', encoding='latin1')
         except:
             df = pd.read_csv(CAMINHO_FIXA, sep=';', encoding='utf-8')
         
-        # Padroniza colunas (minúsculo e sem espaços)
         df.columns = df.columns.str.strip().str.lower()
 
-        # --- RENOMEAÇÃO INTELIGENTE (Procura por palavras-chave) ---
+        # --- RENOMEAÇÃO INTELIGENTE ---
         mapa_colunas = {}
         
-        # 1. Caça a coluna DATA
+        # 1. Data
         col_data = next((c for c in df.columns if 'data' in c or 'compra' in c or 'date' in c), None)
         if col_data: mapa_colunas[col_data] = 'Data'
         
-        # 2. Caça a coluna TICKER/ATIVO
+        # 2. Ticker/Ativo
         col_ticker = next((c for c in df.columns if 'ticker' in c or 'ativo' in c or 'papel' in c or 'produto' in c), None)
         if col_ticker: mapa_colunas[col_ticker] = 'Ticker'
         
-        # 3. Caça a coluna TIPO
+        # 3. Tipo
         col_tipo = next((c for c in df.columns if 'tipo' in c or 'moviment' in c or 'operacao' in c), None)
         if col_tipo: mapa_colunas[col_tipo] = 'Tipo'
         
-        # 4. Caça VALOR INVESTIDO
+        # 4. Valor Investido
         col_valor = next((c for c in df.columns if ('valor' in c and 'atual' not in c) or 'investido' in c or 'aplicado' in c), None)
         if col_valor: mapa_colunas[col_valor] = 'Valor'
 
-        # 5. Caça VALOR ATUAL
+        # 5. Valor Atual
         col_atual = next((c for c in df.columns if 'atual' in c or 'bruto' in c or 'saldo' in c), None)
         if col_atual: mapa_colunas[col_atual] = 'Valor Atual'
+
+        # 6. NOVA COLUNA: Moeda
+        # Procura por "moeda", "moedas", "currency"
+        col_moeda = next((c for c in df.columns if c in ['moeda', 'moedas', 'currency']), None)
+        if col_moeda: mapa_colunas[col_moeda] = 'Moeda'
 
         # Aplica a renomeação
         df.rename(columns=mapa_colunas, inplace=True)
 
-        # --- TRATAMENTO DE ERROS (Se não achou, cria vazio para não travar o app) ---
+        # --- GARANTIA DE ESTRUTURA ---
         if 'Data' not in df.columns: df['Data'] = datetime.now()
         if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
         if 'Tipo' not in df.columns: df['Tipo'] = 'Compra'
+        
+        # Se não achou a coluna Moeda no CSV, cria ela com padrão BRL
+        if 'Moeda' not in df.columns: 
+            df['Moeda'] = 'BRL'
         
         # Conversão de Tipos
         df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
         df['Tipo'] = df['Tipo'].astype(str).str.strip().str.title()
         df['Ticker'] = df['Ticker'].astype(str).str.strip()
+        
+        # Tratamento da Moeda (Remove espaços, joga pra maiúsculo e preenche vazios com BRL)
+        df['Moeda'] = df['Moeda'].fillna('BRL').astype(str).str.upper().str.strip()
+        df['Moeda'] = df['Moeda'].replace({'NAN': 'BRL', 'NONE': 'BRL', '': 'BRL'})
 
         # Limpeza de Números
         for col in ['Valor', 'Valor Atual']:
@@ -202,7 +211,8 @@ def carregar_renda_fixa():
 
     except Exception as e:
         st.error(f"Erro ao ler Renda Fixa: {e}")
-        return pd.DataFrame()    
+        return pd.DataFrame()
+    
 
 # --- LÓGICA DE SETORIZAÇÃO ---
 def identificar_setor_ativo(ticker):
@@ -760,14 +770,15 @@ def main():
                         data_ref = dados_validos.iloc[-1]['Data']
                     
                     lista_rf_completa.append({
-                        'Ticker': ativo,   # <--- ADICIONADO: Garante que o filtro 'Ticker' funcione
-                        'Ativo': ativo,    # <--- MANTIDO: Garante que os gráficos 'Ativo' funcionem
-                        'Status': status, 
+                        'Ticker': ativo,
+                        'Ativo': ativo,
+                        'Status': status,
                         'Data': data_ref,
-                        'Investido': investido, 
-                        'Atual': atual, 
+                        'Investido': investido,
+                        'Atual': atual,
                         'Lucro': lucro,
-                        'Rent. %': ((lucro)/investido * 100) if investido > 0 else 0
+                        'Rent. %': ((lucro)/investido * 100) if investido > 0 else 0,
+                        'Moeda': dados_validos.iloc[0]['Moeda']  # <--- NOVA LINHA: Traz a moeda para o cálculo final
                     })
 
         df_rf_completo = pd.DataFrame(lista_rf_completa)
@@ -1829,236 +1840,382 @@ def main():
         c_head, c_refresh = st.columns([5,1])
         with c_head:
             st.header("💱 FX Command Center & Hedge")
-            st.caption("Gestão profissional de custódia internacional, caixa e exposição cambial.")
+            st.caption("Gestão profissional: Caixa (Renda Fixa), Custo de Aquisição e Valor de Mercado (Mark-to-Market).")
         
         st.divider()
 
         # ==============================================================================
-        # 1. ENGINE DE DADOS (CARGA)
+        # 1. ENGINE DE DADOS
         # ==============================================================================
         carteiras = {}
         moedas_encontradas = set()
 
-        # --- MONITOR FOOTER ---
-        st.markdown("")
+        # --- MONITOR DE COTAÇÕES (TOPO) ---
         with st.container(border=True):
-            st.markdown("**🌍 Monitor FX (BRL)**")
             cols = st.columns(6)
-            for i, (l, t) in enumerate([('USD', 'BRL=X'), ('EUR', 'EURBRL=X'), ('CAD', 'CADBRL=X'), ('GBP', 'GBPBRL=X'), ('CHF', 'CHFBRL=X'), ('JPY', 'JPYBRL=X')]):
-                cols[i].metric(l, f"R$ {mapa_precos.get(t, 0.0):.3f}")
+            tickers_monitor = [('🇺🇸 USD', 'BRL=X'), ('🇪🇺 EUR', 'EURBRL=X'), ('🇨🇦 CAD', 'CADBRL=X'), ('🇬🇧 GBP', 'GBPBRL=X'), ('🇨🇭 CHF', 'CHFBRL=X'), ('🇯🇵 JPY', 'JPYBRL=X')]
+            for i, (l, t) in enumerate(tickers_monitor):
+                val = mapa_precos.get(t, 0.0)
+                var = mapa_variacao.get(t, 0.0)
+                cols[i].metric(l, f"R$ {val:.3f}", f"{var:.3f}", delta_color="normal")
 
+        # --- HELPER INIT ---
+        def init_wallet(m):
+            if m not in carteiras:
+                carteiras[m] = {
+                    'caixa': 0.0, 'investido_rv': 0.0, 'atual_rv': 0.0,
+                    'investido_rf': 0.0, 'atual_rf': 0.0, 'pm_cambio': 0.0, 'moeda_base': 'BRL'
+                }
 
-        # A. Câmbio Realizado
+        # A. Câmbio (PM e Moeda Base)
         try:
             if os.path.exists(CAMINHO_CAMBIO) and os.path.getsize(CAMINHO_CAMBIO) > 0:
                 df_cambio = pd.read_csv(CAMINHO_CAMBIO, sep=";")
                 for col in ['Valor Total entrada', 'Valor Total saída', 'VET']:
                     if col in df_cambio.columns:
-                        df_cambio[col] = df_cambio[col].astype(str).str.replace('R$', '', regex=False).str.strip()
-                        df_cambio[col] = df_cambio[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                        df_cambio[col] = pd.to_numeric(df_cambio[col], errors='coerce').fillna(0)
+                        df_cambio[col] = pd.to_numeric(df_cambio[col].astype(str).str.replace('R$', '').str.replace('.', '').str.replace(',', '.'), errors='coerce').fillna(0)
 
                 df_cambio['Moeda Origem'] = df_cambio['Moeda Origem'].str.upper().str.strip()
                 df_cambio['Moeda Destino'] = df_cambio['Moeda Destino'].str.upper().str.strip()
-                df_cambio['Data'] = pd.to_datetime(df_cambio['Data'], dayfirst=True, errors='coerce')
-
                 todas_moedas = set(df_cambio['Moeda Origem'].unique()) | set(df_cambio['Moeda Destino'].unique())
-                moedas_encontradas = set(todas_moedas - {'BRL'})
+                moedas_encontradas.update(todas_moedas - {'BRL'})
 
                 for moeda in moedas_encontradas:
-                    entradas = df_cambio[df_cambio['Moeda Destino'] == moeda]['Valor Total saída'].sum()
-                    saidas = df_cambio[df_cambio['Moeda Origem'] == moeda]['Valor Total entrada'].sum()
-                    saldo_cash = entradas - saidas
+                    init_wallet(moeda)
+                    # Lógica 1: BRL -> Moeda
+                    filt_entrada = df_cambio[(df_cambio['Moeda Destino'] == moeda) & (df_cambio['Moeda Origem'] == 'BRL')]
+                    if not filt_entrada.empty:
+                        carteiras[moeda]['moeda_base'] = 'BRL'
+                        reais_gastos = filt_entrada['Valor Total entrada'].sum()
+                        moeda_recebida = filt_entrada['Valor Total saída'].sum()
+                        carteiras[moeda]['pm_cambio'] = reais_gastos / moeda_recebida if moeda_recebida > 0 else 0
+                    
+                    # Lógica 2: USD -> Moeda (Cross)
+                    filt_cross = df_cambio[(df_cambio['Moeda Destino'] == moeda) & (df_cambio['Moeda Origem'] == 'USD')]
+                    if not filt_cross.empty:
+                        carteiras[moeda]['moeda_base'] = 'USD'
+                        usd_gasto = filt_cross['Valor Total entrada'].sum()
+                        moeda_rec = filt_cross['Valor Total saída'].sum()
+                        carteiras[moeda]['pm_cambio'] = usd_gasto / moeda_rec if moeda_rec > 0 else 0
+        except: pass
 
-                    filt_entrada = df_cambio[df_cambio['Moeda Destino'] == moeda]
-                    moeda_base_calc = 'BRL'
-                    if moeda != 'USD' and not filt_entrada[filt_entrada['Moeda Origem'] == 'USD'].empty:
-                        moeda_base_calc = 'USD'
-
-                    aportes = filt_entrada[filt_entrada['Moeda Origem'] == moeda_base_calc]
-                    inv = aportes['Valor Total entrada'].sum()
-                    qtd = aportes['Valor Total saída'].sum()
-                    pm_calc = inv / qtd if qtd > 0 else 0
-
-                    carteiras[moeda] = {'saldo_caixa': saldo_cash, 'saldo_equity': 0.0, 'pm': pm_calc, 'moeda_base': moeda_base_calc}
-        except Exception as e:
-            st.error(f"Erro Engine Câmbio: {e}")
-
-        # B. Integração de Ativos
+        # B. Integração RV
         if 'df_view' in locals() and not df_view.empty:
             for _, row in df_view.iterrows():
-                tkr = str(row['Ticker']).upper()
-                val_r = row['Valor Hoje (R$)']
-                
-                m_asset = 'USD'
-                if 'Moeda' in df_view.columns:
-                     mc = str(row['Moeda']).upper()
-                     if mc in ['EUR', 'CAD', 'GBP', 'CHF', 'JPY']: m_asset = mc
-                
-                if 'ASML' in tkr: m_asset = 'EUR'
-                if 'DPM' in tkr or '.TO' in tkr: m_asset = 'CAD'
-                if 'TSM' in tkr: m_asset = 'USD'
-                
-                if m_asset == 'BRL': continue
+                moeda_ativo = str(row['Moeda']).upper().strip()
+                if moeda_ativo in ['BRL', 'NAN', 'NONE', '']: continue
+                moedas_encontradas.add(moeda_ativo)
+                init_wallet(moeda_ativo)
+                qtd = row.get('Qtd', 0.0)
+                if qtd > 0:
+                    pm_compra = row.get('PM Compra', 0.0)
+                    preco_mkt = row.get('Preço Atual', 0.0) 
+                    if preco_mkt <= 0: preco_mkt = row.get('Preco Atual', pm_compra)
+                    carteiras[moeda_ativo]['investido_rv'] += (qtd * pm_compra)
+                    carteiras[moeda_ativo]['atual_rv'] += (qtd * preco_mkt)
 
-                moedas_encontradas.add(m_asset)
-                if m_asset not in carteiras:
-                    carteiras[m_asset] = {'saldo_caixa': 0.0, 'saldo_equity': 0.0, 'pm': 0.0, 'moeda_base': 'BRL'}
-
-                # Conversão Reversa
-                ticker_pair = f"{m_asset}BRL=X"
-                rate = mapa_precos.get(ticker_pair, 0)
-                if rate == 0: 
-                    defaults = {'USD': 5.0, 'EUR': 5.5, 'CAD': 4.0}
-                    rate = defaults.get(m_asset, 1.0)
-                
-                carteiras[m_asset]['saldo_equity'] += (val_r / rate)
+        # C. Integração RF & Caixa
+        if 'df_rf_filtrado' in locals() and not df_rf_filtrado.empty:
+             rf_ativos_fx = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
+             for _, row in rf_ativos_fx.iterrows():
+                 m_rf = str(row.get('Moeda', 'BRL')).upper().strip()
+                 if m_rf in ['BRL', 'NAN', 'NONE', '']: continue
+                 moedas_encontradas.add(m_rf)
+                 init_wallet(m_rf)
+                 nome_ativo = str(row.get('Ativo', '')).upper()
+                 investido = row.get('Investido', 0.0)
+                 atual = row.get('Atual', 0.0)
+                 if atual <= 0: atual = investido
+                 if 'CAIXA' in nome_ativo or 'SALDO' in nome_ativo or 'CASH' in nome_ativo or 'DISPONIVEL' in nome_ativo:
+                     carteiras[m_rf]['caixa'] += atual
+                 else:
+                     carteiras[m_rf]['investido_rf'] += investido
+                     carteiras[m_rf]['atual_rf'] += atual
 
         lista_moedas = sorted(list(moedas_encontradas))
 
         # ==============================================================================
-        # 2. CONTROLE & VARIÁVEIS (SOLUÇÃO DOS ERROS)
+        # 2. DASHBOARD VISUAL (UX EVOLUÍDA)
         # ==============================================================================
         if not lista_moedas:
             st.info("Nenhuma exposição em moeda estrangeira identificada.")
         else:
-            # Menu de Seleção
-            col_menu, _ = st.columns([2, 5])
-            with col_menu:
+            # --- SELETOR ---
+            c_sel, _ = st.columns([2, 5])
+            with c_sel:
                 idx_ini = lista_moedas.index('USD') if 'USD' in lista_moedas else 0
-                moeda_sel = st.selectbox("🏳️ Moeda de Análise", lista_moedas, index=idx_ini)
+                moeda_sel = st.selectbox("🏳️ Selecione a Carteira:", lista_moedas, index=idx_ini)
 
-            # --- DEFINIÇÃO SEGURA DAS VARIÁVEIS ---
-            dados = carteiras[moeda_sel]
-            qtd_caixa = dados['saldo_caixa']
-            qtd_equity = dados['saldo_equity']
-            qtd_total = qtd_caixa + qtd_equity
-            pm = dados['pm']
-            moeda_base = dados['moeda_base']
-
-            simbolo_base = "R$" if moeda_base == 'BRL' else "US$"
-            ticker_yahoo = f"{moeda_sel}{moeda_base}=X"
+            d = carteiras[moeda_sel]
             
-            if moeda_base == 'USD' and moeda_sel == 'CAD': ticker_yahoo = 'CAD=X'
+# --- PREPARAÇÃO DA COTAÇÃO (Movi para cima para usar no cálculo) ---
+            ticker_yahoo = f"{moeda_sel}{d['moeda_base']}=X"
+            if d['moeda_base'] == 'USD': ticker_yahoo = f"{moeda_sel}=X"
 
-            cotacao = mapa_precos.get(ticker_yahoo, 0.0)
-            if cotacao == 0:
-                try:
-                    hist_temp = yf.Ticker(ticker_yahoo).history(period='2d')
-                    if not hist_temp.empty: cotacao = hist_temp['Close'].iloc[-1]
-                except: pass
+            # Tenta pegar cache
+            cotacao_yahoo = mapa_precos.get(ticker_yahoo, 0.0)
+            inverter = False
+            
+            # Ajuste de inversão (ex: CAD)
+            if moeda_sel == 'CAD' and d['moeda_base'] == 'USD' and cotacao_yahoo > 1.0:
+                inverter = True
+            
+            # --- GRÁFICO (LOAD FIRST PARA GARANTIR DADOS) ---
+            @st.cache_data(ttl=3600)
+            def get_history_fx(t):
+                try: return yf.download(t, period="1y", interval="1d", progress=False)['Close']
+                except: return pd.DataFrame()
 
-            cotacao_calc = cotacao
-            inverter_grafico = False
-            if moeda_sel == 'CAD' and moeda_base == 'USD' and cotacao > 1.0:
-                cotacao_calc = 1 / cotacao
-                inverter_grafico = True
+            df_hist = get_history_fx(ticker_yahoo)
+            
+            # FALLBACK DE COTAÇÃO: Se o cache vier 0, pega do histórico recente
+            cotacao_exib = cotacao_yahoo
+            if cotacao_exib <= 0 and not df_hist.empty:
+                ultimo_val = float(df_hist.iloc[-1].iloc[0] if isinstance(df_hist, pd.DataFrame) else df_hist.iloc[-1])
+                cotacao_exib = ultimo_val
+            
+            if inverter and cotacao_exib > 0: cotacao_exib = 1 / cotacao_exib
 
-            custo_total_base = qtd_total * pm
-            val_mercado_base = qtd_total * cotacao_calc
-            pnl_fin = val_mercado_base - custo_total_base
-            pnl_pct = (pnl_fin / custo_total_base * 100) if custo_total_base > 0 else 0
+            # --- CÁLCULOS PRINCIPAIS (AJUSTADO PARA LÓGICA DO USUÁRIO) ---
+            total_investido_ativos = d['investido_rv'] + d['investido_rf']
+            total_atual_ativos = d['atual_rv'] + d['atual_rf']
+            caixa = d['caixa']
+            
+            # Patrimônio Total na Moeda Estrangeira (USD, EUR, etc)
+            exposicao_total = total_atual_ativos + caixa 
+            
+            # Lógica FX PnL: (Valor Atual da Carteira * Cotação Hoje) - (Valor Atual da Carteira * PM Câmbio)
+            # Isso isola puramente quanto você "ganha/perde" se converter tudo agora vs sua taxa média.
+            if d['pm_cambio'] > 0:
+                valor_brl_hoje = exposicao_total * cotacao_exib
+                valor_brl_pm = exposicao_total * d['pm_cambio']
+                
+                pnl_valor = valor_brl_hoje - valor_brl_pm
+                # A % aqui representa a variação cambial pura
+                pnl_pct = ((cotacao_exib - d['pm_cambio']) / d['pm_cambio']) * 100
+            else:
+                pnl_valor = 0.0
+                pnl_pct = 0.0
+            
+            simbolo_base = "R$" if d['moeda_base'] == 'BRL' else "US$"
+
+            # --- HUD DE KPIS ---
+            st.markdown("#### 🎯 Performance Cambial (Mark-to-Market)")
+            k1, k2, k3, k4 = st.columns(4)
+            
+            k1.metric(f"Exposição ({moeda_sel})", f"{exposicao_total:,.2f}", help="Total em custódia na moeda estrangeira (Caixa + Ativos)")
+            
+            # KPI Ajustado: Mostra o Resultado Cambial
+            k2.metric("Resultado Cambial (PnL)", f"{simbolo_base} {pnl_valor:,.2f}", f"{pnl_pct:.2f}%", delta_color="normal")
+            
+            k3.metric(f"PM Câmbio ({d['moeda_base']})", f"{simbolo_base} {d['pm_cambio']:.4f}")
+            k4.metric(f"Cotação Atual", f"{simbolo_base} {cotacao_exib:.4f}", help=f"Par utilizado: {ticker_yahoo}")
+
+            st.markdown("---")
+            
+# [NOVO] BLOCO DE WATERFALL INTEGRADO
+            # Só exibe se houver investimento em Renda Variável para analisar
+            if d['investido_rv'] > 0 and d['pm_cambio'] > 0:
+                with st.expander("🌊 Decomposição de Lucro (Ativos vs. Câmbio)", expanded=True):
+                    
+                    # 1. Recupera valores calculados na sua engine
+                    total_investido_moeda = d['investido_rv']   # Ex: $ 1000 USD
+                    total_atual_moeda = d['atual_rv']           # Ex: $ 1200 USD
+                    pm_cambio_user = d['pm_cambio']             # Ex: R$ 5.00
+                    cotacao_atual_fx = cotacao_exib             # Ex: R$ 5.50
+
+                    # 2. Matemática de Atribuição (Cálculo Seguro)
+                    
+                    # A. Quanto valeria hoje se o dólar NÃO tivesse mudado?
+                    # (Valor em USD Original) * (Câmbio Original) = Investimento Inicial em BRL
+                    investido_brl = total_investido_moeda * pm_cambio_user
+                    
+                    # B. Efeito da valorização dos papéis (mantendo câmbio fixo)
+                    # (Ganho em USD) * (Câmbio Original)
+                    delta_valorizacao_ativo = (total_atual_moeda - total_investido_moeda) * pm_cambio_user
+                    
+                    # C. Efeito da variação cambial (sobre o montante atual)
+                    # (Valor Atual em USD) * (Diferença de Câmbio)
+                    delta_valorizacao_cambio = total_atual_moeda * (cotacao_atual_fx - pm_cambio_user)
+                    
+                    # D. Valor Final
+                    valor_final_brl = total_atual_moeda * cotacao_atual_fx
+
+                    # 3. Gráfico Waterfall
+                    fig_water = go.Figure(go.Waterfall(
+                        name="Atribuição", orientation="v",
+                        measure=["relative", "relative", "relative", "total"],
+                        x=["Investido (R$)", "Resultado Papéis", "Variação Cambial", "Valor Atual (R$)"],
+                        textposition="outside",
+                        text=[
+                            f"R$ {investido_brl/1000:.1f}k",
+                            f"{'+' if delta_valorizacao_ativo > 0 else ''}R$ {delta_valorizacao_ativo/1000:.1f}k",
+                            f"{'+' if delta_valorizacao_cambio > 0 else ''}R$ {delta_valorizacao_cambio/1000:.1f}k",
+                            f"R$ {valor_final_brl/1000:.1f}k"
+                        ],
+                        y=[investido_brl, delta_valorizacao_ativo, delta_valorizacao_cambio, valor_final_brl],
+                        connector={"line": {"color": "rgb(63, 63, 63)"}},
+                        decreasing={"marker": {"color": "#FF4B4B"}},
+                        increasing={"marker": {"color": "#00C805"}},
+                        totals={"marker": {"color": "#2979FF"}}
+                    ))
+
+                    fig_water.update_layout(
+                        title=dict(text=f"Origem do Retorno em {simbolo_base}", font=dict(size=14)),
+                        waterfallgap=0.1, template="plotly_dark", height=350,
+                        margin=dict(l=20, r=20, t=40, b=20)
+                    )
+                    st.plotly_chart(fig_water, use_container_width=True)
+            
+            # [FIM DO NOVO BLOCO]   
 
             # ==============================================================================
-            # 3. DASHBOARD VISUAL
+            # 3. GRÁFICO TÉCNICO AVANÇADO (ZOOM OTIMIZADO)
             # ==============================================================================
-            
-            # --- KPIs ---
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric(f"Exposição Total ({moeda_sel})", f"{qtd_total:,.2f}", help=f"Caixa: {qtd_caixa:,.2f} | Ativos: {qtd_equity:,.2f}")
-            c2.metric("Resultado (PnL)", f"{simbolo_base} {pnl_fin:,.2f}", f"{pnl_pct:.2f}%", delta_color="normal" if pnl_fin>=0 else "inverse")
-            c3.metric(f"Preço Médio ({moeda_base})", f"{simbolo_base} {pm:.4f}")
-            c4.metric(f"Cotação Atual", f"{simbolo_base} {cotacao_calc:.4f}")
+            col_grafico, col_dados = st.columns([2, 1])
+
+            with col_grafico:
+                st.subheader(f"📈 Análise Técnica: {moeda_sel} vs {d['moeda_base']}")
+                
+                if not df_hist.empty:
+                    # Tratamento se vier MultiIndex
+                    if isinstance(df_hist, pd.Series): df_hist = df_hist.to_frame()
+                    if isinstance(df_hist.columns, pd.MultiIndex): df_hist.columns = df_hist.columns.get_level_values(0)
+                    
+                    series_plot = df_hist.iloc[:, 0]
+                    if inverter: series_plot = 1 / series_plot
+
+                    # Cálculo da Média Móvel (SMA 21)
+                    sma = series_plot.rolling(window=21).mean()
+
+                    # AJUSTE DINÂMICO DO EIXO Y (CORREÇÃO DE VISUALIZAÇÃO)
+                    # Pega min e max da série para focar o gráfico na movimentação
+                    y_min = series_plot.min()
+                    y_max = series_plot.max()
+                    margin = (y_max - y_min) * 0.1 # 10% de margem
+                    range_y = [y_min - margin, y_max + margin]
+
+                    # Plotagem
+                    fig = go.Figure()
+
+                    # 1. Cotação (Área)
+                    fig.add_trace(go.Scatter(
+                        x=series_plot.index, y=series_plot.values,
+                        mode='lines', name='Cotação',
+                        fill='tozeroy', line=dict(color='#00B0FF', width=2),
+                        fillcolor='rgba(0, 176, 255, 0.1)'
+                    ))
+
+                    # 2. SMA 21 (Linha Pontilhada)
+                    fig.add_trace(go.Scatter(
+                        x=sma.index, y=sma.values,
+                        mode='lines', name='Média 21d',
+                        line=dict(color='white', width=1, dash='dot')
+                    ))
+
+                    # 3. Linha do PM (Referência Visual)
+                    pm_usuario = d['pm_cambio']
+                    if pm_usuario > 0:
+                        cor_pm = '#00E676' if cotacao_exib >= pm_usuario else '#FF5252' 
+                        fig.add_hline(y=pm_usuario, line_width=2, line_dash="dash", line_color=cor_pm)
+                        fig.add_annotation(
+                            x=series_plot.index[-1], y=pm_usuario,
+                            text=f"Seu PM: {pm_usuario:.4f}",
+                            showarrow=False, yshift=10, font=dict(color=cor_pm, size=12)
+                        )
+
+                    fig.update_layout(
+                        template="plotly_dark",
+                        height=400,
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        hovermode="x unified",
+                        showlegend=True,
+                        legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
+                        yaxis=dict(range=range_y) # Aplica o zoom
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Dados históricos indisponíveis para este par de moedas.")
+
+            # ==============================================================================
+            # 4. COMPOSIÇÃO E TABELA
+            # ==============================================================================
+            with col_dados:
+                st.subheader("📊 Alocação")
+                
+                # Gráfico de Rosca
+                labels = ['Caixa', 'Renda Variável', 'Renda Fixa']
+                values = [caixa, d['atual_rv'], d['atual_rf']]
+                
+                clean_data = [(l, v) for l, v in zip(labels, values) if v > 0]
+                
+                if clean_data:
+                    labels_c, values_c = zip(*clean_data)
+                    fig_pie = px.pie(values=values_c, names=labels_c, hole=0.5, color_discrete_sequence=['#00E676', '#2979FF', '#FFCA28'])
+                    fig_pie.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0), height=250, legend=dict(orientation="h"))
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                st.markdown("###### Detalhamento Patrimonial")
+                df_break = pd.DataFrame({
+                    'Categoria': ['Caixa Livre', 'Renda Variável', 'Renda Fixa'],
+                    'Investido': [caixa, d['investido_rv'], d['investido_rf']],
+                    'Valor Atual': [caixa, d['atual_rv'], d['atual_rf']]
+                })
+                df_break = df_break[df_break['Valor Atual'] > 0]
+                
+                st.dataframe(
+                    df_break.style.format({'Investido': '{:,.2f}', 'Valor Atual': '{:,.2f}'}), 
+                    hide_index=True, 
+                    use_container_width=True
+                )
 
             st.markdown("---")
 
-            # --- GRÁFICOS ---
-            col_chart, col_doughnut = st.columns([3, 1])
-            
-            with col_doughnut:
-                st.markdown("###### 📊 Alocação")
-                if qtd_total > 0:
-                    df_comp = pd.DataFrame([{'Tipo': 'Caixa', 'Valor': qtd_caixa}, {'Tipo': 'Ativos', 'Valor': qtd_equity}])
-                    fig_pie = px.pie(df_comp, values='Valor', names='Tipo', hole=0.6, color='Tipo', color_discrete_map={'Caixa': '#00E676', 'Ativos': '#2979FF'})
-                    fig_pie.update_layout(showlegend=True, legend=dict(orientation="h", y=-0.2), margin=dict(t=0, b=0, l=0, r=0), height=250)
-                    st.plotly_chart(fig_pie, use_container_width=True)
-            
-            with col_chart:
-                st.markdown(f"###### 📈 Performance: {moeda_sel} vs {moeda_base}")
-                @st.cache_data(ttl=3000)
-                def get_fx_hist(t):
-                    try: return yf.download(t, period="5y", interval="1d", progress=False)['Close']
-                    except: return pd.DataFrame()
-                
-                df_hist = get_fx_hist(ticker_yahoo)
-                if not df_hist.empty:
-                    if isinstance(df_hist, pd.Series): df_hist = df_hist.to_frame()
-                    if isinstance(df_hist.columns, pd.MultiIndex): df_hist.columns = df_hist.columns.get_level_values(0)
-                    if inverter_grafico: df_hist = 1 / df_hist
-                    
-                    fig_main = go.Figure()
-                    fig_main.add_trace(go.Scatter(x=df_hist.index, y=df_hist.iloc[:, 0], mode='lines', name='Cotação', fill='tozeroy', line=dict(color='#29B6F6', width=2), fillcolor='rgba(41, 182, 246, 0.1)'))
-                    
-                    if pm > 0:
-                        fig_main.add_hline(y=pm, line_dash="dash", line_color="#E91E63", line_width=2)
-                        fig_main.add_annotation(x=df_hist.index[-1], y=pm, text=f"PM: {pm:.4f}", showarrow=False, yshift=10, font=dict(color="#E91E63"))
-
-                    fig_main.update_layout(height=350, hovermode="x unified", margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
-                    st.plotly_chart(fig_main, use_container_width=True)
-
             # ==============================================================================
-            # 4. FERRAMENTAS AVANÇADAS (STRESS TEST CORRIGIDO)
+            # 5. SIMULADOR DE STRESS (CORRIGIDO E ROBUSTO)
             # ==============================================================================
-            st.divider()
-            
-            # ATENÇÃO: Todo este bloco está DENTRO do else, onde as variáveis existem
-            with st.expander("🛠️ Ferramentas Avançadas (Stress Test & Extrato)", expanded=True):
-                c_stress, c_log = st.columns([1, 1])
+            with st.container(border=True):
+                st.subheader("⚡ Stress Test & Cenários")
+                st.caption(f"Simule o impacto da variação cambial sobre o seu patrimônio total em {moeda_sel}.")
                 
-                with c_stress:
-                    st.markdown("##### ⚡ Stress Test")
-                    
-                    # Seletor de Base de Cálculo
-                    tipo_sim = st.radio("Aplicar choque sobre:", ["Patrimônio Total", "Apenas Caixa"], horizontal=True)
-                    
-                    if tipo_sim == "Apenas Caixa":
-                        base_qtd = qtd_caixa
-                        # Estima custo proporcional do caixa
-                        base_custo = qtd_caixa * pm 
-                    else:
-                        base_qtd = qtd_total
-                        base_custo = custo_total_base
-
-                    # Validador Visual
-                    st.caption(f"Base Real: {base_qtd:,.2f} {moeda_sel} | Custo Base: {simbolo_base} {base_custo:,.2f}")
-
-                    # Slider
-                    shock = st.slider(f"Choque na Cotação", -50, 50, 0, format="%+d%%")
-                    
-                    # Cálculos do Cenário
-                    new_price = cotacao_calc * (1 + shock/100)
-                    val_atual = base_qtd * cotacao_calc
-                    val_sim = base_qtd * new_price
-                    
-                    diff = val_sim - val_atual
-                    pnl_proj = val_sim - base_custo
-                    
-                    cor_res = "green" if pnl_proj > 0 else "red"
-                    
-                    cc1, cc2 = st.columns(2)
-                    cc1.metric("Cotação Simulada", f"{simbolo_base} {new_price:.4f}")
-                    cc2.metric("Impacto Financeiro", f"{simbolo_base} {diff:,.2f}", delta=f"{shock}%", delta_color="off")
-                    
-                    st.markdown(f"**PnL Projetado:** <span style='color:{cor_res}; font-size:1.1em'><b>{simbolo_base} {pnl_proj:,.2f}</b></span>", unsafe_allow_html=True)
-
-                with c_log:
-                    st.markdown("##### 📜 Extrato (Caixa)")
-                    if 'df_cambio' in locals():
-                        df_f = df_cambio[(df_cambio['Moeda Origem'] == moeda_sel) | (df_cambio['Moeda Destino'] == moeda_sel)].sort_values('Data', ascending=False).head(10)
-                        st.dataframe(df_f[['Data', 'Valor Total entrada', 'Valor Total saída', 'VET']], hide_index=True, use_container_width=True, height=250)
-                    else:
-                        st.info("Sem dados.")
+                # Slider direto
+                shock = st.slider(f"Ajuste a Variação da Cotação ({moeda_sel})", -50, 50, 0, format="%+d%%")
                 
+                # CÁLCULOS ROBUSTOS (Garante que a cotação não seja zero)
+                cotacao_base_sim = cotacao_exib if cotacao_exib > 0 else 1.0 # Evita multiplicar por zero se API falhar
+                
+                cotacao_simulada = cotacao_base_sim * (1 + shock/100)
+                
+                # Patrimônio convertido HOJE
+                patrimonio_convertido_hoje = exposicao_total * cotacao_base_sim
+                
+                # Patrimônio convertido SIMULADO
+                patrimonio_convertido_sim = exposicao_total * cotacao_simulada
+                
+                # Diferença (PnL da Simulação)
+                diff_financeira = patrimonio_convertido_sim - patrimonio_convertido_hoje
+                
+                sc1, sc2, sc3 = st.columns(3)
+                
+                sc1.metric(
+                    "Cotação Simulada", 
+                    f"{simbolo_base} {cotacao_simulada:.4f}", 
+                    delta=f"{shock}%", delta_color="off"
+                )
+                
+                sc2.metric(
+                    f"Patrimônio Convertido ({d['moeda_base']})", 
+                    f"{simbolo_base} {patrimonio_convertido_sim:,.2f}"
+                )
+                
+                cor_delta = "normal" if diff_financeira >= 0 else "inverse"
+                sc3.metric(
+                    "Impacto Financeiro Estimado", 
+                    f"{simbolo_base} {diff_financeira:,.2f}", 
+                    delta="Ganho Potencial" if diff_financeira > 0 else "Perda Potencial",
+                    delta_color=cor_delta
+                )
+
     with tab5:
         if not df_proventos_bruto.empty:
             df_p = df_proventos_bruto.copy()
