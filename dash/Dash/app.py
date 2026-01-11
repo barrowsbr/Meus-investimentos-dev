@@ -7,7 +7,6 @@ import os
 import numpy as np
 import datetime as dt
 import shutil
-import plotly.graph_objects as go
 from datetime import datetime, date, time, timedelta
 
 
