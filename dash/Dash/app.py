@@ -38,6 +38,7 @@ CAMINHO_PROVENTOS = os.path.join(PASTA_ATUAL, 'meus_proventos.csv')
 CAMINHO_CAMBIO = os.path.join(PASTA_ATUAL, 'cambio.csv')
 CAMINHO_COMPOSICAO = os.path.join(PASTA_ATUAL, 'composicao.csv')
 CAMINHO_FIXA = os.path.join(PASTA_ATUAL, 'renda_fixa.csv')
+CAMINHO_PTX = os.path.join(PASTA_ATUAL, 'PTAX.csv')
 
 # 1. Carrega Ativos (Transações RV)
 @st.cache_data
@@ -215,30 +216,62 @@ def carregar_renda_fixa():
         return pd.DataFrame()
     
 
-# --- LÓGICA DE SETORIZAÇÃO ---
+# --- LÓGICA DE SETORIZAÇÃO (CORRIGIDA PARA CRIPTO) ---
 def identificar_setor_ativo(ticker):
+    # Limpeza padrão
     t = str(ticker).upper().strip()
-    lista_commodities = ['IAU', 'SIVR', 'SLV', 'GLD', 'DBC', 'USO', 'GSG', 'SIVIR'] 
-    if t in lista_commodities: return 'Commodities'
-    lista_cripto = ['BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'ADA', 'DOT', 'MATIC', 'LINK', 'LTC', 'BTC-USD', 'ETH-USD']
-    if t in lista_cripto: return 'Cripto'
-    lista_reits = ['O', 'VNQ', 'AMT', 'PLD', 'CCI', 'VICI', 'STAG', 'MAIN', 'EQIX']
-    if t in lista_reits: return 'REITs'
-    termos_rf = ['TESOURO', 'NTN-B', 'LCI', 'LCA', 'CDB', 'LC', 'DEBENTURE']
-    if any(x in t for x in termos_rf): return 'Renda Fixa'
-    etfs_usa = ['IVVB11', 'SPY', 'QQQ', 'VWRA', 'VOO', 'VNQ', 'SCHD', 'VT']
-    if any(e in t for e in etfs_usa): return 'ETF'
-    eh_brasil = '.SA' in t or (len(t) >= 5 and t[:4].isalpha() and t[-1].isdigit())
-    if eh_brasil:
-        codigo = t.replace('.SA', '')
-        etfs_br = ['BOVA11', 'SMAL11', 'IVVB11', 'HASH11', 'XINA11']
-        if codigo in etfs_br: return 'ETF'
-        if codigo.endswith('3') or codigo.endswith('4') or codigo.endswith('5') or codigo.endswith('6'): return 'Ações Brasil'
-        if codigo.endswith('11'): 
-            units = ['KLBN11', 'SAPR11', 'TAEE11', 'ALUP11', 'SANB11', 'BPAC11']
-            if codigo in units: return 'Ações Brasil'
-            return 'FIIs'
-        return 'Ações Brasil'
+    
+    # Se tiver sufixo .SA, remove para facilitar (mas guarda o original se precisar)
+    t_clean = t.replace('.SA', '')
+    
+    # --- 1. CRIPTO (PRIORIDADE ALTA) ---
+    # Adicione aqui qualquer ticker de cripto que você use
+    lista_cripto_exata = ['BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'HBAR', 'ADA', 'BTC-USD', 'ETH-USD']
+    
+    # Lógica: Se estiver na lista ou se começar com BTC/ETH (ex: BTC-USD)
+    if t_clean in lista_cripto_exata: return 'Cripto'
+    if t_clean.startswith('BTC') and len(t_clean) < 8: return 'Cripto' # Pega BTC, BTC-USD, BTCUSD
+    if t_clean.startswith('ETH') and len(t_clean) < 8: return 'Cripto'
+
+    # --- 2. ETFs BRASIL ---
+    etfs_br = ['IVVB11', 'BOVA11', 'SMAL11', 'HASH11', 'XINA11', 'EURP11', 'GOLD11', 'B5P211']
+    if t_clean in etfs_br: return 'ETF'
+
+    # --- 3. COMMODITIES ---
+    lista_commodities = ['IAU', 'SIVR', 'SLV', 'GLD', 'DBC', 'USO']
+    if t_clean in lista_commodities: return 'Commodities'
+    
+    # --- 4. ETFs USA ---
+    etfs_usa = ['SPY', 'QQQ', 'VWRA', 'VOO', 'VNQ', 'SCHD', 'VT']
+    if t_clean in etfs_usa: return 'ETF USA'
+
+    # --- 5. RENDA FIXA (Busca por palavras-chave) ---
+    termos_rf = ['TESOURO', 'NTN', 'LCI', 'LCA', 'CDB', 'LC', 'DEBENTURE', 'CASH', 'CAIXA']
+    if any(x in t_clean for x in termos_rf): return 'Renda Fixa'
+
+    # --- 6. LÓGICA B3 (Ações vs FIIs) ---
+    # Verifica último dígito numérico (Ex: PETR4 -> 4)
+    if t_clean[-1].isdigit():
+        # Units e Ações Especiais
+        units_acoes = ['KLBN11', 'SAPR11', 'TAEE11', 'ALUP11', 'SANB11', 'BPAC11', 'ITUB11', 'BBAS11', 'EGIE11']
+        
+        if t_clean.endswith('3') or t_clean.endswith('4') or t_clean.endswith('5') or t_clean.endswith('6'):
+            return 'Ações Brasil'
+        
+        elif t_clean.endswith('11'):
+            if t_clean in units_acoes:
+                return 'Ações Brasil'
+            else:
+                return 'FIIs' # Padrão para final 11
+        
+        elif t_clean.endswith('32') or t_clean.endswith('33') or t_clean.endswith('34'):
+            return 'BDRs'
+
+    # --- 7. REITS (SE TIVER LISTA MANUAL) ---
+    # Adicione seus REITs aqui se quiser separar de Ações EUA
+    # if t_clean in ['O', 'AMT', 'PLD']: return 'REITs'
+
+    # Se não caiu em nada acima, assume Ação Internacional
     return 'Ações Internacional'
 
 # --- CÁLCULO DE POSIÇÃO RV ---
@@ -984,11 +1017,11 @@ def main():
     tab_perf, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🚀 Performance", 
         "💎 Composição", 
-        "📊 Ações/FIIs", 
+        "📊 Renda Variável", 
         "₿ Cripto", 
         "💱 Câmbio", 
         "💰 Proventos", 
-        "🦁 IR & Fiscal", 
+        "🦁 Imposto", 
         "🏦 Renda Fixa", 
         "📝 Editor"
     ])
@@ -1644,51 +1677,106 @@ def main():
 
 
                 # ==============================================================================
-                # 2º - GRÁFICO: PERFORMANCE TOTAL POR ATIVO (AGORA VEM DEPOIS)
+                # 2º - GRÁFICO: PERFORMANCE TOTAL POR ATIVO (EMPILHADO: REALIZADO vs NÃO REALIZADO)
                 # ==============================================================================
-                st.markdown("### 🧬 Rentabilidade Total por Ativo (N realizado, realizado + proventos))")
-                st.caption("Considera: Valorização + Lucro Realizado + Dividendos / Custo Total")
+                st.markdown("### 🧬 Rentabilidade Total por Ativo (Composição)")
+                st.caption("Barra Sólida: Valorização Não Realizada | Barra Clara: Lucro Realizado + Proventos")
 
-                # Prepara dados para o gráfico (Ordena do maior para o menor retorno)
+                # 1. Preparação dos Dados
                 df_chart = df_detalhes.sort_values('Rent. BRL (%)', ascending=True).copy()
-                
-                # Altura dinâmica
-                altura_grafico = max(500, len(df_chart) * 25)
 
-                fig_perf = px.bar(
-                    df_chart, 
-                    x='Rent. BRL (%)', 
-                    y='Ticker',
+                # Cálculos auxiliares para separar as porcentagens
+                # Definição: 'Bolso' = Lucro Realizado + Proventos
+                df_chart['Resultado_Bolso_Abs'] = df_chart['Proventos (R$)'].fillna(0) + df_chart['Lucro Realizado (BRL)'].fillna(0)
+                # Definição: 'Nao_Realizado' = Total - Bolso
+                df_chart['Resultado_NaoRealizado_Abs'] = df_chart['Resultado Total (R$)'] - df_chart['Resultado_Bolso_Abs']
+
+                # Estimar o Custo Total implícito para calcular as parciais em %
+                # Fórmula: Custo = Resultado_Total / (Rent_Total_Pct / 100)
+                # Tratamento para evitar divisão por zero
+                df_chart['Custo_Estimado'] = df_chart.apply(
+                    lambda x: x['Resultado Total (R$)'] / (x['Rent. BRL (%)'] / 100) if x['Rent. BRL (%)'] != 0 else 0, 
+                    axis=1
+                )
+
+                # Calcular % de cada componente
+                df_chart['Pct_Nao_Realizado'] = df_chart.apply(
+                    lambda x: (x['Resultado_NaoRealizado_Abs'] / x['Custo_Estimado'] * 100) if x['Custo_Estimado'] != 0 else 0, 
+                    axis=1
+                )
+                df_chart['Pct_Bolso'] = df_chart.apply(
+                    lambda x: (x['Resultado_Bolso_Abs'] / x['Custo_Estimado'] * 100) if x['Custo_Estimado'] != 0 else 0, 
+                    axis=1
+                )
+
+                # Definir cores baseadas no Total (Verde para lucro, Vermelho para prejuízo, Amarelo neutro)
+                # A lógica aqui aplica a cor a linha inteira baseada no resultado final
+                cores_base = [
+                    '#4CAF50' if x > 0 else '#FF5252' if x < 0 else '#FFEB3B' 
+                    for x in df_chart['Rent. BRL (%)']
+                ]
+
+                altura_grafico = max(500, len(df_chart) * 30)
+
+                # 2. Construção do Gráfico com Graph Objects
+                fig_perf = go.Figure()
+
+                # Camada 1: Não Realizado (Cor Sólida/Escura)
+                fig_perf.add_trace(go.Bar(
+                    y=df_chart['Ticker'],
+                    x=df_chart['Pct_Nao_Realizado'],
+                    name='Não Realizado (Valoriação)',
                     orientation='h',
-                    text='Rent. BRL (%)',
-                    hover_data=['Resultado Total (R$)', 'Proventos (R$)', 'Lucro Realizado (BRL)'],
-                    color='Rent. BRL (%)',
-                    color_continuous_scale=['#FF5252', '#FFEB3B', '#4CAF50'], 
-                    color_continuous_midpoint=0
-                )
+                    marker_color=cores_base,
+                    marker_opacity=1.0,  # Bem visível
+                    # Hover com detalhes financeiros
+                    customdata=np.stack((
+                        df_chart['Resultado_NaoRealizado_Abs'], 
+                        df_chart['Rent. BRL (%)']
+                    ), axis=-1),
+                    hovertemplate="<b>Não Realizado:</b> %{x:.1f}%<br>R$ %{customdata[0]:.2f}<extra></extra>"
+                ))
 
-                fig_perf.update_traces(
-                    texttemplate='%{text:.1f}%', 
+                # Camada 2: Realizado + Proventos (Cor Clara/Transparente)
+                fig_perf.add_trace(go.Bar(
+                    y=df_chart['Ticker'],
+                    x=df_chart['Pct_Bolso'],
+                    name='Realizado + Proventos',
+                    orientation='h',
+                    marker_color=cores_base,
+                    marker_opacity=0.3,  # Mais transparente para dar efeito de "sombra" ou complemento
+                    text=df_chart['Rent. BRL (%)'], # Mostra o total no final
+                    texttemplate='%{text:.1f}%',
                     textposition='outside',
-                    marker_line_width=0,
-                    opacity=0.9
-                )
-                
+                    # Hover com detalhes financeiros
+                    customdata=np.stack((
+                        df_chart['Resultado_Bolso_Abs'], 
+                        df_chart['Proventos (R$)'], 
+                        df_chart['Lucro Realizado (BRL)']
+                    ), axis=-1),
+                    hovertemplate=(
+                        "<b>Bolso (Realizado + Prov):</b> %{x:.1f}%<br>"
+                        "Total Bolso: R$ %{customdata[0]:.2f}<br>"
+                        "<i>(Div: %{customdata[1]:.2f} + Realiz: %{customdata[2]:.2f})</i><extra></extra>"
+                    )
+                ))
+
+                # 3. Layout Final
                 fig_perf.update_layout(
+                    barmode='relative', # Empilha valores positivos e negativos corretamente
                     height=altura_grafico,
                     xaxis_title="Rentabilidade Total (%)",
                     yaxis_title=None,
-                    showlegend=False,
-                    coloraxis_showscale=False,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                     margin=dict(l=0, r=40, t=30, b=30),
                     yaxis=dict(type='category')
                 )
-                
+
                 # Linha vertical no zero
                 fig_perf.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
 
                 st.plotly_chart(fig_perf, use_container_width=True)
-                
                 st.markdown("---")
 
             else: 
@@ -2245,11 +2333,17 @@ def main():
     with tab5:
         if not df_proventos_bruto.empty:
             df_p = df_proventos_bruto.copy()
+            
+            # --- 1. FILTROS ---
             if filtro_moeda != 'Todas': 
                 df_p = df_p[df_p['moeda'] == filtro_moeda]
+            
+            # Garante que a coluna setor existe para o Sankey, mesmo sem filtro ativado
+            df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
+
             if filtro_setor:
-                df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
                 df_p = df_p[df_p['setor_calc'].isin(filtro_setor)]
+            
             if lista_tickers_final:
                 def limpar_sufixo_prov(t): return str(t).replace('.SA', '').replace('.TO', '').replace('.L', '').strip().upper()
                 tickers_permitidos = {limpar_sufixo_prov(t) for t in lista_tickers_final}
@@ -2257,6 +2351,7 @@ def main():
             else: 
                 df_p = df_p[0:0]
 
+            # Conversão de Moeda
             def conv_brl(row):
                 m = str(row['moeda']).strip().upper()
                 v = row['valor']
@@ -2264,16 +2359,20 @@ def main():
                 if m == 'CAD': return v * cad
                 if m == 'EUR': return v * eur
                 return v
+            
             if not df_p.empty: 
                 df_p['valor_brl'] = df_p.apply(conv_brl, axis=1)
 
             st.subheader("💰 Extrato de Proventos (Consolidado R$)")
+            
             if not df_p.empty:
+                # Preparação de Datas
                 df_p['ano_real'] = df_p['data'].dt.year
                 df_p['mes_real'] = df_p['data'].dt.month
                 anos_disponiveis = sorted(df_p['ano_real'].unique().tolist(), reverse=True)
                 meses_map = {1:'Jan', 2:'Fev', 3:'Mar', 4:'Abr', 5:'Mai', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Set', 10:'Out', 11:'Nov', 12:'Dez'}
                 
+                # Seletores
                 col_ano, col_mes = st.columns(2)
                 with col_ano: 
                     anos_sel = st.multiselect("📅 Filtrar Anos:", anos_disponiveis, placeholder="Todos os anos")
@@ -2282,6 +2381,7 @@ def main():
                     meses_sel_nomes = st.multiselect("📅 Filtrar Meses:", opcoes_meses, placeholder="Todos os meses")
                     meses_sel = [k for k,v in meses_map.items() if v in meses_sel_nomes]
                 
+                # Aplicação dos Filtros de Data
                 df_filter = df_p.copy()
                 if anos_sel: df_filter = df_filter[df_filter['ano_real'].isin(anos_sel)]
                 if meses_sel: df_filter = df_filter[df_filter['mes_real'].isin(meses_sel)]
@@ -2289,7 +2389,10 @@ def main():
                 if not df_filter.empty:
                     container_kpi = st.container()
                     st.markdown("---")
+                    
+                    # --- GRÁFICOS INICIAIS (BARRA + PIZZA) ---
                     col_evolucao, col_proporcao = st.columns([2, 1])
+                    
                     with col_proporcao:
                         st.write("🏆 **Top Pagadores**")
                         grp = st.radio("Agrupar:", ["Ativo", "Categoria", "Tipo"], horizontal=True, label_visibility="collapsed", key="radio_pie_group")
@@ -2324,6 +2427,7 @@ def main():
                     st.dataframe(df_resumo_simples.style.format({'valor_brl': 'R$ {:,.2f}'}), use_container_width=True, height=250)
                     
                     st.markdown("---")
+                    
                     with col_evolucao:
                         df_filter['pos'] = df_filter['valor_brl'].apply(lambda x: x if x > 0 else 0)
                         df_filter['neg'] = df_filter['valor_brl'].apply(lambda x: x if x < 0 else 0)
@@ -2337,6 +2441,104 @@ def main():
                             fig_t.update_layout(hovermode="x unified", xaxis={'type':'category'}, height=450)
                             st.plotly_chart(fig_t, use_container_width=True)
 
+# =========================================================
+                    # 🌊 FLUXO DE RECEITA (SANKEY 3 NÍVEIS: TICKER -> SETOR -> MOEDA)
+                    # =========================================================
+                    st.markdown("### 🌊 Fluxo de Capital (Ticker ➔ Setor ➔ Moeda)")
+                    
+                    # 1. Preparação dos Dados (Agrupamentos para os 2 elos)
+                    # Elo 1: Ticker -> Setor
+                    df_L1 = df_filter.groupby(['ticker', 'setor_calc'])['valor_brl'].sum().reset_index()
+                    df_L1.columns = ['source', 'target', 'value']
+                    
+                    # Elo 2: Setor -> Moeda (Para mostrar onde o dinheiro aterrissa)
+                    df_L2 = df_filter.groupby(['setor_calc', 'moeda'])['valor_brl'].sum().reset_index()
+                    df_L2.columns = ['source', 'target', 'value']
+
+                    # Filtrar valores zerados
+                    df_L1 = df_L1[df_L1['value'] > 0]
+                    df_L2 = df_L2[df_L2['value'] > 0]
+
+                    if not df_L1.empty and not df_L2.empty:
+                        # 2. Criar lista única de Labels (Nós) para gerar os índices
+                        # Adicionamos um sufixo visual para diferenciar nomes iguais se houver (ex: Setor 'Outros' vs Moeda 'Outros')
+                        labels_tickers = sorted(df_L1['source'].unique().tolist())
+                        labels_sectors = sorted(df_L1['target'].unique().tolist())
+                        labels_moedas  = sorted(df_L2['target'].unique().tolist())
+                        
+                        # Lista Mestra de Labels (A ordem importa para o índice)
+                        all_labels = labels_tickers + labels_sectors + labels_moedas
+                        
+                        # 3. Mapear nomes para índices numéricos (0, 1, 2...)
+                        # Mapas de índices
+                        id_map = {label: i for i, label in enumerate(all_labels)}
+                        
+                        # 4. Construir as Listas de Conexão (Links)
+                        sources = []
+                        targets = []
+                        values = []
+                        colors = []
+
+                        # Elo 1: Ticker -> Setor
+                        for _, row in df_L1.iterrows():
+                            sources.append(id_map[row['source']])
+                            targets.append(id_map[row['target']])
+                            values.append(row['value'])
+                            colors.append('rgba(33, 150, 243, 0.4)') # Azul Translúcido
+
+                        # Elo 2: Setor -> Moeda
+                        for _, row in df_L2.iterrows():
+                            # Nota: O 'source' aqui é o Setor, que já tem um ID definido acima
+                            sources.append(id_map[row['source']]) 
+                            targets.append(id_map[row['target']])
+                            values.append(row['value'])
+                            colors.append('rgba(76, 175, 80, 0.4)') # Verde Translúcido
+
+                        # 5. Configurar Cores dos Nós (Nodes)
+                        # Tickers (Azul), Setores (Verde), Moedas (Laranja)
+                        node_colors = []
+                        for label in all_labels:
+                            if label in labels_tickers: node_colors.append("#2196F3") # Azul
+                            elif label in labels_sectors: node_colors.append("#4CAF50") # Verde
+                            else: node_colors.append("#FF9800") # Laranja (Moeda)
+
+                        # 6. Plotar
+                        fig_sankey = go.Figure(data=[go.Sankey(
+                            node = dict(
+                              pad = 20,
+                              thickness = 20,
+                              line = dict(color = "black", width = 0.5),
+                              label = all_labels,
+                              color = node_colors,
+                              hovertemplate='%{label}<br>Total: R$ %{value:,.2f}<extra></extra>'
+                            ),
+                            link = dict(
+                              source = sources,
+                              target = targets,
+                              value = values,
+                              color = colors,
+                              hovertemplate='Fluxo: R$ %{value:,.2f}<extra></extra>'
+                            )
+                        )])
+
+                        fig_sankey.update_layout(
+                            height=600, 
+                            font=dict(size=12, color="white"),
+                            template="plotly_dark",
+                            margin=dict(l=10, r=10, t=30, b=30),
+                            paper_bgcolor='rgba(0,0,0,0)', # Fundo transparente
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        
+                        st.plotly_chart(fig_sankey, use_container_width=True)
+                        
+                    else:
+                        st.info("Dados insuficientes para gerar o fluxo de 3 níveis.")
+                    
+                    # =========================================================
+                    # =========================================================
+
+                    st.markdown("---")
                     st.subheader("📋 Detalhamento")
                     def st_neg(v): return 'color: #ff4b4b' if v < 0 else 'color: #4CAF50'
                     cols = ['data','ticker','lancamento','valor','moeda','valor_brl']
@@ -2348,219 +2550,371 @@ def main():
                 st.warning("Nenhum provento encontrado para os ativos filtrados.")
         else: 
             st.info("Arquivo de proventos vazio.")
-
+            
+# --- TAB 6: IMPOSTO (NÍVEL PRO: SWING + FII + DAY TRADE AUTOMÁTICO) ---
+# --- TAB 6: IMPOSTO (FINAL: PTAX COMPRA/VENDA + DESIGN PRO) ---
     with tab6:
-        st.subheader("🦁 Central Fiscal Inteligente (Brasil & Exterior)")
-        st.info("ℹ️ **Compliance:** Apuração pelo regime de competência (Mês da Venda).")
-
-        # --- 1. ENGINE FISCAL (CÁLCULO DE LUCRO REAL) ---
-        df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() else pd.DataFrame()
+        c_head, c_conf = st.columns([4, 1])
+        with c_head:
+            st.subheader("🦁 Central Fiscal Inteligente")
+            st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
         
-        carteira_tax_br = {}   
-        carteira_tax_ex = {}   
-        transacoes_fiscais = []
+        with c_conf:
+            with st.popover("⚙️ Configurações"):
+                FORCAR_COMPENSACAO_20K = st.checkbox(
+                    "Compensar prejuízo Swing < 20k?", 
+                    value=True, 
+                    key="chk_fiscal_20k_surgical"
+                )
 
-        def classificar_ativo_fiscal(ticker, mercado='BR'):
-            t = str(ticker).upper().strip()
+        # --- 1. CARREGAMENTO PTAX ---
+        @st.cache_data
+        def carregar_ptax_csv():
+            caminho_arquivo = os.path.join(PASTA_ATUAL, 'PTAX.csv')
+            if not os.path.exists(caminho_arquivo): return pd.DataFrame()
+            try:
+                df = pd.read_csv(caminho_arquivo, sep=';', dtype=str)
+                if len(df.columns) < 2: df = pd.read_csv(caminho_arquivo, sep=',', dtype=str)
+                df = df.iloc[:, :2]
+                df.columns = ['Data', 'Taxa']
+                df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+                df['Taxa'] = df['Taxa'].str.replace(',', '.').astype(float)
+                return df.dropna().sort_values('Data').set_index('Data')
+            except: return pd.DataFrame()
+
+        df_ptax_index = carregar_ptax_csv()
+
+        def obter_ptax(data_op):
+            if df_ptax_index.empty: return 1.0 
+            try:
+                idx = df_ptax_index.index.asof(data_op)
+                return df_ptax_index.loc[idx]['Taxa'] if not pd.isna(idx) else 1.0
+            except: return 1.0
+
+        # --- 2. ENGINE FISCAL ---
+        df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() and not df_bruto.empty else pd.DataFrame()
+        dt_map = set()
+        
+        if not df_tax.empty:
+            for (d, t), g in df_tax.groupby(['data', 'ticker']):
+                ops = set(g['tipo'].str.lower().str.strip())
+                if any('compra' in x for x in ops) and any('venda' in x for x in ops): dt_map.add((d, t))
+
+        def classificar_ativo(tkr, mercado):
+            t = str(tkr).upper().strip().replace('.SA', '')
+            if len(t) > 4 and t.endswith('F') and t[-2].isdigit(): t = t[:-1]
             if mercado == 'BR':
-                lista_fiis = ['KNCR11', 'HGCR11', 'HGLG11', 'MXRF11', 'XPML11', 'HCTR11', 'DEVA11', 'CPTS11']
-                if any(fii in t for fii in lista_fiis) or (t.endswith('11') and 'FII' in t): 
-                    return 'FII', 0.20, False 
-                
-                etfs_br = ['BOVA11', 'SMAL11', 'IVVB11', 'HASH11', 'WRLD11']
-                if t in etfs_br: return 'ETF', 0.15, False
-                
-                return 'Ações BR', 0.15, True 
-            else:
-                if t in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC']: return 'Cripto', 0.15, True
-                return 'Ativos Financeiros Exterior', 0.15, False
+                lista_etfs = ['IVVB11', 'BOVA11', 'SMAL11', 'HASH11', 'WRLD11', 'XINA11', 'NASD11', 'GOLD11', 'EURP11', 'B5P211', 'ETH11', 'BIT11', 'HETE11', 'IMAB11', 'IBOB11', 'SPXI11', 'GOVE11', 'MATB11', 'USTK11', 'TECK11', 'BBSD11', 'XFIX11', 'ALUG11', 'FIND11', 'BRAX11', 'ECOO11', 'DIVO11']
+                if t in lista_etfs: return 'ETF'
+                if t.endswith(('32','33','34')): return 'BDR'
+                if t.endswith('11'):
+                    units = ['KLBN11', 'SAPR11', 'TAEE11', 'ALUP11', 'SANB11', 'BPAC11', 'ITUB11', 'BBAS11', 'SANB11', 'TIET11', 'CPFE11', 'EGIE11', 'ENGI11']
+                    return 'Ações BR' if t in units else 'FII'
+                return 'Ações BR'
+            return 'Ativos Financeiros Exterior'
 
-        # --- PROCESSAMENTO (Engine Mantida, foco no UX abaixo) ---
+        carteira_pm = {} 
+        transacoes = []
+        dolar_hoje = mapa_precos.get('BRL=X', 5.50) if 'mapa_precos' in locals() else 5.50
+
         if not df_tax.empty:
             for _, row in df_tax.iterrows():
                 tkr = row['ticker']
                 tipo = str(row['tipo']).lower()
-                qtd = row['quantidade']
-                preco_operacao = row['preco']
-                data_op = row['data']
+                qtd = float(row['quantidade'])
+                preco = float(row['preco'])
+                data = row['data']
                 
                 eh_exterior = False
-                moeda_origem = 'BRL'
-                # Regra simples de detecção exterior
-                if '.SA' not in tkr and (len(tkr) <= 5 or tkr in ['VT', 'VNQ', 'VOO', 'DPM', 'ASML', 'TSM']):
-                     eh_exterior = True
+                if '.SA' not in str(tkr) and (len(str(tkr)) <= 5 or tkr in ['VT', 'VNQ', 'VOO', 'DPM', 'ASML', 'TSM']): eh_exterior = True
+                mercado = 'EX' if eh_exterior else 'BR'
                 
-                if not eh_exterior:
-                    classe, aliquota, tem_isencao = classificar_ativo_fiscal(tkr, 'BR')
-                    if tkr not in carteira_tax_br: carteira_tax_br[tkr] = {'qtd': 0.0, 'custo_total': 0.0}
-                    
-                    if 'compra' in tipo:
-                        custo_op = (qtd * preco_operacao) + row.get('taxas', 0)
-                        carteira_tax_br[tkr]['qtd'] += qtd
-                        carteira_tax_br[tkr]['custo_total'] += custo_op
-                    
-                    elif 'venda' in tipo:
-                        pm = (carteira_tax_br[tkr]['custo_total'] / carteira_tax_br[tkr]['qtd']) if carteira_tax_br[tkr]['qtd'] > 0 else 0
-                        valor_venda_total = qtd * preco_operacao
-                        custo_venda = qtd * pm
-                        lucro_brl = valor_venda_total - custo_venda
-                        
-                        carteira_tax_br[tkr]['qtd'] -= qtd
-                        carteira_tax_br[tkr]['custo_total'] -= custo_venda
-                        
-                        transacoes_fiscais.append({
-                            'data': data_op,
-                            'competencia': data_op.strftime('%Y-%m'),
-                            'ano': data_op.year,
-                            'ticker': tkr,
-                            'jurisdicao': 'Brasil',
-                            'classe': classe,
-                            'aliquota': aliquota,
-                            'regra_isencao': tem_isencao,
-                            'volume_venda': valor_venda_total,
-                            'lucro_apurado': lucro_brl
-                        })
-                else:
-                    # Lógica Exterior (Simplificada para manter compatibilidade)
-                    classe, aliquota, tem_isencao = classificar_ativo_fiscal(tkr, 'EX')
-                    ptax_dia = 5.50 
-                    if tkr not in carteira_tax_ex: carteira_tax_ex[tkr] = {'qtd': 0.0, 'custo_total_brl': 0.0}
-                    
-                    if 'compra' in tipo:
-                        custo_reais = (qtd * preco_operacao) * ptax_dia
-                        carteira_tax_ex[tkr]['qtd'] += qtd
-                        carteira_tax_ex[tkr]['custo_total_brl'] += custo_reais
-                    
-                    elif 'venda' in tipo:
-                        pm_reais = (carteira_tax_ex[tkr]['custo_total_brl'] / carteira_tax_ex[tkr]['qtd']) if carteira_tax_ex[tkr]['qtd'] > 0 else 0
-                        valor_venda_reais = (qtd * preco_operacao) * ptax_dia
-                        custo_venda_reais = qtd * pm_reais
-                        lucro_cambial_real = valor_venda_reais - custo_venda_reais
-                        
-                        carteira_tax_ex[tkr]['qtd'] -= qtd
-                        carteira_tax_ex[tkr]['custo_total_brl'] -= custo_venda_reais
+                ptax_op = obter_ptax(data) if mercado == 'EX' else 1.0
+                classe_orig = classificar_ativo(tkr, mercado)
+                is_dt = (mercado == 'BR' and (data, tkr) in dt_map)
+                classe_final = 'FII' if (is_dt and classe_orig == 'FII') else ('Day Trade' if is_dt else classe_orig)
 
-                        transacoes_fiscais.append({
-                            'data': data_op,
-                            'competencia': data_op.strftime('%Y-%m'),
-                            'ano': data_op.year,
-                            'ticker': tkr,
-                            'jurisdicao': 'Exterior',
-                            'classe': classe,
-                            'aliquota': aliquota,
-                            'regra_isencao': tem_isencao,
-                            'volume_venda': valor_venda_reais,
-                            'lucro_apurado': lucro_cambial_real
-                        })
+                key = f"{mercado}_{tkr}"
+                if key not in carteira_pm: carteira_pm[key] = {'qtd': 0.0, 'custo_brl': 0.0, 'custo_usd': 0.0}
 
-        df_fiscal = pd.DataFrame(transacoes_fiscais)
+                val_op_brl = (qtd * preco) * ptax_op
+                val_op_usd = (qtd * preco)
+                taxas = float(row.get('taxas', 0))
 
-        # --- 2. INTERFACE REFINADA ---
-        if not df_fiscal.empty:
-            anos_disponiveis = sorted(df_fiscal['ano'].unique(), reverse=True)
-            col_ano, col_gap = st.columns([1, 4])
-            with col_ano:
-                ano_sel = st.selectbox("Ano Base:", anos_disponiveis)
-            
-            df_ano = df_fiscal[df_fiscal['ano'] == ano_sel]
-
-            t_br, t_ex = st.tabs(["🇧🇷 Apuração Mensal (B3)", "🇺🇸 Apuração Anual (Offshore)"])
-            
-            # --- TAB A: BRASIL ---
-            with t_br:
-                df_br = df_ano[df_ano['jurisdicao'] == 'Brasil'].copy()
+                if 'compra' in tipo:
+                    carteira_pm[key]['qtd'] += qtd
+                    carteira_pm[key]['custo_brl'] += (val_op_brl + taxas)
+                    carteira_pm[key]['custo_usd'] += val_op_usd
                 
+                elif 'venda' in tipo:
+                    dados = carteira_pm[key]
+                    pm_brl = (dados['custo_brl'] / dados['qtd']) if dados['qtd'] > 0 else 0
+                    pm_usd = (dados['custo_usd'] / dados['qtd']) if dados['qtd'] > 0 else 0
+                    
+                    # --- CÁLCULO PTAX MÉDIA DE COMPRA (NOVO) ---
+                    # Câmbio Médio = PM em Reais / PM em Dólar
+                    ptax_compra_avg = (pm_brl / pm_usd) if pm_usd > 0 else 0.0
+
+                    custo_venda_brl = qtd * pm_brl
+                    val_liq_venda_brl = val_op_brl - taxas
+                    lucro_brl = val_liq_venda_brl - custo_venda_brl
+                    
+                    lucro_ativo_usd = (preco - pm_usd) * qtd
+                    lucro_hoje_brl = ((qtd * preco) * dolar_hoje) - custo_venda_brl
+
+                    carteira_pm[key]['qtd'] -= qtd
+                    carteira_pm[key]['custo_brl'] -= custo_venda_brl
+                    carteira_pm[key]['custo_usd'] -= (qtd * pm_usd)
+                    
+                    transacoes.append({
+                        'data': data,
+                        'mes_ref': data.strftime('%Y-%m'),
+                        'ano': data.year,
+                        'ticker': tkr,
+                        'mercado': mercado,
+                        'classe': classe_final,
+                        'venda_total': val_liq_venda_brl,
+                        'resultado': lucro_brl,
+                        'ptax': ptax_op,               # PTAX Venda (Do dia)
+                        'ptax_compra': ptax_compra_avg, # PTAX Compra (Média Ponderada)
+                        'lucro_ativo_usd': lucro_ativo_usd,
+                        'lucro_hoje_sim': lucro_hoje_brl
+                    })
+
+        df_fisc = pd.DataFrame(transacoes)
+
+        # --- 3. DASHBOARD ---
+        if not df_fisc.empty:
+            anos = sorted(df_fisc['ano'].unique(), reverse=True)
+            col_sel, _ = st.columns([1, 5])
+            ano_view = col_sel.selectbox("📅 Selecione o Ano Fiscal:", anos, key="sel_ano_fiscal_surgical")
+            
+            df_view = df_fisc[df_fisc['ano'] == ano_view].copy()
+            
+            t1, t2 = st.tabs(["🇧🇷 Brasil", "🇺🇸 Exterior"])
+            
+            # === BRASIL ===
+            with t1:
+                df_br = df_view[df_view['mercado'] == 'BR'].copy()
                 if not df_br.empty:
-                    df_consolidado_br = df_br.groupby(['competencia', 'classe']).agg({
-                        'volume_venda': 'sum',
-                        'lucro_apurado': 'sum',
-                        'aliquota': 'first',
-                        'regra_isencao': 'first'
-                    }).reset_index().sort_values('competencia')
-
-                    # Lógica de Status para UX
-                    def definir_status(row):
-                        lucro = row['lucro_apurado']
-                        venda = row['volume_venda']
-                        
-                        if lucro <= 0: 
-                            return "Prejuízo (Compensável)", 0.0
-                        
-                        if row['regra_isencao'] and venda < 20000:
-                            return "Isento (Vendas < 20k)", 0.0
-                        
-                        imp = lucro * row['aliquota']
-                        return "Tributável", imp
-
-                    # Aplica lógica
-                    res = df_consolidado_br.apply(definir_status, axis=1, result_type='expand')
-                    df_consolidado_br['Status'] = res[0]
-                    df_consolidado_br['DARF'] = res[1]
-
-                    # Totais
-                    total_darf_br = df_consolidado_br['DARF'].sum()
-                    col_k1, col_k2 = st.columns(2)
-                    col_k1.metric("DARF Total (Ano)", f"R$ {total_darf_br:,.2f}")
-                    col_k2.markdown("###### Status do Período")
-                    if total_darf_br > 0:
-                        col_k2.warning("⚠️ Imposto a pagar identificado.")
-                    else:
-                        col_k2.success("✅ Nenhuma pendência fiscal apurada.")
-
-                    # Tabela Visual Profissional (Column Config)
-                    st.dataframe(
-                        df_consolidado_br[['competencia', 'classe', 'volume_venda', 'lucro_apurado', 'aliquota', 'Status', 'DARF']],
-                        column_config={
-                            "competencia": st.column_config.TextColumn("Mês"),
-                            "classe": st.column_config.TextColumn("Classe de Ativo"),
-                            "volume_venda": st.column_config.NumberColumn("Total Vendas", format="R$ %.2f"),
-                            "lucro_apurado": st.column_config.NumberColumn("Lucro/Prejuízo Real", format="R$ %.2f"),
-                            "aliquota": st.column_config.NumberColumn("Alíquota", format="%.0f%%"), # Formata 0.15 como 15%
-                            "Status": st.column_config.Column(
-                                "Situação Fiscal",
-                                help="Motivo da isenção ou tributação",
-                                width="medium"
-                            ),
-                            "DARF": st.column_config.NumberColumn("DARF a Pagar", format="R$ %.2f")
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("Sem operações no Brasil para este ano.")
-
-            # --- TAB B: EXTERIOR ---
-            with t_ex:
-                df_ex = df_ano[df_ano['jurisdicao'] == 'Exterior'].copy()
-                if not df_ex.empty:
-                    # Lógica Financeira (Lei 14.754)
-                    df_fin = df_ex[df_ex['classe'] == 'Ativos Financeiros Exterior']
-                    lucro_anual = df_fin['lucro_apurado'].sum()
-                    imposto_anual = max(0, lucro_anual * 0.15)
+                    meses = sorted(df_br['mes_ref'].unique())
+                    t_swing, t_fii, t_dt = [], [], []
+                    loss_swing, loss_fii, loss_dt = 0.0, 0.0, 0.0
                     
-                    c1, c2 = st.columns(2)
-                    c1.metric("Resultado Global (Netting)", f"R$ {lucro_anual:,.2f}", 
-                             delta="Base de Cálculo Anual", delta_color="off")
-                    c2.metric("Imposto Devido (AAI)", f"R$ {imposto_anual:,.2f}", 
-                             help="Pagar na Declaração Anual")
+                    tot_vendas_ano, tot_prej_usado, tot_darf_ano = 0.0, 0.0, 0.0
 
-                    st.markdown("##### Extrato de Operações (Exterior)")
-                    st.dataframe(
-                        df_fin[['data', 'ticker', 'volume_venda', 'lucro_apurado']],
-                        column_config={
-                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                            "ticker": "Ativo",
-                            "volume_venda": st.column_config.NumberColumn("Venda (R$ PTAX)", format="R$ %.2f"),
-                            "lucro_apurado": st.column_config.NumberColumn("Ganho de Capital", format="R$ %.2f")
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
+                    for mes in meses:
+                        df_m = df_br[df_br['mes_ref'] == mes]
+                        
+                        # Swing
+                        acoes = df_m[df_m['classe'] == 'Ações BR']
+                        v_ac, r_ac = acoes['venda_total'].sum(), acoes['resultado'].sum()
+                        outros = df_m[df_m['classe'].isin(['ETF', 'BDR'])]
+                        v_out, r_out = outros['venda_total'].sum(), outros['resultado'].sum()
+                        
+                        r_ac_valido, st_ac = 0.0, "Isento"
+                        if v_ac >= 20000: r_ac_valido, st_ac = r_ac, "Tributável"
+                        else:
+                            if r_ac < 0 and FORCAR_COMPENSACAO_20K: r_ac_valido, st_ac = r_ac, "Prej. Compensável"
+                            elif r_ac > 0: st_ac = "Lucro Isento (<20k)"
+                            else: st_ac = "Prej. Ignorado"
+                        
+                        lucro_bruto = r_ac_valido + r_out
+                        uso_prej = min(lucro_bruto, abs(loss_swing)) if lucro_bruto > 0 and loss_swing < 0 else 0.0
+                        
+                        base_sw = lucro_bruto + loss_swing
+                        imp_sw = base_sw * 0.15 if base_sw > 0 else 0.0
+                        loss_swing = 0.0 if base_sw > 0 else base_sw
+                        
+                        t_swing.append({'Mês': mes, 'Venda Ações': v_ac, 'Res. Ações': r_ac, 'Status': st_ac, 'Res. ETF/BDR': r_out, 'Base Calc': base_sw, 'Prejuízo Acum': loss_swing, 'DARF': imp_sw})
+
+                        # FII
+                        fiis = df_m[df_m['classe'] == 'FII']
+                        r_fii, v_fii = fiis['resultado'].sum(), fiis['venda_total'].sum()
+                        uso_prej_fii = min(r_fii, abs(loss_fii)) if r_fii > 0 and loss_fii < 0 else 0.0
+                        
+                        base_f = r_fii + loss_fii
+                        imp_f = base_f * 0.20 if base_f > 0 else 0.0
+                        loss_fii = 0.0 if base_f > 0 else base_f
+                        
+                        t_fii.append({'Mês': mes, 'Venda FII': v_fii, 'Res. FII': r_fii, 'Base Calc': base_f, 'Prejuízo Acum': loss_fii, 'DARF': imp_f})
+
+                        # DT
+                        dts = df_m[df_m['classe'] == 'Day Trade']
+                        r_dt, v_dt = dts['resultado'].sum(), dts['venda_total'].sum()
+                        uso_prej_dt = min(r_dt, abs(loss_dt)) if r_dt > 0 and loss_dt < 0 else 0.0
+                        base_d = r_dt + loss_dt
+                        imp_d = base_d * 0.20 if base_d > 0 else 0.0
+                        loss_dt = 0.0 if base_d > 0 else base_d
+                        
+                        if v_dt > 0 or loss_dt < 0 or imp_d > 0:
+                            t_dt.append({'Mês': mes, 'Vendas DT': v_dt, 'Res. DT': r_dt, 'Base Calc': base_d, 'Prejuízo Acum': loss_dt, 'DARF': imp_d})
+
+                        tot_vendas_ano += (v_ac + v_out + v_fii + v_dt)
+                        tot_prej_usado += (uso_prej + uso_prej_fii + uso_prej_dt)
+                        tot_darf_ano += (imp_sw + imp_f + imp_d)
+
+                    df_ts, df_tf, df_td = pd.DataFrame(t_swing), pd.DataFrame(t_fii), pd.DataFrame(t_dt)
+
+                    # --- HEADS UP DISPLAY ---
+                    st.markdown(f"### 📊 Resumo Executivo - {ano_view}")
+                    with st.container(border=True):
+                        k1, k2, k3, k4 = st.columns(4)
+                        k1.metric("Total Vendas", f"R$ {tot_vendas_ano:,.2f}")
+                        k2.metric("Saldo Utilizado", f"R$ {tot_prej_usado:,.2f}", delta="Abatido", delta_color="normal")
+                        k3.metric("Saldo Restante", f"R$ {loss_swing + loss_fii + loss_dt:,.2f}", delta="Crédito", delta_color="off" if (loss_swing+loss_fii)==0 else "inverse")
+                        k4.metric("DARF Total", f"R$ {tot_darf_ano:,.2f}", delta="Pagar", delta_color="inverse")
+
+                    st.write("")
+
+                    # --- FILTROS VISUAIS ---
+                    with st.expander("🔎 Filtros de Visualização", expanded=False):
+                        sel_meses = st.multiselect("Filtrar Meses:", options=df_ts['Mês'].unique(), default=df_ts['Mês'].unique(), key="f_mes_br")
+                    
+                    df_ts_v = df_ts[df_ts['Mês'].isin(sel_meses)]
+                    df_tf_v = df_tf[df_tf['Mês'].isin(sel_meses)]
+                    df_td_v = df_td[df_td['Mês'].isin(sel_meses)] if not df_td.empty else pd.DataFrame()
+
+                    col_main, col_guide = st.columns([2.5, 1], gap="medium")
+                    with col_main:
+                        st.markdown("##### 📉 Swing Trade")
+                        st.dataframe(
+                            df_ts_v.style.applymap(lambda x: 'color: #ef5350' if x<0 else 'color: #66bb6a', subset=['Res. Ações', 'Res. ETF/BDR', 'Prejuízo Acum']).applymap(lambda x: 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold' if x>0.01 else '', subset=['DARF']),
+                            use_container_width=True, column_config={"Mês": st.column_config.TextColumn("Mês"), "Venda Ações": st.column_config.NumberColumn(format="R$ %.2f"), "Res. Ações": st.column_config.NumberColumn(format="R$ %.2f"), "Res. ETF/BDR": st.column_config.NumberColumn(format="R$ %.2f"), "Base Calc": st.column_config.NumberColumn(format="R$ %.2f"), "Prejuízo Acum": st.column_config.NumberColumn(format="R$ %.2f"), "DARF": st.column_config.NumberColumn(format="R$ %.2f")}
+                        )
+                        st.divider()
+                        st.markdown("##### 🏢 Fundos Imobiliários")
+                        st.dataframe(
+                            df_tf_v.style.applymap(lambda x: 'color: #ef5350' if x<0 else 'color: #66bb6a', subset=['Res. FII', 'Prejuízo Acum']).applymap(lambda x: 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold' if x>0.01 else '', subset=['DARF']),
+                            use_container_width=True, column_config={"Mês": st.column_config.TextColumn("Mês"), "Venda FII": st.column_config.NumberColumn(format="R$ %.2f"), "Res. FII": st.column_config.NumberColumn(format="R$ %.2f"), "Base Calc": st.column_config.NumberColumn(format="R$ %.2f"), "Prejuízo Acum": st.column_config.NumberColumn(format="R$ %.2f"), "DARF": st.column_config.NumberColumn(format="R$ %.2f")}
+                        )
+                        if not df_td_v.empty:
+                            st.divider()
+                            st.markdown("##### ⚡ Day Trade")
+                            st.dataframe(df_td_v.style.format("{:.2f}"), use_container_width=True)
+
+                    with col_guide:
+                        st.markdown("### 📚 Guia Fiscal")
+                        with st.expander("📉 Swing Trade", expanded=True):
+                            st.markdown("**Cesta Única:** Ações + ETFs + BDRs. Lucro de um paga prejuízo de outro.\n\n**Isenção 20k:** Apenas p/ LUCRO de Ações BR. Prejuízo sempre compensa (se ativado).")
+                        with st.expander("🏢 FIIs"):
+                            st.markdown("**Cesta Isolada:** Não mistura.\n**Alíquota:** 20%.\n**Isenção:** Nenhuma.")
+                        with st.expander("⚡ Day Trade"):
+                            st.markdown("**Cesta Isolada:** Compra/Venda no mesmo dia.\n**Alíquota:** 20%.")
+                        st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", use_container_width=True, type="primary")
                 else:
-                    st.info("Sem operações no exterior.")
-        else:
-            st.warning("Nenhuma venda encontrada para gerar relatório fiscal.")
+                    st.info("Sem operações BR.")
 
+# --- ABA EXTERIOR (CÓDIGO FINAL: TABELA + GUIA FISCAL) ---
+                with t2:
+                    col_ex_main, col_ex_side = st.columns([3, 1], gap="medium")
+                    
+                    # 1. Filtro Seguro
+                    col_mercado = 'mercado' if 'mercado' in df_view.columns else 'Mercado'
+                    df_ex = df_view[df_view[col_mercado] == 'EX'].copy()
+                    
+                    # --- COLUNA ESQUERDA (TABELA) ---
+                    with col_ex_main:
+                        st.info("ℹ️ **Análise Cambial:** Compara a Taxa PTAX do dia da liquidação (Venda) com a Taxa PTAX do dia da aquisição (Custo Histórico).")
+                        
+                        if not df_ex.empty:
+                            st.markdown("##### 🌎 Detalhamento da Composição do Lucro")
+                            
+                            # Mapeamento Inteligente
+                            mapa_cols = {
+                                'Data': 'data' if 'data' in df_ex.columns else 'Data',
+                                'Ticker': 'ticker' if 'ticker' in df_ex.columns else 'Ticker',
+                                'PTAX Aquisição': 'PTAX Compra' if 'PTAX Compra' in df_ex.columns else 'ptax_compra',
+                                'PTAX Venda': 'PTAX Venda' if 'PTAX Venda' in df_ex.columns else 'ptax',
+                                'Venda Total (R$)': 'Venda Total (R$)' if 'Venda Total (R$)' in df_ex.columns else 'venda_total',
+                                'Lucro (R$)': 'Lucro (R$)' if 'Lucro (R$)' in df_ex.columns else 'resultado',
+                                'Lucro USD': 'Lucro USD' if 'Lucro USD' in df_ex.columns else 'lucro_ativo_usd',
+                                'Lucro Hoje Sim': 'Lucro Hoje Sim' if 'Lucro Hoje Sim' in df_ex.columns else 'lucro_hoje_sim'
+                            }
+
+                            df_ex_show = pd.DataFrame()
+                            for nome_visual, nome_real in mapa_cols.items():
+                                if nome_real in df_ex.columns:
+                                    df_ex_show[nome_visual] = df_ex[nome_real]
+                            
+                            if 'Lucro (R$)' in df_ex_show.columns and 'Lucro USD' in df_ex_show.columns and 'PTAX Venda' in df_ex_show.columns:
+                                df_ex_show['Impacto Câmbio'] = df_ex_show['Lucro (R$)'] - (df_ex_show['Lucro USD'] * df_ex_show['PTAX Venda'])
+                            
+                            st.dataframe(
+                                df_ex_show,
+                                use_container_width=True,
+                                column_config={
+                                    "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                    "Ticker": "Ativo",
+                                    "PTAX Aquisição": st.column_config.NumberColumn("PTAX Aquisição", format="%.4f", help="Taxa do dia da compra (Custo Histórico)."),
+                                    "PTAX Venda": st.column_config.NumberColumn("PTAX Venda", format="%.4f", help="Taxa do dia da venda."),
+                                    "Venda Total (R$)": st.column_config.NumberColumn("Venda Total (R$)", format="R$ %.2f"),
+                                    "Lucro (R$)": st.column_config.NumberColumn("Lucro Fiscal (R$)", format="R$ %.2f", help="Base para imposto."),
+                                    "Lucro USD": st.column_config.NumberColumn("Ganho Ativo ($)", format="$ %.2f"),
+                                    "Impacto Câmbio": st.column_config.NumberColumn("Efeito Câmbio (R$)", format="R$ %.2f"),
+                                    "Lucro Hoje Sim": st.column_config.NumberColumn("Lucro (Dólar Hoje)", format="R$ %.2f")
+                                }
+                            )
+                            
+                            st.markdown("---")
+                            st.markdown("##### 🌊 Decomposição Financeira")
+                            c1, c2, c3 = st.columns(3)
+                            
+                            col_res = mapa_cols['Lucro (R$)']
+                            col_hoje = mapa_cols['Lucro Hoje Sim']
+                            
+                            total_fiscal = df_ex[col_res].sum() if col_res in df_ex.columns else 0
+                            total_gerencial = df_ex[col_hoje].sum() if col_hoje in df_ex.columns else 0
+                            diff_timing = total_gerencial - total_fiscal
+                            
+                            c1.metric("Lucro Fiscal (Realizado)", f"R$ {total_fiscal:,.2f}", help="Base real de tributação.")
+                            c2.metric("Lucro Gerencial (Cotação Atual)", f"R$ {total_gerencial:,.2f}", help="Se convertesse hoje.")
+                            c3.metric("Diferença (Timing)", f"R$ {diff_timing:,.2f}", delta_color="off")
+                            
+                        else:
+                            st.warning("Sem operações no Exterior neste ano.")
+
+                    # --- COLUNA DIREITA (IMPOSTO + GUIA) ---
+                    with col_ex_side:
+                        col_res = 'resultado' if 'resultado' in df_ex.columns else 'Lucro (R$)'
+                        if not df_ex.empty and col_res in df_ex.columns:
+                            lucro_total = df_ex[col_res].sum()
+                            imposto = max(0, lucro_total * 0.15) # 15% Flat
+                            
+                            st.markdown("### 🧾 Tributação")
+                            with st.container(border=True):
+                                st.metric("Base Cálculo", f"R$ {lucro_total:,.2f}")
+                                st.divider()
+                                st.metric("Imposto (15%)", f"R$ {imposto:,.2f}", delta="DARF (Cód 8528)", delta_color="inverse")
+                        else:
+                            st.info("Sem dados.")
+
+                        # --- GUIA FISCAL EXTERIOR ---
+                        st.markdown("### 📚 Guia Fiscal (Lei 14.754)")
+                        
+                        with st.expander("🌎 Regra Geral (2024+)", expanded=True):
+                            st.markdown("""
+                            **Alíquota Única:** 15% sobre o lucro anual.
+                            **Isenção:** ❌ **Não existe mais** a isenção de R$ 35k. Todo lucro é tributável.
+                            **Apuração:** Anual (na Declaração de Ajuste), mas recomenda-se reservar o valor.
+                            """)
+                        
+                        with st.expander("💱 Variação Cambial"):
+                            st.markdown("""
+                            A variação do dólar agora compõe o lucro.
+                            **Custo:** PTAX do dia da compra.
+                            **Venda:** PTAX do dia da venda.
+                            Se o dólar subiu, você paga imposto sobre essa valorização também.
+                            """)
+
+                        with st.expander("📉 Compensação"):
+                            st.markdown("""
+                            Prejuízos em ativos no exterior podem abater lucros de outros ativos no exterior dentro do **mesmo ano**.
+                            """)
+                        
+                        st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", use_container_width=True)  
+                            
+                                                 
     with tab7:
         st.subheader("🏦 Gestão de Renda Fixa & Liquidez")
         
