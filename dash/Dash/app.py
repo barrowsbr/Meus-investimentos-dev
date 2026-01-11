@@ -1835,28 +1835,27 @@ def main():
             st.info("Carregando dados...")
 
 
+# --- TAB 4: CÂMBIO (CORRIGIDA) ---
     with tab4:
         # --- CABEÇALHO ---
         c_head, c_refresh = st.columns([5,1])
         with c_head:
-            st.header("💱 FX ")
+            st.header("💱 FX Command Center")
         
         st.divider()
 
         # ==============================================================================
-        # 1. ENGINE DE DADOS
+        # 1. ENGINE DE DADOS (Inicialização)
         # ==============================================================================
         carteiras = {}
-        moedas_encontradas = set()  
-        # Certifique-se de que a variável global 'carteiras' já foi criada antes
-        # carteiras = {} 
+        moedas_encontradas = set()   
+        
         def init_wallet(moeda):
             """Cria a entrada da moeda no dicionário se ela não existir."""
             if moeda not in carteiras:
                 carteiras[moeda] = {
                     'moeda_base': 'BRL', # Valor padrão
                     'pm_cambio': 0.0,
-                    # --- ADICIONE ESTAS LINHAS ABAIXO ---
                     'investido_rv': 0.0,
                     'atual_rv': 0.0,
                     'investido_rf': 0.0,
@@ -1864,29 +1863,25 @@ def main():
                     'caixa': 0.0
                 }
 
-# --- MONITOR DE COTAÇÕES (TOPO) ---
-    with st.container(border=True):
-        cols = st.columns(6)
-        
-        # A lista precisa ter TODOS os itens que você quer ver
-        tickers_monitor = [
-            ('🇺🇸 USD', 'BRL=X'), 
-            ('🇪🇺 EUR', 'EURBRL=X'), 
-            ('🇨🇦 CAD', 'CADBRL=X'), 
-            ('🇨🇭 CHF/USD', 'CHFUSD=X')  # O novo item entra aqui, junto com os outros
-        ]
-        
-        for i, (label, ticker) in enumerate(tickers_monitor):
-            # Garante que não quebre se o ticker não existir no mapa
-            val = mapa_precos.get(ticker, 0.0)
-            var = mapa_variacao.get(ticker, 0.0)
+        # --- MONITOR DE COTAÇÕES (TOPO) ---
+        # ATENÇÃO: Tudo aqui precisa estar indentado dentro do 'with tab4'
+        with st.container(border=True):
+            cols = st.columns(6)
             
-            # Lógica do símbolo (US$ para CHF, R$ para o resto)
-            simbolo = "US$" if ticker == 'CHFUSD=X' else "R$"
+            tickers_monitor = [
+                ('🇺🇸 USD', 'BRL=X'), 
+                ('🇪🇺 EUR', 'EURBRL=X'), 
+                ('🇨🇦 CAD', 'CADBRL=X'), 
+                ('🇨🇭 CHF/USD', 'CHFUSD=X')
+            ]
             
-            # Exibe na coluna correspondente
-            cols[i].metric(label, f"{simbolo} {val:.3f}", f"{var:.3f}", delta_color="normal")
+            for i, (label, ticker) in enumerate(tickers_monitor):
+                val = mapa_precos.get(ticker, 0.0)
+                var = mapa_variacao.get(ticker, 0.0)
+                simbolo = "US$" if ticker == 'CHFUSD=X' else "R$"
+                cols[i].metric(label, f"{simbolo} {val:.3f}", f"{var:.3f}", delta_color="normal")
 
+        # --- LEITURA E PROCESSAMENTO DOS DADOS ---
         try:
             if os.path.exists(CAMINHO_CAMBIO) and os.path.getsize(CAMINHO_CAMBIO) > 0:
                 df_cambio = pd.read_csv(CAMINHO_CAMBIO, sep=";")
@@ -1954,12 +1949,12 @@ def main():
         lista_moedas = sorted(list(moedas_encontradas))
 
         # ==============================================================================
-        # 2. DASHBOARD VISUAL (UX EVOLUÍDA)
+        # 2. DASHBOARD VISUAL
         # ==============================================================================
         if not lista_moedas:
             st.info("Nenhuma exposição em moeda estrangeira identificada.")
         else:
-# --- SELETOR ---
+            # --- SELETOR ---
             c_sel, _ = st.columns([2, 5])
             with c_sel:
                 idx_ini = lista_moedas.index('USD') if 'USD' in lista_moedas else 0
@@ -1967,8 +1962,7 @@ def main():
 
             d = carteiras[moeda_sel]
             
-            # [CORREÇÃO] 1. VARIÁVEIS GLOBAIS (Definidas ANTES de qualquer cálculo)
-            # Isso corrige o erro "caixa is not defined" e "exposicao_total is not defined"
+            # 1. VARIÁVEIS GLOBAIS DA MOEDA SELECIONADA
             caixa = d['caixa']
             total_investido_ativos = d['investido_rv'] + d['investido_rf']
             total_atual_ativos = d['atual_rv'] + d['atual_rf']
@@ -1978,7 +1972,7 @@ def main():
             simbolo_base = "R$" if d['moeda_base'] == 'BRL' else "US$"
 
             # ==============================================================================
-            # ENGINE DE CÁLCULO CAMBIAL (Preço e PnL)
+            # ENGINE DE CÁLCULO CAMBIAL
             # ==============================================================================
             
             # 2. Definição da Cotação RAW
@@ -1993,30 +1987,30 @@ def main():
             df_hist = get_history_fx(ticker_yahoo)
             cotacao_raw = mapa_precos.get(ticker_yahoo, 0.0)
             
-            # Fallback (Segurança se a API falhar)
+            # Fallback
             if cotacao_raw <= 0 and not df_hist.empty:
                 try: cotacao_raw = float(df_hist.iloc[-1].iloc[0] if isinstance(df_hist, pd.DataFrame) else df_hist.iloc[-1])
                 except: cotacao_raw = 1.0
             if cotacao_raw <= 0: cotacao_raw = 1.0
 
-            # 3. Lógica Bipartida: Multiplicação vs Divisão (Corrige o Bug do CAD)
+            # 3. Lógica Bipartida (Divisão vs Multiplicação)
             is_indirect = False 
-            if d['moeda_base'] == 'USD' and moeda_sel in ['CAD', 'JPY', 'CHF', 'SEK']:
+            if d['moeda_base'] == 'USD' and moeda_sel in ['CAD', 'JPY', 'CHF', 'SEK', 'EUR', 'GBP', 'AUD']:
                 is_indirect = True
             
             # CÁLCULO DO PNL
             if is_indirect:
-                # LÓGICA DE DIVISÃO (CAD, JPY...)
-                # Ex: Tenho 800 CAD. Dólar é 1.40 (USD/CAD). Valor em USD = 800 / 1.40
+                # LÓGICA DE DIVISÃO (CAD, JPY, EUR...)
+                # Ex: Se cotação é 0.90, vira 1.11 (Euro forte)
                 valor_base_hoje = exposicao_total / cotacao_raw 
                 valor_base_custo = (exposicao_total / pm_usuario) if pm_usuario > 0 else 0.0
                 
-                # Inverte para exibição (Visual: 1 CAD = 0.71 USD)
+                # Inverte para exibição no HUD e Gráfico
                 cotacao_exib = 1 / cotacao_raw
                 pm_visual = 1 / pm_usuario if pm_usuario > 0 else 0.0
 
             else:
-                # LÓGICA DE MULTIPLICAÇÃO (BRL, EUR...)
+                # LÓGICA DE MULTIPLICAÇÃO (BRL, etc...)
                 valor_base_hoje = exposicao_total * cotacao_raw
                 valor_base_custo = exposicao_total * pm_usuario
                 
@@ -2045,52 +2039,32 @@ def main():
 
             st.markdown("---")
             
-            # Variável de controle para o gráfico técnico (logo abaixo no seu código)
-            inverter = is_indirect            
-            # Ajuste da variável 'inverter' para o gráfico usar a mesma lógica
-            inverter = is_indirect # Passa a lógica para o bloco do gráfico abaixo
+            inverter = is_indirect # Variável para o gráfico
 
-# [NOVO] BLOCO DE WATERFALL INTEGRADO
-# [BLOCO DE WATERFALL CORRIGIDO E HÍBRIDO]
+            # BLOCO DE WATERFALL INTEGRADO
             # Só exibe se houver investimento em Renda Variável
             if d['investido_rv'] > 0 and pm_usuario > 0:
                 with st.expander("🌊 Decomposição de Lucro (Ativos vs. Câmbio)", expanded=True):
                     
                     # 1. Recupera valores da carteira
-                    total_rv_original_moeda = d['investido_rv'] # Ex: 1000 CAD
-                    total_rv_atual_moeda = d['atual_rv']        # Ex: 1100 CAD
+                    total_rv_original_moeda = d['investido_rv']
+                    total_rv_atual_moeda = d['atual_rv']
                     
-                    # 2. Matemática Bipartida (A mesma da Engine)
+                    # 2. Matemática Bipartida
                     if is_indirect:
-                        # === LÓGICA DE DIVISÃO (CAD, JPY...) ===
-                        # Investido (Base USD) = Qtd CAD / PM
                         investido_base = total_rv_original_moeda / pm_usuario
-                        
-                        # Efeito Ativo: (Ganho em CAD) / PM Original
-                        # Mostra quanto ganhou só pela alta da ação, ignorando o câmbio atual
                         delta_ativo_base = (total_rv_atual_moeda - total_rv_original_moeda) / pm_usuario
-                        
-                        # Efeito Câmbio: Valor Atual convertido Hoje - Valor Atual convertido no PM
-                        # Mostra quanto o montante atual valorizou/desvalorizou só pela troca de taxa
                         val_atual_convertido_hoje = total_rv_atual_moeda / cotacao_raw
                         val_atual_convertido_pm = total_rv_atual_moeda / pm_usuario
-                        
                         delta_cambio_base = val_atual_convertido_hoje - val_atual_convertido_pm
-                        
                         valor_final_base = val_atual_convertido_hoje
-
                     else:
-                        # === LÓGICA DE MULTIPLICAÇÃO (BRL, EUR...) ===
                         investido_base = total_rv_original_moeda * pm_usuario
-                        
                         delta_ativo_base = (total_rv_atual_moeda - total_rv_original_moeda) * pm_usuario
-                        
-                        # Diferença entre converter o montante atual hoje vs converter no preço antigo
                         delta_cambio_base = total_rv_atual_moeda * (cotacao_raw - pm_usuario)
-                        
                         valor_final_base = total_rv_atual_moeda * cotacao_raw
 
-                    # 3. Plotagem com Labels Dinâmicos
+                    # 3. Plotagem
                     fig_water = go.Figure(go.Waterfall(
                         name="Atribuição", orientation="v",
                         measure=["relative", "relative", "relative", "total"],
@@ -2125,7 +2099,6 @@ def main():
                 st.subheader(f"📈 Análise Técnica: {moeda_sel} vs {d['moeda_base']}")
                 
                 if not df_hist.empty:
-                    # Tratamento se vier MultiIndex
                     if isinstance(df_hist, pd.Series): df_hist = df_hist.to_frame()
                     if isinstance(df_hist.columns, pd.MultiIndex): df_hist.columns = df_hist.columns.get_level_values(0)
                     
@@ -2133,20 +2106,14 @@ def main():
                     if inverter: 
                         series_plot = 1 / series_plot
 
-                    # Cálculo da Média Móvel (SMA 21)
                     sma = series_plot.rolling(window=21).mean()
-
-                    # AJUSTE DINÂMICO DO EIXO Y (CORREÇÃO DE VISUALIZAÇÃO)
-                    # Pega min e max da série para focar o gráfico na movimentação
+                    
                     y_min = series_plot.min()
                     y_max = series_plot.max()
-                    margin = (y_max - y_min) * 0.1 # 10% de margem
+                    margin = (y_max - y_min) * 0.1
                     range_y = [y_min - margin, y_max + margin]
 
-                    # Plotagem
                     fig = go.Figure()
-
-                    # 1. Cotação (Área)
                     fig.add_trace(go.Scatter(
                         x=series_plot.index, y=series_plot.values,
                         mode='lines', name='Cotação',
@@ -2154,49 +2121,42 @@ def main():
                         fillcolor='rgba(0, 176, 255, 0.1)'
                     ))
 
-                    # 2. SMA 21 (Linha Pontilhada)
                     fig.add_trace(go.Scatter(
                         x=sma.index, y=sma.values,
                         mode='lines', name='Média 21d',
                         line=dict(color='white', width=1, dash='dot')
                     ))
 
-                    # 3. Linha do PM (Referência Visual)
-                    pm_usuario = d['pm_cambio']
-                    if inverter and pm_usuario > 0:
-                        pm_visual = 1 / pm_usuario
+                    pm_usuario_val = d['pm_cambio']
+                    if inverter and pm_usuario_val > 0:
+                        pm_visual_g = 1 / pm_usuario_val
                     else:
-                        pm_visual = pm_usuario
+                        pm_visual_g = pm_usuario_val
 
-                    if pm_visual > 0:
-                        cor_pm = '#00E676' if cotacao_exib >= pm_visual else '#FF5252' 
-                        fig.add_hline(y=pm_visual, line_width=2, line_dash="dash", line_color=cor_pm)
+                    if pm_visual_g > 0:
+                        cor_pm = '#00E676' if cotacao_exib >= pm_visual_g else '#FF5252' 
+                        fig.add_hline(y=pm_visual_g, line_width=2, line_dash="dash", line_color=cor_pm)
                         fig.add_annotation(
-                            x=series_plot.index[-1], y=pm_visual,
-                            text=f"Seu PM: {pm_visual:.4f}",
+                            x=series_plot.index[-1], y=pm_visual_g,
+                            text=f"Seu PM: {pm_visual_g:.4f}",
                             showarrow=False, yshift=10, font=dict(color=cor_pm, size=12)
                         )
 
                     fig.update_layout(
-                        template="plotly_dark",
-                        height=400,
+                        template="plotly_dark", height=400,
                         margin=dict(l=20, r=20, t=30, b=20),
-                        hovermode="x unified",
-                        showlegend=True,
+                        hovermode="x unified", showlegend=True,
                         legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
-                        yaxis=dict(range=range_y) # Aplica o zoom
+                        yaxis=dict(range=range_y)
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.warning("Dados históricos indisponíveis para este par de moedas.")
+                    st.warning("Dados históricos indisponíveis.")
 
-            # ==============================================================================
             # 4. COMPOSIÇÃO E TABELA
-            # ==============================================================================
             with col_dados:
                 st.subheader("📊 Alocação")
                 
-                # Gráfico de Rosca
                 labels = ['Caixa', 'Renda Variável', 'Renda Fixa']
                 values = [caixa, d['atual_rv'], d['atual_rf']]
                 
@@ -2218,56 +2178,29 @@ def main():
                 
                 st.dataframe(
                     df_break.style.format({'Investido': '{:,.2f}', 'Valor Atual': '{:,.2f}'}), 
-                    hide_index=True, 
-                    use_container_width=True
+                    hide_index=True, use_container_width=True
                 )
 
             st.markdown("---")
 
-            # ==============================================================================
-            # 5. SIMULADOR DE STRESS (CORRIGIDO E ROBUSTO)
-            # ==============================================================================
+            # 5. SIMULADOR DE STRESS
             with st.container(border=True):
                 st.subheader("⚡ Stress Test & Cenários")
                 st.caption(f"Simule o impacto da variação cambial sobre o seu patrimônio total em {moeda_sel}.")
                 
-                # Slider direto
                 shock = st.slider(f"Ajuste a Variação da Cotação ({moeda_sel})", -50, 50, 0, format="%+d%%")
                 
-                # CÁLCULOS ROBUSTOS (Garante que a cotação não seja zero)
-                cotacao_base_sim = cotacao_exib if cotacao_exib > 0 else 1.0 # Evita multiplicar por zero se API falhar
-                
+                cotacao_base_sim = cotacao_exib if cotacao_exib > 0 else 1.0
                 cotacao_simulada = cotacao_base_sim * (1 + shock/100)
-                
-                # Patrimônio convertido HOJE
                 patrimonio_convertido_hoje = exposicao_total * cotacao_base_sim
-                
-                # Patrimônio convertido SIMULADO
                 patrimonio_convertido_sim = exposicao_total * cotacao_simulada
-                
-                # Diferença (PnL da Simulação)
                 diff_financeira = patrimonio_convertido_sim - patrimonio_convertido_hoje
                 
                 sc1, sc2, sc3 = st.columns(3)
-                
-                sc1.metric(
-                    "Cotação Simulada", 
-                    f"{simbolo_base} {cotacao_simulada:.4f}", 
-                    delta=f"{shock}%", delta_color="off"
-                )
-                
-                sc2.metric(
-                    f"Patrimônio Convertido ({d['moeda_base']})", 
-                    f"{simbolo_base} {patrimonio_convertido_sim:,.2f}"
-                )
-                
+                sc1.metric("Cotação Simulada", f"{simbolo_base} {cotacao_simulada:.4f}", delta=f"{shock}%", delta_color="off")
+                sc2.metric(f"Patrimônio Convertido ({d['moeda_base']})", f"{simbolo_base} {patrimonio_convertido_sim:,.2f}")
                 cor_delta = "normal" if diff_financeira >= 0 else "inverse"
-                sc3.metric(
-                    "Impacto Financeiro Estimado", 
-                    f"{simbolo_base} {diff_financeira:,.2f}", 
-                    delta="Ganho Potencial" if diff_financeira > 0 else "Perda Potencial",
-                    delta_color=cor_delta
-                )
+                sc3.metric("Impacto Financeiro Estimado", f"{simbolo_base} {diff_financeira:,.2f}", delta="Ganho Potencial" if diff_financeira > 0 else "Perda Potencial", delta_color=cor_delta)
 
     with tab5:
         if not df_proventos_bruto.empty:
