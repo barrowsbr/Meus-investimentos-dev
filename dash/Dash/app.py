@@ -2815,7 +2815,7 @@ def main():
                     
                     # --- COLUNA ESQUERDA (TABELA) ---
                     with col_ex_main:
-                        st.info("ℹ️ **Análise Cambial:** Compara a Taxa PTAX do dia da liquidação (Venda) com a Taxa PTAX do dia da aquisição (Custo Histórico).")
+                        st.info("ℹ️ **Análise Cambial:** Compara a Taxa PTAX do dia da liquidação (Venda) com a Taxa PTAX do dia da aquisição.")
                         
                         if not df_ex.empty:
                             st.markdown("##### 🌎 Detalhamento da Composição do Lucro")
