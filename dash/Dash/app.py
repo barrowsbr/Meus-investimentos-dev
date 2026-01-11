@@ -2691,7 +2691,7 @@ def main():
             
             df_view = df_fisc[df_fisc['ano'] == ano_view].copy()
             
-            t1, t2 = st.tabs(["🇧🇷 Brasil ", "🇺🇸 Exterior"])
+            t1, t2 = st.tabs(["🇧🇷 Brasil", "🇺🇸 Exterior"])
             
             # === BRASIL ===
             with t1:
