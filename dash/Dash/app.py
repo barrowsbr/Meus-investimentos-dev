@@ -1396,42 +1396,63 @@ def main():
 
                 st.markdown("---")
 
-                # --- 4. DESEMPENHO E EFICIÊNCIA (GLOBAL) ---
-                c1, c2 = st.columns([3, 2])
-                with c1:
-                    st.markdown("#### 🏆 Top Movers (Global)")
-                    top5 = df_grafico.nlargest(5, 'Rent. (%)')
-                    bot5 = df_grafico.nsmallest(5, 'Rent. (%)').sort_values('Rent. (%)', ascending=False)
-                    df_podium = pd.concat([top5, bot5]).drop_duplicates()
-                    
-                    if not df_podium.empty:
-                        df_podium['Cor'] = df_podium['Rent. (%)'].apply(lambda x: '#4CAF50' if x >= 0 else '#FF5252')
-                        fig_bar = px.bar(
-                            df_podium, 
-                            x='Rent. (%)', 
-                            y='Ticker', 
-                            orientation='h', 
-                            text='Rent. (%)', 
-                            hover_data=['Valor Hoje (R$)', 'Setor']
-                        )
-                        fig_bar.update_traces(marker_color=df_podium['Cor'], texttemplate='%{text:.1f}%', textposition='outside')
-                        fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
-                        st.plotly_chart(fig_bar, use_container_width=True)
+
+                st.markdown("#### 🏆 Ranking de Rentabilidade (Carteira Completa)")
                 
-                with c2:
-                    st.markdown("#### 🎯 Risco x Retorno (Scatter)")
-                    fig_scat = px.scatter(
-                        df_grafico, 
-                        x='Valor Hoje (R$)', 
-                        y='Rent. (%)', 
-                        size='Valor Hoje (R$)', 
-                        color='Setor', 
-                        hover_name='Ticker', 
-                        size_max=40
+                # Verifica se o dataframe de gráficos tem dados
+                if not df_grafico.empty:
+                    # 1. Ordenação Completa (Do menor para o maior para o gráfico de barras horizontais ficar certo)
+                    df_podium = df_grafico.sort_values('Rent. (%)', ascending=True).copy()
+                    
+                    # 2. Definição de Cores (Verde para lucro, Vermelho para prejuízo)
+                    df_podium['Cor'] = df_podium['Rent. (%)'].apply(lambda x: '#4CAF50' if x >= 0 else '#FF5252')
+                    
+                    # 3. Altura Dinâmica:
+                    # Calcula 30 pixels por barra. Se tiver poucos ativos, usa o mínimo de 450px.
+                    # Isso garante que o gráfico cresça e mostre TODOS os ativos sem encavalar.
+                    altura_dinamica = max(450, len(df_podium) * 30)
+
+                    fig_bar = px.bar(
+                        df_podium, 
+                        x='Rent. (%)', 
+                        y='Ticker', 
+                        orientation='h', 
+                        text='Rent. (%)', 
+                        hover_data=['Valor Hoje (R$)', 'Setor']
                     )
-                    fig_scat.add_hline(y=0, line_dash="dash", line_color="gray")
-                    fig_scat.update_layout(height=450, showlegend=False, xaxis_title="Volume Financeiro", yaxis_title="Rentabilidade %")
-                    st.plotly_chart(fig_scat, use_container_width=True)
+                    
+                    fig_bar.update_traces(
+                        marker_color=df_podium['Cor'], 
+                        texttemplate='%{text:.1f}%', 
+                        textposition='outside'
+                    )
+                    
+                    fig_bar.update_layout(
+                        yaxis={'categoryorder':'total ascending'}, # Garante a ordem visual correta
+                        height=altura_dinamica, # Aplica a altura calculada
+                        margin=dict(r=50), # Margem direita para o texto não cortar
+                        xaxis_title="Rentabilidade (%)",
+                        yaxis_title=None
+                    )
+                    
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("Nenhum ativo encontrado com os filtros atuais.")       
+
+
+                st.markdown("#### 🎯 Risco x Retorno (Scatter)")
+                fig_scat = px.scatter(
+                    df_grafico, 
+                    x='Valor Hoje (R$)', 
+                    y='Rent. (%)', 
+                    size='Valor Hoje (R$)', 
+                    color='Setor', 
+                    hover_name='Ticker', 
+                    size_max=40
+                )
+                fig_scat.add_hline(y=0, line_dash="dash", line_color="gray")
+                fig_scat.update_layout(height=450, showlegend=False, xaxis_title="Volume Financeiro", yaxis_title="Rentabilidade %")
+                st.plotly_chart(fig_scat, use_container_width=True)
 
                 # --- 5. CONCENTRAÇÃO (PARETO GLOBAL) ---
                 with st.expander("🐋 Análise de Concentração (Pareto Global)", expanded=True):
@@ -1567,11 +1588,12 @@ def main():
 
                 df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
 
-                # ==============================================================================
-                # 1º - TABELA CONSOLIDADA (AGORA VEM ANTES)
+# ==============================================================================
+                # 1º - TABELA CONSOLIDADA (DEFINIÇÃO E EXIBIÇÃO)
                 # ==============================================================================
                 st.markdown("### 📊 Tabela Consolidada — Ativos Atuais + Encerrados")
 
+                # 1. CRIAR A VARIÁVEL 'tabela' (Que estava faltando)
                 tabela = df_detalhes.rename(columns={'Valor Atual BRL': 'Valor Mercado (R$)'})[[
                     'Ticker', 'Setor', 'Moeda', 'Qtd', 'PM Compra', 'Preço Atual',
                     'Lucro Diário (R$)',
@@ -1582,34 +1604,43 @@ def main():
 
                 tabela = tabela.sort_values('Valor Mercado (R$)', ascending=False)
 
+                # 2. DEFINIR A FUNÇÃO DE COR (Que estava faltando)
                 def color_diario(val):
                     color = '#2E7D32' if val >= 0 else '#C62828'
                     return f'color: {color}; font-weight: bold'
-                
-                def color_rent(val):
-                    color = '#2E7D32' if val >= 0 else '#C62828'
-                    return f'color: {color}'
 
-                st.dataframe(tabela.style.format({
-                    'Qtd': '{:,.2f}', 
-                    'PM Compra': '{:,.2f}', 
-                    'Preço Atual': '{:,.2f}',
-                    'Lucro Diário (R$)': 'R$ {:,.2f}',
-                    'Custo BRL': 'R$ {:,.2f}', 
-                    'Valor Mercado (R$)': 'R$ {:,.2f}', 
-                    'Volume Vendas (R$)': 'R$ {:,.2f}', 
-                    'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
-                    'Lucro Realizado (BRL)': 'R$ {:,.2f}', 
-                    'Proventos (R$)': 'R$ {:,.2f}', 
-                    'Resultado Total (R$)': 'R$ {:,.2f}', 
-                    'Rent. BRL (%)': '{:.2f}%'
-                })
-                .map(color_diario, subset=['Lucro Diário (R$)'])
-                .map(color_rent, subset=['Rent. BRL (%)'])
-                .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
-                .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1), use_container_width=True, height=600)
+                # 3. EXIBIR COM O VISUAL DE BARRA DE PROGRESSO
+                st.dataframe(
+                    tabela.style.format({
+                        'Qtd': '{:,.2f}', 
+                        'PM Compra': '{:,.2f}', 
+                        'Preço Atual': '{:,.2f}',
+                        'Lucro Diário (R$)': 'R$ {:,.2f}',
+                        'Custo BRL': 'R$ {:,.2f}', 
+                        'Valor Mercado (R$)': 'R$ {:,.2f}', 
+                        'Volume Vendas (R$)': 'R$ {:,.2f}', 
+                        'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
+                        'Lucro Realizado (BRL)': 'R$ {:,.2f}', 
+                        'Proventos (R$)': 'R$ {:,.2f}', 
+                        'Resultado Total (R$)': 'R$ {:,.2f}'
+                    })
+                    .map(color_diario, subset=['Lucro Diário (R$)'])
+                    .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
+                    .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1),
+                    
+                    column_config={
+                        "Rent. BRL (%)": st.column_config.ProgressColumn(
+                            "Rentabilidade",
+                            format="%.2f%%",
+                            min_value=-100,
+                            max_value=100
+                        ),
+                        "Ticker": st.column_config.TextColumn("Ativo", width="small"),
+                    },
+                    use_container_width=True, 
+                    height=600
+                )
 
-                st.markdown("---")
 
                 # ==============================================================================
                 # 2º - GRÁFICO: PERFORMANCE TOTAL POR ATIVO (AGORA VEM DEPOIS)
@@ -1743,6 +1774,13 @@ def main():
                         # Médias Móveis
                         df_chart['SMA21'] = df_chart['Close'].rolling(21).mean()
                         
+                        # --- CÁLCULO DINÂMICO DO EIXO Y (CORREÇÃO) ---
+                        # Pegamos o mínimo e máximo do período para focar o gráfico
+                        y_min = df_chart['Close'].min()
+                        y_max = df_chart['Close'].max()
+                        margin = (y_max - y_min) * 0.1 # 10% de respiro
+                        range_y = [y_min - margin, y_max + margin]
+                        
                         # Plot
                         fig_c = go.Figure()
                         
@@ -1773,13 +1811,14 @@ def main():
                             height=350, 
                             hovermode="x unified", 
                             margin=dict(l=0, r=0, t=10, b=0),
-                            yaxis_title="Preço (Cotação)",
+                            # yaxis_title="Preço (Cotação)", # Opcional: Removi para ganhar espaço
                             template="plotly_dark",
-                            showlegend=False
+                            showlegend=False,
+                            yaxis=dict(range=range_y) # <--- AQUI ESTÁ A MÁGICA
                         )
                         st.plotly_chart(fig_c, use_container_width=True)
-                    else:
-                        st.warning(f"Gráfico indisponível para {ativo_sel} (Tente verificar o ticker no Yahoo Finance).")
+
+                        
 
                 with col_dist:
                     st.markdown("##### 🍰 Alocação")
@@ -2543,16 +2582,17 @@ def main():
         if saldo_caixa > 0:
             st.info(f"💵 **Disponível em Caixa / Conta Corrente:** R$ {saldo_caixa:,.2f}")
 
-        # --- SEÇÃO B: CUSTÓDIA DE TÍTULOS (EM CARTEIRA) ---
+# --- SEÇÃO B: CUSTÓDIA DE TÍTULOS (EM CARTEIRA) ---
+        # Este bloco deve ficar ANTES do st.subheader("Alocação de Recursos")
         if not df_custodia.empty:
             st.markdown("### 🟢 Custódia de Títulos (Posição Atual)")
             
             # Métricas de Gestão
             principal = df_custodia['Investido'].sum()
             valor_mercado = df_custodia['Atual'].sum()
-            resultado_latente = df_custodia['Lucro'].sum() # Lucro se resgatasse hoje
+            resultado_latente = df_custodia['Lucro'].sum()
             
-            # Cálculo de retorno ponderado da carteira de RF
+            # Cálculo de retorno ponderado
             retorno_medio = (resultado_latente / principal * 100) if principal > 0 else 0
             
             k1, k2, k3, k4 = st.columns(4)
@@ -2561,22 +2601,53 @@ def main():
             k3.metric("Resultado Latente", f"R$ {resultado_latente:,.2f}", help="Lucro bruto não realizado")
             k4.metric("Retorno Ponderado", f"{retorno_medio:.2f}%")
             
-            # Tabela Detalhada (View Gestor)
+            # --- CÁLCULO DA RENTABILIDADE ANUALIZADA ---
+            # 1. Copia o dataframe para não alterar o original
+            df_custodia_view = df_custodia.copy()
+            
+            # 2. PREPARAÇÃO (Importa datetime e pega data de hoje)
+            from datetime import datetime
+            data_hoje = datetime.now()
+
+            # 3. FUNÇÃO DE CÁLCULO
+            def calcular_anualizado(row):
+                try:
+                    investido = float(row['Investido'])
+                    atual = float(row['Atual'])
+                    data_ini = pd.to_datetime(row['Data'], dayfirst=True)
+                    
+                    if investido <= 0 or atual <= 0: return 0.0
+
+                    dias = (data_hoje - data_ini).days
+                    if dias < 1: dias = 1 
+                    
+                    # Fórmula da Rentabilidade Anualizada
+                    rent_anual = ((atual / investido) ** (365 / dias)) - 1
+                    return rent_anual * 100
+                except:
+                    return 0.0
+
+            # 4. APLICA O CÁLCULO NA CÓPIA (df_custodia_view)
+            df_custodia_view['Rent. Anual (%)'] = df_custodia_view.apply(calcular_anualizado, axis=1)
+
+            # 5. EXIBE A TABELA USANDO A CÓPIA (df_custodia_view)
+            # Se aqui estiver escrito 'df_custodia', a coluna nova não aparece!
             st.dataframe(
-                df_custodia[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %']]
+                df_custodia_view[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Rent. Anual (%)']]
                 .rename(columns={'Data': 'Data Aplicação', 'Investido': 'Principal', 'Atual': 'Valor Líquido', 'Lucro': 'Resultado R$'})
                 .style.format({
                     'Principal': 'R$ {:,.2f}', 
                     'Valor Líquido': 'R$ {:,.2f}',
                     'Resultado R$': 'R$ {:,.2f}', 
                     'Rent. %': '{:.2f}%', 
+                    'Rent. Anual (%)': '{:.2f}%', 
                     'Data Aplicação': '{:%d/%m/%Y}'
                 })
-                .background_gradient(subset=['Resultado R$'], cmap='Greens'),
+                .background_gradient(subset=['Resultado R$'], cmap='Greens')
+                .background_gradient(subset=['Rent. Anual (%)'], cmap='Blues'),
                 use_container_width=True
-            )
-            
-            st.markdown("---")
+            )            
+            st.markdown("---") # Linha separadora antes do gráfico de pizza
             
             # Gráfico de Alocação (Inclui o Caixa para visão total da classe Renda Fixa)
             st.subheader("📊 Alocação de Recursos (RF + Caixa)")
