@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go  
 import os
 import numpy as np
+import datetime as dt
 import shutil
 import plotly.graph_objects as go
 from datetime import datetime, date, time, timedelta
@@ -1004,7 +1005,7 @@ def main():
             "1 Semana": 7,
             "1 Mês": 30,
             "3 Meses": 90,
-            "YTD (Ano Atual)": (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+            "YTD (Ano Atual)": (dt.datetime.now() - dt.datetime(dt.datetime.now().year, 1, 1)).days,
             "1 Ano": 365,
             "Todo o Período (Max)": (datetime.now() - data_primeira_transacao).days + 1 
         }
@@ -2606,7 +2607,6 @@ def main():
             df_custodia_view = df_custodia.copy()
             
             # 2. PREPARAÇÃO (Importa datetime e pega data de hoje)
-            from datetime import datetime
             data_hoje = datetime.now()
 
             # 3. FUNÇÃO DE CÁLCULO
