@@ -2551,7 +2551,7 @@ def main():
             st.info("Arquivo de proventos vazio.")
             
 # --- TAB 6: IMPOSTO (NÍVEL PRO: SWING + FII + DAY TRADE AUTOMÁTICO) ---
-# --- TAB 6: IMPOSTO (FINAL: PTAX COMPRA/VENDA + DESIGN PRO) ---
+# --- 1. CARREGAMENTO PTAX (ATUALIZADO PARA FORMATO GIT/AMERICANO) ---
     with tab6:
         c_head, c_conf = st.columns([4, 1])
         with c_head:
@@ -2566,31 +2566,39 @@ def main():
                     key="chk_fiscal_20k_surgical"
                 )
 
-        # --- 1. CARREGAMENTO PTAX ---
+        # --- 1. CARREGAMENTO PTAX (ATUALIZADO E COMPLETO) ---
         @st.cache_data
         def carregar_ptax_csv():
-            caminho_arquivo = os.path.join(PASTA_ATUAL, 'PTAX.csv')
-            if not os.path.exists(caminho_arquivo): return pd.DataFrame()
+            # Ajuste o nome do arquivo aqui se for diferente (ex: PTAX.csv ou ptax.csv)
+            caminho_arquivo = os.path.join(PASTA_ATUAL, 'ptax.csv')
+            
+            if not os.path.exists(caminho_arquivo): 
+                return pd.DataFrame()
+            
             try:
-                df = pd.read_csv(caminho_arquivo, sep=';', dtype=str)
-                if len(df.columns) < 2: df = pd.read_csv(caminho_arquivo, sep=',', dtype=str)
-                df = df.iloc[:, :2]
-                df.columns = ['Data', 'Taxa']
-                df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
-                df['Taxa'] = df['Taxa'].str.replace(',', '.').astype(float)
+                # Leitura do formato limpo (Git/US)
+                df = pd.read_csv(caminho_arquivo, sep=',')
+                df.columns = df.columns.str.strip().str.title() # Força "Data" e "Taxa"
+                df['Data'] = pd.to_datetime(df['Data'])
+                df['Taxa'] = pd.to_numeric(df['Taxa'], errors='coerce')
                 return df.dropna().sort_values('Data').set_index('Data')
-            except: return pd.DataFrame()
+            except Exception as e:
+                st.error(f"Erro PTAX: {e}")
+                return pd.DataFrame()
 
+        # Carrega o índice na memória
         df_ptax_index = carregar_ptax_csv()
 
+        # --- FUNÇÃO QUE ESTAVA FALTANDO ---
         def obter_ptax(data_op):
             if df_ptax_index.empty: return 1.0 
             try:
+                # .asof() busca a data mais próxima anterior (se for feriado/fim de semana, pega a sexta anterior)
                 idx = df_ptax_index.index.asof(data_op)
                 return df_ptax_index.loc[idx]['Taxa'] if not pd.isna(idx) else 1.0
             except: return 1.0
 
-        # --- 2. ENGINE FISCAL ---
+        # --- 2. ENGINE FISCAL (O resto do código continua igual abaixo...) ---
         df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() and not df_bruto.empty else pd.DataFrame()
         dt_map = set()
         
