@@ -841,15 +841,16 @@ def main():
     lucro_realizado_rf_historico = 0.0
     
     if not df_rf_completo.empty:
-        # Para Top KPIs (Patrimônio), somamos apenas o que está ATIVO, independente do filtro visual
-        ativos_reais = df_rf_completo[df_rf_completo['Status'] == 'Ativo']
-        patrimonio_rf = ativos_reais['Atual'].sum()
-        custo_total_rf = ativos_reais['Investido'].sum()
-        lucro_aberto_rf = ativos_reais['Lucro'].sum()
-        
-        # Lucro já realizado (encerrados)
-        encerrados_reais = df_rf_completo[df_rf_completo['Status'] == 'Encerrado']
-        lucro_realizado_rf_historico = encerrados_reais['Lucro'].sum()
+        # Remove linhas onde o Ticker contém "Caixa" ou "Saldo"
+        mask_ignorar = df_rf_completo['Ticker'].str.contains('Caixa|Saldo', case=False, na=False)
+        df_rf_para_soma = df_rf_completo[~mask_ignorar] 
+    else:
+        df_rf_para_soma = df_rf_completo
+
+    # Ajuste o cálculo dos totais para usar esse dataframe filtrado
+    if not df_rf_para_soma.empty:
+        ativos_reais = df_rf_para_soma[df_rf_para_soma['Status'] == 'Ativo']
+        patrimonio_rf = ativos_reais['Atual'].sum() # Agora soma sem o Caixa cheio
 
 # --- 3. FILTRAGEM PARA TAB 7 (VISUALIZAÇÃO) ---
     df_rf_filtrado = df_rf_completo.copy()
@@ -1013,7 +1014,8 @@ def main():
         st.warning(f"Imagem não encontrada: {caminho_logo_main}")
 
     # --- DEFINIÇÃO DAS TABS (Nomes Ajustados) ---
-    tab_perf, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab_cap, tab_perf, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "💼 Capa",
         "🚀 Performance", 
         "💎 Composição", 
         "📊 Renda Variável", 
@@ -1025,251 +1027,241 @@ def main():
         "📝 Editor"
     ])
 
-    # --- TAB 0: PERFORMANCE & ATRIBUIÇÃO (Agora dentro do with) ---
+    # --- TAB 0: CAPA (Agora dentro do with) ---
+    with tab_cap:
+        st.markdown("### 💼 Info")
+        with st.expander("Não insira dados pelo editor. Não é feito para CSV e está corrompendo os dados"):
+            st.markdown("**Cesta Única:** Ações + ETFs + BDRs. Lucro de um paga prejuízo de outro.\n\n**Isenção 20k:** Apenas p/ LUCRO de Ações BR. Prejuízo sempre compensa (se ativado).")
+        with st.expander("O que pode ser evoluído?"):
+            st.markdown("**Cesta Isolada:** Não mistura.\n**Alíquota:** 20%.\n**Isenção:** Nenhuma.")
+        with st.expander("O que precisa de uma nova lógica?"):
+            st.markdown("**Cesta Isolada:** Compra/Venda no mesmo dia.\n**Alíquota:** 20%.")
+
     with tab_perf:
-        st.markdown("### 🏦 Performance & Atribuição de Resultados")
-
-        # 1. Configuração de Período
+        st.markdown("### 🏦 Performance & Alocação Consolidada")
+        
+        # 1. Definição do Período
         data_primeira_transacao = df_bruto['data'].min() if not df_bruto.empty else datetime.now()
-
+        
         periodos_map = {
-            "Intraday (Hoje)": 0,
-            "1 Semana": 7,
-            "1 Mês": 30,
-            "3 Meses": 90,
-            "YTD (Ano Atual)": (dt.datetime.now() - dt.datetime(dt.datetime.now().year, 1, 1)).days,
-            "1 Ano": 365,
-            "Todo o Período (Max)": (datetime.now() - data_primeira_transacao).days + 1 
+            "1 Mês": 30, "3 Meses": 90, "6 Meses": 180, 
+            "YTD (Ano Atual)": (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+            "1 Ano": 365, "2 Anos": 730,
+            "Todo o Período": (datetime.now() - data_primeira_transacao).days + 10
         }
 
         col_sel, _ = st.columns([1, 4])
-        with col_sel:
-            filtro_periodo = st.selectbox(
-                "📅 Janela de Análise:", 
-                list(periodos_map.keys()), 
-                index=0, 
-                key="seletor_periodo_unico"
-            )
+        periodo_nome = col_sel.selectbox("📅 Janela de Análise (RV):", list(periodos_map.keys()), index=len(periodos_map)-1, key="sel_perf_final_kpi")
+        
+        dias = periodos_map[periodo_nome]
+        data_corte_visual = datetime.now() - timedelta(days=dias)
+        if data_corte_visual < data_primeira_transacao: data_corte_visual = data_primeira_transacao
 
-        dias_back = periodos_map[filtro_periodo]
-        data_corte = datetime.now() - timedelta(days=dias_back)
-
-        # Garante que a data de corte não seja anterior à primeira compra
-        if data_corte < data_primeira_transacao:
-            data_corte = data_primeira_transacao
-
-        # --- INICIALIZAÇÃO SEGURA ---
-        df_hist = pd.DataFrame() 
-        lucro_periodo_aberto = 0.0
-        lucro_periodo_realizado = 0.0
-        proventos_periodo = 0.0
-
-        # A) Lucro Não Realizado (Variação da Posição: Preço + Câmbio)
-        if dias_back == 0:
-            # Intraday (Hoje)
-            for _, row in df_view.iterrows():
-                if row['Qtd'] > 0:
-                    var_unitaria = mapa_variacao.get(row['Ticker'], 0.0)
-                    fx_ativo = 1.0
-                    if row['Moeda'] == 'USD': fx_ativo = usd
-                    elif row['Moeda'] == 'CAD': fx_ativo = cad
-                    elif row['Moeda'] == 'EUR': fx_ativo = eur
-                    lucro_periodo_aberto += (row['Qtd'] * var_unitaria * fx_ativo)
-        else:
-            tickers_carteira = [] 
-            # --------------------------------------------
-
-            if not df_view.empty:
-                df_view.columns = df_view.columns.str.strip()
-                
-                # Verifica qual coluna usar para filtrar
-                if 'Qtd' in df_view.columns:
-                    tickers_carteira = df_view[df_view['Qtd'] > 0]['Ticker'].unique().tolist()
-                elif 'Ticker' in df_view.columns:
-                    tickers_carteira = df_view['Ticker'].unique().tolist()
-            
-            # Agora a linha 1032 não vai mais quebrar, pois a variável existe (mesmo que vazia)
-            if tickers_carteira:
-                tickers_busca = tickers_carteira + ['BRL=X']
-                try:
-                    df_hist = yf.download(tickers_busca, start=data_corte, progress=False)['Close']
-                    
-                    if not df_hist.empty:
-                        df_hist = df_hist.ffill().bfill()
-                        
-                        serie_inicio = df_hist.iloc[0]
-                        serie_fim = df_hist.iloc[-1]
-                        
-                        usd_inicio = float(serie_inicio.get('BRL=X', 5.0))
-                        usd_fim = float(serie_fim.get('BRL=X', usd))
-
-                        for _, row in df_view.iterrows():
-                            t = row['Ticker']
-                            qtd = row['Qtd']
-                            
-                            if t in serie_inicio and qtd > 0:
-                                p_ini_orig = float(serie_inicio[t])
-                                p_fim_orig = float(serie_fim[t])
-                                
-                                fx_ini, fx_fim = 1.0, 1.0
-                                if row['Moeda'] == 'USD': fx_ini, fx_fim = usd_inicio, usd_fim
-                                elif row['Moeda'] == 'CAD': fx_ini, fx_fim = usd_inicio * 0.74, usd_fim * 0.74 
-                                elif row['Moeda'] == 'EUR': fx_ini, fx_fim = usd_inicio * 1.08, usd_fim * 1.08
-
-                                financeiro_inicial_brl = qtd * p_ini_orig * fx_ini
-                                financeiro_final_brl   = qtd * p_fim_orig * fx_fim
-                                
-                                lucro_periodo_aberto += (financeiro_final_brl - financeiro_inicial_brl)
-                                
-                except Exception as e:
-                    st.error(f"Erro ao calcular variação cambial histórica: {e}")
-
-        # B) Lucro Realizado (Simplificado para MAX, zerado para parciais por segurança)
+        # -------------------------------------------------------------
+        # ENGINE
+        # -------------------------------------------------------------
         if not df_bruto.empty:
-            if filtro_periodo == "Todo o Período (Max)":
-                lucro_periodo_realizado = lucro_realizado_total_global
-            else:
-                lucro_periodo_realizado = 0.0 
-
-        # C) Proventos
-        if not df_proventos_bruto.empty:
-            prov_filt = df_proventos_bruto[df_proventos_bruto['data'] >= data_corte]
-            def calc_prov_row(r):
-                v = r['valor']
-                m = str(r['moeda']).upper()
-                if m == 'USD': return v * usd
-                if m == 'CAD': return v * cad
-                if m == 'EUR': return v * eur
-                return v
-            if not prov_filt.empty:
-                proventos_periodo = prov_filt.apply(calc_prov_row, axis=1).sum()
-
-        # --- TOTALIZADORES ---
-        resultado_total_periodo = lucro_periodo_aberto + lucro_periodo_realizado + proventos_periodo
-
-        # CSS Metricas
-        st.markdown("""<style>div[data-testid="stMetricValue"] { font-size: 26px; }</style>""", unsafe_allow_html=True)
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("💰 Patrimônio (AUM)", f"R$ {patrimonio_total:,.2f}", help="Posição atual (RV + RF)")
-
-        delta_pct = (resultado_total_periodo / patrimonio_total * 100) if patrimonio_total > 0 else 0
-        c2.metric(f"📈 P&L ({filtro_periodo})", f"R$ {resultado_total_periodo:,.2f}", delta=f"{delta_pct:.2f}%", delta_color="normal")
-
-        c3.metric("💵 Proventos (Período)", f"R$ {proventos_periodo:,.2f}")
-        c4.metric("👥 Equity Familiar", f"R$ {patrimonio_total * 2:,.2f}", delta="2x Visão")
-
-        st.markdown("---")
-
-        # --- GRÁFICOS DE EVOLUÇÃO ---
-        if dias_back > 0 and not df_view.empty:
-            if df_hist.empty:
-                pass 
-            else:
-                with st.spinner(f"Renderizando gráfico a partir de {data_corte.strftime('%d/%m/%Y')}..."):
-                    try:
-                        serie_patrimonio = pd.Series(0.0, index=df_hist.index)
-                        serie_usd = df_hist['BRL=X'] if 'BRL=X' in df_hist.columns else pd.Series(usd, index=df_hist.index)
+            with st.spinner("Consolidando dados..."):
+                try:
+                    # A. CÁLCULO DO CAIXA E RENDA FIXA MANUAL (Para somar no Total)
+                    total_rf_titulos = 0.0
+                    total_caixa = 0.0
+                    
+                    if 'df_rf_filtrado' in locals() and not df_rf_filtrado.empty:
+                        # Separa Caixa de Títulos usando palavras-chave
+                        rf_ativos = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
+                        mask_cx = rf_ativos['Ativo'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
                         
-                        for _, row in df_view.iterrows():
-                            tkr = row['Ticker']
-                            qtd = row['Qtd']
-                            moeda = row['Moeda']
+                        total_caixa = rf_ativos[mask_cx]['Atual'].sum()
+                        total_rf_titulos = rf_ativos[~mask_cx]['Atual'].sum()
+
+                    # B. ENGINE HISTÓRICA (Apenas Renda Variável)
+                    # Removemos Caixa/RF Manual da linha do tempo do Yahoo
+                    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'CORRENTE']
+                    
+                    todos_ativos = df_bruto['ticker'].unique().tolist()
+                    tickers_yahoo = [t for t in todos_ativos if not any(x in t.upper() for x in termos_excluir)]
+                    
+                    # Download Yahoo
+                    tickers_download = list(set(tickers_yahoo + ['BRL=X', 'EURBRL=X', 'CADBRL=X']))
+                    df_prices = yf.download(tickers_download, start=data_primeira_transacao, progress=False)['Close']
+                    
+                    if isinstance(df_prices, pd.Series): df_prices = df_prices.to_frame()
+                    df_prices = df_prices.dropna(axis=1, how='all').ffill().bfill().fillna(0.0)
+
+                    if not df_prices.empty:
+                        idx = df_prices.index
+                        serie_patrimonio_rv = pd.Series(0.0, index=idx)
+                        serie_custo_rv = pd.Series(0.0, index=idx)
+                        
+                        cols_validas = [c for c in tickers_yahoo if c in df_prices.columns]
+                        df_qtde_hist = pd.DataFrame(0.0, index=idx, columns=cols_validas)
+                        
+                        s_usd = df_prices['BRL=X'] if 'BRL=X' in df_prices.columns else pd.Series(5.5, index=idx)
+                        s_eur = df_prices['EURBRL=X'] if 'EURBRL=X' in df_prices.columns else pd.Series(6.0, index=idx)
+                        s_cad = df_prices['CADBRL=X'] if 'CADBRL=X' in df_prices.columns else pd.Series(4.0, index=idx)
+
+                        df_ops = df_bruto.sort_values('data')
+                        pm_tracker = {t: {'qtd': 0.0, 'custo_total': 0.0} for t in tickers_yahoo}
+
+                        for _, row in df_ops.iterrows():
+                            t = row['ticker']
+                            if any(x in str(t).upper() for x in termos_excluir): continue
+                            if t not in df_qtde_hist.columns: continue
+
+                            d_op = row['data']
+                            q = float(row['quantidade'])
+                            p = float(row['preco'])
+                            tp = str(row['tipo']).lower()
+                            m = row['moeda']
                             
-                            if tkr in df_hist.columns and qtd > 0:
-                                preco_dia = df_hist[tkr]
-                                if moeda == 'USD':
-                                    valor_dia_brl = preco_dia * serie_usd * qtd
-                                elif moeda == 'CAD':
-                                    valor_dia_brl = preco_dia * (serie_usd * 0.74) * qtd 
-                                elif moeda == 'EUR':
-                                    valor_dia_brl = preco_dia * (serie_usd * 1.08) * qtd
-                                else:
-                                    valor_dia_brl = preco_dia * qtd 
-                                    
-                                serie_patrimonio += valor_dia_brl
-
-                        # --- CÁLCULO DA SÉRIE PERCENTUAL ---
-                        val_inicial = serie_patrimonio.iloc[0]
-                        if val_inicial > 0:
-                            serie_rent = ((serie_patrimonio / val_inicial) - 1) * 100
-                        else:
-                            serie_rent = serie_patrimonio.copy()
-                            mask_non_zero = serie_patrimonio > 0
-                            if mask_non_zero.any():
-                                idx_start = mask_non_zero.idxmax()
-                                val_base = serie_patrimonio[idx_start]
-                                serie_rent.loc[idx_start:] = ((serie_patrimonio.loc[idx_start:] / val_base) - 1) * 100
-                                serie_rent.loc[:idx_start] = 0
-
-                        # --- PLOTAGEM LADO A LADO ---
-                        g1, g2 = st.columns(2)
-
-                        with g1:
-                            fig_rent = go.Figure()
+                            try:
+                                if m == 'USD': fx = s_usd.asof(d_op)
+                                elif m == 'EUR': fx = s_eur.asof(d_op)
+                                elif m == 'CAD': fx = s_cad.asof(d_op)
+                                else: fx = 1.0
+                            except: fx = 1.0
                             
-                            # TRUQUE VISUAL: Separa em duas séries (Positiva e Negativa)
-                            # Onde for negativo vira 0 na série positiva e vice-versa, criando o efeito de "montanha"
-                            serie_pos = serie_rent.apply(lambda x: x if x >= 0 else 0)
-                            serie_neg = serie_rent.apply(lambda x: x if x < 0 else 0)
+                            val_movimento = q * p * fx 
 
-                            # 1. Parte Verde (Lucro)
-                            fig_rent.add_trace(go.Scatter(
-                                x=serie_pos.index, 
-                                y=serie_pos.values,
-                                mode='lines', 
-                                name='Lucro',
-                                line=dict(color='#00E676', width=2), # Verde Neon
-                                fill='tozeroy', 
-                                fillcolor='rgba(0, 230, 118, 0.1)'
+                            try:
+                                if 'compra' in tp:
+                                    df_qtde_hist.loc[d_op:, t] += q
+                                    serie_custo_rv.loc[d_op:] += val_movimento
+                                    pm_tracker[t]['custo_total'] += val_movimento
+                                    pm_tracker[t]['qtd'] += q
+                                elif 'venda' in tp:
+                                    df_qtde_hist.loc[d_op:, t] -= q
+                                    curr = pm_tracker[t]
+                                    pm_atual = curr['custo_total'] / curr['qtd'] if curr['qtd'] > 0 else 0
+                                    custo_saida = q * pm_atual
+                                    serie_custo_rv.loc[d_op:] -= custo_saida
+                                    curr['custo_total'] -= custo_saida
+                                    curr['qtd'] -= q
+                            except: pass
+
+                        for col in df_qtde_hist.columns:
+                            try: m_ativo = df_bruto[df_bruto['ticker']==col]['moeda'].iloc[-1]
+                            except: m_ativo = 'BRL'
+                            val_ativo = df_qtde_hist[col] * df_prices[col]
+                            if m_ativo == 'USD': val_ativo *= s_usd
+                            elif m_ativo == 'EUR': val_ativo *= s_eur
+                            elif m_ativo == 'CAD': val_ativo *= s_cad
+                            serie_patrimonio_rv = serie_patrimonio_rv.add(val_ativo.fillna(0), fill_value=0)
+
+                        # -------------------------------------------------------------
+                        # VISUALIZAÇÃO HÍBRIDA
+                        # -------------------------------------------------------------
+                        mask = serie_patrimonio_rv.index >= data_corte_visual
+                        v_pat = serie_patrimonio_rv[mask]
+                        v_cus = serie_custo_rv[mask]
+                        
+                        # Remove período pré-histórico (zeros)
+                        validos = v_pat > 0
+                        v_pat = v_pat[validos]
+                        v_cus = v_cus[validos]
+
+                        if not v_pat.empty:
+                            # 1. VALORES DE MERCADO
+                            rv_atual = v_pat.iloc[-1]
+                            custo_rv_atual = v_cus.iloc[-1]
+                            
+                            # 2. PATRIMÔNIO TOTAL
+                            patrimonio_total_geral = rv_atual + total_rf_titulos + total_caixa
+                            
+                            # 3. CÁLCULOS DE PERFORMANCE E ALOCAÇÃO
+                            # Rentabilidade RV
+                            lucro_rv = rv_atual - custo_rv_atual
+                            rent_rv_pct = (lucro_rv / custo_rv_atual * 100) if custo_rv_atual > 0 else 0
+                            
+                            # Alocação %
+                            alloc_rv = (rv_atual / patrimonio_total_geral) * 100
+                            alloc_rf = (total_rf_titulos / patrimonio_total_geral) * 100
+                            alloc_cx = (total_caixa / patrimonio_total_geral) * 100
+                            
+                            # --- MOSTRADORES (KPIS) ---
+                            st.markdown("##### 🧭 Resumo Financeiro")
+                            c1, c2, c3, c4 = st.columns(4)
+                            
+                            # Card 1: O Número Mágico
+                            c1.metric(
+                                "💰 Patrimônio Total", 
+                                f"R$ {patrimonio_total_geral:,.2f}", 
+                                help="Soma de todos os ativos cadastrados."
+                            )
+                            
+                            # Card 2: Renda Variável (Mostra Rentabilidade)
+                            cor_rv = "normal" if lucro_rv >= 0 else "inverse"
+                            c2.metric(
+                                "📊 Renda Variável", 
+                                f"R$ {rv_atual:,.2f}", 
+                                f"{rent_rv_pct:.2f}% (Lucro)", 
+                                delta_color=cor_rv,
+                                help=f"Alocação: {alloc_rv:.1f}% da Carteira"
+                            )
+                            
+                            # Card 3: Renda Fixa (Mostra Alocação)
+                            c3.metric(
+                                "🛡️ Renda Fixa (Títulos)", 
+                                f"R$ {total_rf_titulos:,.2f}", 
+                                f"{alloc_rf:.1f}% Alloc", 
+                                delta_color="off",
+                                help="Títulos Públicos e Privados (CDB, LCI, Tesouro...)"
+                            )
+                            
+                            # Card 4: Caixa (Mostra Liquidez)
+                            c4.metric(
+                                "💵 Caixa / Liquidez", 
+                                f"R$ {total_caixa:,.2f}", 
+                                f"{alloc_cx:.1f}% Alloc", 
+                                delta_color="off",
+                                help="Dinheiro disponível para aporte."
+                            )
+
+                            st.markdown("---")
+
+                            # --- GRÁFICO (APENAS ATIVOS DE RISCO) ---
+                            st.subheader("📈 Evolução da Renda Variável (Mark-to-Market)")
+                            st.caption("O gráfico abaixo foca na performance dos seus ativos de risco (Ações, FIIs, Cripto), comparando Valor de Mercado vs. Capital Investido.")
+                            
+                            fig = go.Figure()
+                            
+                            # Área Verde (Patrimônio)
+                            fig.add_trace(go.Scatter(
+                                x=v_pat.index, y=v_pat.values,
+                                mode='lines', name='Valor de Mercado',
+                                line=dict(color='#00E676', width=2),
+                                fill='tozeroy', fillcolor='rgba(0, 230, 118, 0.1)'
+                            ))
+                            
+                            # Linha Cinza (Custo)
+                            fig.add_trace(go.Scatter(
+                                x=v_cus.index, y=v_cus.values,
+                                mode='lines', name='Capital Aportado',
+                                line=dict(color='#B0BEC5', width=2, dash='dash'),
+                                hovertemplate='Custo: R$ %{y:,.2f}'
                             ))
 
-                            # 2. Parte Vermelha (Prejuízo)
-                            fig_rent.add_trace(go.Scatter(
-                                x=serie_neg.index, 
-                                y=serie_neg.values,
-                                mode='lines', 
-                                name='Prejuízo',
-                                line=dict(color='#FF5252', width=2), # Vermelho Alerta
-                                fill='tozeroy', 
-                                fillcolor='rgba(255, 82, 82, 0.1)'
-                            ))
-                            
-                            # Linha de referência no 0%
-                            fig_rent.add_hline(y=0, line_dash="solid", line_color="gray", opacity=0.3, line_width=1)
-                            
-                            fig_rent.update_layout(
-                                title="🚀 Rentabilidade Acumulada (%)", 
+                            fig.update_layout(
                                 template="plotly_dark", 
-                                height=400, 
-                                margin=dict(l=20, r=20, t=40, b=20),
-                                hovermode="x unified",
-                                yaxis_tickformat=".1f", # Formata eixo com 1 casa decimal
-                                showlegend=False # Oculta legenda para limpar o visual (opcional)
+                                height=450, 
+                                hovermode="x unified", 
+                                yaxis_tickprefix="R$ ", 
+                                legend=dict(orientation="h", y=1.02, x=1, xanchor="right"),
+                                margin=dict(t=30, l=0, r=0, b=0)
                             )
-                            st.plotly_chart(fig_rent, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                        else:
+                            st.info("Sem saldo investido em RV no período.")
 
-                        with g2:
-                            fig_pat = go.Figure()
-                            fig_pat.add_trace(go.Scatter(
-                                x=serie_patrimonio.index, y=serie_patrimonio.values,
-                                mode='lines', name='Saldo em Conta',
-                                line=dict(color='#2979FF', width=2),
-                                fill='tozeroy', fillcolor='rgba(41, 121, 255, 0.1)'
-                            ))
-                            fig_pat.update_layout(
-                                title="💰 Evolução do Patrimônio (R$)", 
-                                template="plotly_dark", height=400, 
-                                margin=dict(l=20, r=20, t=40, b=20),
-                                hovermode="x unified"
-                            )
-                            st.plotly_chart(fig_pat, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+        else:
+            st.info("Carregue dados.")
 
-                    except Exception as e:
-                        st.warning(f"Não foi possível gerar os gráficos históricos: {e}")
 
-                        
-        with tab1:
+    with tab1:
             st.subheader("💎 Visão do Gestor (Portfólio Global)")
         
             # --- 0. UNIFICAÇÃO DE DADOS (RV + RF + CAIXA) PARA GRÁFICOS ---
@@ -2598,15 +2590,23 @@ def main():
                 return df_ptax_index.loc[idx]['Taxa'] if not pd.isna(idx) else 1.0
             except: return 1.0
 
-        # --- 2. ENGINE FISCAL (O resto do código continua igual abaixo...) ---
+    # --- 2. ENGINE FISCAL ---
         df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() and not df_bruto.empty else pd.DataFrame()
-        dt_map = set()
         
+        # 1. Limpeza de Datas Inválidas
+        if not df_tax.empty and 'data' in df_tax.columns:
+            df_tax = df_tax.dropna(subset=['data'])
+
+        # 2. Mapeamento de Day Trade
+        dt_map = set()
         if not df_tax.empty:
             for (d, t), g in df_tax.groupby(['data', 'ticker']):
+                if pd.isna(d): continue
                 ops = set(g['tipo'].str.lower().str.strip())
-                if any('compra' in x for x in ops) and any('venda' in x for x in ops): dt_map.add((d, t))
+                if any('compra' in x for x in ops) and any('venda' in x for x in ops): 
+                    dt_map.add((d, t))
 
+        # 3. Função Auxiliar e Variáveis
         def classificar_ativo(tkr, mercado):
             t = str(tkr).upper().strip().replace('.SA', '')
             if len(t) > 4 and t.endswith('F') and t[-2].isdigit(): t = t[:-1]
@@ -2621,19 +2621,23 @@ def main():
             return 'Ativos Financeiros Exterior'
 
         carteira_pm = {} 
-        transacoes = []
+        transacoes = []  # Inicializa lista vazia
         dolar_hoje = mapa_precos.get('BRL=X', 5.50) if 'mapa_precos' in locals() else 5.50
 
+        # 4. Loop de Cálculo (Só roda se tiver dados)
         if not df_tax.empty:
             for _, row in df_tax.iterrows():
+                data = row['data']
+                if pd.isna(data): continue 
+
                 tkr = row['ticker']
                 tipo = str(row['tipo']).lower()
                 qtd = float(row['quantidade'])
                 preco = float(row['preco'])
-                data = row['data']
                 
                 eh_exterior = False
-                if '.SA' not in str(tkr) and (len(str(tkr)) <= 5 or tkr in ['VT', 'VNQ', 'VOO', 'DPM', 'ASML', 'TSM']): eh_exterior = True
+                if '.SA' not in str(tkr) and (len(str(tkr)) <= 5 or tkr in ['VT', 'VNQ', 'VOO', 'DPM', 'ASML', 'TSM']): 
+                    eh_exterior = True
                 mercado = 'EX' if eh_exterior else 'BR'
                 
                 ptax_op = obter_ptax(data) if mercado == 'EX' else 1.0
@@ -2657,15 +2661,11 @@ def main():
                     dados = carteira_pm[key]
                     pm_brl = (dados['custo_brl'] / dados['qtd']) if dados['qtd'] > 0 else 0
                     pm_usd = (dados['custo_usd'] / dados['qtd']) if dados['qtd'] > 0 else 0
-                    
-                    # --- CÁLCULO PTAX MÉDIA DE COMPRA (NOVO) ---
-                    # Câmbio Médio = PM em Reais / PM em Dólar
                     ptax_compra_avg = (pm_brl / pm_usd) if pm_usd > 0 else 0.0
 
                     custo_venda_brl = qtd * pm_brl
                     val_liq_venda_brl = val_op_brl - taxas
                     lucro_brl = val_liq_venda_brl - custo_venda_brl
-                    
                     lucro_ativo_usd = (preco - pm_usd) * qtd
                     lucro_hoje_brl = ((qtd * preco) * dolar_hoje) - custo_venda_brl
 
@@ -2682,13 +2682,15 @@ def main():
                         'classe': classe_final,
                         'venda_total': val_liq_venda_brl,
                         'resultado': lucro_brl,
-                        'ptax': ptax_op,               # PTAX Venda (Do dia)
-                        'ptax_compra': ptax_compra_avg, # PTAX Compra (Média Ponderada)
+                        'ptax': ptax_op,                
+                        'ptax_compra': ptax_compra_avg, 
                         'lucro_ativo_usd': lucro_ativo_usd,
                         'lucro_hoje_sim': lucro_hoje_brl
                     })
 
-        df_fisc = pd.DataFrame(transacoes)
+            # --- CRIAÇÃO DO DATAFRAME (FORA DO IF) ---
+            # Isso garante que df_fisc exista mesmo que a lista transacoes esteja vazia
+            df_fisc = pd.DataFrame(transacoes)
 
         # --- 3. DASHBOARD ---
         if not df_fisc.empty:
