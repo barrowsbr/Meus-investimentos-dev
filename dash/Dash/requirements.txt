@@ -1,7 +1,9 @@
 streamlit
 pandas
-numpy
 yfinance
 plotly
-scipy
+numpy
+openpyxl
 matplotlib
+streamlit-authenticator
+PyYAML

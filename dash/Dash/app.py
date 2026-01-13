@@ -1,17 +1,17 @@
-import os
-import shutil
-from datetime import datetime, date, time, timedelta
-from dataclasses import dataclass
-from typing import Optional
-
-# Bibliotecas de Terceiros
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
 import plotly.express as px
-import plotly.graph_objects as go
-from scipy import optimize 
+import plotly.graph_objects as go  
+import os
+import numpy as np
+import datetime as dt
+import shutil
+from datetime import datetime, date, time, timedelta
+import numpy as np
+from scipy import optimize
+from dataclasses import dataclass
+from typing import Optional
 
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
