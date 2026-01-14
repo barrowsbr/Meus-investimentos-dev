@@ -288,7 +288,7 @@ def calcular_performance_institucional(
         df['lucro_dia'] / df['base_ajustada'],
         0.0
     )
-    
+
     # Passo E: Chain-Linking (Acumulação Geométrica)
     df['fator_acum'] = (1 + df['retorno_dia']).cumprod()
     twr_acumulado = df['fator_acum'].iloc[-1] - 1
@@ -1236,14 +1236,36 @@ def main():
 
                 fig.update_layout(
                     template="plotly_dark",
-                    height=400,
-                    margin=dict(l=0, r=0, t=10, b=0),
+                    height=450, # Aumentei um pouco para caber os botões
+                    margin=dict(l=0, r=0, t=50, b=0), # Margem superior para os botões
                     hovermode="x unified",
-                    yaxis=dict(title="Retorno Acumulado (%)", gridcolor='rgba(255,255,255,0.05)'),
-                    xaxis=dict(showgrid=False),
+                    yaxis=dict(
+                        title="Retorno Acumulado (%)", 
+                        gridcolor='rgba(255,255,255,0.05)'
+                    ),
+                    xaxis=dict(
+                        showgrid=False,
+                        type="date",
+                        rangeselector=dict(
+                            buttons=list([
+                                dict(count=3, label="3M", step="month", stepmode="backward"),
+                                dict(count=6, label="6M", step="month", stepmode="backward"),
+                                dict(count=1, label="YTD", step="year", stepmode="todate"),
+                                dict(count=1, label="1A", step="year", stepmode="backward"),
+                                dict(count=2, label="2A", step="year", stepmode="backward"),
+                                dict(step="all", label="MAX")
+                            ]),
+                            bgcolor="rgba(255,255,255,0.1)", # Fundo dos botões (Dark mode friendly)
+                            activecolor="#00E676",           # Cor quando selecionado (Verde)
+                            font=dict(color="white", size=11),
+                            x=0,    # Posição horizontal
+                            y=1.15  # Posição vertical (acima do gráfico)
+                        )
+                    ),
                     showlegend=True,
-                    legend=dict(orientation="h", y=1.02, x=0, xanchor="left")
+                    legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center") # Legenda centralizada
                 )
+                
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # --- GRÁFICO DE RISCO (UNDERWATER) ---
