@@ -288,7 +288,7 @@ def calcular_performance_institucional(
         df['lucro_dia'] / df['base_ajustada'],
         0.0
     )
-
+    
     # Passo E: Chain-Linking (Acumulação Geométrica)
     df['fator_acum'] = (1 + df['retorno_dia']).cumprod()
     twr_acumulado = df['fator_acum'].iloc[-1] - 1
