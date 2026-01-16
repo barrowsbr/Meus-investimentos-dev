@@ -7,22 +7,19 @@ import os
 import numpy as np
 import datetime as dt
 import shutil
-import time
-from datetime import datetime, date, time as dt_time, timedelta
-from scipy import optimize
-from dataclasses import dataclass
+from datetime import datetime, date, timedelta
 from typing import Optional
 
 # --- CORE IMPORTS ---
-from core.data_loader import load_assets, load_proventos, load_fixed_income, summarize_fixed_income, normalize_ticker
+from core.data_loader import load_assets, load_proventos, load_fixed_income, summarize_fixed_income, normalize_ticker, load_cambio
 from core.market_data import fetch_market_data
 from core.performance_engine import PerformanceEngine
 from core.engine import reconstruct_history
 from core.ui_config import get_editor_config
-from core.risk import calculate_risk_metrics
+
 from core.attribution import calculate_contribution, group_contributions
 from core.risk_analytics import calculate_correlation_matrix, calculate_risk_contribution
-from config import BASE_DIR, FILE_ASSETS, FILE_COMPOSICAO, FILE_CAMBIO
+from config import BASE_DIR, FILE_ASSETS, FILE_COMPOSICAO, FILE_CAMBIO, FILE_PTAX
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -47,23 +44,7 @@ st.markdown("""
 
 # --- 2. LOCALIZAÇÃO E CARREGAMENTO (MODULARIZADO) ---
 
-# Compatibilidade para código antigo
-PASTA_ATUAL = BASE_DIR
-CAMINHO_CSV = FILE_ASSETS
-
-# Funções Wrapper para manter compatibilidade com chamadas da UI antiga
-@st.cache_data(show_spinner=False)
-def carregar_dados():
-    return load_assets()
-
-@st.cache_data(show_spinner=False)
-def carregar_proventos():
-    return load_proventos()
-
-@st.cache_data(show_spinner=False)
-def carregar_renda_fixa_v2():
-    return load_fixed_income()
-
+# Funções Auxiliares de Carga
 @st.cache_data(show_spinner=False)
 def carregar_composicao_extra():
     if not os.path.exists(FILE_COMPOSICAO): return pd.DataFrame()
@@ -204,11 +185,7 @@ def calcular_carteira(df):
     return pd.DataFrame(posicao), lucro_realizado_por_moeda
 
 
-# --- MOTOR DE COTAÇÕES (CORE) ---
-@st.cache_data(ttl=3600, show_spinner=False)
-def obter_precos_online(tickers):
-    """Wrapper para manter compatibilidade com app.py antigo"""
-    return fetch_market_data(tickers)
+
 
 
 # --- FUNÇÃO DA NOVA TAB: EDITOR DE DADOS ---
@@ -219,13 +196,13 @@ def exibir_editor_dados():
     FILES_CONFIG = get_editor_config()
 
     def get_file_path(filename):
-        return os.path.join(PASTA_ATUAL, filename)
+        return os.path.join(BASE_DIR, filename)
 
     def backup_file(filepath):
         if os.path.exists(filepath):
             try:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_dir = os.path.join(PASTA_ATUAL, "backups")
+                backup_dir = os.path.join(BASE_DIR, "backups")
                 os.makedirs(backup_dir, exist_ok=True)
                 shutil.copy(filepath, os.path.join(backup_dir, f"{os.path.basename(filepath)}_{timestamp}.bak"))
             except: pass
@@ -351,7 +328,7 @@ def exibir_editor_dados():
                 st.session_state.pop('editor_df', None)
                 st.rerun()
     else:
-        st.error(f"Arquivo {selected_key} não encontrado na pasta: {PASTA_ATUAL}")
+        st.error(f"Arquivo {selected_key} não encontrado na pasta: {BASE_DIR}")
 
 
 # --- DASHBOARD PRINCIPAL ---
@@ -363,9 +340,9 @@ def main():
             st.rerun()
         
         # 1. CARREGAMENTO DE DADOS BRUTOS
-        df_bruto = carregar_dados()
-        df_proventos_bruto = carregar_proventos()
-        df_rf_raw = carregar_renda_fixa_v2()
+        df_bruto = load_assets()
+        df_proventos_bruto = load_proventos()
+        df_rf_raw = load_fixed_income()
         
         # 2. DEFINIÇÃO DE VARIÁVEIS TEMPORAIS (Correção 'data_primeira_transacao')
         if not df_bruto.empty:
@@ -430,23 +407,13 @@ def main():
         
         
         # 4. SELETOR DE PERÍODO (Removido filtro, usa todo o período)
-        # periodos_map = {
-        #     "1 Mês": 30, "3 Meses": 90, "6 Meses": 180, 
-        #     "YTD (Ano Atual)": (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
-        #     "1 Ano": 365, "2 Anos": 730,
-        #     "Todo o Período": (datetime.now() - data_primeira_transacao).days + 10
-        # }
-        # periodo_nome = st.selectbox("📅 Janela de Performance:", list(periodos_map.keys()), index=len(periodos_map)-1, key="sel_perf_main")
-        # dias = periodos_map[periodo_nome] # <--- VARIAVEL DIAS CRIADA AQUI
         dias = (datetime.now() - data_primeira_transacao).days + 10  # Todo o período
         
-        # Logo Main (Fora do Sidebar, mas definido aqui para uso no layout)
-        caminho_logo_main = os.path.join(PASTA_ATUAL, 'add', 'IMG_3080.PNG')
+
 
     # --- FIM DO SIDEBAR / INÍCIO DO CORPO PRINCIPAL ---
     
-    if os.path.exists(caminho_logo_main):
-        st.image(caminho_logo_main, use_container_width=True)
+
 
 # 5. PROCESSAMENTO DE RENDA FIXA (Corrigido: 'Data' e 'Rent. %' restaurados)
     df_rf_completo = pd.DataFrame()
@@ -471,18 +438,13 @@ def main():
             df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
         elif opcao_ativo == "Não": 
             df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Encerrado']        
-        # Aplica filtros em df_rf_filtrado
-        df_rf_filtrado = df_rf_completo.copy()
-        if filtro_ticker: df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Ativo'].isin(lista_rf_permitidos)]
-        if filtro_macro and "Renda Fixa" not in filtro_macro: df_rf_filtrado = df_rf_filtrado[0:0]
-        if opcao_ativo == "Sim": df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
-        elif opcao_ativo == "Não": df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Encerrado']
+
 
     # 6. DADOS PARA O RESTANTE DO CÓDIGO (Precos e Proventos)
     if 'mapa_precos' not in locals():
         # Se tiver dados, baixa. Se não, dicionário vazio.
         if not df_bruto.empty:
-            mapa_precos, mapa_variacao = obter_precos_online(df_bruto['ticker'].unique().tolist())
+            mapa_precos, mapa_variacao = fetch_market_data(df_bruto['ticker'].unique().tolist())
         else:
             mapa_precos, mapa_variacao = {}, {}
             
@@ -530,12 +492,15 @@ def main():
                 tickers_yahoo = extra_data.get("tickers_yahoo", [])
                 custodia_diaria = extra_data.get("custodia_diaria", pd.DataFrame())
 
-                # 4. Engine Input (Com Flag de Supressão)
+                # 4. Engine Input (Com Flag de Supressão e Timing)
+                v_flow_timing = extra_data.get("flow_timing", pd.Series(0, index=v_pat.index))
+                
                 df_engine_input = pd.DataFrame({
                     'nav': v_pat,      # NAV Original (Sem alteração)
                     'flow': v_flux,
                     'income': v_income,
-                    'force_return_zero': v_force_zero
+                    'force_return_zero': v_force_zero,
+                    'flow_timing': v_flow_timing
                 }).sort_index()
                 
                 resultado = run_performance_engine(df_engine_input)
@@ -1622,34 +1587,34 @@ def main():
                 simbolo = "US$" if ticker == 'CHFUSD=X' else "R$"
                 cols[i].metric(label, f"{simbolo} {val:.3f}", f"{var:.3f}", delta_color="normal")
 
-        try:
-            if os.path.exists(CAMINHO_CAMBIO) and os.path.getsize(CAMINHO_CAMBIO) > 0:
-                df_cambio = pd.read_csv(CAMINHO_CAMBIO, sep=";")
-                for col in ['Valor Total entrada', 'Valor Total saída', 'VET']:
-                    if col in df_cambio.columns:
-                        df_cambio[col] = pd.to_numeric(df_cambio[col].astype(str).str.replace('R$', '').str.replace('.', '').str.replace(',', '.'), errors='coerce').fillna(0)
+        # Removed try-except to debug UI
+        df_cambio = load_cambio()
+        
+        if not df_cambio.empty:
+            df_cambio['moeda_origem'] = df_cambio['moeda_origem'].str.upper().str.strip()
+            df_cambio['moeda_destino'] = df_cambio['moeda_destino'].str.upper().str.strip()
+            # Debug: st.dataframe(df_cambio.head()) 
+            
+            todas_moedas = set(df_cambio['moeda_origem'].unique()) | set(df_cambio['moeda_destino'].unique())
+            moedas_encontradas.update(todas_moedas - {'BRL'})
 
-                df_cambio['Moeda Origem'] = df_cambio['Moeda Origem'].str.upper().str.strip()
-                df_cambio['Moeda Destino'] = df_cambio['Moeda Destino'].str.upper().str.strip()
-                todas_moedas = set(df_cambio['Moeda Origem'].unique()) | set(df_cambio['Moeda Destino'].unique())
-                moedas_encontradas.update(todas_moedas - {'BRL'})
-
-                for moeda in moedas_encontradas:
-                    init_wallet(moeda)
-                    filt_entrada = df_cambio[(df_cambio['Moeda Destino'] == moeda) & (df_cambio['Moeda Origem'] == 'BRL')]
-                    if not filt_entrada.empty:
-                        carteiras[moeda]['moeda_base'] = 'BRL'
-                        reais_gastos = filt_entrada['Valor Total entrada'].sum()
-                        moeda_recebida = filt_entrada['Valor Total saída'].sum()
-                        carteiras[moeda]['pm_cambio'] = reais_gastos / moeda_recebida if moeda_recebida > 0 else 0
-                    
-                    filt_cross = df_cambio[(df_cambio['Moeda Destino'] == moeda) & (df_cambio['Moeda Origem'] == 'USD')]
-                    if not filt_cross.empty:
-                        carteiras[moeda]['moeda_base'] = 'USD'
-                        usd_gasto = filt_cross['Valor Total entrada'].sum()
-                        moeda_rec = filt_cross['Valor Total saída'].sum()
-                        carteiras[moeda]['pm_cambio'] = usd_gasto / moeda_rec if moeda_rec > 0 else 0
-        except: pass
+            for moeda in moedas_encontradas:
+                init_wallet(moeda)
+                # Case 1: BRL -> Moeda (Buy FX)
+                filt_entrada = df_cambio[(df_cambio['moeda_destino'] == moeda) & (df_cambio['moeda_origem'] == 'BRL')]
+                if not filt_entrada.empty:
+                    carteiras[moeda]['moeda_base'] = 'BRL'
+                    reais_gastos = filt_entrada['valor_origem'].sum()
+                    moeda_recebida = filt_entrada['valor_destino'].sum()
+                    carteiras[moeda]['pm_cambio'] = reais_gastos / moeda_recebida if moeda_recebida > 0 else 0
+                
+                # Case 2: USD -> Moeda (Cross FX, e.g. USD -> CHF)
+                filt_cross = df_cambio[(df_cambio['moeda_destino'] == moeda) & (df_cambio['moeda_origem'] == 'USD')]
+                if not filt_cross.empty:
+                    carteiras[moeda]['moeda_base'] = 'USD'
+                    usd_gasto = filt_cross['valor_origem'].sum()
+                    moeda_rec = filt_cross['valor_destino'].sum()
+                    carteiras[moeda]['pm_cambio'] = usd_gasto / moeda_rec if moeda_rec > 0 else 0
 
         if 'df_view' in locals() and not df_view.empty:
             for _, row in df_view.iterrows():
@@ -1753,6 +1718,93 @@ def main():
             k4.metric(f"Cotação Atual", f"{simbolo_base} {cotacao_exib:.4f}", help=f"Ticker: {ticker_yahoo}")
 
             st.markdown("---")
+            
+            # Transaction History (The missing "View of Contributions")
+            with st.expander("📜 Histórico de Aportes (Trades)", expanded=False):
+                # Filter for ANY trade involving this currency (Source or Destination)
+                cols_show = ['data', 'corretora destino', 'moeda_origem', 'valor_origem', 'taxa', 'valor_destino', 'moeda_destino']
+                
+                df_show = df_cambio[
+                    (df_cambio['moeda_destino'] == moeda_sel) | 
+                    (df_cambio['moeda_origem'] == moeda_sel)
+                ].copy()
+                
+                if not df_show.empty:
+                    df_show = df_show.sort_values('data', ascending=False)
+                    
+                    # Calculate PnL for Inflows (Buying the currency)
+                    df_show['valor_atual_base'] = 0.0
+                    df_show['pnl_valor'] = 0.0
+                    df_show['pnl_pct'] = 0.0
+                    
+                    # Only calculate for rows where we BOUGHT the selected currency (Inflow)
+                    mask_inflow = df_show['moeda_destino'] == moeda_sel
+                    
+                    if is_indirect:
+                        # Indirect: Value Now = Amount(Currency) / Rate
+                        # Rate expected is Currency/Base (e.g. USD/EUR). 
+                        # If Quote is "Base per Currency" (e.g. EURUSD), divide.
+                        # Using proven app logic: valor_base_hoje = exposicao_total / cotacao_raw
+                        df_show.loc[mask_inflow, 'valor_atual_base'] = df_show.loc[mask_inflow, 'valor_destino'] / cotacao_raw
+                    else:
+                        # Direct: Value Now = Amount(Currency) * Rate
+                        df_show.loc[mask_inflow, 'valor_atual_base'] = df_show.loc[mask_inflow, 'valor_destino'] * cotacao_raw
+                        
+                    # PnL = Value Now - Cost (valor_origem)
+                    # Note: valor_origem is the Cost in Source Currency. If Source != Base, this is approximate.
+                    # Assuming Source is usually Base (BRL).
+                    df_show.loc[mask_inflow, 'pnl_valor'] = df_show.loc[mask_inflow, 'valor_atual_base'] - df_show.loc[mask_inflow, 'valor_origem']
+                    
+                    # PnL %
+                    df_show.loc[mask_inflow, 'pnl_pct'] = (df_show.loc[mask_inflow, 'pnl_valor'] / df_show.loc[mask_inflow, 'valor_origem']).fillna(0.0)
+                    
+                    # --- Summary KPIs ---
+                    total_purchased_dest = df_show.loc[mask_inflow, 'valor_destino'].sum()
+                    
+                    # Logic Requested: PnL = (Total Volume * Current Rate) - (Total Volume * PM User)
+                    # This ensures consistency with the "PM Ajustado" displayed above.
+                    
+                    if is_indirect:
+                        # Indirect (e.g. USD/EUR): PM is in USD/EUR. 
+                        # Cost in Base = Volume / PM. Current in Base = Volume / Rate.
+                        theoretical_cost_base = total_purchased_dest / pm_usuario if pm_usuario > 0 else 0.0
+                        current_val_base = total_purchased_dest / cotacao_raw
+                    else:
+                        # Direct (e.g. BRL/USD): PM is in BRL.
+                        # Cost in Base = Volume * PM. Current in Base = Volume * Rate.
+                        theoretical_cost_base = total_purchased_dest * pm_usuario
+                        current_val_base = total_purchased_dest * cotacao_raw
+                        
+                    total_pnl_hist = current_val_base - theoretical_cost_base
+                    total_pnl_pct_hist = (total_pnl_hist / theoretical_cost_base * 100) if theoretical_cost_base > 0 else 0.0
+                    
+                    c_kpi1, c_kpi2 = st.columns(2)
+                    c_kpi1.metric(f"💰 Total Comprado ({moeda_sel})", f"{simbolo} {total_purchased_dest:,.2f}")
+                    c_kpi2.metric("💸 Lucro/Prejuízo (Histórico)", f"R$ {total_pnl_hist:,.2f}", f"{total_pnl_pct_hist:.2f}%", delta_color="normal")
+                    
+                    st.divider()
+                    # --------------------
+
+                    cols_show = ['data', 'corretora destino', 'moeda_origem', 'valor_origem', 'taxa', 'valor_destino', 'moeda_destino', 'pnl_valor', 'pnl_pct']
+
+                    st.dataframe(
+                        df_show[cols_show],
+                        column_config={
+                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            "corretora destino": "Corretora",
+                            "moeda_origem": "Origem",
+                            "valor_origem": st.column_config.NumberColumn("Investido (R$)", format="R$ %.2f"),
+                            "taxa": st.column_config.NumberColumn("Taxa (VET)", format="%.4f"),
+                            "valor_destino": st.column_config.NumberColumn("Recebido", format="%.2f"),
+                            "moeda_destino": "Destino",
+                            "pnl_valor": st.column_config.NumberColumn("Lucro/Prej (R$)", format="R$ %.2f"),
+                            "pnl_pct": st.column_config.NumberColumn("Rentab. (%)", format="%.2f%%"),
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info(f"Nenhum registro encontrado para {moeda_sel}.")
             
             inverter = is_indirect
 
@@ -2116,7 +2168,7 @@ def main():
 
         @st.cache_data
         def carregar_ptax_csv():
-            caminho_arquivo = os.path.join(PASTA_ATUAL, 'ptax.csv')
+            caminho_arquivo = FILE_PTAX
             
             if not os.path.exists(caminho_arquivo): 
                 return pd.DataFrame()

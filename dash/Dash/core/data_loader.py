@@ -202,3 +202,39 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
     else:
         return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
 
+
+@st.cache_data(show_spinner=False)
+def load_cambio() -> pd.DataFrame:
+    """Loads and standardizes Currency Exchange (Forex) CSV."""
+    if not os.path.exists(FILE_CAMBIO):
+        return pd.DataFrame()
+        
+    try:
+        df = pd.read_csv(FILE_CAMBIO, sep=';', encoding='utf-8')
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Robust Column Mapping (Fuzzy Logic to handle Encoding/Accents)
+        col_map = {}
+        for c in df.columns:
+            if 'data' in c: col_map[c] = 'data'
+            elif 'moeda' in c and 'origem' in c: col_map[c] = 'moeda_origem'
+            elif 'moeda' in c and 'destino' in c: col_map[c] = 'moeda_destino'
+            elif 'valor' in c and 'entrada' in c: col_map[c] = 'valor_origem'
+            elif 'valor' in c and ('saida' in c or 'saída' in c or 'sa' in c): col_map[c] = 'valor_destino' # Fuzzy match for Saída
+            elif 'vet' in c or 'taxa' in c: col_map[c] = 'taxa'
+            
+        df.rename(columns=col_map, inplace=True)
+        
+        if 'data' in df.columns:
+            df['data'] = pd.to_datetime(df['data'], dayfirst=True, errors='coerce')
+            
+        num_cols = ['valor_origem', 'valor_destino', 'taxa']
+        for c in num_cols:
+            if c in df.columns and df[c].dtype == 'object':
+                 df[c] = df[c].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+                 
+        return df.sort_values('data')
+    except Exception as e:
+        st.error(f"Error loading cambio: {e}")
+        return pd.DataFrame()

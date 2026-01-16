@@ -102,6 +102,20 @@ class PerformanceEngine:
             )
         else:
             self.df['daily_return'] = standard_twr
+            
+        # --- SAFEGUARDS ---
+        # 1. Fill NaNs/Infs that could slip through
+        self.df['daily_return'] = self.df['daily_return'].replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        
+        # 2. Hard Circuit Breaker for Physics-Defying Returns (> 50% in a day)
+        # Unless it's a penny stock day, but for a portfolio this is likely data error
+        # We cap it to avoid breaking the chart scale
+        self.df['daily_return'] = self.df['daily_return'].clip(lower=-0.5, upper=0.5)
+        
+        # 3. Small Base Double Check
+        # If capital base was < 500 (defined in engine but checked here too), zero usage
+        mask_tiny = (self.df['capital_base'] < 500.0)
+        self.df.loc[mask_tiny, 'daily_return'] = 0.0
         
         # Casos Especiais:
         # Se for o primeiro aporte (nav_start=0, flow=1000, nav=1000) -> economic_gain = 0 -> return = 0.
