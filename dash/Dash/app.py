@@ -335,7 +335,9 @@ def exibir_editor_dados():
 def main():
     with st.sidebar:
         st.header("🔍 Filtros Globais")
-        if st.button("🔄 Atualizar Dados", key="btn_sidebar_refresh_master"):
+        st.caption("Estes filtros afetam **todas** as abas do dashboard, incluindo Performance e Risco.")
+        
+        if st.button("🔄 Recalcular Dashboard", key="btn_sidebar_refresh_master", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
@@ -412,6 +414,12 @@ def main():
 
 
     # --- FIM DO SIDEBAR / INÍCIO DO CORPO PRINCIPAL ---
+    
+    # 0. HEADER IMAGE
+    img_path = os.path.join(BASE_DIR, 'pictures', 'img.png')
+    if os.path.exists(img_path):
+        st.image(img_path, use_container_width=True)
+
     
 
 
@@ -611,36 +619,46 @@ def main():
 
     with tab_cap:
         st.markdown("## 🧭 Guia de Navegação")
-        st.markdown("Bem-vindo ao seu **Sistema de Gestão Patrimonial**. Abaixo, o que você encontra em cada seção:")
+        st.markdown("Bem-vindo ao seu **Sistema de Gestão Patrimonial (Institutional Grade)**. Abaixo, o detalhamento de cada módulo:")
         
         c1, c2 = st.columns(2)
         
         with c1:
             st.info("### 📊 Análise & Estratégia")
             st.markdown("""
-            *   **🚀 Performance**: Motor de cálculo institucional (GIPS). Analise seu retorno real (TWR) vs retorno financeiro (MWR) e entenda os drivers de lucro (Atribuição).
-            *   **⚠️ Risco**: A gestão de defesa. Matriz de correlações, contribuição de risco por ativo e *Testes de Estresse* para simular crises de mercado.
-            *   **💎 Composição**: A visão macro "Big Picture". Alocação por Classe, Moeda e Setor. Onde está o seu dinheiro?
+            *   **🚀 Performance (GIPS)**: Motor de cálculo institucional. Visualize o retorno real (**TWR**) com Filtros Temporais Dinâmicos e compare com benchmarks.
+            *   **⚠️ Risco**: Gestão de defesa. Entenda a **Volatilidade** (*risco*) e correlações para proteger seu patrimônio de crises.
+            *   **💎 Composição**: Visão holística da alocação. Distribuição por Classe, Moeda, Setor e Geografia.
             """)
             
-            st.warning("### 🔧 Ferramentas & Controle")
+            st.warning("### 🔧 Operacional & Controle")
             st.markdown("""
-            *   **📝 Editor**: Onde tudo começa. Adicione, edite ou corrija transações manuais (Compras, Vendas, Renda Fixa) diretamente na base de dados.
-            *   **🦁 Imposto**: Auxiliar para cálculo de IRPF e controle de isenções (20k).
-            *   **💱 Câmbio**: Monitor de remessas e estoque de moedas (USD/EUR).
+            *   **📝 Editor**: Central de lançamentos. Adicione ou corrija transações (Compras, Vendas, Renda Fixa) diretamente na base de dados com backup automático.
+            *   **🦁 Imposto**: Auxiliar para cálculo de IRPF e monitoramento de isenções.
+            *   **💱 Câmbio**: Monitor de remessas e estoque de moedas fortes (USD/EUR).
             """)
 
         with c2:
             st.success("### 📂 Classes de Ativos")
             st.markdown("""
-            *   **📊 Renda Variável**: Ações Brasil, Stocks, REITs e ETFs. Tabela detalhada com Preço Médio e Resultado.
-            *   **🏦 Renda Fixa**: Controle de Tesouro Direto, CDBs, LCIs/LCAs e Debêntures.
-            *   **₿ Cripto**: Monitoramento de ativos digitais (Bitcoin, Ethereum, etc.).
-            *   **💰 Proventos**: Calendário de Dividendos e Juros sobre Capital Próprio.
+            *   **📊 Renda Variável**: Ações Brasil, Stocks, REITs e ETFs. Tabela detalhada com Preço Médio, Resultado Aberto e Realizado.
+            *   **🏦 Renda Fixa**: Controle granular de Tesouro Direto, CDBs, e Crédito Privado.
+            *   **₿ Cripto**: Monitoramento de ativos digitais e custódia.
+            *   **💰 Proventos**: Calendário de Dividendos (Cash Flow) e Juros sobre Capital Próprio.
             """)
         
         st.divider()
-        st.caption("v4.0 - Institutional Grade | Phase 4: Polish & Optimization")
+        
+        with st.expander("📖 Glossário Técnico (Institutional Grade)", expanded=False):
+            st.markdown("""
+            *   **TWR (Time-Weighted Return)**: Retorno Ponderado pelo Tempo. É a medida padrão global (GIPS) para performance de gestores. Ele remove o impacto de aportes e resgates, mostrando apenas a qualidade das decisões de investimento. Diferente da sua conta bancária (que mostra dinheiro), o TWR mostra *rentabilidade pura*.
+            *   **Drawdown**: A queda do topo ao fundo. Representa a "dor" máxima que a carteira sofreu em um período. Se você investiu R$ 100, chegou a R$ 150 e caiu para R$ 120, seu drawdown foi -20% (de 150 para 120).
+            *   **GIPS (Global Investment Performance Standards)**: Padrões internacionais éticos para cálculo e apresentação de performance de investimentos.
+            *   **YTD (Year to Date)**: Retorno acumulado do primeiro dia do ano atual até hoje.
+            *   **Volatilidade**: Medida de incerteza ou risco. Quanto maior, mais o preço oscila para cima e para baixo.
+            """)
+            
+        st.caption("v4.6 - Institutional Grade | Phase 6: UX & Education")
 
 # -------------------------------------------------------------------------
     # ABA DE PERFORMANCE (STRATEGY VIEW PRO - GIPS COMPLIANT)
@@ -652,18 +670,125 @@ def main():
         st.markdown("### 🏛️ Institutional Performance (GIPS)")
         
         if 'resultado' in locals() and resultado is not None:
-            # KPIS PRINCIPAIS
+            # --- SELETOR DE PERÍODO ---
+            st.write("")
+            
+            # Lógica de Recálculo (Slicing) - Preparação
+            df_engine_full = df_engine_input.copy()
+            data_max = df_engine_full.index.max()
+            data_min_global = df_engine_full.index.min()
+            
+            # Identifica anos disponíveis
+            anos_disponiveis = sorted(df_engine_full.index.year.unique().tolist(), reverse=True)
+            opcoes_ano = ["Período Relativo"] + anos_disponiveis
+            
+            c_per, c_ano = st.columns([3, 1])
+            
+            with c_per:
+                periodos = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "MAX"]
+                sel_periodo = st.radio("📅 Período de Análise:", periodos, index=6, horizontal=True, key="radio_perf_period_v2")
+            
+            with c_ano:
+                sel_ano_fechado = st.selectbox("Ou Ano Fechado:", options=opcoes_ano, key="sel_ano_fechado_perf")
+
+            # Lógica de Datas
+            data_start = func_start = data_min_global
+            data_end = data_max
+            
+            # Prioridade: Ano Fechado > Período Relativo
+            if sel_ano_fechado != "Período Relativo":
+                # Modo Ano Fechado
+                ano_target = int(sel_ano_fechado)
+                data_start = pd.Timestamp(year=ano_target, month=1, day=1)
+                data_end = pd.Timestamp(year=ano_target, month=12, day=31)
+                
+                # Clip no final se o ano ainda não acabou (ex: 2026)
+                if data_end > data_max: data_end = data_max
+            
+            else:
+                # Modo Relativo
+                if sel_periodo == "1M": data_start = data_max - pd.DateOffset(months=1)
+                elif sel_periodo == "3M": data_start = data_max - pd.DateOffset(months=3)
+                elif sel_periodo == "6M": data_start = data_max - pd.DateOffset(months=6)
+                elif sel_periodo == "YTD": data_start = pd.Timestamp(data_max.year, 1, 1)
+                elif sel_periodo == "1Y": data_start = data_max - pd.DateOffset(years=1)
+                elif sel_periodo == "2Y": data_start = data_max - pd.DateOffset(years=2)
+                
+                # Garante que data_start não seja futuro
+                if data_start > data_max: data_start = data_max
+            
+            # Filtra e Roda Engine
+            # Nota: Agora temos data_end também para suportar anos passados (ex: Jan-Dez 2023)
+            df_slice = df_engine_full[(df_engine_full.index >= data_start) & (df_engine_full.index <= data_end)]
+            
+            # Se slice vazio, fallback para full (ou avisa)
+            if df_slice.empty:
+                st.warning("Período selecionado não possui dados. Mostrando histórico completo.")
+                resultado_view = resultado # Original
+            else:
+                # RE-CALCULA TWR PARA O PERÍODO (Rebase em 0%)
+                resultado_view = run_performance_engine(df_slice)
+
+            # --- KPI DE PNL FINANCEIRO DIÁRIO (HIGHLIGHT) ---
+            # Calcula ganho financeiro do ÚLTIMO DIA disponível ( independente do filtro visual, ou alinhado? 
+            # O usuário pediu "no dia". Geralmente é o último dia da base.)
+            
+            # Pega os dados brutos do último dia e penúltimo
+            df_last_days = df_engine_full.iloc[-2:] if len(df_engine_full) >= 2 else df_engine_full
+            
+            pnl_dia = 0.0
+            data_ref = df_engine_full.index.max()
+            
+            if len(df_last_days) >= 2:
+                nav_today = df_last_days['nav'].iloc[-1]
+                nav_prev = df_last_days['nav'].iloc[-2]
+                flow = df_last_days['flow'].iloc[-1]
+                income = df_last_days.get('income', pd.Series(0)).iloc[-1]
+                
+                # Gain = (NAV_final + Voltou pro Bolso (Income)) - (NAV_inicial + Saiu do Bolso (Flow))
+                pnl_dia = (nav_today + income) - (nav_prev + flow)
+            
+            # Estilização Criativa
+            cor_bg = "rgba(46, 125, 50, 0.2)" if pnl_dia >= 0 else "rgba(198, 40, 40, 0.2)"
+            cor_border = "#2E7D32" if pnl_dia >= 0 else "#C62828"
+            icon_pnl = "🚀" if pnl_dia >= 0 else "🔻"
+            
+            st.markdown(f"""
+            <div style="
+                background-color: {cor_bg};
+                border-left: 5px solid {cor_border};
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            ">
+                <div>
+                    <span style="font-size: 1.2rem; font-weight: bold; color: #EEE;">Resultado Financeiro do Dia ({data_ref.strftime('%d/%m')})</span>
+                    <br>
+                    <span style="font-size: 0.9rem; opacity: 0.8;">Variação absoluta da carteira (líquido de aportes)</span>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 2rem; font-weight: bold; color: {cor_border};">
+                        {icon_pnl} R$ {pnl_dia:,.2f}
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # KPIS PRINCIPAIS (Usa resultado_view)
             k1, k2, k3, k4 = st.columns(4)
             
             with k1:
-                st.metric("TWR Acumulado", f"{resultado.total_twr:+.2f}%", help="Retorno Ponderado pelo Tempo (Rentabilidade Real do Gestor)")
+                st.metric("TWR Acumulado", f"{resultado_view.total_twr:+.2f}%", help="Time-Weighted Return: Rentabilidade real apurada, excluindo o efeito de aportes e retiradas.")
             with k2:
-                st.metric("TWR Anualizado", f"{resultado.annualized_twr:+.2f}%", help="Taxa Geométrica Anual")
+                st.metric("TWR Anualizado", f"{resultado_view.annualized_twr:+.2f}%", help="Taxa Geométrica Anual equivalente. Útil para comparar investimentos com diferentes prazos.")
             with k3:
-                st.metric("Max Drawdown", f"{resultado.max_drawdown:+.2f}%", help="Pior queda do topo ao fundo no período")
+                st.metric("Max Drawdown", f"{resultado_view.max_drawdown:+.2f}%", help="Máxima perda (queda) registrada do ponto mais alto até o ponto mais baixo no período selecionado.")
             with k4:
-                ult_ret = resultado.daily_returns.iloc[-1] * 100
-                st.metric("Retorno Último Dia", f"{ult_ret:+.2f}%")
+                ult_ret = resultado_view.daily_returns.iloc[-1] * 100 if not resultado_view.daily_returns.empty else 0.0
+                st.metric("Retorno Último Dia", f"{ult_ret:+.2f}%", help="Rentabilidade percentual apurada apenas no último pregão.")
                 
             st.divider()
             
@@ -671,7 +796,7 @@ def main():
             st.markdown("##### 📈 Curva de Evolução (Fator Acumulado)")
             
             # Prepara dados para plotar
-            df_plot = resultado.cumulative_series.to_frame("Strategy TWR")
+            df_plot = resultado_view.cumulative_series.to_frame("Strategy TWR")
             
             fig_twr = px.line(df_plot, y="Strategy TWR", title="Crescimento de R$ 100 (Indexado)")
             fig_twr.update_layout(
@@ -688,7 +813,7 @@ def main():
             # GRÁFICO 2: UNDERWATER PLOT (DRAWDOWN)
             st.markdown("##### 🌊 Underwater Plot (Drawdown)")
             
-            df_dd = resultado.drawdown_series.to_frame("Drawdown")
+            df_dd = resultado_view.drawdown_series.to_frame("Drawdown")
             
             fig_dd = px.area(df_dd, y="Drawdown", title="Profundidade das Quedas")
             fig_dd.update_layout(

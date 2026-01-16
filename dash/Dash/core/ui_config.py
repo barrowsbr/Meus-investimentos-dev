@@ -15,13 +15,13 @@ def get_editor_config():
                 "Moeda": ["USD", "BRL"], "Data": "date"
             },
             "column_types": {
-                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "Tipo de transação": st.column_config.SelectboxColumn("Operação", options=["Compra", "Venda"]),
-                "Símbolo": st.column_config.TextColumn("Ticker", width="small", validate="^[A-Za-z0-9.]+$"),
-                "Quantidade": st.column_config.NumberColumn("Qtd", format="%.4f"),
-                "Preço": st.column_config.NumberColumn("Preço", format="$ %.2f"),
-                "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f"),
-                "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"]),
+                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY", help="Data da execução da ordem"),
+                "Tipo de transação": st.column_config.SelectboxColumn("Operação", options=["Compra", "Venda"], help="Natureza da operação"),
+                "Símbolo": st.column_config.TextColumn("Ticker", width="small", validate="^[A-Za-z0-9.]+$", help="Código do ativo (ex: AAPL, PETR4)"),
+                "Quantidade": st.column_config.NumberColumn("Qtd", format="%.4f", help="Número total de cotas/ações"),
+                "Preço": st.column_config.NumberColumn("Preço", format="$ %.2f", help="Preço unitário de execução"),
+                "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f", help="Valor financeiro total (Qtd * Preço + Taxas)"),
+                "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"], help="Moeda de liquidação"),
             }
         },
         "meus_proventos.csv": {
@@ -34,11 +34,11 @@ def get_editor_config():
                 "valor": "currency", "moeda": ["USD", "BRL", "EUR"]
             },
             "column_types": {
-                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "ticker": st.column_config.TextColumn("Ticker", width="small"),
-                "lancamento": st.column_config.SelectboxColumn("Lançamento", options=["Dividendo", "JUROS S/ CAPITAL", "Rendimento", "Imposto"]),
-                "categoria": st.column_config.SelectboxColumn("Categoria", options=["Ação", "Ação Internacional", "FII"]),
-                "valor": st.column_config.NumberColumn("Valor", format="%.2f"),
+                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY", help="Data do pagamento"),
+                "ticker": st.column_config.TextColumn("Ticker", width="small", help="Código do ativo pagador"),
+                "lancamento": st.column_config.SelectboxColumn("Lançamento", options=["Dividendo", "JUROS S/ CAPITAL", "Rendimento", "Imposto"], help="Tipo de provento"),
+                "categoria": st.column_config.SelectboxColumn("Categoria", options=["Ação", "Ação Internacional", "FII"], help="Classe do ativo"),
+                "valor": st.column_config.NumberColumn("Valor", format="%.2f", help="Valor líquido recebido na moeda original"),
                 "mes": st.column_config.TextColumn("Mês Ref", disabled=True)
             }
         },
