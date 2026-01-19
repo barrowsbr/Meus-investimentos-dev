@@ -1,8 +1,23 @@
-streamlit
-pandas
-yfinance
-plotly
-numpy
-gspread
-oauth2client
-matplotlib
+# Core Framework
+streamlit>=1.30.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Financial Data
+yfinance>=0.2.35
+
+# Visualization
+plotly>=5.18.0
+matplotlib>=3.7.0
+
+# Google Sheets Integration
+gspread>=5.12.0
+oauth2client>=4.1.3
+
+# Configuration
+toml>=0.10.2
+
+# Python version compatibility
+python-dateutil>=2.8.2

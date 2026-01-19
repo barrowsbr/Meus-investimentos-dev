@@ -64,8 +64,7 @@ def carregar_cambio():
 # 🧠 MOTOR DE CÁLCULO DE PERFORMANCE (GIPS COMPLIANT)
 # ==============================================================================
 
-# Wrapper para compatibilidade
-@st.cache_data(show_spinner=False)
+# Wrapper para compatibilidade - SEM CACHE para forçar uso da nova estrutura
 def run_performance_engine(df_input_frozen):
     """
     Wrapper de alto nível para o motor GIPS.
@@ -697,7 +696,7 @@ def main():
         st.markdown("### 🏛️ Institutional Performance (GIPS)")
         
         if 'resultado' in locals() and resultado is not None:
-            # --- SELETOR DE PERÍODO ---
+            # --- SELETOR DE PERÍODO DINÂMICO ---
             st.write("")
             
             # Lógica de Recálculo (Slicing) - Preparação
@@ -707,33 +706,28 @@ def main():
             
             # Identifica anos disponíveis
             anos_disponiveis = sorted(df_engine_full.index.year.unique().tolist(), reverse=True)
-            opcoes_ano = ["Período Relativo"] + anos_disponiveis
+            opcoes_ano = ["Período Relativo"] + [str(a) for a in anos_disponiveis]
             
             c_per, c_ano = st.columns([3, 1])
             
             with c_per:
                 periodos = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "MAX"]
-                sel_periodo = st.radio("📅 Período de Análise:", periodos, index=6, horizontal=True, key="radio_perf_period_v2")
+                sel_periodo = st.radio("📅 Período de Análise:", periodos, index=6, horizontal=True, key="radio_perf_period_v3")
             
             with c_ano:
-                sel_ano_fechado = st.selectbox("Ou Ano Fechado:", options=opcoes_ano, key="sel_ano_fechado_perf")
+                sel_ano_fechado = st.selectbox("Ou Ano Fechado:", options=opcoes_ano, key="sel_ano_fechado_perf_v2")
 
-            # Lógica de Datas
-            data_start = func_start = data_min_global
+            # Lógica de Datas DINÂMICA
+            data_start = data_min_global
             data_end = data_max
             
             # Prioridade: Ano Fechado > Período Relativo
             if sel_ano_fechado != "Período Relativo":
-                # Modo Ano Fechado
                 ano_target = int(sel_ano_fechado)
                 data_start = pd.Timestamp(year=ano_target, month=1, day=1)
                 data_end = pd.Timestamp(year=ano_target, month=12, day=31)
-                
-                # Clip no final se o ano ainda não acabou (ex: 2026)
                 if data_end > data_max: data_end = data_max
-            
             else:
-                # Modo Relativo
                 if sel_periodo == "1M": data_start = data_max - pd.DateOffset(months=1)
                 elif sel_periodo == "3M": data_start = data_max - pd.DateOffset(months=3)
                 elif sel_periodo == "6M": data_start = data_max - pd.DateOffset(months=6)
@@ -741,26 +735,38 @@ def main():
                 elif sel_periodo == "1Y": data_start = data_max - pd.DateOffset(years=1)
                 elif sel_periodo == "2Y": data_start = data_max - pd.DateOffset(years=2)
                 
-                # Garante que data_start não seja futuro
                 if data_start > data_max: data_start = data_max
             
-            # Filtra e Roda Engine
-            # Nota: Agora temos data_end também para suportar anos passados (ex: Jan-Dez 2023)
-            df_slice = df_engine_full[(df_engine_full.index >= data_start) & (df_engine_full.index <= data_end)]
+            # CORREÇÃO: Pegar um dia anterior para ter NAV inicial correto
+            # Busca o índice do primeiro dia >= data_start
+            mask_periodo = (df_engine_full.index >= data_start) & (df_engine_full.index <= data_end)
+            indices_periodo = df_engine_full.index[mask_periodo]
             
-            # Se slice vazio, fallback para full (ou avisa)
-            if df_slice.empty:
-                st.warning("Período selecionado não possui dados. Mostrando histórico completo.")
-                resultado_view = resultado # Original
+            if len(indices_periodo) > 0:
+                primeiro_dia = indices_periodo[0]
+                # Pega o dia anterior se existir (para ter NAV_start correto)
+                idx_primeiro = df_engine_full.index.get_loc(primeiro_dia)
+                if idx_primeiro > 0:
+                    dia_anterior = df_engine_full.index[idx_primeiro - 1]
+                    df_slice = df_engine_full[(df_engine_full.index >= dia_anterior) & (df_engine_full.index <= data_end)]
+                else:
+                    df_slice = df_engine_full[mask_periodo]
             else:
-                # RE-CALCULA TWR PARA O PERÍODO (Rebase em 0%)
+                df_slice = pd.DataFrame()
+            
+            # Se slice vazio, fallback
+            if df_slice.empty or len(df_slice) < 2:
+                st.warning("Período selecionado não possui dados suficientes. Mostrando histórico completo.")
+                resultado_view = resultado
+                df_slice = df_engine_full
+            else:
                 resultado_view = run_performance_engine(df_slice)
 
+            # Info do período selecionado
+            periodo_str = f"{data_start.strftime('%d/%m/%Y')} → {data_end.strftime('%d/%m/%Y')}"
+            st.caption(f"📆 Período: **{periodo_str}** ({len(df_slice)} dias úteis)")
+
             # --- KPI DE PNL FINANCEIRO DIÁRIO (HIGHLIGHT) ---
-            # Calcula ganho financeiro do ÚLTIMO DIA disponível ( independente do filtro visual, ou alinhado? 
-            # O usuário pediu "no dia". Geralmente é o último dia da base.)
-            
-            # Pega os dados brutos do último dia e penúltimo
             df_last_days = df_engine_full.iloc[-2:] if len(df_engine_full) >= 2 else df_engine_full
             
             pnl_dia = 0.0
@@ -771,11 +777,8 @@ def main():
                 nav_prev = df_last_days['nav'].iloc[-2]
                 flow = df_last_days['flow'].iloc[-1]
                 income = df_last_days.get('income', pd.Series(0)).iloc[-1]
-                
-                # Gain = (NAV_final + Voltou pro Bolso (Income)) - (NAV_inicial + Saiu do Bolso (Flow))
                 pnl_dia = (nav_today + income) - (nav_prev + flow)
             
-            # Estilização Criativa
             cor_bg = "rgba(46, 125, 50, 0.2)" if pnl_dia >= 0 else "rgba(198, 40, 40, 0.2)"
             cor_border = "#2E7D32" if pnl_dia >= 0 else "#C62828"
             icon_pnl = "🚀" if pnl_dia >= 0 else "🔻"
@@ -804,52 +807,146 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            # KPIS PRINCIPAIS (Usa resultado_view)
+            # KPIS PRINCIPAIS - LINHA 1 (Rentabilidade)
+            st.markdown("#### 📊 Métricas de Rentabilidade")
             k1, k2, k3, k4 = st.columns(4)
             
+            # Fallbacks para compatibilidade com cache antigo
+            volatility = getattr(resultado_view, 'volatility', 0.0)
+            nav_series = getattr(resultado_view, 'nav_series', df_slice['nav'] if 'nav' in df_slice.columns else pd.Series([0]))
+            total_pnl = getattr(resultado_view, 'total_pnl', 0.0)
+            total_flow = getattr(resultado_view, 'total_flow', 0.0)
+            
             with k1:
-                st.metric("TWR Acumulado", f"{resultado_view.total_twr:+.2%}", help="Time-Weighted Return: Rentabilidade real apurada, excluindo o efeito de aportes e retiradas.")
+                st.metric("TWR Acumulado", f"{resultado_view.total_twr:+.2%}", 
+                         help="Time-Weighted Return: Rentabilidade real, excluindo aportes/retiradas.")
             with k2:
-                st.metric("TWR Anualizado", f"{resultado_view.annualized_twr:+.2%}", help="Taxa Geométrica Anual equivalente. Útil para comparar investimentos com diferentes prazos.")
+                st.metric("TWR Anualizado", f"{resultado_view.annualized_twr:+.2%}", 
+                         help="Taxa Geométrica Anual equivalente.")
             with k3:
-                st.metric("Max Drawdown", f"{resultado_view.max_drawdown:.2%}", help="Máxima perda (queda) registrada do ponto mais alto até o ponto mais baixo no período selecionado.")
+                st.metric("Max Drawdown", f"{resultado_view.max_drawdown:.2%}", 
+                         help="Máxima queda do topo ao fundo no período.")
             with k4:
-                ult_ret = resultado_view.daily_returns.iloc[-1] if not resultado_view.daily_returns.empty else 0.0
-                st.metric("Retorno Último Dia", f"{ult_ret:+.2%}", help="Rentabilidade percentual apurada apenas no último pregão.")
+                st.metric("Volatilidade", f"{volatility:.2%}", 
+                         help="Desvio padrão anualizado dos retornos diários.")
+            
+            # KPIS - LINHA 2 (Financeiro / MTM)
+            st.markdown("#### 💰 Métricas Financeiras (MTM)")
+            m1, m2, m3, m4 = st.columns(4)
+            
+            nav_atual = nav_series.iloc[-1] if len(nav_series) > 0 else 0
+            nav_inicial = nav_series.iloc[0] if len(nav_series) > 0 else 0
+            
+            with m1:
+                st.metric("Patrimônio Atual", f"R$ {nav_atual:,.2f}", 
+                         help="Mark-to-Market: Valor atual da carteira.")
+            with m2:
+                st.metric("Patrimônio Inicial", f"R$ {nav_inicial:,.2f}", 
+                         help="Valor no início do período selecionado.")
+            with m3:
+                st.metric("Ganho/Perda (R$)", f"R$ {total_pnl:,.2f}", 
+                         delta=f"{(total_pnl/nav_inicial*100) if nav_inicial > 0 else 0:.1f}%",
+                         help="Resultado financeiro absoluto no período.")
+            with m4:
+                st.metric("Aportes Líquidos", f"R$ {total_flow:,.2f}", 
+                         help="Total de entradas/saídas de capital no período.")
                 
             st.divider()
             
-            # GRÁFICO 1: EVOLUÇÃO WEALTH (TWR)
-            st.markdown("##### 📈 Curva de Evolução (Fator Acumulado)")
+            # GRÁFICO 1: DUAL AXIS - TWR + MTM
+            st.markdown("##### 📈 Evolução: Rentabilidade (TWR) vs Patrimônio (MTM)")
             
-            # Prepara dados para plotar
-            df_plot = resultado_view.cumulative_series.to_frame("Strategy TWR")
+            from plotly.subplots import make_subplots
             
-            fig_twr = px.line(df_plot, y="Strategy TWR", title="Crescimento de R$ 100 (Indexado)")
-            fig_twr.update_layout(
-                template="plotly_dark", 
-                yaxis_tickformat="+.1%", 
-                hovermode="x unified",
-                yaxis_title="Retorno Acumulado"
+            fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # TWR (Eixo Esquerdo)
+            fig_dual.add_trace(
+                go.Scatter(
+                    x=resultado_view.cumulative_series.index,
+                    y=resultado_view.cumulative_series.values * 100,  # Em %
+                    name="TWR (%)",
+                    line=dict(color="#4CAF50", width=2),
+                    hovertemplate="%{y:.2f}%<extra>TWR</extra>"
+                ),
+                secondary_y=False
             )
-            # Adiciona linha zero
-            fig_twr.add_hline(y=0, line_dash="dash", line_color="gray")
             
-            st.plotly_chart(fig_twr, use_container_width=True)
+            # MTM (Eixo Direito) - usa nav_series com fallback
+            fig_dual.add_trace(
+                go.Scatter(
+                    x=nav_series.index,
+                    y=nav_series.values,
+                    name="MTM (R$)",
+                    line=dict(color="#2196F3", width=2, dash="dot"),
+                    hovertemplate="R$ %{y:,.2f}<extra>MTM</extra>"
+                ),
+                secondary_y=True
+            )
             
-            # GRÁFICO 2: UNDERWATER PLOT (DRAWDOWN)
+            fig_dual.update_layout(
+                template="plotly_dark",
+                hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                height=400
+            )
+            fig_dual.update_yaxes(title_text="Rentabilidade (%)", secondary_y=False, ticksuffix="%")
+            fig_dual.update_yaxes(title_text="Patrimônio (R$)", secondary_y=True, tickprefix="R$ ")
+            fig_dual.add_hline(y=0, line_dash="dash", line_color="gray", secondary_y=False)
+            
+            st.plotly_chart(fig_dual, use_container_width=True)
+            
+            # GRÁFICO 2: UNDERWATER PLOT (DRAWDOWN) - MELHORADO
             st.markdown("##### 🌊 Underwater Plot (Drawdown)")
+            st.caption("Mostra a \"profundidade\" das quedas em relação ao pico anterior. Quanto mais abaixo de 0%, maior a queda.")
             
-            df_dd = resultado_view.drawdown_series.to_frame("Drawdown")
+            dd_values = resultado_view.drawdown_series * 100  # Converter para %
             
-            fig_dd = px.area(df_dd, y="Drawdown", title="Profundidade das Quedas")
-            fig_dd.update_layout(
-                template="plotly_dark", 
-                yaxis_tickformat=".1%", 
-                hovermode="x unified",
-                yaxis_title="Queda do Topo"
+            fig_dd = go.Figure()
+            
+            # Área preenchida do zero até o drawdown (visual de "mergulho")
+            fig_dd.add_trace(go.Scatter(
+                x=dd_values.index,
+                y=dd_values.values,
+                fill='tozeroy',
+                fillcolor='rgba(239, 83, 80, 0.3)',
+                line=dict(color='#EF5350', width=2),
+                name='Drawdown',
+                hovertemplate='%{y:.2f}%<extra>Queda do topo</extra>'
+            ))
+            
+            # Linha de referência no zero
+            fig_dd.add_hline(y=0, line_dash="solid", line_color="white", line_width=1)
+            
+            # Marca o ponto de máximo drawdown
+            max_dd_idx = dd_values.idxmin()
+            max_dd_val = dd_values.min()
+            
+            fig_dd.add_annotation(
+                x=max_dd_idx,
+                y=max_dd_val,
+                text=f"Max DD: {max_dd_val:.1f}%",
+                showarrow=True,
+                arrowhead=2,
+                arrowcolor="#EF5350",
+                font=dict(color="white", size=10),
+                bgcolor="rgba(239, 83, 80, 0.8)",
+                bordercolor="#EF5350"
             )
-            fig_dd.update_traces(fillcolor="rgba(255, 0, 0, 0.2)", line_color="red")
+            
+            fig_dd.update_layout(
+                template="plotly_dark",
+                yaxis_tickformat=".1f",
+                yaxis_ticksuffix="%",
+                hovermode="x unified",
+                yaxis_title="Queda do Topo (%)",
+                height=300,
+                margin=dict(t=30, b=30)
+            )
+            
+            # Ajusta range do eixo Y para começar do min e ir até um pouco acima de 0
+            y_min = min(dd_values.min() * 1.1, -5)  # Pelo menos -5% de espaço
+            fig_dd.update_yaxes(range=[y_min, 2])
             
             st.plotly_chart(fig_dd, use_container_width=True)
             
@@ -1090,7 +1187,7 @@ def main():
                 if not df_rf_g.empty:
                     df_rf_g['Ticker'] = df_rf_g['Ativo']
                     df_rf_g['Valor Hoje (R$)'] = df_rf_g['Atual']
-                    df_rf_g['Rent. (%)'] = df_rf_g['Rent. %']
+                    df_rf_g['Rent. (%)'] = df_rf_g['Rent. %'] / 100  # Converte de percentual (34.5) para decimal (0.345)
                     df_rf_g['Moeda'] = 'BRL'
                     
                     mask_cx = df_rf_g['Ativo'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
@@ -1463,7 +1560,8 @@ def main():
                         'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
                         'Lucro Realizado (BRL)': 'R$ {:,.2f}', 
                         'Proventos (R$)': 'R$ {:,.2f}', 
-                        'Resultado Total (R$)': 'R$ {:,.2f}'
+                        'Resultado Total (R$)': 'R$ {:,.2f}',
+                        'Rent. BRL (%)': '{:.2%}'
                     })
                     .map(color_diario, subset=['Lucro Diário (R$)'])
                     .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
@@ -2351,20 +2449,81 @@ def main():
                     key="chk_fiscal_20k_surgical"
                 )
 
-        @st.cache_data
-        def carregar_ptax_csv():
-            # TODO: Implement PTAX via Sheets if needed. 
-            # For now, return empty to avoid CSV errors.
-            return pd.DataFrame()
+        @st.cache_data(ttl=3600)
+        def carregar_ptax_oficial():
+            """Carrega histórico de PTAX oficial do BCB (aba 'ptax' no Google Sheets)."""
+            try:
+                from core.data_provider import DataProvider
+                from core.utils import parse_decimal_br, parse_date_br
+                
+                df = DataProvider.get_ptax()
+                
+                if df.empty:
+                    return pd.DataFrame()
+                
+                # Normaliza colunas
+                df.columns = df.columns.str.strip().str.lower()
+                
+                # Identifica colunas de data e taxa
+                col_data = None
+                col_taxa = None
+                
+                for c in df.columns:
+                    if 'data' in c: col_data = c
+                    elif 'taxa' in c or 'ptax' in c or 'cotacao' in c or 'valor' in c or 'usd' in c: col_taxa = c
+                
+                if not col_data or not col_taxa:
+                    # Fallback: assume primeira coluna é data, segunda é taxa
+                    if len(df.columns) >= 2:
+                        col_data = df.columns[0]
+                        col_taxa = df.columns[1]
+                    else:
+                        return pd.DataFrame()
+                
+                # Processa dados
+                df_ptax = df[[col_data, col_taxa]].copy()
+                df_ptax.columns = ['Data', 'Taxa']
+                
+                # Parse de data e valores
+                df_ptax['Data'] = parse_date_br(df_ptax['Data'])
+                df_ptax['Taxa'] = df_ptax['Taxa'].apply(parse_decimal_br)
+                
+                # Remove inválidos e define índice
+                df_ptax = df_ptax.dropna(subset=['Data', 'Taxa'])
+                df_ptax = df_ptax.set_index('Data').sort_index()
+                
+                return df_ptax
+                
+            except Exception as e:
+                st.warning(f"Não foi possível carregar PTAX oficial: {e}")
+                return pd.DataFrame()
 
-        df_ptax_index = carregar_ptax_csv()
+        # 1. PRIORIDADE: Dados oficiais da aba 'ptax'
+        df_ptax_index = carregar_ptax_oficial()
+        
+        # 2. FALLBACK: Yahoo Finance se não tiver dados oficiais
+        if df_ptax_index.empty:
+            st.info("ℹ️ Dados oficiais de PTAX não encontrados. Usando cotação do mercado (Yahoo Finance).")
+            if 'df_prices' in locals() and not df_prices.empty and 'BRL=X' in df_prices.columns:
+                df_ptax_index = df_prices[['BRL=X']].copy()
+                df_ptax_index.columns = ['Taxa']
+                df_ptax_index = df_ptax_index.dropna()
 
         def obter_ptax(data_op):
-            if df_ptax_index.empty: return 1.0 
+            """Retorna a taxa PTAX oficial (USD/BRL) para uma data específica."""
+            if df_ptax_index.empty: 
+                # Fallback para cotação atual
+                return mapa_precos.get('BRL=X', 5.50) if 'mapa_precos' in locals() else 5.50
             try:
-                idx = df_ptax_index.index.asof(data_op)
-                return df_ptax_index.loc[idx]['Taxa'] if not pd.isna(idx) else 1.0
-            except: return 1.0
+                # Normaliza a data
+                data_norm = pd.Timestamp(data_op).normalize()
+                idx = df_ptax_index.index.asof(data_norm)
+                if pd.isna(idx):
+                    # Data anterior ao histórico disponível
+                    return mapa_precos.get('BRL=X', 5.50) if 'mapa_precos' in locals() else 5.50
+                return float(df_ptax_index.loc[idx]['Taxa'])
+            except: 
+                return mapa_precos.get('BRL=X', 5.50) if 'mapa_precos' in locals() else 5.50
 
         df_tax = df_bruto.sort_values('data').copy() if 'df_bruto' in locals() and not df_bruto.empty else pd.DataFrame()
         

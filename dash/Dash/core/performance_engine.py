@@ -13,6 +13,11 @@ class PerformanceResult:
     cumulative_series: pd.Series
     drawdown_series: pd.Series
     max_drawdown: float
+    nav_series: pd.Series  # MTM - Patrimônio ao longo do tempo
+    volatility: float  # Volatilidade anualizada
+    total_flow: float  # Total de aportes no período
+    total_pnl: float  # Ganho/Perda financeiro absoluto
+
 
 class PerformanceEngine:
     """
@@ -142,13 +147,27 @@ class PerformanceEngine:
         drawdown_series = (self.df['cumulative_factor'] / rolling_max) - 1
         max_drawdown = drawdown_series.min()
         
+        # 7. Volatilidade Anualizada (Desvio Padrão dos retornos * sqrt(252))
+        volatility = self.df['daily_return'].std() * np.sqrt(252) if len(self.df) > 1 else 0.0
+        
+        # 8. Métricas Financeiras
+        nav_series = self.df['nav']
+        total_flow = self.df['flow'].sum()
+        nav_inicial = self.df['nav'].iloc[0] if not self.df.empty else 0.0
+        nav_final = self.df['nav'].iloc[-1] if not self.df.empty else 0.0
+        total_pnl = nav_final - nav_inicial - total_flow + self.df['flow'].iloc[0]  # PnL = NAV final - NAV inicial - Aportes líquidos
+        
         return PerformanceResult(
-            total_twr=total_twr, # Decimal (ex: 0.10 for 10%)
-            annualized_twr=annualized_twr, # Decimal
+            total_twr=total_twr,  # Decimal (ex: 0.10 for 10%)
+            annualized_twr=annualized_twr,  # Decimal
             daily_returns=self.df['daily_return'],
-            cumulative_series=self.df['twr_accumulated'], # Decimal
-            drawdown_series=drawdown_series, # Decimal
-            max_drawdown=max_drawdown # Decimal
+            cumulative_series=self.df['twr_accumulated'],  # Decimal
+            drawdown_series=drawdown_series,  # Decimal
+            max_drawdown=max_drawdown,  # Decimal
+            nav_series=nav_series,  # MTM ao longo do tempo
+            volatility=volatility,  # Volatilidade anualizada
+            total_flow=total_flow,  # Total de aportes
+            total_pnl=total_pnl  # Ganho/Perda absoluto
         )
 
 # --- VALIDAÇÃO E TESTES UNITÁRIOS EMBUTIDOS ---
