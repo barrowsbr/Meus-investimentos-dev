@@ -73,3 +73,51 @@ def fetch_market_data(tickers: List[str]) -> Tuple[Dict[str, float], Dict[str, f
                 continue
                 
     return map_prices, map_changes
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def fetch_historical_data(tickers: List[str], start_date) -> pd.DataFrame:
+    """
+    Fetches full historical data for the engine.
+    Cached for 12 hours to prevent rate limits.
+    Includes outlier cleaning and weekend removal.
+    """
+    if not tickers:
+        return pd.DataFrame()
+        
+    try:
+        # 1. Download
+        df_prices = yf.download(tickers, start=start_date, progress=False, auto_adjust=False)['Close']
+        
+        # Normalize single-ticker result
+        if isinstance(df_prices, pd.Series): 
+            df_prices = df_prices.to_frame()
+            
+        # 2. Outlier Cleaning (Robust filter from Engine)
+        import numpy as np
+        pct_change = df_prices.pct_change()
+        # Filter: > 200% jump or < 90% drop in one day is likely noise (splits handled by auto_adjust=False usually, but data glitches happen)
+        # Note: If auto_adjust=False, splits might look like drops. 
+        # Ideally we want auto_adjust=True for performance calc, but yfinance default is False in new versions? 
+        # Let's stick to 'Close' which is raw, but we generally want Adjusted Close for performance.
+        # However, the user's legacy code used 'Close'. We will stick to 'Close' but beware of splits.
+        # Actually, let's enable auto_adjust=True to handle splits automatically if possible, 
+        # BUT the user's code had specific cleaning. Let's keep it safe:
+        # The previous code used Raw Close. We will continue with it but apply the filter.
+        
+        mask_noise = (pct_change > 2.0) | (pct_change < -0.9)
+        df_prices = df_prices.mask(mask_noise, np.nan).ffill()
+        df_prices = df_prices.ffill().bfill().fillna(0.0)
+        
+        # 3. Timezone Removal
+        if df_prices.index.tz is not None:
+            df_prices.index = df_prices.index.tz_localize(None)
+            
+        # 4. Remove Weekends
+        is_bday = df_prices.index.dayofweek < 5
+        df_prices = df_prices.loc[is_bday]
+        
+        return df_prices
+        
+    except Exception as e:
+        print(f"Error fetching history: {e}")
+        return pd.DataFrame()

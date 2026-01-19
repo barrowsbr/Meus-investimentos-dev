@@ -143,12 +143,12 @@ class PerformanceEngine:
         max_drawdown = drawdown_series.min()
         
         return PerformanceResult(
-            total_twr=total_twr * 100, # Percentual
-            annualized_twr=annualized_twr * 100, # Percentual
+            total_twr=total_twr, # Decimal (ex: 0.10 for 10%)
+            annualized_twr=annualized_twr, # Decimal
             daily_returns=self.df['daily_return'],
-            cumulative_series=self.df['twr_accumulated'] * 100,
-            drawdown_series=drawdown_series * 100,
-            max_drawdown=max_drawdown * 100
+            cumulative_series=self.df['twr_accumulated'], # Decimal
+            drawdown_series=drawdown_series, # Decimal
+            max_drawdown=max_drawdown # Decimal
         )
 
 # --- VALIDAÇÃO E TESTES UNITÁRIOS EMBUTIDOS ---
@@ -165,8 +165,8 @@ if __name__ == "__main__":
     
     eng1 = PerformanceEngine(df1)
     res1 = eng1.calculate_twr()
-    print(f"Teste 1 (Simples 10%): Expect 10.0% -> Got {res1.total_twr:.2f}%")
-    assert abs(res1.total_twr - 10.0) < 0.01
+    print(f"Teste 1 (Simples 10%): Expect 0.10 -> Got {res1.total_twr:.4f}")
+    assert abs(res1.total_twr - 0.10) < 0.0001
     
     # 2. Caso Fluxo: Dobrando aporte, rentabilidade zero
     # Dia 0: 100
@@ -180,8 +180,8 @@ if __name__ == "__main__":
     
     eng2 = PerformanceEngine(df2)
     res2 = eng2.calculate_twr()
-    print(f"Teste 2 (Aporte Neutro): Expect 0.0% -> Got {res2.total_twr:.2f}%")
-    assert abs(res2.total_twr - 0.0) < 0.01
+    print(f"Teste 2 (Aporte Neutro): Expect 0.00 -> Got {res2.total_twr:.4f}")
+    assert abs(res2.total_twr - 0.0) < 0.0001
 
     # 3. Caso Provento: Nav cai, mas Income compensa
     # Dia 0: 100
@@ -195,8 +195,8 @@ if __name__ == "__main__":
     
     eng3 = PerformanceEngine(df3)
     res3 = eng3.calculate_twr()
-    print(f"Teste 3 (Provento Neutro): Expect 0.0% -> Got {res3.total_twr:.2f}%")
-    assert abs(res3.total_twr - 0.0) < 0.01
+    print(f"Teste 3 (Provento Neutro): Expect 0.00 -> Got {res3.total_twr:.4f}")
+    assert abs(res3.total_twr - 0.0) < 0.0001
     
     # 4. Caso OUTLIER: Aporte Gigante em Base Pequena
     # Nav Start: 100.
@@ -222,8 +222,8 @@ if __name__ == "__main__":
     eng4 = PerformanceEngine(df4)
     res4 = eng4.calculate_twr()
     # Esperado: Ganho 10. Base 1100. Return ~0.909%
-    expect = (10/1100)*100
-    print(f"Teste 4 (Outlier SoD): Expect {expect:.2f}% -> Got {res4.total_twr:.2f}%")
-    assert abs(res4.total_twr - expect) < 0.01
+    expect = (10/1100)
+    print(f"Teste 4 (Outlier SoD): Expect {expect:.4f} -> Got {res4.total_twr:.4f}")
+    assert abs(res4.total_twr - expect) < 0.0001
 
     print("=== TODOS OS TESTES PASSARAM COM SUCESSO ===")

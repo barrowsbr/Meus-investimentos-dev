@@ -5,9 +5,9 @@ import streamlit as st
 # Since it uses st.column_config, it requires streamlit context.
 
 def get_editor_config():
+    # Keys match the Google Sheet Tab Names
     return {
-        "meus_ativos.csv": {
-            "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
+        "meus_ativos": {
             "icon": "📈", "label": "Ações & ETFs", "date_cols": ["Data"],
             "form_fields": {
                 "Símbolo": "text_suggest", "Tipo de transação": ["Compra", "Venda"], 
@@ -24,8 +24,7 @@ def get_editor_config():
                 "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"], help="Moeda de liquidação"),
             }
         },
-        "meus_proventos.csv": {
-            "sep": ";", "decimal": ".", "encoding": "utf-8", "thousands": None,
+        "meus_proventos": {
             "icon": "💵", "label": "Proventos", "date_cols": ["data"],
             "form_fields": {
                 "ticker": "text_suggest", "data": "date",
@@ -42,8 +41,7 @@ def get_editor_config():
                 "mes": st.column_config.TextColumn("Mês Ref", disabled=True)
             }
         },
-        "renda_fixa.csv": {
-            "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
+        "renda_fixa": {
             "icon": "💰", "label": "Renda Fixa", "date_cols": ["Compra"],
             "form_fields": {
                 "Ticker": "text_suggest", "Valor": "currency", "Valor atual": "currency",
@@ -56,8 +54,7 @@ def get_editor_config():
                 "Tipo de transação": st.column_config.SelectboxColumn("Tipo", options=["Compra", "Venda", "Resgate", "Vencimento"]),
             }
         },
-        "cambio.csv": {
-            "sep": ";", "decimal": ",", "encoding": "utf-8", "thousands": None,
+        "cambio": {
             "icon": "💱", "label": "Câmbio", "date_cols": ["Data"],
             "form_fields": {
                 "Moeda Origem": ["BRL", "USD", "EUR"], "Moeda Destino": ["USD", "BRL", "EUR"],
@@ -70,8 +67,7 @@ def get_editor_config():
                 "Valor Total saída": st.column_config.NumberColumn("Saída", format="%.2f")
             }
         },
-        "composicao.csv": {
-            "sep": ";", "decimal": ".", "thousands": ",", "encoding": "utf-8",
+        "composicao": {
             "icon": "📊", "label": "Composição (Carteira)", "date_cols": [],
             "form_fields": {
                 "Símbolo (Symbol)": "text", "Descrição (Description)": "text", 

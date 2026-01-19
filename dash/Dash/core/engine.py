@@ -8,7 +8,7 @@ import streamlit as st
 # Import existing core functions
 from core.market_data import fetch_market_data
 
-def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days_lookback: int):
+def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days_lookback: int, df_prices_external: pd.DataFrame = None):
     """
     Reconstructs the portfolio history (NAV, Flow, Income) based on transactions.
     
@@ -16,16 +16,10 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
         df_bruto: Dataframe of transactions (Assets).
         df_proventos: Dataframe of dividends (Income).
         days_lookback: Number of days to return in the final sliced series (Visual Window).
+        df_prices_external: Optional pre-fetched market data (Cached).
         
     Returns:
         tuple: (v_pat, v_flux, v_income, v_cus, full_series_dict)
-        
-    Logic:
-        1. Identifies tickers and downloads prices.
-        2. Reconstructs daily holdings (Custodia).
-        3. Calculates Daily NAV (Price * Qty) + Cash Flow + Income.
-        4. Applies "Gap Handling" (for the known 2023 data gap).
-        5. Applies "Windowed Suppression" flag (for large inflows).
     """
 
     # 1. Setup & Downloads
@@ -33,45 +27,18 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
         return pd.Series(), pd.Series(), pd.Series(), pd.Series(), {}
     
     tickers_carteira = df_bruto['ticker'].unique().tolist()
+    
     # Filter out Fixed Income keywords just in case
     termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO']
     tickers_yahoo = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
     
-    # Ensure Currencies
-    tickers_download = list(set(tickers_yahoo + ['BRL=X', 'EURBRL=X', 'CADBRL=X']))
-    
-    # Download Prices (Using the cache-wrapped fetcher if available, or direct YF)
-    # Since this is "Engine", we rely on input or internal logic. 
-    # Let's use direct YF or the one from market_data if robust.
-    # Note: app.py used a custom outlier filter. We should preserve it.
-    
-    data_primeira_transacao = df_bruto['data'].min()
-    
-    try:
-        # We can re-use fetch_market_data if it supports the date range, 
-        # but app.py had specific "Outlier Cleaning" logic inline.
-        # Let's reproduce the robust logic here.
-        df_prices = yf.download(tickers_download, start=data_primeira_transacao, progress=False)['Close']
-        if isinstance(df_prices, pd.Series): df_prices = df_prices.to_frame()
-        
-        # --- OUTLIER CLEANING ---
-        pct_change = df_prices.pct_change()
-        mask_noise = (pct_change > 2.0) | (pct_change < -0.9)
-        df_prices = df_prices.mask(mask_noise, np.nan).ffill()
-        df_prices = df_prices.ffill().bfill().fillna(0.0)
-        
-        # Ensure Naive Index (Strip Timezone) to match transaction dates
-        if df_prices.index.tz is not None:
-            df_prices.index = df_prices.index.tz_localize(None)
-            
-        # KEY FIX: Remove Weekends (Sat/Sun) from the Simulation Grid entirely
-        # This forces the 'pad' logic to map weekend transactions to Friday
-        is_bday = df_prices.index.dayofweek < 5
-        df_prices = df_prices.loc[is_bday]
-            
-    except:
+    # We rely on external prices if provided
+    if df_prices_external is not None and not df_prices_external.empty:
+        df_prices = df_prices_external.copy()
+    else:
+        # Fallback (Should be avoided in optimized flow)
         return pd.Series(), pd.Series(), pd.Series(), pd.Series(), {}
-        
+
     if df_prices.empty:
         return pd.Series(), pd.Series(), pd.Series(), pd.Series(), {}
 

@@ -3,8 +3,6 @@ pandas
 yfinance
 plotly
 numpy
-openpyxl
+gspread
+oauth2client
 matplotlib
-streamlit-authenticator
-PyYAML
-scipy

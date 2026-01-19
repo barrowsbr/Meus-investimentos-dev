@@ -11,15 +11,20 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 
 # --- CORE IMPORTS ---
-from core.data_loader import load_assets, load_proventos, load_fixed_income, summarize_fixed_income, normalize_ticker, load_cambio
-from core.market_data import fetch_market_data
+from core.data_loader import load_assets, load_proventos, load_fixed_income, load_cambio
+from core.market_data import fetch_market_data, fetch_historical_data
 from core.performance_engine import PerformanceEngine
 from core.engine import reconstruct_history
 from core.ui_config import get_editor_config
 
+# New Modules
+from core.logic import identificar_setor_ativo, normalize_ticker
+from core.finance import calcular_carteira_fechada, summarize_fixed_income
+from core.utils import parse_decimal_br
+
 from core.attribution import calculate_contribution, group_contributions
 from core.risk_analytics import calculate_correlation_matrix, calculate_risk_contribution
-from config import BASE_DIR, FILE_ASSETS, FILE_COMPOSICAO, FILE_CAMBIO, FILE_PTAX
+from config import BASE_DIR, TAB_ASSETS, TAB_COMPOSICAO, TAB_CAMBIO, TAB_PTAX
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -47,19 +52,13 @@ st.markdown("""
 # Funções Auxiliares de Carga
 @st.cache_data(show_spinner=False)
 def carregar_composicao_extra():
-    if not os.path.exists(FILE_COMPOSICAO): return pd.DataFrame()
-    try:
-        df = pd.read_csv(FILE_COMPOSICAO, sep=';')
-        return df 
-    except: return pd.DataFrame()
+    from core.data_provider import DataProvider
+    return DataProvider.get_composicao()
 
 @st.cache_data(show_spinner=False)
 def carregar_cambio():
-    if not os.path.exists(FILE_CAMBIO): return pd.DataFrame()
-    try:
-        df = pd.read_csv(FILE_CAMBIO, sep=';')
-        return df
-    except: return pd.DataFrame()
+    from core.data_provider import DataProvider
+    return DataProvider.get_cambio()
     
 # ==============================================================================
 # 🧠 MOTOR DE CÁLCULO DE PERFORMANCE (GIPS COMPLIANT)
@@ -93,96 +92,7 @@ def calcular_correlacao_cache(df_returns):
 def calcular_risco_cache(df_holdings_mtm, df_returns):
     return calculate_risk_contribution(df_holdings_mtm, df_returns)
 
-
-# ==============================================================================    
-    
-
-# --- LÓGICA DE SETORIZAÇÃO ---
-def identificar_setor_ativo(ticker):
-    t = str(ticker).upper().strip()
-    t_clean = t.replace('.SA', '')
-    
-    lista_cripto_exata = ['BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'HBAR', 'ADA', 'BTC-USD', 'ETH-USD']
-    if t_clean in lista_cripto_exata: return 'Cripto'
-    if t_clean.startswith('BTC') and len(t_clean) < 8: return 'Cripto'
-    if t_clean.startswith('ETH') and len(t_clean) < 8: return 'Cripto'
-
-    etfs_br = ['IVVB11', 'BOVA11', 'SMAL11', 'HASH11', 'XINA11', 'EURP11', 'GOLD11', 'B5P211']
-    if t_clean in etfs_br: return 'ETF'
-
-    lista_commodities = ['IAU', 'SIVR', 'SLV', 'GLD', 'DBC', 'USO']
-    if t_clean in lista_commodities: return 'Commodities'
-    
-    etfs_usa = ['SPY', 'QQQ', 'VWRA', 'VOO', 'VNQ', 'SCHD', 'VT']
-    if t_clean in etfs_usa: return 'ETF USA'
-
-    termos_rf = ['TESOURO', 'NTN', 'LCI', 'LCA', 'CDB', 'LC', 'DEBENTURE', 'CASH', 'CAIXA']
-    if any(x in t_clean for x in termos_rf): return 'Renda Fixa'
-
-    if t_clean[-1].isdigit():
-        units_acoes = ['KLBN11', 'SAPR11', 'TAEE11', 'ALUP11', 'SANB11', 'BPAC11', 'ITUB11', 'BBAS11', 'EGIE11']
-        if t_clean.endswith('3') or t_clean.endswith('4') or t_clean.endswith('5') or t_clean.endswith('6'):
-            return 'Ações Brasil'
-        elif t_clean.endswith('11'):
-            if t_clean in units_acoes:
-                return 'Ações Brasil'
-            else:
-                return 'FIIs'
-        elif t_clean.endswith('32') or t_clean.endswith('33') or t_clean.endswith('34'):
-            return 'BDRs'
-
-    return 'Ações Internacional'
-
-# --- CÁLCULO DE POSIÇÃO RV ---
-def calcular_carteira(df):
-    df = df.copy()
-    df['ticker'] = df['ticker'].apply(normalize_ticker)
-    df['tipo'] = df['tipo'].astype(str).str.lower().str.strip()
-    df['moeda'] = df.get('moeda', 'BRL').astype(str).str.upper().str.strip()
-    for c in ['quantidade', 'preco', 'taxas']:
-        if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-    df = df.sort_values('data')
-    portfolio = {}
-    lucro_realizado_por_moeda = {}
-    for _, row in df.iterrows():
-        t = row['ticker']
-        moeda = row['moeda']
-        qtd = float(abs(row['quantidade']))
-        preco = float(row['preco'])
-        taxas = float(row.get('taxas', 0) or 0)
-        if t not in portfolio: portfolio[t] = {"lotes": [], "lucro_realizado": 0.0, "moeda": moeda}
-        ativo = portfolio[t]
-        if "compra" in row['tipo']:
-            custo_total = qtd * preco + taxas
-            pm_lote = custo_total / qtd if qtd > 0 else 0
-            ativo["lotes"].append({"qtd": qtd, "pm": pm_lote})
-        elif "venda" in row['tipo']:
-            qtd_vender = qtd
-            preco_venda = preco
-            lucro = 0.0
-            while qtd_vender > 0 and ativo["lotes"]:
-                lote = ativo["lotes"][0]
-                if lote["qtd"] <= qtd_vender:
-                    qtd_consumida = lote["qtd"]
-                    ativo["lotes"].pop(0)
-                else:
-                    qtd_consumida = qtd_vender
-                    lote["qtd"] -= qtd_consumida
-                lucro += (preco_venda - lote["pm"]) * qtd_consumida
-                qtd_vender -= qtd_consumida
-            ativo["lucro_realizado"] += lucro
-            lucro_realizado_por_moeda[moeda] = lucro_realizado_por_moeda.get(moeda, 0) + lucro
-    posicao = []
-    for t, dados in portfolio.items():
-        qtd_total = sum(l["qtd"] for l in dados["lotes"])
-        custo_total = sum(l["qtd"] * l["pm"] for l in dados["lotes"])
-        pm_final = (custo_total / qtd_total) if qtd_total > 0 else 0
-        posicao.append({
-            "Ticker": t, "Setor": identificar_setor_ativo(t), "Qtd": qtd_total,
-            "Moeda": dados["moeda"], "PM_Origem": pm_final,
-            "Lucro_Realizado_Nativo": dados["lucro_realizado"]
-        })
-    return pd.DataFrame(posicao), lucro_realizado_por_moeda
+# OBS: Functions `identificar_setor_ativo` and `calcular_carteira` have been moved to `core/logic.py` and `core/finance.py`.
 
 
 
@@ -191,144 +101,248 @@ def calcular_carteira(df):
 # --- FUNÇÃO DA NOVA TAB: EDITOR DE DADOS ---
 def exibir_editor_dados():
     st.header("📝 Editor de Registros & Lançamentos")
-    st.caption("Adicione, edite ou corrija transações. O sistema fará um backup automático antes de salvar.")
+    st.caption("Adicione, edite ou corrija transações. Os dados são salvos diretamente no Google Sheets.")
 
-    FILES_CONFIG = get_editor_config()
+    tabs_config = get_editor_config()
 
-    def get_file_path(filename):
-        return os.path.join(BASE_DIR, filename)
-
-    def backup_file(filepath):
-        if os.path.exists(filepath):
-            try:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_dir = os.path.join(BASE_DIR, "backups")
-                os.makedirs(backup_dir, exist_ok=True)
-                shutil.copy(filepath, os.path.join(backup_dir, f"{os.path.basename(filepath)}_{timestamp}.bak"))
-            except: pass
-
-    def load_data_editor(filename, config):
-        filepath = get_file_path(filename)
-        if not os.path.exists(filepath): return None
-        try:
-            df = pd.read_csv(filepath, sep=config["sep"], decimal=config["decimal"], 
-                           thousands=config.get("thousands"), encoding=config["encoding"])
-            for col in config.get("date_cols", []):
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
-            return df
-        except Exception as e:
-            st.error(f"Erro leitura: {e}"); return None
-
-    col_sel, col_btn = st.columns([3, 1])
+    col_sel, col_stats = st.columns([1, 2])
     with col_sel:
         selected_key = st.selectbox(
-            "Selecione o Arquivo para Editar:", list(FILES_CONFIG.keys()),
-            format_func=lambda x: f"{FILES_CONFIG[x]['icon']} {FILES_CONFIG[x]['label']}"
+            "Selecione a Tabela:", 
+            list(tabs_config.keys()),
+            format_func=lambda x: f"{tabs_config[x]['icon']} {tabs_config[x]['label']}"
         )
-    with col_btn:
-        st.write("") 
-        st.write("") 
-        if st.button("🔄 Recarregar Tabela", use_container_width=True):
+    
+    # Reload logic stored in session state to handle page reruns
+    if 'editor_key' not in st.session_state or st.session_state.editor_key != selected_key:
+        st.session_state.editor_key = selected_key
+        st.session_state.pop('editor_df', None)
+
+    cfg = tabs_config[selected_key]
+    
+    # Helper for robust date conversion (Handles Excel Serials + Strings)
+    def convert_smart_date(x):
+        if pd.isnull(x) or str(x).strip() == '': return pd.NaT
+        try:
+            # Check if it's already datetime
+            if isinstance(x, (pd.Timestamp, datetime, date)): return x
+            
+            # Try numeric (Excel Serial)
+            # 40000 is ~2009. 30000 is ~1982. 
+            # 25569 is 1970-01-01 (Unix Epoch start in Excel serial)
+            x_float = float(x)
+            if 30000 < x_float < 70000: # Reasonable range for modern dates
+                return pd.to_datetime(x_float, unit='D', origin='1899-12-30')
+        except:
+            pass
+            
+        # Fallback to string parsing
+        try:
+            return pd.to_datetime(x, dayfirst=True, errors='coerce')
+        except:
+            return pd.NaT
+
+    # Lazy loading of data
+    if 'editor_df' not in st.session_state or st.session_state.editor_df is None:
+        try:
+            from core.data_provider import DataProvider
+            df = DataProvider.fetch_data(selected_key)
+            
+            # --- PRE-PROCESSING & CLEANING ---
+            
+            # 1. Date Conversion
+            for col in cfg.get("date_cols", []):
+                if col in df.columns:
+                    df[col] = df[col].apply(convert_smart_date)
+            
+            # 2. Special Logic for "Proventos" (Fill Derived Columns)
+            if selected_key == "meus_proventos":
+                # Ensure 'data' is the source of truth
+                if 'data' in df.columns:
+                    # Logic to fill 'mes' and 'ano' if missing or just to be safe re-calc
+                    meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
+                             7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
+                    
+                    def get_mes_ref(d):
+                        if pd.isnull(d): return ""
+                        try:
+                            return f"{meses.get(d.month, '')}/{str(d.year)[-2:]}"
+                        except: return ""
+
+                    df['mes'] = df['data'].apply(get_mes_ref)
+                    df['ano'] = df['data'].apply(lambda x: x.year if pd.notnull(x) else 0).astype(int)
+            
+            st.session_state.editor_df = df
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {e}")
+            st.session_state.editor_df = pd.DataFrame()
+
+    df_current = st.session_state.editor_df
+    
+    # Toolbar
+    c_tools1, c_tools2 = st.columns([1, 4])
+    with c_tools1:
+         if st.button("🔄 Recarregar", use_container_width=True):
+            st.session_state.pop('editor_df', None)
+            st.rerun()
             st.session_state.pop('editor_df', None)
             st.rerun()
 
-    if 'editor_df' not in st.session_state or st.session_state.get('editor_file') != selected_key:
-        st.session_state.editor_file = selected_key
-        st.session_state.editor_df = load_data_editor(selected_key, FILES_CONFIG[selected_key])
-
-    df = st.session_state.editor_df
-    cfg = FILES_CONFIG[selected_key]
-    filepath = get_file_path(selected_key)
-
-    if df is not None:
+    if df_current is not None:
+        
+        # --- RESTORED: ADICIONAR NOVO LANÇAMENTO (FORMULÁRIO) ---
         with st.expander("⚡ Adicionar Novo Lançamento", expanded=False):
-            form_cols = st.columns(4)
-            input_data = {}
-            
-            history_tickers = []
-            if not df.empty:
-                possible_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
-                for c in possible_cols:
-                    if c in df.columns:
-                        history_tickers = df[c].dropna().unique().tolist()
-                        break
-            
-            fields = cfg.get("form_fields", {})
-            idx = 0
-            for field_name, field_type in fields.items():
-                c = form_cols[idx % 4]
-                idx += 1
+            with st.form(key=f"form_add_{selected_key}", clear_on_submit=False):
+                form_cols = st.columns(4)
+                input_data = {}
                 
-                if field_type == "text_suggest":
-                    val_sel = c.selectbox(f"{field_name}", options=[""] + sorted([str(x) for x in history_tickers]), key=f"in_{field_name}")
-                    if val_sel == "":
-                        input_data[field_name] = c.text_input(f"Novo {field_name}?", key=f"in_new_{field_name}")
-                    else:
-                        input_data[field_name] = val_sel
-                elif isinstance(field_type, list):
-                    input_data[field_name] = c.selectbox(field_name, options=field_type, key=f"in_{field_name}")
-                elif field_type == "text":
-                    input_data[field_name] = c.text_input(field_name, key=f"in_{field_name}")
-                elif field_type == "date":
-                    input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY", key=f"in_{field_name}")
-                elif field_type == "currency" or field_type == "number":
-                    input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f", key=f"in_{field_name}")
+                # Helper to get history of tickers for suggestions
+                history_tickers = []
+                if not df_current.empty:
+                    possible_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
+                    for c in possible_cols:
+                        if c in df_current.columns:
+                            history_tickers = df_current[c].dropna().unique().tolist()
+                            break
+                
+                fields = cfg.get("form_fields", {})
+                idx = 0
+                for field_name, field_type in fields.items():
+                    c = form_cols[idx % 4]
+                    idx += 1
+                    
+                    key_widget = f"in_{selected_key}_{field_name}" 
+                    
+                    if field_type == "text_suggest":
+                        # Use unique list for options
+                        opts = [""] + sorted([str(x) for x in history_tickers])
+                        val_sel = c.selectbox(f"{field_name}", options=opts, key=key_widget)
+                        if val_sel == "":
+                            input_data[field_name] = c.text_input(f"Novo {field_name}?", key=f"{key_widget}_new")
+                        else:
+                            input_data[field_name] = val_sel
+                    
+                    elif isinstance(field_type, list):
+                        input_data[field_name] = c.selectbox(field_name, options=field_type, key=key_widget)
+                    
+                    elif field_type == "text":
+                        input_data[field_name] = c.text_input(field_name, key=key_widget)
+                    
+                    elif field_type == "date":
+                        input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY", key=key_widget)
+                    
+                    elif field_type == "currency" or field_type == "number":
+                        input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f", key=key_widget)
 
-            if st.button("➕ Adicionar Linha", type="primary"):
+                submit_btn = st.form_submit_button("➕ Adicionar Linha", type="primary")
+            
+            if submit_btn:
+                # Basic Validation
                 if any(str(v).strip() == "" for v in input_data.values()):
-                    st.warning("Preencha todos os campos.")
+                    st.warning("⚠️ Preencha todos os campos obrigatórios.")
                 else:
                     new_row = pd.DataFrame([input_data])
-                    if selected_key == "meus_proventos.csv":
+                    
+                    # Special Logic: Proventos (Derive Month/Year)
+                    if selected_key == "meus_proventos":
                         d_obj = pd.to_datetime(input_data['data'])
-                        meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
-                        new_row['mes'] = f"{meses[d_obj.month]}/{str(d_obj.year)[-2:]}"
-                        new_row['ano'] = d_obj.year
-                        if 'decisao' in df.columns: new_row['decisao'] = input_data['lancamento']
+                        meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
+                                 7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
+                        try:
+                            new_row['mes'] = f"{meses[d_obj.month]}/{str(d_obj.year)[-2:]}"
+                            new_row['ano'] = d_obj.year
+                        except: pass # Should not happen if date is valid
+                        
+                        if 'decisao' in df_current.columns: 
+                            new_row['decisao'] = input_data.get('lancamento', '')
 
+                    # Ensure Date Types matches dataframe for smooth concatenation
                     for d_col in cfg.get("date_cols", []):
-                        if d_col in new_row.columns: new_row[d_col] = pd.to_datetime(new_row[d_col])
+                        if d_col in new_row.columns: 
+                            new_row[d_col] = pd.to_datetime(new_row[d_col])
 
+                    # Append to session state
                     st.session_state.editor_df = pd.concat([st.session_state.editor_df, new_row], ignore_index=True)
+                    st.success("Linha adicionada! Não esqueça de clicar em 'Gravar Alterações' para salvar.")
                     st.rerun()
 
         st.markdown("---")
         
+        # Prepare Column Config with dynamic options if necessary
+        # We can enhance the config here if needed, e.g. updating options based on current data
+        
+        final_col_config = cfg.get("column_types", {}).copy()
+        
+        # Example: Update selectbox options for Ticker if we wanted (optional, stick to text for now as discussed)
+        
+        st.markdown("---")
         df_edited = st.data_editor(
-            st.session_state.editor_df,
-            column_config=cfg.get("column_types", {}),
+            df_current,
+            column_config=final_col_config,
             num_rows="dynamic",
             use_container_width=True,
-            height=500,
-            key=f"editor_grid_{selected_key}"
+            height=600,
+            key=f"grid_{selected_key}"
         )
-
+        
+        st.markdown("### 💾 Ações")
         col_save, col_discard = st.columns([1, 4])
+        
         with col_save:
-            if st.button("💾 SALVAR DEFINITIVO", type="primary", use_container_width=True):
+            if st.button("Gravar Alterações", type="primary", use_container_width=True):
                 try:
-                    backup_file(filepath)
-                    final_df = df_edited.copy()
+                    # 1. Post-Processing
+                    df_to_save = df_edited.copy()
                     
+                    # A. Handle 'Meus Proventos' specific logic (Derive Month/Year)
+                    if selected_key == 'meus_proventos':
+                        if 'data' in df_to_save.columns:
+                            # Ensure datetime
+                            dates = pd.to_datetime(df_to_save['data'], errors='coerce')
+                            
+                            # Dictionary for month names
+                            meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
+                                     7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
+                            
+                            def get_mes_ref(d):
+                                if pd.isnull(d): return ""
+                                return f"{meses.get(d.month, '')}/{str(d.year)[-2:]}"
+                                
+                            df_to_save['mes'] = dates.apply(get_mes_ref)
+                            df_to_save['ano'] = dates.dt.year.fillna(0).astype(int)
+                            
+                            # If manual override is needed, logic can be added, but this automates it.
+
+                    # B. Standardize Date Formats for Google Sheets (YYYY-MM-DD)
                     for d_col in cfg.get("date_cols", []):
-                        if d_col in final_df.columns:
-                             final_df[d_col] = pd.to_datetime(final_df[d_col]).dt.strftime('%d/%m/%Y')
-                    
-                    final_df.to_csv(filepath, sep=cfg["sep"], decimal=cfg["decimal"], index=False, encoding=cfg["encoding"])
-                    st.session_state.editor_df = df_edited
-                    st.cache_data.clear()
-                    st.toast("Arquivo salvo com sucesso! Dashboard atualizado.", icon="✅")
-                    
+                        if d_col in df_to_save.columns:
+                            # Convert to datetime first to handle any new entries or edits
+                            # Then strftime. NaT becomes 'NaT' or None. 
+                            # DataProvider handles None/NaN well.
+                            s_dates = pd.to_datetime(df_to_save[d_col], errors='coerce')
+                            df_to_save[d_col] = s_dates.dt.strftime('%Y-%m-%d').replace('NaT', '')
+
+                    # 2. Save
+                    from core.data_provider import DataProvider
+                    if DataProvider.save_data(selected_key, df_to_save):
+                        st.session_state.editor_df = df_edited # Update session state with the edited version (dates as objects if needed? No, reload next time is safer)
+                        # Actually, better to reload to get clean state or keep current edited state
+                        # Let's keep data in sync.
+                        st.toast("Dados salvos com sucesso!", icon="✅")
+                        st.balloons()
+                        # Force reload on next run to ensure types are correct
+                        st.session_state.pop('editor_df', None)
+                        st.rerun()
+                    else:
+                        st.error("Falha ao salvar. Verifique logs.")
+                        
                 except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
+                    st.error(f"Erro durante salvamento: {e}")
         
         with col_discard:
-            if st.button("❌ Descartar Alterações"):
+            if st.button("❌ Descartar"):
                 st.session_state.pop('editor_df', None)
                 st.rerun()
-    else:
-        st.error(f"Arquivo {selected_key} não encontrado na pasta: {BASE_DIR}")
 
 
 # --- DASHBOARD PRINCIPAL ---
@@ -397,7 +411,7 @@ def main():
 
         # Preparação final de RV
         df_aux = df_rv_cascata.copy()
-        df_posicao, _ = calcular_carteira(df_bruto)
+        df_posicao, _ = calcular_carteira_fechada(df_bruto)
         ativos_vivos = set(df_posicao[df_posicao['Qtd'] > 0]['Ticker'])
         
         if opcao_ativo == "Sim": df_aux = df_aux[df_aux['ticker'].isin(ativos_vivos)]
@@ -419,6 +433,21 @@ def main():
     img_path = os.path.join(BASE_DIR, 'pictures', 'img.png')
     if os.path.exists(img_path):
         st.image(img_path, use_container_width=True)
+
+    # --- TABS (Moved to top to prevent reset on re-run) ---
+    tab_cap, tab_perf, tab_risk, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "💼 Capa",
+        "🚀 Performance",
+        "⚠️ Risco",
+        "💎 Composição", 
+        "📊 Renda Variável", 
+        "₿ Cripto", 
+        "💱 Câmbio", 
+        "💰 Proventos", 
+        "🦁 Imposto", 
+        "🏦 Renda Fixa", 
+        "📝 Editor"
+    ])
 
     
 
@@ -484,11 +513,23 @@ def main():
     if not df_bruto.empty:
         with st.spinner("Sincronizando mercado e reconstruindo histórico..."):
             
+            # Prepare Tickers for History
+            tickers_carteira = df_bruto['ticker'].unique().tolist()
+            termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO']
+            tickers_yahoo = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
+            tickers_download = list(set(tickers_yahoo + ['BRL=X', 'EURBRL=X', 'CADBRL=X']))
+            
+            data_inicio_hist = df_bruto['data'].min()
+            
+            # Fetch Cached History
+            df_hist_prices = fetch_historical_data(tickers_download, data_inicio_hist)
+            
             # Chama o Engine para reconstruir histórico e aplicar fixes
             v_pat, v_flux, v_income, v_force_zero, extra_data = reconstruct_history(
                 df_bruto,
                 df_proventos_bruto,
-                dias
+                dias,
+                df_hist_prices
             )
             
             if not v_pat.empty:
@@ -521,7 +562,7 @@ def main():
     
     if not df_bruto.empty:
         # Recupera posição de custódia (Qtd)
-        df_posicao, _ = calcular_carteira(df_bruto)
+        df_posicao, _ = calcular_carteira_fechada(df_bruto)
         
         # Filtra apenas tickers selecionados nos filtros laterais
         if 'lista_tickers_final' not in locals(): lista_tickers_final = df_posicao['Ticker'].unique().tolist()
@@ -573,8 +614,8 @@ def main():
             vol_vendas = vendas_por_ticker.get(t, 0.0)
             lucro_realizado_brl = row['Lucro_Realizado_Nativo'] * fator_conversao
             
-            # Rentabilidade Simples (%)
-            rent_pct = ((preco_atual - pm) / pm * 100) if pm > 0 else 0.0
+            # Rentabilidade Simples (%) - DECIMAL
+            rent_pct = ((preco_atual - pm) / pm) if pm > 0 else 0.0
             
             status_ativo = "🟢 Carteira" if qtd > 0 else "🏁 Encerrado"
             
@@ -601,21 +642,7 @@ def main():
             tickers_rv_existentes = set(df_view['Ticker'].unique())
             df_rf_filtrado = df_rf_filtrado[~df_rf_filtrado['Ticker'].isin(tickers_rv_existentes)]
 
-    # --- AGORA SIM AS TABS PODEM SER CRIADAS ---
-
-    tab_cap, tab_perf, tab_risk, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "💼 Capa",
-        "🚀 Performance",
-        "⚠️ Risco",
-        "💎 Composição", 
-        "📊 Renda Variável", 
-        "₿ Cripto", 
-        "💱 Câmbio", 
-        "💰 Proventos", 
-        "🦁 Imposto", 
-        "🏦 Renda Fixa", 
-        "📝 Editor"
-    ])
+    # --- AGORA TABS JÁ FORAM CRIADAS ---
 
     with tab_cap:
         st.markdown("## 🧭 Guia de Navegação")
@@ -781,14 +808,14 @@ def main():
             k1, k2, k3, k4 = st.columns(4)
             
             with k1:
-                st.metric("TWR Acumulado", f"{resultado_view.total_twr:+.2f}%", help="Time-Weighted Return: Rentabilidade real apurada, excluindo o efeito de aportes e retiradas.")
+                st.metric("TWR Acumulado", f"{resultado_view.total_twr:+.2%}", help="Time-Weighted Return: Rentabilidade real apurada, excluindo o efeito de aportes e retiradas.")
             with k2:
-                st.metric("TWR Anualizado", f"{resultado_view.annualized_twr:+.2f}%", help="Taxa Geométrica Anual equivalente. Útil para comparar investimentos com diferentes prazos.")
+                st.metric("TWR Anualizado", f"{resultado_view.annualized_twr:+.2%}", help="Taxa Geométrica Anual equivalente. Útil para comparar investimentos com diferentes prazos.")
             with k3:
-                st.metric("Max Drawdown", f"{resultado_view.max_drawdown:+.2f}%", help="Máxima perda (queda) registrada do ponto mais alto até o ponto mais baixo no período selecionado.")
+                st.metric("Max Drawdown", f"{resultado_view.max_drawdown:.2%}", help="Máxima perda (queda) registrada do ponto mais alto até o ponto mais baixo no período selecionado.")
             with k4:
-                ult_ret = resultado_view.daily_returns.iloc[-1] * 100 if not resultado_view.daily_returns.empty else 0.0
-                st.metric("Retorno Último Dia", f"{ult_ret:+.2f}%", help="Rentabilidade percentual apurada apenas no último pregão.")
+                ult_ret = resultado_view.daily_returns.iloc[-1] if not resultado_view.daily_returns.empty else 0.0
+                st.metric("Retorno Último Dia", f"{ult_ret:+.2%}", help="Rentabilidade percentual apurada apenas no último pregão.")
                 
             st.divider()
             
@@ -801,9 +828,9 @@ def main():
             fig_twr = px.line(df_plot, y="Strategy TWR", title="Crescimento de R$ 100 (Indexado)")
             fig_twr.update_layout(
                 template="plotly_dark", 
-                yaxis_tickformat="+.1f", 
+                yaxis_tickformat="+.1%", 
                 hovermode="x unified",
-                yaxis_title="Retorno Acumulado (%)"
+                yaxis_title="Retorno Acumulado"
             )
             # Adiciona linha zero
             fig_twr.add_hline(y=0, line_dash="dash", line_color="gray")
@@ -818,9 +845,9 @@ def main():
             fig_dd = px.area(df_dd, y="Drawdown", title="Profundidade das Quedas")
             fig_dd.update_layout(
                 template="plotly_dark", 
-                yaxis_tickformat=".1f", 
+                yaxis_tickformat=".1%", 
                 hovermode="x unified",
-                yaxis_title="Queda do Topo (%)"
+                yaxis_title="Queda do Topo"
             )
             fig_dd.update_traces(fillcolor="rgba(255, 0, 0, 0.2)", line_color="red")
             
@@ -869,7 +896,7 @@ def main():
                     df_contrib_setor = group_contributions(df_contrib, map_setor)
                     
                     # Resample Mensal Somado
-                    df_contrib_month = df_contrib_setor.resample('ME').apply(lambda x: (1 + x).prod() - 1) * 100
+                    df_contrib_month = df_contrib_setor.resample('ME').apply(lambda x: (1 + x).prod() - 1)
                     
                     # Chart
                     df_melt = df_contrib_month.reset_index().melt(id_vars=df_contrib_month.index.name or 'index', 
@@ -954,7 +981,7 @@ def main():
                 df_risk_contrib = calcular_risco_cache(df_h_risk, df_r_risk)
                 
                 if not df_risk_contrib.empty:
-                    df_risk_contrib['Pct_Risk_Contrib'] *= 100
+                    # df_risk_contrib['Pct_Risk_Contrib'] *= 100 # REMOVIDO: Usar decimal
                     
                     # Gráfico de Barras
                     fig_rc = px.bar(
@@ -971,7 +998,7 @@ def main():
                     # Insight Textual
                     top_risk = df_risk_contrib.index[0]
                     top_val = df_risk_contrib.iloc[0]['Pct_Risk_Contrib']
-                    st.info(f"💡 O ativo **{top_risk}** é responsável por **{top_val:.1f}%** do risco total da carteira neste momento.")
+                    st.info(f"💡 O ativo **{top_risk}** é responsável por **{top_val:.1%}** do risco total da carteira neste momento.")
                 
             else:
                 st.warning("Poucos ativos com saldo para análise de risco.")
@@ -1085,14 +1112,14 @@ def main():
                     ativo_top = df_grafico.loc[df_grafico['Rent. (%)'].idxmax()]
                     ativo_low = df_grafico.loc[df_grafico['Rent. (%)'].idxmin()]
                     
-                    k1.metric("🚀 Maior Rentabilidade", ativo_top['Ticker'], f"{ativo_top['Rent. (%)']:.1f}%")
-                    k2.metric("🐢 Menor Rentabilidade", ativo_low['Ticker'], f"{ativo_low['Rent. (%)']:.1f}%", delta_color="inverse")
+                    k1.metric("🚀 Maior Rentabilidade", ativo_top['Ticker'], f"{ativo_top['Rent. (%)']:.1%}")
+                    k2.metric("🐢 Menor Rentabilidade", ativo_low['Ticker'], f"{ativo_low['Rent. (%)']:.1%}", delta_color="inverse")
                     k3.metric("📊 Patrimônio Gráfico", f"R$ {total_view:,.2f}", help="Total considerado nestes gráficos")
 
                 st.markdown("### 🗺️ Mapa de Calor Global (Risco & Retorno)")
                 max_rent = df_grafico['Rent. (%)'].max()
                 min_rent = df_grafico['Rent. (%)'].min()
-                scale_range = max(abs(max_rent), abs(min_rent), 15)
+                scale_range = max(abs(max_rent), abs(min_rent), 0.15)
 
                 fig_tree = px.treemap(
                     df_grafico, 
@@ -1101,7 +1128,7 @@ def main():
                     color='Rent. (%)', 
                     color_continuous_scale='RdYlGn', 
                     range_color=[-scale_range, scale_range],
-                    hover_data={'Valor Hoje (R$)':':.2f', 'Rent. (%)':':.2f'}
+                    hover_data={'Valor Hoje (R$)':':.2f', 'Rent. (%)':':.2%'}
                 )
                 fig_tree.update_layout(margin=dict(t=30, l=0, r=0, b=0), height=500)
                 st.plotly_chart(fig_tree, use_container_width=True)
@@ -1203,7 +1230,7 @@ def main():
                     
                     fig_bar.update_traces(
                         marker_color=df_podium['Cor'], 
-                        texttemplate='%{text:.1f}%', 
+                        texttemplate='%{text:.1%}', 
                         textposition='outside'
                     )
                     
@@ -1211,7 +1238,7 @@ def main():
                         yaxis={'categoryorder':'total ascending'}, 
                         height=altura_dinamica, 
                         margin=dict(r=50), 
-                        xaxis_title="Rentabilidade (%)",
+                        xaxis_title="Rentabilidade",
                         yaxis_title=None
                     )
                     
@@ -1285,6 +1312,9 @@ def main():
                         if cols_val: df_comp['Valor (USD)'] = df_comp[cols_val[0]]
                         else: df_comp['Valor (USD)'] = 0.0
 
+                    # Garantir que é numérico
+                    df_comp['Valor (USD)'] = pd.to_numeric(df_comp['Valor (USD)'], errors='coerce').fillna(0.0)
+
                     col_valor = 'Valor (USD)'
                     
                     # Filtra valores positivos
@@ -1307,6 +1337,7 @@ def main():
                         fig_ativo.update_traces(textinfo="percent+label")
                         fig_ativo.update_layout(margin=dict(t=20, l=20, r=20, b=20), height=400)
                         st.plotly_chart(fig_ativo, use_container_width=True)
+
                     
                     st.subheader("📋 Tabela de Ativos (Decrescente)")
                     altura_tabela = min((len(df_comp) + 1) * 35, 1200)
@@ -1338,8 +1369,31 @@ def main():
                 
                 def calc_daily_profit(row):
                     tkr = row['Ticker']
-                    var_unit = mapa_var_local.get(tkr, 0.0)
-                    return row['Qtd'] * var_unit * row['FX']
+                    moeda = row['Moeda']
+                    qtd = row['Qtd']
+                    
+                    # Prices & FX Today
+                    price_today = row['Preço Atual']
+                    fx_today = row['FX']
+                    
+                    # Asset Variation (Native)
+                    var_asset = mapa_var_local.get(tkr, 0.0)
+                    price_yesterday = price_today - var_asset
+                    
+                    # FX Variation
+                    fx_ticker_map = {'USD': 'BRL=X', 'CAD': 'CADBRL=X', 'EUR': 'EURBRL=X'}
+                    fx_ticker = fx_ticker_map.get(moeda)
+                    var_fx = 0.0
+                    if fx_ticker:
+                         var_fx = mapa_var_local.get(fx_ticker, 0.0)
+                    
+                    fx_yesterday = fx_today - var_fx
+                    
+                    # PnL Calculation
+                    val_today_brl = qtd * price_today * fx_today
+                    val_yesterday_brl = qtd * price_yesterday * fx_yesterday
+                    
+                    return val_today_brl - val_yesterday_brl
                 df_detalhes['Lucro Diário (R$)'] = df_detalhes.apply(calc_daily_profit, axis=1)
 
                 df_detalhes['Lucro Não Realizado (BRL)'] = df_detalhes['Valor Atual BRL'] - df_detalhes['Custo BRL']
@@ -1376,7 +1430,7 @@ def main():
                     if custo <= 0: 
                         custo = row['Volume Vendas (R$)'] - row['Lucro Realizado (BRL)']
                     if custo > 0:
-                        return (row['Resultado Total (R$)'] / custo) * 100
+                        return (row['Resultado Total (R$)'] / custo)
                     return 0.0
 
                 df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
@@ -1418,13 +1472,13 @@ def main():
                     column_config={
                         "Rent. BRL (%)": st.column_config.ProgressColumn(
                             "Rentabilidade",
-                            format="%.2f%%",
-                            min_value=-100,
-                            max_value=100
+                            format="%.2%",
+                            min_value=-1.0,
+                            max_value=1.0
                         ),
                         "Ticker": st.column_config.TextColumn("Ativo", width="small"),
                     },
-                    use_container_width=True, 
+                    use_container_width=True,
                     height=600
                 )
 
@@ -1437,16 +1491,16 @@ def main():
                 df_chart['Resultado_NaoRealizado_Abs'] = df_chart['Resultado Total (R$)'] - df_chart['Resultado_Bolso_Abs']
 
                 df_chart['Custo_Estimado'] = df_chart.apply(
-                    lambda x: x['Resultado Total (R$)'] / (x['Rent. BRL (%)'] / 100) if x['Rent. BRL (%)'] != 0 else 0, 
+                    lambda x: x['Resultado Total (R$)'] / (x['Rent. BRL (%)']) if x['Rent. BRL (%)'] != 0 else 0, 
                     axis=1
                 )
 
                 df_chart['Pct_Nao_Realizado'] = df_chart.apply(
-                    lambda x: (x['Resultado_NaoRealizado_Abs'] / x['Custo_Estimado'] * 100) if x['Custo_Estimado'] != 0 else 0, 
+                    lambda x: (x['Resultado_NaoRealizado_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0, 
                     axis=1
                 )
                 df_chart['Pct_Bolso'] = df_chart.apply(
-                    lambda x: (x['Resultado_Bolso_Abs'] / x['Custo_Estimado'] * 100) if x['Custo_Estimado'] != 0 else 0, 
+                    lambda x: (x['Resultado_Bolso_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0, 
                     axis=1
                 )
 
@@ -1470,7 +1524,7 @@ def main():
                         df_chart['Resultado_NaoRealizado_Abs'], 
                         df_chart['Rent. BRL (%)']
                     ), axis=-1),
-                    hovertemplate="<b>Não Realizado:</b> %{x:.1f}%<br>R$ %{customdata[0]:.2f}<extra></extra>"
+                    hovertemplate="<b>Não Realizado:</b> %{x:.1%}<br>R$ %{customdata[0]:.2f}<extra></extra>"
                 ))
 
                 fig_perf.add_trace(go.Bar(
@@ -1481,7 +1535,7 @@ def main():
                     marker_color=cores_base,
                     marker_opacity=0.3, 
                     text=df_chart['Rent. BRL (%)'], 
-                    texttemplate='%{text:.1f}%',
+                    texttemplate='%{text:.1%}',
                     textposition='outside',
                     customdata=np.stack((
                         df_chart['Resultado_Bolso_Abs'], 
@@ -1489,7 +1543,7 @@ def main():
                         df_chart['Lucro Realizado (BRL)']
                     ), axis=-1),
                     hovertemplate=(
-                        "<b>Bolso (Realizado + Prov):</b> %{x:.1f}%<br>"
+                        "<b>Bolso (Realizado + Prov):</b> %{x:.1%}<br>"
                         "Total Bolso: R$ %{customdata[0]:.2f}<br>"
                         "<i>(Div: %{customdata[1]:.2f} + Realiz: %{customdata[2]:.2f})</i><extra></extra>"
                     )
@@ -1498,7 +1552,7 @@ def main():
                 fig_perf.update_layout(
                     barmode='relative', 
                     height=altura_grafico,
-                    xaxis_title="Rentabilidade Total (%)",
+                    xaxis_title="Rentabilidade Total",
                     yaxis_title=None,
                     showlegend=True,
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -1534,15 +1588,15 @@ def main():
                 total_cripto = df_cripto['Valor Hoje (R$)'].sum()
                 custo_cripto = df_cripto['Custo BRL'].sum()
                 pnl_cripto = df_cripto['Lucro Aberto (R$)'].sum()
-                pnl_pct_cripto = (pnl_cripto / custo_cripto * 100) if custo_cripto > 0 else 0
+                pnl_pct_cripto = (pnl_cripto / custo_cripto) if custo_cripto > 0 else 0
                 
                 top_asset = df_cripto.loc[df_cripto['Rent. (%)'].idxmax()]
                 
                 k1, k2, k3, k4 = st.columns(4)
                 k1.metric("Patrimônio Cripto", f"R$ {total_cripto:,.2f}", help="Valor de mercado atual consolidado")
-                k2.metric("Resultado (PnL)", f"R$ {pnl_cripto:,.2f}", f"{pnl_pct_cripto:.2f}%")
+                k2.metric("Resultado (PnL)", f"R$ {pnl_cripto:,.2f}", f"{pnl_pct_cripto:.2%}")
                 k3.metric("Custo de Aquisição", f"R$ {custo_cripto:,.2f}")
-                k4.metric("🚀 Top Performer", top_asset['Ticker'], f"{top_asset['Rent. (%)']:.1f}%")
+                k4.metric("🚀 Top Performer", top_asset['Ticker'], f"{top_asset['Rent. (%)']:.1%}")
                 
                 st.divider()
 
@@ -2061,7 +2115,8 @@ def main():
                 
                 st.dataframe(
                     df_break.style.format({'Investido': '{:,.2f}', 'Valor Atual': '{:,.2f}'}), 
-                    hide_index=True, use_container_width=True
+                    hide_index=True,
+                    use_container_width=True
                 )
 
             st.markdown("---")
@@ -2269,7 +2324,12 @@ def main():
                     def st_neg(v): return 'color: #ff4b4b' if v < 0 else 'color: #4CAF50'
                     cols = ['data','ticker','lancamento','valor','moeda','valor_brl']
                     cols = [c for c in cols if c in df_filter.columns]
-                    st.dataframe(df_filter[cols].sort_values('data', ascending=False).style.format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'}).map(st_neg, subset=['valor','valor_brl']), use_container_width=True)
+                    # Filter out invalid dates (NaT) to prevent formatter crash
+                    df_display = df_filter[cols].dropna(subset=['data']).sort_values('data', ascending=False)
+                    st.dataframe(
+                        df_display.style.format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'}).map(st_neg, subset=['valor','valor_brl']),
+                        use_container_width=True
+                    )
                 else: 
                     st.warning("Sem dados para o período selecionado.")
             else: 
@@ -2293,20 +2353,9 @@ def main():
 
         @st.cache_data
         def carregar_ptax_csv():
-            caminho_arquivo = FILE_PTAX
-            
-            if not os.path.exists(caminho_arquivo): 
-                return pd.DataFrame()
-            
-            try:
-                df = pd.read_csv(caminho_arquivo, sep=',')
-                df.columns = df.columns.str.strip().str.title() 
-                df['Data'] = pd.to_datetime(df['Data'])
-                df['Taxa'] = pd.to_numeric(df['Taxa'], errors='coerce')
-                return df.dropna().sort_values('Data').set_index('Data')
-            except Exception as e:
-                st.error(f"Erro PTAX: {e}")
-                return pd.DataFrame()
+            # TODO: Implement PTAX via Sheets if needed. 
+            # For now, return empty to avoid CSV errors.
+            return pd.DataFrame()
 
         df_ptax_index = carregar_ptax_csv()
 
@@ -2366,6 +2415,8 @@ def main():
                 classe_orig = classificar_ativo(tkr, mercado)
                 is_dt = (mercado == 'BR' and (data, tkr) in dt_map)
                 classe_final = 'FII' if (is_dt and classe_orig == 'FII') else ('Day Trade' if is_dt else classe_orig)
+            
+
 
                 key = f"{mercado}_{tkr}"
                 if key not in carteira_pm: carteira_pm[key] = {'qtd': 0.0, 'custo_brl': 0.0, 'custo_usd': 0.0}
@@ -2410,7 +2461,7 @@ def main():
                         'lucro_hoje_sim': lucro_hoje_brl
                     })
 
-            df_fisc = pd.DataFrame(transacoes)
+        df_fisc = pd.DataFrame(transacoes)
 
         if not df_fisc.empty:
             anos = sorted(df_fisc['ano'].unique(), reverse=True)
@@ -2508,7 +2559,8 @@ def main():
                         st.markdown("##### 🏢 Fundos Imobiliários")
                         st.dataframe(
                             df_tf_v.style.map(lambda x: 'color: #ef5350' if x<0 else 'color: #66bb6a', subset=['Res. FII', 'Prejuízo Acum']).map(lambda x: 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold' if x>0.01 else '', subset=['DARF']),
-                            use_container_width=True, column_config={"Mês": st.column_config.TextColumn("Mês"), "Venda FII": st.column_config.NumberColumn(format="R$ %.2f"), "Res. FII": st.column_config.NumberColumn(format="R$ %.2f"), "Base Calc": st.column_config.NumberColumn(format="R$ %.2f"), "Prejuízo Acum": st.column_config.NumberColumn(format="R$ %.2f"), "DARF": st.column_config.NumberColumn(format="R$ %.2f")}
+                                    use_container_width=True
+, column_config={"Mês": st.column_config.TextColumn("Mês"), "Venda FII": st.column_config.NumberColumn(format="R$ %.2f"), "Res. FII": st.column_config.NumberColumn(format="R$ %.2f"), "Base Calc": st.column_config.NumberColumn(format="R$ %.2f"), "Prejuízo Acum": st.column_config.NumberColumn(format="R$ %.2f"), "DARF": st.column_config.NumberColumn(format="R$ %.2f")}
                         )
                         if not df_td_v.empty:
                             st.divider()
@@ -2523,7 +2575,7 @@ def main():
                             st.markdown("**Cesta Isolada:** Não mistura.\n**Alíquota:** 20%.\n**Isenção:** Nenhuma.")
                         with st.expander("⚡ Day Trade"):
                             st.markdown("**Cesta Isolada:** Compra/Venda no mesmo dia.\n**Alíquota:** 20%.")
-                        st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", use_container_width=True, type="primary")
+                        st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", type="primary")
                 else:
                     st.info("Sem operações BR.")
 
@@ -2560,7 +2612,8 @@ def main():
                         
                         st.dataframe(
                             df_ex_show,
-                            use_container_width=True,
+                                    use_container_width=True
+,
                             column_config={
                                 "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                 "Ticker": "Ativo",
@@ -2628,7 +2681,7 @@ def main():
                         Prejuízos em ativos no exterior podem abater lucros de outros ativos no exterior dentro do **mesmo ano**.
                         """)
                     
-                    st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", use_container_width=True)                                      
+                    st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", type="primary")                                      
                                         
     with tab7:
         st.subheader("🏦 Gestão de Renda Fixa & Liquidez")
@@ -2689,20 +2742,24 @@ def main():
             k3.metric("Resultado Latente", f"R$ {resultado_latente:,.2f}", help="Lucro bruto não realizado")
             k4.metric("TWR Ponderado", f"{twr_ponderado:.2f}%", help="Time-Weighted Return ponderado pelas aplicações")
 
+            # Handle NaT values in 'Data' column before display
+            df_display = df_custodia_view[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Rent. Anual (%)']].copy()
+            df_display['Data'] = df_display['Data'].apply(lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else '-')
+            
             st.dataframe(
-                df_custodia_view[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Rent. Anual (%)']]
+                df_display
                 .rename(columns={'Data': 'Data Aplicação', 'Investido': 'Principal', 'Atual': 'Valor Líquido', 'Lucro': 'Resultado R$'})
                 .style.format({
                     'Principal': 'R$ {:,.2f}', 
                     'Valor Líquido': 'R$ {:,.2f}',
                     'Resultado R$': 'R$ {:,.2f}', 
                     'Rent. %': '{:.2f}%', 
-                    'Rent. Anual (%)': '{:.2f}%', 
-                    'Data Aplicação': '{:%d/%m/%Y}'
+                    'Rent. Anual (%)': '{:.2f}%'
                 })
                 .background_gradient(subset=['Resultado R$'], cmap='Greens')
                 .background_gradient(subset=['Rent. Anual (%)'], cmap='Blues'),
-                use_container_width=True
+                        use_container_width=True
+
             )                   
 
                 
@@ -2720,18 +2777,22 @@ def main():
             c_h1.metric("Resultado Realizado", f"R$ {lucro_bolso:,.2f}", delta="Lucro no Bolso", delta_color="normal")
             c_h2.metric("Volume Resgatado Total", f"R$ {volume_movimentado:,.2f}", help="Soma total dos valores líquidos recebidos")
             
+            # Handle NaT values in 'Data' column before display
+            df_realizado_display = df_realizado[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %']].copy()
+            df_realizado_display['Data'] = df_realizado_display['Data'].apply(lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else '-')
+            
             st.dataframe(
-                df_realizado[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %']]
+                df_realizado_display
                 .rename(columns={'Data': 'Data Baixa', 'Investido': 'Aplicação Original', 'Atual': 'Valor Resgate', 'Lucro': 'Resultado Final'})
                 .style.format({
                     'Aplicação Original': 'R$ {:,.2f}', 
                     'Valor Resgate': 'R$ {:,.2f}',
                     'Resultado Final': 'R$ {:,.2f}', 
-                    'Rent. %': '{:.2f}%', 
-                    'Data Baixa': '{:%d/%m/%Y}'
+                    'Rent. %': '{:.2f}%'
                 })
-                .map(lambda x: 'color: #D32F2F; font-weight: bold' if x < 0 else 'color: #388E3C; font-weight: bold', subset=['Resultado Final']),
-                use_container_width=True
+                .map(lambda x: 'color: #D32F2F; font-weight: bold' if isinstance(x, (int, float)) and x < 0 else 'color: #388E3C; font-weight: bold', subset=['Resultado Final']),
+                        use_container_width=True
+
             )
         elif opcao_ativo == "Não" and df_realizado.empty:
             st.info("Nenhum histórico de operações finalizadas encontrado.")

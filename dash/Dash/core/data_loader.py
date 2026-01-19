@@ -1,240 +1,174 @@
 import pandas as pd
 import streamlit as st
-import os
 from datetime import datetime
-from typing import Optional, Dict
-from config import FILE_ASSETS, FILE_PROVENTOS, FILE_RENDA_FIXA, FILE_CAMBIO, FILE_COMPOSICAO
+from core.data_provider import DataProvider
+from core.utils import parse_decimal_br, parse_date_br, normalize_dataframe_columns
+from core.logic import normalize_ticker
 
-def normalize_ticker(ticker: str) -> str:
-    """
-    Standardizes ticker names to institutional format.
-    - Adds .SA to Brazilian stocks ending in 3, 4, 5, 6, 11 (if missing).
-    - Upper cases and strips whitespace.
-    """
-    t = str(ticker).upper().strip()
-    
-    # Common suffix correction
-    if not t.endswith('.SA'):
-        # Check if it looks like a BR ticker (4 chars + digit) or (4 chars + 11)
-        # simplistic heuristic for now, can be improved with regex
-        has_digit_suffix = (len(t) > 4 and t[-1].isdigit())
-        if has_digit_suffix:
-             if t.endswith(('3', '4', '5', '6', '11')):
-                 return f"{t}.SA"
-    
-    return t
+# ------------------------------------------------------------------------------
+# MAPPINGS
+# ------------------------------------------------------------------------------
+
+COLUMN_MAP_ASSETS = {
+    'símbolo': 'ticker', 'simbolo': 'ticker',
+    'tipo de transação': 'tipo', 'tipo_de_transacao': 'tipo', 'tipo_de_transacão': 'tipo', 'tipo_de_transação': 'tipo',
+    'preço': 'preco', 'preco': 'preco',
+    'data': 'data', 
+    'taxa de corretagem': 'taxas', 'taxa_de_corretagem': 'taxas',
+    'valor líquido': 'total', 'valor_liquido': 'total', 'valor_líquido': 'total'
+}
+
+COLUMN_MAP_PROVENTOS = {
+    'ticker': 'ticker', 'símbolo': 'ticker', 'simbolo': 'ticker',
+    'data': 'data', 'pagamento': 'data',
+    'valor': 'valor', 'valor líquido': 'valor', 'valor_liquido': 'valor',
+    'tipo': 'lancamento', 'lançamento': 'lancamento', 'lancamento': 'lancamento', 'evento': 'lancamento',
+    'categoria': 'categoria'
+}
+
+# ------------------------------------------------------------------------------
+# LOADERS
+# ------------------------------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
 def load_assets() -> pd.DataFrame:
-    """Loads and cleans the Assets (Equity/Stocks) CSV."""
-    if not os.path.exists(FILE_ASSETS):
-        return pd.DataFrame()
-
     try:
-        df = pd.read_csv(FILE_ASSETS, sep=';', encoding='utf-8')
-        # Standardize Columns
-        df.columns = df.columns.str.strip().str.lower()
-        rename_map = {
-            'símbolo': 'ticker', 'tipo de transação': 'tipo', 
-            'preço': 'preco', 'data': 'data', 
-            'taxa de corretagem': 'taxas', 'valor líquido': 'total'
-        }
-        df.rename(columns=rename_map, inplace=True)
+        df = DataProvider.get_assets()
+        if df.empty: return pd.DataFrame()
         
-        # Enforce Types
+        # 1. Normalize Columns
+        df = normalize_dataframe_columns(df, COLUMN_MAP_ASSETS)
+        
+        # FAILSAFE: Deduplicate locally if utils failed or cache is stale
+        if df.columns.duplicated().any():
+            # st.warning(f"Duplicates detected in assets: {df.columns[df.columns.duplicated()].tolist()}")
+            df = df.loc[:, ~df.columns.duplicated()]
+            
+        # FAILSAFE: Ensure 'data' is a Series
+        if 'data' in df.columns and isinstance(df['data'], pd.DataFrame):
+            # If it's still a DataFrame, force select first column
+            df['data'] = df['data'].iloc[:, 0]
+        
+        # 2. Logic Normalization
+        if 'ticker' in df.columns:
+            df['ticker'] = df['ticker'].apply(normalize_ticker)
+            
+        if 'tipo' in df.columns:
+            def normalize_type(t):
+                t_str = str(t).lower().strip()
+                if any(x in t_str for x in ['compra', 'buy', 'aporte', 'entrada', 'bonif', 'subscri']):
+                    return 'Compra'
+                elif any(x in t_str for x in ['venda', 'sell', 'resgate', 'saida', 'saída']):
+                    return 'Venda'
+                return t 
+            df['tipo'] = df['tipo'].apply(normalize_type)
+        
+        # 3. Type Parsing (Robust)
         if 'data' in df.columns:
-            df['data'] = pd.to_datetime(df['data'], format='%d/%m/%Y', errors='coerce')
+             df['data'] = parse_date_br(df['data'])
+
+        for c in ['quantidade', 'preco', 'taxas', 'total']:
+            if c in df.columns:
+                 df[c] = df[c].apply(parse_decimal_br)
         
-        df['ticker'] = df['ticker'].apply(normalize_ticker)
-        
-        num_cols = ['quantidade', 'preco', 'taxas', 'total']
-        for c in num_cols:
-            if c in df.columns and df[c].dtype == 'object':
-                 df[c] = df[c].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
-        
-        return df.sort_values('data')
+        return df.sort_values('data') if 'data' in df.columns else df
     except Exception as e:
         st.error(f"Error loading assets: {e}")
         return pd.DataFrame()
 
 @st.cache_data(show_spinner=False)
 def load_proventos() -> pd.DataFrame:
-    """Loads and standardizes Dividends CSV."""
-    if not os.path.exists(FILE_PROVENTOS):
-        return pd.DataFrame()
-        
     try:
-        df = pd.read_csv(FILE_PROVENTOS, sep=';', encoding='utf-8')
-        if len(df.columns) < 2: 
-            df = pd.read_csv(FILE_PROVENTOS, sep=',') # Failover
-            
-        df.columns = df.columns.str.strip().str.lower()
+        df = DataProvider.get_proventos()
+        if df.empty: return pd.DataFrame()
         
-        # Normalize Tickers immediately to match Assets
+        df = normalize_dataframe_columns(df, COLUMN_MAP_PROVENTOS)
+              
         if 'ticker' in df.columns:
             df['ticker'] = df['ticker'].apply(normalize_ticker)
             
         if 'data' in df.columns:
-            df['data'] = pd.to_datetime(df['data'], dayfirst=True, errors='coerce')
+            df['data'] = parse_date_br(df['data'])
             
-        if 'valor' in df.columns and df['valor'].dtype == 'object':
-             df['valor'] = df['valor'].astype(str).str.replace(',', '.', regex=False)
-             df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0.0)
+        if 'valor' in df.columns:
+             df['valor'] = df['valor'].apply(parse_decimal_br)
              
-        return df.sort_values('data')
+        return df.sort_values('data') if 'data' in df.columns else df
     except Exception as e:
         st.error(f"Error loading proventos: {e}")
         return pd.DataFrame()
 
 @st.cache_data(show_spinner=False)
 def load_fixed_income() -> pd.DataFrame:
-    """Loads Fixed Income data."""
-    if not os.path.exists(FILE_RENDA_FIXA):
-        return pd.DataFrame()
-    
     try:
-        # Try different encodings
-        try:
-            df = pd.read_csv(FILE_RENDA_FIXA, sep=';', encoding='latin1')
-        except:
-            df = pd.read_csv(FILE_RENDA_FIXA, sep=';', encoding='utf-8')
-            
-
+        df = DataProvider.get_fixed_income()
+        if df.empty: return pd.DataFrame()
+        
+        # Normalize headers broadly first
         df.columns = df.columns.str.strip().str.lower()
 
+        # Dynamic mapping based on keywords
         mapa_colunas = {}
+        for c in df.columns:
+            if 'data' in c or 'compra' in c: mapa_colunas[c] = 'Data'
+            if 'ticker' in c or 'ativo' in c or 'papel' in c: mapa_colunas[c] = 'Ticker'
+            if 'tipo' in c or 'moviment' in c: mapa_colunas[c] = 'Tipo'
+            if ('valor' in c and 'atual' not in c and 'investido' in c) or c == 'valor': mapa_colunas[c] = 'Valor'
+            if 'atual' in c or 'bruto' in c or 'saldo' in c: mapa_colunas[c] = 'Valor Atual'
+            if 'moeda' in c: mapa_colunas[c] = 'Moeda'
         
-        col_data = next((c for c in df.columns if 'data' in c or 'compra' in c or 'date' in c), None)
-        if col_data: mapa_colunas[col_data] = 'Data'
-        
-        col_ticker = next((c for c in df.columns if 'ticker' in c or 'ativo' in c or 'papel' in c or 'produto' in c), None)
-        if col_ticker: mapa_colunas[col_ticker] = 'Ticker'
-        
-        col_tipo = next((c for c in df.columns if 'tipo' in c or 'moviment' in c or 'operacao' in c), None)
-        if col_tipo: mapa_colunas[col_tipo] = 'Tipo'
-        
-        col_valor = next((c for c in df.columns if ('valor' in c and 'atual' not in c) or 'investido' in c or 'aplicado' in c), None)
-        if col_valor: mapa_colunas[col_valor] = 'Valor'
-
-        col_atual = next((c for c in df.columns if 'atual' in c or 'bruto' in c or 'saldo' in c), None)
-        if col_atual: mapa_colunas[col_atual] = 'Valor Atual'
-
-        col_moeda = next((c for c in df.columns if c in ['moeda', 'moedas', 'currency']), None)
-        if col_moeda: mapa_colunas[col_moeda] = 'Moeda'
-
         df.rename(columns=mapa_colunas, inplace=True)
 
+        # Defaults
         if 'Data' not in df.columns: df['Data'] = datetime.now()
         if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
         if 'Tipo' not in df.columns: df['Tipo'] = 'Compra'
+        if 'Moeda' not in df.columns: df['Moeda'] = 'BRL'
         
-        if 'Moeda' not in df.columns: 
-            df['Moeda'] = 'BRL'
-        
-        df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+        df['Data'] = parse_date_br(df['Data'])
         df['Tipo'] = df['Tipo'].astype(str).str.strip().str.title()
         df['Ticker'] = df['Ticker'].astype(str).str.strip()
-        
         df['Moeda'] = df['Moeda'].fillna('BRL').astype(str).str.upper().str.strip()
         df['Moeda'] = df['Moeda'].replace({'NAN': 'BRL', 'NONE': 'BRL', '': 'BRL'})
 
         for col in ['Valor', 'Valor Atual']:
             if col in df.columns:
-                if df[col].dtype == 'object':
-                    df[col] = df[col].astype(str).str.replace('R$', '', regex=False).str.strip()
-                    df[col] = df[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                df[col] = df[col].apply(parse_decimal_br)
             else:
                 df[col] = 0.0
 
         return df.sort_values(by='Data')
-
     except Exception as e:
+        st.error(f"Error loading RF: {e}")
         return pd.DataFrame()
-
-def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Processes raw Fixed Income transactions into a summary DataFrame (Active/Closed Positions).
-    """
-    if df_rf_raw.empty:
-        return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
-
-    lista_rf_proc = []
-    # Group by Ticker
-    for ativo, dados in df_rf_raw.groupby('Ticker'):
-        dados = dados.sort_values('Data')
-        dados_validos = dados[dados['Tipo'] != 'Imposto']
-        
-        if not dados_validos.empty:
-            ult = dados_validos.iloc[-1]
-            status = 'Ativo' if ult['Tipo'] == 'Compra' else 'Encerrado'
-            
-            inv = dados[dados['Tipo']=='Compra']['Valor'].sum()
-            
-            # Logic: If Active, use Current Value. If Closed, use Exit Values.
-            if status == 'Ativo':
-                atl = dados[dados['Tipo']=='Compra']['Valor Atual'].sum()
-                luc = atl - inv
-                data_ref = dados_validos.iloc[0]['Data'] # Start Date
-            else:
-                saidas = dados[dados['Tipo'].isin(['Venda','Resgate','Vencimento'])]['Valor'].sum()
-                atl = saidas
-                luc = saidas - inv
-                data_ref = dados_validos.iloc[-1]['Data'] # End Date
-            
-            rent_pct = (luc / inv * 100) if inv > 0 else 0.0
-            
-            lista_rf_proc.append({
-                'Ticker': ativo, 
-                'Ativo': ativo, 
-                'Status': status,
-                'Data': data_ref,
-                'Investido': inv, 
-                'Atual': atl, 
-                'Lucro': luc, 
-                'Rent. %': rent_pct,
-                'Moeda': dados_validos.iloc[0]['Moeda']
-            })
-            
-    if lista_rf_proc:
-        return pd.DataFrame(lista_rf_proc)
-    else:
-        return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
-
 
 @st.cache_data(show_spinner=False)
 def load_cambio() -> pd.DataFrame:
-    """Loads and standardizes Currency Exchange (Forex) CSV."""
-    if not os.path.exists(FILE_CAMBIO):
-        return pd.DataFrame()
-        
     try:
-        df = pd.read_csv(FILE_CAMBIO, sep=';', encoding='utf-8')
+        df = DataProvider.get_cambio()
+        if df.empty: return pd.DataFrame()
+        
         df.columns = df.columns.str.strip().str.lower()
         
-        # Robust Column Mapping (Fuzzy Logic to handle Encoding/Accents)
         col_map = {}
         for c in df.columns:
             if 'data' in c: col_map[c] = 'data'
             elif 'moeda' in c and 'origem' in c: col_map[c] = 'moeda_origem'
             elif 'moeda' in c and 'destino' in c: col_map[c] = 'moeda_destino'
             elif 'valor' in c and 'entrada' in c: col_map[c] = 'valor_origem'
-            elif 'valor' in c and ('saida' in c or 'saída' in c or 'sa' in c): col_map[c] = 'valor_destino' # Fuzzy match for Saída
+            elif 'valor' in c and ('saida' in c or 'saída' in c or 'sa' in c): col_map[c] = 'valor_destino' 
             elif 'vet' in c or 'taxa' in c: col_map[c] = 'taxa'
-            
+            elif 'corretora' in c or 'institui' in c: col_map[c] = 'corretora destino'
         df.rename(columns=col_map, inplace=True)
         
         if 'data' in df.columns:
-            df['data'] = pd.to_datetime(df['data'], dayfirst=True, errors='coerce')
+            df['data'] = parse_date_br(df['data'])
             
-        num_cols = ['valor_origem', 'valor_destino', 'taxa']
-        for c in num_cols:
-            if c in df.columns and df[c].dtype == 'object':
-                 df[c] = df[c].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+        for c in ['valor_origem', 'valor_destino', 'taxa']:
+            if c in df.columns:
+                 df[c] = df[c].apply(parse_decimal_br)
                  
-        return df.sort_values('data')
+        return df.sort_values('data') if 'data' in df.columns else df
     except Exception as e:
         st.error(f"Error loading cambio: {e}")
         return pd.DataFrame()
