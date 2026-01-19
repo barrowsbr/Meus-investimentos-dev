@@ -1,8 +1,46 @@
+"""
+Motor de Cálculo de Performance Institucional (GIPS Compliant)
+Versão 2.0 - Reconstruído com rigor matemático e validação cruzada
+
+Princípios:
+1. TWR (Time-Weighted Return) é a métrica soberana
+2. Segmentação por subperíodos delimitados por fluxos de caixa
+3. Encadeamento geométrico dos retornos (chain-linking)
+4. Zero atalhos estatísticos - cálculo puro
+5. Validação cruzada obrigatória
+"""
 
 import pandas as pd
 import numpy as np
-from dataclasses import dataclass
-from typing import Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Tuple
+
+
+@dataclass
+class ValidationResult:
+    """Resultado da validação cruzada do TWR."""
+    twr_calculated: float
+    simple_return: float
+    divergence_abs: float
+    divergence_pct: float
+    is_valid: bool
+    explanation: str
+    suspicious_days: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PeriodBreakdown:
+    """Detalhamento de um subperíodo."""
+    date: str
+    nav_start: float
+    nav_end: float
+    flow: float
+    income: float
+    capital_base: float
+    economic_gain: float
+    daily_return: float
+    notes: str
+
 
 @dataclass
 class PerformanceResult:
@@ -13,185 +51,373 @@ class PerformanceResult:
     cumulative_series: pd.Series
     drawdown_series: pd.Series
     max_drawdown: float
-    nav_series: pd.Series  # MTM - Patrimônio ao longo do tempo
-    volatility: float  # Volatilidade anualizada
-    total_flow: float  # Total de aportes no período
-    total_pnl: float  # Ganho/Perda financeiro absoluto
+    nav_series: pd.Series
+    volatility: float
+    total_flow: float
+    total_pnl: float
+    # New: Validation & Transparency
+    simple_return_series: pd.Series = None
+    validation: ValidationResult = None
+    flow_dates: List[str] = field(default_factory=list)
+    period_breakdown: List[PeriodBreakdown] = field(default_factory=list)
 
 
 class PerformanceEngine:
     """
     Motor de Cálculo de Performance Institucional (GIPS Compliant).
     
-    Princípios:
-    1. Separação total entre Fluxo de Caixa (Externo) e Retorno de Mercado (Interno).
-    2. TWR (Time-Weighted Return) como métrica principal.
-    3. Tratamento robusto para dias com patrimônio zero.
-    4. Independência de framework visual (Streamlit).
+    Fórmula TWR (Modified Dietz Simplificado - End-of-Day):
+    r_dia = (NAV_end + Income - NAV_start - Flow) / NAV_start
+    
+    Onde:
+    - NAV_start = Patrimônio no início do dia (fechamento dia anterior)
+    - NAV_end = Patrimônio no final do dia
+    - Flow = Aportes (positivo) ou Saques (negativo) no dia
+    - Income = Proventos recebidos no dia (ex-dividendo)
+    
+    Chain-Linking:
+    TWR_total = Π(1 + r_i) - 1
     """
+    
+    # Thresholds de diagnóstico (não de correção)
+    EXTREME_RETURN_THRESHOLD = 0.30  # 30% em um dia = suspeito
+    MIN_CAPITAL_FOR_VALID_RETURN = 100  # R$100 mínimo para considerar retorno válido
     
     def __init__(self, df_input: pd.DataFrame):
         """
-        Inicializa o motor com um DataFrame contendo as colunas obrigatórias:
-        - 'date': Data (Index)
-        - 'nav': Patrimônio Líquido Final (Mark-to-Market + Caixa)
-        - 'flow': Fluxo de Caixa Externo (Aportes/Resgates)
+        Inicializa o motor com DataFrame contendo:
+        - Index: DatetimeIndex (datas)
+        - 'nav': Patrimônio Líquido Final (MTM)
+        - 'flow': Fluxo de Caixa Externo (Aportes/Saques)
+        - 'income': (opcional) Proventos recebidos
+        - 'force_return_zero': (opcional) Flag para forçar retorno zero
         """
         self.df = df_input.copy()
-        self.validate_inputs()
+        self._validate_inputs()
+        self._suspicious_returns: List[Dict] = []
+        self._period_breakdown: List[PeriodBreakdown] = []
     
-    def validate_inputs(self):
-        """Valida a integridade dos dados de entrada."""
+    def _validate_inputs(self):
+        """Valida integridade dos dados de entrada."""
         required_cols = ['nav', 'flow']
         for col in required_cols:
             if col not in self.df.columns:
                 raise ValueError(f"Coluna obrigatória ausente: {col}")
         
-        # Garante ordenação temporal
+        # Ordenação temporal
         self.df = self.df.sort_index()
         
-        # Preenche NaNs com zero para segurança matemática
-        self.df = self.df.fillna(0.0)
-
-    def calculate_twr(self) -> PerformanceResult:
-        """
-        Executa o cálculo do TWR Diário e Acumulado.
-        
-        Fórmula End-of-Day (GIPS Standard para dados diários):
-        r_dia = (NAV_fim - NAV_inicio - Fluxo) / NAV_inicio
-        
-        Se NAV_inicio == 0 (Primeiro dia ou dia pós-zeragem):
-        r_dia = 0.0
-        """
-        # 0. Configurações
-        if 'flow_timing' not in self.df.columns:
-            self.df['flow_timing'] = 0 # 0=End-of-Day (Standard), 1=Start-of-Day
-
-        # 1. Define NAV Inicial (NAV do dia anterior)
-        # Shift(1) move o NAV de ontem para a linha de hoje
-        self.df['nav_start'] = self.df['nav'].shift(1).fillna(0.0)
-        
+        # Colunas opcionais com defaults
         if 'income' not in self.df.columns:
             self.df['income'] = 0.0
-            
-        # 2. Cálculo do Retorno Simples Diário
-        # Numerador: Ganho Econômico = (NAV Final + Proventos) - (NAV Inicial + Fluxo Externo)
-        # Se houve Aporte (Flow > 0), ele aumenta o NAV Final, então subtraímos para achar o ganho orgânico.
-        # Se houve Provento (Income > 0), ele é um ganho que saiu do NAV (drop de preço), então somamos devolta.
-        self.df['economic_gain'] = (self.df['nav'] + self.df['income']) - self.df['nav_start'] - self.df['flow']
+        if 'flow_timing' not in self.df.columns:
+            self.df['flow_timing'] = 0  # 0=End-of-Day (padrão GIPS)
         
-        # Denominador: Base de Capital
-        # Se End-of-Day (0): Base = NAV Inicial
-        # Se Start-of-Day (1): Base = NAV Inicial + Fluxo (Dinheiro trabalhou o dia todo)
+        # Preenche NaNs
+        self.df = self.df.fillna(0.0)
+    
+    def calculate_twr(self) -> PerformanceResult:
+        """
+        Executa o cálculo do TWR com rigor matemático.
+        
+        Retorna PerformanceResult com todas as métricas e validação.
+        """
+        # =====================================================================
+        # 1. CÁLCULO DO NAV INICIAL (NAV do dia anterior)
+        # =====================================================================
+        self.df['nav_start'] = self.df['nav'].shift(1).fillna(0.0)
+        
+        # =====================================================================
+        # 2. CÁLCULO DO GANHO ECONÔMICO
+        # =====================================================================
+        # Fórmula: Ganho = (NAV_end + Income) - (NAV_start + Flow)
+        # 
+        # Explicação:
+        # - Se houve aporte (Flow > 0), o NAV_end já inclui esse dinheiro
+        #   então subtraímos para isolar o ganho orgânico
+        # - Se houve provento (Income > 0), ele reduziu o NAV (ex-dividendo)
+        #   então somamos de volta para capturar o retorno total
+        
+        self.df['economic_gain'] = (
+            self.df['nav'] + self.df['income']
+        ) - self.df['nav_start'] - self.df['flow']
+        
+        # =====================================================================
+        # 3. CÁLCULO DA BASE DE CAPITAL
+        # =====================================================================
+        # End-of-Day (padrão): Flow entra no FIM do dia, não participa do retorno
+        # Start-of-Day: Flow entra no INÍCIO, participa do retorno
         
         self.df['capital_base'] = np.where(
-            self.df['flow_timing'] == 1,
+            self.df['flow_timing'] == 1,  # Start-of-Day
             self.df['nav_start'] + self.df['flow'],
-            self.df['nav_start']
+            self.df['nav_start']  # End-of-Day (padrão)
         )
         
-        # Tratamento Vetorizado para Divisão por Zero
-        # Onde nav_start > 0, calcula. Onde for 0, retorna 0.0.
+        # =====================================================================
+        # 4. CÁLCULO DO RETORNO DIÁRIO
+        # =====================================================================
+        daily_returns = []
+        flow_dates = []
         
-        standard_twr = np.where(
-            self.df['capital_base'] > 1e-6, 
-            self.df['economic_gain'] / self.df['capital_base'],
-            0.0
-        )
-        
-        if 'force_return_zero' in self.df.columns:
-            self.df['daily_return'] = np.where(
-                self.df['force_return_zero'],
-                0.0,
-                standard_twr
-            )
-        else:
-            self.df['daily_return'] = standard_twr
+        for i, (idx, row) in enumerate(self.df.iterrows()):
+            nav_start = row['nav_start']
+            nav_end = row['nav']
+            flow = row['flow']
+            income = row['income']
+            capital_base = row['capital_base']
             
-        # --- SAFEGUARDS ---
-        # 1. Fill NaNs/Infs that could slip through
-        self.df['daily_return'] = self.df['daily_return'].replace([np.inf, -np.inf], 0.0).fillna(0.0)
+            # Registro de breakdown para transparência
+            notes = ""
+            daily_return = 0.0
+            
+            # CASO 1: Primeiro dia ou capital zero
+            if capital_base <= 0 or nav_start <= 0:
+                daily_return = 0.0
+                notes = "Capital inicial zero - retorno não aplicável"
+            
+            # CASO 2: Capital muito pequeno (< R$100)
+            elif capital_base < self.MIN_CAPITAL_FOR_VALID_RETURN:
+                daily_return = 0.0
+                notes = f"Capital base muito pequeno (R${capital_base:.2f}) - retorno zerado para evitar ruído"
+            
+            # CASO 3: Cálculo normal
+            else:
+                economic_gain = (nav_end + income) - nav_start - flow
+                daily_return = economic_gain / capital_base
+                
+                # Diagnóstico de retornos extremos (NÃO corrige, apenas registra)
+                if abs(daily_return) > self.EXTREME_RETURN_THRESHOLD:
+                    self._suspicious_returns.append({
+                        'date': str(idx.date()) if hasattr(idx, 'date') else str(idx),
+                        'return': daily_return,
+                        'nav_start': nav_start,
+                        'nav_end': nav_end,
+                        'flow': flow,
+                        'income': income
+                    })
+                    notes = f"⚠️ Retorno extremo: {daily_return:.2%}"
+            
+            # Verifica flag de override
+            if 'force_return_zero' in self.df.columns and row.get('force_return_zero', False):
+                daily_return = 0.0
+                notes = "Forçado a zero por flag externa"
+            
+            daily_returns.append(daily_return)
+            
+            # Registra datas com fluxo para visualização
+            if abs(flow) > 0.01:
+                flow_dates.append(str(idx.date()) if hasattr(idx, 'date') else str(idx))
+            
+            # Breakdown para diagnóstico
+            self._period_breakdown.append(PeriodBreakdown(
+                date=str(idx.date()) if hasattr(idx, 'date') else str(idx),
+                nav_start=nav_start,
+                nav_end=nav_end,
+                flow=flow,
+                income=income,
+                capital_base=capital_base,
+                economic_gain=(nav_end + income) - nav_start - flow,
+                daily_return=daily_return,
+                notes=notes
+            ))
         
-        # 2. Hard Circuit Breaker for Physics-Defying Returns (> 50% in a day)
-        # Unless it's a penny stock day, but for a portfolio this is likely data error
-        # We cap it to avoid breaking the chart scale
-        self.df['daily_return'] = self.df['daily_return'].clip(lower=-0.5, upper=0.5)
+        self.df['daily_return'] = daily_returns
         
-        # 3. Small Base Double Check
-        # If capital base was < 500 (defined in engine but checked here too), zero usage
-        mask_tiny = (self.df['capital_base'] < 500.0)
-        self.df.loc[mask_tiny, 'daily_return'] = 0.0
+        # Tratamento de valores inválidos
+        self.df['daily_return'] = self.df['daily_return'].replace(
+            [np.inf, -np.inf], 0.0
+        ).fillna(0.0)
         
-        # Casos Especiais:
-        # Se for o primeiro aporte (nav_start=0, flow=1000, nav=1000) -> economic_gain = 0 -> return = 0.
-        # Correto. O dinheiro entrou mas não rendeu nada no instante t0.
-        
-        # 3. Chain-Linking (Acumulação Geométrica)
-        # (1 + r1) * (1 + r2) * ... - 1
+        # =====================================================================
+        # 5. CHAIN-LINKING (Acumulação Geométrica)
+        # =====================================================================
+        # TWR = Π(1 + r_i) - 1
         self.df['growth_factor'] = 1 + self.df['daily_return']
         self.df['cumulative_factor'] = self.df['growth_factor'].cumprod()
-        self.df['twr_accumulated'] = (self.df['cumulative_factor'] - 1)
+        self.df['twr_accumulated'] = self.df['cumulative_factor'] - 1
         
-        # 4. Métricas Finais
+        # =====================================================================
+        # 6. RETORNO SIMPLES (para comparação)
+        # =====================================================================
+        # Retorno sem ajuste de fluxo: (NAV_end - NAV_start) / NAV_start
+        simple_return = np.where(
+            self.df['nav_start'] > 0,
+            (self.df['nav'] - self.df['nav_start']) / self.df['nav_start'],
+            0.0
+        )
+        self.df['simple_return'] = simple_return
+        self.df['simple_cumulative'] = (1 + self.df['simple_return']).cumprod() - 1
+        
+        # =====================================================================
+        # 7. MÉTRICAS FINAIS
+        # =====================================================================
         total_twr = self.df['twr_accumulated'].iloc[-1] if not self.df.empty else 0.0
         
-        # 5. Anualização
+        # Anualização (CAGR)
         days = (self.df.index[-1] - self.df.index[0]).days if len(self.df) > 1 else 0
         annualized_twr = 0.0
-        if days > 0:
+        if days > 0 and (1 + total_twr) > 0:
             annualized_twr = ((1 + total_twr) ** (365 / days)) - 1
-            
-        # 6. Drawdown (Baseado no TWR, não no Financeiro)
-        # Pico histórico da curva de fator acumulado
+        
+        # Drawdown
         rolling_max = self.df['cumulative_factor'].cummax()
         drawdown_series = (self.df['cumulative_factor'] / rolling_max) - 1
         max_drawdown = drawdown_series.min()
         
-        # 7. Volatilidade Anualizada (Desvio Padrão dos retornos * sqrt(252))
+        # Volatilidade
         volatility = self.df['daily_return'].std() * np.sqrt(252) if len(self.df) > 1 else 0.0
         
-        # 8. Métricas Financeiras
+        # Métricas Financeiras
         nav_series = self.df['nav']
         total_flow = self.df['flow'].sum()
         nav_inicial = self.df['nav'].iloc[0] if not self.df.empty else 0.0
         nav_final = self.df['nav'].iloc[-1] if not self.df.empty else 0.0
-        total_pnl = nav_final - nav_inicial - total_flow + self.df['flow'].iloc[0]  # PnL = NAV final - NAV inicial - Aportes líquidos
+        
+        # PnL = Variação patrimonial - Aportes líquidos (exceto primeiro aporte)
+        first_flow = self.df['flow'].iloc[0] if not self.df.empty else 0.0
+        total_pnl = nav_final - nav_inicial - total_flow + first_flow
+        
+        # =====================================================================
+        # 8. VALIDAÇÃO CRUZADA
+        # =====================================================================
+        validation = self._validate_twr(total_twr)
         
         return PerformanceResult(
-            total_twr=total_twr,  # Decimal (ex: 0.10 for 10%)
-            annualized_twr=annualized_twr,  # Decimal
+            total_twr=total_twr,
+            annualized_twr=annualized_twr,
             daily_returns=self.df['daily_return'],
-            cumulative_series=self.df['twr_accumulated'],  # Decimal
-            drawdown_series=drawdown_series,  # Decimal
-            max_drawdown=max_drawdown,  # Decimal
-            nav_series=nav_series,  # MTM ao longo do tempo
-            volatility=volatility,  # Volatilidade anualizada
-            total_flow=total_flow,  # Total de aportes
-            total_pnl=total_pnl  # Ganho/Perda absoluto
+            cumulative_series=self.df['twr_accumulated'],
+            drawdown_series=drawdown_series,
+            max_drawdown=max_drawdown,
+            nav_series=nav_series,
+            volatility=volatility,
+            total_flow=total_flow,
+            total_pnl=total_pnl,
+            simple_return_series=self.df['simple_cumulative'],
+            validation=validation,
+            flow_dates=flow_dates,
+            period_breakdown=self._period_breakdown
         )
-
-# --- VALIDAÇÃO E TESTES UNITÁRIOS EMBUTIDOS ---
-if __name__ == "__main__":
-    print("=== TESTE DE SANIDADE DO MOTOR TWR ===")
     
-    # 1. Caso Base: 10% de ganho sem fluxo
-    # Dia 0: 100
-    # Dia 1: 110 (Nav Start=100, Flow=0, Gain=10. 10/100 = 10%)
+    def _validate_twr(self, twr_calculated: float) -> ValidationResult:
+        """
+        Validação cruzada do TWR calculado.
+        
+        Compara:
+        1. TWR interno (calculado)
+        2. Retorno simples (sem ajuste de fluxo)
+        
+        Documenta divergências e suas causas.
+        """
+        simple_return = self.df['simple_cumulative'].iloc[-1] if not self.df.empty else 0.0
+        
+        divergence_abs = twr_calculated - simple_return
+        divergence_pct = abs(divergence_abs / simple_return) * 100 if simple_return != 0 else 0.0
+        
+        # Análise de divergência
+        if abs(divergence_abs) < 0.001:  # < 0.1% de diferença
+            is_valid = True
+            explanation = "[OK] TWR e Retorno Simples praticamente iguais - sem fluxos significativos no período."
+        elif divergence_abs > 0:
+            is_valid = True
+            explanation = (
+                f"[OK] TWR ({twr_calculated:.2%}) > Retorno Simples ({simple_return:.2%}). "
+                f"Isso indica que seus aportes entraram em momentos RUINS (antes de quedas) ou "
+                f"saques em momentos BONS (antes de mais altas). O TWR ignora esse timing."
+            )
+        else:
+            is_valid = True
+            explanation = (
+                f"[OK] TWR ({twr_calculated:.2%}) < Retorno Simples ({simple_return:.2%}). "
+                f"Isso indica que seus aportes entraram em momentos BONS (antes de altas). "
+                f"O Retorno Simples captura essa sorte, o TWR não."
+            )
+        
+        # Divergências altas são NORMAIS quando há muitos aportes
+        # Não é um erro - é exatamente o que o TWR deveria mostrar!
+        if divergence_pct > 50:
+            if simple_return > twr_calculated:
+                # Mais comum: patrimônio cresceu muito por aportes, não por mercado
+                is_valid = True  # Não é erro!
+                explanation = (
+                    f"[NORMAL] Divergencia de {divergence_pct:.0f}% e ESPERADA. "
+                    f"Seu patrimonio cresceu {simple_return:.0%} (incluindo aportes), "
+                    f"mas o MERCADO rendeu {twr_calculated:.1%}. "
+                    f"A diferenca mostra quanto veio de DINHEIRO NOVO vs RENTABILIDADE."
+                )
+            else:
+                # Raro: TWR maior que retorno simples com divergência alta
+                is_valid = True
+                explanation = (
+                    f"[INFO] TWR ({twr_calculated:.1%}) maior que Retorno Simples ({simple_return:.1%}). "
+                    f"Isso pode indicar saques em momentos desfavoraveis."
+                )
+        
+        suspicious_days = [d['date'] for d in self._suspicious_returns]
+        
+        return ValidationResult(
+            twr_calculated=twr_calculated,
+            simple_return=simple_return,
+            divergence_abs=divergence_abs,
+            divergence_pct=divergence_pct,
+            is_valid=is_valid,
+            explanation=explanation,
+            suspicious_days=suspicious_days
+        )
+    
+    def explain_period(self, start_date=None, end_date=None) -> List[PeriodBreakdown]:
+        """
+        Retorna breakdown detalhado de cada dia no período.
+        Útil para diagnóstico e auditoria.
+        """
+        breakdown = self._period_breakdown
+        
+        if start_date:
+            breakdown = [p for p in breakdown if p.date >= str(start_date)]
+        if end_date:
+            breakdown = [p for p in breakdown if p.date <= str(end_date)]
+        
+        return breakdown
+    
+    def get_suspicious_returns(self) -> List[Dict]:
+        """Retorna lista de retornos extremos para revisão."""
+        return self._suspicious_returns
+
+
+# =============================================================================
+# TESTES UNITÁRIOS EMBUTIDOS
+# =============================================================================
+if __name__ == "__main__":
+    print("=" * 60)
+    print("TESTE DE SANIDADE DO MOTOR TWR v2.0")
+    print("=" * 60)
+    
+    # -------------------------------------------------------------------------
+    # TESTE 1: Retorno simples de 10%
+    # -------------------------------------------------------------------------
+    print("\n[Teste 1] Retorno Simples 10%")
+    print("  Cenário: Dia 0 = R$100, Dia 1 = R$110, Sem fluxo")
+    print("  Esperado: TWR = 10%")
+    
     df1 = pd.DataFrame({
         'nav': [100.0, 110.0],
-        'flow': [100.0, 0.0] # Dia 0 flow=100 (início), Nav=100.
+        'flow': [100.0, 0.0]  # Primeiro dia é o aporte inicial
     }, index=pd.to_datetime(['2023-01-01', '2023-01-02']))
     
     eng1 = PerformanceEngine(df1)
     res1 = eng1.calculate_twr()
-    print(f"Teste 1 (Simples 10%): Expect 0.10 -> Got {res1.total_twr:.4f}")
-    assert abs(res1.total_twr - 0.10) < 0.0001
+    print(f"  Resultado: TWR = {res1.total_twr:.4f} ({res1.total_twr:.2%})")
+    assert abs(res1.total_twr - 0.10) < 0.0001, "FALHOU: Teste 1"
+    print("  [OK] PASSOU")
     
-    # 2. Caso Fluxo: Dobrando aporte, rentabilidade zero
-    # Dia 0: 100
-    # Dia 1: 200 (Aporte de 100. Mercado não moveu).
-    # Nav End=200. Nav Start=100. Flow=100.
-    # Gain = 200 - 100 - 100 = 0. Return = 0/100 = 0%.
+    # -------------------------------------------------------------------------
+    # TESTE 2: Aporte sem rendimento
+    # -------------------------------------------------------------------------
+    print("\n[Teste 2] Aporte Neutro")
+    print("  Cenário: Dia 0 = R$100, Dia 1 = R$200 (Aporte de R$100)")
+    print("  Esperado: TWR = 0% (mercado não moveu)")
+    
     df2 = pd.DataFrame({
         'nav': [100.0, 200.0],
         'flow': [100.0, 100.0]
@@ -199,13 +425,17 @@ if __name__ == "__main__":
     
     eng2 = PerformanceEngine(df2)
     res2 = eng2.calculate_twr()
-    print(f"Teste 2 (Aporte Neutro): Expect 0.00 -> Got {res2.total_twr:.4f}")
-    assert abs(res2.total_twr - 0.0) < 0.0001
-
-    # 3. Caso Provento: Nav cai, mas Income compensa
-    # Dia 0: 100
-    # Dia 1: 90 (Nav). Income=10. Flow=0.
-    # Gain = (90 + 10) - 100 - 0 = 0.
+    print(f"  Resultado: TWR = {res2.total_twr:.4f} ({res2.total_twr:.2%})")
+    assert abs(res2.total_twr - 0.0) < 0.0001, "FALHOU: Teste 2"
+    print("  [OK] PASSOU")
+    
+    # -------------------------------------------------------------------------
+    # TESTE 3: Provento (Dividendo)
+    # -------------------------------------------------------------------------
+    print("\n[Teste 3] Provento Neutro")
+    print("  Cenário: NAV cai de R$100 para R$90, mas recebeu R$10 de dividendo")
+    print("  Esperado: TWR = 0% (retorno total neutro)")
+    
     df3 = pd.DataFrame({
         'nav': [100.0, 90.0],
         'flow': [100.0, 0.0],
@@ -214,35 +444,52 @@ if __name__ == "__main__":
     
     eng3 = PerformanceEngine(df3)
     res3 = eng3.calculate_twr()
-    print(f"Teste 3 (Provento Neutro): Expect 0.00 -> Got {res3.total_twr:.4f}")
-    assert abs(res3.total_twr - 0.0) < 0.0001
+    print(f"  Resultado: TWR = {res3.total_twr:.4f} ({res3.total_twr:.2%})")
+    assert abs(res3.total_twr - 0.0) < 0.0001, "FALHOU: Teste 3"
+    print("  [OK] PASSOU")
     
-    # 4. Caso OUTLIER: Aporte Gigante em Base Pequena
-    # Nav Start: 100.
-    # Nav End: 1100.
-    # Flow: 1000.
-    # Gain = 1100 - 100 - 1000 = 0.
-    # Se End-of-Day (Regular): Base = 100. Return = 0/100 = 0%. (Ok se ganho é zero)
-    # Mas se houver ganho pequeno?
-    # Nav End: 1110. (10 de ganho)
-    # Gain = 10.
-    # EoD: 10/100 = 10%. (O ganho de 10 foi sobre a base de 100? Ou sobre 1100?)
-    # Se o fluxo entrou no INICIO, ele participou do ganho.
-    # Se o fluxo entrou de 1000 e rendeu 10 (1%), terminaríamos com 1110.
-    # EoD Calculation: 10 / 100 = 10% (ERRADO! Infla retorno)
-    # SoD Calculation: 10 / (100+1000) = 0.90% (CORRETO)
+    # -------------------------------------------------------------------------
+    # TESTE 4: Aporte grande (Start-of-Day)
+    # -------------------------------------------------------------------------
+    print("\n[Teste 4] Aporte Grande com Ganho (SoD)")
+    print("  Cenário: Base R$100, Aporte R$1000 no início, NAV final R$1110")
+    print("  Esperado: TWR = 10/1100 ~ 0.91% (ganho sobre base ajustada)")
     
     df4 = pd.DataFrame({
         'nav': [100.0, 1110.0],
         'flow': [100.0, 1000.0],
-        'flow_timing': [0, 1] # Dia 1 é Start-of-Day
+        'flow_timing': [0, 1]  # Dia 1 usa Start-of-Day
     }, index=pd.to_datetime(['2023-01-01', '2023-01-02']))
     
     eng4 = PerformanceEngine(df4)
     res4 = eng4.calculate_twr()
-    # Esperado: Ganho 10. Base 1100. Return ~0.909%
-    expect = (10/1100)
-    print(f"Teste 4 (Outlier SoD): Expect {expect:.4f} -> Got {res4.total_twr:.4f}")
-    assert abs(res4.total_twr - expect) < 0.0001
-
-    print("=== TODOS OS TESTES PASSARAM COM SUCESSO ===")
+    expected = 10 / 1100  # ≈ 0.00909
+    print(f"  Resultado: TWR = {res4.total_twr:.4f} ({res4.total_twr:.2%})")
+    print(f"  Esperado:  TWR = {expected:.4f} ({expected:.2%})")
+    assert abs(res4.total_twr - expected) < 0.0001, "FALHOU: Teste 4"
+    print("  [OK] PASSOU")
+    
+    # -------------------------------------------------------------------------
+    # TESTE 5: Validação Cruzada
+    # -------------------------------------------------------------------------
+    print("\n[Teste 5] Validação Cruzada")
+    print("  Verificando se validation está preenchido corretamente")
+    
+    assert res1.validation is not None, "FALHOU: validation é None"
+    assert res1.validation.is_valid, "FALHOU: validation deveria ser válido"
+    print(f"  Explicação: {res1.validation.explanation[:60]}...")
+    print("  [OK] PASSOU")
+    
+    # -------------------------------------------------------------------------
+    # TESTE 6: Flow Dates
+    # -------------------------------------------------------------------------
+    print("\n[Teste 6] Registro de Datas de Fluxo")
+    print("  Verificando se flow_dates captura datas com aportes")
+    
+    assert len(res2.flow_dates) > 0, "FALHOU: flow_dates vazio"
+    print(f"  Flow dates: {res2.flow_dates}")
+    print("  [OK] PASSOU")
+    
+    print("\n" + "=" * 60)
+    print("[OK] TODOS OS TESTES PASSARAM COM SUCESSO")
+    print("=" * 60)

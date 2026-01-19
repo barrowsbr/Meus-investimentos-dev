@@ -469,11 +469,12 @@ def main():
     
     if filtro_macro and "Renda Fixa" not in filtro_macro: 
         df_rf_filtrado = df_rf_filtrado[0:0]
-            
-        if opcao_ativo == "Sim": 
-            df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
-        elif opcao_ativo == "Não": 
-            df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Encerrado']        
+    
+    # Filtro de ativo (Ativo/Encerrado) para RF
+    if opcao_ativo == "Sim": 
+        df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Ativo']
+    elif opcao_ativo == "Não": 
+        df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Status'] == 'Encerrado']        
 
 
     # 6. DADOS PARA O RESTANTE DO CÓDIGO (Precos e Proventos)
@@ -509,27 +510,59 @@ def main():
     v_flux = pd.Series(dtype=float)
     v_cus = pd.Series(dtype=float)
     
-    if not df_bruto.empty:
+    # Prepara dataframes FILTRADOS para o motor
+    # df_aux já contém os filtros de RV (Macro, Moeda, Setor, Ticker, Status)
+    df_rv_final = df_aux.copy()
+    
+    # Prepara RF filtrada (baseada na lista de permitidos do sidebar)
+    df_rf_final = pd.DataFrame()
+    if not df_rf_raw.empty:
+        should_process_rf = True
+        if filtro_macro and "Renda Fixa" not in filtro_macro:
+            should_process_rf = False
+            
+        if should_process_rf:
+           if not df_rf_filtrado.empty:
+               # df_rf_filtrado['Ativo'] contains the filtered tickers
+               df_rf_final = df_rf_raw[df_rf_raw['Ticker'].isin(df_rf_filtrado['Ativo'].unique())]
+    
+    # Condição de execução: Ter dados de RV OU RF filtrados
+    has_filtered_data = not df_rv_final.empty or not df_rf_final.empty
+
+    if has_filtered_data:
         with st.spinner("Sincronizando mercado e reconstruindo histórico..."):
             
-            # Prepare Tickers for History
-            tickers_carteira = df_bruto['ticker'].unique().tolist()
+            # Prepare Tickers for History (from FILTERED data)
+            tickers_carteira = df_rv_final['ticker'].unique().tolist()
             termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO']
             tickers_yahoo = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
             tickers_download = list(set(tickers_yahoo + ['BRL=X', 'EURBRL=X', 'CADBRL=X']))
             
-            data_inicio_hist = df_bruto['data'].min()
+            # Determine start date based on available data
+            dates_rv = df_rv_final['data'] if not df_rv_final.empty else pd.Series(dtype='datetime64[ns]')
+            dates_rf = pd.to_datetime(df_rf_final['Data']) if not df_rf_final.empty else pd.Series(dtype='datetime64[ns]')
             
-            # Fetch Cached History
-            df_hist_prices = fetch_historical_data(tickers_download, data_inicio_hist)
+            all_dates = pd.concat([dates_rv, dates_rf])
             
-            # Chama o Engine para reconstruir histórico e aplicar fixes
-            v_pat, v_flux, v_income, v_force_zero, extra_data = reconstruct_history(
-                df_bruto,
-                df_proventos_bruto,
-                dias,
-                df_hist_prices
-            )
+            if not all_dates.empty:
+                data_inicio_hist = all_dates.min()
+                
+                # Fetch Cached History (if we have tickers to fetch)
+                df_hist_prices = pd.DataFrame()
+                if tickers_download:
+                    df_hist_prices = fetch_historical_data(tickers_download, data_inicio_hist)
+                
+                # Chama o Engine para reconstruir histórico e aplicar fixes
+                # NOW INCLUDES FIXED INCOME (RF) in the total patrimony for unified TWR
+                v_pat, v_flux, v_income, v_force_zero, extra_data = reconstruct_history(
+                    df_bruto=df_rv_final,
+                    df_proventos=df_proventos_bruto,
+                    days_lookback=dias,
+                    df_prices_external=df_hist_prices,
+                    df_rf_raw=df_rf_final  # Include FILTERED RF
+                )
+            else:
+                st.warning("Nenhum dado encontrado para os filtros selecionados.")
             
             if not v_pat.empty:
                 dados_ok = True
@@ -644,47 +677,187 @@ def main():
     # --- AGORA TABS JÁ FORAM CRIADAS ---
 
     with tab_cap:
-        st.markdown("## 🧭 Guia de Navegação")
-        st.markdown("Bem-vindo ao seu **Sistema de Gestão Patrimonial (Institutional Grade)**. Abaixo, o detalhamento de cada módulo:")
+        # Hero Section
+        st.markdown("""
+        <div style="text-align: center; padding: 30px 0 20px 0;">
+            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">💎 Central de Investimentos</h1>
+            <p style="font-size: 1.2rem; opacity: 0.8; max-width: 600px; margin: 0 auto;">
+                Seu patrimônio, sob controle total. Visualize, analise e tome decisões com dados reais.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        c1, c2 = st.columns(2)
+        st.divider()
+        
+        # Quick Stats (se dados disponíveis)
+        if not df_bruto.empty:
+            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+            
+            total_ativos = len(df_bruto['ticker'].unique())
+            primeiro_aporte = df_bruto['data'].min().strftime('%d/%m/%Y') if not df_bruto['data'].isna().all() else "N/A"
+            
+            with col_stat1:
+                st.metric("📈 Ativos Monitorados", f"{total_ativos}")
+            with col_stat2:
+                st.metric("📅 Investindo desde", primeiro_aporte)
+            with col_stat3:
+                dias_investindo = (datetime.now() - df_bruto['data'].min()).days if not df_bruto['data'].isna().all() else 0
+                st.metric("⏱️ Dias de Histórico", f"{dias_investindo:,}")
+            with col_stat4:
+                if 'resultado' in locals() and resultado is not None:
+                    st.metric("🎯 TWR Total", f"{resultado.total_twr:.1%}")
+                else:
+                    st.metric("🎯 TWR Total", "Carregando...")
+            
+            st.divider()
+        
+        # Navigation Cards
+        st.markdown("### 🧭 O que você quer fazer?")
+        
+        c1, c2, c3 = st.columns(3)
         
         with c1:
-            st.info("### 📊 Análise & Estratégia")
             st.markdown("""
-            *   **🚀 Performance (GIPS)**: Motor de cálculo institucional. Visualize o retorno real (**TWR**) com Filtros Temporais Dinâmicos e compare com benchmarks.
-            *   **⚠️ Risco**: Gestão de defesa. Entenda a **Volatilidade** (*risco*) e correlações para proteger seu patrimônio de crises.
-            *   **💎 Composição**: Visão holística da alocação. Distribuição por Classe, Moeda, Setor e Geografia.
-            """)
-            
-            st.warning("### 🔧 Operacional & Controle")
-            st.markdown("""
-            *   **📝 Editor**: Central de lançamentos. Adicione ou corrija transações (Compras, Vendas, Renda Fixa) diretamente na base de dados com backup automático.
-            *   **🦁 Imposto**: Auxiliar para cálculo de IRPF e monitoramento de isenções.
-            *   **💱 Câmbio**: Monitor de remessas e estoque de moedas fortes (USD/EUR).
-            """)
-
+            <div style="background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); padding: 25px; border-radius: 15px; height: 200px;">
+                <h3 style="color: #90CAF9; margin-bottom: 10px;">📊 Ver meu Desempenho</h3>
+                <p style="color: #E8EAF6; font-size: 0.95rem;">
+                    Quanto minha carteira rendeu de verdade? O <strong>TWR</strong> mostra a rentabilidade pura, 
+                    separando seus aportes do retorno do mercado.
+                </p>
+                <p style="color: #7986CB; font-size: 0.85rem; margin-top: 15px;">👉 Aba <strong>Performance</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with c2:
-            st.success("### 📂 Classes de Ativos")
             st.markdown("""
-            *   **📊 Renda Variável**: Ações Brasil, Stocks, REITs e ETFs. Tabela detalhada com Preço Médio, Resultado Aberto e Realizado.
-            *   **🏦 Renda Fixa**: Controle granular de Tesouro Direto, CDBs, e Crédito Privado.
-            *   **₿ Cripto**: Monitoramento de ativos digitais e custódia.
-            *   **💰 Proventos**: Calendário de Dividendos (Cash Flow) e Juros sobre Capital Próprio.
+            <div style="background: linear-gradient(135deg, #1b5e20 0%, #388e3c 100%); padding: 25px; border-radius: 15px; height: 200px;">
+                <h3 style="color: #A5D6A7; margin-bottom: 10px;">💰 Consultar Patrimônio</h3>
+                <p style="color: #E8F5E9; font-size: 0.95rem;">
+                    Quanto eu tenho hoje? Veja sua posição atual em ações, fundos, renda fixa e cripto, 
+                    tudo consolidado em <strong>reais</strong>.
+                </p>
+                <p style="color: #81C784; font-size: 0.85rem; margin-top: 15px;">👉 Aba <strong>Composição</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c3:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #e65100 0%, #f57c00 100%); padding: 25px; border-radius: 15px; height: 200px;">
+                <h3 style="color: #FFE0B2; margin-bottom: 10px;">📝 Lançar Operação</h3>
+                <p style="color: #FFF3E0; font-size: 0.95rem;">
+                    Comprou, vendeu ou recebeu dividendos? Registre suas movimentações para manter 
+                    os dados sempre <strong>atualizados</strong>.
+                </p>
+                <p style="color: #FFCC80; font-size: 0.85rem; margin-top: 15px;">👉 Aba <strong>Editor</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        c4, c5, c6 = st.columns(3)
+        
+        with c4:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #b71c1c 0%, #d32f2f 100%); padding: 25px; border-radius: 15px; height: 180px;">
+                <h3 style="color: #FFCDD2; margin-bottom: 10px;">⚠️ Analisar Risco</h3>
+                <p style="color: #FFEBEE; font-size: 0.95rem;">
+                    Qual ativo está concentrando mais risco? Veja correlações e volatilidades 
+                    para proteger sua carteira.
+                </p>
+                <p style="color: #EF9A9A; font-size: 0.85rem; margin-top: 10px;">👉 Aba <strong>Risco</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c5:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%); padding: 25px; border-radius: 15px; height: 180px;">
+                <h3 style="color: #E1BEE7; margin-bottom: 10px;">💸 Ver Dividendos</h3>
+                <p style="color: #F3E5F5; font-size: 0.95rem;">
+                    Quanto recebi de renda passiva? Acompanhe seus proventos e 
+                    veja a evolução mês a mês.
+                </p>
+                <p style="color: #CE93D8; font-size: 0.85rem; margin-top: 10px;">👉 Aba <strong>Proventos</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c6:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #37474f 0%, #546e7a 100%); padding: 25px; border-radius: 15px; height: 180px;">
+                <h3 style="color: #CFD8DC; margin-bottom: 10px;">🦁 Calcular Imposto</h3>
+                <p style="color: #ECEFF1; font-size: 0.95rem;">
+                    Preciso pagar IR este mês? Monitore suas vendas e veja 
+                    se está dentro da isenção de R$ 20 mil.
+                </p>
+                <p style="color: #B0BEC5; font-size: 0.85rem; margin-top: 10px;">👉 Aba <strong>Imposto</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # Educational Section
+        st.markdown("### 📚 Glossário: Entenda os Números")
+        
+        with st.expander("**O que é TWR e por que é diferente do meu extrato bancário?**", expanded=False):
+            st.markdown("""
+            #### TWR (Time-Weighted Return) = Rentabilidade Pura
+            
+            Imagine que você tem R$ 10.000 investidos e seu patrimônio subiu para R$ 15.000. 
+            Parece que você ganhou 50%, certo? **Não necessariamente.**
+            
+            Se você aportou R$ 4.000 durante o período, o ganho real do mercado foi menor:
+            - **Variação bruta:** R$ 15.000 - R$ 10.000 = R$ 5.000 (50%)
+            - **Dinheiro novo:** R$ 4.000
+            - **Ganho do mercado:** R$ 1.000
+
+            O **TWR** mostra exatamente isso: quanto o *mercado* fez sua carteira render, 
+            ignorando seu dinheiro novo. É assim que fundos de investimento medem performance.
+            
+            | Métrica | O que mostra | Quando usar |
+            |---------|--------------|-------------|
+            | **TWR** | Qualidade das decisões | Comparar com fundos/benchmarks |
+            | **Retorno Simples** | Dinheiro no bolso | Ver quanto você realmente ganhou |
+            """)
+        
+        with st.expander("**O que é Drawdown e por que importa?**", expanded=False):
+            st.markdown("""
+            #### Drawdown = A "Dor" da Queda
+            
+            É a queda do **topo ao fundo**. Se sua carteira:
+            - Chegou a R$ 150.000 (máxima histórica)
+            - Caiu para R$ 120.000 (ponto mais baixo)
+            
+            Seu drawdown foi **-20%** (a diferença de 150k para 120k).
+            
+            **Por que importa?** Porque mostra o quanto você aguentou de pressão. 
+            Um drawdown de -30% significa que você viu 30% do patrimônio "evaporar" 
+            antes de se recuperar. Investidores profissionais consideram drawdown 
+            tão importante quanto retorno.
+            """)
+        
+        with st.expander("**Volatilidade: Risco ou Oportunidade?**", expanded=False):
+            st.markdown("""
+            #### Volatilidade = Oscilação do Preço
+            
+            Uma ação com **alta volatilidade** sobe e desce muito. Isso pode significar:
+            - 📈 **Oportunidade:** Comprar barato, vender caro
+            - 📉 **Risco:** Ver seu patrimônio oscilar muito
+            
+            A volatilidade é expressa em % anualizado. Exemplo:
+            - **20% de vol** significa que, em um ano típico, o ativo pode variar 20% para cima ou para baixo
+            
+            Diversificar ajuda a reduzir a volatilidade total da carteira.
             """)
         
         st.divider()
         
-        with st.expander("📖 Glossário Técnico (Institutional Grade)", expanded=False):
-            st.markdown("""
-            *   **TWR (Time-Weighted Return)**: Retorno Ponderado pelo Tempo. É a medida padrão global (GIPS) para performance de gestores. Ele remove o impacto de aportes e resgates, mostrando apenas a qualidade das decisões de investimento. Diferente da sua conta bancária (que mostra dinheiro), o TWR mostra *rentabilidade pura*.
-            *   **Drawdown**: A queda do topo ao fundo. Representa a "dor" máxima que a carteira sofreu em um período. Se você investiu R$ 100, chegou a R$ 150 e caiu para R$ 120, seu drawdown foi -20% (de 150 para 120).
-            *   **GIPS (Global Investment Performance Standards)**: Padrões internacionais éticos para cálculo e apresentação de performance de investimentos.
-            *   **YTD (Year to Date)**: Retorno acumulado do primeiro dia do ano atual até hoje.
-            *   **Volatilidade**: Medida de incerteza ou risco. Quanto maior, mais o preço oscila para cima e para baixo.
-            """)
-            
-        st.caption("v4.6 - Institutional Grade | Phase 6: UX & Education")
+        # Footer
+        st.markdown("""
+        <div style="text-align: center; opacity: 0.6; padding: 20px;">
+            <p>v5.0 • Institutional Grade • TWR Engine Rebuilt</p>
+            <p style="font-size: 0.8rem;">Dados atualizados via Yahoo Finance & Google Sheets</p>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # -------------------------------------------------------------------------
     # ABA DE PERFORMANCE (STRATEGY VIEW PRO - GIPS COMPLIANT)
@@ -951,6 +1124,152 @@ def main():
             st.plotly_chart(fig_dd, use_container_width=True)
             
             st.divider()
+            
+            # GRÁFICO 3: TWR vs RETORNO SIMPLES (Comparação Pedagógica)
+            st.markdown("##### 📊 TWR vs Retorno Simples: Entenda a Diferença")
+            
+            # Recupera série de retorno simples se disponível
+            simple_return_series = getattr(resultado_view, 'simple_return_series', None)
+            
+            if simple_return_series is not None and len(simple_return_series) > 0:
+                st.caption("""
+                **TWR (linha verde)**: Rentabilidade real do gestor/mercado, ignorando aportes e saques.
+                **Retorno Simples (linha laranja)**: Variação bruta do patrimônio, incluindo efeito dos aportes.
+                A diferença mostra o impacto do *timing* dos seus aportes.
+                """)
+                
+                fig_compare = go.Figure()
+                
+                # TWR
+                fig_compare.add_trace(go.Scatter(
+                    x=resultado_view.cumulative_series.index,
+                    y=resultado_view.cumulative_series.values * 100,
+                    name="TWR",
+                    line=dict(color="#4CAF50", width=2.5),
+                    hovertemplate="%{y:.2f}%<extra>TWR</extra>"
+                ))
+                
+                # Retorno Simples
+                fig_compare.add_trace(go.Scatter(
+                    x=simple_return_series.index,
+                    y=simple_return_series.values * 100,
+                    name="Retorno Simples",
+                    line=dict(color="#FF9800", width=2, dash="dash"),
+                    hovertemplate="%{y:.2f}%<extra>Simples</extra>"
+                ))
+                
+                fig_compare.add_hline(y=0, line_dash="dot", line_color="gray", line_width=1)
+                
+                fig_compare.update_layout(
+                    template="plotly_dark",
+                    hovermode="x unified",
+                    yaxis_ticksuffix="%",
+                    yaxis_title="Retorno Acumulado (%)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    height=350
+                )
+                
+                st.plotly_chart(fig_compare, use_container_width=True)
+                
+                # Card Educativo com Breakdown
+                validation = getattr(resultado_view, 'validation', None)
+                flow_dates = getattr(resultado_view, 'flow_dates', [])
+                
+                # Cálculos para o card
+                twr_pct = resultado_view.total_twr * 100
+                simple_pct = simple_return_series.iloc[-1] * 100 if len(simple_return_series) > 0 else 0
+                diff_pct = twr_pct - simple_pct
+                
+                nav_final = nav_series.iloc[-1] if len(nav_series) > 0 else 0
+                nav_inicial = nav_series.iloc[0] if len(nav_series) > 0 else 0
+                variacao_total = nav_final - nav_inicial
+                ganho_mercado = total_pnl  # PnL já é líquido de fluxos
+                dinheiro_novo = total_flow
+                
+                # Card Visual
+                st.markdown("#### 💡 Anatomia do Seu Retorno")
+                
+                col_edu1, col_edu2, col_edu3 = st.columns(3)
+                
+                with col_edu1:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 20px; border-radius: 10px; text-align: center;">
+                        <span style="font-size: 0.9rem; color: #90CAF9;">Variação Patrimonial</span><br>
+                        <span style="font-size: 1.8rem; font-weight: bold; color: white;">R$ {variacao_total:,.0f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_edu2:
+                    cor_mercado = "#4CAF50" if ganho_mercado >= 0 else "#EF5350"
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%); padding: 20px; border-radius: 10px; text-align: center;">
+                        <span style="font-size: 0.9rem; color: #A5D6A7;">Ganho do Mercado</span><br>
+                        <span style="font-size: 1.8rem; font-weight: bold; color: white;">R$ {ganho_mercado:,.0f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_edu3:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #e65100 0%, #ff6d00 100%); padding: 20px; border-radius: 10px; text-align: center;">
+                        <span style="font-size: 0.9rem; color: #FFCC80;">Dinheiro Novo</span><br>
+                        <span style="font-size: 1.8rem; font-weight: bold; color: white;">R$ {dinheiro_novo:,.0f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Explicação contextual
+                if abs(diff_pct) > 1:
+                    if diff_pct > 0:
+                        st.info(f"""
+                        📈 **Seu TWR ({twr_pct:.1f}%) é MAIOR que o Retorno Simples ({simple_pct:.1f}%)**
+                        
+                        Isso significa que seus aportes entraram em momentos *ruins* (antes de quedas) ou saques em momentos *bons*.
+                        O TWR ignora esse timing e mostra o retorno puro do mercado.
+                        """)
+                    else:
+                        st.success(f"""
+                        🎯 **Seu TWR ({twr_pct:.1f}%) é MENOR que o Retorno Simples ({simple_pct:.1f}%)**
+                        
+                        Você teve *sorte* (ou habilidade) no timing! Seus aportes entraram antes de altas.
+                        O Retorno Simples captura esse efeito, o TWR não.
+                        """)
+                
+                # Painel de Validação (Expandível)
+                if validation:
+                    with st.expander("🔍 Painel de Validação Cruzada", expanded=False):
+                        st.markdown(f"""
+                        | Métrica | Valor |
+                        |---------|-------|
+                        | TWR Calculado | {validation.twr_calculated:.4f} ({validation.twr_calculated:.2%}) |
+                        | Retorno Simples | {validation.simple_return:.4f} ({validation.simple_return:.2%}) |
+                        | Divergência | {validation.divergence_abs:.4f} ({validation.divergence_pct:.1f}%) |
+                        | Status | {"✅ Válido" if validation.is_valid else "⚠️ Revisar"} |
+                        """)
+                        
+                        st.markdown(f"**Explicação:** {validation.explanation}")
+                        
+                        if validation.suspicious_days:
+                            st.warning(f"⚠️ Dias com retornos extremos detectados: {', '.join(validation.suspicious_days[:5])}...")
+                        
+                        if flow_dates:
+                            st.caption(f"📅 {len(flow_dates)} datas com aportes/saques no período.")
+            else:
+                st.caption("Série de retorno simples não disponível para comparação.")
+            
+            st.divider()
+            
+            # =====================================================================
+            # NOTA: TWR AGORA INCLUI RV + RF
+            # =====================================================================
+            if 'df_rf_raw' in dir() and not df_rf_raw.empty:
+                st.info("""
+                ℹ️ **TWR Unificado (RV + RF)**
+                
+                O TWR exibido acima agora inclui **Renda Variável + Renda Fixa** automaticamente:
+                - **RV**: Preços mark-to-market (Yahoo Finance)
+                - **RF**: Curva sintética com proxy SELIC 15% a.a.
+                
+                A RF é somada ao patrimônio a partir da primeira compra de renda fixa.
+                """)
             
             # --- ÁREA DE ATRIBUIÇÃO (Reconstrução Simplificada) ---
             if 'v_pat' in locals() and not v_pat.empty:
@@ -2436,18 +2755,11 @@ def main():
             st.info("Arquivo de proventos vazio.")
             
     with tab6:
-        c_head, c_conf = st.columns([4, 1])
-        with c_head:
-            st.subheader("🦁 Central Fiscal Inteligente")
-            st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
+        st.subheader("🦁 Central Fiscal Inteligente")
+        st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
         
-        with c_conf:
-            with st.popover("⚙️ Configurações"):
-                FORCAR_COMPENSACAO_20K = st.checkbox(
-                    "Compensar prejuízo Swing < 20k?", 
-                    value=True, 
-                    key="chk_fiscal_20k_surgical"
-                )
+        # Configuração fixa: Regra dos 20k sempre ativa
+        FORCAR_COMPENSACAO_20K = True
 
         @st.cache_data(ttl=3600)
         def carregar_ptax_oficial():
@@ -2957,6 +3269,134 @@ def main():
             st.info("Nenhum histórico de operações finalizadas encontrado.")
 
         st.markdown("---") 
+        st.subheader("📊 Curva de Evolução Patrimonial (RF)")
+        
+        # Integra o motor de curva RF
+        try:
+            from core.fixed_income_engine import FixedIncomeEngine
+            
+            # Usa dados brutos de RF
+            if not df_rf_raw.empty:
+                engine_rf = FixedIncomeEngine(df_rf_raw)
+                curve_result = engine_rf.build_daily_curve()
+                
+                if not curve_result.daily_curve.empty:
+                    # Card de hipótese (transparência)
+                    st.info(f"""
+                    📌 **Hipótese de Modelagem:** {curve_result.hypothesis_note}
+                    
+                    Esta curva é uma **projeção simplificada** - não reflete as taxas reais de cada título.
+                    """)
+                    
+                    # Métricas
+                    col_rf1, col_rf2, col_rf3, col_rf4 = st.columns(4)
+                    
+                    with col_rf1:
+                        st.metric("💰 Total Investido", f"R$ {curve_result.total_invested:,.0f}")
+                    with col_rf2:
+                        st.metric("📈 Valor Projetado", f"R$ {curve_result.current_value:,.0f}")
+                    with col_rf3:
+                        st.metric("📊 Retorno Projetado", f"{curve_result.total_return_pct:.1f}%")
+                    with col_rf4:
+                        st.metric("📅 Retorno Anualizado", f"{curve_result.annualized_return_pct:.1f}%")
+                    
+                    # Gráfico de curva
+                    fig_curve = go.Figure()
+                    
+                    df_curve = curve_result.daily_curve
+                    
+                    # Linha de Valor Investido (base)
+                    fig_curve.add_trace(go.Scatter(
+                        x=df_curve.index,
+                        y=df_curve['invested'],
+                        name="Valor Investido",
+                        line=dict(color="#90A4AE", width=2, dash="dot"),
+                        fill='tozeroy',
+                        fillcolor='rgba(144, 164, 174, 0.1)',
+                        hovertemplate="Investido: R$ %{y:,.0f}<extra></extra>"
+                    ))
+                    
+                    # Linha de Valor Corrigido (SELIC proxy)
+                    fig_curve.add_trace(go.Scatter(
+                        x=df_curve.index,
+                        y=df_curve['corrected'],
+                        name="Valor Corrigido (SELIC 15%)",
+                        line=dict(color="#4CAF50", width=2.5),
+                        fill='tonexty',
+                        fillcolor='rgba(76, 175, 80, 0.2)',
+                        hovertemplate="Corrigido: R$ %{y:,.0f}<extra></extra>"
+                    ))
+                    
+                    # Adiciona marcadores de eventos
+                    df_events = engine_rf.get_events_for_chart()
+                    if not df_events.empty:
+                        # Compras
+                        compras = df_events[df_events['type'] == 'COMPRA']
+                        if not compras.empty:
+                            fig_curve.add_trace(go.Scatter(
+                                x=compras['date'],
+                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in compras['date']],
+                                mode='markers',
+                                marker=dict(symbol='triangle-up', size=12, color='#4CAF50'),
+                                name='Compras',
+                                hovertemplate="%{text}<extra></extra>",
+                                text=compras['label']
+                            ))
+                        
+                        # Vendas/Vencimentos
+                        saidas = df_events[df_events['type'].isin(['VENDA', 'VENCIMENTO'])]
+                        if not saidas.empty:
+                            fig_curve.add_trace(go.Scatter(
+                                x=saidas['date'],
+                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in saidas['date']],
+                                mode='markers',
+                                marker=dict(symbol='triangle-down', size=12, color='#2196F3'),
+                                name='Saídas',
+                                hovertemplate="%{text}<extra></extra>",
+                                text=saidas['label']
+                            ))
+                        
+                        # Impostos
+                        impostos = df_events[df_events['type'] == 'IMPOSTO']
+                        if not impostos.empty:
+                            fig_curve.add_trace(go.Scatter(
+                                x=impostos['date'],
+                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in impostos['date']],
+                                mode='markers',
+                                marker=dict(symbol='x', size=10, color='#FF5722'),
+                                name='Impostos',
+                                hovertemplate="%{text}<extra></extra>",
+                                text=impostos['label']
+                            ))
+                    
+                    fig_curve.update_layout(
+                        template="plotly_dark",
+                        hovermode="x unified",
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        yaxis_title="Valor (R$)",
+                        height=400,
+                        margin=dict(t=40, b=40)
+                    )
+                    
+                    st.plotly_chart(fig_curve, use_container_width=True)
+                    
+                    # Legenda visual
+                    st.caption("""
+                    **Legenda:** ▲ Compra | ▼ Vencimento/Resgate | ✕ Imposto
+                    
+                    A área verde mostra o ganho projetado sobre o valor investido (linha cinza pontilhada).
+                    """)
+                    
+                    if curve_result.total_taxes_paid > 0:
+                        st.warning(f"🦁 **Impostos pagos no período:** R$ {curve_result.total_taxes_paid:,.2f}")
+                else:
+                    st.caption("Sem dados suficientes para construir curva de evolução.")
+            else:
+                st.caption("Nenhum evento de renda fixa encontrado.")
+        except Exception as e:
+            st.error(f"Erro ao processar curva RF: {e}")
+        
+        st.markdown("---")
         st.subheader("📊 Alocação de Recursos (RF + Caixa)")
         
         df_grafico_rf = pd.concat([df_custodia, df_liquidez[df_liquidez['Status']=='Ativo']])
