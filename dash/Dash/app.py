@@ -178,16 +178,27 @@ def exibir_editor_dados():
 
     df_current = st.session_state.editor_df
     
-    # Toolbar
-    c_tools1, c_tools2 = st.columns([1, 4])
-    with c_tools1:
-         if st.button("🔄 Recarregar", use_container_width=True):
-            st.session_state.pop('editor_df', None)
-            st.rerun()
-            st.session_state.pop('editor_df', None)
-            st.rerun()
+    # --- FILTRAGEM VISUAL: Apenas últimas 10 linhas ---
+    # O usuário pediu para ver apenas as últimas 10 para evitar travamento.
+    # A edição será feita nessas 10 linhas (ou novas adicionadas).
+    # Na hora de salvar, precisamos recombinar com as linhas ocultas.
+    
+    df_hidden = pd.DataFrame()
+    df_visible = pd.DataFrame()
+    
+    if df_current is not None and not df_current.empty:
+        if len(df_current) > 10:
+            df_hidden = df_current.iloc[:-10]
+            df_visible = df_current.iloc[-10:]
+        else:
+            df_visible = df_current
+    
+    # Toolbar (Botão recarregar removido conforme pedido anterior)
+    # c_tools1, c_tools2 = st.columns([1, 4])
+    # with c_tools1:
+    #      if st.button("🔄 Recarregar", ...): ...
 
-    if df_current is not None:
+    if df_visible is not None:
         
         # --- RESTORED: ADICIONAR NOVO LANÇAMENTO (FORMULÁRIO) ---
         with st.expander("⚡ Adicionar Novo Lançamento", expanded=False):
@@ -195,8 +206,10 @@ def exibir_editor_dados():
                 form_cols = st.columns(4)
                 input_data = {}
                 
-                # Helper to get history of tickers for suggestions
+                # Helper to get history of tickers for suggestions (from FULL dataset possible?)
+                # Usando df_current para sugestões para manter histórico completo disponível no autocomplete
                 history_tickers = []
+                # ... (mantendo lógica de sugestão com df_current)
                 if not df_current.empty:
                     possible_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
                     for c in possible_cols:
@@ -242,45 +255,42 @@ def exibir_editor_dados():
                 else:
                     new_row = pd.DataFrame([input_data])
                     
-                    # Special Logic: Proventos (Derive Month/Year)
+                    # Special Logic: Proventos
                     if selected_key == "meus_proventos":
                         d_obj = pd.to_datetime(input_data['data'])
-                        meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
+                        meses_dict = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
                                  7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
                         try:
-                            new_row['mes'] = f"{meses[d_obj.month]}/{str(d_obj.year)[-2:]}"
+                            new_row['mes'] = f"{meses_dict[d_obj.month]}/{str(d_obj.year)[-2:]}"
                             new_row['ano'] = d_obj.year
-                        except: pass # Should not happen if date is valid
+                        except: pass 
                         
                         if 'decisao' in df_current.columns: 
                             new_row['decisao'] = input_data.get('lancamento', '')
 
-                    # Ensure Date Types matches dataframe for smooth concatenation
+                    # Ensure Date Types
                     for d_col in cfg.get("date_cols", []):
                         if d_col in new_row.columns: 
                             new_row[d_col] = pd.to_datetime(new_row[d_col])
 
-                    # Append to session state
+                    # Append to session state (APPEND TO FULL DF)
                     st.session_state.editor_df = pd.concat([st.session_state.editor_df, new_row], ignore_index=True)
                     st.success("Linha adicionada! Não esqueça de clicar em 'Gravar Alterações' para salvar.")
                     st.rerun()
 
         st.markdown("---")
         
-        # Prepare Column Config with dynamic options if necessary
-        # We can enhance the config here if needed, e.g. updating options based on current data
-        
         final_col_config = cfg.get("column_types", {}).copy()
         
-        # Example: Update selectbox options for Ticker if we wanted (optional, stick to text for now as discussed)
+        # Exibe APENAS as últimas 10 linhas visualmente
+        st.info("ℹ️ Exibindo apenas as últimas 10 entradas para melhor performance.")
         
-        st.markdown("---")
         df_edited = st.data_editor(
-            df_current,
+            df_visible,  # <--- USANDO DATAFRAME RECORTADO
             column_config=final_col_config,
             num_rows="dynamic",
             use_container_width=True,
-            height=600,
+            height=400, # Reduzi um pouco a altura já que são poucas linhas
             key=f"grid_{selected_key}"
         )
         
@@ -291,7 +301,13 @@ def exibir_editor_dados():
             if st.button("Gravar Alterações", type="primary", use_container_width=True):
                 try:
                     # 1. Post-Processing
-                    df_to_save = df_edited.copy()
+                    # RECOMBINA: Ocultos + Editados (Visíveis)
+                    if not df_hidden.empty:
+                        # Precisamos garantir colunas iguais
+                        # Se novas colunas foram adicionadas no editor (improvável sem config), pandas handles
+                        df_to_save = pd.concat([df_hidden, df_edited], ignore_index=True)
+                    else:
+                        df_to_save = df_edited.copy()
                     
                     # A. Handle 'Meus Proventos' specific logic (Derive Month/Year)
                     if selected_key == 'meus_proventos':
