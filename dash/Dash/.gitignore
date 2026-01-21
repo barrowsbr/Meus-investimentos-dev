@@ -35,6 +35,8 @@ ENV/
 .DS_Store
 desktop.ini
 Thumbs.db
+*.gsheet
+*.bak
 
 # Streamlit
 .streamlit/secrets.toml

@@ -1,17 +1,22 @@
 """
 Motor de Curva de Renda Fixa
-Versão 1.0 - Modelagem explícita com SELIC Proxy
+Versao 2.0 - Suporte a Curva Proxy e MTM Real
 
-PREMISSA FUNDAMENTAL (Hipótese Documentada):
+MODOS DE VALORIZACAO:
+1. CURVA_PROXY: Usa taxa SELIC proxy (15% a.a.) para capitalizar
+2. MTM_REAL: Usa precos de mercado reais (quando disponivel)
+
+PREMISSA FUNDAMENTAL para CURVA_PROXY:
 - Taxa Proxy SELIC: 15% ao ano
-- Taxa diária: (1 + 0.15)^(1/252) - 1 ≈ 0.0555%
-- Esta é uma SIMPLIFICAÇÃO EXPLÍCITA, não uma inferência real
-- Todos os ativos ativos rendem esta taxa até vencimento/resgate
+- Taxa diaria: (1 + 0.15)^(1/252) - 1 = 0.0555%
+- Esta eh uma SIMPLIFICACAO EXPLICITA, nao uma inferencia real
+- Todos os ativos ativos rendem esta taxa ate vencimento/resgate
 
-Princípios:
-1. Onde não há curva real, usamos proxy explícito e documentado
-2. Nenhum número mágico - tudo rastreável
+Principios:
+1. Onde nao ha curva real, usamos proxy explicito e documentado
+2. Nenhum numero magico - tudo rastreavel
 3. Rentabilidade precisa de curva no tempo
+4. Modo de valorizacao eh EXPLICITO e parametrizavel
 """
 
 import pandas as pd
@@ -19,6 +24,12 @@ import numpy as np
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
+
+# Import do enum de modo de valorizacao do motor canonico
+try:
+    from core.twr_canonical import RFValuationMode
+except ImportError:
+    from twr_canonical import RFValuationMode
 
 
 @dataclass
@@ -45,40 +56,99 @@ class FixedIncomeCurveResult:
 
 class FixedIncomeEngine:
     """
-    Motor de Cálculo de Curva de Renda Fixa.
+    Motor de Calculo de Curva de Renda Fixa.
     
     Transforma eventos discretos (Compra/Venda/Vencimento/Imposto)
-    em uma curva diária contínua usando taxa SELIC proxy.
+    em uma curva diaria continua.
+    
+    MODOS DE VALORIZACAO:
+    - CURVA_PROXY: Usa taxa SELIC proxy (padrao)
+    - MTM_REAL: Usa precos de mercado reais (quando disponivel)
     """
     
     # =========================================================================
-    # HIPÓTESE DOCUMENTADA - NÃO É NÚMERO MÁGICO
+    # HIPOTESE DOCUMENTADA - NAO EH NUMERO MAGICO
     # =========================================================================
     SELIC_ANNUAL = 0.15  # 15% ao ano
     BUSINESS_DAYS_YEAR = 252
     
-    # Taxa diária calculada: (1 + 0.15)^(1/252) - 1
+    # Taxa diaria calculada: (1 + 0.15)^(1/252) - 1
     DAILY_RATE = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
     
-    HYPOTHESIS_NOTE = (
-        "Projeção baseada em SELIC proxy de 15% a.a. "
-        "Ativos ativos crescem a (1 + 0.15)^(dias/252). "
-        "Esta é uma simplificação documentada - não reflete taxas reais dos títulos."
-    )
+    HYPOTHESIS_NOTES = {
+        RFValuationMode.CURVA_PROXY: (
+            "Projecao baseada em SELIC proxy de 15% a.a. "
+            "Ativos ativos crescem a (1 + 0.15)^(dias/252). "
+            "Esta eh uma simplificacao documentada - nao reflete taxas reais dos titulos."
+        ),
+        RFValuationMode.MTM_REAL: (
+            "Valorizacao baseada em precos de mercado reais (marcacao a mercado). "
+            "Precos obtidos de fonte externa (ex: Tesouro Direto, B3). "
+            "Reflete valor justo de venda no momento."
+        )
+    }
     
-    def __init__(self, df_events: pd.DataFrame):
+    def __init__(
+        self, 
+        df_events: pd.DataFrame,
+        valuation_mode: RFValuationMode = RFValuationMode.CURVA_PROXY,
+        mtm_prices: Optional[pd.DataFrame] = None
+    ):
         """
         Inicializa o motor com DataFrame de eventos RF.
         
-        Esperado:
-        - Data: data do evento
-        - Ticker: identificador do ativo
-        - Tipo: 'Compra', 'Venda', 'Vencimento', 'Imposto', 'Caixa'
-        - Valor: valor do evento
+        Args:
+            df_events: DataFrame esperado com colunas:
+                - Data: data do evento
+                - Ticker: identificador do ativo
+                - Tipo: 'Compra', 'Venda', 'Vencimento', 'Imposto', 'Caixa'
+                - Valor: valor do evento
+            
+            valuation_mode: Modo de valorizacao (CURVA_PROXY ou MTM_REAL)
+            
+            mtm_prices: (Opcional) DataFrame com precos de mercado.
+                Esperado: index=date, columns=ticker, values=preco
+                Necessario apenas se valuation_mode == MTM_REAL
         """
         self.df_raw = df_events.copy()
+        self.valuation_mode = valuation_mode
+        self.mtm_prices = mtm_prices
         self.events: List[FixedIncomeEvent] = []
         self._normalize_events()
+    
+    def get_mtm_price(self, ticker: str, date: datetime) -> Optional[float]:
+        """
+        Obtem preco de mercado para um ativo em uma data.
+        
+        Args:
+            ticker: Identificador do ativo
+            date: Data para buscar o preco
+            
+        Returns:
+            Preco de mercado ou None se nao disponivel
+        """
+        if self.mtm_prices is None or self.mtm_prices.empty:
+            return None
+        
+        if ticker not in self.mtm_prices.columns:
+            return None
+        
+        # Busca preco na data ou mais recente
+        try:
+            date_idx = pd.to_datetime(date).normalize()
+            if date_idx in self.mtm_prices.index:
+                price = self.mtm_prices.loc[date_idx, ticker]
+                if pd.notna(price):
+                    return float(price)
+            
+            # Forward fill - usa ultimo preco conhecido
+            prices_before = self.mtm_prices.loc[self.mtm_prices.index <= date_idx, ticker]
+            if not prices_before.empty:
+                return float(prices_before.dropna().iloc[-1])
+        except:
+            pass
+        
+        return None
     
     def _normalize_events(self):
         """Transforma eventos brutos em fluxos de caixa padronizados."""
@@ -210,18 +280,40 @@ class FixedIncomeEngine:
                     elif event.event_type == 'CAIXA':
                         cash_position = event.original_value
             
-            # 2. Capitaliza todas as posições ativas
+            # 2. Capitaliza todas as posicoes ativas
             total_invested = 0.0
             total_corrected = 0.0
             
             for ticker, pos in positions.items():
-                # Dias desde a compra
-                days_held = (current_date - pos['purchase_date']).days
-                business_days = int(days_held * 252 / 365)  # Aproximação
-                
-                # Valor corrigido pela SELIC proxy
                 invested = pos['invested']
-                corrected = invested * ((1 + self.DAILY_RATE) ** business_days)
+                
+                # Determina valor corrigido baseado no modo de valorizacao
+                if self.valuation_mode == RFValuationMode.MTM_REAL:
+                    # Tenta usar preco de mercado
+                    mtm_price = self.get_mtm_price(ticker, current_date)
+                    
+                    if mtm_price is not None:
+                        # MTM disponivel - usa preco de mercado
+                        # Nota: mtm_price eh o preco por unidade
+                        # Aqui simplificamos: corrected = invested * fator
+                        # onde fator = mtm_price_atual / mtm_price_compra
+                        purchase_price = self.get_mtm_price(ticker, pos['purchase_date'])
+                        if purchase_price and purchase_price > 0:
+                            fator = mtm_price / purchase_price
+                            corrected = invested * fator
+                        else:
+                            # Sem preco de compra, usa valor atual
+                            corrected = mtm_price * (invested / (pos.get('purchase_price', invested)))
+                    else:
+                        # Fallback para SELIC proxy se MTM nao disponivel
+                        days_held = (current_date - pos['purchase_date']).days
+                        business_days = int(days_held * 252 / 365)
+                        corrected = invested * ((1 + self.DAILY_RATE) ** business_days)
+                else:
+                    # CURVA_PROXY: Usa taxa SELIC
+                    days_held = (current_date - pos['purchase_date']).days
+                    business_days = int(days_held * 252 / 365)  # Aproximacao
+                    corrected = invested * ((1 + self.DAILY_RATE) ** business_days)
                 
                 pos['current_value'] = corrected
                 total_invested += invested
@@ -265,7 +357,10 @@ class FixedIncomeEngine:
             total_return_pct=total_return_pct,
             annualized_return_pct=annualized_return_pct,
             total_taxes_paid=total_taxes,
-            hypothesis_note=self.HYPOTHESIS_NOTE
+            hypothesis_note=self.HYPOTHESIS_NOTES.get(
+                self.valuation_mode, 
+                self.HYPOTHESIS_NOTES[RFValuationMode.CURVA_PROXY]
+            )
         )
     
     def get_events_for_chart(self) -> pd.DataFrame:

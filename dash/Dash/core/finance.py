@@ -107,11 +107,22 @@ def calcular_carteira_fechada(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
 def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
     """
-    Resumo dos investimentos em Renda Fixa consolidando posições por Ticker.
-    Lida com 'Ativo' (em carteira) vs 'Encerrado' (já vencido/resgatado).
+    Resumo dos investimentos em Renda Fixa consolidando posicoes por Ticker.
+    Lida com 'Ativo' (em carteira) vs 'Encerrado' (ja vencido/resgatado).
+    
+    REFATORADO para usar SELIC 15% a.a. automatica para ativos em carteira.
+    Isso garante consistencia com o motor de Performance (engine.py).
+    
+    Premissa: Taxa SELIC proxy = 15% a.a. (mesma do FixedIncomeEngine/engine.py)
     """
+    from datetime import datetime
+    
     if df_rf_raw.empty:
         return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
+    
+    # Constantes SELIC (mesmas de FixedIncomeEngine e engine.py)
+    SELIC_ANNUAL = 0.15  # 15% ao ano
+    BUSINESS_DAYS_YEAR = 252
     
     lista_rf_proc = []
     
@@ -119,8 +130,7 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
     df_sorted = df_rf_raw.sort_values('Data')
     
     for ativo, dados in df_sorted.groupby('Ticker'):
-        # Filter out tax entries for logic, though they might affect net values if Logic requires.
-        # Original code ignored 'Imposto' type, let's keep that.
+        # Filter out tax entries
         dados_validos = dados[dados['Tipo'] != 'Imposto']
         
         if not dados_validos.empty:
@@ -132,18 +142,41 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
             inv = compras['Valor'].sum()
             
             if status == 'Ativo':
-                # Valor Atual deve vir do último registro ou soma de atuais se houver fragmentação
-                # Original logic: sum 'Valor Atual' of 'Compra' rows. 
-                # This implies the user updates 'Valor Atual' on the 'Compra' row in Sheets.
-                atl = compras['Valor Atual'].sum()
+                # =====================================================
+                # REFATORADO: Usar SELIC automatica ao inves de manual
+                # =====================================================
+                # Calcula valor atual usando SELIC proxy
+                # Para cada compra, capitaliza do dia da compra ate hoje
+                
+                atl = 0.0
+                data_primeira_compra = None
+                
+                for _, compra in compras.iterrows():
+                    valor_compra = compra['Valor']
+                    data_compra = pd.to_datetime(compra['Data'])
+                    
+                    if data_primeira_compra is None:
+                        data_primeira_compra = data_compra
+                    
+                    # Dias desde a compra
+                    dias_corridos = (datetime.now() - data_compra).days
+                    dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
+                    
+                    # Capitaliza pela SELIC
+                    # Valor_atual = Valor_investido * (1 + taxa_diaria) ^ dias_uteis
+                    taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
+                    valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
+                    
+                    atl += valor_corrigido
+                
                 luc = atl - inv
-                data_ref = dados_validos.iloc[0]['Data'] # First investment date
+                data_ref = data_primeira_compra if data_primeira_compra else dados_validos.iloc[0]['Data']
             else:
-                # Encerrado: Soma das Vendas/Resgates/Vencimentos
+                # Encerrado: Usa valor real das saidas (venda/resgate/vencimento)
                 saidas = dados[dados['Tipo'].isin(['Venda','Resgate','Vencimento'])]['Valor'].sum()
                 atl = saidas
                 luc = saidas - inv
-                data_ref = dados_validos.iloc[-1]['Data'] # Exit date
+                data_ref = dados_validos.iloc[-1]['Data']  # Exit date
             
             rent_pct = (luc / inv) if inv > 0 else 0.0
             
@@ -155,7 +188,7 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
                 'Investido': inv, 
                 'Atual': atl, 
                 'Lucro': luc, 
-                'Rent. %': rent_pct * 100, # Keeping as percentage number (e.g. 5.0 for 5%)
+                'Rent. %': rent_pct * 100,
                 'Moeda': dados_validos.iloc[0]['Moeda']
             })
             
@@ -163,3 +196,4 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
         
     return pd.DataFrame(lista_rf_proc)
+

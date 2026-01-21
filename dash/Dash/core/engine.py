@@ -280,6 +280,15 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
                     # Daily SELIC rate (15% annual / 252 business days)
                     daily_selic_rate = (1.15) ** (1/252) - 1  # ~0.055% per day
                     
+                    # CRITICAL FIX: Capture FIRST RF flow (initial investment)
+                    # The loop below starts at i=1, so the first deposit (0 -> value) was being missed
+                    if len(rf_aligned) > 0:
+                        first_value = rf_aligned.iloc[0]
+                        first_date = rf_aligned.index[0]
+                        if first_value > 100:  # Initial investment
+                            if first_date in serie_fluxos_mkt.index:
+                                serie_fluxos_mkt.loc[first_date] += first_value
+                    
                     for i in range(1, len(rf_aligned)):
                         rf_today = rf_aligned.iloc[i]
                         rf_yesterday = rf_aligned.iloc[i - 1]

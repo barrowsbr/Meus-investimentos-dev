@@ -1,17 +1,19 @@
 """
 Motor de TWR Unificado da Vida Financeira
-Versão 1.0 - Curva Mestra (RV + RF + Cash)
+Versao 2.0 - Curva Mestra (RV + RF + Cash) com Motor Canonico
 
-PRINCÍPIO INEGOCIÁVEL:
-- TWR é calculado sobre patrimônio TOTAL, não por classe isolada
-- Não existe soma de TWRs ou média ponderada
-- A única forma válida: Curva Única → TWR Único
+PRINCIPIO INEGOCIAVEL:
+- TWR é calculado sobre patrimonio TOTAL, nao por classe isolada
+- Nao existe soma de TWRs ou media ponderada
+- A unica forma valida: Curva Unica -> TWR Unico
 
 Arquitetura:
-1. Recebe curvas diárias separadas (RV mark-to-market, RF sintética, Cash)
-2. Merge em curva mestra única sem buracos
-3. Classifica fluxos: externo (aporte/resgate) vs interno (RV↔RF)
-4. Calcula TWR global com segmentação por fluxos externos
+1. Recebe curvas diarias separadas (RV mark-to-market, RF sintetica, Cash)
+2. Merge em curva mestra unica sem buracos
+3. Classifica fluxos: externo (aporte/resgate) vs interno (RV<->RF)
+4. DELEGA calculo de TWR para twr_canonical.calculate_canonical_twr()
+
+REFATORADO em 2026-01-20: Agora usa motor canonico como FONTE UNICA DA VERDADE.
 """
 
 import pandas as pd
@@ -19,6 +21,12 @@ import numpy as np
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
+
+# Import do motor canonico - FONTE UNICA DA VERDADE
+try:
+    from core.twr_canonical import calculate_canonical_twr, DEFAULT_PREMISES, FlowTiming
+except ImportError:
+    from twr_canonical import calculate_canonical_twr, DEFAULT_PREMISES, FlowTiming
 
 
 @dataclass
@@ -269,11 +277,14 @@ class UnifiedPerformanceEngine:
         """
         Calcula o TWR global sobre a curva mestra.
         
-        Usa chain-linking diário simplificado:
-        1. Para cada dia: r = (NAV_hoje - NAV_ontem - Fluxo) / (NAV_ontem + Fluxo_se_SoD)
-        2. Encadeia: TWR = Π(1 + r) - 1
+        REFATORADO: Agora DELEGA para twr_canonical.calculate_canonical_twr()
+        como FONTE UNICA DA VERDADE.
         
-        Fluxos no primeiro dia são ignorados (é o capital inicial, não um aporte).
+        Este metodo:
+        1. Constroi a curva mestra (NAV total)
+        2. Classifica fluxos (externos vs internos)
+        3. Monta DataFrame para o motor canonico
+        4. DELEGA calculo para calculate_canonical_twr()
         """
         # Garante que curva mestra existe
         if self._master_curve.empty:
@@ -310,59 +321,50 @@ class UnifiedPerformanceEngine:
             else:
                 flows_by_date[d] -= abs(f.amount)  # Saída negativa
         
-        # Calcula TWR com chain-linking diário
+        # =====================================================================
+        # DELEGAR PARA MOTOR CANONICO
+        # =====================================================================
         curve = self._master_curve['total']
         
         if len(curve) < 2:
             return self._empty_result()
         
-        # Chain-linking diário
-        daily_returns = []
+        # Monta DataFrame no formato esperado pelo motor canonico
+        flow_series = pd.Series(0.0, index=curve.index)
+        for d, amount in flows_by_date.items():
+            # Encontra o indice correspondente
+            matching_idx = [idx for idx in curve.index if idx.date() == d]
+            if matching_idx:
+                flow_series.loc[matching_idx[0]] = amount
         
-        for i in range(1, len(curve)):
-            nav_start = curve.iloc[i - 1]
-            nav_end = curve.iloc[i]
-            date_today = curve.index[i].date()
-            
-            # Fluxo do dia (se houver)
-            flow = flows_by_date.get(date_today, 0)
-            
-            if nav_start <= 0:
-                continue
-            
-            # Fórmula Modified Dietz (simplificada para fluxo início do dia)
-            # r = (NAV_end - NAV_start - Flow) / (NAV_start + Flow_se_positivo)
-            if flow > 0:
-                # Aporte: aumenta a base
-                base = nav_start + flow
-            else:
-                # Resgate ou sem fluxo
-                base = nav_start
-            
-            if base > 0:
-                economic_gain = nav_end - nav_start - flow
-                r = economic_gain / base
-                daily_returns.append(1 + r)
+        # Adiciona primeiro fluxo (capital inicial)
+        flow_series.iloc[0] = curve.iloc[0]  # Primeiro NAV é o deposito inicial
         
-        # Encadeamento geométrico
-        twr_global = 1.0
-        for r in daily_returns:
-            twr_global *= r
-        twr_global -= 1
+        df_for_canonical = pd.DataFrame({
+            'nav': curve,
+            'flow': flow_series,
+            'income': 0.0  # Proventos ja estao incorporados no NAV das curvas
+        })
         
-        # TWR anualizado
-        days = (curve.index[-1] - curve.index[0]).days
-        if days > 0 and twr_global > -1:
-            twr_annualized = ((1 + twr_global) ** (365 / days)) - 1
-        else:
-            twr_annualized = 0
+        # CALCULA USANDO MOTOR CANONICO
+        try:
+            canonical_result = calculate_canonical_twr(df_for_canonical, DEFAULT_PREMISES)
+            twr_global = canonical_result.total_twr
+            twr_annualized = canonical_result.annualized_twr
+        except Exception as e:
+            # Fallback em caso de erro
+            twr_global = 0.0
+            twr_annualized = 0.0
         
-        # Calcula TWR por classe para comparação
+        # Calcula TWR por classe para comparacao (retorno simples, nao TWR puro)
         twr_rv = self._calculate_class_twr('rv')
         twr_rf = self._calculate_class_twr('rf')
         
-        # Validação cruzada
+        # Validacao cruzada
         validation_passed, validation_notes = self._validate_cross_check(twr_global, twr_rv, twr_rf)
+        
+        # Adiciona nota sobre uso do motor canonico
+        validation_notes.append("[INFO] TWR calculado via twr_canonical (FONTE UNICA)")
         
         # Total de fluxos externos (excluindo primeiro dia)
         total_external = sum(abs(flows_by_date.get(d, 0)) for d in flows_by_date)

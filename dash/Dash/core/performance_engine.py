@@ -1,19 +1,31 @@
 """
-Motor de Cálculo de Performance Institucional (GIPS Compliant)
-Versão 2.0 - Reconstruído com rigor matemático e validação cruzada
+Motor de Calculo de Performance Institucional (GIPS Compliant)
+Versao 2.1 - Integrado com Motor Canonico (twr_canonical.py)
 
-Princípios:
-1. TWR (Time-Weighted Return) é a métrica soberana
-2. Segmentação por subperíodos delimitados por fluxos de caixa
-3. Encadeamento geométrico dos retornos (chain-linking)
-4. Zero atalhos estatísticos - cálculo puro
-5. Validação cruzada obrigatória
+Principios:
+1. TWR (Time-Weighted Return) e a metrica soberana
+2. Segmentacao por subperiodos delimitados por fluxos de caixa
+3. Encadeamento geometrico dos retornos (chain-linking)
+4. Zero atalhos estatisticos - calculo puro
+5. Validacao cruzada obrigatoria
+
+REFATORADO em 2026-01-20:
+- Enums de timing/policy agora vem de twr_canonical
+- Este motor mantem compatibilidade com codigo existente
+- Para novos projetos, use twr_canonical.calculate_canonical_twr()
 """
 
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
+
+# Import enums do motor canonico para consistencia
+try:
+    from core.twr_canonical import FlowTiming, IncomePolicy, DEFAULT_PREMISES
+except ImportError:
+    from twr_canonical import FlowTiming, IncomePolicy, DEFAULT_PREMISES
+
 
 
 @dataclass

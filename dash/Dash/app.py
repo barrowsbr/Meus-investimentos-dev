@@ -17,6 +17,13 @@ from core.performance_engine import PerformanceEngine
 from core.engine import reconstruct_history
 from core.ui_config import get_editor_config
 
+# Motor de TWR 
+from core.twr_canonical import (
+    calculate_canonical_twr, 
+    DEFAULT_PREMISES, 
+    FlowTiming
+)
+
 # New Modules
 from core.logic import identificar_setor_ativo, normalize_ticker
 from core.finance import calcular_carteira_fechada, summarize_fixed_income
@@ -61,23 +68,78 @@ def carregar_cambio():
     return DataProvider.get_cambio()
     
 # ==============================================================================
-# 🧠 MOTOR DE CÁLCULO DE PERFORMANCE (GIPS COMPLIANT)
+# MOTOR DE CALCULO DE PERFORMANCE (GIPS COMPLIANT) 
+# Refatorado para usar twr_canonical como FONTE UNICA DA VERDADE
 # ==============================================================================
 
-# Wrapper para compatibilidade - SEM CACHE para forçar uso da nova estrutura
+# Wrapper para compatibilidade - Agora usa motor canonico
 def run_performance_engine(df_input_frozen):
     """
-    Wrapper de alto nível para o motor GIPS.
-    Recebe um DataFrame (transformado em hashable/frozen se necessário) e roda o cálculo.
+    Wrapper de alto nivel para o motor GIPS.
+    
+    REFATORADO: Agora usa twr_canonical.calculate_canonical_twr()
+    como FONTE UNICA DA VERDADE para calculo de TWR.
+    
+    Args:
+        df_input_frozen: DataFrame com colunas 'nav', 'flow', 'income' (opcional)
+        
+    Returns:
+        PerformanceResult compativel com o PerformanceEngine anterior
     """
+    from dataclasses import dataclass, field
+    from typing import List
+    
     # Reconverte para DataFrame se vier como dict/json
     if not isinstance(df_input_frozen, pd.DataFrame):
         df = pd.DataFrame(df_input_frozen)
     else:
-        df = df_input_frozen
-        
-    engine = PerformanceEngine(df)
-    return engine.calculate_twr()
+        df = df_input_frozen.copy()
+    
+    # Garante index datetime
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+    
+    # Chama o motor CANONICO
+    canonical_result = calculate_canonical_twr(df, DEFAULT_PREMISES)
+    
+    # Cria resultado compativel com o formato anterior do PerformanceEngine
+    # Isso mantem a retrocompatibilidade com o resto do app
+    @dataclass
+    class CompatibleResult:
+        total_twr: float
+        annualized_twr: float
+        daily_returns: pd.Series
+        cumulative_series: pd.Series
+        drawdown_series: pd.Series
+        max_drawdown: float
+        nav_series: pd.Series
+        volatility: float
+        total_flow: float
+        total_pnl: float
+        simple_return_series: pd.Series = None
+        validation: object = None
+        flow_dates: List[str] = field(default_factory=list)
+        period_breakdown: List = field(default_factory=list)
+    
+    # Mapeia resultado canonico para formato compativel
+    result = CompatibleResult(
+        total_twr=canonical_result.total_twr,
+        annualized_twr=canonical_result.annualized_twr,
+        daily_returns=canonical_result.daily_returns,
+        cumulative_series=canonical_result.cumulative_series,
+        drawdown_series=canonical_result.drawdown_series,
+        max_drawdown=canonical_result.max_drawdown,
+        nav_series=canonical_result.cumulative_series,  # Usa série canônica, não df['nav']
+        volatility=canonical_result.volatility,
+        total_flow=canonical_result.total_flow,
+        total_pnl=canonical_result.total_pnl,
+        simple_return_series=None,  # Nao calculado no canonico
+        validation=canonical_result.validation,
+        flow_dates=[sp.date for sp in canonical_result.sub_periods if abs(sp.flow) > 0.01],
+        period_breakdown=canonical_result.sub_periods
+    )
+    
+    return result
 
 @st.cache_data(show_spinner=False)
 def calcular_contribuicao_cache(df_holdings_mtm, df_asset_returns):
