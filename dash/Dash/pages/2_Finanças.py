@@ -185,7 +185,7 @@ with col_head1:
 with col_head2:
     st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
     if st.button("🏠 Voltar para Home", use_container_width=True):
-        st.switch_page("Home.py")
+        st.switch_page("app.py")
 
 st.markdown("---")
 
@@ -344,6 +344,6 @@ st.dataframe(
 with st.sidebar:
     st.header("Navegação")
     if st.button("🏠 Home"):
-         st.switch_page("Home.py")
+         st.switch_page("app.py")
     if st.button("🚀 Investimentos"):
          st.switch_page("pages/1_Investimentos.py")

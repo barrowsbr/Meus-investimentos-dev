@@ -115,7 +115,7 @@ def main():
         st.caption("Rentabilidade Time-Weighted Return (GIPS Compliant)")
     with col_h2:
         if st.button("🏠 Voltar para Home", use_container_width=True):
-            st.switch_page("Home.py")
+            st.switch_page("app.py")
 
     # 1. LOAD DATA
     with st.spinner("Carregando dados..."):
