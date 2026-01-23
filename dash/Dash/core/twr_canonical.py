@@ -165,9 +165,15 @@ class CanonicalTWRResult:
     end_date: str
     trading_days: int
     
+    # Multi-Currency Metadata (v6.0)
+    currency: str = "BRL"  # Currency in which TWR was calculated
+    is_consolidated: bool = False  # True if multiple currencies were combined
+    
     def __repr__(self) -> str:
+        currency_info = f" ({self.currency})" if self.currency != "BRL" else ""
+        consolidated_info = " [CONSOLIDATED]" if self.is_consolidated else ""
         return (
-            f"CanonicalTWRResult(\n"
+            f"CanonicalTWRResult{currency_info}{consolidated_info}(\n"
             f"  TWR Total: {self.total_twr:.4%}\n"
             f"  TWR Anual: {self.annualized_twr:.4%}\n"
             f"  Max DD: {self.max_drawdown:.4%}\n"

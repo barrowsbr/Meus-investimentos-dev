@@ -108,39 +108,48 @@ def load_fixed_income() -> pd.DataFrame:
         df.columns = df.columns.str.strip().str.lower()
 
         # Dynamic mapping based on keywords
+        # UPDATED: Nova estrutura usa 'compra' como coluna de data principal
         mapa_colunas = {}
         for c in df.columns:
-            if 'data' in c or 'compra' in c: mapa_colunas[c] = 'Data'
-            if 'ticker' in c or 'ativo' in c or 'papel' in c: mapa_colunas[c] = 'Ticker'
-            if 'tipo' in c or 'moviment' in c: mapa_colunas[c] = 'Tipo'
-            if ('valor' in c and 'atual' not in c and 'investido' in c) or c == 'valor': mapa_colunas[c] = 'Valor'
-            if 'atual' in c or 'bruto' in c or 'saldo' in c: mapa_colunas[c] = 'Valor Atual'
-            if 'moeda' in c: mapa_colunas[c] = 'Moeda'
+            # Prioriza 'compra' como coluna de data (nova estrutura)
+            if c == 'compra': 
+                mapa_colunas[c] = 'Compra'
+            elif 'data' in c and 'Compra' not in mapa_colunas.values(): 
+                mapa_colunas[c] = 'Compra'  # Fallback: mapeia 'data' para 'Compra'
+            if 'ticker' in c or 'ativo' in c or 'papel' in c: 
+                mapa_colunas[c] = 'Ticker'
+            if 'tipo' in c or 'moviment' in c: 
+                mapa_colunas[c] = 'Tipo'
+            if c == 'valor': 
+                mapa_colunas[c] = 'Valor'
+            if 'moeda' in c: 
+                mapa_colunas[c] = 'Moeda'
         
         df.rename(columns=mapa_colunas, inplace=True)
 
         # Defaults
-        if 'Data' not in df.columns: df['Data'] = datetime.now()
+        if 'Compra' not in df.columns: df['Compra'] = datetime.now()
         if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
         if 'Tipo' not in df.columns: df['Tipo'] = 'Compra'
         if 'Moeda' not in df.columns: df['Moeda'] = 'BRL'
         
-        df['Data'] = parse_date_br(df['Data'])
+        df['Compra'] = parse_date_br(df['Compra'])
         df['Tipo'] = df['Tipo'].astype(str).str.strip().str.title()
         df['Ticker'] = df['Ticker'].astype(str).str.strip()
         df['Moeda'] = df['Moeda'].fillna('BRL').astype(str).str.upper().str.strip()
         df['Moeda'] = df['Moeda'].replace({'NAN': 'BRL', 'NONE': 'BRL', '': 'BRL'})
 
-        for col in ['Valor', 'Valor Atual']:
-            if col in df.columns:
-                df[col] = df[col].apply(parse_decimal_br)
-            else:
-                df[col] = 0.0
+        # Parse Valor column
+        if 'Valor' in df.columns:
+            df['Valor'] = df['Valor'].apply(parse_decimal_br)
+        else:
+            df['Valor'] = 0.0
 
-        return df.sort_values(by='Data')
+        return df.sort_values(by='Compra')
     except Exception as e:
         st.error(f"Error loading RF: {e}")
         return pd.DataFrame()
+
 
 @st.cache_data(show_spinner=False)
 def load_cambio() -> pd.DataFrame:

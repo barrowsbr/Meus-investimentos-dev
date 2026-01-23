@@ -7,6 +7,7 @@ import streamlit as st
 
 # Import existing core functions
 from core.market_data import fetch_market_data
+from core.consolidator import CurrencyBucket, MultiCurrencyResult, create_empty_bucket, merge_buckets
 
 def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days_lookback: int, df_prices_external: pd.DataFrame = None, df_rf_raw: pd.DataFrame = None):
     """
@@ -51,8 +52,9 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
     # If no prices (empty RV) but has RF, we need to build an index
     if df_prices.empty:
         if has_rf:
-            # Build index from RF dates
-            start_date = pd.to_datetime(df_rf_raw['Data']).min()
+            # Build index from RF dates - uses 'Compra' if 'Data' doesn't exist
+            date_col = 'Compra' if 'Compra' in df_rf_raw.columns else 'Data'
+            start_date = pd.to_datetime(df_rf_raw[date_col], dayfirst=True, errors='coerce').min()
             end_date = datetime.now()
             idx_dates = pd.date_range(start=start_date, end=end_date, freq='D')
             
@@ -239,33 +241,33 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
         try:
             from core.fixed_income_engine import FixedIncomeEngine
             
-            # Build RF curve
+            # Build RF curve - Alinhado com índice de RV para consistência
             rf_engine = FixedIncomeEngine(df_rf_raw)
-            rf_result = rf_engine.build_daily_curve(
-                start_date=serie_patrimonio.index.min(),
-                end_date=serie_patrimonio.index.max()
-            )
+            # NÃO restringir datas aqui - precisamos que o motor processe os fluxos antigos (2021)
+            # para ter o saldo correto no dia de início do índice (2022)
+            rf_result = rf_engine.build_daily_curve()
             
             if not rf_result.daily_curve.empty:
                 rf_curve = rf_result.daily_curve
                 
                 # Align RF curve to RV index
-                rf_series = rf_curve['corrected']
+                rf_series = rf_curve['total']
                 rf_series.index = pd.to_datetime(rf_series.index)
                 
                 # Find first RF date (first non-zero value)
                 first_rf_date = rf_series[rf_series > 0].first_valid_index()
                 
                 if first_rf_date is not None:
-                    # Reindex to match serie_patrimonio
                     rf_aligned = rf_series.reindex(serie_patrimonio.index).fillna(0)
                     
-                    # Ensure RF is 0 BEFORE first RF investment
-                    rf_aligned.loc[rf_aligned.index < first_rf_date] = 0
+                    # Ensure RF is 0 BEFORE first RF investment (no contexto do índice RV)
+                    first_rf_in_rv_index = rf_aligned[rf_aligned > 0].first_valid_index()
                     
-                    # Forward-fill only AFTER first RF date
-                    rf_aligned.loc[rf_aligned.index >= first_rf_date] = rf_aligned.loc[rf_aligned.index >= first_rf_date].ffill()
-                    rf_aligned = rf_aligned.fillna(0)
+                    if first_rf_in_rv_index is not None:
+                        rf_aligned.loc[rf_aligned.index < first_rf_in_rv_index] = 0
+                    
+                    # Forward-fill after first RF date
+                    rf_aligned = rf_aligned.ffill().fillna(0)
                     
                     # Add RF to total patrimony
                     serie_patrimonio = serie_patrimonio + rf_aligned
@@ -273,54 +275,45 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
                     # Store RF curve for reference
                     rf_curve_series = rf_aligned
                     
-                    # =====================================================================
-                    # DERIVE RF FLOWS FROM CURVE CHANGES (not from event data)
-                    # This ensures PERFECT alignment between NAV and Flow
-                    # =====================================================================
-                    # Daily SELIC rate (15% annual / 252 business days)
-                    daily_selic_rate = (1.15) ** (1/252) - 1  # ~0.055% per day
+                    start_date_rv = serie_patrimonio.index.min()
                     
-                    # CRITICAL FIX: Capture FIRST RF flow (initial investment)
-                    # The loop below starts at i=1, so the first deposit (0 -> value) was being missed
-                    if len(rf_aligned) > 0:
-                        first_value = rf_aligned.iloc[0]
-                        first_date = rf_aligned.index[0]
-                        if first_value > 100:  # Initial investment
-                            if first_date in serie_fluxos_mkt.index:
-                                serie_fluxos_mkt.loc[first_date] += first_value
+                    # =====================================================================
+                    # FIX v5.0: Para cada dia, o "fluxo" RF é a VARIAÇÃO da curva RF
+                    # Isso garante que:
+                    # - Dia 1: NAV_RF = Flow_RF (retorno = 0%)
+                    # - Dias seguintes: só a variação da curva gera retorno
+                    # =====================================================================
                     
-                    for i in range(1, len(rf_aligned)):
-                        rf_today = rf_aligned.iloc[i]
-                        rf_yesterday = rf_aligned.iloc[i - 1]
-                        date_today = rf_aligned.index[i]
+                    # Primeiro dia: fluxo = valor inicial da curva
+                    first_rf_val = rf_aligned.iloc[0] if not rf_aligned.empty else 0.0
+                    if first_rf_val > 0:
+                        serie_fluxos_mkt.loc[start_date_rv] += first_rf_val
+                    
+                    # Dias subsequentes: fluxo = variação da curva RF (delta)
+                    # Isso captura aportes/resgates como variações no valor
+                    rf_prev = rf_aligned.shift(1).fillna(0)
+                    rf_delta = rf_aligned - rf_prev
+                    
+                    # Ignora o primeiro dia (já contabilizado acima)
+                    for idx, delta in rf_delta.items():
+                        if idx == start_date_rv:
+                            continue
                         
-                        # Expected change from SELIC growth only
-                        expected_growth = rf_yesterday * daily_selic_rate
-                        
-                        # Actual change
-                        actual_change = rf_today - rf_yesterday
-                        
-                        # If change is much larger than expected growth, it's a deposit
-                        # Threshold: change must be > R$100 AND > 5x the expected growth
-                        if actual_change > 100 and actual_change > expected_growth * 5:
-                            # This is a deposit - add it as external flow
-                            # The flow amount = actual change - expected growth
-                            deposit_amount = actual_change - expected_growth
-                            
-                            if date_today in serie_fluxos_mkt.index:
-                                serie_fluxos_mkt.loc[date_today] += deposit_amount
-                        
-                        # If change is very negative (large drop), it could be a withdrawal or tax
-                        elif actual_change < -100:
-                            # Withdrawal/Tax - subtract from flows
-                            if date_today in serie_fluxos_mkt.index:
-                                # Only count if it's not just market volatility
-                                # RF shouldn't have volatility, so any drop is likely withdrawal
-                                serie_fluxos_mkt.loc[date_today] += actual_change  # already negative
+                        # Só adiciona fluxo se houver variação significativa
+                        # (ignora variações pequenas que são apenas rendimento)
+                        # Definição: variação > 1% do valor anterior = fluxo externo
+                        prev_val = rf_prev.get(idx, 0)
+                        if prev_val > 0:
+                            pct_change = abs(delta) / prev_val
+                            # Se variação > 50% do valor anterior, é provavelmente um aporte/resgate
+                            # (ajuste normal de Selic seria < 1% por dia)
+                            if pct_change > 0.05:  # 5% threshold
+                                if idx in serie_fluxos_mkt.index:
+                                    serie_fluxos_mkt.loc[idx] += delta
                 
+
         except Exception as e:
             # Fallback: continue without RF integration
-            # Uncomment for debugging:
             # print(f"[ENGINE] RF integration error: {e}")
             pass
 
@@ -397,3 +390,329 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
         "flow_timing": v_flow_timing,
         "flow_timing_notes": flow_timing_notes  # New: For debugging/transparency
     }
+
+
+# =============================================================================
+# MULTI-CURRENCY ENGINE (v6.0) - With Real Exchange Rates
+# =============================================================================
+
+def reconstruct_history_multicurrency(
+    df_bruto: pd.DataFrame, 
+    df_proventos: pd.DataFrame, 
+    days_lookback: int, 
+    df_prices_external: pd.DataFrame = None, 
+    df_rf_raw: pd.DataFrame = None,
+    df_cambio: pd.DataFrame = None  # v6.1: Real exchange rates from 'cambio' tab
+) -> MultiCurrencyResult:
+    """
+    Reconstructs portfolio history with NATIVE CURRENCY support.
+    
+    Unlike reconstruct_history(), this function does NOT convert values to BRL.
+    Each currency has its own bucket with NAV, flows, and income in the original currency.
+    
+    This allows calculating TWR in native currency (e.g., USD for NVIDIA)
+    to separate stock picking performance from currency effects.
+    
+    Args:
+        df_bruto: Transaction dataframe with 'moeda' column
+        df_proventos: Dividend dataframe
+        days_lookback: Visual window in days
+        df_prices_external: Cached Yahoo Finance prices
+        df_rf_raw: Fixed Income events (always BRL)
+        df_cambio: Exchange rate events from 'cambio' tab (for real rates)
+
+    
+    Returns:
+        MultiCurrencyResult with buckets by currency
+    """
+    
+    # 1. Setup & Validation
+    has_rv = not df_bruto.empty
+    has_rf = df_rf_raw is not None and not df_rf_raw.empty
+    
+    empty_result = MultiCurrencyResult(
+        buckets={},
+        fx_rates={},
+        prices=pd.DataFrame(),
+        custodia_diaria=pd.DataFrame(),
+        tickers_yahoo=[],
+        rf_curve=None
+    )
+    
+    if not has_rv and not has_rf:
+        return empty_result
+    
+    # 2. Prepare Price Data & Index
+    df_prices = pd.DataFrame()
+    if df_prices_external is not None and not df_prices_external.empty:
+        df_prices = df_prices_external.copy()
+    
+    if df_prices.empty:
+        if has_rf:
+            date_col = 'Compra' if 'Compra' in df_rf_raw.columns else 'Data'
+            start_date = pd.to_datetime(df_rf_raw[date_col], dayfirst=True, errors='coerce').min()
+            end_date = datetime.now()
+            idx_dates = pd.date_range(start=start_date, end=end_date, freq='D')
+            df_prices = pd.DataFrame(index=idx_dates)
+            df_prices['BRL=X'] = 5.50
+            df_prices['EURBRL=X'] = 6.00
+        else:
+            return empty_result
+    else:
+        idx_dates = df_prices.index
+    
+    # 3. Extract FX Rates
+    s_usd = df_prices['BRL=X'] if 'BRL=X' in df_prices.columns else pd.Series(5.5, index=idx_dates)
+    s_eur = df_prices['EURBRL=X'] if 'EURBRL=X' in df_prices.columns else pd.Series(6.0, index=idx_dates)
+    s_cad = df_prices['CADBRL=X'] if 'CADBRL=X' in df_prices.columns else pd.Series(4.0, index=idx_dates)
+    
+    fx_rates = {
+        'USD': s_usd,
+        'EUR': s_eur,
+        'CAD': s_cad
+    }
+    
+    # 4. Filter out RF-like tickers from Yahoo
+    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO']
+    tickers_carteira = df_bruto['ticker'].unique().tolist() if has_rv else []
+    tickers_yahoo = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
+    
+    # 5. Group Assets by Currency
+    if has_rv:
+        # Ensure 'moeda' column exists and has default
+        if 'moeda' not in df_bruto.columns:
+            df_bruto['moeda'] = 'BRL'
+        df_bruto['moeda'] = df_bruto['moeda'].fillna('BRL').str.upper().str.strip()
+        
+        currency_groups = df_bruto.groupby('moeda')['ticker'].apply(lambda x: list(set(x))).to_dict()
+    else:
+        currency_groups = {}
+    
+    # 6. Build Custody Matrix (Global)
+    all_tickers = list(set(tickers_carteira + df_prices.columns.tolist()))
+    custodia_diaria = pd.DataFrame(0.0, index=idx_dates, columns=all_tickers)
+    
+    # Process Transactions for Custody
+    df_ops = df_bruto.sort_values('data').copy() if has_rv else pd.DataFrame()
+    if has_rv:
+        df_ops['data'] = pd.to_datetime(df_ops['data']).dt.normalize()
+        today_norm = pd.Timestamp.now().normalize()
+        df_ops = df_ops[df_ops['data'] <= today_norm]
+        df_ops['effective_date'] = pd.NaT
+        
+        for idx_op, row in df_ops.iterrows():
+            t = row['ticker']
+            if t in custodia_diaria.columns:
+                sinal = 1 if 'compra' in str(row['tipo']).lower() else -1
+                try:
+                    dt_op = row['data']
+                    idx_fluxo = idx_dates.get_indexer([dt_op], method='pad')[0]
+                    if idx_fluxo == -1:
+                        idx_fluxo = idx_dates.get_indexer([dt_op], method='bfill')[0]
+                    data_valida = idx_dates[idx_fluxo]
+                    df_ops.at[idx_op, 'effective_date'] = data_valida
+                    custodia_diaria.loc[data_valida:, t] += (row['quantidade'] * sinal)
+                except:
+                    pass
+    
+    # 7. Map Ticker -> Currency
+    ticker_currency_map = {}
+    if has_rv:
+        for _, row in df_bruto.iterrows():
+            ticker_currency_map[row['ticker']] = row['moeda']
+    
+    # 8. Build Last Prices Cache
+    last_prices = {}
+    
+    # 9. Process Each Currency Bucket
+    buckets = {}
+    
+    for currency, tickers in currency_groups.items():
+        # Initialize series for this currency
+        nav_series = pd.Series(0.0, index=idx_dates)
+        flow_series = pd.Series(0.0, index=idx_dates)
+        income_series = pd.Series(0.0, index=idx_dates)
+        
+        # Filter operations for this currency
+        df_ops_cur = df_ops[df_ops['moeda'] == currency] if has_rv and not df_ops.empty else pd.DataFrame()
+        
+        # Build Transaction Price Map & Register Flows (IN NATIVE CURRENCY)
+        if not df_ops_cur.empty:
+            for _, op in df_ops_cur.iterrows():
+                t = op['ticker']
+                p_tx = float(op['preco'])
+                q = float(op['quantidade'])
+                data_valida = op['effective_date']
+                
+                if pd.isna(data_valida):
+                    continue
+                
+                last_prices[t] = p_tx
+                
+                sinal = 1 if 'compra' in str(op['tipo']).lower() else -1
+                # NATIVE CURRENCY - NO FX CONVERSION!
+                fin_native = p_tx * q
+                if sinal == 1:
+                    flow_series.loc[data_valida] += fin_native
+                else:
+                    flow_series.loc[data_valida] -= fin_native
+        
+        # Calculate Daily NAV (IN NATIVE CURRENCY)
+        for d_idx in idx_dates:
+            # Transaction prices for this day
+            daily_ops = df_ops_cur[df_ops_cur['effective_date'] == d_idx] if not df_ops_cur.empty else pd.DataFrame()
+            tx_price_map = {}
+            
+            if not daily_ops.empty:
+                for _, op in daily_ops.iterrows():
+                    tx_price_map[op['ticker']] = float(op['preco'])
+                    last_prices[op['ticker']] = float(op['preco'])
+            
+            # Sum NAV for all tickers in this currency
+            for t in tickers:
+                if t not in custodia_diaria.columns:
+                    continue
+                    
+                q = custodia_diaria.at[d_idx, t]
+                if q == 0:
+                    continue
+                
+                # Get Price (NO FX CONVERSION!)
+                price = 0.0
+                
+                # Priority 1: Transaction price
+                if t in tx_price_map:
+                    price = tx_price_map[t]
+                # Priority 2: Yahoo price
+                elif t in df_prices.columns:
+                    price = df_prices.at[d_idx, t]
+                
+                # Priority 3: Last known
+                if price <= 0 or np.isnan(price):
+                    price = last_prices.get(t, 0.0)
+                
+                # NATIVE CURRENCY VALUE!
+                nav_series.at[d_idx] += q * price
+        
+        # Process Income for this currency (filter by ticker)
+        if not df_proventos.empty:
+            df_prov = df_proventos.copy()
+            df_prov['data'] = pd.to_datetime(df_prov['data'], dayfirst=True, errors='coerce')
+            df_prov = df_prov.dropna(subset=['data'])
+            
+            # Filter by tickers in this currency
+            if 'ticker' in df_prov.columns:
+                df_prov_cur = df_prov[df_prov['ticker'].isin(tickers)]
+            else:
+                df_prov_cur = pd.DataFrame()  # No ticker column, can't filter
+            
+            for _, row in df_prov_cur.iterrows():
+                try:
+                    d_idx = idx_dates.get_indexer([row['data']], method='pad')[0]
+                    d_val = idx_dates[d_idx]
+                    
+                    val = float(row['valor'])
+                    # Income is assumed to be in same currency as asset
+                    income_series.loc[d_val] += val
+                except:
+                    pass
+        
+        # Calculate Flow Timing & Force Zero
+        force_zero_arr = np.array([False] * len(idx_dates))
+        flow_timing_arr = np.array([0] * len(idx_dates))
+        
+        nav_arr = nav_series.values
+        flow_arr = flow_series.values
+        nav_start_arr = np.roll(nav_arr, 1)
+        nav_start_arr[0] = 0.0
+        
+        for i in range(len(nav_arr)):
+            n_s = nav_start_arr[i]
+            flw = flow_arr[i]
+            
+            if n_s <= 0:
+                force_zero_arr[i] = True
+            elif n_s < 100.0:  # Minimum capital threshold
+                force_zero_arr[i] = True
+            elif flw > 0 and n_s > 0:
+                ratio_inflow = flw / n_s
+                if ratio_inflow > 0.20:
+                    flow_timing_arr[i] = 1  # SoD
+        
+        # Slice to visual window
+        data_corte = datetime.now() - timedelta(days=days_lookback)
+        mask = nav_series.index >= data_corte
+        
+        buckets[currency] = CurrencyBucket(
+            currency=currency,
+            nav_series=nav_series[mask],
+            flow_series=flow_series[mask].reindex(nav_series[mask].index).fillna(0),
+            income_series=income_series[mask].reindex(nav_series[mask].index).fillna(0),
+            force_zero_series=pd.Series(force_zero_arr, index=idx_dates)[mask],
+            flow_timing_series=pd.Series(flow_timing_arr, index=idx_dates)[mask],
+            tickers=tickers
+        )
+    
+    # 10. Add RF to BRL Bucket (RF is always BRL)
+    if has_rf:
+        try:
+            from core.fixed_income_engine import FixedIncomeEngine
+            
+            rf_engine = FixedIncomeEngine(df_rf_raw)
+            rf_result = rf_engine.build_daily_curve()
+            
+            if not rf_result.daily_curve.empty:
+                rf_curve = rf_result.daily_curve['total']
+                rf_curve.index = pd.to_datetime(rf_curve.index)
+                
+                # Slice to visual window
+                data_corte = datetime.now() - timedelta(days=days_lookback)
+                rf_curve_sliced = rf_curve[rf_curve.index >= data_corte]
+                
+                # Create RF bucket
+                rf_nav = rf_curve_sliced.reindex(idx_dates[idx_dates >= data_corte]).ffill().fillna(0)
+                
+                # RF flows: first value + large variations
+                rf_flows = pd.Series(0.0, index=rf_nav.index)
+                if len(rf_nav) > 0:
+                    rf_flows.iloc[0] = rf_nav.iloc[0]  # Initial flow
+                    
+                    # Detect subsequent flows (>5% variation)
+                    rf_prev = rf_nav.shift(1).fillna(0)
+                    rf_delta = rf_nav - rf_prev
+                    for idx_rf, delta in rf_delta.items():
+                        if idx_rf == rf_nav.index[0]:
+                            continue
+                        prev_val = rf_prev.get(idx_rf, 0)
+                        if prev_val > 0 and abs(delta) / prev_val > 0.05:
+                            rf_flows.loc[idx_rf] += delta
+                
+                rf_bucket = CurrencyBucket(
+                    currency='BRL',
+                    nav_series=rf_nav,
+                    flow_series=rf_flows,
+                    income_series=pd.Series(0.0, index=rf_nav.index),
+                    force_zero_series=pd.Series(False, index=rf_nav.index),
+                    flow_timing_series=pd.Series(0, index=rf_nav.index),
+                    tickers=['RF_AGGREGATED']
+                )
+                
+                # Merge with existing BRL bucket or add new
+                if 'BRL' in buckets:
+                    buckets['BRL'] = merge_buckets(buckets['BRL'], rf_bucket)
+                else:
+                    buckets['BRL'] = rf_bucket
+                    
+        except Exception as e:
+            # Fallback: continue without RF
+            pass
+    
+    # 11. Return Multi-Currency Result
+    return MultiCurrencyResult(
+        buckets=buckets,
+        fx_rates=fx_rates,
+        prices=df_prices,
+        custodia_diaria=custodia_diaria,
+        tickers_yahoo=tickers_yahoo,
+        rf_curve=None  # Could store if needed
+    )

@@ -110,87 +110,103 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
     Resumo dos investimentos em Renda Fixa consolidando posicoes por Ticker.
     Lida com 'Ativo' (em carteira) vs 'Encerrado' (ja vencido/resgatado).
     
-    REFATORADO para usar SELIC 15% a.a. automatica para ativos em carteira.
-    Isso garante consistencia com o motor de Performance (engine.py).
-    
-    Premissa: Taxa SELIC proxy = 15% a.a. (mesma do FixedIncomeEngine/engine.py)
+    REFATORADO v5.0:
+    - Usa coluna 'Compra' para datas (nova estrutura)
+    - SELIC 15% a.a. para ativos em carteira
+    - Consistente com FixedIncomeEngine v5.0
     """
     from datetime import datetime
     
     if df_rf_raw.empty:
         return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
     
-    # Constantes SELIC (mesmas de FixedIncomeEngine e engine.py)
+    # Constantes SELIC (mesmas de FixedIncomeEngine)
     SELIC_ANNUAL = 0.15  # 15% ao ano
     BUSINESS_DAYS_YEAR = 252
     
     lista_rf_proc = []
     
+    # Determina coluna de data (nova estrutura usa 'Compra')
+    date_col = 'Compra' if 'Compra' in df_rf_raw.columns else 'Data'
+    
     # Ensure correct sorting
-    df_sorted = df_rf_raw.sort_values('Data')
+    df_sorted = df_rf_raw.sort_values(date_col)
     
     for ativo, dados in df_sorted.groupby('Ticker'):
-        # Filter out tax entries
-        dados_validos = dados[dados['Tipo'] != 'Imposto']
+        # Identifica tipos de operação
+        # Na nova estrutura: Compra, Venda, Imposto
+        tipos_validos = dados['Tipo'].str.lower().str.strip()
         
-        if not dados_validos.empty:
-            ult = dados_validos.iloc[-1]
-            status = 'Ativo' if ult['Tipo'] == 'Compra' else 'Encerrado'
+        # Separa compras, vendas e impostos
+        mask_compra = tipos_validos.str.contains('compra|aporte|entrada', na=False)
+        mask_venda = tipos_validos.str.contains('venda|resgate|vencimento', na=False)
+        mask_imposto = tipos_validos.str.contains('imposto|ir', na=False)
+        
+        compras = dados[mask_compra]
+        vendas = dados[mask_venda]
+        impostos = dados[mask_imposto]
+        
+        # Total investido
+        inv = compras['Valor'].sum() if not compras.empty else 0
+        
+        # Determina status: tem venda = encerrado
+        if not vendas.empty:
+            status = 'Encerrado'
             
-            # Somar todas as compras como Investido Total
-            compras = dados[dados['Tipo'] == 'Compra']
-            inv = compras['Valor'].sum()
+            # Valor de saída - imposto
+            total_saida = vendas['Valor'].sum()
+            total_imposto = impostos['Valor'].sum() if not impostos.empty else 0
             
-            if status == 'Ativo':
-                # =====================================================
-                # REFATORADO: Usar SELIC automatica ao inves de manual
-                # =====================================================
-                # Calcula valor atual usando SELIC proxy
-                # Para cada compra, capitaliza do dia da compra ate hoje
+            atl = total_saida - total_imposto  # Líquido
+            luc = atl - inv
+            
+            # Data de referência é a última venda
+            data_ref = vendas[date_col].max()
+        else:
+            status = 'Ativo'
+            
+            # Calcula valor atual usando SELIC
+            atl = 0.0
+            data_primeira_compra = None
+            
+            for _, compra in compras.iterrows():
+                valor_compra = compra['Valor']
+                data_compra = pd.to_datetime(compra[date_col])
                 
-                atl = 0.0
-                data_primeira_compra = None
+                if data_primeira_compra is None or data_compra < data_primeira_compra:
+                    data_primeira_compra = data_compra
                 
-                for _, compra in compras.iterrows():
-                    valor_compra = compra['Valor']
-                    data_compra = pd.to_datetime(compra['Data'])
-                    
-                    if data_primeira_compra is None:
-                        data_primeira_compra = data_compra
-                    
-                    # Dias desde a compra
-                    dias_corridos = (datetime.now() - data_compra).days
-                    dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
-                    
-                    # Capitaliza pela SELIC
-                    # Valor_atual = Valor_investido * (1 + taxa_diaria) ^ dias_uteis
-                    taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
-                    valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
-                    
-                    atl += valor_corrigido
+                # Dias desde a compra
+                dias_corridos = (datetime.now() - data_compra).days
+                dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
                 
-                luc = atl - inv
-                data_ref = data_primeira_compra if data_primeira_compra else dados_validos.iloc[0]['Data']
-            else:
-                # Encerrado: Usa valor real das saidas (venda/resgate/vencimento)
-                saidas = dados[dados['Tipo'].isin(['Venda','Resgate','Vencimento'])]['Valor'].sum()
-                atl = saidas
-                luc = saidas - inv
-                data_ref = dados_validos.iloc[-1]['Data']  # Exit date
+                # Capitaliza pela SELIC
+                taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
+                valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
+                
+                atl += valor_corrigido
             
-            rent_pct = (luc / inv) if inv > 0 else 0.0
-            
-            lista_rf_proc.append({
-                'Ticker': ativo, 
-                'Ativo': ativo, 
-                'Status': status, 
-                'Data': data_ref,
-                'Investido': inv, 
-                'Atual': atl, 
-                'Lucro': luc, 
-                'Rent. %': rent_pct * 100,
-                'Moeda': dados_validos.iloc[0]['Moeda']
-            })
+            luc = atl - inv
+            data_ref = data_primeira_compra if data_primeira_compra else datetime.now()
+        
+        rent_pct = (luc / inv) * 100 if inv > 0 else 0.0
+        
+        # Moeda (primeira encontrada)
+        moeda = 'BRL'
+        if 'Moeda' in dados.columns and not dados['Moeda'].empty:
+            moeda = dados['Moeda'].iloc[0]
+        
+        lista_rf_proc.append({
+            'Ticker': ativo, 
+            'Ativo': ativo, 
+            'Status': status, 
+            'Data': data_ref,
+            'Investido': inv, 
+            'Atual': atl, 
+            'Lucro': luc, 
+            'Rent. %': rent_pct,
+            'Moeda': moeda
+        })
             
     if not lista_rf_proc:
         return pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
