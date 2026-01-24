@@ -4,6 +4,7 @@ from core.gsheets import get_worksheet
 from datetime import datetime
 
 SPREADSHEET_NAME = 'gdados'
+SHEET_TAB_FIXA_MANUAL = 'fixa_aberta'
 
 class DataProvider:
     """
@@ -56,8 +57,16 @@ class DataProvider:
 
     @classmethod
     def get_fixed_income(cls) -> pd.DataFrame:
-        """Returns Fixed Income DataFrame (renda_fixa)"""
+        """Returns Fixed Income Transactions (renda_fixa)"""
         return cls.fetch_data('renda_fixa')
+
+    @classmethod
+    def get_fixed_income_manual(cls) -> pd.DataFrame:
+        """Returns Manual Balance (fixa_aberta)"""
+        # We need to import the constant or use string. Using string 'fixa_aberta' or cls member if defined.
+        # But wait, constants are module level.
+        # Let's use string 'fixa_aberta' for simplicity as constant is external to class scope if not careful.
+        return cls.fetch_data('fixa_aberta')
 
     @classmethod
     def get_cambio(cls) -> pd.DataFrame:

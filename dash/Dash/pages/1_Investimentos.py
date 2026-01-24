@@ -1,5 +1,6 @@
 import streamlit as st
 from core.auth import require_auth
+from core.utils import format_decimal_br
 
 # --- AUTH CHECK ---
 require_auth()
@@ -16,13 +17,13 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 
 # --- CORE IMPORTS ---
-from core.data_loader import load_assets, load_proventos, load_fixed_income, load_cambio
+from core.data_loader import load_assets, load_proventos, load_fixed_income, load_cambio, load_fixed_income_saldos
 from core.market_data import fetch_market_data
 from core.ui_config import get_editor_config
 
 # New Modules
 from core.logic import identificar_setor_ativo, normalize_ticker
-from core.finance import calcular_carteira_fechada, summarize_fixed_income
+from core.finance import calcular_carteira_fechada, summarize_fixed_income, summarize_fixed_income_hybrid
 from core.utils import parse_decimal_br
 
 from config import BASE_DIR, TAB_ASSETS, TAB_COMPOSICAO, TAB_CAMBIO, TAB_PTAX
@@ -96,18 +97,18 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: rgba(255,255,255,0.05);
-        border-radius: 8px;
+        background-color: transparent;
+        border-radius: 4px;
         gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
         color: #cbd5e1;
-        border: 1px solid transparent;
+        border: none;
         transition: all 0.3s;
     }
     .stTabs [aria-selected="true"] {
-        background-color: rgba(99, 102, 241, 0.2);
-        border: 1px solid rgba(99, 102, 241, 0.5);
+        background-color: transparent;
+        border-bottom: 2px solid #6366f1;
         color: #ffffff;
     }
     
@@ -125,6 +126,10 @@ st.markdown("""
     }
     
     h1, h2, h3 { color: #f1f5f9; }
+    
+    /* Hide Streamlit Toolbar (Optional - Header visible now) */
+    #MainMenu, footer {visibility: hidden;}
+    header {visibility: visible;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -432,7 +437,8 @@ def main():
         # 1. CARREGAMENTO DE DADOS BRUTOS
         df_bruto = load_assets()
         df_proventos_bruto = load_proventos()
-        df_rf_raw = load_fixed_income()
+        df_rf_raw = load_fixed_income() # Histórico de Transações
+        df_rf_saldos = load_fixed_income_saldos() # Saldos Manuais Atualizados
         
         # 2. DEFINIÇÃO DE VARIÁVEIS TEMPORAIS (Correção 'data_primeira_transacao')
         if not df_bruto.empty:
@@ -450,16 +456,18 @@ def main():
         df_rf_cascata = df_rf_raw.copy() if not df_rf_raw.empty else pd.DataFrame(columns=['Ticker', 'Moeda'])
 
         st.markdown("### 🎚️ Macro Filtros")
-        filtro_macro = st.multiselect(
+        filtro_macro = st.selectbox(
             "Classe de Ativo:", 
-            ["Renda Variável", "Renda Fixa"], 
-            default=["Renda Variável", "Renda Fixa"],
+            ["Todos", "Renda Variável", "Renda Fixa"], 
+            index=0,
             key="sidebar_macro_class"
         )
         
         # Aplica Macro Filtro
-        if filtro_macro and "Renda Variável" not in filtro_macro: df_rv_cascata = df_rv_cascata[0:0]
-        if filtro_macro and "Renda Fixa" not in filtro_macro: df_rf_cascata = df_rf_cascata[0:0]
+        if filtro_macro == "Renda Variável": 
+            df_rf_cascata = df_rf_cascata[0:0]
+        elif filtro_macro == "Renda Fixa": 
+            df_rv_cascata = df_rv_cascata[0:0]
 
         opcoes_moeda = ['Todas'] + sorted(df_rv_cascata['moeda'].unique())
         filtro_moeda = st.selectbox("Moeda (RV):", opcoes_moeda, key="sidebar_moeda")
@@ -518,15 +526,19 @@ def main():
     
 
 
-# 5. PROCESSAMENTO DE RENDA FIXA (Corrigido: 'Data' e 'Rent. %' restaurados)
+    # 5. PROCESSAMENTO DE RENDA FIXA (HÍBRIDO)
     df_rf_completo = pd.DataFrame()
     df_rf_filtrado = pd.DataFrame() # Inicialização segura
 
     
-    if not df_rf_raw.empty:
-        df_rf_completo = summarize_fixed_income(df_rf_raw)
+    if not df_rf_saldos.empty:
+        # Usa motor híbrido: Saldos (Atual) + Transações (Investido) + Proventos (Juros)
+        df_rf_completo = summarize_fixed_income_hybrid(df_rf_saldos, df_rf_raw, df_proventos_bruto)
+    elif not df_rf_raw.empty:
+        # Fallback
+        df_rf_completo = summarize_fixed_income_hybrid(pd.DataFrame(), df_rf_raw, df_proventos_bruto)
     else:
-        df_rf_completo = pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
+        df_rf_completo = pd.DataFrame(columns=['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Proventos_RF', 'Atual', 'Lucro', 'Rent. %', 'Moeda'])
         
     # Aplica filtros em df_rf_filtrado
     df_rf_filtrado = df_rf_completo.copy()
@@ -534,7 +546,7 @@ def main():
     if filtro_ticker: 
         df_rf_filtrado = df_rf_filtrado[df_rf_filtrado['Ativo'].isin(lista_rf_permitidos)]
     
-    if filtro_macro and "Renda Fixa" not in filtro_macro: 
+    if filtro_macro == "Renda Variável": 
         df_rf_filtrado = df_rf_filtrado[0:0]
     
     # Filtro de ativo (Ativo/Encerrado) para RF
@@ -548,7 +560,10 @@ def main():
     if 'mapa_precos' not in locals():
         # Se tiver dados, baixa. Se não, dicionário vazio.
         if not df_bruto.empty:
-            mapa_precos, mapa_variacao = fetch_market_data(df_bruto['ticker'].unique().tolist())
+            # Ensure Currency Tickers are fetched even if not in portfolio
+            extra_tickers = ['BRL=X', 'EURBRL=X', 'CADBRL=X', 'CHFUSD=X', 'BTC-USD']
+            full_ticker_list = list(set(df_bruto['ticker'].unique().tolist() + extra_tickers))
+            mapa_precos, mapa_variacao = fetch_market_data(full_ticker_list)
         else:
             mapa_precos, mapa_variacao = {}, {}
             
@@ -709,9 +724,9 @@ def main():
                     ativo_top = df_grafico.loc[df_grafico['Rent. (%)'].idxmax()]
                     ativo_low = df_grafico.loc[df_grafico['Rent. (%)'].idxmin()]
                     
-                    k1.metric("🚀 Maior Rentabilidade", ativo_top['Ticker'], f"{ativo_top['Rent. (%)']:.1%}")
-                    k2.metric("🐢 Menor Rentabilidade", ativo_low['Ticker'], f"{ativo_low['Rent. (%)']:.1%}", delta_color="inverse")
-                    k3.metric("📊 Patrimônio Gráfico", f"R$ {total_view:,.2f}", help="Total considerado nestes gráficos")
+                    k1.metric("🚀 Maior Rentabilidade", ativo_top['Ticker'], f"{format_decimal_br(ativo_top['Rent. (%)']*100, 1)}%")
+                    k2.metric("🐢 Menor Rentabilidade", ativo_low['Ticker'], f"{format_decimal_br(ativo_low['Rent. (%)']*100, 1)}%", delta_color="inverse")
+                    k3.metric("📊 Patrimônio Gráfico", f"R$ {format_decimal_br(total_view)}", help="Total considerado nestes gráficos")
 
                 st.markdown("### 🗺️ Mapa de Calor Global (Risco & Retorno)")
                 max_rent = df_grafico['Rent. (%)'].max()
@@ -938,7 +953,7 @@ def main():
                     
                     st.subheader("📋 Tabela de Ativos (Decrescente)")
                     altura_tabela = min((len(df_comp) + 1) * 35, 1200)
-                    st.dataframe(df_comp.style.format({col_valor: 'US$ {:,.2f}', 'Peso (%)': '{:.2f}%'}), use_container_width=True, height=altura_tabela)
+                    st.dataframe(df_comp.style.format({col_valor: lambda x: f"US$ {format_decimal_br(x)}", 'Peso (%)': lambda x: f"{format_decimal_br(x)}%"}), use_container_width=True, height=altura_tabela)
                 else: 
                     st.info("Arquivo 'composicao.csv' não encontrado ou vazio.")
             else:
@@ -1193,10 +1208,10 @@ def main():
                 top_asset = df_cripto.loc[df_cripto['Rent. (%)'].idxmax()]
                 
                 k1, k2, k3, k4 = st.columns(4)
-                k1.metric("Patrimônio Cripto", f"R$ {total_cripto:,.2f}", help="Valor de mercado atual consolidado")
-                k2.metric("Resultado (PnL)", f"R$ {pnl_cripto:,.2f}", f"{pnl_pct_cripto:.2%}")
-                k3.metric("Custo de Aquisição", f"R$ {custo_cripto:,.2f}")
-                k4.metric("🚀 Top Performer", top_asset['Ticker'], f"{top_asset['Rent. (%)']:.1%}")
+                k1.metric("Patrimônio Cripto", f"R$ {format_decimal_br(total_cripto)}", help="Valor de mercado atual consolidado")
+                k2.metric("Resultado (PnL)", f"R$ {format_decimal_br(pnl_cripto)}", f"{format_decimal_br(pnl_pct_cripto*100)}%")
+                k3.metric("Custo de Aquisição", f"R$ {format_decimal_br(custo_cripto)}")
+                k4.metric("🚀 Top Performer", top_asset['Ticker'], f"{format_decimal_br(top_asset['Rent. (%)']*100, 1)}%")
                 
                 st.divider()
 
@@ -1364,7 +1379,7 @@ def main():
                 val = mapa_precos.get(ticker, 0.0)
                 var = mapa_variacao.get(ticker, 0.0)
                 simbolo = "US$" if ticker == 'CHFUSD=X' else "R$"
-                cols[i].metric(label, f"{simbolo} {val:.3f}", f"{var:.3f}", delta_color="normal")
+                cols[i].metric(label, f"{simbolo} {format_decimal_br(val, 3)}", f"{format_decimal_br(var, 3)}", delta_color="normal")
 
         # Removed try-except to debug UI
         df_cambio = load_cambio()
@@ -1448,6 +1463,9 @@ def main():
 
             ticker_yahoo = f"{moeda_sel}{d['moeda_base']}=X"
             if d['moeda_base'] == 'USD': ticker_yahoo = f"{moeda_sel}=X"
+            
+            # Correction for Yahoo Tickers
+            if ticker_yahoo == 'USDBRL=X': ticker_yahoo = 'BRL=X'
 
             @st.cache_data(ttl=3600)
             def get_history_fx(t):
@@ -1492,9 +1510,9 @@ def main():
             k1, k2, k3, k4 = st.columns(4)
             
             k1.metric(f"Posição ({moeda_sel})", f"{exposicao_total:,.2f}")
-            k2.metric(f"PnL Cambial ({d['moeda_base']})", f"{simbolo_base} {pnl_valor:,.2f}", f"{pnl_pct:.2f}%", delta_color="normal")
-            k3.metric(f"PM Ajustado", f"{simbolo_base} {pm_visual:.4f}", help="Preço Médio ajustado.")
-            k4.metric(f"Cotação Atual", f"{simbolo_base} {cotacao_exib:.4f}", help=f"Ticker: {ticker_yahoo}")
+            k2.metric(f"PnL Cambial ({d['moeda_base']})", f"{simbolo_base} {format_decimal_br(pnl_valor, 2)}", f"{format_decimal_br(pnl_pct, 2)}%", delta_color="normal")
+            k3.metric(f"PM Ajustado", f"{simbolo_base} {format_decimal_br(pm_visual, 4)}", help="Preço Médio ajustado.")
+            k4.metric(f"Cotação Atual", f"{simbolo_base} {format_decimal_br(cotacao_exib, 4)}", help=f"Ticker: {ticker_yahoo}")
 
             st.markdown("---")
             
@@ -1559,7 +1577,7 @@ def main():
                     
                     c_kpi1, c_kpi2 = st.columns(2)
                     c_kpi1.metric(f"💰 Total Comprado ({moeda_sel})", f"{simbolo} {total_purchased_dest:,.2f}")
-                    c_kpi2.metric("💸 Lucro/Prejuízo (Histórico)", f"R$ {total_pnl_hist:,.2f}", f"{total_pnl_pct_hist:.2f}%", delta_color="normal")
+                    c_kpi2.metric("💸 Lucro/Prejuízo (Histórico)", f"R$ {format_decimal_br(total_pnl_hist, 2)}", f"{format_decimal_br(total_pnl_pct_hist, 2)}%", delta_color="normal")
                     
                     st.divider()
                     # --------------------
@@ -1612,10 +1630,10 @@ def main():
                         x=["Investido Inicial", "Resultado Papéis", "Variação Cambial", "Valor Atual"],
                         textposition="outside",
                         text=[
-                            f"{simbolo_base} {investido_base/1000:.1f}k",
-                            f"{'+' if delta_ativo_base > 0 else ''}{simbolo_base} {delta_ativo_base/1000:.1f}k",
-                            f"{'+' if delta_cambio_base > 0 else ''}{simbolo_base} {delta_cambio_base/1000:.1f}k",
-                            f"{simbolo_base} {valor_final_base/1000:.1f}k"
+                            f"{simbolo_base} {format_decimal_br(investido_base/1000, 1)}k",
+                            f"{'+' if delta_ativo_base > 0 else ''}{simbolo_base} {format_decimal_br(delta_ativo_base/1000, 1)}k",
+                            f"{'+' if delta_cambio_base > 0 else ''}{simbolo_base} {format_decimal_br(delta_cambio_base/1000, 1)}k",
+                            f"{simbolo_base} {format_decimal_br(valor_final_base/1000, 1)}k"
                         ],
                         y=[investido_base, delta_ativo_base, delta_cambio_base, valor_final_base],
                         connector={"line": {"color": "rgb(63, 63, 63)"}},
@@ -1676,7 +1694,7 @@ def main():
                         fig.add_hline(y=pm_visual_g, line_width=2, line_dash="dash", line_color=cor_pm)
                         fig.add_annotation(
                             x=series_plot.index[-1], y=pm_visual_g,
-                            text=f"Seu PM: {pm_visual_g:.4f}",
+                            text=f"Seu PM: {format_decimal_br(pm_visual_g, 4)}",
                             showarrow=False, yshift=10, font=dict(color=cor_pm, size=12)
                         )
 
@@ -1734,7 +1752,7 @@ def main():
                 diff_financeira = patrimonio_convertido_sim - patrimonio_convertido_hoje
                 
                 sc1, sc2, sc3 = st.columns(3)
-                sc1.metric("Cotação Simulada", f"{simbolo_base} {cotacao_simulada:.4f}", delta=f"{shock}%", delta_color="off")
+                sc1.metric("Cotação Simulada", f"{simbolo_base} {format_decimal_br(cotacao_simulada, 4)}", delta=f"{shock}%", delta_color="off")
                 sc2.metric(f"Patrimônio Convertido ({d['moeda_base']})", f"{simbolo_base} {patrimonio_convertido_sim:,.2f}")
                 cor_delta = "normal" if diff_financeira >= 0 else "inverse"
                 sc3.metric("Impacto Financeiro Estimado", f"{simbolo_base} {diff_financeira:,.2f}", delta="Ganho Potencial" if diff_financeira > 0 else "Perda Potencial", delta_color=cor_delta)
@@ -1826,7 +1844,7 @@ def main():
 
                     st.markdown("### 🧾 Resumo por Ativo")
                     df_resumo_simples = df_filter.groupby('ticker')['valor_brl'].sum().reset_index().sort_values('valor_brl', ascending=False)
-                    st.dataframe(df_resumo_simples.style.format({'valor_brl': 'R$ {:,.2f}'}), use_container_width=True, height=250)
+                    st.dataframe(df_resumo_simples.style.format({'valor_brl': lambda x: f"R$ {format_decimal_br(x)}"}), use_container_width=True, height=250)
                     
                     st.markdown("---")
                     
@@ -1927,7 +1945,7 @@ def main():
                     # Filter out invalid dates (NaT) to prevent formatter crash
                     df_display = df_filter[cols].dropna(subset=['data']).sort_values('data', ascending=False)
                     st.dataframe(
-                        df_display.style.format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'}).map(st_neg, subset=['valor','valor_brl']),
+                        df_display.style.format({'valor': format_decimal_br, 'valor_brl': lambda x: f"R$ {format_decimal_br(x)}", 'data':'{:%d/%m/%Y}'}).map(st_neg, subset=['valor','valor_brl']),
                         use_container_width=True
                     )
                 else: 
@@ -2292,9 +2310,9 @@ def main():
                         total_gerencial = df_ex[col_hoje].sum() if col_hoje in df_ex.columns else 0
                         diff_timing = total_gerencial - total_fiscal
                         
-                        c1.metric("Lucro Fiscal (Realizado)", f"R$ {total_fiscal:,.2f}", help="Base real de tributação.")
-                        c2.metric("Lucro Gerencial (Cotação Atual)", f"R$ {total_gerencial:,.2f}", help="Se convertesse hoje.")
-                        c3.metric("Diferença (Timing)", f"R$ {diff_timing:,.2f}", delta_color="off")
+                        c1.metric("Lucro Fiscal (Realizado)", f"R$ {format_decimal_br(total_fiscal)}", help="Base real de tributação.")
+                        c2.metric("Lucro Gerencial (Cotação Atual)", f"R$ {format_decimal_br(total_gerencial)}", help="Se convertesse hoje.")
+                        c3.metric("Diferença (Timing)", f"R$ {format_decimal_br(diff_timing)}", delta_color="off")
                         
                     else:
                         st.warning("Sem operações no Exterior neste ano.")
@@ -2307,9 +2325,9 @@ def main():
                         
                         st.markdown("### 🧾 Tributação")
                         with st.container(border=True):
-                            st.metric("Base Cálculo", f"R$ {lucro_total:,.2f}")
+                            st.metric("Base Cálculo", f"R$ {format_decimal_br(lucro_total)}")
                             st.divider()
-                            st.metric("Imposto (15%)", f"R$ {imposto:,.2f}", delta="DARF (Cód 8528)", delta_color="inverse")
+                            st.metric("Imposto (15%)", f"R$ {format_decimal_br(imposto)}", delta="DARF (Cód 8528)", delta_color="inverse")
                     else:
                         st.info("Sem dados.")
 
@@ -2391,10 +2409,10 @@ def main():
                 twr_ponderado = 0.0
 
             k1, k2, k3, k4 = st.columns(4)
-            k1.metric("Principal Aplicado", f"R$ {principal:,.2f}", help="Valor original aportado")
-            k2.metric("Posição Marcada (MtM)", f"R$ {valor_mercado:,.2f}", help="Valor atualizado (Mark-to-Market)")
-            k3.metric("Resultado Latente", f"R$ {resultado_latente:,.2f}", help="Lucro bruto não realizado")
-            k4.metric("TWR Ponderado", f"{twr_ponderado:.2f}%", help="Time-Weighted Return ponderado pelas aplicações")
+            k1.metric("Principal Aplicado", f"R$ {format_decimal_br(principal)}", help="Valor original aportado")
+            k2.metric("Posição Marcada (MtM)", f"R$ {format_decimal_br(valor_mercado)}", help="Valor atualizado (Mark-to-Market)")
+            k3.metric("Resultado Latente", f"R$ {format_decimal_br(resultado_latente)}", help="Lucro bruto não realizado")
+            k4.metric("TWR Ponderado", f"{format_decimal_br(twr_ponderado, 2)}%", help="Time-Weighted Return ponderado pelas aplicações")
 
             # Handle NaT values in 'Data' column before display
             df_display = df_custodia_view[['Ativo', 'Data', 'Investido', 'Atual', 'Lucro', 'Rent. %', 'Rent. Anual (%)']].copy()
@@ -2475,13 +2493,13 @@ def main():
                     col_rf1, col_rf2, col_rf3, col_rf4 = st.columns(4)
                     
                     with col_rf1:
-                        st.metric("💰 Total Investido", f"R$ {curve_result.total_invested:,.0f}")
+                        st.metric("💰 Total Investido", f"R$ {format_decimal_br(curve_result.total_invested, 0)}")
                     with col_rf2:
-                        st.metric("📈 Valor Projetado", f"R$ {curve_result.current_value:,.0f}")
+                        st.metric("📈 Valor Projetado", f"R$ {format_decimal_br(curve_result.current_value, 0)}")
                     with col_rf3:
-                        st.metric("📊 Retorno Projetado", f"{curve_result.total_return_pct:.1f}%")
+                        st.metric("📊 Retorno Projetado", f"{format_decimal_br(curve_result.total_return_pct, 1)}%")
                     with col_rf4:
-                        st.metric("📅 Retorno Anualizado", f"{curve_result.annualized_return_pct:.1f}%")
+                        st.metric("📅 Retorno Anualizado", f"{format_decimal_br(curve_result.annualized_return_pct, 1)}%")
                     
                     # Gráfico de curva
                     fig_curve = go.Figure()
@@ -2571,7 +2589,7 @@ def main():
                     """)
                     
                     if curve_result.total_taxes_paid > 0:
-                        st.warning(f"🦁 **Impostos pagos no período:** R$ {curve_result.total_taxes_paid:,.2f}")
+                        st.warning(f"🦁 **Impostos pagos no período:** R$ {format_decimal_br(curve_result.total_taxes_paid, 2)}")
                 else:
                     st.caption("Sem dados suficientes para construir curva de evolução.")
             else:

@@ -26,8 +26,6 @@ st.set_page_config(
 )
 
 # --- CSS / THEME ---
-# Imports global theme from .streamlit/config.toml implicitly, 
-# but we add specific overrides here if needed.
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -51,7 +49,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- HELPER FUNCTIONS ---
-# Reusing the compatibility wrapper from Investimentos to allow smooth migration
 def run_performance_engine_compat(df_input_frozen):
     """
     Wrapper de alto nivel para o motor GIPS (Canonical).
@@ -117,69 +114,168 @@ def main():
         if st.button("🏠 Voltar para Home", use_container_width=True):
             st.switch_page("app.py")
 
-    # 1. LOAD DATA
-    with st.spinner("Carregando dados..."):
+    # 1. LOAD DATA (SMART PIPELINE)
+    with st.spinner("Carregando e Higienizando Dados..."):
         df_assets = load_assets()
         df_proventos = load_proventos()
         df_rf_raw = load_fixed_income()
     
+    # -------------------------------------------------------------------------
+    # PASSO ZERO: HIGIENIZAÇÃO E AGREGAÇÃO DE RENDA FIXA (CRÍTICO)
+    # -------------------------------------------------------------------------
+    if not df_rf_raw.empty:
+        # A. Normalização de Data
+        date_col = next((c for c in ['Compra', 'Data'] if c in df_rf_raw.columns), None)
+        
+        if date_col:
+            df_rf_raw[date_col] = pd.to_datetime(df_rf_raw[date_col], dayfirst=True, errors='coerce')
+            df_rf_raw = df_rf_raw.dropna(subset=[date_col]) 
+            
+            # B. Agregação Inteligente (Ao invés de remover, SOMA duplicatas do mesmo dia/ativo)
+            cols_group = ['Ticker', date_col, 'Tipo'] 
+            # First values for others
+            agg_dict = {c: 'first' for c in df_rf_raw.columns if c not in cols_group + ['Valor', 'Atual', 'Investido']}
+            
+            # Sum numerics
+            for num_col in ['Valor', 'Atual', 'Investido']:
+                if num_col in df_rf_raw.columns:
+                    agg_dict[num_col] = 'sum'
+            
+            df_rf_raw = df_rf_raw.groupby(cols_group, as_index=False).agg(agg_dict)
+        else:
+            df_rf_raw = df_rf_raw.drop_duplicates()
+
     if df_assets.empty and df_rf_raw.empty:
         st.warning("Sem dados de transações para calcular performance.")
         st.stop()
 
-    # 2. FILTERS (SimplifiedSidebar for Performance)
+    # 2. SEPARATE FILTERS (UX & Logic)
     with st.sidebar:
         st.header("Filtros de Portfolio")
         
-        # Filtros de Ativos
-        all_tickers = []
+        # A. Renda Variável (RV)
+        tickers_rv = []
         if not df_assets.empty:
-            all_tickers += df_assets['ticker'].unique().tolist()
-        if not df_rf_raw.empty:
-            if 'Ticker' in df_rf_raw.columns:
-                all_tickers += df_rf_raw['Ticker'].unique().tolist()
+            tickers_rv = sorted(df_assets['ticker'].unique().tolist())
+        sel_rv = st.multiselect("Renda Variável:", tickers_rv, default=tickers_rv)
+
+        # B. Renda Fixa (RF)
+        tickers_rf = []
+        regex_cash_sacred = 'CAIXA|SALDO|CASH|DISPONIVEL|CORRENTE|CC|LIQUIDEZ|PROVIS|TESOURARIA'
+        regex_inv_protect = 'CDB|LCI|LCA|TESOURO|IPCA|PREFIXADO|DEBENTURE|FUNDO|FIC|FIA|RDB|LC|CRI|CRA'
         
-        all_tickers = sorted(list(set(all_tickers)))
+        if not df_rf_raw.empty and 'Ticker' in df_rf_raw.columns:
+            raw_rf = df_rf_raw['Ticker'].unique().tolist()
+            
+            def is_pure_cash(t):
+                t_u = str(t).upper()
+                import re
+                is_cash = bool(re.search(regex_cash_sacred, t_u))
+                is_inv = bool(re.search(regex_inv_protect, t_u))
+                return is_cash and not is_inv
+
+            tickers_rf = sorted([t for t in raw_rf if not is_pure_cash(t)])
+            
+        sel_rf = st.multiselect("Renda Fixa (Títulos):", tickers_rf, default=tickers_rf)
         
-        sel_tickers = st.multiselect("Filtrar Ativos:", all_tickers)
-        
+        st.markdown("---")
         if st.button("🔄 Recalcular", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
 
-    # 3. ENGINE EXECUTION
-    # Apply filters
-    df_rv_final = df_assets.copy()
-    df_rf_final = df_rf_raw.copy()
+    # 3. ENGINE IMPLEMENTATION
     
-    if sel_tickers:
-        if not df_rv_final.empty:
-            df_rv_final = df_rv_final[df_rv_final['ticker'].isin(sel_tickers)]
-        if not df_rf_final.empty:
-            df_rf_final = df_rf_final[df_rf_final['Ticker'].isin(sel_tickers)]
+    # 3.1 Filtro RV
+    df_rv_final = df_assets.copy()
+    if sel_rv:
+        df_rv_final = df_rv_final[df_rv_final['ticker'].isin(sel_rv)]
+    else:
+        df_rv_final = df_rv_final[0:0]
 
-    # Fetch History
+    # 3.2 Filtro RF (Lógica do "Caixa Sagrado")
+    df_rf_final = df_rf_raw.copy()
+    if not df_rf_final.empty:
+        # Mapeamento do que é caixa real
+        mask_true_cash = (
+            df_rf_final['Ticker'].str.contains(regex_cash_sacred, case=False, na=False) & 
+            ~df_rf_final['Ticker'].str.contains(regex_inv_protect, case=False, na=False)
+        )
+        
+        df_sacred_cash = df_rf_final[mask_true_cash].copy()
+        df_investments = df_rf_final[~mask_true_cash].copy()
+        
+        # Filtro User
+        if sel_rf:
+            df_investments = df_investments[df_investments['Ticker'].isin(sel_rf)]
+        elif tickers_rf: # Se existem opções mas user desmarcou tudo
+            df_investments = df_investments[0:0]
+
+        # Reintegra: Caixa Sagrado + Investimentos Selecionados
+        df_rf_final = pd.concat([df_sacred_cash, df_investments], ignore_index=True)
+
+    # 3.3 Proventos Sync
+    if not df_proventos.empty:
+        if not df_rv_final.empty:
+             active_tickers = set(df_rv_final['ticker'].unique())
+             df_proventos = df_proventos[df_proventos['ticker'].isin(active_tickers)]
+        else:
+             df_proventos = df_proventos[0:0]
+
+    # 3.4 Fetch History
     with st.spinner("Sincronizando mercado..."):
         tickers_download = []
         if not df_rv_final.empty:
             tickers_carteira = df_rv_final['ticker'].unique().tolist()
-            termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO','CDI']
-            tickers_download = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
-            tickers_download += ['BRL=X', 'EURBRL=X', 'CADBRL=X'] # Currencies
+            termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO', 'CDI']
+            tickers_download = [t for t in tickers_carteira if not any(x in str(t).upper() for x in termos_excluir)]
+            tickers_download += ['BRL=X', 'EURBRL=X', 'CADBRL=X'] 
         
-        min_date = datetime.now() - timedelta(days=365*5) # 5 years default
-        if not df_rv_final.empty:
-            min_date = min(min_date, df_rv_final['data'].min())
+        min_date = datetime.now() - timedelta(days=365*5)
+        if not df_rv_final.empty and 'data' in df_rv_final.columns:
+             # Ensure data is datetime
+             df_rv_final['data'] = pd.to_datetime(df_rv_final['data'], dayfirst=True, errors='coerce')
+             min_date = min(min_date, df_rv_final['data'].min())
         
         df_hist_prices = pd.DataFrame()
         if tickers_download:
-            df_hist_prices = fetch_historical_data(list(set(tickers_download)), min_date)
+            try:
+                df_hist_prices = fetch_historical_data(list(set(tickers_download)), min_date)
+                # Garante continuidade
+                df_hist_prices = df_hist_prices.ffill().fillna(0)
+            except:
+                pass
 
-    # Run Engine
+    # --- DEBUG VITAL ---
+    with st.expander("🕵️ Debug: Rastreio de Patrimônio", expanded=False):
+        c_dbg1, c_dbg2, c_dbg3 = st.columns(3)
+        with c_dbg1:
+            st.markdown("###### 📊 Total RF + Caixa (Consolidado)")
+            if not df_rf_final.empty:
+                col_val = next((c for c in df_rf_final.columns if c in ['Valor', 'Atual', 'Saldo', 'Investido']), None)
+                if col_val:
+                     df_chk = df_rf_final.groupby('Ticker')[col_val].sum().reset_index().sort_values(col_val, ascending=False)
+                     st.dataframe(df_chk.style.format({col_val: 'R$ {:,.2f}'}), use_container_width=True, height=200)
+                     st.caption(f"**Soma Bruta dos Eventos:** R$ {df_chk[col_val].sum():,.2f}")
+
+        with c_dbg2:
+            st.markdown("###### 🏦 Classificação")
+            if not df_rf_final.empty:
+                n_cash = len(df_rf_final[df_rf_final['Ticker'].str.contains(regex_cash_sacred, case=False) & ~df_rf_final['Ticker'].str.contains(regex_inv_protect, case=False)])
+                n_inv = len(df_rf_final) - n_cash
+                st.metric("Registros Caixa", n_cash)
+                st.metric("Registros Invest.", n_inv)
+
+        with c_dbg3:
+            st.markdown("###### 📉 Checagem de Cotações")
+            if not df_hist_prices.empty:
+                last = df_hist_prices.iloc[-1]
+                zeros = last[last == 0].index.tolist()
+                if zeros: st.error(f"Zeros no último dia: {zeros}")
+                else: st.success("Nenhum ativo zerado hoje.")
+
+    # 4. RUN ENGINE
     try:
         df_cambio = load_cambio()
-        
-        # Days lookback: Use max available
         days_lookback = (datetime.now() - min_date).days + 10
         
         multi_result = reconstruct_history_multicurrency(
@@ -191,13 +287,10 @@ def main():
             df_cambio=df_cambio
         )
         
-        # Consolidation Logic
-        # For simplicity in this v1 of separate page, we default to Consolidated BRL view
-        # unless user drills down (future feature)
         from core.consolidator import consolidate_to_brl
         
         if not multi_result.buckets:
-            st.warning("Não foi possível reconstruir o histórico com os filtros atuais.")
+            st.warning("Dados insuficientes.")
             st.stop()
             
         consolidated = consolidate_to_brl(multi_result.buckets, multi_result.fx_rates)
@@ -205,105 +298,82 @@ def main():
         
         # Calculate TWR
         resultado = run_performance_engine_compat(df_engine_input)
-        resultado.currency = 'BRL'
-        resultado.is_consolidated = True
         
     except Exception as e:
-        st.error(f"Erro no motor de cálculo: {e}")
+        st.error(f"Erro Crítico no Motor: {e}")
         st.stop()
 
-    # 4. VISUALIZATION
-    # Time Selection
+    # 5. VISUALIZATION (ROBUST PLOTTING)
     st.markdown("---")
     
-    # Calculate Date Range
+    # Date Filtering Logic
+    if df_engine_input.empty:
+         st.error("Engine retornou dados vazios.")
+         st.stop()
+         
     data_max = df_engine_input.index.max()
-    data_min_global = df_engine_input.index.min()
+    data_min = df_engine_input.index.min()
     
-    c_per, c_ano = st.columns([3, 1])
-    with c_per:
-        periodos = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "MAX"]
-        sel_periodo = st.radio("Período:", periodos, index=6, horizontal=True)
-    
-    with c_ano:
-        anos = sorted(df_engine_input.index.year.unique(), reverse=True)
-        sel_ano = st.selectbox("Ano:", ["Todos"] + [str(a) for a in anos])
+    cols_filt = st.columns([3, 1])
+    with cols_filt[0]:
+        sel_per = st.radio("Período:", ["1M", "3M", "6M", "YTD", "1Y", "2Y", "MAX"], index=6, horizontal=True)
+    with cols_filt[1]:
+        years = sorted(df_engine_input.index.year.unique(), reverse=True)
+        sel_year = st.selectbox("Ano:", ["Todos"] + [str(y) for y in years])
 
-    # Filter Logic (Date Slicing)
-    if sel_ano != "Todos":
-        start_date = pd.Timestamp(int(sel_ano), 1, 1)
-        end_date = pd.Timestamp(int(sel_ano), 12, 31)
+    if sel_year != "Todos":
+        d_start = pd.Timestamp(int(sel_year), 1, 1)
+        d_end = pd.Timestamp(int(sel_year), 12, 31)
     else:
-        end_date = data_max
-        if sel_periodo == "1M": start_date = data_max - pd.DateOffset(months=1)
-        elif sel_periodo == "3M": start_date = data_max - pd.DateOffset(months=3)
-        elif sel_periodo == "6M": start_date = data_max - pd.DateOffset(months=6)
-        elif sel_periodo == "YTD": start_date = pd.Timestamp(data_max.year, 1, 1)
-        elif sel_periodo == "1Y": start_date = data_max - pd.DateOffset(years=1)
-        elif sel_periodo == "2Y": start_date = data_max - pd.DateOffset(years=2)
-        else: start_date = data_min_global
+        d_end = data_max
+        offset_map = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": 730}
+        if sel_per == "YTD": d_start = pd.Timestamp(data_max.year, 1, 1)
+        elif sel_per == "MAX": d_start = data_min
+        else: d_start = data_max - timedelta(days=offset_map.get(sel_per, 30))
 
-    # Apply Slice
-    mask = (df_engine_input.index >= start_date) & (df_engine_input.index <= end_date)
-    df_slice = df_engine_input[mask]
+    # Slice & Clean (Cure Graph Breaks)
+    mask_time = (df_engine_input.index >= d_start) & (df_engine_input.index <= d_end)
+    df_slice = df_engine_input[mask_time].copy()
     
     if df_slice.empty:
         st.error("Período vazio.")
         st.stop()
         
-    # Re-run TWR on slice
-    res_period = run_performance_engine_compat(df_slice)
+    res = run_performance_engine_compat(df_slice)
     
+    # Imports for formatting
+    from core.utils import format_decimal_br
+
     # --- METRICS ---
-    k1, k2, k3, k4 = st.columns(4)
-    with k1: st.metric("TWR Período", f"{res_period.total_twr:.2%}")
-    with k2: st.metric("Patrimônio Final", f"R$ {res_period.nav_series.iloc[-1]:,.2f}")
-    with k3: st.metric("Drawdown Max", f"{res_period.max_drawdown:.2%}")
-    with k4: st.metric("Volatilidade", f"{res_period.volatility:.2%}")
+    m1, m2, m3, m4 = st.columns(4)
+    with m1: st.metric("TWR Período", f"{format_decimal_br(res.total_twr * 100)}%")
+    with m2: st.metric("Patrimônio", f"R$ {format_decimal_br(res.nav_series.iloc[-1])}")
+    with m3: st.metric("Drawdown", f"{format_decimal_br(res.max_drawdown * 100)}%")
+    with m4: st.metric("Volatilidade", f"{format_decimal_br(res.volatility * 100)}%")
     
     st.markdown("---")
     
-    # --- CHARTS ---
-    # 1. Evolution (Dual Axis)
-    fig_evol = go.Figure()
+    # PLOTS
+    s_twr = (res.cumulative_series * 100).fillna(method='ffill')
+    s_nav = res.nav_series.fillna(method='ffill')
     
-    # TWR
-    fig_evol.add_trace(go.Scatter(
-        x=res_period.cumulative_series.index,
-        y=res_period.cumulative_series * 100,
-        name="Rentabilidade (%)",
-        line=dict(color='#4f46e5', width=3)
-    ))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=s_twr.index, y=s_twr, name="Rentabilidade %", line=dict(color='#4f46e5', width=3)))
+    fig.add_trace(go.Scatter(x=s_nav.index, y=s_nav, name="Patrimônio R$", yaxis="y2", line=dict(color='#94a3b8', dash='dot', width=1)))
     
-    # NAV (Secondary)
-    fig_evol.add_trace(go.Scatter(
-        x=res_period.nav_series.index,
-        y=res_period.nav_series,
-        name="Patrimônio (R$)",
-        yaxis="y2",
-        line=dict(color='#94a3b8', width=1, dash='dot')
-    ))
-    
-    fig_evol.update_layout(
-        title="Evolução Patrimonial vs Rentabilidade",
-        template="plotly_dark",
-        yaxis=dict(title="Rentabilidade (%)", ticksuffix="%"),
-        yaxis2=dict(title="Patrimônio (R$)", overlaying="y", side="right", tickprefix="R$ "),
-        hovermode="x unified",
+    fig.update_layout(
+        title="Evolução", template="plotly_dark", hovermode="x unified",
+        yaxis=dict(title="%", ticksuffix="%"),
+        yaxis2=dict(title="R$", overlaying="y", side="right"),
         legend=dict(orientation="h", y=1.1)
     )
-    st.plotly_chart(fig_evol, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
     
-    # 2. Drawdown
+    # Drawdown
+    s_dd = (res.drawdown_series * 100).fillna(0)
     fig_dd = go.Figure()
-    fig_dd.add_trace(go.Scatter(
-        x=res_period.drawdown_series.index,
-        y=res_period.drawdown_series * 100,
-        fill='tozeroy',
-        line=dict(color='#ef4444'),
-        name='Drawdown'
-    ))
-    fig_dd.update_layout(title="Underwater Plot (Drawdown)", template="plotly_dark", yaxis_ticksuffix="%")
+    fig_dd.add_trace(go.Scatter(x=s_dd.index, y=s_dd, fill='tozeroy', line=dict(color='#ef4444'), name='Drawdown'))
+    fig_dd.update_layout(title="Drawdown", template="plotly_dark", yaxis_ticksuffix="%")
     st.plotly_chart(fig_dd, use_container_width=True)
 
 if __name__ == "__main__":

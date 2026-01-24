@@ -25,31 +25,38 @@ def update_password(new_password):
         print(f"Error updating password: {e}")
         return False
 
+def init_auth_state():
+    """Initializes authentication state keys safely."""
+    if "password" not in st.session_state:
+        st.session_state["password"] = ""
+    if "password_correct" not in st.session_state:
+        st.session_state["password_correct"] = None
+
 def check_password():
     """Returns `True` if the user had the correct password."""
+    # Ensure state is initialized
+    init_auth_state()
 
     current_password = get_password()
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == current_password:
+        if st.session_state.get("password") == current_password:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store password
+            # Safe deletion
+            if "password" in st.session_state:
+                del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    if "password_correct" not in st.session_state:
-        # First run, show input for password.
+    if not st.session_state.get("password_correct", False):
+        # Show input for password.
         st.text_input(
             "Digite a senha de acesso:", type="password", on_change=password_entered, key="password"
         )
-        return False
-    elif not st.session_state["password_correct"]:
-        # Password not correct, show input + error.
-        st.text_input(
-            "Digite a senha de acesso:", type="password", on_change=password_entered, key="password"
-        )
-        st.error("😕 Senha incorreta")
+        # Show error if failed previously
+        if "password_correct" in st.session_state and st.session_state["password_correct"] is False:
+             st.error("😕 Senha incorreta")
         return False
     else:
         # Password correct.

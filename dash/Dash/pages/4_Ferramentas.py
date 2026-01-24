@@ -37,6 +37,9 @@ st.markdown("""
     }
     
     h1, h2, h3 { color: #f1f5f9; }
+
+    /* Hide Streamlit Toolbar */
+    #MainMenu, footer, header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 

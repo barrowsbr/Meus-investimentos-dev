@@ -181,3 +181,39 @@ def load_cambio() -> pd.DataFrame:
     except Exception as e:
         st.error(f"Error loading cambio: {e}")
         return pd.DataFrame()
+
+@st.cache_data(show_spinner=False)
+def load_fixed_income_saldos() -> pd.DataFrame:
+    """Carrega SALDOS MANUAIS da aba fixa_aberta"""
+    try:
+        df = DataProvider.get_fixed_income_manual()
+        if df.empty: return pd.DataFrame()
+        
+        # Normalize headers
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Expected from User: Data, Ticker, Valor atual, Tipo, Moeda
+        # Map to internal: Data, Ticker, Atual, Tipo, Moeda
+        mapa = {}
+        for c in df.columns:
+            if 'valor' in c and 'atual' in c: mapa[c] = 'Atual'
+            elif 'valor' in c: mapa[c] = 'Atual' # Fallback if specific col is 'Valor atual' 
+            elif 'ticker' in c: mapa[c] = 'Ticker'
+            elif 'data' in c: mapa[c] = 'Data'
+            elif 'tipo' in c: mapa[c] = 'Tipo'
+            elif 'moeda' in c: mapa[c] = 'Moeda'
+            
+        df.rename(columns=mapa, inplace=True)
+        
+        # Types
+        if 'Data' in df.columns: df['Data'] = parse_date_br(df['Data'])
+        if 'Atual' in df.columns: df['Atual'] = df['Atual'].apply(parse_decimal_br)
+        
+        # Defaults
+        if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
+        df['Ticker'] = df['Ticker'].astype(str).str.strip()
+        
+        return df
+    except Exception as e:
+        st.error(f"Error loading RF Saldo: {e}")
+        return pd.DataFrame()

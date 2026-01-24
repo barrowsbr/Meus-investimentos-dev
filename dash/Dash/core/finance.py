@@ -213,3 +213,122 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
         
     return pd.DataFrame(lista_rf_proc)
 
+def summarize_fixed_income_hybrid(df_saldos: pd.DataFrame, df_transacoes: pd.DataFrame, df_proventos: pd.DataFrame = None) -> pd.DataFrame:
+    """
+    Motor Híbrido de Renda Fixa:
+    1. Investido = Histórico de Transações.
+    2. Atual = Input Manual (Fixa Aberta).
+    3. Retorno = (Atual + Proventos Recebidos) - Investido.
+    """
+    
+    # 1. Processar Histórico para obter 'Investido' por Ticker
+    lista_investido = []
+    
+    if not df_transacoes.empty:
+        # Standardize cols
+        cols_map = {'ticker': 'Ticker', 'valor': 'Valor', 'tipo': 'Tipo'}
+        df_t = df_transacoes.rename(columns={k:v for k,v in cols_map.items() if k in df_transacoes.columns}, inplace=False)
+            
+        for ticker, grupo in df_t.groupby('Ticker'):
+            t_str = str(ticker).strip().upper()
+            
+            tipos = grupo['Tipo'].astype(str).str.lower()
+            compras = grupo[tipos.str.contains('compra|aporte|entrada')]
+            # vendas = grupo[tipos.str.contains('venda|resgate|saida')]
+             
+            # Hybrid Logic: Investido = Sum(Purchases)
+            # We assume current balance reflects any partial redemptions (value decreases),
+            # but Cost Basis usually remains until fully closed? 
+            # Simplified: Total Injected Capital.
+            total_invest = compras['Valor'].sum()
+            
+            lista_investido.append({'Ticker': t_str, 'Investido': total_invest})
+            
+    df_inv = pd.DataFrame(lista_investido)
+    
+    # 2. Processar Proventos (Juros de Renda Fixa)
+    lista_provs = []
+    if df_proventos is not None and not df_proventos.empty:
+        # Normalize proventos
+        cols_map_p = {'ticker': 'Ticker', 'valor': 'Valor', 'lancamento': 'Tipo'}
+        df_p = df_proventos.rename(columns={k:v for k,v in cols_map_p.items() if k in df_proventos.columns}, inplace=False)
+        
+        # Filter for Fixed Income Interest
+        # Keywords: 'JUROS', 'RENDIMENTO', 'CUPOM'
+        if 'Tipo' in df_p.columns:
+            mask_juros = df_p['Tipo'].astype(str).str.upper().str.contains('JUROS|RENDIMENTO|CUPOM', na=False)
+            df_p_filt = df_p[mask_juros]
+            
+            for ticker, grupo in df_p_filt.groupby('Ticker'):
+                 t_str = str(ticker).strip().upper()
+                 total_juros = grupo['Valor'].sum()
+                 lista_provs.append({'Ticker': t_str, 'Proventos_RF': total_juros})
+                 
+    df_provs_agg = pd.DataFrame(lista_provs)
+    
+    # 3. Processar Saldos (Fonte da Verdade para Valor Atual)
+    if df_saldos.empty:
+         # Se não tem saldo manual, retornamos estrutura vazia mas mantendo compatibilidade
+         # Pode ser que o usuário queira ver ativos encerrados (Investido > 0, Proventos > 0, Atual = 0)?
+         # Por enquanto, mantemos comportamento anterior: só mostra se tiver saldo (Ativo).
+         # Mas se tiver Investido e não tiver saldo, pode ser que esqueceu de lançar?
+         pass
+
+    # Se df_saldos vazio, criamos um dummy para mergear com investido?
+    # Melhor não, se não tem saldo manual, não sabemos se está ativo.
+    
+    # Agrupa saldos
+    if not df_saldos.empty:
+        df_saldos_agg = df_saldos.groupby('Ticker', as_index=False).agg({
+            'Atual': 'sum',
+            'Data': 'max',
+            'Moeda': 'first'
+        })
+        df_saldos_agg['Ticker'] = df_saldos_agg['Ticker'].str.strip().str.upper()
+    else:
+        df_saldos_agg = pd.DataFrame(columns=['Ticker', 'Atual', 'Data', 'Moeda'])
+
+    # 4. Merge All (Reference is Ticker from Saldos OR Invested?)
+    # User focused on "fixa_aberta" (Open). So we start from Saldos.
+    # What if I have an asset that matured? It won't be in 'fixa_aberta'. It will be in History.
+    # But user asked for "Rentabilidade". Matured assets are closed.
+    # We focus on ACTIVE assets (present in fixa_aberta).
+    
+    df_final = df_saldos_agg.copy()
+    
+    # Merge Investido
+    if not df_inv.empty:
+        df_final = pd.merge(df_final, df_inv, on='Ticker', how='left')
+    else:
+        df_final['Investido'] = 0.0
+        
+    # Merge Proventos
+    if not df_provs_agg.empty:
+        df_final = pd.merge(df_final, df_provs_agg, on='Ticker', how='left')
+    else:
+        df_final['Proventos_RF'] = 0.0
+
+    # Fill NaNs
+    df_final['Investido'] = df_final['Investido'].fillna(0.0)
+    df_final['Proventos_RF'] = df_final['Proventos_RF'].fillna(0.0)
+    
+    # 5. Cálculos Finais
+    # Retorno Total = (Atual + Proventos_Recebidos) - Investido
+    df_final['Lucro'] = (df_final['Atual'] + df_final['Proventos_RF']) - df_final['Investido']
+    
+    def calc_rent(row):
+        if row['Investido'] > 0:
+            return (row['Lucro'] / row['Investido']) * 100
+        return 0.0
+        
+    df_final['Rent. %'] = df_final.apply(calc_rent, axis=1)
+    df_final['Status'] = 'Ativo'
+    df_final['Ativo'] = df_final['Ticker']
+    
+    # Seleção de Colunas
+    cols = ['Ticker', 'Ativo', 'Status', 'Data', 'Investido', 'Proventos_RF', 'Atual', 'Lucro', 'Rent. %', 'Moeda']
+    for c in cols:
+        if c not in df_final.columns: df_final[c] = 0
+        
+    return df_final[cols]
+

@@ -1,4 +1,8 @@
 import streamlit as st
+from core.auth import init_auth_state
+
+# --- INIT SESSION STATE ---
+init_auth_state()
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -190,6 +194,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- IMPORTS ---
+import pandas as pd
+from core.data_loader import load_assets
+from core.market_data import fetch_market_data
+from core.utils import format_decimal_br
+
 # --- HERO SECTION ---
 st.markdown("""
 <div class="hero-container">
@@ -197,6 +207,106 @@ st.markdown("""
     <div class="hero-subtitle">Sistema Integrado para Gestão Pessoal</div>
 </div>
 """, unsafe_allow_html=True)
+
+# --- DAILY SNAPSHOT CALCULATION ---
+# Perform lightweight fetch for summary
+with st.spinner("Sintonizando mercado..."):
+    df_assets = load_assets()
+    
+    # Defaults
+    dolar_val = 0.0
+    dolar_var = 0.0
+    rv_day_gain = 0.0
+    rv_day_pct = 0.0
+    
+    if not df_assets.empty:
+        # Filter Active RV Assets
+        df_rv = df_assets[df_assets['ticker'].notna()] # Basic filter
+        # Ideally filter by class if possible, but 'setor' might need processing.
+        # Let's fetch all tickers + BRL=X
+        
+        tickers = df_rv['ticker'].unique().tolist()
+        if 'BRL=X' not in tickers: tickers.append('BRL=X')
+        
+        # Fetch
+        map_prices, map_changes = fetch_market_data(tickers)
+        
+        # 1. Dollar PTAX/Market
+        dolar_val = map_prices.get('BRL=X', 5.0)
+        dolar_change = map_changes.get('BRL=X', 0.0)
+        dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
+        
+        # 2. RV Day Result
+        # We need Qty held. Calculate current holdings using finance logic or simplified summation
+        # Since 'mean' logic is complex, let's just sum (Qty_Buy - Qty_Sell) per ticker
+        # This is roughly accurate for "Current Portfolio".
+        # Better: Reuse calcular_carteira_fechada logic? It might be heavy for Home.
+        # Let's do a quick agg:
+        
+        from core.finance import calcular_carteira_fechada
+        df_pos, _ = calcular_carteira_fechada(df_assets)
+        
+        total_mkt_val = 0.0
+        
+        if not df_pos.empty:
+            for _, row in df_pos.iterrows():
+                t = row['Ticker']
+                q = row['Qtd']
+                m = row['Moeda']
+                
+                if q > 0:
+                    delta = map_changes.get(t, 0.0)
+                    price = map_prices.get(t, 0.0)
+                    
+                    # Convert delta to BRL
+                    rate = 1.0
+                    if m == 'USD': rate = dolar_val
+                    # ignoring other currencies for simple home summary or assume USD/BRL only
+                    
+                    gain_brl = q * delta * rate
+                    rv_day_gain += gain_brl
+                    
+                    # For % calculation
+                    total_mkt_val += (q * price * rate)
+            
+            # Day % = Gain / (Total - Gain) -> approx Gain / YesterdayVal
+            if (total_mkt_val - rv_day_gain) > 0:
+                rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
+
+# --- SNAPSHOT CARD ---
+col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
+with col_snap_2:
+    st.markdown(f"""
+    <div style="
+        background: rgba(16, 185, 129, 0.1); 
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        backdrop-filter: blur(10px);
+    ">
+        <div style="text-align: center;">
+            <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
+            <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
+                R$ {format_decimal_br(rv_day_gain, 2)}
+                <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
+            </div>
+        </div>
+        <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
+        <div style="text-align: center;">
+            <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
+            <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
+                R$ {format_decimal_br(dolar_val, 3)}
+                <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
+                    ({format_decimal_br(dolar_var, 2)}%)
+                </span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- NAVIGATION CONTAINER ---
 # Use 2 columns equal width for PC, they stack on mobile.

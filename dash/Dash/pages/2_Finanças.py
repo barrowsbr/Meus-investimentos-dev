@@ -1,5 +1,6 @@
 import streamlit as st
 from core.auth import require_auth
+from core.utils import format_decimal_br
 
 # --- AUTH CHECK ---
 require_auth()
@@ -132,6 +133,9 @@ st.markdown("""
          box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
     }
 
+    /* Hide Streamlit Toolbar */
+    #MainMenu, footer, header {visibility: hidden;}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -194,7 +198,7 @@ col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 with col_kpi1:
     st.metric(
         "Saldo Real Líquido", 
-        f"R$ {saldo_real:,.2f}", 
+        f"R$ {format_decimal_br(saldo_real)}", 
         delta="Liquidez vs Dívida Futura", 
         delta_color="normal" if saldo_real > 0 else "inverse",
         help="Caixa Atual + Liquidez Imediata - (Fatura Aberta + Parcelados Futuros)"
@@ -203,7 +207,7 @@ with col_kpi1:
 with col_kpi2:
     st.metric(
         "Fatura Aberta (Estimada)", 
-        f"R$ {current_bill.total_amount:,.2f}" if current_bill else "R$ 0,00",
+        f"R$ {format_decimal_br(current_bill.total_amount)}" if current_bill else "R$ 0,00",
         delta=f"Vence em {current_bill.due_date.strftime('%d/%m')}" if current_bill else "",
         delta_color="off"
     )
@@ -211,14 +215,14 @@ with col_kpi2:
 with col_kpi3:
     st.metric(
         "Burn Rate Diário", 
-        f"R$ {burn_rate:,.2f} / dia",
+        f"R$ {format_decimal_br(burn_rate)} / dia",
         help="Média de gasto diário no ciclo atual"
     )
 
 with col_kpi4:
     st.metric(
         "Pontos Estimados", 
-        f"{points_est:,} pts",
+        f"{format_decimal_br(points_est, 0)} pts",
         delta="No ciclo atual"
     )
 

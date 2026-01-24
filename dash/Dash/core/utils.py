@@ -1,60 +1,36 @@
 import pandas as pd
+# Force reload
 import numpy as np
 
 def parse_decimal_br(value) -> float:
     """
-    Parses a string number with Brazilian or US formatting into a float.
-    Prioritizes Brazilian format (comma as decimal separator).
-    
-    Examples:
-    - '1.000,00' -> 1000.0
-    - '10,50' -> 10.5
-    - '1000' -> 1000.0
-    - '1.050.200,50' -> 1050200.5
-    - 'USD 500.00' -> 500.0 (US format fallback if standard float conversion works)
+    Parses a string number assuming strict Brazilian formatting (comma as decimal).
+    Logic: Remove dots (thousands), replace comma with dot.
     """
-    if pd.isna(value) or value == '':
+    if value is None or (isinstance(value, str) and not value.strip()):
         return 0.0
-    
+        
     if isinstance(value, (int, float)):
         return float(value)
-    
-    s = str(value).strip()
-    
-    # Remove currency symbols and extra whitespace
-    s = s.replace('R$', '').replace('US$', '').replace('€', '').strip()
-    
-    if not s:
-        return 0.0
-
-    try:
-        # Scenario 1: '1.000,00' -> Remove dots, replace comma with dot
-        if ',' in s and '.' in s:
-            if s.rfind(',') > s.rfind('.'): # Comma is likely decimal (BR)
-                clean_s = s.replace('.', '').replace(',', '.')
-                return float(clean_s)
-            else: # Dot is likely decimal (US: 1,000.00)
-                clean_s = s.replace(',', '')
-                # clean_s is now 1000.00
-                return float(clean_s)
         
-        # Scenario 2: '10,50' -> Replace comma with dot (BR simple)
-        elif ',' in s:
-            clean_s = s.replace(',', '.')
-            return float(clean_s)
-            
-        # Scenario 3: '1.000' vs '1.0'
-        # Ambiguous. In financial contexts in BR, '1.000' is usually 1k, but Python sees 1.0.
-        # However, many Sheets exports come as '1000' (no dot).
-        # We will assume standard float behavior for dots unless it fails.
-        # If it has multiple dots '1.000.000', handle it.
-        elif s.count('.') > 1:
-             clean_s = s.replace('.', '')
-             return float(clean_s)
-
-        return float(s)
+    try:
+        # User defined logic: value.replace(".", "").replace(",", ".")
+        # Added safety for currency symbols and spaces
+        s = str(value).strip().replace('R$', '').replace('US$', '').replace('%', '').replace('\xa0', '').strip()
+        clean_s = s.replace(".", "").replace(",", ".")
+        return float(clean_s)
     except Exception:
         return 0.0
+
+def format_decimal_br(value, decimals=2) -> str:
+    """
+    Formats float to Brazilian string: 1,000.00 -> '1.000,00'
+    """
+    try:
+        val = float(value)
+        return f"{val:,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return str(value)
 
 def normalize_dataframe_columns(df: pd.DataFrame, mapping: dict = None) -> pd.DataFrame:
     """
