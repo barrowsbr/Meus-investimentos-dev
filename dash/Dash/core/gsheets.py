@@ -42,25 +42,53 @@ def connect_to_gsheets():
     Connects to Google Sheets and returns the client.
     Cached resource to avoid re-authenticating on every run.
     """
+    return _authenticate_no_cache()
+
+def _authenticate_no_cache():
+    """Internal function to get a fresh client"""
     creds = get_service_account_creds()
     if not creds:
         st.error("⚠️ Credentials not found. Please configure st.secrets or service_account.json")
         return None
-        
-    client = gspread.authorize(creds)
-    return client
+    return gspread.authorize(creds)
 
 def get_worksheet(spreadsheet_name, tab_name):
     """
     Helper to get a specific worksheet safely.
+    Robust against SSL Persistence Errors by forcing re-auth.
     """
+    import time
+    
+    # Retry config
+    MAX_RETRIES = 5
+    DELAY_BASE = 2.0 # seconds
+
+    # Initial Attempt with Cached Client
     client = connect_to_gsheets()
     if not client: return None
     
-    try:
-        sh = client.open(spreadsheet_name)
-        ws = sh.worksheet(tab_name)
-        return ws
-    except Exception as e:
-        st.error(f"Error accessing sheet '{tab_name}' in '{spreadsheet_name}': {e}")
-        return None
+    for attempt in range(MAX_RETRIES):
+        try:
+            sh = client.open(spreadsheet_name)
+            ws = sh.worksheet(tab_name)
+            return ws
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                # Exponential backoff
+                sleep_time = DELAY_BASE * (1.5 ** attempt) 
+                time.sleep(sleep_time)
+                
+                # Handling SSL/Connection Errors
+                err_str = str(e)
+                if "SSL" in err_str or "Connection" in err_str or "socket" in err_str or "Max retries" in err_str:
+                    st.warning(f"Connection lost. Re-authenticating... (Attempt {attempt+1}/{MAX_RETRIES})")
+                    # FORCE REFRESH CLIENT
+                    # We bypass the cache using the internal function
+                    client = _authenticate_no_cache()
+                    if not client: 
+                        st.error("Re-authentication failed.")
+                        return None
+            else:
+                st.error(f"Error accessing sheet '{tab_name}' after {MAX_RETRIES} attempts. Last error: {e}")
+                return None
+    return None

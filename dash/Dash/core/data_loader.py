@@ -217,3 +217,53 @@ def load_fixed_income_saldos() -> pd.DataFrame:
     except Exception as e:
         st.error(f"Error loading RF Saldo: {e}")
         return pd.DataFrame()
+
+@st.cache_data(show_spinner=False)
+def load_db_cotacoes() -> pd.DataFrame:
+    """
+    Carrega histórico de cotações locais (db_cotacoes).
+    - Converte datas Excel Serial (ex: 44951) para Datetime.
+    - Trata decimais (vírgula -> ponto).
+    - Preenche dias faltantes (ffill).
+    - Retorna DataFrame indexado por Data, com colunas = Tickers.
+    """
+    try:
+        df = DataProvider.get_db_cotacoes()
+        if df.empty: return pd.DataFrame()
+        
+        # 1. Tratar Data (Excel Serial)
+        # Se vier como string/int, converte.
+        if 'Data' in df.columns:
+            # Drop rows with no data
+            df = df.dropna(subset=['Data'])
+            
+            # Convert Excel Serial Date (Days since 1899-12-30)
+            # Safe conversion logic
+            def convert_serial(val):
+                try:
+                    vf = float(val)
+                    return pd.to_datetime(vf, unit='D', origin='1899-12-30')
+                except:
+                    return pd.NaT
+            
+            df['Data'] = df['Data'].apply(convert_serial)
+            df = df.dropna(subset=['Data'])
+            df = df.sort_values('Data')
+            df.set_index('Data', inplace=True)
+        else:
+            return pd.DataFrame()
+
+        # 2. Tratar Valores (Vírgula -> Ponto e Float)
+        for col in df.columns:
+            # Force numeric
+            df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+        # 3. Fill Forward (Propagar último preço conhecido)
+        df = df.ffill()
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Error loading db_cotacoes: {e}")
+        return pd.DataFrame()

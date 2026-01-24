@@ -78,34 +78,4 @@ def fetch_market_data(tickers: List[str]) -> Tuple[Dict[str, float], Dict[str, f
         
     return map_prices, map_changes
 
-@st.cache_data(ttl=21600, show_spinner=False) # 6h cache for history
-def fetch_historical_data(tickers: List[str], start_date) -> pd.DataFrame:
-    """
-    Fetches full historical data FROM YAHOO FINANCE API.
-    """
-    if not tickers:
-        return pd.DataFrame()
-        
-    try:
-        unique_tickers = list(set([t.strip().upper() for t in tickers if t.strip()]))
-        
-        # Yahoo expects 'YYYY-MM-DD' string or datetime
-        df = yf.download(unique_tickers, start=start_date, progress=False)['Close']
-        
-        if df.empty:
-            return pd.DataFrame()
-            
-        # Ensure index is datetime
-        df.index = pd.to_datetime(df.index)
-        
-        # Clean naming (drop MultiIndex levels if any)
-        # yfinance v0.2+ returns headers nicely usually.
-        
-        # Fill missing values (non-trading days)
-        df = df.ffill().fillna(0)
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"Error fetching history from Yahoo: {e}")
-        return pd.DataFrame()
+

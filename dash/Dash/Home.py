@@ -191,6 +191,29 @@ st.markdown("""
         to { opacity: 1; transform: translateY(0); }
     }
     
+
+    /* Snapshot Card Styles */
+    .snapshot-card {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        backdrop-filter: blur(10px);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 10px 20px -5px rgba(0,0,0,0.3);
+    }
+
+    .snapshot-card:hover {
+        transform: translateY(-4px) scale(1.01);
+        background: rgba(16, 185, 129, 0.15);
+        border-color: rgba(52, 211, 153, 0.4);
+        box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.2);
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -277,17 +300,7 @@ with st.spinner("Sintonizando mercado..."):
 col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
 with col_snap_2:
     st.markdown(f"""
-    <div style="
-        background: rgba(16, 185, 129, 0.1); 
-        border: 1px solid rgba(16, 185, 129, 0.2);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 30px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        backdrop-filter: blur(10px);
-    ">
+    <div class="snapshot-card">
         <div style="text-align: center;">
             <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
             <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">

@@ -72,6 +72,11 @@ class DataProvider:
     def get_cambio(cls) -> pd.DataFrame:
         """Returns Forex DataFrame (cambio)"""
         return cls.fetch_data('cambio')
+
+    @classmethod
+    def get_db_cotacoes(cls) -> pd.DataFrame:
+        """Returns Local Prices DataFrame (db_cotacoes)"""
+        return cls.fetch_data('db_cotacoes')
         
     @staticmethod
     def save_data(tab_name: str, df: pd.DataFrame) -> bool:
