@@ -124,6 +124,8 @@ def load_fixed_income() -> pd.DataFrame:
                 mapa_colunas[c] = 'Valor'
             if 'moeda' in c: 
                 mapa_colunas[c] = 'Moeda'
+            if c in ['atual', 'saldo', 'valor_atual', 'valor atual', 'saldo atual', 'position', 'posicao']:
+                mapa_colunas[c] = 'Valor Atual'
         
         df.rename(columns=mapa_colunas, inplace=True)
 
@@ -148,6 +150,46 @@ def load_fixed_income() -> pd.DataFrame:
         return df.sort_values(by='Compra')
     except Exception as e:
         st.error(f"Error loading RF: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(show_spinner=False)
+def load_fixed_income_manual() -> pd.DataFrame:
+    try:
+        # Import dynamically to avoid circular imports if any
+        from core.data_provider import DataProvider
+        df = DataProvider.get_fixed_income_manual()
+        if df.empty: return pd.DataFrame()
+        
+        # Normalize headers
+        df.columns = df.columns.str.strip().str.lower()
+        
+        col_map = {}
+        for c in df.columns:
+            if 'ticker' in c or 'ativo' in c: col_map[c] = 'Ticker'
+            elif 'valor' in c and 'atual' in c: col_map[c] = 'Atual' # Key for manual balance
+            elif 'data' in c: col_map[c] = 'Data'
+            elif 'moeda' in c: col_map[c] = 'Moeda'
+            elif 'tipo' in c: col_map[c] = 'Tipo' # Just in case
+
+        df.rename(columns=col_map, inplace=True)
+        
+        # Parse numeric
+        if 'Atual' in df.columns:
+            df['Atual'] = df['Atual'].apply(parse_decimal_br)
+            
+        if 'Data' in df.columns:
+            df['Data'] = parse_date_br(df['Data'])
+            
+        # Defaults
+        if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
+        if 'Moeda' not in df.columns: df['Moeda'] = 'BRL'
+        
+        # Normalize Ticker
+        df['Ticker'] = df['Ticker'].astype(str).str.strip().str.upper()
+        
+        return df
+    except Exception as e:
+        st.error(f"Error loading RF Manual: {e}")
         return pd.DataFrame()
 
 
@@ -180,90 +222,4 @@ def load_cambio() -> pd.DataFrame:
         return df.sort_values('data') if 'data' in df.columns else df
     except Exception as e:
         st.error(f"Error loading cambio: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(show_spinner=False)
-def load_fixed_income_saldos() -> pd.DataFrame:
-    """Carrega SALDOS MANUAIS da aba fixa_aberta"""
-    try:
-        df = DataProvider.get_fixed_income_manual()
-        if df.empty: return pd.DataFrame()
-        
-        # Normalize headers
-        df.columns = df.columns.str.strip().str.lower()
-        
-        # Expected from User: Data, Ticker, Valor atual, Tipo, Moeda
-        # Map to internal: Data, Ticker, Atual, Tipo, Moeda
-        mapa = {}
-        for c in df.columns:
-            if 'valor' in c and 'atual' in c: mapa[c] = 'Atual'
-            elif 'valor' in c: mapa[c] = 'Atual' # Fallback if specific col is 'Valor atual' 
-            elif 'ticker' in c: mapa[c] = 'Ticker'
-            elif 'data' in c: mapa[c] = 'Data'
-            elif 'tipo' in c: mapa[c] = 'Tipo'
-            elif 'moeda' in c: mapa[c] = 'Moeda'
-            
-        df.rename(columns=mapa, inplace=True)
-        
-        # Types
-        if 'Data' in df.columns: df['Data'] = parse_date_br(df['Data'])
-        if 'Atual' in df.columns: df['Atual'] = df['Atual'].apply(parse_decimal_br)
-        
-        # Defaults
-        if 'Ticker' not in df.columns: df['Ticker'] = 'Desconhecido'
-        df['Ticker'] = df['Ticker'].astype(str).str.strip()
-        
-        return df
-    except Exception as e:
-        st.error(f"Error loading RF Saldo: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(show_spinner=False)
-def load_db_cotacoes() -> pd.DataFrame:
-    """
-    Carrega histórico de cotações locais (db_cotacoes).
-    - Converte datas Excel Serial (ex: 44951) para Datetime.
-    - Trata decimais (vírgula -> ponto).
-    - Preenche dias faltantes (ffill).
-    - Retorna DataFrame indexado por Data, com colunas = Tickers.
-    """
-    try:
-        df = DataProvider.get_db_cotacoes()
-        if df.empty: return pd.DataFrame()
-        
-        # 1. Tratar Data (Excel Serial)
-        # Se vier como string/int, converte.
-        if 'Data' in df.columns:
-            # Drop rows with no data
-            df = df.dropna(subset=['Data'])
-            
-            # Convert Excel Serial Date (Days since 1899-12-30)
-            # Safe conversion logic
-            def convert_serial(val):
-                try:
-                    vf = float(val)
-                    return pd.to_datetime(vf, unit='D', origin='1899-12-30')
-                except:
-                    return pd.NaT
-            
-            df['Data'] = df['Data'].apply(convert_serial)
-            df = df.dropna(subset=['Data'])
-            df = df.sort_values('Data')
-            df.set_index('Data', inplace=True)
-        else:
-            return pd.DataFrame()
-
-        # 2. Tratar Valores (Vírgula -> Ponto e Float)
-        for col in df.columns:
-            # Force numeric
-            df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-        # 3. Fill Forward (Propagar último preço conhecido)
-        df = df.ffill()
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"Error loading db_cotacoes: {e}")
         return pd.DataFrame()

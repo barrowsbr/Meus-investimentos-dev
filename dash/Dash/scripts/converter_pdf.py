@@ -1,12 +1,12 @@
 import pdfplumber
 import pandas as pd
 import re
-import os
 
 def clean_currency(value):
     """
     Limpa strings de moeda para float.
     Remove 'USD', 'CAD', espaços e converte ',' (milhar) e '.' (decimal).
+    Nota: O relatório parece usar '.' como decimal e ',' como milhar (padrão US).
     """
     if value is None:
         return 0.0
@@ -20,11 +20,14 @@ def clean_currency(value):
     if not value:
         return 0.0
         
-    # Mantém apenas números, ponto, vírgula e sinal de menos
+    # Remove caracteres que não sejam números, ponto, virgula ou sinal de menos
+    # Mantém apenas o que é essencial para conversão
     value = re.sub(r'[^\d.,-]', '', value)
     
+    # Tratamento para padrão US (1,000.00) vs BR (1.000,00)
+    # Pelo contexto do PDF (Interactive Brokers), geralmente é padrão US.
     try:
-        # Remove vírgula de milhar (padrão US no relatório IBKR)
+        # Remove virgula de milhar
         value = value.replace(',', '')
         return float(value)
     except ValueError:
@@ -35,7 +38,7 @@ def explode_row(row):
     Lida com células que têm múltiplas linhas de dados (ex: Dividendo e Imposto juntos).
     Separa o conteúdo baseando-se em '\n' e cria novas linhas.
     """
-    # Verifica o número máximo de "sub-linhas" dentro desta linha visual
+    # Verifica o número máximo de "sub-linhas" dentro desta linha
     max_splits = 1
     split_data = []
     
@@ -53,16 +56,19 @@ def explode_row(row):
     for i in range(max_splits):
         new_row = []
         for col_idx, cell_splits in enumerate(split_data):
-            # Se houver dados para este índice, usa.
+            # Se houver dados para este índice, usa. 
+            # Se não (ex: data repetida que o PDF agrupa), tenta pegar o primeiro (repeat) ou deixa vazio.
             if i < len(cell_splits):
                 val = cell_splits[i]
             else:
+                # Em alguns relatórios, células mescladas verticalmente não repetem o texto.
+                # Aqui assumimos vazio se não houver correspondência exata de quebra.
                 val = "" 
             new_row.append(val)
         
-        # Filtro básico: ignora linhas que não tenham dados relevantes após a explosão
-        # Verifica da coluna 2 em diante (Descrição, Símbolo, etc)
-        if any(item and str(item).strip() for item in new_row[2:]): 
+        # Filtro básico: se a linha inteira for vazia ou só tiver a data/conta sem valores, ignorar
+        # (Ajuste conforme a necessidade de limpeza)
+        if any(item and str(item).strip() for item in new_row[2:]): # Checa se tem algo além de Data/Conta
             new_rows.append(new_row)
             
     return new_rows if new_rows else [row]
@@ -70,7 +76,7 @@ def explode_row(row):
 def pdf_to_excel(pdf_path, excel_output):
     all_data = []
     
-    # Cabeçalhos baseados no relatório da Interactive Brokers
+    # Cabeçalhos esperados baseados no seu arquivo
     headers = [
         "Data", "Conta", "Descrição", "Tipo de transação", 
         "Símbolo", "Quantidade", "Preço", "Valor bruto", 
@@ -83,19 +89,22 @@ def pdf_to_excel(pdf_path, excel_output):
         for i, page in enumerate(pdf.pages):
             print(f"Processando página {i+1}...")
             
+            # Extrai a tabela da página
             tables = page.extract_tables()
             
             for table in tables:
                 for row in table:
-                    # Limpeza básica de None
+                    # Limpeza básica de None para string vazia
                     row = [cell if cell is not None else "" for cell in row]
                     
-                    # Pula linhas de cabeçalho detectadas no meio da tabela
+                    # Tenta identificar se é uma linha de cabeçalho
                     row_str = " ".join([str(x).replace('\n', ' ') for x in row]).lower()
-                    if "data" in row_str and "descrição" in row_str and "símbolo" in row_str:
-                        continue 
                     
-                    # Verifica se a linha começa com uma data válida (YYYY-MM-DD)
+                    if "data" in row_str and "descrição" in row_str and "símbolo" in row_str:
+                        continue # Pula o cabeçalho
+                    
+                    # Ignora linhas de totais ou irrelevantes que não tenham data (estrutura YYYY-MM-DD)
+                    # Verifica se a primeira coluna parece uma data (202\d-...)
                     is_date_row = False
                     if row[0]:
                         if re.match(r'202\d-\d{2}-\d{2}', str(row[0]).strip()):
@@ -104,59 +113,51 @@ def pdf_to_excel(pdf_path, excel_output):
                     if not is_date_row:
                         continue
 
-                    # Explode linhas aglutinadas
+                    # Explode linhas com múltiplas transações (ex: Dividendo + Imposto)
                     exploded_rows = explode_row(row)
                     
                     for exp_row in exploded_rows:
-                        # Garante que pegamos apenas as 10 colunas mapeadas
+                        # Garante que a linha tem o mesmo tamanho dos cabeçalhos
+                        # Às vezes o PDF lê colunas extras ou a menos
                         if len(exp_row) >= len(headers):
+                            # Pega apenas as colunas que batem com nossos headers (as primeiras 10)
                             clean_row = exp_row[:10]
                             all_data.append(clean_row)
 
     if not all_data:
-        print("ALERTA: Nenhum dado encontrado. Verifique se o PDF não é uma imagem escaneada.")
+        print("Nenhum dado encontrado. Verifique se o PDF é legível (não é imagem).")
         return
 
     # Criar DataFrame
     df = pd.DataFrame(all_data, columns=headers)
 
-    # Converter colunas numéricas
+    # Limpeza e Conversão de Tipos
     numeric_cols = ["Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido"]
+    
     for col in numeric_cols:
         df[col] = df[col].apply(clean_currency)
 
-    # Converter Data (pega os primeiros 10 chars YYYY-MM-DD)
+    # Converter Data
+    # Pega apenas os primeiros 10 caracteres para garantir YYYY-MM-DD e remove lixo
     df['Data'] = df['Data'].astype(str).str.strip().str[:10]
     df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
 
-    # Ordenar por data (opcional)
+    # Ordenar por data
     df = df.sort_values(by='Data', ascending=False)
 
     # Exportar para Excel
-    print(f"Salvando em: {excel_output}")
+    print(f"Salvando em {excel_output}...")
     df.to_excel(excel_output, index=False)
     print("Concluído com sucesso!")
 
-# --- Bloco de Execução Principal ---
-if __name__ == "__main__":
-    # 1. Identifica a pasta onde ESTE script .py está salvo
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+# --- Execução ---
+# Substitua pelo nome exato do seu arquivo se for diferente
+pdf_filename = "PDF.pdf" 
+output_filename = "Transacoes_IBKR.xlsx"
 
-    # 2. Define o nome do arquivo PDF (deve estar na mesma pasta do script)
-    nome_arquivo_pdf = "PDF.pdf"
-    
-    # 3. Constrói os caminhos completos
-    pdf_full_path = os.path.join(script_dir, nome_arquivo_pdf)
-    excel_full_path = os.path.join(script_dir, "Transacoes_IBKR.xlsx")
-
-    print(f"Diretório do script: {script_dir}")
-    
-    if os.path.exists(pdf_full_path):
-        try:
-            pdf_to_excel(pdf_full_path, excel_full_path)
-        except Exception as e:
-            print(f"Ocorreu um erro durante a execução: {e}")
-    else:
-        print(f"\nERRO: O arquivo '{nome_arquivo_pdf}' não foi encontrado.")
-        print(f"O script esperava encontrar o arquivo aqui: {pdf_full_path}")
-        print("Verifique se o nome do arquivo está correto e se ele está na mesma pasta do script.")
+try:
+    pdf_to_excel(pdf_filename, output_filename)
+except FileNotFoundError:
+    print(f"Erro: O arquivo '{pdf_filename}' não foi encontrado.")
+except Exception as e:
+    print(f"Ocorreu um erro inesperado: {e}")

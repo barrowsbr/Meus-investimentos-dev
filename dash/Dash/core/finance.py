@@ -165,29 +165,46 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
         else:
             status = 'Ativo'
             
-            # Calcula valor atual usando SELIC
-            atl = 0.0
-            data_primeira_compra = None
-            
-            for _, compra in compras.iterrows():
-                valor_compra = compra['Valor']
-                data_compra = pd.to_datetime(compra[date_col])
+            # Check for manual override
+            manual_val = 0.0
+            if 'Valor Atual' in dados.columns:
+                 m_val = pd.to_numeric(dados['Valor Atual'], errors='coerce').max()
+                 if pd.notnull(m_val) and m_val > 0:
+                     manual_val = m_val
+
+            if manual_val > 0:
+                atl = manual_val
+                luc = atl - inv
+                # We need data_ref. Try to find date of manual update? 
+                # Ideally manual update row has a date. We use max date of data.
+                if date_col in dados.columns:
+                    data_ref = dados[date_col].max()
+                else:
+                    data_ref = datetime.now()
+            else:
+                # Calcula valor atual usando SELIC
+                atl = 0.0
+                data_primeira_compra = None
                 
-                if data_primeira_compra is None or data_compra < data_primeira_compra:
-                    data_primeira_compra = data_compra
+                for _, compra in compras.iterrows():
+                    valor_compra = compra['Valor']
+                    data_compra = pd.to_datetime(compra[date_col])
+                    
+                    if data_primeira_compra is None or data_compra < data_primeira_compra:
+                        data_primeira_compra = data_compra
+                    
+                    # Dias desde a compra
+                    dias_corridos = (datetime.now() - data_compra).days
+                    dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
+                    
+                    # Capitaliza pela SELIC
+                    taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
+                    valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
+                    
+                    atl += valor_corrigido
                 
-                # Dias desde a compra
-                dias_corridos = (datetime.now() - data_compra).days
-                dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
-                
-                # Capitaliza pela SELIC
-                taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
-                valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
-                
-                atl += valor_corrigido
-            
-            luc = atl - inv
-            data_ref = data_primeira_compra if data_primeira_compra else datetime.now()
+                data_ref = data_primeira_compra if data_primeira_compra else datetime.now()
+                luc = atl - inv
         
         rent_pct = (luc / inv) * 100 if inv > 0 else 0.0
         

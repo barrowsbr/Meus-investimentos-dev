@@ -1,186 +1,310 @@
 import streamlit as st
 from core.auth import require_auth
 
+# --- AUTH CHECK ---
 require_auth()
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
+import numpy as np
 
-# --- IMPORTS ---
-from core.data_loader import load_assets, load_fixed_income, load_db_cotacoes
-from core.twr import calculate_local_twr
-from core.utils import format_decimal_br
+# --- CORE IMPORTS ---
+from core.data_loader import load_assets, load_proventos, load_fixed_income, load_cambio
+from core.market_data import fetch_historical_data
+from core.engine import reconstruct_history_multicurrency
+from core.twr_canonical import calculate_canonical_twr, DEFAULT_PREMISES
+from config import BASE_DIR
 
+# --- CONFIG ---
 st.set_page_config(
-    page_title="Performance",
+    page_title="Performance (GIPS)",
     page_icon="🚀",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded" 
 )
 
-st.title("🚀 Análise de Performance (Local)")
-st.caption("Cálculo TWR Time-Weighted Return baseado em 'db_cotacoes'")
-st.markdown("---")
-
-# 1. LOAD DATA
-with st.spinner("Carregando dados locais..."):
-    # Transactions (RV + RF)
-    df_rv = load_assets()
-    df_rf = load_fixed_income()
+# --- CSS / THEME ---
+# Imports global theme from .streamlit/config.toml implicitly, 
+# but we add specific overrides here if needed.
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
     
-    # Prices
-    df_prices = load_db_cotacoes()
-
-if df_prices.empty:
-    st.error("⚠️ A aba 'db_cotacoes' está vazia ou não pôde ser carregada. Necessário alimentar cotações para cálculo.")
-    st.stop()
+    html, body, [class*="css"] {
+        font-family: 'Outfit', sans-serif;
+    }
     
-if df_rv.empty and df_rf.empty:
-    st.warning("Sem transações registradas.")
-    st.stop()
-
-# 2. MERGE TRANSACTIONS (RV + RF)
-# Unify structure: [Data, Ticker, Tipo, Qtd, Valor]
-# RV structure from load_assets might be holding positions, not transactions? 
-# load_assets returns raw 'meus_ativos' usually. Let's check.
-# 'meus_ativos' usually has transactions if it's the history log.
-# Assuming 'meus_ativos' = Transactions Log.
-
-transactions_list = []
-
-# Process RV
-if not df_rv.empty:
-    # Mapping
-    # Expected: data, ticker, tipo, quantidade, valor_total (computed or raw?)
-    # Usually: 'data', 'ticker', 'tipo', 'quantidade', 'preco' -> Valor = Qtd * Preco
+    /* Custom Card container */
+    .perf-card {
+        background: rgba(255, 255, 255, 0.05); /* Light glass */
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(10px);
+    }
     
-    cols = df_rv.columns.str.lower()
-    df_rv.columns = cols
-    
-    if 'data' in df_rv.columns and 'quantidade' in df_rv.columns:
-        df_rv['Valor'] = df_rv['quantidade'] * df_rv['preco']
-        # IMPORTANT: Compra = Valor Negativo (Invisto Dinheiro)? Or Positivo?
-        # Flow logic in TWR engine: "Flow" = Entry of money INTO asset.
-        # Compra = Increase Position = Flow + (Money entered the "Asset Box").
-        # Venda = Decrease Position = Flow - (Money left the "Asset Box").
-        # Usually user logs Price as positive.
-        # Ensure 'Valor' follows Flow logic.
-        # Compra -> Flow +
-        
-        # Check types
-        # Is 'quantidade' signed? Usually people log positive quantity for buy/sell but use 'Tipo'.
-        # Let's trust 'Tipo'.
-        
-        for _, row in df_rv.iterrows():
-            tipo = str(row.get('tipo', '')).lower()
-            qtd = float(row.get('quantidade', 0))
-            val = float(row.get('Valor', 0))
-            
-            # If Qtd is negative in log for sales, handle it.
-            # But usually Flow should be:
-            # Buy 100 * 10 = 1000 Flow.
-            # Sell 100 * 12 = -1200 Flow.
-            
-            final_val = abs(val)
-            final_qtd = abs(qtd)
-            
-            if 'venda' in tipo:
-                final_val = -final_val
-                final_qtd = -final_qtd
-            
-            transactions_list.append({
-                'Data': row['data'],
-                'Ticker': row['ticker'],
-                'Tipo': tipo,
-                'Qtd': final_qtd,
-                'Valor': final_val
-            })
+    h1, h2, h3 { color: #f1f5f9; }
+</style>
+""", unsafe_allow_html=True)
 
-# Process RF
-if not df_rf.empty:
-    # RF structure: Compra (Data), Ticker, Tipo, Valor (Fluxo?)
-    # RF usually has 'Valor' directly.
-    cols_rf = df_rf.columns
-    # Map logic
-    # Compra -> Flow +
-    # Venda/Resgate -> Flow -
+# --- HELPER FUNCTIONS ---
+# Reusing the compatibility wrapper from Investimentos to allow smooth migration
+def run_performance_engine_compat(df_input_frozen):
+    """
+    Wrapper de alto nivel para o motor GIPS (Canonical).
+    """
+    from dataclasses import dataclass, field
+    from typing import List
     
-    # Check column names
-    date_col = 'Compra' if 'Compra' in cols_rf else 'Data'
-    
-    for _, row in df_rf.iterrows():
-        tipo = str(row.get('Tipo', '')).lower()
-        val = float(row.get('Valor', 0))
-        # RF Qty? Usually 1 'unit' of fixed income logic or Nominal Qty.
-        # If we don't have Qty, we can't calculate NAV = Qty * Price.
-        # UNLESS Price is 'Value of Holding' and Qty is 1.
-        # db_cotacoes for RF: User likely updates 'Current Value'. 
-        # So Price = PU (Unit Price). We need Qty.
-        # If user logs RF as 'Money In', Qty = Money / 1.0? 
-        # Assumption: For RF, Qty = Valor Investido (at start) / 1.0. Price = Multiplier?
-        # OR: User tracks Unit Price (PU).
-        # Let's assume standard Qty = 1 for simplicity if not provided, implies Price = Full Value.
-        # Or: Qty = Val / 1.0. Price restarts at 1.0 and grows?
-        
-        q = row.get('Quantidade', row.get('Qtd', 0))
-        if q == 0 and val != 0: q = val # Fallback Qty = Financial Volume (implies Price=1.0 base)
-        
-        final_val = abs(val)
-        final_q = abs(q)
-        
-        if 'venda' in tipo or 'resgate' in tipo or 'vencimento' in tipo:
-            final_val = -final_val
-            final_q = -final_q
-            
-        transactions_list.append({
-            'Data': row[date_col],
-            'Ticker': row['Ticker'],
-            'Tipo': tipo,
-            'Qtd': final_q,
-            'Valor': final_val
-        })
-
-df_transacoes_unif = pd.DataFrame(transactions_list)
-
-# 3. RUN ENGINE
-st.subheader("📊 Resultado Consolidado")
-
-if not df_transacoes_unif.empty:
-    df_result = calculate_local_twr(df_prices, df_transacoes_unif)
-    
-    if df_result.empty:
-        st.warning("Não foi possível calcular TWR. Verifique se as datas de 'db_cotacoes' cobrem as transações.")
+    if not isinstance(df_input_frozen, pd.DataFrame):
+        df = pd.DataFrame(df_input_frozen)
     else:
-        # Metrics
-        last_row = df_result.iloc[-1]
+        df = df_input_frozen.copy()
+    
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+    
+    canonical_result = calculate_canonical_twr(df, DEFAULT_PREMISES)
+    
+    @dataclass
+    class CompatibleResult:
+        total_twr: float
+        annualized_twr: float
+        daily_returns: pd.Series
+        cumulative_series: pd.Series
+        drawdown_series: pd.Series
+        max_drawdown: float
+        nav_series: pd.Series
+        volatility: float
+        total_flow: float
+        total_pnl: float
+        simple_return_series: pd.Series = None
+        validation: object = None
+        flow_dates: List[str] = field(default_factory=list)
+        period_breakdown: List = field(default_factory=list)
+        currency: str = 'BRL'
+        is_consolidated: bool = False
+    
+    # nav_series logic: use true NAV from input
+    return CompatibleResult(
+        total_twr=canonical_result.total_twr,
+        annualized_twr=canonical_result.annualized_twr,
+        daily_returns=canonical_result.daily_returns,
+        cumulative_series=canonical_result.cumulative_series,
+        drawdown_series=canonical_result.drawdown_series,
+        max_drawdown=canonical_result.max_drawdown,
+        nav_series=df['nav'],
+        volatility=canonical_result.volatility,
+        total_flow=canonical_result.total_flow,
+        total_pnl=canonical_result.total_pnl,
+        simple_return_series=None,
+        validation=canonical_result.validation,
+        flow_dates=[sp.date for sp in canonical_result.sub_periods if abs(sp.flow) > 0.01],
+        period_breakdown=canonical_result.sub_periods
+    )
+
+# --- MAIN PAGE LOGIC ---
+
+def main():
+    col_h1, col_h2 = st.columns([3,1])
+    with col_h1:
+        st.title("🚀 Análise de Performance")
+        st.caption("Rentabilidade Time-Weighted Return (GIPS Compliant)")
+    with col_h2:
+        if st.button("🏠 Voltar para Home", use_container_width=True):
+            st.switch_page("Home.py")
+
+    # 1. LOAD DATA
+    with st.spinner("Carregando dados..."):
+        df_assets = load_assets()
+        df_proventos = load_proventos()
+        df_rf_raw = load_fixed_income()
+    
+    if df_assets.empty and df_rf_raw.empty:
+        st.warning("Sem dados de transações para calcular performance.")
+        st.stop()
+
+    # 2. FILTERS (SimplifiedSidebar for Performance)
+    with st.sidebar:
+        st.header("Filtros de Portfolio")
         
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Patrimônio (NAV)", f"R$ {format_decimal_br(last_row['NAV'])}")
-        col1.metric("Fluxo Total", f"R$ {format_decimal_br(df_result['Flow'].sum())}")
+        # Filtros de Ativos
+        all_tickers = []
+        if not df_assets.empty:
+            all_tickers += df_assets['ticker'].unique().tolist()
+        if not df_rf_raw.empty:
+            if 'Ticker' in df_rf_raw.columns:
+                all_tickers += df_rf_raw['Ticker'].unique().tolist()
         
-        twr_total = last_row['TWR_Acum'] * 100
-        col2.metric("Rentabilidade Acum. (TWR)", f"{format_decimal_br(twr_total)}%", delta_color="normal")
+        all_tickers = sorted(list(set(all_tickers)))
         
-        dd = last_row['Drawdown'] * 100
-        col3.metric("Drawdown Atual", f"{format_decimal_br(dd)}%", delta_color="inverse")
+        sel_tickers = st.multiselect("Filtrar Ativos:", all_tickers)
         
-        # Plots
-        st.markdown("### Evolução")
+        if st.button("🔄 Recalcular", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    # 3. ENGINE EXECUTION
+    # Apply filters
+    df_rv_final = df_assets.copy()
+    df_rf_final = df_rf_raw.copy()
+    
+    if sel_tickers:
+        if not df_rv_final.empty:
+            df_rv_final = df_rv_final[df_rv_final['ticker'].isin(sel_tickers)]
+        if not df_rf_final.empty:
+            df_rf_final = df_rf_final[df_rf_final['Ticker'].isin(sel_tickers)]
+
+    # Fetch History
+    with st.spinner("Sincronizando mercado..."):
+        tickers_download = []
+        if not df_rv_final.empty:
+            tickers_carteira = df_rv_final['ticker'].unique().tolist()
+            termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO','CDI']
+            tickers_download = [t for t in tickers_carteira if not any(x in t.upper() for x in termos_excluir)]
+            tickers_download += ['BRL=X', 'EURBRL=X', 'CADBRL=X'] # Currencies
         
-        # TWR Chart
-        fig_twr = go.Figure()
-        fig_twr.add_trace(go.Scatter(x=df_result.index, y=df_result['TWR_Acum']*100, name='TWR %', line=dict(color='#4f46e5', width=2)))
-        fig_twr.update_layout(title="Rentabilidade Acumulada (%)", template="plotly_dark", yaxis_ticksuffix="%")
-        st.plotly_chart(fig_twr, use_container_width=True)
+        min_date = datetime.now() - timedelta(days=365*5) # 5 years default
+        if not df_rv_final.empty:
+            min_date = min(min_date, df_rv_final['data'].min())
         
-        # NAV Chart
-        fig_nav = go.Figure()
-        fig_nav.add_trace(go.Scatter(x=df_result.index, y=df_result['NAV'], name='Patrimônio', fill='tozeroy', line=dict(color='#10b981')))
-        fig_nav.update_layout(title="Evolução Patrimonial (R$)", template="plotly_dark")
-        st.plotly_chart(fig_nav, use_container_width=True)
+        df_hist_prices = pd.DataFrame()
+        if tickers_download:
+            df_hist_prices = fetch_historical_data(list(set(tickers_download)), min_date)
+
+    # Run Engine
+    try:
+        df_cambio = load_cambio()
         
-        with st.expander("Ver Dados Detalhados"):
-            st.dataframe(df_result)
-else:
-    st.info("Nenhuma transação encontrada para processar.")
+        # Days lookback: Use max available
+        days_lookback = (datetime.now() - min_date).days + 10
+        
+        multi_result = reconstruct_history_multicurrency(
+            df_bruto=df_rv_final,
+            df_proventos=df_proventos,
+            days_lookback=days_lookback,
+            df_prices_external=df_hist_prices,
+            df_rf_raw=df_rf_final,
+            df_cambio=df_cambio
+        )
+        
+        # Consolidation Logic
+        # For simplicity in this v1 of separate page, we default to Consolidated BRL view
+        # unless user drills down (future feature)
+        from core.consolidator import consolidate_to_brl
+        
+        if not multi_result.buckets:
+            st.warning("Não foi possível reconstruir o histórico com os filtros atuais.")
+            st.stop()
+            
+        consolidated = consolidate_to_brl(multi_result.buckets, multi_result.fx_rates)
+        df_engine_input = consolidated.to_engine_input()
+        
+        # Calculate TWR
+        resultado = run_performance_engine_compat(df_engine_input)
+        resultado.currency = 'BRL'
+        resultado.is_consolidated = True
+        
+    except Exception as e:
+        st.error(f"Erro no motor de cálculo: {e}")
+        st.stop()
+
+    # 4. VISUALIZATION
+    # Time Selection
+    st.markdown("---")
+    
+    # Calculate Date Range
+    data_max = df_engine_input.index.max()
+    data_min_global = df_engine_input.index.min()
+    
+    c_per, c_ano = st.columns([3, 1])
+    with c_per:
+        periodos = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "MAX"]
+        sel_periodo = st.radio("Período:", periodos, index=6, horizontal=True)
+    
+    with c_ano:
+        anos = sorted(df_engine_input.index.year.unique(), reverse=True)
+        sel_ano = st.selectbox("Ano:", ["Todos"] + [str(a) for a in anos])
+
+    # Filter Logic (Date Slicing)
+    if sel_ano != "Todos":
+        start_date = pd.Timestamp(int(sel_ano), 1, 1)
+        end_date = pd.Timestamp(int(sel_ano), 12, 31)
+    else:
+        end_date = data_max
+        if sel_periodo == "1M": start_date = data_max - pd.DateOffset(months=1)
+        elif sel_periodo == "3M": start_date = data_max - pd.DateOffset(months=3)
+        elif sel_periodo == "6M": start_date = data_max - pd.DateOffset(months=6)
+        elif sel_periodo == "YTD": start_date = pd.Timestamp(data_max.year, 1, 1)
+        elif sel_periodo == "1Y": start_date = data_max - pd.DateOffset(years=1)
+        elif sel_periodo == "2Y": start_date = data_max - pd.DateOffset(years=2)
+        else: start_date = data_min_global
+
+    # Apply Slice
+    mask = (df_engine_input.index >= start_date) & (df_engine_input.index <= end_date)
+    df_slice = df_engine_input[mask]
+    
+    if df_slice.empty:
+        st.error("Período vazio.")
+        st.stop()
+        
+    # Re-run TWR on slice
+    res_period = run_performance_engine_compat(df_slice)
+    
+    # --- METRICS ---
+    k1, k2, k3, k4 = st.columns(4)
+    with k1: st.metric("TWR Período", f"{res_period.total_twr:.2%}")
+    with k2: st.metric("Patrimônio Final", f"R$ {res_period.nav_series.iloc[-1]:,.2f}")
+    with k3: st.metric("Drawdown Max", f"{res_period.max_drawdown:.2%}")
+    with k4: st.metric("Volatilidade", f"{res_period.volatility:.2%}")
+    
+    st.markdown("---")
+    
+    # --- CHARTS ---
+    # 1. Evolution (Dual Axis)
+    fig_evol = go.Figure()
+    
+    # TWR
+    fig_evol.add_trace(go.Scatter(
+        x=res_period.cumulative_series.index,
+        y=res_period.cumulative_series * 100,
+        name="Rentabilidade (%)",
+        line=dict(color='#4f46e5', width=3)
+    ))
+    
+    # NAV (Secondary)
+    fig_evol.add_trace(go.Scatter(
+        x=res_period.nav_series.index,
+        y=res_period.nav_series,
+        name="Patrimônio (R$)",
+        yaxis="y2",
+        line=dict(color='#94a3b8', width=1, dash='dot')
+    ))
+    
+    fig_evol.update_layout(
+        title="Evolução Patrimonial vs Rentabilidade",
+        template="plotly_dark",
+        yaxis=dict(title="Rentabilidade (%)", ticksuffix="%"),
+        yaxis2=dict(title="Patrimônio (R$)", overlaying="y", side="right", tickprefix="R$ "),
+        hovermode="x unified",
+        legend=dict(orientation="h", y=1.1)
+    )
+    st.plotly_chart(fig_evol, use_container_width=True)
+    
+    # 2. Drawdown
+    fig_dd = go.Figure()
+    fig_dd.add_trace(go.Scatter(
+        x=res_period.drawdown_series.index,
+        y=res_period.drawdown_series * 100,
+        fill='tozeroy',
+        line=dict(color='#ef4444'),
+        name='Drawdown'
+    ))
+    fig_dd.update_layout(title="Underwater Plot (Drawdown)", template="plotly_dark", yaxis_ticksuffix="%")
+    st.plotly_chart(fig_dd, use_container_width=True)
+
+if __name__ == "__main__":
+    main()
