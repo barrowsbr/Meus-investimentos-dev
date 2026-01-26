@@ -6,6 +6,74 @@ from datetime import datetime, timedelta
 
 # Cache for 15 minutes to avoid spamming Yahoo API
 @st.cache_data(ttl=900, show_spinner=False)
+def fetch_historical_data(tickers: List[str], start_date: datetime = None) -> pd.DataFrame:
+    """
+    Fetches historical price data from Yahoo Finance for TWR calculations.
+    
+    Args:
+        tickers: List of ticker symbols to download
+        start_date: Start date for historical data (defaults to 5 years ago)
+        
+    Returns:
+        DataFrame with dates as index and ticker prices as columns
+    """
+    if not tickers:
+        return pd.DataFrame()
+    
+    # Deduplicate and clean tickers
+    unique_tickers = list(set([t.strip().upper() for t in tickers if t.strip()]))
+    
+    # Filter out non-Yahoo tickers (Fixed Income, Cash, etc.)
+    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO', 'CDI', 'BRL']
+    valid_tickers = [t for t in unique_tickers if not any(x in t.upper() for x in termos_excluir)]
+    
+    if not valid_tickers:
+        return pd.DataFrame()
+    
+    # Default to 5 years of history
+    if start_date is None:
+        start_date = datetime.now() - timedelta(days=365 * 5)
+    
+    try:
+        # Download all tickers at once
+        data = yf.download(
+            valid_tickers, 
+            start=start_date.strftime('%Y-%m-%d'),
+            end=(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d'),
+            progress=False,
+            auto_adjust=True,
+            threads=True
+        )
+        
+        if data.empty:
+            return pd.DataFrame()
+        
+        # Extract Close prices
+        if 'Close' in data.columns.get_level_values(0) if isinstance(data.columns, pd.MultiIndex) else 'Close' in data.columns:
+            if isinstance(data.columns, pd.MultiIndex):
+                df_close = data['Close']
+            else:
+                df_close = data[['Close']] if len(valid_tickers) == 1 else data['Close']
+                if len(valid_tickers) == 1:
+                    df_close.columns = valid_tickers
+        else:
+            # Single ticker case
+            df_close = data.to_frame(name=valid_tickers[0]) if isinstance(data, pd.Series) else data
+        
+        # Forward fill missing values (weekends, holidays)
+        df_close = df_close.ffill()
+        
+        # Ensure index is DatetimeIndex
+        df_close.index = pd.to_datetime(df_close.index)
+        
+        return df_close
+        
+    except Exception as e:
+        print(f"Error fetching historical data from Yahoo: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=900, show_spinner=False)
 def fetch_market_data(tickers: List[str]) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     Fetches latest pricing data FROM YAHOO FINANCE API.
