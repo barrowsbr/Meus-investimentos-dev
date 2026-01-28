@@ -255,11 +255,27 @@ def main():
     res_period = run_performance_engine_compat(df_slice)
     
     # --- METRICS ---
-    k1, k2, k3, k4 = st.columns(4)
-    with k1: st.metric("TWR Período", f"{res_period.total_twr:.2%}")
-    with k2: st.metric("Patrimônio Final", f"R$ {res_period.nav_series.iloc[-1]:,.2f}")
-    with k3: st.metric("Drawdown Max", f"{res_period.max_drawdown:.2%}")
-    with k4: st.metric("Volatilidade", f"{res_period.volatility:.2%}")
+    
+    # Calculate MTM Return (Simple ROI)
+    # Profit / (Initial + Net Flows)
+    nav_inicial = res_period.nav_series.iloc[0] if not res_period.nav_series.empty else 0.0
+    total_flow = res_period.total_flow
+    total_pnl = res_period.total_pnl
+    
+    # "Invested Capital" proxy: Initial Capital + Net Flows
+    # Note: This is an approximation. For exact ROI, we'd need time-weighted capital base, but "Simple ROI" usually implies this.
+    invested_capital = nav_inicial + total_flow
+    
+    retorno_mtm = 0.0
+    if invested_capital > 0:
+        retorno_mtm = total_pnl / invested_capital
+        
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1: st.metric("TWR Período", f"{res_period.total_twr:.2%}", help="Retorno Ponderado pelo Tempo (Gestão)")
+    with k2: st.metric("Retorno MTM", f"{retorno_mtm:.2%}", help="Retorno sobre Capital Investido (ROI Simples)")
+    with k3: st.metric("Patrimônio Final", f"R$ {res_period.nav_series.iloc[-1]:,.2f}")
+    with k4: st.metric("Drawdown Max", f"{res_period.max_drawdown:.2%}")
+    with k5: st.metric("Volatilidade", f"{res_period.volatility:.2%}")
     
     st.markdown("---")
     
