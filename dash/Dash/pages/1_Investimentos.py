@@ -755,7 +755,14 @@ def main():
                         sub = row['Setor']
                         tkr = str(row['Ticker']).upper()
                         
-                        if macro == 'Renda Fixa':
+                        # 0. Reclassificação Prioritária de ETFs
+                        # Lista explícita de ETFs que devem ser agrupados, independente do setor original
+                        etfs_list = ['VWRA', 'WRLD', 'ACWI', 'VT', 'URTH', 'SPY', 'QQQ', 'IVV', 'VOO', 'VNQ', 'BND', 'AGG', 'BIL', 'SHV']
+                        
+                        if any(x in tkr for x in etfs_list) or sub in ['ETF USA', 'ETF']:
+                             sub = 'ETFs'
+
+                        elif macro == 'Renda Fixa':
                             if 'CAIXA' in tkr or 'SALDO' in tkr or 'CASH' in tkr or row['Setor'] == 'Caixa/Liquidez': 
                                 sub = 'Caixa'
                             elif 'CDB' in tkr: sub = 'CDBs'
@@ -765,7 +772,8 @@ def main():
                                 sub = 'Tesouro Direto'
                             
                         elif sub == 'Ações Internacional':
-                            ativos_mundo = ['VWRA', 'WRLD', 'ACWI', 'VT', 'URTH', 'ASML', 'DPM', 'TSM']
+                            # VWRA removed from here as it is caught above
+                            ativos_mundo = ['ASML', 'DPM', 'TSM', 'BABA', 'JD', 'TCEHY'] 
                             
                             if any(x in tkr for x in ativos_mundo) or '.TO' in tkr: 
                                 sub = 'Ações Mundo'
@@ -776,42 +784,218 @@ def main():
 
                     df_grafico[['Layer1', 'Layer2']] = df_grafico.apply(classificar_camadas, axis=1)
                     
-                    fig_sun = px.sunburst(
-                        df_grafico, 
-                        path=['Layer1', 'Layer2', 'Ticker'], 
-                        values='Valor Hoje (R$)', 
-                        color='Layer2', 
-                        color_discrete_sequence=px.colors.qualitative.Prism
-                    )
+
+                    # --- SUNBURST COM CORES HIERÁRQUICAS E GRADIENTE (MANUAL BUILD) ---
+                    # Para ter controle total da cor da camada 3 (Ticker) sendo um gradiente da camada 2 (Setor),
+                    # precisamos construir os arrays de labels, parents, ids e colors manualmente.
+
+                    import plotly.graph_objects as go
+                    import matplotlib.colors as mcolors
+                    import colorsys
+
+                    # 1. Definição do Mapa de Cores Base (Nível 2)
+                    color_map_base = {
+                        # --- RENDA FIXA (Theme: Ocean & Stability) ---
+                        'Renda Fixa': '#0f766e',     # Teal-700 (Root)
+                        'Tesouro Direto': '#10b981', # Emerald-500
+                        'CDBs': '#0ea5e9',           # Sky-500
+                        'LCI/LCA': '#06b6d4',        # Cyan-500
+                        'Debêntures': '#3b82f6',     # Blue-500
+                        'Caixa': '#64748b',          # Slate-500
+                        'Caixa/Liquidez': '#94a3b8', # Slate-400
+                        
+                        # --- RENDA VARIÁVEL (Theme: Galaxy & Future) ---
+                        'Renda Variável': '#6d28d9', # Violet-700 (Root)
+                        'ETFs': '#6366f1',           # Indigo-500 (Primary for ETFs)
+                        'ETF': '#6366f1',            # Indigo-500 (Legacy)
+                        'Ações': '#ec4899',          # Pink-500 (Brasil Default)
+                        'Ações Brasil': '#db2777',   # Pink-600
+                        'Ações EUA': '#8b5cf6',      # Violet-500
+                        'Ações Mundo': '#d946ef',    # Fuchsia-500
+                        'FII': '#f97316',            # Orange-500
+                        'FIIs': '#f97316',           # Orange-500
+                        'BDR': '#a855f7',            # Purple-500
+                        'Cripto': '#eab308',         # Yellow-500 (Gold)
+                        'Commodities': '#84cc16'     # Lime-500
+                    }
+
+                    # Helper: Gerador de Gradiente
+                    def generate_gradient_colors(base_hex, n_steps):
+                        try:
+                            rgb = mcolors.to_rgb(base_hex)
+                            h, l, s = colorsys.rgb_to_hls(*rgb)
+                            
+                            colors_hex = []
+                            # Varia a luminosidade (Lightness) de 0.3 a 0.8 (ou range seguro ao redor do base)
+                            # Se for muitos passos, estica o range.
+                            
+                            # Estratégia: manter o Hue e Saturation, variar Lightness
+                            # Começa um pouco mais escuro e vai clareando
+                            
+                            start_l = max(0.2, l - 0.2)
+                            end_l = min(0.9, l + 0.3)
+                            
+                            for i in range(n_steps):
+                                # Se só tem 1, usa o base
+                                if n_steps <= 1:
+                                    li = l
+                                else:
+                                    li = start_l + (i * (end_l - start_l) / (n_steps - 1))
+                                
+                                r, g, b = colorsys.hls_to_rgb(h, li, s)
+                                colors_hex.append(mcolors.to_hex((r, g, b)))
+                                
+                            return colors_hex
+                        except:
+                            return [base_hex] * n_steps
+
+                    # 2. Construção dos Arrays para o Plotly
+                    ids = []
+                    labels = []
+                    parents = []
+                    values = []
+                    marker_colors = []
+                    customdata = [] # <--- NEW: Dados explícitos para garantir ID na seleção
+
+                    # A. Nível 0 - Raízes (Macro)
+                    macros = df_grafico.groupby('Layer1')['Valor Hoje (R$)'].sum().reset_index()
+                    for _, row in macros.iterrows():
+                        m = row['Layer1']
+                        val = row['Valor Hoje (R$)']
+                        ids.append(m)
+                        labels.append(m)
+                        parents.append("")
+                        values.append(val)
+                        marker_colors.append(color_map_base.get(m, '#9ca3af'))
+                        customdata.append(m)
+
+                    # B. Nível 1 - Setores (Sub)
+                    # Agrupa por (Layer1, Layer2) para garantir unicidade do ID
+                    setores = df_grafico.groupby(['Layer1', 'Layer2'])['Valor Hoje (R$)'].sum().reset_index()
                     
-                    fig_sun.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=700, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    for _, row in setores.iterrows():
+                        pai = row['Layer1']
+                        filho = row['Layer2']
+                        val = row['Valor Hoje (R$)']
+                        
+                        id_node = f"{pai} - {filho}"
+                        ids.append(id_node)
+                        labels.append(filho)
+                        parents.append(pai)
+                        values.append(val)
+                        marker_colors.append(color_map_base.get(filho, '#9ca3af'))
+                        customdata.append(id_node)
+
+                    # C. Nível 2 - Tickers (Folhas)
+                    # Aqui aplicamos o gradiente. Agrupamos os tickers DENTRO de cada setor.
+                    
+                    structure = df_grafico.groupby(['Layer1', 'Layer2'])
+                    
+                    for (pai, setor), group in structure:
+                        # Ordena por valor para o gradiente ficar bonito (maior = mais escuro ou vice versa)
+                        # Vamos ordenar decrescente
+                        group_sorted = group.sort_values('Valor Hoje (R$)', ascending=False)
+                        
+                        tickers_list = group_sorted['Ticker'].tolist()
+                        vals_list = group_sorted['Valor Hoje (R$)'].tolist()
+                        
+                        base_color_sector = color_map_base.get(setor, '#9ca3af')
+                        gradient_palette = generate_gradient_colors(base_color_sector, len(tickers_list))
+                        
+                        for idx, tkr in enumerate(tickers_list):
+                            id_node = f"{pai} - {setor} - {tkr}"
+                            ids.append(id_node)
+                            labels.append(tkr)
+                            parents.append(f"{pai} - {setor}")
+                            values.append(vals_list[idx])
+                            marker_colors.append(gradient_palette[idx])
+                            customdata.append(id_node)
+
+                    # 3. Plotagem
+                    fig_sun = go.Figure(go.Sunburst(
+                        ids=ids,
+                        labels=labels,
+                        parents=parents,
+                        values=values,
+                        marker=dict(colors=marker_colors),
+                        branchvalues="total",
+                        hoverinfo="label+value+percent entry",
+                        customdata=customdata # <--- NEW: Passando dados extras
+                    ))
+                    
+                    fig_sun.update_layout(
+                        margin=dict(t=10, l=10, r=10, b=10), 
+                        height=700, 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
                     fig_sun.update_traces(textinfo="label+percent entry", insidetextorientation='radial') 
+                    
+                    # --- MASTER FILTER UI ---
+                    # Interface robusta para filtrar os gráficos laterais
+                    
+                    # Opções de Filtro
+                    opcoes_macro = sorted(df_grafico['Layer1'].unique())
+                    opcoes_setor = sorted(df_grafico['Layer2'].unique())
+                    
+                    options_list = ["🌎 Visão Global"] + \
+                                   [f"📦 Macro: {m}" for m in opcoes_macro] + \
+                                   [f"🏷️ Setor: {s}" for s in opcoes_setor]
+                    
+                    col_filter, _ = st.columns([2, 1])
+                    with col_filter:
+                        selected_filter = st.selectbox("🔎 Filtrar Análise Detalhada (Gráficos Laterais):", options_list)
+                    
+                    # Renderiza o Sunburst (Sempre Completo para visualização/zoom)
                     st.plotly_chart(fig_sun, use_container_width=True)
+                    
+                    # Lógica de Filtro para Gráficos Laterais
+                    df_view_charts = df_grafico.copy()
+                    
+                    if selected_filter != "🌎 Visão Global":
+                        if "Macro:" in selected_filter:
+                            val = selected_filter.split(": ")[1]
+                            df_view_charts = df_grafico[df_grafico['Layer1'] == val]
+                        elif "Setor:" in selected_filter:
+                            val = selected_filter.split(": ")[1]
+                            df_view_charts = df_grafico[df_grafico['Layer2'] == val]
 
                 with col_dir:
                     st.markdown("#### 💱 Exposição Cambial Global")
-                    fig_moeda = px.pie(
-                        df_grafico, 
-                        values='Valor Hoje (R$)', 
-                        names='Moeda', 
-                        hole=0.5, 
-                        color_discrete_sequence=['#2E7D32', '#1565C0', '#F9A825', '#757575']
-                    )
+                    
+                    # Gráfico 2: Moeda (Usa df_view_charts filtrado)
+                    if not df_view_charts.empty:
+                        fig_moeda = px.pie(
+                            df_view_charts, 
+                            values='Valor Hoje (R$)', 
+                            names='Moeda', 
+                            hole=0.5, 
+                            color_discrete_sequence=['#2E7D32', '#1565C0', '#F9A825', '#757575']
+                        )
+                    else:
+                        fig_moeda = go.Figure()
+                        
                     fig_moeda.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=300, showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_moeda, use_container_width=True)
                     
                     st.markdown("---")
                     
                     st.markdown("#### 🏦 Custódia (Brasil vs Exterior)")
-                    df_grafico['Local'] = df_grafico['Moeda'].apply(lambda x: 'Exterior' if x != 'BRL' else 'Brasil')
+                    # Garante coluna Local no filtered
+                    df_view_charts['Local'] = df_view_charts['Moeda'].apply(lambda x: 'Exterior' if x != 'BRL' else 'Brasil')
                     
-                    fig_local = px.pie(
-                        df_grafico, 
-                        values='Valor Hoje (R$)', 
-                        names='Local', 
-                        hole=0.5, 
-                        color_discrete_sequence=px.colors.qualitative.Safe
-                    )
+                    # Gráfico 3: Local (Usa df_view_charts filtrado)
+                    if not df_view_charts.empty:
+                        fig_local = px.pie(
+                            df_view_charts, 
+                            values='Valor Hoje (R$)', 
+                            names='Local', 
+                            hole=0.5, 
+                            color_discrete_sequence=px.colors.qualitative.Safe
+                        )
+                    else:
+                        fig_local = go.Figure()
+                        
                     fig_local.update_layout(margin=dict(t=10, l=10, r=10, b=10), height=300, showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_local, use_container_width=True)
 
