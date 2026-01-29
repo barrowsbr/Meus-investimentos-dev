@@ -170,6 +170,11 @@ def consolidate_to_brl(
         income_cur = bucket.income_series.reindex(idx).fillna(0)
         force_zero_cur = bucket.force_zero_series.reindex(idx).fillna(False)
         flow_timing_cur = bucket.flow_timing_series.reindex(idx).fillna(0)
+
+        # FIX: Garantir que NAV antes da primeira data válida seja 0 (não forward-filled)
+        first_valid_bucket = bucket.nav_series[bucket.nav_series > 0].first_valid_index()
+        if first_valid_bucket is not None:
+            nav_cur.loc[nav_cur.index < first_valid_bucket] = 0
         
         # Obter taxa de câmbio de MERCADO (para NAV)
         if currency == 'BRL':
@@ -222,6 +227,22 @@ def consolidate_to_brl(
         # Breakdown (último valor)
         breakdown[currency] = nav_brl.iloc[-1] if len(nav_brl) > 0 else 0.0
     
+    # Garantir que flow_timing_combined seja Series (np.maximum pode alterar o tipo)
+    if not isinstance(flow_timing_combined, pd.Series):
+        flow_timing_combined = pd.Series(flow_timing_combined, index=idx)
+
+    # =========================================================================
+    # FIX: Filtrar para começar apenas quando há NAV > 0
+    # =========================================================================
+    first_valid_total = nav_total[nav_total > 0].first_valid_index()
+    if first_valid_total is not None:
+        mask_valid = nav_total.index >= first_valid_total
+        nav_total = nav_total[mask_valid]
+        flow_total = flow_total.reindex(nav_total.index).fillna(0)
+        income_total = income_total.reindex(nav_total.index).fillna(0)
+        force_zero_combined = force_zero_combined.reindex(nav_total.index).fillna(False)
+        flow_timing_combined = flow_timing_combined.reindex(nav_total.index).fillna(0)
+
     return ConsolidatedResult(
         nav_brl=nav_total,
         flow_brl=flow_total,

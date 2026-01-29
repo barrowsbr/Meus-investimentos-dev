@@ -23,6 +23,18 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Tuple
 import warnings
 
+# Importar funções de correção (v2.1)
+try:
+    from core.twr_corrections import heal_nav_gaps, validate_twr_continuity, calculate_robust_metrics
+except ImportError:
+    try:
+        from twr_corrections import heal_nav_gaps, validate_twr_continuity, calculate_robust_metrics
+    except ImportError:
+        # Fallback: funções não disponíveis, usar versão inline
+        heal_nav_gaps = None
+        validate_twr_continuity = None
+        calculate_robust_metrics = None
+
 
 # =============================================================================
 # ENUMS - Todas as escolhas são EXPLÍCITAS
@@ -234,13 +246,36 @@ def calculate_canonical_twr(
     
     # Preparar dados
     df_calc = df.copy().sort_index()
-    
+
     # Garantir colunas
     if 'income' not in df_calc.columns:
         df_calc['income'] = 0.0
-    
+
     df_calc = df_calc.fillna(0.0)
-    
+
+    # =========================================================================
+    # FIX v2.1: Healing de Gaps (Novo - Uso de funções otimizadas)
+    # Zeros no meio causam retornos extremos (-100% ou +inf)
+    # Nova solução: heal_nav_gaps() com validação inteligente
+    # =========================================================================
+    gap_report = None
+    if heal_nav_gaps is not None and (df_calc['nav'] == 0).any():
+        # Usar funções de correção otimizadas
+        df_calc, gap_report = heal_nav_gaps(
+            df_calc, 
+            custodia=None,  # Sem custodia, apenas forward-fill
+            min_nav_threshold=100.0,
+            verbose=False
+        )
+    else:
+        # Fallback: forward-fill simples (compatibilidade)
+        if (df_calc['nav'] == 0).any():
+            first_valid = df_calc[df_calc['nav'] > 0].first_valid_index()
+            if first_valid is not None:
+                mask_after_first = df_calc.index >= first_valid
+                nav_after = df_calc.loc[mask_after_first, 'nav'].replace(0, np.nan).ffill()
+                df_calc.loc[mask_after_first, 'nav'] = nav_after.fillna(0)
+
     # NAV do dia anterior
     df_calc['nav_start'] = df_calc['nav'].shift(1).fillna(0.0)
     
@@ -250,53 +285,79 @@ def calculate_canonical_twr(
     sub_periods: List[TWRSubPeriod] = []
     daily_returns: List[float] = []
     suspicious_dates: List[str] = []
-    
+
     for i, (idx, row) in enumerate(df_calc.iterrows()):
         nav_start = row['nav_start']
         nav_end = row['nav']
         flow = row['flow']
         income = row['income'] if premises.income_policy == IncomePolicy.INCLUDE else 0.0
-        
+
         # Determinar timing
         if flow_timing_override is not None and idx in flow_timing_override.index:
             timing = flow_timing_override.loc[idx]
         else:
             timing = premises.flow_timing_default
-        
+
         # Calcular base de capital
         if timing == FlowTiming.START_OF_DAY:
             capital_base = nav_start + flow
         else:  # END_OF_DAY
             capital_base = nav_start
-        
+
         # Calcular retorno
         daily_return = 0.0
         notes = ""
-        
+
         # Caso 1: Capital insuficiente
         if capital_base <= 0 or nav_start <= 0:
             daily_return = 0.0
             notes = "Capital inicial zero - retorno não aplicável"
-        
+
         # Caso 2: Capital muito pequeno
         elif capital_base < premises.min_capital_for_valid_return:
             daily_return = 0.0
             notes = f"Capital base pequeno (R${capital_base:.2f}) - retorno zerado"
-        
+
         # Caso 3: Cálculo normal
         else:
             # FÓRMULA CANÔNICA
             economic_gain = (nav_end + income) - nav_start - flow
             daily_return = economic_gain / capital_base
-            
+
+            # =====================================================================
+            # FIX v8.0: Verificação de sanidade para dias de aporte
+            #
+            # PROBLEMA: Se NAV != NAV_start + Flow em um dia de aporte,
+            # significa que há desalinhamento entre NAV e fluxo.
+            #
+            # PRINCÍPIO: Um aporte puro deveria resultar em retorno 0%.
+            # Se há retorno significativo em um dia de aporte grande,
+            # provavelmente é um problema de dados, não performance real.
+            # =====================================================================
+
+            # Se há fluxo significativo (> 5% do NAV), verificar se o retorno faz sentido
+            if abs(flow) > 0.05 * nav_start:
+                # Calcular quanto do "retorno" é explicável pelo fluxo
+                nav_esperado = nav_start + flow
+                diferenca_nav = nav_end - nav_esperado
+                retorno_real_estimado = diferenca_nav / nav_esperado if nav_esperado > 0 else 0
+
+                # Se o retorno real estimado é pequeno (<3%), mas o retorno calculado é grande,
+                # isso indica desalinhamento Flow/NAV
+                if abs(retorno_real_estimado) < 0.03 and abs(daily_return) > 0.10:
+                    # Usar o retorno real estimado em vez do calculado
+                    daily_return = retorno_real_estimado
+                    notes = f"[FIX] Aporte detectado, retorno ajustado de {economic_gain/capital_base:.2%} para {daily_return:.2%}"
+
             # Diagnóstico de retornos extremos
             if abs(daily_return) > premises.extreme_return_threshold:
                 date_str = str(idx.date()) if hasattr(idx, 'date') else str(idx)
                 suspicious_dates.append(date_str)
-                notes = f"[!] Retorno extremo: {daily_return:.2%}"
-        
+                if not notes:
+                    notes = f"[!] Retorno extremo: {daily_return:.2%}"
+
         daily_returns.append(daily_return)
-        
+
         # Registrar subperíodo para auditoria
         sub_periods.append(TWRSubPeriod(
             date=str(idx.date()) if hasattr(idx, 'date') else str(idx),
@@ -312,9 +373,20 @@ def calculate_canonical_twr(
         ))
     
     df_calc['daily_return'] = daily_returns
-    
+
     # Limpar valores inválidos
     df_calc['daily_return'] = df_calc['daily_return'].replace([np.inf, -np.inf], 0.0).fillna(0.0)
+
+    # =========================================================================
+    # FIX: Limitar retornos extremos que são claramente erros de dados
+    # Retornos > 50% ou < -50% em um único dia são praticamente impossíveis
+    # e indicam gaps de preço, splits não ajustados, ou erros de dados.
+    # Nesses casos, zeramos o retorno para não distorcer o TWR.
+    # =========================================================================
+    MAX_DAILY_RETURN = 0.50  # 50%
+    extreme_mask = abs(df_calc['daily_return']) > MAX_DAILY_RETURN
+    if extreme_mask.any():
+        df_calc.loc[extreme_mask, 'daily_return'] = 0.0
     
     # =========================================================================
     # 3. CHAIN-LINKING (Encadeamento Geométrico)
@@ -326,7 +398,7 @@ def calculate_canonical_twr(
     total_twr = df_calc['twr_accumulated'].iloc[-1] if not df_calc.empty else 0.0
     
     # =========================================================================
-    # 4. MÉTRICAS DERIVADAS
+    # 4. MÉTRICAS DERIVADAS (Versão v2.1 - Robusta)
     # =========================================================================
     # Anualização (CAGR)
     days = (df_calc.index[-1] - df_calc.index[0]).days if len(df_calc) > 1 else 0
@@ -339,8 +411,18 @@ def calculate_canonical_twr(
     drawdown_series = (df_calc['cumulative_factor'] / rolling_max) - 1
     max_drawdown = drawdown_series.min()
     
-    # Volatilidade
-    volatility = df_calc['daily_return'].std() * np.sqrt(252) if len(df_calc) > 1 else 0.0
+    # Volatilidade (v2.1: Usar função robusta se disponível)
+    volatility = 0.0
+    if calculate_robust_metrics is not None:
+        metrics = calculate_robust_metrics(
+            df_calc['daily_return'],
+            df_calc['nav'],
+            df_calc['flow']
+        )
+        volatility = metrics['volatility']
+    else:
+        # Fallback: volatilidade simples (compatibilidade)
+        volatility = df_calc['daily_return'].std() * np.sqrt(252) if len(df_calc) > 1 else 0.0
     
     # Totais
     total_flow = df_calc['flow'].sum()
@@ -351,9 +433,16 @@ def calculate_canonical_twr(
     total_pnl = nav_final - nav_inicial - total_flow + first_flow
     
     # =========================================================================
-    # 5. VALIDAÇÃO CRUZADA
+    # 5. VALIDAÇÃO CRUZADA (v2.1: Com continuity check)
     # =========================================================================
     validation = _validate_twr(df_calc, total_twr, suspicious_dates)
+    
+    # Se validate_twr_continuity está disponível, executar validação adicional
+    if validate_twr_continuity is not None:
+        continuity_check = validate_twr_continuity(df_calc, verbose=False)
+        if not continuity_check['is_valid'] and validation.is_valid:
+            # Adicionar informação de continuidade ao relatório
+            validation.explanation += f"\n[Continuidade] Issues: {len(continuity_check.get('issues', []))}"
     
     # =========================================================================
     # 6. CONSTRUIR RESULTADO

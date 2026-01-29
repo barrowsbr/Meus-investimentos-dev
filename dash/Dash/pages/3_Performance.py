@@ -15,6 +15,16 @@ from core.data_loader import load_assets, load_proventos, load_fixed_income, loa
 from core.market_data import fetch_historical_data
 from core.engine import reconstruct_history_multicurrency
 from core.twr_canonical import calculate_canonical_twr, DEFAULT_PREMISES
+from core.twr_engine_v2 import calculate_twr_v2, TWRConfig, diagnose_series
+
+# --- NOVOS IMPORTS (v2.1) - Visualizações e Validações Otimizadas ---
+from core.twr_corrections import validate_twr_continuity
+from core.twr_visualizations import (
+    plot_nav_vs_twr,
+    plot_drawdown_volatility,
+    create_attribution_table,
+    create_status_badge
+)
 from config import BASE_DIR
 
 # --- CONFIG ---
@@ -202,7 +212,23 @@ def main():
             
         consolidated = consolidate_to_brl(multi_result.buckets, multi_result.fx_rates)
         df_engine_input = consolidated.to_engine_input()
-        
+
+        # =====================================================================
+        # FIX: Filtrar período para começar apenas quando há patrimônio real
+        # Isso evita que o gráfico comece antes das primeiras transações
+        # =====================================================================
+
+        # Encontrar primeira data com NAV > 0
+        if 'nav' in df_engine_input.columns:
+            first_valid_nav = df_engine_input[df_engine_input['nav'] > 0].first_valid_index()
+            if first_valid_nav is not None:
+                df_engine_input = df_engine_input.loc[first_valid_nav:]
+
+        # Forward-fill NAV para evitar gaps de zero no meio da série
+        if 'nav' in df_engine_input.columns:
+            # Substituir zeros no meio por forward-fill (mantém último valor conhecido)
+            df_engine_input['nav'] = df_engine_input['nav'].replace(0, np.nan).ffill().fillna(0)
+
         # Calculate TWR
         resultado = run_performance_engine_compat(df_engine_input)
         resultado.currency = 'BRL'
@@ -280,47 +306,254 @@ def main():
     st.markdown("---")
     
     # --- CHARTS ---
-    # 1. Evolution (Dual Axis)
-    fig_evol = go.Figure()
-    
-    # TWR
-    fig_evol.add_trace(go.Scatter(
-        x=res_period.cumulative_series.index,
-        y=res_period.cumulative_series * 100,
-        name="Rentabilidade (%)",
-        line=dict(color='#4f46e5', width=3)
-    ))
-    
-    # NAV (Secondary)
-    fig_evol.add_trace(go.Scatter(
-        x=res_period.nav_series.index,
-        y=res_period.nav_series,
-        name="Patrimônio (R$)",
-        yaxis="y2",
-        line=dict(color='#94a3b8', width=1, dash='dot')
-    ))
-    
-    fig_evol.update_layout(
-        title="Evolução Patrimonial vs Rentabilidade",
-        template="plotly_dark",
-        yaxis=dict(title="Rentabilidade (%)", ticksuffix="%"),
-        yaxis2=dict(title="Patrimônio (R$)", overlaying="y", side="right", tickprefix="R$ "),
-        hovermode="x unified",
-        legend=dict(orientation="h", y=1.1)
+    # 1. Evolution (Dual Axis) - VERSÃO OTIMIZADA v2.1
+    fig_evol = plot_nav_vs_twr(
+        df_slice,
+        res_period.cumulative_series,
+        df_slice['flow'],
+        title=f"Evolução Patrimonial vs Rentabilidade ({sel_periodo})"
     )
+    fig_evol.update_layout(template="plotly_dark")
     st.plotly_chart(fig_evol, use_container_width=True)
+
+    # --- STATUS DE VALIDAÇÃO v2.1 ---
+    val_result = validate_twr_continuity(df_slice)
+    st.markdown(create_status_badge(val_result), unsafe_allow_html=True)
     
-    # 2. Drawdown
-    fig_dd = go.Figure()
-    fig_dd.add_trace(go.Scatter(
-        x=res_period.drawdown_series.index,
-        y=res_period.drawdown_series * 100,
-        fill='tozeroy',
-        line=dict(color='#ef4444'),
-        name='Drawdown'
-    ))
-    fig_dd.update_layout(title="Underwater Plot (Drawdown)", template="plotly_dark", yaxis_ticksuffix="%")
-    st.plotly_chart(fig_dd, use_container_width=True)
+    # --- DEBUG: Diagnóstico Completo ---
+    with st.expander("🔍 Diagnóstico de Dados e Retornos", expanded=False):
+        tab1, tab2, tab3 = st.tabs(["Retornos Extremos", "Variações de NAV", "Dados Brutos"])
+
+        with tab1:
+            # Identificar retornos extremos (> 15% ou < -15% em um dia)
+            extreme_threshold = 0.15
+            daily_rets = res_period.daily_returns
+            extreme_days = daily_rets[abs(daily_rets) > extreme_threshold]
+
+            if not extreme_days.empty:
+                st.warning(f"⚠️ Encontradas {len(extreme_days)} datas com retornos extremos (>{extreme_threshold:.0%}):")
+
+                # Criar tabela de diagnóstico
+                diag_data = []
+                for dt, ret in extreme_days.items():
+                    nav_val = res_period.nav_series.get(dt, 0)
+                    # Buscar sub-período correspondente
+                    note = ""
+                    for sp in res_period.period_breakdown:
+                        if sp.date == str(dt.date()) if hasattr(dt, 'date') else str(dt):
+                            note = sp.notes
+                            break
+                    diag_data.append({
+                        'Data': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt),
+                        'Retorno': f"{ret:.2%}",
+                        'NAV': f"R$ {nav_val:,.0f}",
+                        'Nota': note
+                    })
+
+                st.dataframe(pd.DataFrame(diag_data), use_container_width=True)
+                st.info("💡 Retornos extremos geralmente indicam: gaps de preço, splits não ajustados, ou erros de dados.")
+            else:
+                st.success("✅ Nenhum retorno extremo detectado no período.")
+
+        with tab2:
+            # Variações bruscas no NAV
+            nav_pct = res_period.nav_series.pct_change()
+            large_nav_changes = nav_pct[abs(nav_pct) > 0.20]
+
+            if not large_nav_changes.empty:
+                st.warning(f"⚠️ Encontradas {len(large_nav_changes)} variações de NAV > 20%:")
+
+                nav_diag = []
+                for dt, pct in large_nav_changes.items():
+                    flow_day = df_slice['flow'].get(dt, 0) if 'flow' in df_slice.columns else 0
+                    nav_diag.append({
+                        'Data': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt),
+                        'Variação NAV': f"{pct:.2%}",
+                        'NAV': f"R$ {res_period.nav_series.get(dt, 0):,.0f}",
+                        'Fluxo': f"R$ {flow_day:,.0f}"
+                    })
+
+                st.dataframe(pd.DataFrame(nav_diag), use_container_width=True)
+            else:
+                st.success("✅ Nenhuma variação brusca de NAV detectada.")
+
+        with tab3:
+            # Dados brutos do período
+            st.write(f"**Período:** {df_slice.index.min().date()} a {df_slice.index.max().date()}")
+            st.write(f"**Total de dias:** {len(df_slice)}")
+            st.write(f"**NAV inicial:** R$ {df_slice['nav'].iloc[0]:,.2f}")
+            st.write(f"**NAV final:** R$ {df_slice['nav'].iloc[-1]:,.2f}")
+            st.write(f"**Total de fluxos:** R$ {df_slice['flow'].sum():,.2f}")
+
+            # Dias com fluxo
+            days_with_flow = df_slice[df_slice['flow'] != 0]
+            st.write(f"**Dias com fluxo:** {len(days_with_flow)}")
+
+            if st.checkbox("Mostrar dados brutos"):
+                st.dataframe(df_slice.tail(50), use_container_width=True)
+
+            # Análise detalhada de dias com fluxo
+            if st.checkbox("Analisar dias com fluxo (debug TWR)"):
+                st.subheader("Verificação da Fórmula TWR em Dias de Aporte")
+
+                df_debug = df_slice.copy()
+                df_debug['nav_start'] = df_debug['nav'].shift(1).fillna(0)
+                df_debug['economic_gain'] = df_debug['nav'] + df_debug.get('income', 0) - df_debug['nav_start'] - df_debug['flow']
+                df_debug['return_calc'] = np.where(
+                    df_debug['nav_start'] > 100,
+                    df_debug['economic_gain'] / df_debug['nav_start'],
+                    0
+                )
+
+                # Filtrar dias com fluxo
+                flow_days = df_debug[df_debug['flow'] != 0][['nav', 'nav_start', 'flow', 'economic_gain', 'return_calc']]
+
+                if not flow_days.empty:
+                    st.dataframe(flow_days.style.format({
+                        'nav': 'R$ {:,.0f}',
+                        'nav_start': 'R$ {:,.0f}',
+                        'flow': 'R$ {:,.0f}',
+                        'economic_gain': 'R$ {:,.0f}',
+                        'return_calc': '{:.2%}'
+                    }), use_container_width=True)
+
+                    # Verificar se há problema
+                    problematic = flow_days[abs(flow_days['return_calc']) > 0.05]
+                    if not problematic.empty:
+                        st.error(f"⚠️ {len(problematic)} dias com aporte têm retorno > 5%!")
+                        st.write("**Diagnóstico:** Se o aporte fosse neutro, o retorno deveria ser ~0%.")
+                        st.write("Possíveis causas:")
+                        st.write("1. NAV não aumentou proporcionalmente ao fluxo")
+                        st.write("2. Fluxo e NAV estão em dias diferentes")
+                        st.write("3. Preço de transação diferente do preço de mercado")
+                    else:
+                        st.success("✅ Aportes parecem neutros (retorno < 5% nos dias de fluxo)")
+                else:
+                    st.info("Nenhum dia com fluxo no período selecionado.")
+
+    # 2. Drawdown + Volatilidade - VERSÃO OTIMIZADA v2.1
+    if len(df_slice) > 20:  # Mínimo para rolling window
+        fig_risk = plot_drawdown_volatility(
+            df_slice,
+            res_period.drawdown_series,
+            res_period.daily_returns,
+            rolling_window=20
+        )
+        fig_risk.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_risk, use_container_width=True)
+    else:
+        # Fallback para períodos curtos
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(
+            x=res_period.drawdown_series.index,
+            y=res_period.drawdown_series * 100,
+            fill='tozeroy',
+            line=dict(color='#ef4444'),
+            name='Drawdown'
+        ))
+        fig_dd.update_layout(title="Underwater Plot (Drawdown)", template="plotly_dark", yaxis_ticksuffix="%")
+        st.plotly_chart(fig_dd, use_container_width=True)
+
+    # --- TABELA DE ATTRIBUTION v2.1 ---
+    st.subheader("Attribution Diário")
+    if res_period.period_breakdown:
+        att_table = create_attribution_table(
+            df_slice,
+            res_period.period_breakdown,
+            max_rows=30
+        )
+        st.dataframe(att_table, use_container_width=True)
+    else:
+        st.info("Sem dados de attribution disponíveis.")
+
+    # --- DIAGNÓSTICO RF ---
+    with st.expander("📊 Diagnóstico de Renda Fixa (RF)", expanded=False):
+        st.subheader("Verificação de Integração RF")
+
+        if df_rf_raw.empty:
+            st.warning("❌ Sem dados de Renda Fixa carregados. Verifique a aba 'Renda_Fixa' na planilha.")
+        else:
+            st.success(f"✅ {len(df_rf_raw)} eventos de RF carregados")
+
+            # Mostrar eventos brutos
+            st.write("**Eventos RF brutos:**")
+            st.dataframe(df_rf_raw.head(10), use_container_width=True)
+
+            # Tentar calcular curva RF
+            try:
+                from core.fixed_income_engine import FixedIncomeEngine
+
+                rf_engine = FixedIncomeEngine(df_rf_raw)
+                rf_result = rf_engine.build_daily_curve()
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Eventos Processados", len(rf_engine.events))
+                with col2:
+                    st.metric("Posições Fechadas", len(rf_engine.closed_positions))
+                with col3:
+                    st.metric("Posições Abertas", len(rf_engine.open_positions_data))
+
+                st.write(f"**Fluxos Externos (para TWR):** {len(rf_result.external_flows)}")
+
+                if rf_result.external_flows:
+                    flows_data = []
+                    for f in rf_result.external_flows:
+                        flows_data.append({
+                            'Data': f.date.strftime('%Y-%m-%d') if hasattr(f.date, 'strftime') else str(f.date),
+                            'Tipo': f.flow_type,
+                            'Valor': f"R$ {f.amount:,.2f}",
+                            'Ticker': f.ticker
+                        })
+                    st.dataframe(pd.DataFrame(flows_data), use_container_width=True)
+
+                if not rf_result.daily_curve.empty:
+                    st.write("**Curva RF (últimos 10 dias):**")
+                    st.dataframe(rf_result.daily_curve.tail(10), use_container_width=True)
+
+                    st.write(f"**Valor Atual RF:** R$ {rf_result.current_value:,.2f}")
+                    st.write(f"**Retorno RF:** {rf_result.total_return_pct:.2f}%")
+                    st.write(f"**Hipótese:** {rf_result.hypothesis_note}")
+
+                    # Plotar curva RF
+                    fig_rf = go.Figure()
+                    fig_rf.add_trace(go.Scatter(
+                        x=rf_result.daily_curve.index,
+                        y=rf_result.daily_curve['total'],
+                        name="Patrimônio RF",
+                        line=dict(color='#10b981', width=2)
+                    ))
+                    fig_rf.update_layout(
+                        title="Evolução Patrimônio Renda Fixa",
+                        template="plotly_dark",
+                        yaxis_tickprefix="R$ "
+                    )
+                    st.plotly_chart(fig_rf, use_container_width=True)
+                else:
+                    st.warning("Curva RF vazia após processamento")
+
+            except Exception as e:
+                st.error(f"Erro ao processar RF: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+        # Verificar se RF foi integrado ao consolidado
+        st.markdown("---")
+        st.subheader("Verificação de Integração no Consolidado")
+
+        if 'BRL' in multi_result.buckets:
+            brl_bucket = multi_result.buckets['BRL']
+            st.write(f"**Tickers no bucket BRL:** {brl_bucket.tickers}")
+
+            if 'RF_AGGREGATED' in brl_bucket.tickers:
+                st.success("✅ RF está integrado ao bucket BRL")
+            else:
+                st.warning("⚠️ RF_AGGREGATED não encontrado no bucket BRL")
+
+            st.write(f"**NAV final BRL:** R$ {brl_bucket.nav_series.iloc[-1]:,.2f}")
+            st.write(f"**Total flows BRL:** R$ {brl_bucket.flow_series.sum():,.2f}")
+        else:
+            st.warning("❌ Bucket BRL não encontrado")
 
 if __name__ == "__main__":
     main()

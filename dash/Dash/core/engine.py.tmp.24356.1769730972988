@@ -153,21 +153,51 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
     tickers_yahoo_cols = df_prices.columns.tolist()
     all_tickers = list(set(tickers_in_ops + tickers_yahoo_cols))
     
+    custodia_diaria = pd.DataFrame(0.0, index=idx_dates, columns=all_tickers)
     df_ops = df_bruto.sort_values('data').copy()
     # Normalize entire column at once for speed and matching
     df_ops['data'] = pd.to_datetime(df_ops['data']).dt.normalize()
-
+    
     # Filter Future Dates (Data Error Protection)
     today_norm = pd.Timestamp.now().normalize()
     df_ops = df_ops[df_ops['data'] <= today_norm]
-
-    # ==========================================================================
-    # OTIMIZAÇÃO v2.1: Processamento vetorizado de transações
-    # Substitui loop iterrows por operações vetorizadas (muito mais rápido)
-    # ==========================================================================
-    custodia_diaria, serie_fluxos_mkt, df_ops = _process_transactions_vectorized(
-        df_ops, idx_dates, s_usd, s_eur, all_tickers
-    )
+    
+    # Process Transactions - Step 1: Alignment & Custody Building
+    # We add an 'effective_date' column to df_ops to track where we mapped it
+    # This is crucial for the Price Fallback loop later
+    df_ops['effective_date'] = pd.NaT 
+    
+    for idx, row in df_ops.iterrows():
+        t = row['ticker']
+        if t in custodia_diaria.columns:
+            sinal = 1 if 'compra' in str(row['tipo']).lower() else -1
+            try:
+                dt_op = row['data'] # Already normalized
+                
+                # 1. Align Dates to Market Calendar
+                idx_fluxo = serie_fluxos_mkt.index.get_indexer([dt_op], method='pad')[0]
+                if idx_fluxo == -1:
+                    idx_fluxo = serie_fluxos_mkt.index.get_indexer([dt_op], method='bfill')[0]
+                
+                data_valida = serie_fluxos_mkt.index[idx_fluxo]
+                df_ops.at[idx, 'effective_date'] = data_valida # Store mapping
+                
+                # 2. Update Custody
+                custodia_diaria.loc[data_valida:, t] += (row['quantidade'] * sinal)
+                
+                # 3. Register Cash Flow
+                p_op = float(row['preco'])
+                q_op = float(row['quantidade'])
+                m_op = str(row['moeda']).upper().strip()
+                
+                fx = 1.0
+                if m_op == 'USD': fx = s_usd.asof(data_valida)
+                elif m_op == 'EUR': fx = s_eur.asof(data_valida)
+                
+                fin_brl = p_op * q_op * fx
+                if sinal == 1: serie_fluxos_mkt.loc[data_valida] += fin_brl
+                else: serie_fluxos_mkt.loc[data_valida] -= fin_brl
+            except: pass
 
     # Process Income (Standard)
     if not df_proventos.empty:
