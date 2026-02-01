@@ -85,7 +85,7 @@ def require_auth():
             h1 { color: white; text-align: center; margin-top: 100px; }
             .stTextInput { width: 300px; margin: 0 auto; }
             </style>
-            <h1>🔒 Acesso Restrito</h1>
+            <h1>🔒 Password</h1>
             """, unsafe_allow_html=True
         )
         if not check_password():
