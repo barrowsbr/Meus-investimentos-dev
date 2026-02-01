@@ -227,217 +227,1102 @@ def get_portfolio_data():
 
 # --- BIO-DOME LOGIC (EGG #2) ---
 def render_bio_dome():
-    st.markdown("""
-    <style>
-        .bio-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 1000;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
     c1, c2 = st.columns([1, 10])
     with c1:
         if st.button("⬅ VOLTAR", use_container_width=True, key="btn_bio_back"):
             return_to_hub()
             st.rerun()
 
-    # Reuse Robust Data Logic for Bio-Dome too!
-    df_portfolio = get_portfolio_data()
+    # Load portfolio data
+    with st.spinner("Cultivando espécies financeiras..."):
+        df_portfolio = get_portfolio_data()
+
     ecosystem_data = []
+    total_val = 0
 
     if not df_portfolio.empty:
         grouped = df_portfolio.groupby('Class')['Value'].sum().reset_index()
         total_val = grouped['Value'].sum()
-        
-        color_map = {
-            'Renda Fixa': '#00ff41',
-            'Tesouro': '#10b981',
-            'CDBs': '#0ea5e9',
-            'Ações': '#ff00de',
-            'FIIs': '#00efff',
-            'Cripto': '#ffcc00',
-            'Ações intl': '#ff4400',
-            'Caixa': '#ffffff',
-            'ETFs': '#8b5cf6'
+        grouped = grouped.sort_values('Value', ascending=False).reset_index(drop=True)
+
+        # Creature types per asset class with unique behaviors
+        species_config = {
+            'Renda Fixa': {'type': 'jellyfish', 'color': '#00ff41', 'speed': 0.5, 'icon': '🪼'},
+            'Tesouro': {'type': 'firefly', 'color': '#10b981', 'speed': 1.0, 'icon': '✨'},
+            'CDBs': {'type': 'fish', 'color': '#0ea5e9', 'speed': 1.5, 'icon': '🐟'},
+            'Ações': {'type': 'butterfly', 'color': '#ff00de', 'speed': 2.5, 'icon': '🦋'},
+            'FIIs': {'type': 'coral', 'color': '#00efff', 'speed': 0.1, 'icon': '🪸'},
+            'Cripto': {'type': 'bee', 'color': '#ffcc00', 'speed': 3.5, 'icon': '🐝'},
+            'Ações intl': {'type': 'bird', 'color': '#ff4400', 'speed': 3.0, 'icon': '🦅'},
+            'Caixa': {'type': 'bubble', 'color': '#ffffff', 'speed': 0.8, 'icon': '🫧'},
+            'ETFs': {'type': 'turtle', 'color': '#8b5cf6', 'speed': 0.7, 'icon': '🐢'},
+            'Commodities': {'type': 'crab', 'color': '#84cc16', 'speed': 1.2, 'icon': '🦀'}
         }
-        
+
         for _, row in grouped.iterrows():
             classe = row['Class']
             val = row['Value']
             if total_val > 0:
                 pct = (val / total_val) * 100
-                count = max(3, int(pct / 2)) 
-                radius = max(5, int(pct * 0.8))
-                color = color_map.get(classe, '#888888')
-                
+                config = species_config.get(classe, {'type': 'fish', 'color': '#888888', 'speed': 1.0, 'icon': '🐠'})
+                count = max(2, min(25, int(pct * 0.5)))
+                size = max(8, min(25, int(pct * 0.6)))
+
                 ecosystem_data.append({
                     'species': classe,
-                    'color': color,
+                    'type': config['type'],
+                    'color': config['color'],
+                    'icon': config['icon'],
+                    'speed': config['speed'],
                     'count': count,
-                    'radius': radius,
-                    'value': float(val)
+                    'size': size,
+                    'value': float(val),
+                    'pct': float(pct)
                 })
 
-    # Fallback
     if not ecosystem_data:
-        ecosystem_data = [{'species': 'Unknown', 'color': '#00ff41', 'count': 20, 'radius': 10, 'value': 0}]
-    
-    import json
+        ecosystem_data = [{'species': 'Demo', 'type': 'fish', 'color': '#00ff41', 'icon': '🐠', 'speed': 1.0, 'count': 15, 'size': 12, 'value': 0, 'pct': 100}]
+
     eco_json = json.dumps(ecosystem_data)
+    total_val_fmt = f"R$ {total_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     bio_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
-    <style>
-        body {{ margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }}
-        canvas {{ display: block; }}
-        #ui-layer {{
-            position: absolute; top: 20px; left: 20px; color: #00ff41; pointer-events: none;
-            text-shadow: 0 0 5px #00ff41; background: rgba(0,0,0,0.5); padding: 10px; border: 1px solid #00ff41;
-        }}
-        .phenomenon {{
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 3rem; color: white; opacity: 0; font-weight: bold; pointer-events: none;
-            transition: opacity 1s;
-        }}
-    </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                overflow: hidden;
+                background: linear-gradient(180deg, #000510 0%, #001020 50%, #000818 100%);
+                font-family: 'Orbitron', sans-serif;
+                touch-action: none;
+                user-select: none;
+            }}
+            canvas {{ display: block; }}
+
+            /* Main Panel */
+            #main-panel {{
+                position: absolute; top: 15px; left: 15px;
+                background: linear-gradient(135deg, rgba(0,20,30,0.95) 0%, rgba(0,40,50,0.9) 100%);
+                padding: 15px 20px; border-radius: 15px;
+                border: 1px solid rgba(0,255,200,0.3);
+                box-shadow: 0 0 30px rgba(0,255,200,0.1), inset 0 0 30px rgba(0,0,0,0.5);
+                z-index: 100; min-width: 200px;
+                backdrop-filter: blur(10px);
+            }}
+            #main-panel h2 {{
+                color: #00ffc8; margin: 0 0 5px 0; font-size: 0.75rem;
+                text-transform: uppercase; letter-spacing: 2px;
+                text-shadow: 0 0 10px rgba(0,255,200,0.5);
+            }}
+            #portfolio-value {{
+                font-size: 1.2rem; color: #fff; font-weight: 700;
+                margin-bottom: 10px;
+            }}
+            #ecosystem-health {{
+                height: 4px; background: rgba(255,255,255,0.1);
+                border-radius: 2px; overflow: hidden; margin-bottom: 8px;
+            }}
+            #health-bar {{
+                height: 100%; width: 100%;
+                background: linear-gradient(90deg, #00ff41, #00ffc8);
+                border-radius: 2px;
+                transition: width 0.5s ease;
+            }}
+            .stat-row {{
+                display: flex; justify-content: space-between;
+                font-size: 0.6rem; color: #888; margin-top: 5px;
+            }}
+
+            /* Species Panel */
+            #species-panel {{
+                position: absolute; top: 15px; right: 15px;
+                background: rgba(0,20,30,0.9);
+                padding: 15px; border-radius: 15px;
+                border: 1px solid rgba(255,255,255,0.1);
+                z-index: 100; max-width: 220px;
+                max-height: 300px; overflow-y: auto;
+                backdrop-filter: blur(10px);
+            }}
+            #species-panel h3 {{
+                color: #00ffc8; font-size: 0.65rem;
+                text-transform: uppercase; letter-spacing: 1px;
+                margin-bottom: 10px;
+            }}
+            .species-item {{
+                display: flex; align-items: center; gap: 10px;
+                padding: 8px; margin-bottom: 5px;
+                background: rgba(255,255,255,0.03);
+                border-radius: 8px; cursor: pointer;
+                transition: all 0.2s;
+            }}
+            .species-item:hover {{
+                background: rgba(255,255,255,0.08);
+                transform: translateX(3px);
+            }}
+            .species-item.highlighted {{
+                background: rgba(0,255,200,0.15);
+                border: 1px solid rgba(0,255,200,0.3);
+            }}
+            .species-icon {{ font-size: 1.3rem; }}
+            .species-info {{ flex: 1; }}
+            .species-name {{ font-size: 0.7rem; color: #fff; }}
+            .species-stats {{ font-size: 0.55rem; color: #888; }}
+            .species-count {{
+                font-size: 0.8rem; font-weight: 700;
+                padding: 3px 8px; border-radius: 10px;
+                background: rgba(255,255,255,0.1);
+            }}
+
+            /* Controls */
+            #controls {{
+                position: absolute; bottom: 15px; left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0,20,30,0.9);
+                padding: 12px 20px; border-radius: 25px;
+                border: 1px solid rgba(255,255,255,0.1);
+                display: flex; gap: 15px; align-items: center;
+                z-index: 100; backdrop-filter: blur(10px);
+            }}
+            .control-btn {{
+                width: 44px; height: 44px;
+                background: rgba(255,255,255,0.05);
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 50%; color: #fff;
+                cursor: pointer; font-size: 1.2rem;
+                transition: all 0.2s;
+                display: flex; align-items: center; justify-content: center;
+            }}
+            .control-btn:hover, .control-btn:active {{
+                background: rgba(0,255,200,0.2);
+                border-color: #00ffc8;
+                transform: scale(1.1);
+            }}
+            .control-btn.active {{
+                background: rgba(0,255,200,0.3);
+                border-color: #00ffc8;
+                box-shadow: 0 0 15px rgba(0,255,200,0.3);
+            }}
+            .control-btn.danger:hover {{
+                background: rgba(255,0,100,0.3);
+                border-color: #ff0064;
+            }}
+
+            /* Event Notification */
+            #event-notification {{
+                position: absolute; top: 50%; left: 50%;
+                transform: translate(-50%, -50%) scale(0);
+                font-size: 2rem; color: #fff;
+                text-shadow: 0 0 30px currentColor;
+                pointer-events: none; z-index: 200;
+                opacity: 0; transition: all 0.3s ease;
+                text-align: center;
+            }}
+            #event-notification.show {{
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }}
+            #event-notification .subtitle {{
+                font-size: 0.8rem; color: #888;
+                margin-top: 10px;
+            }}
+
+            /* Tooltip */
+            #tooltip {{
+                position: absolute; pointer-events: none;
+                background: rgba(0,0,0,0.9);
+                border: 1px solid rgba(0,255,200,0.3);
+                padding: 10px 15px; border-radius: 10px;
+                z-index: 300; display: none;
+                font-size: 0.75rem;
+            }}
+            #tooltip .name {{ color: #00ffc8; font-weight: 700; }}
+            #tooltip .value {{ color: #fff; margin-top: 3px; }}
+
+            /* Instructions */
+            #instructions {{
+                position: absolute; bottom: 80px; right: 15px;
+                color: #445; font-size: 0.55rem;
+                text-align: right; line-height: 1.8;
+            }}
+
+            /* Mobile */
+            @media (max-width: 768px) {{
+                #main-panel {{ padding: 12px; min-width: 150px; }}
+                #main-panel h2 {{ font-size: 0.65rem; }}
+                #portfolio-value {{ font-size: 1rem; }}
+                #species-panel {{ max-width: 180px; padding: 10px; right: 10px; }}
+                .species-item {{ padding: 6px; }}
+                #controls {{ padding: 10px 15px; gap: 10px; }}
+                .control-btn {{ width: 40px; height: 40px; font-size: 1rem; }}
+                #instructions {{ display: none; }}
+            }}
+
+            /* Underwater light rays */
+            .light-ray {{
+                position: fixed; top: 0;
+                width: 2px; height: 100vh;
+                background: linear-gradient(180deg, rgba(0,255,200,0.1) 0%, transparent 70%);
+                pointer-events: none; z-index: 1;
+                animation: rayFloat 10s ease-in-out infinite;
+            }}
+            @keyframes rayFloat {{
+                0%, 100% {{ opacity: 0.3; transform: translateX(0) skewX(-5deg); }}
+                50% {{ opacity: 0.6; transform: translateX(20px) skewX(5deg); }}
+            }}
+        </style>
     </head>
     <body>
-    <div id="ui-layer">
-        <div>BIO-DOME STATUS: ALIVE</div>
-        <div>SIMULATION SPEED: 1.0x</div>
-        <div style="font-size: 0.8rem; margin-top: 5px; color: #aaa;">> CLICK TO CREATE GRAVITY WELL</div>
-    </div>
-    <div id="phenomenon" class="phenomenon">MARKET SHOCK</div>
-    <canvas id="bioCanvas"></canvas>
-    
-    <script>
-        const canvas = document.getElementById("bioCanvas");
-        const ctx = canvas.getContext("2d");
-        
-        let width, height;
-        let particles = [];
-        let mouse = {{ x: null, y: null, active: false }};
-        
-        const ecosystem = {eco_json};
+        <!-- Light rays for underwater effect -->
+        <div class="light-ray" style="left: 10%;"></div>
+        <div class="light-ray" style="left: 30%; animation-delay: -3s;"></div>
+        <div class="light-ray" style="left: 50%; animation-delay: -5s;"></div>
+        <div class="light-ray" style="left: 70%; animation-delay: -7s;"></div>
+        <div class="light-ray" style="left: 90%; animation-delay: -2s;"></div>
 
-        function resize() {{
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-        }}
-        window.addEventListener('resize', resize);
-        resize();
+        <canvas id="bioCanvas"></canvas>
 
-        class Organism {{
-            constructor(x, y, radius, color, species) {{
-                this.x = x;
-                this.y = y;
-                this.radius = radius;
-                this.baseRadius = radius;
-                this.color = color;
-                this.species = species;
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
-                this.life = Math.random() * 100;
-                this.pulseSpeed = 0.05 + Math.random() * 0.05;
+        <div id="main-panel">
+            <h2>MARKET BIO-DOME</h2>
+            <div id="portfolio-value">{total_val_fmt}</div>
+            <div id="ecosystem-health"><div id="health-bar"></div></div>
+            <div class="stat-row">
+                <span>POPULATION: <span id="pop-count">0</span></span>
+                <span>FOOD: <span id="food-count">0</span></span>
+            </div>
+        </div>
+
+        <div id="species-panel">
+            <h3>SPECIES CATALOG</h3>
+            <div id="species-list"></div>
+        </div>
+
+        <div id="controls">
+            <button class="control-btn" id="btn-feed" title="Feed (Drop food)">🍖</button>
+            <button class="control-btn" id="btn-bull" title="Bull Market">📈</button>
+            <button class="control-btn danger" id="btn-bear" title="Bear Market">📉</button>
+            <button class="control-btn" id="btn-breed" title="Reproduction Boost">💕</button>
+            <button class="control-btn danger" id="btn-crash" title="Market Crash!">💥</button>
+        </div>
+
+        <div id="instructions">
+            TAP to drop food • HOLD to attract<br>
+            Double-tap for market event
+        </div>
+
+        <div id="event-notification">
+            <div class="title"></div>
+            <div class="subtitle"></div>
+        </div>
+
+        <div id="tooltip">
+            <div class="name"></div>
+            <div class="value"></div>
+        </div>
+
+        <script>
+            // === CANVAS SETUP ===
+            const canvas = document.getElementById("bioCanvas");
+            const ctx = canvas.getContext("2d");
+            let width, height;
+
+            function resize() {{
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
             }}
+            window.addEventListener('resize', resize);
+            resize();
 
-            update() {{
-                this.x += this.vx;
-                this.y += this.vy;
-                if (this.x + this.radius > width || this.x - this.radius < 0) this.vx = -this.vx;
-                if (this.y + this.radius > height || this.y - this.radius < 0) this.vy = -this.vy;
+            // === DATA ===
+            const ecosystemData = {eco_json};
+            const creatures = [];
+            const food = [];
+            const particles = [];
+            let ecosystemHealth = 100;
+            let highlightedSpecies = null;
 
-                if (mouse.active) {{
-                    const dx = mouse.x - this.x;
-                    const dy = mouse.y - this.y;
-                    const distance = Math.sqrt(dx*dx + dy*dy);
-                    if (distance < 300) {{
-                        const force = (300 - distance) / 300;
-                        this.vx += (dx / distance) * force * 0.5;
-                        this.vy += (dy / distance) * force * 0.5;
+            // === CREATURE CLASSES ===
+            class Creature {{
+                constructor(x, y, species, config) {{
+                    this.x = x;
+                    this.y = y;
+                    this.species = species;
+                    this.type = config.type;
+                    this.color = config.color;
+                    this.baseSize = config.size;
+                    this.size = config.size;
+                    this.speed = config.speed;
+                    this.value = config.value;
+                    this.pct = config.pct;
+
+                    this.vx = (Math.random() - 0.5) * this.speed;
+                    this.vy = (Math.random() - 0.5) * this.speed;
+                    this.energy = 50 + Math.random() * 50;
+                    this.maxEnergy = 100;
+                    this.age = 0;
+                    this.phase = Math.random() * Math.PI * 2;
+                    this.targetX = null;
+                    this.targetY = null;
+
+                    // Type-specific properties
+                    this.tentacles = this.type === 'jellyfish' ? 6 : 0;
+                    this.wingPhase = 0;
+                    this.tailPhase = 0;
+                    this.glowIntensity = 0.5;
+                }}
+
+                update(dt) {{
+                    this.age += dt;
+                    this.phase += 0.05;
+                    this.wingPhase += 0.15;
+                    this.tailPhase += 0.1;
+
+                    // Energy decay
+                    this.energy -= 0.02 * dt;
+                    if (this.energy < 0) this.energy = 0;
+
+                    // Size based on energy
+                    this.size = this.baseSize * (0.7 + (this.energy / this.maxEnergy) * 0.5);
+
+                    // Seek food if hungry
+                    if (this.energy < 50 && food.length > 0) {{
+                        let nearestFood = null;
+                        let nearestDist = Infinity;
+                        food.forEach(f => {{
+                            const dist = Math.hypot(f.x - this.x, f.y - this.y);
+                            if (dist < nearestDist) {{
+                                nearestDist = dist;
+                                nearestFood = f;
+                            }}
+                        }});
+                        if (nearestFood && nearestDist < 200) {{
+                            this.targetX = nearestFood.x;
+                            this.targetY = nearestFood.y;
+                        }}
                     }}
-                }}
-                this.vx *= 0.99;
-                this.vy *= 0.99;
-                if (Math.abs(this.vx) < 0.2) this.vx += (Math.random() - 0.5) * 0.5;
-                if (Math.abs(this.vy) < 0.2) this.vy += (Math.random() - 0.5) * 0.5;
-                this.life += this.pulseSpeed;
-                this.radius = this.baseRadius + Math.sin(this.life) * 2;
-            }}
 
-            draw() {{
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, Math.max(0, this.radius), 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = this.color;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = "rgba(255,255,255,0.3)";
-                ctx.beginPath();
-                ctx.arc(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius/4, 0, Math.PI*2);
-                ctx.fill();
-            }}
-        }}
+                    // Movement based on type
+                    this.move(dt);
 
-        function init() {{
-            particles = [];
-            ecosystem.forEach(group => {{
-                for (let i = 0; i < group.count; i++) {{
-                    const x = Math.random() * (width - 100) + 50;
-                    const y = Math.random() * (height - 100) + 50;
-                    particles.push(new Organism(x, y, group.radius, group.color, group.species));
-                }}
-            }});
-        }}
+                    // Boundary check
+                    if (this.x < this.size) {{ this.x = this.size; this.vx *= -0.5; }}
+                    if (this.x > width - this.size) {{ this.x = width - this.size; this.vx *= -0.5; }}
+                    if (this.y < this.size) {{ this.y = this.size; this.vy *= -0.5; }}
+                    if (this.y > height - this.size) {{ this.y = height - this.size; this.vy *= -0.5; }}
 
-        function animate() {{
-            requestAnimationFrame(animate);
-            ctx.fillStyle = "rgba(0, 5, 10, 0.2)";
-            ctx.fillRect(0, 0, width, height);
+                    // Eat food
+                    for (let i = food.length - 1; i >= 0; i--) {{
+                        const f = food[i];
+                        const dist = Math.hypot(f.x - this.x, f.y - this.y);
+                        if (dist < this.size + f.size) {{
+                            this.energy = Math.min(this.maxEnergy, this.energy + f.energy);
+                            food.splice(i, 1);
 
-            particles.forEach(p => {{
-                p.update();
-                p.draw();
-            }});
-            
-            ctx.strokeStyle = "rgba(0, 255, 65, 0.05)";
-            ctx.lineWidth = 1;
-            for (let i = 0; i < particles.length; i++) {{
-                for (let j = i; j < particles.length; j++) {{
-                    if (particles[i].species === particles[j].species) {{ // Only connect same species
-                        const dx = particles[i].x - particles[j].x;
-                        const dy = particles[i].y - particles[j].y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < 100) {{
-                            ctx.beginPath();
-                            ctx.moveTo(particles[i].x, particles[i].y);
-                            ctx.lineTo(particles[j].x, particles[j].y);
-                            ctx.stroke();
+                            // Particle effect
+                            for (let j = 0; j < 5; j++) {{
+                                particles.push(new Particle(f.x, f.y, this.color, 'sparkle'));
+                            }}
                         }}
                     }}
                 }}
+
+                move(dt) {{
+                    const baseSpeed = this.speed * (0.5 + (this.energy / this.maxEnergy) * 0.5);
+
+                    // Go to target if exists
+                    if (this.targetX !== null) {{
+                        const dx = this.targetX - this.x;
+                        const dy = this.targetY - this.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist > 5) {{
+                            this.vx += (dx / dist) * 0.1 * baseSpeed;
+                            this.vy += (dy / dist) * 0.1 * baseSpeed;
+                        }} else {{
+                            this.targetX = null;
+                            this.targetY = null;
+                        }}
+                    }}
+
+                    // Type-specific movement
+                    switch(this.type) {{
+                        case 'jellyfish':
+                            this.vy += Math.sin(this.phase) * 0.02;
+                            this.vx += Math.cos(this.phase * 0.5) * 0.01;
+                            break;
+                        case 'fish':
+                        case 'turtle':
+                            // School behavior
+                            creatures.filter(c => c.species === this.species && c !== this).slice(0, 5).forEach(other => {{
+                                const dist = Math.hypot(other.x - this.x, other.y - this.y);
+                                if (dist < 100 && dist > 0) {{
+                                    // Align
+                                    this.vx += other.vx * 0.01;
+                                    this.vy += other.vy * 0.01;
+                                    // Cohesion
+                                    this.vx += (other.x - this.x) * 0.0005;
+                                    this.vy += (other.y - this.y) * 0.0005;
+                                }}
+                                if (dist < 30 && dist > 0) {{
+                                    // Separation
+                                    this.vx -= (other.x - this.x) * 0.01;
+                                    this.vy -= (other.y - this.y) * 0.01;
+                                }}
+                            }});
+                            break;
+                        case 'butterfly':
+                        case 'bird':
+                            this.vx += (Math.random() - 0.5) * 0.3;
+                            this.vy += (Math.random() - 0.5) * 0.3;
+                            this.vy += Math.sin(this.phase * 2) * 0.05;
+                            break;
+                        case 'bee':
+                            this.vx += (Math.random() - 0.5) * 0.5;
+                            this.vy += (Math.random() - 0.5) * 0.5;
+                            break;
+                        case 'firefly':
+                            this.glowIntensity = 0.5 + Math.sin(this.phase * 3) * 0.5;
+                            this.vx += (Math.random() - 0.5) * 0.1;
+                            this.vy += (Math.random() - 0.5) * 0.1;
+                            break;
+                        case 'coral':
+                            this.vx *= 0.9;
+                            this.vy *= 0.9;
+                            break;
+                        case 'bubble':
+                            this.vy -= 0.05;
+                            this.vx += Math.sin(this.phase) * 0.02;
+                            if (this.y < 50) this.y = height - 50;
+                            break;
+                    }}
+
+                    // Random wandering
+                    if (Math.random() < 0.02) {{
+                        this.vx += (Math.random() - 0.5) * baseSpeed * 0.5;
+                        this.vy += (Math.random() - 0.5) * baseSpeed * 0.5;
+                    }}
+
+                    // Friction
+                    this.vx *= 0.98;
+                    this.vy *= 0.98;
+
+                    // Speed limit
+                    const speed = Math.hypot(this.vx, this.vy);
+                    const maxSpeed = baseSpeed * 2;
+                    if (speed > maxSpeed) {{
+                        this.vx = (this.vx / speed) * maxSpeed;
+                        this.vy = (this.vy / speed) * maxSpeed;
+                    }}
+
+                    // Apply velocity
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                }}
+
+                draw() {{
+                    const isHighlighted = highlightedSpecies === this.species;
+                    const alpha = isHighlighted ? 1 : (highlightedSpecies ? 0.3 : 1);
+
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.translate(this.x, this.y);
+
+                    // Glow
+                    const glowSize = this.size * (this.type === 'firefly' ? (1 + this.glowIntensity) : 1.5);
+                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, glowSize);
+                    gradient.addColorStop(0, this.color + '60');
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, glowSize, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw based on type
+                    switch(this.type) {{
+                        case 'jellyfish':
+                            this.drawJellyfish();
+                            break;
+                        case 'fish':
+                            this.drawFish();
+                            break;
+                        case 'butterfly':
+                        case 'bird':
+                            this.drawButterfly();
+                            break;
+                        case 'bee':
+                            this.drawBee();
+                            break;
+                        case 'coral':
+                            this.drawCoral();
+                            break;
+                        case 'turtle':
+                            this.drawTurtle();
+                            break;
+                        case 'firefly':
+                            this.drawFirefly();
+                            break;
+                        case 'bubble':
+                            this.drawBubble();
+                            break;
+                        default:
+                            this.drawDefault();
+                    }}
+
+                    ctx.restore();
+                }}
+
+                drawJellyfish() {{
+                    // Bell
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size, this.size * 0.7, 0, Math.PI, 0);
+                    ctx.fill();
+
+                    // Inner
+                    ctx.fillStyle = this.color + '40';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -this.size * 0.1, this.size * 0.6, this.size * 0.4, 0, Math.PI, 0);
+                    ctx.fill();
+
+                    // Tentacles
+                    ctx.strokeStyle = this.color + '80';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < this.tentacles; i++) {{
+                        const angle = (i / this.tentacles) * Math.PI - Math.PI / 2;
+                        const baseX = Math.cos(angle) * this.size * 0.8;
+                        ctx.beginPath();
+                        ctx.moveTo(baseX, 0);
+                        for (let j = 0; j < 4; j++) {{
+                            const y = j * this.size * 0.4;
+                            const x = baseX + Math.sin(this.phase + i + j * 0.5) * 5;
+                            ctx.lineTo(x, y);
+                        }}
+                        ctx.stroke();
+                    }}
+                }}
+
+                drawFish() {{
+                    const angle = Math.atan2(this.vy, this.vx);
+                    ctx.rotate(angle);
+
+                    // Body
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Tail
+                    const tailWag = Math.sin(this.tailPhase) * 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(-this.size, 0);
+                    ctx.lineTo(-this.size * 1.5, -this.size * 0.5 + tailWag * this.size);
+                    ctx.lineTo(-this.size * 1.5, this.size * 0.5 + tailWag * this.size);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Eye
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(this.size * 0.4, -this.size * 0.1, this.size * 0.15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(this.size * 0.45, -this.size * 0.1, this.size * 0.08, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                drawButterfly() {{
+                    const wingFlap = Math.sin(this.wingPhase) * 0.4 + 0.6;
+
+                    // Wings
+                    ctx.fillStyle = this.color + 'cc';
+                    ctx.beginPath();
+                    ctx.ellipse(-this.size * 0.3, 0, this.size * wingFlap, this.size * 0.8, -0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.ellipse(this.size * 0.3, 0, this.size * wingFlap, this.size * 0.8, 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Body
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size * 0.15, this.size * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                drawBee() {{
+                    // Body stripes
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size, this.size * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = this.color;
+                    for (let i = 0; i < 3; i++) {{
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.5 + i * this.size * 0.4, 0, this.size * 0.15, this.size * 0.55, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }}
+
+                    // Wings
+                    const wingFlap = Math.sin(this.wingPhase * 3) * 0.3 + 0.7;
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -this.size * 0.5, this.size * 0.5 * wingFlap, this.size * 0.3, -0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                drawCoral() {{
+                    const branches = 5;
+                    ctx.fillStyle = this.color;
+                    for (let i = 0; i < branches; i++) {{
+                        const angle = (i / branches) * Math.PI - Math.PI / 2;
+                        const len = this.size * (0.8 + Math.sin(this.phase + i) * 0.2);
+                        ctx.beginPath();
+                        ctx.moveTo(0, this.size * 0.3);
+                        ctx.quadraticCurveTo(
+                            Math.cos(angle) * len * 0.5,
+                            -len * 0.5,
+                            Math.cos(angle) * len,
+                            -len
+                        );
+                        ctx.lineWidth = this.size * 0.3;
+                        ctx.strokeStyle = this.color;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                    }}
+                }}
+
+                drawTurtle() {{
+                    const angle = Math.atan2(this.vy, this.vx);
+                    ctx.rotate(angle);
+
+                    // Shell
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size, this.size * 0.8, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Pattern
+                    ctx.strokeStyle = this.color + '60';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.size * 0.5, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Head
+                    ctx.fillStyle = this.color + 'cc';
+                    ctx.beginPath();
+                    ctx.ellipse(this.size * 0.9, 0, this.size * 0.3, this.size * 0.25, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Flippers
+                    const flipperPhase = Math.sin(this.tailPhase) * 0.3;
+                    ctx.beginPath();
+                    ctx.ellipse(this.size * 0.3, -this.size * 0.7, this.size * 0.4, this.size * 0.2, -0.5 + flipperPhase, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.ellipse(this.size * 0.3, this.size * 0.7, this.size * 0.4, this.size * 0.2, 0.5 - flipperPhase, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                drawFirefly() {{
+                    // Body
+                    ctx.fillStyle = '#333';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size * 0.5, this.size * 0.3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Glow
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 20 * this.glowIntensity;
+                    ctx.beginPath();
+                    ctx.arc(this.size * 0.2, 0, this.size * 0.25 * this.glowIntensity, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }}
+
+                drawBubble() {{
+                    ctx.strokeStyle = this.color + '60';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Highlight
+                    ctx.fillStyle = this.color + '40';
+                    ctx.beginPath();
+                    ctx.arc(-this.size * 0.3, -this.size * 0.3, this.size * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                drawDefault() {{
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
             }}
-        }}
 
-        window.addEventListener('mousedown', e => {{ mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; }});
-        window.addEventListener('mousemove', e => {{ if (mouse.active) {{ mouse.x = e.clientX; mouse.y = e.clientY; }} }});
-        window.addEventListener('mouseup', () => {{ mouse.active = false; }});
-        window.addEventListener('touchstart', e => {{ mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; mouse.active = true; }});
-        window.addEventListener('touchend', () => {{ mouse.active = false; }});
+            // Food class
+            class Food {{
+                constructor(x, y) {{
+                    this.x = x;
+                    this.y = y;
+                    this.size = 5 + Math.random() * 5;
+                    this.energy = 20 + Math.random() * 20;
+                    this.color = '#44ff88';
+                    this.phase = Math.random() * Math.PI * 2;
+                    this.vy = 0.5 + Math.random() * 0.5;
+                }}
 
-        init();
-        animate();
-    </script>
+                update(dt) {{
+                    this.phase += 0.1;
+                    this.y += this.vy * dt;
+                    this.x += Math.sin(this.phase) * 0.3;
+
+                    // Remove if off screen
+                    return this.y < height + 50;
+                }}
+
+                draw() {{
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * (1 + Math.sin(this.phase) * 0.2), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }}
+            }}
+
+            // Particle class
+            class Particle {{
+                constructor(x, y, color, type) {{
+                    this.x = x;
+                    this.y = y;
+                    this.color = color;
+                    this.type = type;
+                    this.size = 3 + Math.random() * 5;
+                    this.vx = (Math.random() - 0.5) * 5;
+                    this.vy = (Math.random() - 0.5) * 5;
+                    this.life = 1;
+                    this.decay = 0.02 + Math.random() * 0.02;
+                }}
+
+                update(dt) {{
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                    this.life -= this.decay * dt;
+                    this.vx *= 0.98;
+                    this.vy *= 0.98;
+                    return this.life > 0;
+                }}
+
+                draw() {{
+                    ctx.globalAlpha = this.life;
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }}
+            }}
+
+            // === INIT ===
+            function init() {{
+                creatures.length = 0;
+                ecosystemData.forEach(data => {{
+                    for (let i = 0; i < data.count; i++) {{
+                        const x = Math.random() * (width - 100) + 50;
+                        const y = Math.random() * (height - 100) + 50;
+                        creatures.push(new Creature(x, y, data.species, data));
+                    }}
+                }});
+
+                // Build species list UI
+                const listEl = document.getElementById('species-list');
+                listEl.innerHTML = '';
+                ecosystemData.forEach(data => {{
+                    const item = document.createElement('div');
+                    item.className = 'species-item';
+                    item.dataset.species = data.species;
+                    item.innerHTML = `
+                        <span class="species-icon">${{data.icon}}</span>
+                        <div class="species-info">
+                            <div class="species-name">${{data.species}}</div>
+                            <div class="species-stats">${{data.pct.toFixed(1)}}% | R$ ${{(data.value/1000).toFixed(0)}}k</div>
+                        </div>
+                        <span class="species-count" style="color: ${{data.color}}">${{data.count}}</span>
+                    `;
+                    item.onclick = () => {{
+                        if (highlightedSpecies === data.species) {{
+                            highlightedSpecies = null;
+                            item.classList.remove('highlighted');
+                        }} else {{
+                            document.querySelectorAll('.species-item').forEach(el => el.classList.remove('highlighted'));
+                            highlightedSpecies = data.species;
+                            item.classList.add('highlighted');
+                        }}
+                    }};
+                    listEl.appendChild(item);
+                }});
+            }}
+
+            // === EVENTS ===
+            function showNotification(title, subtitle, color) {{
+                const notif = document.getElementById('event-notification');
+                notif.querySelector('.title').textContent = title;
+                notif.querySelector('.title').style.color = color || '#fff';
+                notif.querySelector('.subtitle').textContent = subtitle;
+                notif.classList.add('show');
+                setTimeout(() => notif.classList.remove('show'), 2000);
+            }}
+
+            function triggerBullMarket() {{
+                showNotification('📈 BULL MARKET', 'Energy boost for all!', '#00ff41');
+                creatures.forEach(c => {{
+                    c.energy = Math.min(c.maxEnergy, c.energy + 30);
+                    c.vx *= 1.5;
+                    c.vy *= 1.5;
+                    for (let i = 0; i < 3; i++) {{
+                        particles.push(new Particle(c.x, c.y, '#00ff41', 'sparkle'));
+                    }}
+                }});
+            }}
+
+            function triggerBearMarket() {{
+                showNotification('📉 BEAR MARKET', 'Everyone slows down...', '#ff4444');
+                creatures.forEach(c => {{
+                    c.energy = Math.max(10, c.energy - 20);
+                    c.vx *= 0.3;
+                    c.vy *= 0.3;
+                }});
+            }}
+
+            function triggerBreedingBoost() {{
+                showNotification('💕 REPRODUCTION', 'Population growth!', '#ff88cc');
+                const newCreatures = [];
+                ecosystemData.forEach(data => {{
+                    const species = creatures.filter(c => c.species === data.species);
+                    if (species.length > 0 && species.length < 30) {{
+                        const parent = species[Math.floor(Math.random() * species.length)];
+                        const child = new Creature(
+                            parent.x + (Math.random() - 0.5) * 50,
+                            parent.y + (Math.random() - 0.5) * 50,
+                            data.species, data
+                        );
+                        child.size = data.size * 0.5;
+                        newCreatures.push(child);
+
+                        for (let i = 0; i < 5; i++) {{
+                            particles.push(new Particle(parent.x, parent.y, '#ff88cc', 'heart'));
+                        }}
+                    }}
+                }});
+                creatures.push(...newCreatures);
+            }}
+
+            function triggerMarketCrash() {{
+                showNotification('💥 MARKET CRASH', 'Chaos ensues!', '#ff0044');
+                creatures.forEach(c => {{
+                    c.vx = (Math.random() - 0.5) * 20;
+                    c.vy = (Math.random() - 0.5) * 20;
+                    c.energy = Math.max(5, c.energy - 40);
+                }});
+
+                // Remove some creatures
+                const toRemove = Math.floor(creatures.length * 0.2);
+                for (let i = 0; i < toRemove; i++) {{
+                    if (creatures.length > 5) {{
+                        const idx = Math.floor(Math.random() * creatures.length);
+                        const c = creatures[idx];
+                        for (let j = 0; j < 10; j++) {{
+                            particles.push(new Particle(c.x, c.y, c.color, 'explode'));
+                        }}
+                        creatures.splice(idx, 1);
+                    }}
+                }}
+            }}
+
+            function dropFood(x, y, amount = 5) {{
+                for (let i = 0; i < amount; i++) {{
+                    food.push(new Food(
+                        x + (Math.random() - 0.5) * 50,
+                        y + (Math.random() - 0.5) * 50
+                    ));
+                }}
+            }}
+
+            // === CONTROLS ===
+            document.getElementById('btn-feed').onclick = () => dropFood(width / 2, 50, 10);
+            document.getElementById('btn-bull').onclick = triggerBullMarket;
+            document.getElementById('btn-bear').onclick = triggerBearMarket;
+            document.getElementById('btn-breed').onclick = triggerBreedingBoost;
+            document.getElementById('btn-crash').onclick = triggerMarketCrash;
+
+            // Mouse/Touch interaction
+            let isHolding = false;
+            let holdPos = {{ x: 0, y: 0 }};
+            let lastTap = 0;
+
+            function handleStart(x, y) {{
+                const now = Date.now();
+                if (now - lastTap < 300) {{
+                    // Double tap - market event
+                    if (Math.random() < 0.5) triggerBullMarket();
+                    else triggerBearMarket();
+                }} else {{
+                    dropFood(x, y, 3);
+                }}
+                lastTap = now;
+
+                isHolding = true;
+                holdPos = {{ x, y }};
+            }}
+
+            function handleMove(x, y) {{
+                if (isHolding) {{
+                    holdPos = {{ x, y }};
+                    // Attract nearby creatures
+                    creatures.forEach(c => {{
+                        const dx = x - c.x;
+                        const dy = y - c.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < 200 && dist > 0) {{
+                            const force = (200 - dist) / 200 * 0.3;
+                            c.vx += (dx / dist) * force;
+                            c.vy += (dy / dist) * force;
+                        }}
+                    }});
+                }}
+            }}
+
+            function handleEnd() {{
+                isHolding = false;
+            }}
+
+            canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+            canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+            canvas.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('touchstart', e => {{
+                e.preventDefault();
+                handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            }});
+            canvas.addEventListener('touchmove', e => {{
+                e.preventDefault();
+                handleMove(e.touches[0].clientX, e.touches[0].clientY);
+            }});
+            canvas.addEventListener('touchend', handleEnd);
+
+            // === ANIMATION ===
+            let lastTime = performance.now();
+
+            function animate() {{
+                requestAnimationFrame(animate);
+
+                const now = performance.now();
+                const dt = Math.min((now - lastTime) / 16.67, 3); // Cap delta time
+                lastTime = now;
+
+                // Background with gradient
+                const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+                bgGradient.addColorStop(0, 'rgba(0, 5, 15, 0.15)');
+                bgGradient.addColorStop(1, 'rgba(0, 10, 25, 0.15)');
+                ctx.fillStyle = bgGradient;
+                ctx.fillRect(0, 0, width, height);
+
+                // Draw attraction point
+                if (isHolding) {{
+                    const gradient = ctx.createRadialGradient(holdPos.x, holdPos.y, 0, holdPos.x, holdPos.y, 150);
+                    gradient.addColorStop(0, 'rgba(0, 255, 200, 0.2)');
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(holdPos.x, holdPos.y, 150, 0, Math.PI * 2);
+                    ctx.fill();
+                }}
+
+                // Update and draw food
+                for (let i = food.length - 1; i >= 0; i--) {{
+                    if (!food[i].update(dt)) {{
+                        food.splice(i, 1);
+                    }} else {{
+                        food[i].draw();
+                    }}
+                }}
+
+                // Update and draw creatures
+                creatures.forEach(c => {{
+                    c.update(dt);
+                    c.draw();
+                }});
+
+                // Update and draw particles
+                for (let i = particles.length - 1; i >= 0; i--) {{
+                    if (!particles[i].update(dt)) {{
+                        particles.splice(i, 1);
+                    }} else {{
+                        particles[i].draw();
+                    }}
+                }}
+
+                // Draw connections between same species
+                ctx.strokeStyle = 'rgba(0, 255, 200, 0.03)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < creatures.length; i++) {{
+                    for (let j = i + 1; j < creatures.length; j++) {{
+                        if (creatures[i].species === creatures[j].species) {{
+                            const dist = Math.hypot(creatures[i].x - creatures[j].x, creatures[i].y - creatures[j].y);
+                            if (dist < 80) {{
+                                ctx.globalAlpha = (80 - dist) / 80 * 0.3;
+                                ctx.beginPath();
+                                ctx.moveTo(creatures[i].x, creatures[i].y);
+                                ctx.lineTo(creatures[j].x, creatures[j].y);
+                                ctx.stroke();
+                            }}
+                        }}
+                    }}
+                }}
+                ctx.globalAlpha = 1;
+
+                // Update UI
+                document.getElementById('pop-count').textContent = creatures.length;
+                document.getElementById('food-count').textContent = food.length;
+
+                // Update ecosystem health
+                const avgEnergy = creatures.reduce((sum, c) => sum + c.energy, 0) / creatures.length || 0;
+                ecosystemHealth = avgEnergy;
+                document.getElementById('health-bar').style.width = ecosystemHealth + '%';
+
+                // Update species counts
+                ecosystemData.forEach(data => {{
+                    const count = creatures.filter(c => c.species === data.species).length;
+                    const el = document.querySelector(`.species-item[data-species="${{data.species}}"] .species-count`);
+                    if (el) el.textContent = count;
+                }});
+            }}
+
+            // Start
+            init();
+            animate();
+
+            // Periodic food drop
+            setInterval(() => {{
+                if (food.length < 20) {{
+                    dropFood(Math.random() * width, -10, 2);
+                }}
+            }}, 3000);
+        </script>
     </body>
     </html>
     """
-    components.html(bio_html, height=700)
+    components.html(bio_html, height=780)
 
 # --- SOLAR SYSTEM LOGIC (EGG #3) ---
 def render_solar_system():
