@@ -77,6 +77,11 @@ class DataProvider:
     def get_db_cotacoes(cls) -> pd.DataFrame:
         """Returns Local Prices DataFrame (db_cotacoes)"""
         return cls.fetch_data('db_cotacoes')
+
+    @classmethod
+    def get_composition(cls) -> pd.DataFrame:
+        """Returns ETF/Asset Breakdown (composicao)"""
+        return cls.fetch_data('composicao')
         
     @staticmethod
     def save_data(tab_name: str, df: pd.DataFrame) -> bool:

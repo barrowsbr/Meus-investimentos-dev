@@ -238,169 +238,286 @@ if 'bg_music_track' not in st.session_state:
 
 selected_track = st.session_state['bg_music_track']
 
+# Music Player HTML/CSS/JS
 st.markdown(f"""
 <style>
-    /* Neon Player Card */
-    .neon-player-container {{
+    .music-player-wrapper {{
         display: flex;
-        justify-content: center;
-        margin-bottom: 30px;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 0 15px;
     }}
-    
     .neon-player {{
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(139, 92, 246, 0.3); /* Violet tint border */
-        border-radius: 50px; /* Pill shape */
-        padding: 10px 30px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        border-radius: 20px;
+        padding: 15px 25px;
         display: flex;
         align-items: center;
         gap: 15px;
-        box-shadow: 0 0 15px rgba(139, 92, 246, 0.2), inset 0 0 20px rgba(139, 92, 246, 0.05);
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
         transition: all 0.3s ease;
-        animation: neon-pulse 3s infinite alternate;
-        max-width: fit-content;
+        max-width: 350px;
+        width: 100%;
         cursor: pointer;
         user-select: none;
+        -webkit-tap-highlight-color: transparent;
     }}
-
     .neon-player:hover {{
-        box-shadow: 0 0 25px rgba(139, 92, 246, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
-        border-color: rgba(139, 92, 246, 0.6);
-        transform: scale(1.02);
+        box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
+        border-color: rgba(139, 92, 246, 0.7);
+        transform: translateY(-2px);
     }}
-
     .neon-player:active {{
         transform: scale(0.98);
     }}
-
-    @keyframes neon-pulse {{
-        0% {{ box-shadow: 0 0 10px rgba(139, 92, 246, 0.2); }}
-        100% {{ box-shadow: 0 0 20px rgba(139, 92, 246, 0.4); }}
-    }}
-
-    .player-icon {{
-        font-size: 1.2rem;
-        color: #a78bfa;
-        animation: spin 6s linear infinite;
-    }}
-    
-    @keyframes spin {{ 100% {{ transform: rotate(360deg); }} }}
-    
-    /* Pause state class for icon (managed by JS) */
-    .paused .player-icon {{
-        animation-play-state: paused;
-        opacity: 0.5;
-    }}
-
-    .player-info {{
+    .player-disc {{
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+        border-radius: 50%;
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        animation: spin 4s linear infinite;
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+        flex-shrink: 0;
     }}
-
+    @keyframes spin {{
+        0% {{ transform: rotate(0deg); }}
+        100% {{ transform: rotate(360deg); }}
+    }}
+    .paused .player-disc {{
+        animation-play-state: paused;
+    }}
+    .player-info {{
+        flex: 1;
+        min-width: 0;
+    }}
     .player-title {{
         color: #f8fafc;
         font-weight: 600;
-        font-size: 0.9rem;
-        letter-spacing: 0.5px;
-        text-shadow: 0 0 5px rgba(167, 139, 250, 0.5);
+        font-size: 0.95rem;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
-
     .player-artist {{
         color: #94a3b8;
-        font-size: 0.75rem;
-        text-transform: uppercase;
+        font-size: 0.7rem;
+        margin-top: 3px;
     }}
-    
-    /* Visualizer Bars */
+    .player-status {{
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+    }}
+    .status-dot {{
+        width: 6px;
+        height: 6px;
+        background: #22c55e;
+        border-radius: 50%;
+        animation: pulse-dot 1.5s infinite;
+    }}
+    .paused .status-dot {{
+        background: #6b7280;
+        animation: none;
+    }}
+    @keyframes pulse-dot {{
+        0%, 100% {{ opacity: 1; transform: scale(1); }}
+        50% {{ opacity: 0.5; transform: scale(0.8); }}
+    }}
+    .status-text {{
+        font-size: 0.6rem;
+        color: #22c55e;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }}
+    .paused .status-text {{
+        color: #6b7280;
+    }}
     .equalizer {{
         display: flex;
         gap: 3px;
-        height: 15px;
+        height: 25px;
         align-items: flex-end;
+        padding: 5px;
     }}
-    
     .bar {{
-        width: 3px;
-        background: #a78bfa;
+        width: 4px;
+        background: linear-gradient(to top, #8b5cf6, #c4b5fd);
         border-radius: 2px;
-        animation: equalize 1s infinite alternate;
-        box-shadow: 0 0 5px #a78bfa;
+        animation: equalize 0.8s infinite ease-in-out alternate;
+        box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
     }}
-    
-    /* Pause state for bars */
     .paused .bar {{
-        animation-play-state: paused;
-        height: 5px !important;
+        animation: none;
+        height: 4px !important;
         opacity: 0.3;
+        background: #6b7280;
+        box-shadow: none;
     }}
-    
-    .bar:nth-child(1) {{ height: 8px; animation-duration: 0.8s; }}
-    .bar:nth-child(2) {{ height: 12px; animation-duration: 1.1s; }}
-    .bar:nth-child(3) {{ height: 15px; animation-duration: 0.9s; }}
-    .bar:nth-child(4) {{ height: 10px; animation-duration: 1.2s; }}
-    
+    .bar:nth-child(1) {{ height: 10px; animation-duration: 0.7s; }}
+    .bar:nth-child(2) {{ height: 18px; animation-duration: 0.9s; animation-delay: 0.1s; }}
+    .bar:nth-child(3) {{ height: 25px; animation-duration: 0.6s; animation-delay: 0.2s; }}
+    .bar:nth-child(4) {{ height: 15px; animation-duration: 1s; animation-delay: 0.15s; }}
+    .bar:nth-child(5) {{ height: 20px; animation-duration: 0.75s; animation-delay: 0.05s; }}
     @keyframes equalize {{
-        0% {{ height: 5px; opacity: 0.5; }}
-        100% {{ height: 100%; opacity: 1; }}
+        0% {{ height: 4px; }}
+        100% {{ height: 100%; }}
+    }}
+    @media (max-width: 480px) {{
+        .neon-player {{
+            padding: 12px 18px;
+            gap: 12px;
+            border-radius: 16px;
+        }}
+        .player-disc {{
+            width: 45px;
+            height: 45px;
+            font-size: 1.3rem;
+        }}
+        .player-title {{
+            font-size: 0.85rem;
+        }}
     }}
 </style>
 
-<div class="neon-player-container">
-    <a href="Arquitetura" target="_self" style="text-decoration: none;">
-        <div id="player-card" class="neon-player">
-            <div class="player-icon">📀</div>
-            <div class="player-info">
-                <div class="player-title">{selected_track['title']}</div>
-                <div class="player-artist">Ver Arquitetura do Sistema</div>
-            </div>
-            <div class="equalizer">
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
+<div class="music-player-wrapper">
+    <div id="player-card" class="neon-player" onclick="toggleAudio()" role="button">
+        <div class="player-disc">💿</div>
+        <div class="player-info">
+            <div class="player-title">{selected_track['title']}</div>
+            <div class="player-artist">{selected_track['artist']}</div>
+            <div class="player-status">
+                <div class="status-dot"></div>
+                <span class="status-text">Tocando</span>
             </div>
         </div>
-    </a>
+        <div class="equalizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+    </div>
 </div>
 
 <audio id="bg-music" autoplay loop>
     <source src="{selected_track['url']}" type="{selected_track['type']}">
-    Your browser does not support the audio element.
 </audio>
 
 <script>
     var audio = document.getElementById("bg-music");
     var playerCard = document.getElementById("player-card");
-    
-    // Set volume
-    audio.volume = 0.4; 
-    
-    // Try to play
+    var statusText = document.querySelector(".status-text");
+    audio.volume = 0.4;
+    function updateStatus() {{
+        if (audio.paused) {{
+            statusText.textContent = "Pausado";
+            playerCard.classList.add("paused");
+        }} else {{
+            statusText.textContent = "Tocando";
+            playerCard.classList.remove("paused");
+        }}
+    }}
     var promise = audio.play();
     if (promise !== undefined) {{
-        promise.then(_ => {{
-            playerCard.classList.remove("paused");
-        }}).catch(error => {{ 
-            console.log("Autoplay prevented"); 
-            playerCard.classList.add("paused");
-        }});
+        promise.then(_ => updateStatus()).catch(error => updateStatus());
     }}
-    
     function toggleAudio() {{
-        var audio = document.getElementById("bg-music");
-        var card = document.getElementById("player-card");
-        
         if (audio.paused) {{
-            audio.play();
-            card.classList.remove("paused");
+            audio.play().then(() => updateStatus()).catch(() => {{}});
         }} else {{
             audio.pause();
-            card.classList.add("paused");
+            updateStatus();
         }}
     }}
 </script>
+""", unsafe_allow_html=True)
+
+# --- Botão Arquitetura HTML (Mesma identidade visual do Player) ---
+# Usamos session state para detectar clique e navegar via Streamlit
+if 'nav_to_arch' not in st.session_state:
+    st.session_state['nav_to_arch'] = False
+
+st.markdown("""
+<style>
+    .arch-btn-wrapper {
+        display: flex;
+        justify-content: center;
+        padding: 0 15px;
+        margin-bottom: 20px;
+    }
+    .arch-button {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        border-radius: 20px;
+        padding: 15px 25px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+        transition: all 0.3s ease;
+        max-width: 350px;
+        width: 100%;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        text-decoration: none;
+    }
+    .arch-button:hover {
+        box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
+        border-color: rgba(139, 92, 246, 0.7);
+        transform: translateY(-2px);
+    }
+    .arch-button:active {
+        transform: scale(0.98);
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+    }
+    .arch-icon {
+        font-size: 1.3rem;
+    }
+    .arch-text {
+        color: #f8fafc;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+        letter-spacing: 0.5px;
+    }
+    .arch-button:hover .arch-text {
+        color: #c4b5fd;
+        text-shadow: 0 0 12px rgba(196, 181, 253, 0.7);
+    }
+    @media (max-width: 480px) {
+        .arch-button {
+            padding: 12px 18px;
+            border-radius: 16px;
+            max-width: 100%;
+        }
+        .arch-text {
+            font-size: 0.85rem;
+        }
+    }
+</style>
+
+<div class="arch-btn-wrapper">
+    <a href="Arquitetura" target="_self" class="arch-button">
+        <span class="arch-icon">🏗️</span>
+        <span class="arch-text">Ver Arquitetura do Sistema</span>
+    </a>
+</div>
 """, unsafe_allow_html=True)
 
 

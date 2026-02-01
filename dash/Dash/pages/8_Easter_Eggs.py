@@ -4,6 +4,7 @@ import pandas as pd
 import json
 from core.auth import require_auth
 from core.data.loader import load_assets, load_fixed_income, load_fixed_income_manual, load_proventos
+from core.visuals.global_map import render_global_map
 from core.finance import calcular_carteira_fechada, summarize_fixed_income, summarize_fixed_income_hybrid
 from core.data.market import fetch_market_data
 from core.logic import identificar_setor_ativo
@@ -2300,6 +2301,10 @@ def render_solar_system():
     """
     components.html(solar_html, height=750)
 
+# --- GLOBAL MAP LOGIC (EGG #4) ---
+# Moved to core/visuals/global_map.py
+
+
 # --- HOME BUTTON ---
 if st.session_state.active_egg is None:
     c_home1, c_home2 = st.columns([8, 1])
@@ -2828,8 +2833,20 @@ if st.session_state.active_egg is None:
             enter_egg(3)
             st.rerun()
 
+    with r1c4:
+        # SLOT 4: GLOBAL OPS (New)
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">🌍</div>
+            <div class="label">GLOBAL OPERATIONS</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR UPLINK", key="btn_egg_4", use_container_width=True):
+            enter_egg(4)
+            st.rerun()
+
     locked_slots = [
-        ("MATRIX RAIN", "💻"), 
         ("NFT GALLERY", "💎"),
         ("CRYPTO MINER", "⛏️"),
         ("AI CHATBOT", "🤖"),
@@ -2839,7 +2856,7 @@ if st.session_state.active_egg is None:
         ("SOURCE CODE", "📜")
     ]
     
-    remaining_cols = [r1c4]
+    remaining_cols = []
     r2 = st.columns(4)
     remaining_cols.extend(r2)
     r3 = st.columns(4)
@@ -2863,3 +2880,5 @@ elif st.session_state.active_egg == 2:
     render_bio_dome()
 elif st.session_state.active_egg == 3:
     render_solar_system()
+elif st.session_state.active_egg == 4:
+    render_global_map(return_to_hub)

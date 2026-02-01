@@ -223,3 +223,22 @@ def load_cambio() -> pd.DataFrame:
     except Exception as e:
         st.error(f"Error loading cambio: {e}")
         return pd.DataFrame()
+
+@st.cache_data(show_spinner=False)
+def load_composition() -> pd.DataFrame:
+    try:
+        df = DataProvider.get_composition()
+        if df.empty: return pd.DataFrame()
+        
+        # Simple Normalization
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        
+        # Ensure numeric 'peso' or 'percentual'
+        for col in df.columns:
+            if col in ['peso', 'percentual', '%', 'pl', 'part %']:
+                df[col] = df[col].apply(parse_decimal_br)
+                
+        return df
+    except Exception as e:
+        st.error(f"Error loading composition: {e}")
+        return pd.DataFrame()
