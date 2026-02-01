@@ -13,313 +13,532 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS (APP LEVEL) ---
+# --- CSS ---
 st.markdown("""
 <style>
-    /* REMOVE STREAMLIT CHROME */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu, footer, header {visibility: hidden;}
     section[data-testid="stSidebar"] {display: none;}
-    
-    /* APP BACKGROUND */
-    .stApp {
-        background-color: #050505;
-        background-image: 
-            radial-gradient(circle at 50% 50%, rgba(20, 20, 30, 0.5) 0%, #000 100%);
-    }
-    
-    /* GLOBAL FONTS */
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-    
-    html, body, div, p, span {
-        font-family: 'Share Tech Mono', monospace;
-    }
-    
-    /* GLITCH TITLE */
-    .glitch-header {
-        text-align: center;
-        margin-top: 20px;
-        margin-bottom: 20px;
-    }
-    
-    /* BUTTON STYLING */
-    div.stButton > button {
-        background: transparent;
-        border: 1px solid #333;
-        color: #aaa;
-        font-family: 'Orbitron';
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        border-color: #00ff41;
-        color: #00ff41;
-        box-shadow: 0 0 10px rgba(0,255,65,0.2);
-    }
-    
+    .stApp { background: #050508; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- NAVIGATION ---
-c1, c2 = st.columns([1, 10])
-with c1:
-    if st.button("⬅ VOLTAR", use_container_width=True):
-        st.switch_page("Home.py")
-
-# --- HTML FLOWCHART COMPONENT ---
-flowchart_html = """
+# --- MOBILE-FIRST ARCHITECTURE PAGE ---
+arch_html = """
 <!DOCTYPE html>
 <html>
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rajdhani:wght@500&display=swap');
-    
-    body {
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+    * {
         margin: 0;
-        background: transparent;
-        color: white;
-        font-family: 'Rajdhani', sans-serif;
-        overflow: hidden;
-        user-select: none;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
     }
-    
-    /* CONTAINER */
-    .diagram-container {
-        position: relative;
-        width: 100%;
-        height: 800px;
-        perspective: 1000px;
+
+    body {
+        font-family: 'Share Tech Mono', monospace;
+        background: linear-gradient(180deg, #050508 0%, #0a0a12 100%);
+        color: #e0e0e0;
+        min-height: 100vh;
+        padding: 15px;
+        padding-bottom: 40px;
     }
-    
-    /* NODES */
-    .node {
+
+    /* HEADER */
+    .header {
+        text-align: center;
+        padding: 20px 10px;
+        margin-bottom: 25px;
+    }
+
+    .back-btn {
         position: absolute;
-        width: 160px;
-        height: 100px;
-        background: rgba(10, 15, 20, 0.8);
-        border: 2px solid #333;
+        top: 15px;
+        left: 15px;
+        background: rgba(255, 0, 100, 0.15);
+        border: 1px solid rgba(255, 0, 100, 0.4);
+        color: #ff0064;
+        padding: 10px 16px;
         border-radius: 8px;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .back-btn:active {
+        transform: scale(0.95);
+        background: rgba(255, 0, 100, 0.3);
+    }
+
+    .title {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 900;
+        color: #00ff41;
+        text-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+        margin-bottom: 8px;
+        letter-spacing: 2px;
+    }
+
+    .subtitle {
+        color: #666;
+        font-size: 0.85rem;
+    }
+
+    /* FLOW INDICATOR */
+    .flow-container {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        transition: all 0.4s ease;
-        z-index: 10;
-        backdrop-filter: blur(5px);
+        gap: 0;
+        max-width: 400px;
+        margin: 0 auto;
     }
-    
-    .node:hover {
-        transform: scale(1.1) translateZ(20px);
-        border-color: #fff;
-        box-shadow: 0 0 20px rgba(255,255,255,0.2);
-    }
-    
-    .node-icon { font-size: 2.5rem; margin-bottom: 5px; }
-    .node-label { font-family: 'Orbitron'; font-size: 1rem; color: #888; letter-spacing: 1px; }
-    
-    /* SPECIFIC NODES */
-    #user { top: 40%; left: 5%; border-color: #00ff41; box-shadow: 0 0 10px rgba(0,255,65,0.1); }
-    #user .node-label { color: #00ff41; }
-    
-    #frontend { top: 40%; left: 30%; border-color: #00efff; box-shadow: 0 0 10px rgba(0,239,255,0.1); }
-    #frontend .node-label { color: #00efff; }
-    
-    #engine { top: 40%; left: 55%; border-color: #ff00de; box-shadow: 0 0 10px rgba(255,0,222,0.1); width: 180px; height: 120px; }
-    #engine .node-label { color: #ff00de; }
-    
-    #db { top: 15%; left: 80%; border-color: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.1); }
-    #db .node-label { color: #10b981; }
-    
-    #market { top: 65%; left: 80%; border-color: #ffcc00; box-shadow: 0 0 10px rgba(255,204,0,0.1); }
-    #market .node-label { color: #ffcc00; }
-    
-    /* CONNECTIONS (SVG) */
-    svg {
-        position: absolute;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        pointer-events: none;
-        z-index: 1;
-    }
-    
-    .conn-line {
-        fill: none;
-        stroke: #333;
-        stroke-width: 2;
-        vector-effect: non-scaling-stroke;
-    }
-    
-    .conn-flow {
-        fill: none;
-        stroke-width: 4;
-        stroke-linecap: round;
-        stroke-dasharray: 10, 20;
-        animation: flow 1s linear infinite;
-        opacity: 0.8;
-    }
-    
-    @keyframes flow {
-        to { stroke-dashoffset: -30; }
-    }
-    
-    /* INFO PANEL */
-    .info-panel {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 60%;
-        min-height: 100px;
-        background: rgba(0, 5, 10, 0.9);
-        border: 1px solid #444;
-        border-left: 5px solid #00efff;
-        padding: 20px;
-        font-family: 'Share Tech Mono', monospace;
-        display: none;
-        animation: slideUp 0.3s ease-out;
-    }
-    
-    @keyframes slideUp {
-        from { opacity: 0; transform: translate(-50%, 20px); }
-        to { opacity: 1; transform: translate(-50%, 0); }
-    }
-    
-    .info-title { color: #00efff; font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; }
-    .info-content { color: #ddd; font-size: 0.95rem; line-height: 1.5; }
-    .tech-tag { display: inline-block; padding: 2px 8px; background: #222; border: 1px solid #555; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; margin-top: 5px; color: #aaa; }
 
+    /* CONNECTION LINE */
+    .connector {
+        display: flex;
+        justify-content: center;
+        padding: 5px 0;
+    }
+
+    .connector-line {
+        width: 3px;
+        height: 35px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .connector-line::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(180deg, var(--from-color) 0%, var(--to-color) 100%);
+        opacity: 0.3;
+    }
+
+    .connector-line::after {
+        content: '';
+        position: absolute;
+        top: -100%;
+        left: 0;
+        width: 100%;
+        height: 50%;
+        background: linear-gradient(180deg, transparent, var(--to-color), transparent);
+        animation: flowDown 1.5s linear infinite;
+    }
+
+    @keyframes flowDown {
+        0% { top: -50%; }
+        100% { top: 100%; }
+    }
+
+    /* NODE CARD */
+    .node-card {
+        background: rgba(10, 15, 20, 0.9);
+        border: 1px solid var(--color);
+        border-left: 4px solid var(--color);
+        border-radius: 12px;
+        padding: 18px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .node-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 100%;
+        background: linear-gradient(135deg, var(--color-alpha) 0%, transparent 50%);
+        opacity: 0.1;
+    }
+
+    .node-card:active {
+        transform: scale(0.98);
+        border-color: #fff;
+    }
+
+    .node-card.expanded {
+        border-color: #fff;
+        background: rgba(15, 20, 30, 0.95);
+    }
+
+    .node-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .node-icon {
+        font-size: 2rem;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        border: 1px solid var(--color);
+    }
+
+    .node-title-wrap {
+        flex: 1;
+    }
+
+    .node-title {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--color);
+        text-shadow: 0 0 10px var(--color-alpha);
+        margin-bottom: 3px;
+    }
+
+    .node-subtitle {
+        font-size: 0.75rem;
+        color: #666;
+    }
+
+    .expand-icon {
+        color: #444;
+        font-size: 1.2rem;
+        transition: transform 0.3s;
+    }
+
+    .node-card.expanded .expand-icon {
+        transform: rotate(180deg);
+        color: var(--color);
+    }
+
+    /* EXPANDED CONTENT */
+    .node-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease, padding 0.4s ease;
+        padding-top: 0;
+    }
+
+    .node-card.expanded .node-content {
+        max-height: 300px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: 12px;
+    }
+
+    .node-desc {
+        font-size: 0.9rem;
+        color: #bbb;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    .tech-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .tech-tag {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        color: #888;
+    }
+
+    /* FOOTER */
+    .footer {
+        text-align: center;
+        padding: 30px 20px;
+        color: #444;
+        font-size: 0.75rem;
+    }
+
+    .footer-line {
+        width: 50px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #00ff41, transparent);
+        margin: 15px auto;
+    }
+
+    /* STATUS INDICATORS */
+    .status-bar {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 25px;
+        padding: 15px;
+        background: rgba(0, 10, 5, 0.5);
+        border-radius: 10px;
+        border: 1px solid rgba(0, 255, 65, 0.15);
+    }
+
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.7rem;
+        color: #666;
+    }
+
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-dot.green { background: #00ff41; }
+    .status-dot.blue { background: #00efff; }
+    .status-dot.yellow { background: #ffcc00; }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* SCAN LINE */
+    .scan-line {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #00ff41, transparent);
+        animation: scan 4s linear infinite;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 0.5;
+    }
+
+    @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+    }
 </style>
 </head>
 <body>
+    <div class="scan-line"></div>
 
-<div class="diagram-container">
-    <svg>
-        <defs>
-            <linearGradient id="grad-front" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#00ff41;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#00efff;stop-opacity:1" />
-            </linearGradient>
-             <filter id="glow">
-                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-            </filter>
-        </defs>
-        
-        <!-- PATHS (Calculated roughly) -->
-        <!-- User 5% -> Frontend 30% -->
-        <path d="M 150 350 L 400 350" class="conn-line" />
-        <path d="M 150 350 L 400 350" class="conn-flow" stroke="url(#grad-front)" />
-        
-        <!-- Frontend 30% -> Engine 55% -->
-        <path d="M 520 350 L 720 350" class="conn-line" />
-        <path d="M 520 350 L 720 350" class="conn-flow" stroke="#ff00de" style="animation-direction: reverse;" />
-        
-        <!-- Engine 55% -> DB 80% Top -->
-        <path d="M 850 320 C 900 320, 900 180, 1050 180" class="conn-line" />
-        <path d="M 850 320 C 900 320, 900 180, 1050 180" class="conn-flow" stroke="#10b981" />
-        
-        <!-- Engine 55% -> Market 80% Bottom -->
-        <path d="M 850 380 C 900 380, 900 550, 1050 550" class="conn-line" />
-        <path d="M 850 380 C 900 380, 900 550, 1050 550" class="conn-flow" stroke="#ffcc00" style="animation-duration: 2s;" />
-        
-    </svg>
-
-    <!-- NODES -->
-    <div class="node" id="user" onclick="showInfo('user')">
-        <div class="node-icon">👤</div>
-        <div class="node-label">USER</div>
-    </div>
-    
-    <div class="node" id="frontend" onclick="showInfo('frontend')">
-        <div class="node-icon">💻</div>
-        <div class="node-label">INTERFACE</div>
-    </div>
-    
-    <div class="node" id="engine" onclick="showInfo('engine')">
-        <div class="node-icon">🧠</div>
-        <div class="node-label">ENGINE</div>
-    </div>
-    
-    <div class="node" id="db" onclick="showInfo('db')">
-        <div class="node-icon">🗄️</div>
-        <div class="node-label">DATA LAKE</div>
-    </div>
-    
-    <div class="node" id="market" onclick="showInfo('market')">
-        <div class="node-icon">📈</div>
-        <div class="node-label">MARKET</div>
-    </div>
-    
-    <!-- INFO PANEL -->
-    <div class="info-panel" id="panel">
-        <div class="info-title" id="p-title">SYSTEM READY</div>
-        <div class="info-content" id="p-desc">Hover or click on nodes to analyze infrastructure components.</div>
-        <div id="p-tags"></div>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="title">SYSTEM ARCHITECTURE</div>
+        <div class="subtitle">BARROOTS Infrastructure Overview</div>
     </div>
 
-</div>
+    <!-- FLOW -->
+    <div class="flow-container">
 
-<script>
-    const data = {
-        'user': {
-            title: 'AUTHENTICATED USER',
-            desc: 'Secure entry point via Streamlit Auth protection. Requests encrypted via HTTPS.',
-            tags: ['Browser', 'Mobile', 'Desktop']
-        },
-        'frontend': {
-            title: 'STREAMLIT CLOUD UI',
-            desc: 'Reactive frontend rendering server-side. Handles user interactions and state management.',
-            tags: ['Streamlit', 'HTML5', 'CSS3', 'Plotly']
-        },
-        'engine': {
-            title: 'PYTHON CORE ENGINE',
-            desc: 'High-performance vector calculation engine for TWR, MTM, and Portfolio Allocation.',
-            tags: ['Python 3.11', 'Pandas', 'NumPy', 'Cache']
-        },
-        'db': {
-            title: 'GOOGLE SHEETS DB',
-            desc: 'Cloud-native persistence layer accessed via Grid API. Low-latency reads/writes.',
-            tags: ['GCP API', 'JSON Auth', 'Service Account']
-        },
-        'market': {
-            title: 'MARKET DATA FEEDS',
-            desc: 'Real-time asset pricing and currency exchange rates integration.',
-            tags: ['Yahoo Finance API', 'BCB API', 'REST']
+        <!-- USER -->
+        <div class="node-card" style="--color: #00ff41; --color-alpha: rgba(0,255,65,0.3);" onclick="toggleCard(this)">
+            <div class="node-header">
+                <div class="node-icon">👤</div>
+                <div class="node-title-wrap">
+                    <div class="node-title">USER</div>
+                    <div class="node-subtitle">Authenticated Access Point</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="node-content">
+                <div class="node-desc">
+                    Ponto de entrada seguro via autenticação Streamlit.
+                    Todas as requisições são criptografadas via HTTPS.
+                    Suporte a desktop, tablet e mobile.
+                </div>
+                <div class="tech-tags">
+                    <span class="tech-tag">Browser</span>
+                    <span class="tech-tag">Mobile</span>
+                    <span class="tech-tag">HTTPS</span>
+                    <span class="tech-tag">Auth</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTOR -->
+        <div class="connector">
+            <div class="connector-line" style="--from-color: #00ff41; --to-color: #00efff;"></div>
+        </div>
+
+        <!-- INTERFACE -->
+        <div class="node-card" style="--color: #00efff; --color-alpha: rgba(0,239,255,0.3);" onclick="toggleCard(this)">
+            <div class="node-header">
+                <div class="node-icon">💻</div>
+                <div class="node-title-wrap">
+                    <div class="node-title">INTERFACE</div>
+                    <div class="node-subtitle">Streamlit Cloud UI</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="node-content">
+                <div class="node-desc">
+                    Frontend reativo renderizado server-side.
+                    Gerencia interações do usuário e estado da aplicação.
+                    Visualizações interativas com Plotly e PyDeck.
+                </div>
+                <div class="tech-tags">
+                    <span class="tech-tag">Streamlit</span>
+                    <span class="tech-tag">HTML5</span>
+                    <span class="tech-tag">CSS3</span>
+                    <span class="tech-tag">Plotly</span>
+                    <span class="tech-tag">PyDeck</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTOR -->
+        <div class="connector">
+            <div class="connector-line" style="--from-color: #00efff; --to-color: #ff00de;"></div>
+        </div>
+
+        <!-- ENGINE -->
+        <div class="node-card" style="--color: #ff00de; --color-alpha: rgba(255,0,222,0.3);" onclick="toggleCard(this)">
+            <div class="node-header">
+                <div class="node-icon">🧠</div>
+                <div class="node-title-wrap">
+                    <div class="node-title">ENGINE</div>
+                    <div class="node-subtitle">Python Core Processing</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="node-content">
+                <div class="node-desc">
+                    Motor de cálculo vetorial de alta performance.
+                    Processa TWR (Time-Weighted Return), MTM (Mark-to-Market)
+                    e alocação de portfólio em tempo real.
+                </div>
+                <div class="tech-tags">
+                    <span class="tech-tag">Python 3.11</span>
+                    <span class="tech-tag">Pandas</span>
+                    <span class="tech-tag">NumPy</span>
+                    <span class="tech-tag">Cache</span>
+                    <span class="tech-tag">TWR/GIPS</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTOR SPLIT -->
+        <div class="connector">
+            <div class="connector-line" style="--from-color: #ff00de; --to-color: #10b981;"></div>
+        </div>
+
+        <!-- DATA LAKE -->
+        <div class="node-card" style="--color: #10b981; --color-alpha: rgba(16,185,129,0.3);" onclick="toggleCard(this)">
+            <div class="node-header">
+                <div class="node-icon">🗄️</div>
+                <div class="node-title-wrap">
+                    <div class="node-title">DATA LAKE</div>
+                    <div class="node-subtitle">Google Sheets Database</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="node-content">
+                <div class="node-desc">
+                    Camada de persistência cloud-native via Google Sheets API.
+                    Leitura e escrita com baixa latência.
+                    Autenticação via Service Account.
+                </div>
+                <div class="tech-tags">
+                    <span class="tech-tag">GCP API</span>
+                    <span class="tech-tag">JSON Auth</span>
+                    <span class="tech-tag">Service Account</span>
+                    <span class="tech-tag">GRID API</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTOR -->
+        <div class="connector">
+            <div class="connector-line" style="--from-color: #10b981; --to-color: #ffcc00;"></div>
+        </div>
+
+        <!-- MARKET -->
+        <div class="node-card" style="--color: #ffcc00; --color-alpha: rgba(255,204,0,0.3);" onclick="toggleCard(this)">
+            <div class="node-header">
+                <div class="node-icon">📈</div>
+                <div class="node-title-wrap">
+                    <div class="node-title">MARKET DATA</div>
+                    <div class="node-subtitle">Real-time Price Feeds</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="node-content">
+                <div class="node-desc">
+                    Integração de dados de mercado em tempo real.
+                    Cotações de ativos, taxas de câmbio e índices.
+                    Cache inteligente para otimização de requests.
+                </div>
+                <div class="tech-tags">
+                    <span class="tech-tag">Yahoo Finance</span>
+                    <span class="tech-tag">BCB API</span>
+                    <span class="tech-tag">REST</span>
+                    <span class="tech-tag">yfinance</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATUS BAR -->
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot green"></div>
+                <span>System Online</span>
+            </div>
+            <div class="status-item">
+                <div class="status-dot blue"></div>
+                <span>API Connected</span>
+            </div>
+            <div class="status-item">
+                <div class="status-dot yellow"></div>
+                <span>Market Open</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <div class="footer-line"></div>
+        BARROOTS v145.64<br>
+        Wealth Management System
+    </div>
+
+    <script>
+        function toggleCard(card) {
+            // Close other cards
+            document.querySelectorAll('.node-card').forEach(c => {
+                if (c !== card) c.classList.remove('expanded');
+            });
+            // Toggle this card
+            card.classList.toggle('expanded');
+
+            // Scroll into view if expanded
+            if (card.classList.contains('expanded')) {
+                setTimeout(() => {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
         }
-    };
-
-    function showInfo(id) {
-        const item = data[id];
-        if(!item) return;
-        
-        const panel = document.getElementById('panel');
-        const title = document.getElementById('p-title');
-        const desc = document.getElementById('p-desc');
-        const tags = document.getElementById('p-tags');
-        
-        panel.style.display = 'block';
-        panel.style.borderLeftColor = document.getElementById(id).style.borderColor;
-        
-        title.innerHTML = item.title;
-        desc.innerHTML = item.desc;
-        
-        let tagHtml = '';
-        item.tags.forEach(t => tagHtml += `<span class="tech-tag">${t}</span>`);
-        tags.innerHTML = tagHtml;
-        
-        // Color match
-        const color = window.getComputedStyle(document.querySelector(`#${id} .node-label`)).color;
-        title.style.color = color;
-        panel.style.borderLeftColor = color;
-    }
-</script>
-
+    </script>
 </body>
 </html>
 """
 
-components.html(flowchart_html, height=850)
+# Back button (Streamlit native for reliability)
+col1, col2 = st.columns([1, 5])
+with col1:
+    if st.button("◀ VOLTAR", use_container_width=True):
+        st.switch_page("Home.py")
+
+# Render mobile-first architecture
+components.html(arch_html, height=950, scrolling=True)
