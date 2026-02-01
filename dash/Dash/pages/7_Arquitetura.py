@@ -1,270 +1,325 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from core.auth import require_auth
 
-# --- AUTH CHECK ---
+# --- AUTH ---
 require_auth()
 
-import time
-
-# --- PÁGINA CONFIG ---
+# --- CONFIG ---
 st.set_page_config(
-    page_title="Arquitetura Técnica",
-    page_icon="🏗️",
+    page_title="System Architecture",
+    page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS (BARROOTS) ---
+# --- CSS (APP LEVEL) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-
-    /* Reset & Base */
-    html, body, [class*="css"] {
-        font-family: 'Outfit', sans-serif;
-        color: #e2e8f0;
-    }
+    /* REMOVE STREAMLIT CHROME */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    section[data-testid="stSidebar"] {display: none;}
     
-    /* Background Gradient Animation */
+    /* APP BACKGROUND */
     .stApp {
-        background: linear-gradient(-45deg, #0e1217, #171c26, #0f1724, #000000);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
+        background-color: #050505;
+        background-image: 
+            radial-gradient(circle at 50% 50%, rgba(20, 20, 30, 0.5) 0%, #000 100%);
     }
     
-    @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+    /* GLOBAL FONTS */
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+    
+    html, body, div, p, span {
+        font-family: 'Share Tech Mono', monospace;
     }
-
-    /* Hero Styles */
-    .hero-container {
+    
+    /* GLITCH TITLE */
+    .glitch-header {
         text-align: center;
-        padding-top: 2vh;
-        padding-bottom: 4vh;
-        animation: fadeIn 1.2s ease-out;
-    }
-    
-    .hero-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        background: linear-gradient(to right, #ffffff, #a5b4fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
-        letter-spacing: -2px;
-        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
-    }
-    
-    .hero-subtitle {
-        color: #94a3b8;
-        font-size: 1.1rem;
-        font-weight: 300;
-        margin-top: 5px;
-        letter-spacing: 0.5px;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* GLASS CARDS */
-    .glass-card {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 20px;
-        padding: 30px;
+        margin-top: 20px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease, border-color 0.3s ease;
-        height: 100%;
     }
     
-    .glass-card:hover {
-        transform: translateY(-5px);
-        border-color: rgba(99, 102, 241, 0.3); /* Indigo glow */
-        box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.1);
+    /* BUTTON STYLING */
+    div.stButton > button {
+        background: transparent;
+        border: 1px solid #333;
+        color: #aaa;
+        font-family: 'Orbitron';
+        transition: 0.3s;
     }
-    
-    /* TECH BADGES */
-    .tech-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 6px 16px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 50px;
-        margin-right: 8px;
-        margin-bottom: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #cbd5e1;
-        transition: all 0.2s;
+    div.stButton > button:hover {
+        border-color: #00ff41;
+        color: #00ff41;
+        box-shadow: 0 0 10px rgba(0,255,65,0.2);
     }
-    
-    .tech-badge:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        border-color: rgba(99, 102, 241, 0.5);
-    }
-    
-    .section-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #f8fafc;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    /* REMOVE STREAMLIT ELEMENTS */
-    #MainMenu, footer, header {visibility: hidden;}
     
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-c1, c2 = st.columns([8, 1])
+# --- NAVIGATION ---
+c1, c2 = st.columns([1, 10])
 with c1:
-    st.markdown("""
-    <div class="hero-container" style="text-align: left; padding-top: 0;">
-        <div class="hero-title" style="font-size: 3rem;">Arquitetura & Engenharia</div>
-        <div class="hero-subtitle">Blueprint do ecossistema Barroots</div>
-    </div>
-    """, unsafe_allow_html=True)
-with c2:
-    if st.button("🏠 Home", use_container_width=True):
+    if st.button("⬅ VOLTAR", use_container_width=True):
         st.switch_page("Home.py")
 
-# --- MAIN FLOW ---
-col_main, col_side = st.columns([2, 1])
-
-with col_main:
-    # --- FLUXO DE DADOS (MERMAID) ---
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">⚡ Fluxo de Dados (End-to-End)</div>', unsafe_allow_html=True)
+# --- HTML FLOWCHART COMPONENT ---
+flowchart_html = """
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rajdhani:wght@500&display=swap');
     
-    mermaid_code = """
-    graph LR
-        subgraph CLIENTE [Interface do Usuário]
-            User((Usuário))
-            Browser[Navegador Web]
-        end
-        
-        subgraph CLOUD [Streamlit Cloud]
-            App[App Streamlit]
-            Auth[Módulo de Auth]
-            Cache[Cache Redis/Local]
-            Engine[Motor de Cálculo]
-        end
-        
-        subgraph GOOGLE [Google Cloud Platform]
-            API[Google Sheets API]
-            Sheet[(Database .xlsx)]
-            Auth2[GCP Credentials]
-        end
-        
-        subgraph EXT [Dados Externos]
-            Yahoo[Yahoo Finance API]
-            BCB[Banco Central API]
-        end
-
-        User -->|Acessa| Browser
-        Browser -->|HTTPS Request| App
-        
-        App -->|Verifica Senha| Auth
-        App -->|Processa Dados| Engine
-        
-        Engine -->|Requisita JSON| API
-        Auth2 -->|Autentica| API
-        API -->|Leitura/Escrita| Sheet
-        
-        Engine -->|Cotações| Yahoo
-        Engine -->|Taxas/Moedas| BCB
-        
-        Engine -->|Armazena| Cache
-        Cache -->|Serve Rápido| App
-        
-        style CLIENTE fill:#eef2ff,stroke:#6366f1,color:#000
-        style CLOUD fill:#1e1b4b,stroke:#818cf8,color:#fff
-        style GOOGLE fill:#064e3b,stroke:#34d399,color:#fff
-        style EXT fill:#3f3f46,stroke:#a1a1aa,color:#fff
-    """
+    body {
+        margin: 0;
+        background: transparent;
+        color: white;
+        font-family: 'Rajdhani', sans-serif;
+        overflow: hidden;
+        user-select: none;
+    }
     
-    st.graphviz_chart(mermaid_code)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- DETALHAMENTO DE STACK ---
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🛠️ Stack Tecnológico</div>', unsafe_allow_html=True)
+    /* CONTAINER */
+    .diagram-container {
+        position: relative;
+        width: 100%;
+        height: 800px;
+        perspective: 1000px;
+    }
     
-    c_codes = st.columns(3)
-    with c_codes[0]:
-        st.markdown("**Core (Backend)**")
-        st.markdown("""
-        <div style="margin-top: 10px;">
-            <span class="tech-badge">Python 3.11+</span>
-            <span class="tech-badge">Pandas 2.0</span>
-            <span class="tech-badge">NumPy</span>
-            <span class="tech-badge">YahooQuery</span>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Processamento vetorial de alta performance para cálculos financeiros complexos (TWR, MTM).")
+    /* NODES */
+    .node {
+        position: absolute;
+        width: 160px;
+        height: 100px;
+        background: rgba(10, 15, 20, 0.8);
+        border: 2px solid #333;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: all 0.4s ease;
+        z-index: 10;
+        backdrop-filter: blur(5px);
+    }
+    
+    .node:hover {
+        transform: scale(1.1) translateZ(20px);
+        border-color: #fff;
+        box-shadow: 0 0 20px rgba(255,255,255,0.2);
+    }
+    
+    .node-icon { font-size: 2.5rem; margin-bottom: 5px; }
+    .node-label { font-family: 'Orbitron'; font-size: 1rem; color: #888; letter-spacing: 1px; }
+    
+    /* SPECIFIC NODES */
+    #user { top: 40%; left: 5%; border-color: #00ff41; box-shadow: 0 0 10px rgba(0,255,65,0.1); }
+    #user .node-label { color: #00ff41; }
+    
+    #frontend { top: 40%; left: 30%; border-color: #00efff; box-shadow: 0 0 10px rgba(0,239,255,0.1); }
+    #frontend .node-label { color: #00efff; }
+    
+    #engine { top: 40%; left: 55%; border-color: #ff00de; box-shadow: 0 0 10px rgba(255,0,222,0.1); width: 180px; height: 120px; }
+    #engine .node-label { color: #ff00de; }
+    
+    #db { top: 15%; left: 80%; border-color: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.1); }
+    #db .node-label { color: #10b981; }
+    
+    #market { top: 65%; left: 80%; border-color: #ffcc00; box-shadow: 0 0 10px rgba(255,204,0,0.1); }
+    #market .node-label { color: #ffcc00; }
+    
+    /* CONNECTIONS (SVG) */
+    svg {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 1;
+    }
+    
+    .conn-line {
+        fill: none;
+        stroke: #333;
+        stroke-width: 2;
+        vector-effect: non-scaling-stroke;
+    }
+    
+    .conn-flow {
+        fill: none;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-dasharray: 10, 20;
+        animation: flow 1s linear infinite;
+        opacity: 0.8;
+    }
+    
+    @keyframes flow {
+        to { stroke-dashoffset: -30; }
+    }
+    
+    /* INFO PANEL */
+    .info-panel {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60%;
+        min-height: 100px;
+        background: rgba(0, 5, 10, 0.9);
+        border: 1px solid #444;
+        border-left: 5px solid #00efff;
+        padding: 20px;
+        font-family: 'Share Tech Mono', monospace;
+        display: none;
+        animation: slideUp 0.3s ease-out;
+    }
+    
+    @keyframes slideUp {
+        from { opacity: 0; transform: translate(-50%, 20px); }
+        to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    
+    .info-title { color: #00efff; font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; }
+    .info-content { color: #ddd; font-size: 0.95rem; line-height: 1.5; }
+    .tech-tag { display: inline-block; padding: 2px 8px; background: #222; border: 1px solid #555; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; margin-top: 5px; color: #aaa; }
 
-    with c_codes[1]:
-        st.markdown("**Frontend (UI/UX)**")
-        st.markdown("""
-        <div style="margin-top: 10px;">
-            <span class="tech-badge">Streamlit</span>
-            <span class="tech-badge">Plotly Express</span>
-            <span class="tech-badge">CSS3 Custom</span>
-            <span class="tech-badge">HTML5</span>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Interface reativa com renderização Server-Side, permitindo interatividade fluida e gráficos dinâmicos.")
+</style>
+</head>
+<body>
 
-    with c_codes[2]:
-        st.markdown("**Infra & Dados**")
-        st.markdown("""
-        <div style="margin-top: 10px;">
-            <span class="tech-badge">Google Sheets API</span>
-            <span class="tech-badge">Streamlit Cloud</span>
-            <span class="tech-badge">JSON Auth</span>
-            <span class="tech-badge">Git Versioning</span>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Persistência em nuvem (Low Code) com autenticação segura via Service Accounts da GCP.")
+<div class="diagram-container">
+    <svg>
+        <defs>
+            <linearGradient id="grad-front" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#00ff41;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#00efff;stop-opacity:1" />
+            </linearGradient>
+             <filter id="glow">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+        </defs>
         
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col_side:
-    # --- DESTAQUES DE ARQUITETURA ---
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">✨ Destaques</div>', unsafe_allow_html=True)
-    
-    highlights = [
-        ("🔐 Segurança", "Autenticação via **Layer de Proteção** proprietária antes de qualquer carga de dados."),
-        ("🚀 Performance", "Uso intensivo de **@st.cache_data** para evitar requisições repetitivas à API do Google."),
-        ("💎 GIPS Compliant", "Cálculo de rentabilidade seguindo estritamente o padrão global (Fluxos externos vs Variação de Mercado)."),
-        ("🌐 Multi-Currency", "Suporte nativo para **BRL, USD, EUR e CAD** com normalização automática de câmbio."),
-        ("📱 Responsividade", "Layout adaptável para Desktop e Mobile (Grid System do Streamlit).")
-    ]
-    
-    for title, desc in highlights:
-        st.markdown(f"""
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: 700; color: #a5b4fc; font-size: 1.1rem; margin-bottom: 4px;">{title}</div>
-            <div style="font-size: 0.95rem; color: #94a3b8; line-height: 1.5;">{desc}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        <!-- PATHS (Calculated roughly) -->
+        <!-- User 5% -> Frontend 30% -->
+        <path d="M 150 350 L 400 350" class="conn-line" />
+        <path d="M 150 350 L 400 350" class="conn-flow" stroke="url(#grad-front)" />
         
-    st.markdown('</div>', unsafe_allow_html=True)
+        <!-- Frontend 30% -> Engine 55% -->
+        <path d="M 520 350 L 720 350" class="conn-line" />
+        <path d="M 520 350 L 720 350" class="conn-flow" stroke="#ff00de" style="animation-direction: reverse;" />
+        
+        <!-- Engine 55% -> DB 80% Top -->
+        <path d="M 850 320 C 900 320, 900 180, 1050 180" class="conn-line" />
+        <path d="M 850 320 C 900 320, 900 180, 1050 180" class="conn-flow" stroke="#10b981" />
+        
+        <!-- Engine 55% -> Market 80% Bottom -->
+        <path d="M 850 380 C 900 380, 900 550, 1050 550" class="conn-line" />
+        <path d="M 850 380 C 900 380, 900 550, 1050 550" class="conn-flow" stroke="#ffcc00" style="animation-duration: 2s;" />
+        
+    </svg>
 
-# --- FOOTER ---
-st.markdown("---")
-st.caption("© 2026 Barroots System Architecture | Developed with ❤️ using Python & Streamlit")
+    <!-- NODES -->
+    <div class="node" id="user" onclick="showInfo('user')">
+        <div class="node-icon">👤</div>
+        <div class="node-label">USER</div>
+    </div>
+    
+    <div class="node" id="frontend" onclick="showInfo('frontend')">
+        <div class="node-icon">💻</div>
+        <div class="node-label">INTERFACE</div>
+    </div>
+    
+    <div class="node" id="engine" onclick="showInfo('engine')">
+        <div class="node-icon">🧠</div>
+        <div class="node-label">ENGINE</div>
+    </div>
+    
+    <div class="node" id="db" onclick="showInfo('db')">
+        <div class="node-icon">🗄️</div>
+        <div class="node-label">DATA LAKE</div>
+    </div>
+    
+    <div class="node" id="market" onclick="showInfo('market')">
+        <div class="node-icon">📈</div>
+        <div class="node-label">MARKET</div>
+    </div>
+    
+    <!-- INFO PANEL -->
+    <div class="info-panel" id="panel">
+        <div class="info-title" id="p-title">SYSTEM READY</div>
+        <div class="info-content" id="p-desc">Hover or click on nodes to analyze infrastructure components.</div>
+        <div id="p-tags"></div>
+    </div>
+
+</div>
+
+<script>
+    const data = {
+        'user': {
+            title: 'AUTHENTICATED USER',
+            desc: 'Secure entry point via Streamlit Auth protection. Requests encrypted via HTTPS.',
+            tags: ['Browser', 'Mobile', 'Desktop']
+        },
+        'frontend': {
+            title: 'STREAMLIT CLOUD UI',
+            desc: 'Reactive frontend rendering server-side. Handles user interactions and state management.',
+            tags: ['Streamlit', 'HTML5', 'CSS3', 'Plotly']
+        },
+        'engine': {
+            title: 'PYTHON CORE ENGINE',
+            desc: 'High-performance vector calculation engine for TWR, MTM, and Portfolio Allocation.',
+            tags: ['Python 3.11', 'Pandas', 'NumPy', 'Cache']
+        },
+        'db': {
+            title: 'GOOGLE SHEETS DB',
+            desc: 'Cloud-native persistence layer accessed via Grid API. Low-latency reads/writes.',
+            tags: ['GCP API', 'JSON Auth', 'Service Account']
+        },
+        'market': {
+            title: 'MARKET DATA FEEDS',
+            desc: 'Real-time asset pricing and currency exchange rates integration.',
+            tags: ['Yahoo Finance API', 'BCB API', 'REST']
+        }
+    };
+
+    function showInfo(id) {
+        const item = data[id];
+        if(!item) return;
+        
+        const panel = document.getElementById('panel');
+        const title = document.getElementById('p-title');
+        const desc = document.getElementById('p-desc');
+        const tags = document.getElementById('p-tags');
+        
+        panel.style.display = 'block';
+        panel.style.borderLeftColor = document.getElementById(id).style.borderColor;
+        
+        title.innerHTML = item.title;
+        desc.innerHTML = item.desc;
+        
+        let tagHtml = '';
+        item.tags.forEach(t => tagHtml += `<span class="tech-tag">${t}</span>`);
+        tags.innerHTML = tagHtml;
+        
+        // Color match
+        const color = window.getComputedStyle(document.querySelector(`#${id} .node-label`)).color;
+        title.style.color = color;
+        panel.style.borderLeftColor = color;
+    }
+</script>
+
+</body>
+</html>
+"""
+
+components.html(flowchart_html, height=850)
