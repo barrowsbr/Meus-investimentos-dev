@@ -3,6 +3,7 @@ import time
 import os
 
 PASSWORD_FILE = os.path.join(os.path.dirname(__file__), ".password")
+AUTH_STATE_FILE = os.path.join(os.path.dirname(__file__), ".auth_state")
 DEFAULT_PASSWORD = "1015"
 
 def get_password():
@@ -23,6 +24,26 @@ def update_password(new_password):
         return True
     except Exception as e:
         print(f"Error updating password: {e}")
+        return False
+
+def is_auth_enabled():
+    """Returns True if authentication is enabled, False otherwise."""
+    if os.path.exists(AUTH_STATE_FILE):
+        try:
+            with open(AUTH_STATE_FILE, "r") as f:
+                return f.read().strip() == "ENABLED"
+        except:
+            return True
+    return True # Default to enabled
+
+def set_auth_enabled(enabled: bool):
+    """Sets the authentication state."""
+    try:
+        with open(AUTH_STATE_FILE, "w") as f:
+            f.write("ENABLED" if enabled else "DISABLED")
+        return True
+    except Exception as e:
+        print(f"Error updating auth state: {e}")
         return False
 
 def init_auth_state():
@@ -67,6 +88,9 @@ def require_auth():
     Blocks execution if not authenticated.
     Usage: Call at the top of the page.
     """
+    if not is_auth_enabled():
+        return
+
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
         st.markdown(
             """
