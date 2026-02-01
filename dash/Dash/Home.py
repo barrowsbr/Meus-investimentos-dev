@@ -430,10 +430,12 @@ with col_snap_2:
     """, unsafe_allow_html=True)
 
 # --- NAVIGATION CONTAINER ---
-# Row 1: Investimentos | Finanças
-col_r1_l, col_r1_c1, col_r1_c2, col_r1_r = st.columns([1, 6, 6, 1])
+# --- NAVIGATION MENU ---
+# Stacked Layout: Cards one below another with fixed spacing
+col_nav_l, col_nav_c, col_nav_r = st.columns([1, 8, 1])
 
-with col_r1_c1:
+with col_nav_c:
+    # 1. Investimentos
     st.markdown("""
     <a href="Investimentos" target="_self" class="nav-card">
         <div class="icon-box">🚀</div>
@@ -445,8 +447,10 @@ with col_r1_c1:
         <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Carteira →</div>
     </a>
     """, unsafe_allow_html=True)
+    
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-with col_r1_c2:
+    # 2. Finanças
     st.markdown("""
     <a href="Finanças" target="_self" class="nav-card">
         <div class="icon-box">💎</div>
@@ -459,12 +463,9 @@ with col_r1_c2:
     </a>
     """, unsafe_allow_html=True)
 
-st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-# Row 2: Performance | Editor
-col_r2_l, col_r2_c1, col_r2_c2, col_r2_r = st.columns([1, 6, 6, 1])
-
-with col_r2_c1:
+    # 3. Performance
     st.markdown("""
     <a href="Performance" target="_self" class="nav-card">
         <div class="icon-box">📈</div>
@@ -477,7 +478,9 @@ with col_r2_c1:
     </a>
     """, unsafe_allow_html=True)
 
-with col_r2_c2:
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+
+    # 4. Editor
     st.markdown("""
     <a href="Editor" target="_self" class="nav-card">
         <div class="icon-box">📝</div>
@@ -490,12 +493,9 @@ with col_r2_c2:
     </a>
     """, unsafe_allow_html=True)
 
-st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-# Row 3: Ferramentas (Aligned with first column)
-col_r3_l, col_r3_c1, col_r3_c2, col_r3_r = st.columns([1, 6, 6, 1])
-
-with col_r3_c1:
+    # 5. Ferramentas
     st.markdown("""
     <a href="Ferramentas" target="_self" class="nav-card">
         <div class="icon-box">🛠️</div>
