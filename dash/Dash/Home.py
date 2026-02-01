@@ -241,6 +241,7 @@ with st.spinner("Sintonizando mercado..."):
     dolar_var = 0.0
     rv_day_gain = 0.0
     rv_day_pct = 0.0
+    dolar_change = 0.0
     
     if not df_assets.empty:
         # Filter Active RV Assets

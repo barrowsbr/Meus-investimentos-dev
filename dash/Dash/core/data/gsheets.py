@@ -19,8 +19,9 @@ def get_service_account_creds():
     
     # 1. Try Local File (Dev Environment / Migration) FIRST
     # This avoids triggering Streamlit's "No secrets found" error if we are just running locally
-    current_dir = os.path.dirname(os.path.abspath(__file__)) # core/
-    project_root = os.path.dirname(current_dir) # Dash/
+    current_dir = os.path.dirname(os.path.abspath(__file__)) # core/data/
+    core_dir = os.path.dirname(current_dir) # core/
+    project_root = os.path.dirname(core_dir) # Dash/
     local_file = os.path.join(project_root, 'service_account.json')
     
     if os.path.exists(local_file):
