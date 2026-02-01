@@ -201,6 +201,166 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# --- AMBIENT MUSIC (CUSTOM NEON PLAYER) ---
+# Playlist Definition
+import random
+
+PLAYLIST = [
+    {
+        "title": "Gymnopédie No. 1",
+        "artist": "Erik Satie",
+        "url": "https://archive.org/download/Gymnopedie_201309/Gymnop%C3%A9die%20No.%201.mp3"
+    },
+    {
+        "title": "Clair de Lune",
+        "artist": "Claude Debussy",
+        "url": "https://archive.org/download/DebussyClairDeLune_584/01_Clair_de_Lune.mp3"
+    },
+    {
+        "title": "Moonlight Sonata",
+        "artist": "Ludwig van Beethoven",
+        "url": "https://archive.org/download/MoonlightSonata_754/Beethoven-MoonlightSonata.mp3"
+    },
+    {
+        "title": "Nocturne Op. 9 No. 2",
+        "artist": "Frédéric Chopin",
+        "url": "https://archive.org/download/ChopinNocturneOp.9No.2_337/Chopin-NocturneOp.9No.2.mp3"
+    }
+]
+
+# Select random track (persisted via session state to avoid reload changes if desired, but user asked for random start)
+# To keep it fresh on every reload, we just pick random.
+selected_track = random.choice(PLAYLIST)
+
+st.markdown(f"""
+<style>
+    /* Neon Player Card */
+    .neon-player-container {{
+        display: flex;
+        justify-content: center;
+        margin-bottom: 30px;
+    }}
+    
+    .neon-player {{
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(139, 92, 246, 0.3); /* Violet tint border */
+        border-radius: 50px; /* Pill shape */
+        padding: 10px 30px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.2), inset 0 0 20px rgba(139, 92, 246, 0.05);
+        transition: all 0.3s ease;
+        animation: neon-pulse 3s infinite alternate;
+        max-width: fit-content;
+        cursor: pointer;
+    }}
+
+    .neon-player:hover {{
+        box-shadow: 0 0 25px rgba(139, 92, 246, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
+        border-color: rgba(139, 92, 246, 0.6);
+        transform: scale(1.02);
+    }}
+
+    @keyframes neon-pulse {{
+        0% {{ box-shadow: 0 0 10px rgba(139, 92, 246, 0.2); }}
+        100% {{ box-shadow: 0 0 20px rgba(139, 92, 246, 0.4); }}
+    }}
+
+    .player-icon {{
+        font-size: 1.2rem;
+        color: #a78bfa;
+        animation: spin 6s linear infinite;
+    }}
+    
+    @keyframes spin {{ 100% {{ transform: rotate(360deg); }} }}
+
+    .player-info {{
+        display: flex;
+        flex-direction: column;
+    }}
+
+    .player-title {{
+        color: #f8fafc;
+        font-weight: 600;
+        font-size: 0.9rem;
+        letter-spacing: 0.5px;
+        text-shadow: 0 0 5px rgba(167, 139, 250, 0.5);
+    }}
+
+    .player-artist {{
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }}
+    
+    /* Visualizer Bars */
+    .equalizer {{
+        display: flex;
+        gap: 3px;
+        height: 15px;
+        align-items: flex-end;
+    }}
+    
+    .bar {{
+        width: 3px;
+        background: #a78bfa;
+        border-radius: 2px;
+        animation: equalize 1s infinite alternate;
+        box-shadow: 0 0 5px #a78bfa;
+    }}
+    
+    .bar:nth-child(1) {{ height: 8px; animation-duration: 0.8s; }}
+    .bar:nth-child(2) {{ height: 12px; animation-duration: 1.1s; }}
+    .bar:nth-child(3) {{ height: 15px; animation-duration: 0.9s; }}
+    .bar:nth-child(4) {{ height: 10px; animation-duration: 1.2s; }}
+    
+    @keyframes equalize {{
+        0% {{ height: 5px; opacity: 0.5; }}
+        100% {{ height: 100%; opacity: 1; }}
+    }}
+</style>
+
+<div class="neon-player-container">
+    <div class="neon-player" onclick="var audio = document.getElementById('bg-music'); if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}">
+        <div class="player-icon">📀</div>
+        <div class="player-info">
+            <div class="player-title">{selected_track['title']}</div>
+            <div class="player-artist">{selected_track['artist']} (Now Playing)</div>
+        </div>
+        <div class="equalizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+    </div>
+</div>
+
+<audio id="bg-music" autoplay>
+    <source src="{selected_track['url']}" type="audio/mp3">
+    Your browser does not support the audio element.
+</audio>
+
+<script>
+    var audio = document.getElementById("bg-music");
+    audio.volume = 0.4; 
+    var promise = audio.play();
+    if (promise !== undefined) {{
+        promise.then(_ => {{}}).catch(error => {{ console.log("Autoplay prevented"); }});
+    }}
+    
+    // Auto-reload to valid track if error? No, too complex.
+    audio.addEventListener('ended', function() {{
+        this.currentTime = 0;
+        this.play();
+    }}, false);
+</script>
+""", unsafe_allow_html=True)
+
+
 # --- DAILY SNAPSHOT CALCULATION ---
 with st.spinner("Sintonizando mercado..."):
     df_assets = load_assets()

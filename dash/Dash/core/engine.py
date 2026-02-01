@@ -211,56 +211,76 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
             if first_valid is not None:
                 last_prices[t] = df_prices.at[first_valid, t]
 
+    # =========================================================================
+    # FIX v10.0: Usar preço de MERCADO para NAV (consistente com fluxo)
+    # =========================================================================
     for d_idx in idx_dates:
-        # Update Last Known Prices from Transactions on this day
-        # KEY FIX: Use 'effective_date' (Market Aligned) instead of raw 'data'
         daily_ops = df_ops[df_ops['effective_date'] == d_idx]
-        
-        # Create a map of "Transaction Prices" for this day to override Yahoo
-        # This handles the "Paid 20, Yahoo says 10" gap (Splits or Data mismatches)
-        # We assume the Transaction Price is the truth for the Moment of Entry
-        tx_price_map = {}
-        
-        for _, op in daily_ops.iterrows():
-            p_tx = float(op['preco'])
-            last_prices[op['ticker']] = p_tx
-            tx_price_map[op['ticker']] = p_tx
 
+        # Guardar preço de transação como fallback
         for _, op in daily_ops.iterrows():
-            p_tx = float(op['preco'])
-            last_prices[op['ticker']] = p_tx
-            tx_price_map[op['ticker']] = p_tx
+            last_prices[op['ticker']] = float(op['preco'])
 
-        # Iterate over ALL tickers in custody (including those without Yahoo price)
-        # Using custodia_diaria.columns ensures we cover everything
         for t in custodia_diaria.columns:
-            # Get Quantity
             q = custodia_diaria.at[d_idx, t]
-            if q == 0: continue
-            
-            # Get Price
+            if q == 0:
+                continue
+
+            # Get Price - Priority: Yahoo > Last Known (inclui tx price)
             price = 0.0
-            
-            # PRIORITY 1: Transaction Price Override
-            if t in tx_price_map:
-                price = tx_price_map[t]
-            
-            # PRIORITY 2: Market Price (Yahoo)
-            elif t in df_prices.columns:
+
+            # PRIORITY 1: Market Price (Yahoo) - v10.0
+            if t in df_prices.columns:
                 price = df_prices.at[d_idx, t]
-            
-            # PRIORITY 3: Fallback (Last Known)
+
+            # PRIORITY 2: Fallback (Last Known, inclui preço de transação)
             if price <= 0 or np.isnan(price):
                 price = last_prices.get(t, 0.0)
-                
+
             # Currency Conversion
             m_ativo = ticker_currency_map.get(t, 'BRL')
             fx_rate = 1.0
-            if m_ativo == 'USD': fx_rate = s_usd.at[d_idx]
-            elif m_ativo == 'EUR': fx_rate = s_eur.at[d_idx]
-            
+            if m_ativo == 'USD':
+                fx_rate = s_usd.at[d_idx]
+            elif m_ativo == 'EUR':
+                fx_rate = s_eur.at[d_idx]
+
             val_ativo_brl = q * price * fx_rate
             serie_patrimonio.at[d_idx] += val_ativo_brl
+
+    # =========================================================================
+    # FIX v10.0: Recalcular fluxos usando preço de MERCADO
+    # =========================================================================
+    serie_fluxos_mkt_v10 = pd.Series(0.0, index=idx_dates)
+    for _, op in df_ops.iterrows():
+        t = op['ticker']
+        q = float(op['quantidade'])
+        data_valida = op['effective_date']
+
+        if pd.isna(data_valida):
+            continue
+
+        # Obter preço de MERCADO no dia
+        price_mercado = 0.0
+        if t in df_prices.columns:
+            price_mercado = df_prices.at[data_valida, t]
+        if price_mercado <= 0 or np.isnan(price_mercado):
+            price_mercado = float(op['preco'])  # Fallback
+
+        # FX rate
+        m_ativo = ticker_currency_map.get(t, 'BRL')
+        fx_rate = 1.0
+        if m_ativo == 'USD':
+            fx_rate = s_usd.at[data_valida]
+        elif m_ativo == 'EUR':
+            fx_rate = s_eur.at[data_valida]
+
+        sinal = 1 if 'compra' in str(op['tipo']).lower() else -1
+        fin_brl = price_mercado * q * fx_rate * sinal
+        serie_fluxos_mkt_v10.loc[data_valida] += fin_brl
+
+    # Usar fluxos v10.0
+    serie_fluxos_mkt = serie_fluxos_mkt_v10
 
     # =========================================================================
     # 3. Gap Handling - Tratamento inteligente de zeros e anomalias
@@ -316,8 +336,11 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
         try:
             from core.fixed_income_engine import FixedIncomeEngine
 
-            # Build RF curve
-            rf_engine = FixedIncomeEngine(df_rf_raw)
+            # Build RF curve with MANUAL VALUES support
+            rf_engine = FixedIncomeEngine(
+                df_rf_raw, 
+                manual_values=manual_rf_values
+            )
             rf_result = rf_engine.build_daily_curve()
 
             if not rf_result.daily_curve.empty:
@@ -390,17 +413,37 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
     v_flux = v_flux.reindex(v_pat.index).fillna(0)
     v_income = v_income.reindex(v_pat.index).fillna(0)
     
+    # =========================================================================
+    # FIX v9.0: Correção de Fluxo vs NAV em Dias de Aporte
+    # =========================================================================
+    nav_arr = v_pat.values.copy()
+    flow_arr = v_flux.values.copy()
+
+    for i in range(1, len(nav_arr)):
+        nav_prev = nav_arr[i - 1]
+        nav_curr = nav_arr[i]
+        flow_day = flow_arr[i]
+
+        # Se há fluxo de compra (positivo) no dia
+        if flow_day > 0 and nav_prev > 0:
+            variacao_nav = nav_curr - nav_prev
+            diferenca = variacao_nav - flow_day
+
+            # Se a diferença é muito grande (> 10% do fluxo), ajustar
+            if abs(diferenca) > abs(flow_day) * 0.10 and flow_day > 0:
+                flow_arr[i] = variacao_nav
+
+    # Atualizar série de fluxos com valores corrigidos
+    v_flux = pd.Series(flow_arr, index=v_pat.index)
+
     # 5. Flow Timing Logic (Improved Transparency)
-    # 
+    #
     # End-of-Day (EoD) vs Start-of-Day (SoD) timing affects TWR calculation:
     # - EoD: Flow enters at END of day, does NOT participate in day's return
     # - SoD: Flow enters at START of day, DOES participate in day's return
     #
     # We use SoD for large inflows to prevent inflated returns from small base
     # Threshold: Flow > 20% of previous NAV triggers SoD treatment
-    
-    nav_arr = v_pat.values
-    flow_arr = v_flux.values
     
     flow_timing_arr = np.array([0] * len(nav_arr))  # Default: End-of-Day (0)
     force_zero_arr = np.array([False] * len(nav_arr))
@@ -457,7 +500,8 @@ def reconstruct_history_multicurrency(
     days_lookback: int, 
     df_prices_external: pd.DataFrame = None, 
     df_rf_raw: pd.DataFrame = None,
-    df_cambio: pd.DataFrame = None  # v6.1: Real exchange rates from 'cambio' tab
+    df_cambio: pd.DataFrame = None,  # v6.1: Real exchange rates from 'cambio' tab
+    manual_rf_values: dict = None    # v7.0: Manual RF balance overrides
 ) -> MultiCurrencyResult:
     """
     Reconstructs portfolio history with NATIVE CURRENCY support.
@@ -593,64 +637,85 @@ def reconstruct_history_multicurrency(
         # Filter operations for this currency
         df_ops_cur = df_ops[df_ops['moeda'] == currency] if has_rv and not df_ops.empty else pd.DataFrame()
         
-        # Build Transaction Price Map & Register Flows (IN NATIVE CURRENCY)
-        if not df_ops_cur.empty:
-            for _, op in df_ops_cur.iterrows():
-                t = op['ticker']
-                p_tx = float(op['preco'])
-                q = float(op['quantidade'])
-                data_valida = op['effective_date']
-                
-                if pd.isna(data_valida):
-                    continue
-                
-                last_prices[t] = p_tx
-                
-                sinal = 1 if 'compra' in str(op['tipo']).lower() else -1
-                # NATIVE CURRENCY - NO FX CONVERSION!
-                fin_native = p_tx * q
-                if sinal == 1:
-                    flow_series.loc[data_valida] += fin_native
-                else:
-                    flow_series.loc[data_valida] -= fin_native
-        
-        # Calculate Daily NAV (IN NATIVE CURRENCY)
+        # =====================================================================
+        # FIX v10.0: Usar preço de MERCADO para NAV e FLUXO consistentemente
+        #
+        # PROBLEMA ANTERIOR:
+        # - Fluxo usava preço de transação (quanto pagou)
+        # - NAV usava preço de transação no dia, depois preço Yahoo
+        # - Isso causava salto no NAV no dia seguinte = retorno fictício
+        #
+        # SOLUÇÃO:
+        # - NAV sempre usa preço de mercado (Yahoo)
+        # - Fluxo usa preço de mercado no dia da transação
+        # - Preço de transação é usado apenas como FALLBACK se Yahoo não tem
+        # =====================================================================
+
+        # Primeiro, calcular NAV para cada dia
+        # Depois, calcular fluxos baseados na variação de NAV
+
+        # Calculate Daily NAV (IN NATIVE CURRENCY) - PRIMEIRO
         for d_idx in idx_dates:
-            # Transaction prices for this day
+            # Transaction prices for this day (fallback only)
             daily_ops = df_ops_cur[df_ops_cur['effective_date'] == d_idx] if not df_ops_cur.empty else pd.DataFrame()
-            tx_price_map = {}
-            
+
             if not daily_ops.empty:
                 for _, op in daily_ops.iterrows():
-                    tx_price_map[op['ticker']] = float(op['preco'])
+                    # Guardar preço de transação como fallback
                     last_prices[op['ticker']] = float(op['preco'])
-            
+
             # Sum NAV for all tickers in this currency
             for t in tickers:
                 if t not in custodia_diaria.columns:
                     continue
-                    
+
                 q = custodia_diaria.at[d_idx, t]
                 if q == 0:
                     continue
-                
+
                 # Get Price (NO FX CONVERSION!)
                 price = 0.0
-                
-                # Priority 1: Transaction price
-                if t in tx_price_map:
-                    price = tx_price_map[t]
-                # Priority 2: Yahoo price
-                elif t in df_prices.columns:
+
+                # Priority 1: Yahoo price (preço de mercado)
+                if t in df_prices.columns:
                     price = df_prices.at[d_idx, t]
-                
-                # Priority 3: Last known
+
+                # Priority 2: Last known (fallback - inclui preço de transação)
                 if price <= 0 or np.isnan(price):
                     price = last_prices.get(t, 0.0)
-                
+
                 # NATIVE CURRENCY VALUE!
                 nav_series.at[d_idx] += q * price
-        
+
+        # =====================================================================
+        # FIX v10.0: Calcular fluxos baseados em preço de MERCADO
+        # O fluxo representa a variação de NAV causada pela transação
+        # =====================================================================
+        if not df_ops_cur.empty:
+            for _, op in df_ops_cur.iterrows():
+                t = op['ticker']
+                q = float(op['quantidade'])
+                data_valida = op['effective_date']
+
+                if pd.isna(data_valida):
+                    continue
+
+                # Obter preço de MERCADO no dia da transação
+                price_mercado = 0.0
+                if t in df_prices.columns:
+                    price_mercado = df_prices.at[data_valida, t]
+                if price_mercado <= 0 or np.isnan(price_mercado):
+                    # Fallback para preço de transação se não houver preço de mercado
+                    price_mercado = float(op['preco'])
+
+                sinal = 1 if 'compra' in str(op['tipo']).lower() else -1
+                # Fluxo = quantidade × preço de MERCADO (não preço de transação)
+                fin_native = price_mercado * q
+                if sinal == 1:
+                    flow_series.loc[data_valida] += fin_native
+                else:
+                    flow_series.loc[data_valida] -= fin_native
+
         # Process Income for this currency (filter by ticker)
         if not df_proventos.empty:
             df_prov = df_proventos.copy()
@@ -674,12 +739,56 @@ def reconstruct_history_multicurrency(
                 except:
                     pass
         
+        # =====================================================================
+        # FIX v9.0: Correção de Fluxo vs NAV em Dias de Aporte
+        #
+        # PROBLEMA: O fluxo é calculado com preço de TRANSAÇÃO, mas o NAV pode
+        # usar preço de MERCADO (Yahoo) se não houver transação naquele ticker
+        # naquele dia específico. Isso gera retornos fictícios.
+        #
+        # SOLUÇÃO: Em dias com aporte, ajustar o fluxo para refletir a variação
+        # REAL do NAV, não o valor da transação.
+        #
+        # Fórmula: Se dia tem aporte e NAV aumentou:
+        #   fluxo_ajustado = variação_NAV (se não houver outra explicação)
+        # =====================================================================
+
+        nav_arr = nav_series.values.copy()
+        flow_arr = flow_series.values.copy()
+
+        for i in range(1, len(nav_arr)):
+            nav_prev = nav_arr[i - 1]
+            nav_curr = nav_arr[i]
+            flow_day = flow_arr[i]
+
+            # Se há fluxo de compra (positivo) no dia
+            if flow_day > 0 and nav_prev > 0:
+                # Calcular variação esperada do NAV pelo mercado (sem aporte)
+                # Assumindo retorno de mercado próximo de 0 para simplificar
+                # (ou usar índice de mercado se disponível)
+
+                variacao_nav = nav_curr - nav_prev
+
+                # O fluxo deveria explicar a maior parte da variação
+                # Se NAV aumentou menos que o fluxo, o mercado caiu
+                # Se NAV aumentou mais que o fluxo, o mercado subiu
+
+                # Diferença entre variação real e fluxo
+                diferenca = variacao_nav - flow_day
+
+                # Se a diferença é muito grande (> 10% do fluxo), pode haver erro
+                if abs(diferenca) > abs(flow_day) * 0.10 and flow_day > 0:
+                    # Ajustar fluxo para ser igual à variação do NAV
+                    # Isso assume que no dia da compra, o retorno deveria ser ~0%
+                    flow_arr[i] = variacao_nav
+
+        # Atualizar a série de fluxos
+        flow_series = pd.Series(flow_arr, index=idx_dates)
+
         # Calculate Flow Timing & Force Zero
         force_zero_arr = np.array([False] * len(idx_dates))
         flow_timing_arr = np.array([0] * len(idx_dates))
-        
-        nav_arr = nav_series.values
-        flow_arr = flow_series.values
+
         nav_start_arr = np.roll(nav_arr, 1)
         nav_start_arr[0] = 0.0
         
@@ -714,13 +823,29 @@ def reconstruct_history_multicurrency(
                     nav_values[i] = max(0, nav_prev + flow_day)
                     continue
 
-                # Suavizar variações extremas
-                # FIX: Apenas suavizar se NÃO houver fluxo detectado no dia
+                # =========================================================================
+                # FIX v12.1: Detectar variações extremas como FLUXOS (não suavizar)
+                #
+                # Se há variação grande sem fluxo correspondente, provavelmente é
+                # um aporte/resgate não detectado. Adicionar como fluxo para TWR.
+                # =========================================================================
+                if nav_prev > 0 and abs(flow_day) < nav_prev * 0.05:  # Fluxo < 5% do NAV
+                    nav_expected = nav_prev + flow_day
+                    if nav_expected > 0:
+                        variation = (nav_curr - nav_expected) / nav_expected
+                        MAX_UNEXPLAINED_CHANGE = 0.20  # 20% é muito para ser retorno
+
+                        if abs(variation) > MAX_UNEXPLAINED_CHANGE:
+                            # Tratar como fluxo, não suavizar
+                            unexplained_change = nav_curr - nav_expected
+                            flow_values[i] = flow_values[i] + unexplained_change if i < len(flow_values) else unexplained_change
+
+                # Manter suavização apenas para casos extremos (>100% variação)
                 if nav_prev > 0 and abs(flow_day) < 1.0:
                     nav_expected = nav_prev + flow_day
                     if nav_expected > 0:
                         variation = (nav_curr - nav_expected) / nav_expected
-                        MAX_UNEXPLAINED_CHANGE = 0.40
+                        MAX_UNEXPLAINED_CHANGE = 1.0  # Só suavizar se > 100%
 
                         if abs(variation) > MAX_UNEXPLAINED_CHANGE:
                             nav_values[i] = 0.8 * nav_expected + 0.2 * nav_curr
@@ -730,6 +855,12 @@ def reconstruct_history_multicurrency(
             nav_full = pd.Series(0.0, index=idx_dates)
             nav_full.loc[nav_series.index] = nav_series
             nav_series = nav_full
+
+            # FIX v12.1: Atualizar flow_series com fluxos corrigidos
+            flow_series_corrected = pd.Series(flow_values, index=flow_series.loc[mask_after].index[:len(flow_values)])
+            flow_full = pd.Series(0.0, index=idx_dates)
+            flow_full.loc[flow_series_corrected.index] = flow_series_corrected
+            flow_series = flow_full
 
         # Slice to visual window
         data_corte = datetime.now() - timedelta(days=days_lookback)
@@ -774,29 +905,27 @@ def reconstruct_history_multicurrency(
                 rf_nav = rf_curve_sliced.reindex(idx_dates[idx_dates >= data_corte]).ffill().fillna(0)
 
                 # =====================================================================
-                # FIX v8.0: Calcular fluxos a partir da VARIAÇÃO DO NAV de RF
+                # FIX v11.0 + v12.0: Calcular fluxos RF baseado na VARIAÇÃO DO NAV
                 #
-                # PROBLEMA ANTERIOR:
-                # - Fluxo era registrado na data original do evento
-                # - NAV era reindexado com ffill e podia aparecer em data diferente
-                # - Isso causava: NAV aumenta dia X, fluxo no dia X-1 = retorno fictício
+                # PROBLEMA:
+                # - Fluxo de saída usava valor de TRANSAÇÃO (R$115 recebido)
+                # - Mas NAV mostrado era valor CORRIGIDO (R$110)
+                # - Isso gerava economic_gain = 0 - 110 - (-115) = +5 → retorno fictício
+                # - Também havia problemas no início da série quando NAV era pequeno
                 #
                 # SOLUÇÃO:
-                # - Detectar variações de NAV que não são explicadas pelo rendimento esperado
-                # - Se NAV aumenta mais que rendimento esperado, é um aporte (fluxo positivo)
-                # - Se NAV diminui mais que rendimento esperado, é um resgate (fluxo negativo)
+                # - Fluxo = variação do NAV (descontando rendimento esperado SELIC)
+                # - Usar threshold híbrido: percentual (1%) OU absoluto (R$50 mínimo)
+                # - Isso captura tanto grandes operações quanto início da série
                 # =====================================================================
-                rf_flows = pd.Series(0.0, index=rf_nav.index)
 
-                # Taxa SELIC proxy diária (para calcular rendimento esperado)
+                # Parâmetros de detecção de fluxos
                 SELIC_DAILY_RATE = 0.15 / 252  # ~15% a.a.
-
-                # Tolerância para considerar variação como fluxo (não rendimento)
-                # Se variação > 5% do NAV, provavelmente é aporte/resgate
-                FLOW_DETECTION_THRESHOLD = 0.05
+                FLOW_PERCENT_THRESHOLD = 0.01  # 1% do NAV
+                FLOW_MIN_ABSOLUTE = 50.0  # R$50 mínimo para considerar fluxo
 
                 nav_values = rf_nav.values
-                nav_index = rf_nav.index
+                rf_flows_arr = np.zeros(len(nav_values))
 
                 for i in range(1, len(nav_values)):
                     nav_prev = nav_values[i - 1]
@@ -805,7 +934,7 @@ def reconstruct_history_multicurrency(
                     if nav_prev <= 0:
                         # Primeiro dia com NAV - todo valor é fluxo inicial
                         if nav_curr > 0:
-                            rf_flows.iloc[i] = nav_curr
+                            rf_flows_arr[i] = nav_curr
                         continue
 
                     # Rendimento esperado (SELIC)
@@ -815,37 +944,15 @@ def reconstruct_history_multicurrency(
                     # Variação real vs esperada
                     nav_change = nav_curr - expected_nav
 
-                    # Se variação é maior que threshold, é fluxo externo
-                    if abs(nav_change) > nav_prev * FLOW_DETECTION_THRESHOLD:
-                        rf_flows.iloc[i] = nav_change
+                    # FIX v12.0: Threshold híbrido para início da série
+                    # É fluxo se variação > 1% do NAV OU > R$50 absoluto
+                    percent_threshold = nav_prev * FLOW_PERCENT_THRESHOLD
+                    effective_threshold = max(percent_threshold, FLOW_MIN_ABSOLUTE)
 
-                # =====================================================================
-                # ALTERNATIVA: Usar external_flows do FixedIncomeEngine mas com
-                # alinhamento melhorado - encontrar o dia em que o NAV REALMENTE mudou
-                # =====================================================================
-                # Resetar e usar método híbrido
-                rf_flows = pd.Series(0.0, index=rf_nav.index)
+                    if abs(nav_change) > effective_threshold:
+                        rf_flows_arr[i] = nav_change
 
-                # Para cada fluxo externo, encontrar quando o NAV de RF mudou
-                for ext_flow in rf_result.external_flows:
-                    flow_date = pd.to_datetime(ext_flow.date)
-                    flow_amount = ext_flow.amount
-
-                    # Se é um fim de semana, mapear para próximo dia útil
-                    # (mesma lógica do FixedIncomeEngine)
-                    if flow_date.weekday() >= 5:
-                        days_to_add = 7 - flow_date.weekday()
-                        flow_date = flow_date + pd.Timedelta(days=days_to_add)
-
-                    # Encontrar a primeira data no índice >= flow_date
-                    dates_after = rf_nav.index[rf_nav.index >= flow_date]
-
-                    if len(dates_after) > 0:
-                        data_valida = dates_after[0]
-
-                        # ENTRADA_RF = aporte (positivo), SAIDA_RF = resgate (negativo)
-                        if ext_flow.flow_type in ('ENTRADA_RF', 'SAIDA_RF'):
-                            rf_flows.loc[data_valida] += flow_amount
+                rf_flows = pd.Series(rf_flows_arr, index=rf_nav.index)
 
                 rf_bucket = CurrencyBucket(
                     currency='BRL',

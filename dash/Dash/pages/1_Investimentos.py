@@ -36,6 +36,8 @@ st.set_page_config(
 
 # --- CSS PERSONALIZADO ---
 # --- CSS PERSONALIZADO (GLOBAL THEME) ---
+from core.ui import get_card_css, render_metric_card
+
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -70,51 +72,6 @@ st.markdown("""
         color: #ffffff;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         margin-bottom: 20px;
-    }
-
-    /* METRIC CARDS */
-    .metric-card {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 20px 24px;
-        backdrop-filter: blur(12px);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(255, 255, 255, 0.15);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .metric-label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .metric-value {
-        font-size: 1.75rem;
-        font-weight: 700;
-        line-height: 1.2;
-        margin-bottom: 4px;
-    }
-
-    .metric-delta {
-        font-size: 0.8rem;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 4px;
     }
 
     /* Tabs */
@@ -203,33 +160,7 @@ def carregar_cambio():
 # ==============================================================================
 
 
-
-
-# OBS: Functions `identificar_setor_ativo` and `calcular_carteira` have been moved to `core/logic.py` and `core/finance.py`.
-
-
-
-
-
-
-
-# --- DASHBOARD PRINCIPAL ---
-def render_metric_card(label: str, value: str, delta: str = None, delta_positive: bool = True, icon: str = "📊"):
-    status_class = "positive" if delta_positive else "negative" if delta is not None else "neutral"
-    color = "#34d399" if delta_positive else "#f87171"
-    
-    delta_html = ""
-    if delta:
-        arrow = "↑" if delta_positive else "↓"
-        delta_html = f'<div class="metric-delta" style="color: {color};">{arrow} {delta}</div>'
-
-    return f"""
-<div class="metric-card">
-    <div class="metric-label">{icon} {label}</div>
-    <div class="metric-value">{value}</div>
-    {delta_html}
-</div>
-"""
+st.markdown(get_card_css(), unsafe_allow_html=True)
 
 # --- PAGE HEADER ---
 st.markdown("""

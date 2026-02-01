@@ -116,4 +116,4 @@ class DataProvider:
     @classmethod
     def get_ptax(cls) -> pd.DataFrame:
         """Returns PTAX DataFrame (ptax) - Official BCB rates for tax purposes"""
-        return cls.fetch_data('ptax')
+        return cls.fetch_data('p_tax')

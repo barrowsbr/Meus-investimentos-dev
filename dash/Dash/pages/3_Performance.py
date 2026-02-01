@@ -38,92 +38,16 @@ st.set_page_config(
 # --- CSS / THEME ---
 # Imports global theme from .streamlit/config.toml implicitly,
 # but we add specific overrides here if needed.
+from core.ui import get_card_css, render_metric_card
+
+st.markdown(get_card_css(), unsafe_allow_html=True)
+
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Outfit', sans-serif;
-    }
-
-    /* ===== METRIC CARDS ===== */
-    .metric-card {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 20px 24px;
-        backdrop-filter: blur(12px);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(255, 255, 255, 0.15);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .metric-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        border-radius: 16px 16px 0 0;
-    }
-
-    .metric-card.positive::before {
-        background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
-    }
-
-    .metric-card.negative::before {
-        background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
-    }
-
-    .metric-card.neutral::before {
-        background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
-    }
-
-    .metric-label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .metric-value {
-        font-size: 1.75rem;
-        font-weight: 700;
-        line-height: 1.2;
-        margin-bottom: 4px;
-    }
-
-    .metric-value.positive { color: #34d399; }
-    .metric-value.negative { color: #f87171; }
-    .metric-value.neutral { color: #f1f5f9; }
-
-    .metric-delta {
-        font-size: 0.8rem;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .metric-delta.positive { color: #34d399; }
-    .metric-delta.negative { color: #f87171; }
-
-    .metric-subtitle {
-        font-size: 0.7rem;
-        color: #64748b;
-        margin-top: 4px;
     }
 
     /* ===== SECTION HEADERS ===== */
@@ -272,7 +196,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- HELPER FUNCTIONS ---
+# --- 3. HELPER FUNCTIONS ---
 # Reusing the compatibility wrapper from Investimentos to allow smooth migration
 def run_performance_engine_compat(df_input_frozen):
     """
@@ -329,29 +253,6 @@ def run_performance_engine_compat(df_input_frozen):
     )
 
 # --- MAIN PAGE LOGIC ---
-
-def render_metric_card(label: str, value: str, delta: str = None, delta_positive: bool = True,
-                       subtitle: str = None, icon: str = "📊", is_currency: bool = False):
-    """Renderiza um card de métrica estilizado."""
-    status_class = "positive" if delta_positive else "negative" if delta is not None else "neutral"
-    value_class = status_class
-
-    delta_html = ""
-    if delta:
-        arrow = "↑" if delta_positive else "↓"
-        delta_html = f'<div class="metric-delta {status_class}">{arrow} {delta}</div>'
-
-    subtitle_html = f'<div class="metric-subtitle">{subtitle}</div>' if subtitle else ""
-
-    return f"""
-    <div class="metric-card {status_class}">
-        <div class="metric-label">{icon} {label}</div>
-        <div class="metric-value {value_class}">{value}</div>
-        {delta_html}
-        {subtitle_html}
-    </div>
-    """
-
 
 def main():
     # --- PAGE HEADER ---
@@ -461,13 +362,26 @@ def main():
         # Days lookback: Use max available
         days_lookback = (datetime.now() - min_date).days + 10
         
+        # Load Manual RF Values for accurate valuation
+        from core.data.loader import load_fixed_income_manual
+        df_rf_manual = load_fixed_income_manual()
+        
+        manual_rf_values = {}
+        if not df_rf_manual.empty:
+            # Create dictionary {Ticker: Valor Atual}
+            # Cleaning Data
+            df_rf_manual['Atual'] = pd.to_numeric(df_rf_manual['Atual'], errors='coerce').fillna(0)
+            df_rf_manual = df_rf_manual[df_rf_manual['Atual'] > 0]
+            manual_rf_values = dict(zip(df_rf_manual['Ticker'].str.strip(), df_rf_manual['Atual']))
+        
         multi_result = reconstruct_history_multicurrency(
             df_bruto=df_rv_final,
             df_proventos=df_proventos,
             days_lookback=days_lookback,
             df_prices_external=df_hist_prices,
             df_rf_raw=df_rf_final,
-            df_cambio=df_cambio
+            df_cambio=df_cambio,
+            manual_rf_values=manual_rf_values
         )
         
         # Consolidation Logic
@@ -684,126 +598,6 @@ def main():
     # Enhanced validation badge (val_result é um dicionário)
     if val_result.get('is_valid', False):
         st.success("✅ Dados validados — Série contínua sem gaps significativos", icon="✅")
-    else:
-        issues_count = len(val_result.get('issues', []))
-        st.warning(f"⚠️ {issues_count} alertas encontrados — Verifique diagnóstico abaixo", icon="⚠️")
-    
-    # --- DEBUG: Diagnóstico Completo ---
-    with st.expander("🔍 Diagnóstico de Dados e Retornos", expanded=False, icon="🔬"):
-        st.markdown("""
-        <div style="padding: 12px 0; color: #94a3b8; font-size: 0.85rem;">
-            Análise detalhada para identificar anomalias nos dados e cálculos.
-        </div>
-        """, unsafe_allow_html=True)
-        tab1, tab2, tab3 = st.tabs(["🚨 Retornos Extremos", "📊 Variações NAV", "📋 Dados Brutos"])
-
-        with tab1:
-            # Identificar retornos extremos (> 15% ou < -15% em um dia)
-            extreme_threshold = 0.15
-            daily_rets = res_period.daily_returns
-            extreme_days = daily_rets[abs(daily_rets) > extreme_threshold]
-
-            if not extreme_days.empty:
-                st.warning(f"⚠️ Encontradas {len(extreme_days)} datas com retornos extremos (>{extreme_threshold:.0%}):")
-
-                # Criar tabela de diagnóstico
-                diag_data = []
-                for dt, ret in extreme_days.items():
-                    nav_val = res_period.nav_series.get(dt, 0)
-                    # Buscar sub-período correspondente
-                    note = ""
-                    for sp in res_period.period_breakdown:
-                        if sp.date == str(dt.date()) if hasattr(dt, 'date') else str(dt):
-                            note = sp.notes
-                            break
-                    diag_data.append({
-                        'Data': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt),
-                        'Retorno': f"{ret:.2%}",
-                        'NAV': f"R$ {nav_val:,.0f}",
-                        'Nota': note
-                    })
-
-                st.dataframe(pd.DataFrame(diag_data), use_container_width=True)
-                st.info("💡 Retornos extremos geralmente indicam: gaps de preço, splits não ajustados, ou erros de dados.")
-            else:
-                st.success("✅ Nenhum retorno extremo detectado no período.")
-
-        with tab2:
-            # Variações bruscas no NAV
-            nav_pct = res_period.nav_series.pct_change()
-            large_nav_changes = nav_pct[abs(nav_pct) > 0.20]
-
-            if not large_nav_changes.empty:
-                st.warning(f"⚠️ Encontradas {len(large_nav_changes)} variações de NAV > 20%:")
-
-                nav_diag = []
-                for dt, pct in large_nav_changes.items():
-                    flow_day = df_slice['flow'].get(dt, 0) if 'flow' in df_slice.columns else 0
-                    nav_diag.append({
-                        'Data': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt),
-                        'Variação NAV': f"{pct:.2%}",
-                        'NAV': f"R$ {res_period.nav_series.get(dt, 0):,.0f}",
-                        'Fluxo': f"R$ {flow_day:,.0f}"
-                    })
-
-                st.dataframe(pd.DataFrame(nav_diag), use_container_width=True)
-            else:
-                st.success("✅ Nenhuma variação brusca de NAV detectada.")
-
-        with tab3:
-            # Dados brutos do período
-            st.write(f"**Período:** {df_slice.index.min().date()} a {df_slice.index.max().date()}")
-            st.write(f"**Total de dias:** {len(df_slice)}")
-            st.write(f"**NAV inicial:** R$ {df_slice['nav'].iloc[0]:,.2f}")
-            st.write(f"**NAV final:** R$ {df_slice['nav'].iloc[-1]:,.2f}")
-            st.write(f"**Total de fluxos:** R$ {df_slice['flow'].sum():,.2f}")
-
-            # Dias com fluxo
-            days_with_flow = df_slice[df_slice['flow'] != 0]
-            st.write(f"**Dias com fluxo:** {len(days_with_flow)}")
-
-            if st.checkbox("Mostrar dados brutos"):
-                st.dataframe(df_slice.tail(50), use_container_width=True)
-
-            # Análise detalhada de dias com fluxo
-            if st.checkbox("Analisar dias com fluxo (debug TWR)"):
-                st.subheader("Verificação da Fórmula TWR em Dias de Aporte")
-
-                df_debug = df_slice.copy()
-                df_debug['nav_start'] = df_debug['nav'].shift(1).fillna(0)
-                df_debug['economic_gain'] = df_debug['nav'] + df_debug.get('income', 0) - df_debug['nav_start'] - df_debug['flow']
-                df_debug['return_calc'] = np.where(
-                    df_debug['nav_start'] > 100,
-                    df_debug['economic_gain'] / df_debug['nav_start'],
-                    0
-                )
-
-                # Filtrar dias com fluxo
-                flow_days = df_debug[df_debug['flow'] != 0][['nav', 'nav_start', 'flow', 'economic_gain', 'return_calc']]
-
-                if not flow_days.empty:
-                    st.dataframe(flow_days.style.format({
-                        'nav': 'R$ {:,.0f}',
-                        'nav_start': 'R$ {:,.0f}',
-                        'flow': 'R$ {:,.0f}',
-                        'economic_gain': 'R$ {:,.0f}',
-                        'return_calc': '{:.2%}'
-                    }), use_container_width=True)
-
-                    # Verificar se há problema
-                    problematic = flow_days[abs(flow_days['return_calc']) > 0.05]
-                    if not problematic.empty:
-                        st.error(f"⚠️ {len(problematic)} dias com aporte têm retorno > 5%!")
-                        st.write("**Diagnóstico:** Se o aporte fosse neutro, o retorno deveria ser ~0%.")
-                        st.write("Possíveis causas:")
-                        st.write("1. NAV não aumentou proporcionalmente ao fluxo")
-                        st.write("2. Fluxo e NAV estão em dias diferentes")
-                        st.write("3. Preço de transação diferente do preço de mercado")
-                    else:
-                        st.success("✅ Aportes parecem neutros (retorno < 5% nos dias de fluxo)")
-                else:
-                    st.info("Nenhum dia com fluxo no período selecionado.")
-
     # 2. Drawdown + Volatilidade Section
     st.markdown("""
     <div class="section-header">
@@ -857,33 +651,6 @@ def main():
             height=250
         )
         st.plotly_chart(fig_dd, use_container_width=True, config={'displayModeBar': False})
-
-    # --- TABELA DE ATTRIBUTION v2.1 ---
-    st.markdown("""
-    <div class="section-header">
-        <div class="section-icon">📑</div>
-        <div>
-            <div class="section-title">Attribution Diário</div>
-            <div class="section-subtitle">Decomposição dos retornos por período</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if res_period.period_breakdown:
-        att_table = create_attribution_table(
-            df_slice,
-            res_period.period_breakdown,
-            max_rows=30
-        )
-        st.dataframe(
-            att_table,
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.info("📋 Sem dados de attribution disponíveis para o período selecionado.")
-
-    # --- DIAGNÓSTICO RF ---
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     with st.expander("💰 Diagnóstico de Renda Fixa", expanded=False, icon="📊"):

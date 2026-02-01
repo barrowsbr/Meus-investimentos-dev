@@ -10,7 +10,7 @@ TAB_PROVENTOS = 'meus_proventos'
 TAB_CAMBIO = 'cambio'
 TAB_COMPOSICAO = 'composicao'
 TAB_RENDA_FIXA = 'renda_fixa'
-TAB_PTAX = 'ptax' # Optional/Missing
+TAB_PTAX = 'p_tax' # Optional/Missing
 
 # Business Rules
 CURRENCY_FALLBACK = {'BRL': 1.0, 'USD': 5.50, 'EUR': 6.00}

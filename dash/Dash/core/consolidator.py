@@ -153,16 +153,29 @@ def consolidate_to_brl(
         )
     
     idx = pd.DatetimeIndex(sorted(all_dates))
-    
+
     # Inicializar séries consolidadas
     nav_total = pd.Series(0.0, index=idx)
     flow_total = pd.Series(0.0, index=idx)
     income_total = pd.Series(0.0, index=idx)
     force_zero_combined = pd.Series(False, index=idx)
     flow_timing_combined = pd.Series(0, index=idx)  # Default: EoD
-    
+
     breakdown = {}
-    
+
+    # =========================================================================
+    # FIX v12.0: Detectar "entrada" de cada bucket na consolidação
+    # Primeiro, determinar a primeira data válida global
+    # =========================================================================
+    first_valid_dates = {}
+    for currency, bucket in buckets.items():
+        fv = bucket.nav_series[bucket.nav_series > 0].first_valid_index()
+        if fv is not None:
+            first_valid_dates[currency] = fv
+
+    # A primeira data global é a mais antiga entre todos os buckets
+    global_first_valid = min(first_valid_dates.values()) if first_valid_dates else None
+
     for currency, bucket in buckets.items():
         # Reindex para datas comuns
         nav_cur = bucket.nav_series.reindex(idx).ffill().fillna(0)
@@ -175,7 +188,16 @@ def consolidate_to_brl(
         first_valid_bucket = bucket.nav_series[bucket.nav_series > 0].first_valid_index()
         if first_valid_bucket is not None:
             nav_cur.loc[nav_cur.index < first_valid_bucket] = 0
-        
+
+            # =========================================================================
+            # FIX v12.0: Se este bucket começa depois do primeiro bucket global,
+            # adicionar seu NAV inicial como fluxo de entrada
+            # =========================================================================
+            if global_first_valid is not None and first_valid_bucket > global_first_valid:
+                initial_nav = nav_cur.loc[first_valid_bucket]
+                if initial_nav > 0:
+                    flow_cur.loc[first_valid_bucket] = flow_cur.loc[first_valid_bucket] + initial_nav
+
         # Obter taxa de câmbio de MERCADO (para NAV)
         if currency == 'BRL':
             fx_market = pd.Series(1.0, index=idx)
@@ -276,31 +298,73 @@ def create_empty_bucket(currency: str, index: pd.DatetimeIndex = None) -> Curren
 def merge_buckets(bucket1: CurrencyBucket, bucket2: CurrencyBucket) -> CurrencyBucket:
     """
     Combina dois buckets da mesma moeda.
-    
+
     Útil para adicionar RF ao bucket BRL existente.
+
+    FIX v12.0: Detecta quando um bucket "entra" depois do outro já estar rodando
+    e adiciona o NAV inicial como fluxo para evitar retornos fictícios.
     """
     if bucket1.currency != bucket2.currency:
         raise ValueError(f"Moedas diferentes: {bucket1.currency} vs {bucket2.currency}")
-    
+
     # Unificar índices
     all_dates = set(bucket1.nav_series.index) | set(bucket2.nav_series.index)
     idx = pd.DatetimeIndex(sorted(all_dates))
-    
+
+    # Reindexar cada bucket
+    nav1 = bucket1.nav_series.reindex(idx).fillna(0)
+    nav2 = bucket2.nav_series.reindex(idx).fillna(0)
+    flow1 = bucket1.flow_series.reindex(idx).fillna(0)
+    flow2 = bucket2.flow_series.reindex(idx).fillna(0)
+
+    # =========================================================================
+    # FIX v12.0: Detectar "entrada" de cada bucket no merge
+    #
+    # PROBLEMA ANTERIOR:
+    # - Bucket1 começa dia X com NAV = 50.000
+    # - Bucket2 já existia desde dia Y (anterior) com NAV = 10.000
+    # - No dia X, NAV combinado salta de 10.000 para 60.000
+    # - Mas flow combinado = 0 + 0 = 0 (nenhum fluxo detectado)
+    # - TWR calculava retorno de (60.000 - 10.000) / 10.000 = 500%!
+    #
+    # SOLUÇÃO:
+    # - Detectar primeira data com NAV > 0 de cada bucket
+    # - Se a outra série já tinha NAV > 0 antes, adicionar NAV inicial como fluxo
+    # =========================================================================
+
+    # Primeira data válida de cada bucket
+    first_valid_1 = nav1[nav1 > 0].first_valid_index()
+    first_valid_2 = nav2[nav2 > 0].first_valid_index()
+
+    # Se bucket1 começa depois de bucket2 já ter valores, adicionar NAV inicial como fluxo
+    if first_valid_1 is not None and first_valid_2 is not None:
+        if first_valid_1 > first_valid_2:
+            # Bucket1 entra depois - seu NAV inicial é um "aporte"
+            initial_nav_1 = nav1.loc[first_valid_1]
+            if initial_nav_1 > 0:
+                flow1.loc[first_valid_1] = flow1.loc[first_valid_1] + initial_nav_1
+
+        if first_valid_2 > first_valid_1:
+            # Bucket2 entra depois - seu NAV inicial é um "aporte"
+            initial_nav_2 = nav2.loc[first_valid_2]
+            if initial_nav_2 > 0:
+                flow2.loc[first_valid_2] = flow2.loc[first_valid_2] + initial_nav_2
+
     # Somar séries
-    nav = bucket1.nav_series.reindex(idx).fillna(0) + bucket2.nav_series.reindex(idx).fillna(0)
-    flow = bucket1.flow_series.reindex(idx).fillna(0) + bucket2.flow_series.reindex(idx).fillna(0)
+    nav = nav1 + nav2
+    flow = flow1 + flow2
     income = bucket1.income_series.reindex(idx).fillna(0) + bucket2.income_series.reindex(idx).fillna(0)
-    
+
     # Combinar flags
     force_zero = (
-        bucket1.force_zero_series.reindex(idx).fillna(False).astype(bool) | 
+        bucket1.force_zero_series.reindex(idx).fillna(False).astype(bool) |
         bucket2.force_zero_series.reindex(idx).fillna(False).astype(bool)
     )
     flow_timing = np.maximum(
         bucket1.flow_timing_series.reindex(idx).fillna(0),
         bucket2.flow_timing_series.reindex(idx).fillna(0)
     )
-    
+
     return CurrencyBucket(
         currency=bucket1.currency,
         nav_series=nav,

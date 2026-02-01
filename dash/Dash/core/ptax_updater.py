@@ -89,7 +89,7 @@ def atualizar_ptax():
             df_save = df_new[['Data', 'Taxa']]
 
         # 3. Save to Sheets
-        success = DataProvider.save_data('ptax', df_save)
+        success = DataProvider.save_data('p_tax', df_save)
         
         if success:
             count = len(df_new)
