@@ -113,27 +113,36 @@ st.markdown("""
         border-right: 1px solid rgba(255,255,255,0.05);
     }
     
-    /* PAGE HEADER */
-    .page-header {
-        padding: 24px 0 32px 0;
-        margin-bottom: 8px;
+    /* HERO TITLE (BARROOTS) */
+    .hero-container {
+        text-align: center;
+        padding-top: 2vh;
+        padding-bottom: 2vh;
+        animation: fadeIn 1.2s ease-out;
     }
-
-    .page-title {
-        font-size: 2rem;
+    
+    .hero-title {
+        font-size: 3.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+        background: linear-gradient(to right, #ffffff, #a5b4fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 8px;
+        margin-bottom: 0px;
+        letter-spacing: -2px;
+        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
+    }
+    
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin-top: 5px;
     }
 
-    .page-subtitle {
-        font-size: 0.9rem;
-        color: #64748b;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+    /* Animation provided by Home.py styles usually, but ensuring here */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     h1, h2, h3 { color: #f1f5f9; }
@@ -164,11 +173,9 @@ st.markdown(get_card_css(), unsafe_allow_html=True)
 
 # --- PAGE HEADER ---
 st.markdown("""
-<div class="page-header">
-    <div class="page-title">💎 Patrimônio & Alocação</div>
-    <div class="page-subtitle">
-        Gestão estratégica de ativos e acompanhamento de carteira.
-    </div>
+<div class="hero-container">
+    <div class="hero-title">Patrimônio & Alocação</div>
+    <div class="hero-subtitle">Gestão Estratégica de Ativos e Acompanhamento de Carteira</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -443,9 +450,21 @@ if not df_bruto.empty:
                 
                 if not df_rf_g.empty:
                     df_rf_g['Ticker'] = df_rf_g['Ativo']
+                    
+                    # Garantir que temos a coluna Moeda
+                    if 'Moeda' not in df_rf_g.columns:
+                        df_rf_g['Moeda'] = 'BRL'
+                    
+                    # Converte valores em USD para BRL para o gráfico
+                    # Usa 'usd' (definido anteriormente no script, ~5.80)
+                    mask_usd = df_rf_g['Moeda'] == 'USD'
+                    
+                    # Cria coluna valor ajustado
                     df_rf_g['Valor Hoje (R$)'] = df_rf_g['Atual']
-                    df_rf_g['Rent. (%)'] = df_rf_g['Rent. %'] / 100  # Converte de percentual (34.5) para decimal (0.345)
-                    df_rf_g['Moeda'] = 'BRL'
+                    if mask_usd.any():
+                        df_rf_g.loc[mask_usd, 'Valor Hoje (R$)'] = df_rf_g.loc[mask_usd, 'Atual'] * usd
+                    
+                    df_rf_g['Rent. (%)'] = df_rf_g['Rent. %'] / 100
                     
                     mask_cx = df_rf_g['Ativo'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
                     df_rf_g.loc[mask_cx, 'Setor'] = 'Caixa/Liquidez'
@@ -1030,16 +1049,15 @@ with tab2:
                 .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1),
                 
                 column_config={
-                    "Rent. BRL (%)": st.column_config.ProgressColumn(
+                    "Rent. BRL (%)": st.column_config.NumberColumn(
                         "Rentabilidade",
-                        format="%.2%",
-                        min_value=-1.0,
-                        max_value=1.0
+                        format="%.2f %%"
                     ),
                     "Ticker": st.column_config.TextColumn("Ativo", width="small"),
                 },
                 use_container_width=True,
-                height=600
+                height=600,
+                hide_index=True
             )
 
             st.markdown("### 🧬 Rentabilidade Total por Ativo (Composição)")
@@ -2332,16 +2350,40 @@ with tab7:
     
     mask_caixa = df_rf_filtrado['Ticker'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
     
-    df_liquidez = df_rf_filtrado[mask_caixa]
-    df_alocacao = df_rf_filtrado[~mask_caixa]
+    df_liquidez = df_rf_filtrado[mask_caixa].copy()
+    df_alocacao = df_rf_filtrado[~mask_caixa].copy()
 
     df_custodia = df_alocacao[df_alocacao['Status'] == 'Ativo']
     df_realizado = df_alocacao[df_alocacao['Status'] == 'Encerrado']
 
-    saldo_caixa = df_liquidez[df_liquidez['Status'] == 'Ativo']['Atual'].sum()
-    
-    if saldo_caixa > 0:
-        st.info(f"💵 **Disponível em Caixa / Conta Corrente:** R$ {saldo_caixa:,.2f}")
+    # Processamento de Caixa Multi-moeda
+    if not df_liquidez.empty:
+        # Separa BRL e USD
+        df_liq_brl = df_liquidez[df_liquidez['Moeda'] != 'USD']
+        df_liq_usd = df_liquidez[df_liquidez['Moeda'] == 'USD']
+        
+        caixa_brl = df_liq_brl['Atual'].sum()
+        caixa_usd = df_liq_usd['Atual'].sum()
+        
+        # Converte USD para BRL para totalização
+        taxa_usd = mapa_precos.get('BRL=X', 5.50)
+        caixa_total_em_brl = caixa_brl + (caixa_usd * taxa_usd)
+        
+        if caixa_total_em_brl > 0:
+            st.info(f"💵 **Liquidez Total (Estimada):** R$ {caixa_total_em_brl:,.2f}")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                if caixa_brl > 0:
+                    st.success(f"🇧🇷 **Caixa BRL:** R$ {caixa_brl:,.2f}")
+                else:
+                    st.write("Caixa BRL: R$ 0,00")
+            with c2:
+                if caixa_usd > 0:
+                    st.warning(f"🇺🇸 **Caixa USD:** $ {caixa_usd:,.2f}  _(~R$ {caixa_usd * taxa_usd:,.2f})_")
+                else:
+                    st.write("Caixa USD: $ 0,00")
+            st.write("")
 
     if not df_custodia.empty:
         st.markdown("### 🟢 Custódia de Títulos (Posição Atual)")

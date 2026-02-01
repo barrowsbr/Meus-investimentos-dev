@@ -304,7 +304,14 @@ class FixedIncomeEngine:
     
     def _calculate_open_positions_rates(self):
         """
-        Calcula valores atuais para posições EM ABERTO usando SELIC.
+        Calcula valores atuais para posições EM ABERTO.
+        
+        Se houver Valor Manual (Atual) definido:
+          - Usa método numérico (Newton-Raphson) para encontrar a taxa diária exata
+            que faz com que: Soma(Aporte_i * (1+r)^dias_i) = Valor_Manual.
+            
+        Se não houver Valor Manual:
+          - Usa Selic acumulada (proxy ou real) para projetar valor.
         """
         # Agrupa eventos por ticker
         events_by_ticker: Dict[str, List[FixedIncomeEvent]] = {}
@@ -316,67 +323,109 @@ class FixedIncomeEngine:
         today = datetime.now()
         
         for ticker, events in events_by_ticker.items():
-            # Ignora se é posição fechada
+            # Ignora se é posição encerrada
             if self._is_position_closed(ticker):
                 continue
             
-            # Pega apenas compras
+            # Pega todas as compras (lotes)
             compras = [e for e in events if e.event_type == 'COMPRA']
             if not compras:
                 continue
             
-            # Calcula totais
-            total_valor_inicial = sum(c.original_value for c in compras)
-            entry_date = min(c.date for c in compras)
+            # Dados para cálculo
+            total_investido = sum(c.original_value for c in compras)
+            entry_date = min(c.date for c in compras) # Apenas referência
             
-            # Dias desde a compra
-            days = (today - entry_date).days
-            if days <= 0:
-                days = 1
-            
-            # Calcula valor atual
-            today = datetime.now()
-            business_days = int(days * 252 / 365)
-            
-            # --- LÓGICA HÍBRIDA: Manual vs Selic ---
-            # Se temos valor manual e é > 0, usamos para calcular taxa implícita
+            # Valor Manual (Alvo)
             valor_manual = self.manual_values.get(ticker, 0.0)
             
-            if valor_manual > 0:
-                valor_corrigido = valor_manual
+            # --- CENÁRIO 1: TEM VALOR MANUAL (CALCULAR TAXA IMPLÍCITA) ---
+            if valor_manual > 0 and total_investido > 0:
+                valor_final = valor_manual
                 
-                # Calcula taxa implícita (CAGR) para atingir este valor
-                # V_final = V_inicial * (1 + rate)^business_days
-                # rate = (V_final / V_inicial)^(1/business_days) - 1
-                if total_valor_inicial > 0 and business_days > 0:
-                    try:
-                        implied_daily = (valor_corrigido / total_valor_inicial) ** (1 / business_days) - 1
-                        used_rate = implied_daily
-                    except:
-                        used_rate = self._get_selic_daily_rate(today)
-                else:
-                    used_rate = 0.0
+                # Prepara lista de (Investido, DiasUteis) para o solver
+                lotes_solver = []
+                for c in compras:
+                    days_held = (today - c.date).days
+                    if days_held < 0: days_held = 0
+                    bd = int(days_held * 252 / 365)
+                    lotes_solver.append({'val': c.original_value, 'bd': bd})
+                
+                # Solver Newton-Raphson para encontrar r (taxa diária)
+                # f(r) = sum(val * (1+r)^bd) - valor_final = 0
+                
+                # Chute inicial: Taxa linear simples distribuída
+                # r_guess = (valor_final / total_investido - 1) / (média_dias) ?
+                # Vamos usar Selic proxy como chute razoável (0.05% ao dia)
+                r = 0.0005 
+                
+                for _ in range(10): # 10 iterações são suficientes para convergir
+                    f_val = 0.0
+                    f_deriv = 0.0
+                    
+                    for item in lotes_solver:
+                        val = item['val']
+                        bd = item['bd']
+                        
+                        term = (1 + r) ** bd
+                        f_val += val * term
+                        
+                        if bd > 0:
+                            # Derivada de val*(1+r)^bd é val*bd*(1+r)^(bd-1)
+                            f_deriv += val * bd * ((1 + r) ** (bd - 1))
+                            
+                    f_val -= valor_final
+                    
+                    if abs(f_deriv) < 1e-9: break # Evitar div por zero
+                    
+                    diff = f_val / f_deriv
+                    r = r - diff
+                    
+                    if abs(diff) < 1e-7: break # Convergiu
+                
+                used_rate = r
+                
+                # Calcula métricas finais baseadas na taxa encontrada
+                annual_rate = ((1 + used_rate) ** 252) - 1
+                total_return = (valor_final / total_investido) - 1
+                
+                self.open_positions_data[ticker] = {
+                    'valor_inicial': total_investido,
+                    'valor_atual': valor_final,
+                    'entry_date': entry_date,
+                    'total_return': total_return,
+                    'annual_rate': annual_rate,
+                    'daily_rate': used_rate
+                }
+
+            # --- CENÁRIO 2: SEM VALOR MANUAL (USAR PROXY/SELIC) ---
             else:
-                # Fallback: Selic
                 selic_rate = self._get_selic_daily_rate(today)
-                valor_corrigido = total_valor_inicial * ((1 + selic_rate) ** business_days)
-                used_rate = selic_rate
-            
-            # Retorno total
-            total_return = (valor_corrigido / total_valor_inicial) - 1 if total_valor_inicial > 0 else 0
-            
-            # Taxa anual efetiva
-            years = days / 365.0
-            annual_rate = (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
-            
-            self.open_positions_data[ticker] = {
-                'valor_inicial': total_valor_inicial,
-                'valor_atual': valor_corrigido,
-                'entry_date': entry_date,
-                'total_return': total_return,
-                'annual_rate': annual_rate,
-                'daily_rate': used_rate  # Taxa para projeção da curva
-            }
+                valor_acumulado = 0.0
+                
+                for c in compras:
+                    days_held = (today - c.date).days
+                    if days_held < 0: days_held = 0
+                    bd = int(days_held * 252 / 365)
+                    
+                    val_lote = c.original_value * ((1 + selic_rate) ** bd)
+                    valor_acumulado += val_lote
+                
+                total_return = (valor_acumulado / total_investido) - 1 if total_investido > 0 else 0
+                
+                # Taxa anualizada média (aproximada para exibição)
+                days_avg = (today - entry_date).days
+                years = days_avg / 365.0
+                annual_rate_avg = (1 + total_return) ** (1/years) - 1 if years > 0 else 0
+                
+                self.open_positions_data[ticker] = {
+                    'valor_inicial': total_investido,
+                    'valor_atual': valor_acumulado,
+                    'entry_date': entry_date,
+                    'total_return': total_return,
+                    'annual_rate': annual_rate_avg,
+                    'daily_rate': selic_rate
+                }
     
     def _get_ticker_daily_rate(self, ticker: str, date: datetime) -> float:
         """

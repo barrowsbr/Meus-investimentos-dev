@@ -132,7 +132,11 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
     # Ensure correct sorting
     df_sorted = df_rf_raw.sort_values(date_col)
     
-    for ativo, dados in df_sorted.groupby('Ticker'):
+    # GROUP BY TICKER AND MOEDA (FIX MULTI-CURRENCY)
+    # Fill NA Moeda before grouping
+    df_sorted['Moeda'] = df_sorted['Moeda'].fillna('BRL')
+    
+    for (ativo, moeda_grupo), dados in df_sorted.groupby(['Ticker', 'Moeda']):
         # Identifica tipos de operação
         # Na nova estrutura: Compra, Venda, Imposto
         tipos_validos = dados['Tipo'].str.lower().str.strip()
@@ -197,8 +201,13 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
                     dias_corridos = (datetime.now() - data_compra).days
                     dias_uteis = int(dias_corridos * BUSINESS_DAYS_YEAR / 365)
                     
-                    # Capitaliza pela SELIC
-                    taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
+                    # Capitaliza pela SELIC (apenas se BRL, se for USD deveria usar rate USD... mas aqui é simples)
+                    # TODO: Parametrizar taxa por moeda se necessário. Por enquanto BRL = Selic, USD = 0?
+                    if moeda_grupo == 'USD':
+                         taxa_diaria = 0 # USD sem yield por enquanto nesta view simples
+                    else:
+                         taxa_diaria = (1 + SELIC_ANNUAL) ** (1 / BUSINESS_DAYS_YEAR) - 1
+                         
                     valor_corrigido = valor_compra * ((1 + taxa_diaria) ** dias_uteis)
                     
                     atl += valor_corrigido
@@ -208,10 +217,8 @@ def summarize_fixed_income(df_rf_raw: pd.DataFrame) -> pd.DataFrame:
         
         rent_pct = (luc / inv) * 100 if inv > 0 else 0.0
         
-        # Moeda (primeira encontrada)
-        moeda = 'BRL'
-        if 'Moeda' in dados.columns and not dados['Moeda'].empty:
-            moeda = dados['Moeda'].iloc[0]
+        # Moeda (Já temos no loop)
+        moeda = moeda_grupo
         
         lista_rf_proc.append({
             'Ticker': ativo, 
@@ -243,23 +250,22 @@ def summarize_fixed_income_hybrid(df_saldos: pd.DataFrame, df_transacoes: pd.Dat
     
     if not df_transacoes.empty:
         # Standardize cols
-        cols_map = {'ticker': 'Ticker', 'valor': 'Valor', 'tipo': 'Tipo'}
+        cols_map = {'ticker': 'Ticker', 'valor': 'Valor', 'tipo': 'Tipo', 'moeda': 'Moeda'}
         df_t = df_transacoes.rename(columns={k:v for k,v in cols_map.items() if k in df_transacoes.columns}, inplace=False)
+        
+        if 'Moeda' not in df_t.columns: df_t['Moeda'] = 'BRL'
+        df_t['Moeda'] = df_t['Moeda'].fillna('BRL')
             
-        for ticker, grupo in df_t.groupby('Ticker'):
+        for (ticker, moeda), grupo in df_t.groupby(['Ticker', 'Moeda']):
             t_str = str(ticker).strip().upper()
+            m_str = str(moeda).strip().upper()
             
             tipos = grupo['Tipo'].astype(str).str.lower()
             compras = grupo[tipos.str.contains('compra|aporte|entrada')]
-            # vendas = grupo[tipos.str.contains('venda|resgate|saida')]
              
-            # Hybrid Logic: Investido = Sum(Purchases)
-            # We assume current balance reflects any partial redemptions (value decreases),
-            # but Cost Basis usually remains until fully closed? 
-            # Simplified: Total Injected Capital.
             total_invest = compras['Valor'].sum()
             
-            lista_investido.append({'Ticker': t_str, 'Investido': total_invest})
+            lista_investido.append({'Ticker': t_str, 'Moeda': m_str, 'Investido': total_invest})
             
     df_inv = pd.DataFrame(lista_investido)
     
@@ -271,11 +277,12 @@ def summarize_fixed_income_hybrid(df_saldos: pd.DataFrame, df_transacoes: pd.Dat
         df_p = df_proventos.rename(columns={k:v for k,v in cols_map_p.items() if k in df_proventos.columns}, inplace=False)
         
         # Filter for Fixed Income Interest
-        # Keywords: 'JUROS', 'RENDIMENTO', 'CUPOM'
         if 'Tipo' in df_p.columns:
             mask_juros = df_p['Tipo'].astype(str).str.upper().str.contains('JUROS|RENDIMENTO|CUPOM', na=False)
             df_p_filt = df_p[mask_juros]
             
+            # Agrupa apenas por Ticker (proventos não costumam ter moeda explícita na base simples, assumimos match pelo Ticker)
+            # SE tiver moeda, ideal seria usar.
             for ticker, grupo in df_p_filt.groupby('Ticker'):
                  t_str = str(ticker).strip().upper()
                  total_juros = grupo['Valor'].sum()
@@ -285,41 +292,32 @@ def summarize_fixed_income_hybrid(df_saldos: pd.DataFrame, df_transacoes: pd.Dat
     
     # 3. Processar Saldos (Fonte da Verdade para Valor Atual)
     if df_saldos.empty:
-         # Se não tem saldo manual, retornamos estrutura vazia mas mantendo compatibilidade
-         # Pode ser que o usuário queira ver ativos encerrados (Investido > 0, Proventos > 0, Atual = 0)?
-         # Por enquanto, mantemos comportamento anterior: só mostra se tiver saldo (Ativo).
-         # Mas se tiver Investido e não tiver saldo, pode ser que esqueceu de lançar?
          pass
-
-    # Se df_saldos vazio, criamos um dummy para mergear com investido?
-    # Melhor não, se não tem saldo manual, não sabemos se está ativo.
     
-    # Agrupa saldos
+    # Agrupa saldos por Ticker E Moeda
     if not df_saldos.empty:
-        df_saldos_agg = df_saldos.groupby('Ticker', as_index=False).agg({
+        if 'Moeda' not in df_saldos.columns: df_saldos['Moeda'] = 'BRL'
+        
+        df_saldos_agg = df_saldos.groupby(['Ticker', 'Moeda'], as_index=False).agg({
             'Atual': 'sum',
-            'Data': 'max',
-            'Moeda': 'first'
+            'Data': 'max'
         })
         df_saldos_agg['Ticker'] = df_saldos_agg['Ticker'].str.strip().str.upper()
+        df_saldos_agg['Moeda'] = df_saldos_agg['Moeda'].str.strip().str.upper()
     else:
-        df_saldos_agg = pd.DataFrame(columns=['Ticker', 'Atual', 'Data', 'Moeda'])
+        df_saldos_agg = pd.DataFrame(columns=['Ticker', 'Moeda', 'Atual', 'Data'])
 
-    # 4. Merge All (Reference is Ticker from Saldos OR Invested?)
-    # User focused on "fixa_aberta" (Open). So we start from Saldos.
-    # What if I have an asset that matured? It won't be in 'fixa_aberta'. It will be in History.
-    # But user asked for "Rentabilidade". Matured assets are closed.
-    # We focus on ACTIVE assets (present in fixa_aberta).
-    
+    # 4. Merge All
+    # Base is Saldos (Active)
     df_final = df_saldos_agg.copy()
     
-    # Merge Investido
+    # Merge Investido on Ticker AND Moeda
     if not df_inv.empty:
-        df_final = pd.merge(df_final, df_inv, on='Ticker', how='left')
+        df_final = pd.merge(df_final, df_inv, on=['Ticker', 'Moeda'], how='left')
     else:
         df_final['Investido'] = 0.0
         
-    # Merge Proventos
+    # Merge Proventos (on Ticker only, usually BRL)
     if not df_provs_agg.empty:
         df_final = pd.merge(df_final, df_provs_agg, on='Ticker', how='left')
     else:

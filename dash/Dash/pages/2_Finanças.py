@@ -114,6 +114,37 @@ st.markdown("""
         color: #f1f5f9;
         font-weight: 700;
     }
+
+    /* HERO TITLE (BARROOTS) */
+    .hero-container {
+        text-align: center;
+        padding-top: 2vh;
+        padding-bottom: 2vh;
+        animation: fadeIn 1.2s ease-out;
+    }
+    
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(to right, #ffffff, #a5b4fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0px;
+        letter-spacing: -2px;
+        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
+    }
+    
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin-top: 5px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
     
     hr {
         border-color: rgba(255,255,255,0.1);
@@ -183,9 +214,14 @@ else:
     saldo_real = 0
 
 # --- UI HEADER ---
-col_head1, col_head2 = st.columns([3, 1])
+col_head1, col_head2 = st.columns([8, 1])
 with col_head1:
-    st.title("💳 Painel de Controle")
+    st.markdown("""
+    <div class="hero-container" style="text-align: left; padding: 0;">
+        <div class="hero-title" style="font-size: 3rem;">Painel de Controle</div>
+        <div class="hero-subtitle">Gestão Financeira & Cartões</div>
+    </div>
+    """, unsafe_allow_html=True)
 with col_head2:
     st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
     if st.button("🏠 Voltar para Home", use_container_width=True):

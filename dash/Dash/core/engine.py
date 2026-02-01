@@ -890,7 +890,49 @@ def reconstruct_history_multicurrency(
         try:
             from core.fixed_income_engine import FixedIncomeEngine
 
-            rf_engine = FixedIncomeEngine(df_rf_raw)
+            # --- FIX MULTI-CURRENCY RF ---
+            # Pre-process RF data to convert USD assets to BRL
+            # This allows the engine to calculate "Total Return in BRL" (Asset + FX)
+            
+            df_rf_proc = df_rf_raw.copy()
+            manual_rf_proc = manual_rf_values.copy() if manual_rf_values else {}
+            
+            # Ensure Moeda column
+            if 'Moeda' not in df_rf_proc.columns:
+                df_rf_proc['Moeda'] = 'BRL'
+            
+            # Map USD Tickers
+            usd_tickers = df_rf_proc[df_rf_proc['Moeda'] == 'USD']['Ticker'].unique().tolist()
+            
+            if usd_tickers:
+                # 1. Convert Historical Transactions
+                date_col_rf = 'Compra' if 'Compra' in df_rf_proc.columns else 'Data'
+                
+                def convert_row(row):
+                    if row['Moeda'] == 'USD':
+                        try:
+                            d = pd.to_datetime(row[date_col_rf], dayfirst=True)
+                            rate = s_usd.asof(d)
+                            if pd.isna(rate): rate = 5.50
+                            return float(row['Valor']) * rate
+                        except:
+                            return float(row['Valor'])
+                    return float(row['Valor'])
+                
+                df_rf_proc['Valor'] = df_rf_proc.apply(convert_row, axis=1)
+                
+                # 2. Convert Manual Current Values (using latest rate)
+                latest_usd = s_usd.iloc[-1] if not s_usd.empty else 5.50
+                
+                for t in usd_tickers:
+                    if t in manual_rf_proc:
+                        manual_rf_proc[t] = manual_rf_proc[t] * latest_usd
+            
+            # Initialize Engine with CONVERTED data
+            rf_engine = FixedIncomeEngine(
+                df_rf_proc,
+                manual_values=manual_rf_proc
+            )
             rf_result = rf_engine.build_daily_curve()
 
             if not rf_result.daily_curve.empty:
@@ -902,8 +944,10 @@ def reconstruct_history_multicurrency(
                 rf_curve_sliced = rf_curve[rf_curve.index >= data_corte]
 
                 # Create RF bucket
-                rf_nav = rf_curve_sliced.reindex(idx_dates[idx_dates >= data_corte]).ffill().fillna(0)
-
+                # Reindex to full range to match other buckets
+                full_range = idx_dates[idx_dates >= data_corte]
+                rf_nav = rf_curve_sliced.reindex(full_range).ffill().fillna(0)
+                
                 # =====================================================================
                 # FIX v11.0 + v12.0: Calcular fluxos RF baseado na VARIAÇÃO DO NAV
                 #

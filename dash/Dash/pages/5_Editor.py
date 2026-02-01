@@ -18,6 +18,7 @@ st.set_page_config(
 )
 
 # --- CSS PERSONALIZADO (GLOBAL THEME) ---
+# --- CSS PERSONALIZADO (GLOBAL THEME) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -41,6 +42,70 @@ st.markdown("""
         100% { background-position: 0% 50%; }
     }
 
+    /* Hero Styles (Barroots Branding) */
+    .hero-container {
+        text-align: center;
+        padding-top: 2vh;
+        padding-bottom: 4vh;
+        animation: fadeIn 1.2s ease-out;
+    }
+    
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(to right, #ffffff, #a5b4fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0px;
+        letter-spacing: -2px;
+        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
+    }
+    
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin-top: 5px;
+        padding: 0 10px;
+    }
+
+    /* GLASS EXPANDER STYLE */
+    [data-testid="stExpander"] {
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    /* Hover Effect - Neon & Lift */
+    [data-testid="stExpander"]:hover {
+        transform: translateY(-5px);
+        border-color: rgba(99, 102, 241, 0.5); /* Neon Purple/Blue */
+        box-shadow: 0 15px 30px -10px rgba(99, 102, 241, 0.3);
+    }
+    
+    /* Summary (Header) Styling */
+    [data-testid="stExpander"] summary {
+        color: #f1f5f9 !important;
+        font-weight: 600;
+        font-size: 1.1rem;
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+    
+    [data-testid="stExpander"] summary:hover {
+        color: #a5b4fc !important;
+    }
+    
+    /* Remove default border of expands */
+    .streamlit-expanderContent {
+        border: none !important;
+    }
+
     /* Table Styling */
     .stDataFrame {
          border: 1px solid rgba(255, 255, 255, 0.1);
@@ -55,13 +120,23 @@ st.markdown("""
     }
     
     h1, h2, h3 { color: #f1f5f9; }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- FUNÇÃO DO EDITOR DE DADOS ---
 def exibir_editor_dados():
-    st.header("📝 Editor de Registros & Lançamentos")
-    st.caption("Adicione, edite ou corrija transações. Os dados são salvos diretamente no Google Sheets.")
+    # Styled Hero Header
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-title">Editor de Dados</div>
+        <div class="hero-subtitle">Registros & Lançamentos</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     tabs_config = get_editor_config()
 
@@ -104,6 +179,8 @@ def exibir_editor_dados():
     if 'editor_df' not in st.session_state or st.session_state.editor_df is None:
         try:
             from core.data.provider import DataProvider
+            from core.utils import format_decimal_br
+            
             df = DataProvider.fetch_data(selected_key)
             
             # --- PRE-PROCESSING & CLEANING ---
@@ -113,9 +190,8 @@ def exibir_editor_dados():
                 if col in df.columns:
                     df[col] = df[col].apply(convert_smart_date)
             
-            # 2. Special Logic for "Proventos" (Fill Derived Columns)
+            # 2. Special Logic for "Proventos"
             if selected_key == "meus_proventos":
-                # Ensure 'data' is the source of truth
                 if 'data' in df.columns:
                     meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
                              7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
@@ -136,35 +212,61 @@ def exibir_editor_dados():
 
     df_current = st.session_state.editor_df
     
+    # --- LOCALIZE NUMBERS FOR DISPLAY/EDIT (BRL FORMAT) ---
+    from core.utils import format_decimal_br, parse_decimal_br
+    
+    # Identify numeric columns from config
+    fields_cfg = cfg.get("form_fields", {})
+    numeric_cols = [k for k, v in fields_cfg.items() if v in ["currency", "number"]]
+    
+    # Create a COPY for display (Strings)
+    df_display = df_current.copy() if df_current is not None else pd.DataFrame()
+    
+    if not df_display.empty:
+        for col in numeric_cols:
+            if col in df_display.columns:
+                # Decide decimals based on config if possible, else default 2
+                # Quantidade usually 4/8, defaults to 2 in utils, let's try to be smart
+                decimals = 2
+                if 'Quantidade' in col or 'Qtd' in col or 'VET' in col: decimals = 4
+                
+                # Apply formatting: Float -> String "1.000,00"
+                df_display[col] = df_display[col].apply(lambda x: format_decimal_br(x, decimals))
+
+    
     df_hidden = pd.DataFrame()
     df_visible = pd.DataFrame()
     
-    if df_current is not None and not df_current.empty:
-        if len(df_current) > 10:
-            df_hidden = df_current.iloc[:-10]
-            df_visible = df_current.iloc[-10:]
+    if df_display is not None and not df_display.empty:
+        if len(df_display) > 10:
+            df_hidden_disp = df_display.iloc[:-10]
+            df_visible = df_display.iloc[-10:]
+            
+            # Keep track of original hidden part (though we re-parse everything on save usually)
+            # Actually, to save correctly, we need to apply changes to the FULL dataset or valid subset.
+            # Here we are editing specs. If we edit strings, we must parse them back.
         else:
-            df_visible = df_current
+            df_visible = df_display
+            df_hidden_disp = pd.DataFrame()
     
     if df_visible is not None:
         
-        # --- RESTORED: ADICIONAR NOVO LANÇAMENTO (FORMULÁRIO) ---
+        # --- ADICIONAR NOVO LANÇAMENTO (FORMULÁRIO) ---
         with st.expander("⚡ Adicionar Novo Lançamento", expanded=False):
             with st.form(key=f"form_add_{selected_key}", clear_on_submit=False):
                 form_cols = st.columns(4)
                 input_data = {}
                 
                 history_tickers = []
-                if not df_current.empty:
+                if not df_display.empty:
                     possible_cols = ["Ticker", "Símbolo", "ticker", "Símbolo (Symbol)"]
                     for c in possible_cols:
-                        if c in df_current.columns:
-                            history_tickers = df_current[c].dropna().unique().tolist()
+                        if c in df_display.columns:
+                            history_tickers = df_display[c].dropna().unique().tolist()
                             break
                 
-                fields = cfg.get("form_fields", {})
                 idx = 0
-                for field_name, field_type in fields.items():
+                for field_name, field_type in fields_cfg.items():
                     c = form_cols[idx % 4]
                     idx += 1
                     
@@ -188,7 +290,11 @@ def exibir_editor_dados():
                         input_data[field_name] = c.date_input(field_name, value="today", format="DD/MM/YYYY", key=key_widget)
                     
                     elif field_type == "currency" or field_type == "number":
-                        input_data[field_name] = c.number_input(field_name, min_value=0.0, step=0.01, format="%.2f", key=key_widget)
+                        # CHANGED: Text Input for BRL Format compatibility
+                        val_str = c.text_input(field_name, value="0,00", key=key_widget, help="Use vírgula como separador decimal")
+                        # Parse immediately to validate or verify? No, keep as is, parse later.
+                        input_data[field_name] = val_str
+                        # We store the raw input (string) and parse it when adding to DF.
 
                 submit_btn = st.form_submit_button("➕ Adicionar Linha", type="primary")
             
@@ -196,8 +302,21 @@ def exibir_editor_dados():
                 if any(str(v).strip() == "" for v in input_data.values()):
                     st.warning("⚠️ Preencha todos os campos obrigatórios.")
                 else:
-                    new_row = pd.DataFrame([input_data])
+                    # Clean/Parse Input Data before creating row
+                    parsed_data = input_data.copy()
                     
+                    # Parse Numerics
+                    for k, v in parsed_data.items():
+                        if k in numeric_cols:
+                            # Convert BRL String -> Float -> Then Format BACK to BRL String for consistency with Display DF
+                            # Wait, the df_display expects STRINGS. So we format it.
+                            f_val = parse_decimal_br(v)
+                            decimals = 4 if ('Quantidade' in k or 'Qtd' in k) else 2
+                            parsed_data[k] = format_decimal_br(f_val, decimals)
+                    
+                    new_row = pd.DataFrame([parsed_data])
+                    
+                    # Special logic handling
                     if selected_key == "meus_proventos":
                         d_obj = pd.to_datetime(input_data['data'])
                         meses_dict = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
@@ -206,7 +325,6 @@ def exibir_editor_dados():
                             new_row['mes'] = f"{meses_dict[d_obj.month]}/{str(d_obj.year)[-2:]}"
                             new_row['ano'] = d_obj.year
                         except: pass 
-                        
                         if 'decisao' in df_current.columns: 
                             new_row['decisao'] = input_data.get('lancamento', '')
 
@@ -214,16 +332,60 @@ def exibir_editor_dados():
                         if d_col in new_row.columns: 
                             new_row[d_col] = pd.to_datetime(new_row[d_col])
 
-                    st.session_state.editor_df = pd.concat([st.session_state.editor_df, new_row], ignore_index=True)
-                    st.success("Linha adicionada! Não esqueça de clicar em 'Gravar Alterações' para salvar.")
+                    # Append to current session state (source of truth)
+                    # BUT wait, session_state.editor_df holds FLOATS.
+                    # We need to append the FLOAT version to editor_df? 
+                    # OR we append the FORMATTED version to df_display logic?
+                    # The architecture here re-loads editor_df from session.
+                    # Simple fix: Append to session_state with PARSED floats, then rerun refetches and formats.
+                    
+                    # 1. Prepare Row with FLOATS for internal storage
+                    row_floats = new_row.copy()
+                    for col in numeric_cols:
+                        if col in row_floats.columns:
+                            # It is currently formatted string. Parse back to float.
+                            row_floats[col] = row_floats[col].apply(parse_decimal_br)
+                            
+                    st.session_state.editor_df = pd.concat([st.session_state.editor_df, row_floats], ignore_index=True)
+                    st.success("Linha adicionada!")
                     st.rerun()
-
+        
         st.markdown("---")
         
+        # Override Column Configs for Numerics to be TextColumn (Editable as String)
         final_col_config = cfg.get("column_types", {}).copy()
+        
+        # Helper to safely get attributes from either dict or object
+        def get_conf_attr(obj, attr, default=None):
+            if isinstance(obj, dict):
+                return obj.get(attr, default)
+            return getattr(obj, attr, default)
+
+        for nc in numeric_cols:
+            if nc in final_col_config:
+                orig_conf = final_col_config[nc]
+                
+                current_label = get_conf_attr(orig_conf, 'label')
+                current_width = get_conf_attr(orig_conf, 'width')
+                current_help = get_conf_attr(orig_conf, 'help', '')
+                
+                # Replace with TextColumn
+                final_col_config[nc] = st.column_config.TextColumn(
+                    label=current_label,
+                    width=current_width,
+                    help=f"{current_help} (Formato: 1.000,00)",
+                    validate="^[0-9.,]+$" # Basic validation
+                )
         
         st.info("ℹ️ Exibindo apenas as últimas 10 entradas para melhor performance.")
         
+        # Ensure Date Columns are Datetime Objects before passing to Editor
+        # This prevents "string incompatible with DateColumn" errors
+        for d_col in cfg.get("date_cols", []):
+            if d_col in df_visible.columns:
+                df_visible[d_col] = pd.to_datetime(df_visible[d_col], errors='coerce')
+
+        # Grid Edits Strings
         df_edited = st.data_editor(
             df_visible,
             column_config=final_col_config,
@@ -239,12 +401,20 @@ def exibir_editor_dados():
         with col_save:
             if st.button("Gravar Alterações", type="primary", use_container_width=True):
                 try:
-                    if not df_hidden.empty:
-                        df_to_save = pd.concat([df_hidden, df_edited], ignore_index=True)
+                    # Merge Hidden + Edited
+                    if not df_hidden_disp.empty:
+                        df_full_str = pd.concat([df_hidden_disp, df_edited], ignore_index=True)
                     else:
-                        df_to_save = df_edited.copy()
+                        df_full_str = df_edited.copy()
+                    
+                    # CONVERT BACK TO FLOATS
+                    df_to_save = df_full_str.copy()
+                    for col in numeric_cols:
+                        if col in df_to_save.columns:
+                            df_to_save[col] = df_to_save[col].apply(parse_decimal_br)
                     
                     if selected_key == 'meus_proventos':
+                        # ... (existing logic) ...
                         if 'data' in df_to_save.columns:
                             dates = pd.to_datetime(df_to_save['data'], errors='coerce')
                             meses = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
@@ -257,6 +427,7 @@ def exibir_editor_dados():
                             df_to_save['mes'] = dates.apply(get_mes_ref)
                             df_to_save['ano'] = dates.dt.year.fillna(0).astype(int)
 
+                    # Date string format for Saving (Sheet needs strings)
                     for d_col in cfg.get("date_cols", []):
                         if d_col in df_to_save.columns:
                             s_dates = pd.to_datetime(df_to_save[d_col], errors='coerce')
@@ -266,6 +437,7 @@ def exibir_editor_dados():
                     if DataProvider.save_data(selected_key, df_to_save):
                         st.toast("Dados salvos com sucesso!", icon="✅")
                         st.balloons()
+                        # Clear session to force reload with correct types
                         st.session_state.pop('editor_df', None)
                         st.rerun()
                     else:

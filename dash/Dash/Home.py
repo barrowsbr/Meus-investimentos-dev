@@ -209,28 +209,34 @@ PLAYLIST = [
     {
         "title": "Gymnopédie No. 1",
         "artist": "Erik Satie",
-        "url": "https://archive.org/download/Gymnopedie_201309/Gymnop%C3%A9die%20No.%201.mp3"
+        "url": "https://archive.org/download/Gymnopedie_201309/Gymnop%C3%A9die%20No.%201.mp3",
+        "type": "audio/mp3"
     },
     {
         "title": "Clair de Lune",
         "artist": "Claude Debussy",
-        "url": "https://archive.org/download/DebussyClairDeLune_584/01_Clair_de_Lune.mp3"
+        "url": "https://upload.wikimedia.org/wikipedia/commons/2/23/Debussy_-_Clair_de_lune.ogg",
+        "type": "audio/ogg"
     },
     {
         "title": "Moonlight Sonata",
         "artist": "Ludwig van Beethoven",
-        "url": "https://archive.org/download/MoonlightSonata_754/Beethoven-MoonlightSonata.mp3"
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Beethoven_Moonlight_1st_movement.ogg",
+        "type": "audio/ogg"
     },
     {
         "title": "Nocturne Op. 9 No. 2",
         "artist": "Frédéric Chopin",
-        "url": "https://archive.org/download/ChopinNocturneOp.9No.2_337/Chopin-NocturneOp.9No.2.mp3"
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Chopin_-_Nocturne_Op._9%2C_No._2.ogg",
+        "type": "audio/ogg"
     }
 ]
 
-# Select random track (persisted via session state to avoid reload changes if desired, but user asked for random start)
-# To keep it fresh on every reload, we just pick random.
-selected_track = random.choice(PLAYLIST)
+# Initialize session state for music to keep track consistent across re-runs
+if 'bg_music_track' not in st.session_state:
+    st.session_state['bg_music_track'] = random.choice(PLAYLIST)
+
+selected_track = st.session_state['bg_music_track']
 
 st.markdown(f"""
 <style>
@@ -256,12 +262,17 @@ st.markdown(f"""
         animation: neon-pulse 3s infinite alternate;
         max-width: fit-content;
         cursor: pointer;
+        user-select: none;
     }}
 
     .neon-player:hover {{
         box-shadow: 0 0 25px rgba(139, 92, 246, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
         border-color: rgba(139, 92, 246, 0.6);
         transform: scale(1.02);
+    }}
+
+    .neon-player:active {{
+        transform: scale(0.98);
     }}
 
     @keyframes neon-pulse {{
@@ -276,6 +287,12 @@ st.markdown(f"""
     }}
     
     @keyframes spin {{ 100% {{ transform: rotate(360deg); }} }}
+    
+    /* Pause state class for icon (managed by JS) */
+    .paused .player-icon {{
+        animation-play-state: paused;
+        opacity: 0.5;
+    }}
 
     .player-info {{
         display: flex;
@@ -312,6 +329,13 @@ st.markdown(f"""
         box-shadow: 0 0 5px #a78bfa;
     }}
     
+    /* Pause state for bars */
+    .paused .bar {{
+        animation-play-state: paused;
+        height: 5px !important;
+        opacity: 0.3;
+    }}
+    
     .bar:nth-child(1) {{ height: 8px; animation-duration: 0.8s; }}
     .bar:nth-child(2) {{ height: 12px; animation-duration: 1.1s; }}
     .bar:nth-child(3) {{ height: 15px; animation-duration: 0.9s; }}
@@ -324,7 +348,7 @@ st.markdown(f"""
 </style>
 
 <div class="neon-player-container">
-    <div class="neon-player" onclick="var audio = document.getElementById('bg-music'); if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}">
+    <div id="player-card" class="neon-player" onclick="toggleAudio()">
         <div class="player-icon">📀</div>
         <div class="player-info">
             <div class="player-title">{selected_track['title']}</div>
@@ -339,24 +363,41 @@ st.markdown(f"""
     </div>
 </div>
 
-<audio id="bg-music" autoplay>
-    <source src="{selected_track['url']}" type="audio/mp3">
+<audio id="bg-music" autoplay loop>
+    <source src="{selected_track['url']}" type="{selected_track['type']}">
     Your browser does not support the audio element.
 </audio>
 
 <script>
     var audio = document.getElementById("bg-music");
+    var playerCard = document.getElementById("player-card");
+    
+    // Set volume
     audio.volume = 0.4; 
+    
+    // Try to play
     var promise = audio.play();
     if (promise !== undefined) {{
-        promise.then(_ => {{}}).catch(error => {{ console.log("Autoplay prevented"); }});
+        promise.then(_ => {{
+            playerCard.classList.remove("paused");
+        }}).catch(error => {{ 
+            console.log("Autoplay prevented"); 
+            playerCard.classList.add("paused");
+        }});
     }}
     
-    // Auto-reload to valid track if error? No, too complex.
-    audio.addEventListener('ended', function() {{
-        this.currentTime = 0;
-        this.play();
-    }}, false);
+    function toggleAudio() {{
+        var audio = document.getElementById("bg-music");
+        var card = document.getElementById("player-card");
+        
+        if (audio.paused) {{
+            audio.play();
+            card.classList.remove("paused");
+        }} else {{
+            audio.pause();
+            card.classList.add("paused");
+        }}
+    }}
 </script>
 """, unsafe_allow_html=True)
 
@@ -475,6 +516,21 @@ with col_nav_c:
             Time-Weighted Return (TWR) puro.
         </div>
         <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Ver Rentabilidade →</div>
+    </a>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+
+    # 3.5 Histórico (Legado)
+    st.markdown("""
+    <a href="Historico_Patrimonial" target="_self" class="nav-card">
+        <div class="icon-box">🏛️</div>
+        <div class="card-title">Legado</div>
+        <div class="card-desc">
+            Evolução patrimonial histórica.<br>
+            Construção de riqueza vs Anos.
+        </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Ver Evolução →</div>
     </a>
     """, unsafe_allow_html=True)
 

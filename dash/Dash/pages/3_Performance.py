@@ -109,27 +109,39 @@ st.markdown("""
         color: white;
     }
 
-    /* ===== PAGE HEADER ===== */
-    .page-header {
-        padding: 24px 0 32px 0;
-        margin-bottom: 8px;
+    /* HERO TITLE (BARROOTS) */
+    .hero-container {
+        text-align: center;
+        padding-top: 2vh;
+        padding-bottom: 2vh;
+        animation: fadeIn 1.2s ease-out;
     }
-
-    .page-title {
-        font-size: 2rem;
+    
+    .hero-title {
+        font-size: 3.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+        background: linear-gradient(to right, #ffffff, #a5b4fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 8px;
+        margin-bottom: 0px;
+        letter-spacing: -2px;
+        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
     }
-
-    .page-subtitle {
-        font-size: 0.9rem;
-        color: #64748b;
+    
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin-top: 5px;
         display: flex;
+        justify-content: center;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .badge {
@@ -256,10 +268,11 @@ def run_performance_engine_compat(df_input_frozen):
 
 def main():
     # --- PAGE HEADER ---
+    # --- PAGE HEADER ---
     st.markdown("""
-    <div class="page-header">
-        <div class="page-title">📈 Análise de Performance</div>
-        <div class="page-subtitle">
+    <div class="hero-container">
+        <div class="hero-title">Análise de Performance</div>
+        <div class="hero-subtitle">
             Rentabilidade Time-Weighted Return
             <span class="badge badge-gips">GIPS Compliant</span>
         </div>
