@@ -2787,6 +2787,1068 @@ def render_snake_game():
     """
     components.html(snake_html, height=700)
 
+# --- NEURAL PULSE (EGG #5) ---
+def render_neural_pulse():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_neural_back"):
+            return_to_hub()
+            st.rerun()
+
+    neural_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: #000;
+                font-family: 'Courier New', monospace;
+                overflow: hidden;
+                touch-action: none;
+                -webkit-user-select: none;
+                user-select: none;
+            }
+
+            .container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                padding: 15px;
+            }
+
+            .title {
+                color: #00ff41;
+                font-size: 1.3rem;
+                text-align: center;
+                margin-bottom: 10px;
+                text-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            }
+
+            .subtitle {
+                color: #666;
+                font-size: 0.75rem;
+                text-align: center;
+                margin-bottom: 15px;
+            }
+
+            #canvas {
+                border: 1px solid #00ff41;
+                border-radius: 10px;
+                background: rgba(0, 20, 10, 0.5);
+                max-width: 100%;
+                touch-action: none;
+            }
+
+            .stats {
+                display: flex;
+                gap: 20px;
+                margin-top: 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .stat {
+                text-align: center;
+                padding: 10px 15px;
+                background: rgba(0, 255, 65, 0.1);
+                border: 1px solid rgba(0, 255, 65, 0.3);
+                border-radius: 8px;
+            }
+
+            .stat-value {
+                color: #00ff41;
+                font-size: 1.5rem;
+                font-weight: bold;
+            }
+
+            .stat-label {
+                color: #666;
+                font-size: 0.7rem;
+            }
+
+            .controls {
+                display: flex;
+                gap: 10px;
+                margin-top: 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .btn {
+                background: rgba(0, 255, 65, 0.15);
+                border: 1px solid #00ff41;
+                color: #00ff41;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.85rem;
+                cursor: pointer;
+                transition: all 0.3s;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .btn:active {
+                background: rgba(0, 255, 65, 0.4);
+                transform: scale(0.95);
+            }
+
+            .btn.pink {
+                border-color: #ff00de;
+                color: #ff00de;
+                background: rgba(255, 0, 222, 0.15);
+            }
+
+            .btn.pink:active {
+                background: rgba(255, 0, 222, 0.4);
+            }
+
+            .info {
+                color: #444;
+                font-size: 0.7rem;
+                text-align: center;
+                margin-top: 15px;
+                max-width: 300px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="title">🧠 NEURAL PULSE</div>
+            <div class="subtitle">Toque para ativar neurônios</div>
+
+            <canvas id="canvas"></canvas>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="neurons">0</div>
+                    <div class="stat-label">NEURÔNIOS</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="signals">0</div>
+                    <div class="stat-label">SINAIS</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="thoughts">0</div>
+                    <div class="stat-label">PENSAMENTOS</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" id="addLayer">+ Camada</button>
+                <button class="btn pink" id="pulse">⚡ Pulsar Tudo</button>
+                <button class="btn" id="reset">↺ Reset</button>
+            </div>
+
+            <div class="info">
+                Rede neural artificial com propagação de sinais em tempo real
+            </div>
+        </div>
+
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Responsive canvas
+            function resize() {
+                const size = Math.min(window.innerWidth - 30, 380);
+                canvas.width = size;
+                canvas.height = size;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            // Neural network
+            let layers = [];
+            let connections = [];
+            let signals = [];
+            let totalSignals = 0;
+            let thoughts = 0;
+
+            function createNetwork(numLayers = 4) {
+                layers = [];
+                connections = [];
+                signals = [];
+
+                const neuronsPerLayer = [3, 5, 5, 3];
+
+                for (let l = 0; l < numLayers; l++) {
+                    const layer = [];
+                    const count = neuronsPerLayer[l] || 4;
+                    const layerX = (canvas.width / (numLayers + 1)) * (l + 1);
+
+                    for (let n = 0; n < count; n++) {
+                        const neuronY = (canvas.height / (count + 1)) * (n + 1);
+                        layer.push({
+                            x: layerX,
+                            y: neuronY,
+                            activation: 0,
+                            pulseRadius: 0
+                        });
+                    }
+                    layers.push(layer);
+                }
+
+                // Create connections
+                for (let l = 0; l < layers.length - 1; l++) {
+                    for (let n = 0; n < layers[l].length; n++) {
+                        for (let m = 0; m < layers[l + 1].length; m++) {
+                            connections.push({
+                                from: { layer: l, neuron: n },
+                                to: { layer: l + 1, neuron: m },
+                                weight: Math.random() * 0.5 + 0.5,
+                                signal: 0
+                            });
+                        }
+                    }
+                }
+
+                document.getElementById('neurons').textContent =
+                    layers.reduce((sum, l) => sum + l.length, 0);
+            }
+
+            function activateNeuron(layerIdx, neuronIdx) {
+                const neuron = layers[layerIdx][neuronIdx];
+                neuron.activation = 1;
+                neuron.pulseRadius = 0;
+                totalSignals++;
+
+                // Propagate to next layer
+                if (layerIdx < layers.length - 1) {
+                    connections.forEach(conn => {
+                        if (conn.from.layer === layerIdx && conn.from.neuron === neuronIdx) {
+                            setTimeout(() => {
+                                signals.push({
+                                    x: neuron.x,
+                                    y: neuron.y,
+                                    targetX: layers[conn.to.layer][conn.to.neuron].x,
+                                    targetY: layers[conn.to.layer][conn.to.neuron].y,
+                                    progress: 0,
+                                    toLayer: conn.to.layer,
+                                    toNeuron: conn.to.neuron,
+                                    color: `hsl(${120 + layerIdx * 60}, 100%, 50%)`
+                                });
+                            }, Math.random() * 200);
+                        }
+                    });
+                } else {
+                    // Output layer reached = thought!
+                    thoughts++;
+                }
+
+                document.getElementById('signals').textContent = totalSignals;
+                document.getElementById('thoughts').textContent = thoughts;
+            }
+
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw connections
+                connections.forEach(conn => {
+                    const from = layers[conn.from.layer][conn.from.neuron];
+                    const to = layers[conn.to.layer][conn.to.neuron];
+
+                    ctx.beginPath();
+                    ctx.moveTo(from.x, from.y);
+                    ctx.lineTo(to.x, to.y);
+                    ctx.strokeStyle = `rgba(0, 255, 65, ${0.1 + conn.weight * 0.2})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+
+                // Draw signals
+                signals = signals.filter(s => {
+                    s.progress += 0.03;
+
+                    if (s.progress >= 1) {
+                        activateNeuron(s.toLayer, s.toNeuron);
+                        return false;
+                    }
+
+                    const x = s.x + (s.targetX - s.x) * s.progress;
+                    const y = s.y + (s.targetY - s.y) * s.progress;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color;
+                    ctx.fill();
+
+                    // Glow
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color.replace('50%)', '50%, 0.3)').replace('hsl', 'hsla');
+                    ctx.fill();
+
+                    return true;
+                });
+
+                // Draw neurons
+                layers.forEach((layer, li) => {
+                    layer.forEach((neuron, ni) => {
+                        // Pulse effect
+                        if (neuron.pulseRadius > 0 && neuron.pulseRadius < 30) {
+                            ctx.beginPath();
+                            ctx.arc(neuron.x, neuron.y, neuron.pulseRadius, 0, Math.PI * 2);
+                            ctx.strokeStyle = `rgba(0, 255, 65, ${1 - neuron.pulseRadius / 30})`;
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                            neuron.pulseRadius += 1;
+                        }
+
+                        // Decay activation
+                        neuron.activation *= 0.95;
+
+                        // Neuron body
+                        const color = li === 0 ? '#00ff41' :
+                                      li === layers.length - 1 ? '#ff00de' : '#00efff';
+
+                        ctx.beginPath();
+                        ctx.arc(neuron.x, neuron.y, 12 + neuron.activation * 8, 0, Math.PI * 2);
+                        ctx.fillStyle = neuron.activation > 0.1 ? color : '#333';
+                        ctx.fill();
+
+                        ctx.beginPath();
+                        ctx.arc(neuron.x, neuron.y, 8, 0, Math.PI * 2);
+                        ctx.fillStyle = neuron.activation > 0.1 ? '#fff' : '#222';
+                        ctx.fill();
+                    });
+                });
+
+                requestAnimationFrame(draw);
+            }
+
+            // Touch handling
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+
+                // Find nearest neuron in input layer
+                let minDist = Infinity;
+                let nearestNeuron = null;
+
+                layers[0].forEach((neuron, idx) => {
+                    const dist = Math.sqrt((x - neuron.x) ** 2 + (y - neuron.y) ** 2);
+                    if (dist < minDist && dist < 50) {
+                        minDist = dist;
+                        nearestNeuron = idx;
+                    }
+                });
+
+                if (nearestNeuron !== null) {
+                    activateNeuron(0, nearestNeuron);
+                }
+            });
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                layers[0].forEach((neuron, idx) => {
+                    const dist = Math.sqrt((x - neuron.x) ** 2 + (y - neuron.y) ** 2);
+                    if (dist < 50) {
+                        activateNeuron(0, idx);
+                    }
+                });
+            });
+
+            // Buttons
+            document.getElementById('addLayer').addEventListener('click', () => {
+                const newCount = layers.length + 1;
+                if (newCount <= 6) createNetwork(newCount);
+            });
+
+            document.getElementById('pulse').addEventListener('click', () => {
+                layers[0].forEach((_, idx) => {
+                    setTimeout(() => activateNeuron(0, idx), idx * 100);
+                });
+            });
+
+            document.getElementById('reset').addEventListener('click', () => {
+                totalSignals = 0;
+                thoughts = 0;
+                createNetwork(4);
+                document.getElementById('signals').textContent = '0';
+                document.getElementById('thoughts').textContent = '0';
+            });
+
+            // Init
+            createNetwork(4);
+            draw();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(neural_html, height=680)
+
+# --- PARTICLE LIFE (EGG #6) ---
+def render_particle_life():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_particle_back"):
+            return_to_hub()
+            st.rerun()
+
+    particle_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: #000;
+                font-family: 'Courier New', monospace;
+                overflow: hidden;
+                touch-action: none;
+                -webkit-user-select: none;
+            }
+
+            .container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                padding: 10px;
+            }
+
+            .title {
+                color: #ff00de;
+                font-size: 1.3rem;
+                margin-bottom: 5px;
+                text-shadow: 0 0 20px rgba(255, 0, 222, 0.5);
+            }
+
+            .subtitle {
+                color: #666;
+                font-size: 0.7rem;
+                margin-bottom: 10px;
+            }
+
+            #canvas {
+                border: 1px solid #ff00de;
+                border-radius: 10px;
+                background: #050510;
+            }
+
+            .legend {
+                display: flex;
+                gap: 15px;
+                margin-top: 12px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 0.7rem;
+                color: #888;
+            }
+
+            .legend-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+            }
+
+            .controls {
+                display: flex;
+                gap: 8px;
+                margin-top: 12px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .btn {
+                background: rgba(255, 0, 222, 0.15);
+                border: 1px solid #ff00de;
+                color: #ff00de;
+                padding: 10px 15px;
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.75rem;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .btn:active {
+                background: rgba(255, 0, 222, 0.4);
+                transform: scale(0.95);
+            }
+
+            .info {
+                color: #444;
+                font-size: 0.65rem;
+                text-align: center;
+                margin-top: 10px;
+                padding: 0 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="title">✨ PARTICLE LIFE</div>
+            <div class="subtitle">Vida artificial emergente</div>
+
+            <canvas id="canvas"></canvas>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #ff0000;"></div>
+                    <span>Vermelho</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #00ff00;"></div>
+                    <span>Verde</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #0088ff;"></div>
+                    <span>Azul</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #ffff00;"></div>
+                    <span>Amarelo</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" id="chaos">🌀 Caos</button>
+                <button class="btn" id="harmony">☯ Harmonia</button>
+                <button class="btn" id="predator">🦈 Predador</button>
+                <button class="btn" id="random">🎲 Random</button>
+            </div>
+
+            <div class="info">
+                Partículas seguem regras simples de atração/repulsão.<br>
+                Comportamentos complexos emergem naturalmente.
+            </div>
+        </div>
+
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                const size = Math.min(window.innerWidth - 20, 360);
+                canvas.width = size;
+                canvas.height = size;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            const colors = ['#ff0000', '#00ff00', '#0088ff', '#ffff00'];
+            let particles = [];
+            let rules = {};
+
+            function randomRules() {
+                rules = {};
+                colors.forEach(c1 => {
+                    rules[c1] = {};
+                    colors.forEach(c2 => {
+                        rules[c1][c2] = (Math.random() - 0.5) * 2;
+                    });
+                });
+            }
+
+            function harmonyRules() {
+                rules = {};
+                colors.forEach((c1, i) => {
+                    rules[c1] = {};
+                    colors.forEach((c2, j) => {
+                        if (i === j) rules[c1][c2] = -0.3;
+                        else if ((i + 1) % 4 === j) rules[c1][c2] = 0.5;
+                        else rules[c1][c2] = 0.1;
+                    });
+                });
+            }
+
+            function chaosRules() {
+                rules = {};
+                colors.forEach(c1 => {
+                    rules[c1] = {};
+                    colors.forEach(c2 => {
+                        rules[c1][c2] = (Math.random() - 0.3) * 3;
+                    });
+                });
+            }
+
+            function predatorRules() {
+                rules = {
+                    '#ff0000': { '#ff0000': 0.1, '#00ff00': 0.8, '#0088ff': -0.5, '#ffff00': 0 },
+                    '#00ff00': { '#ff0000': -0.8, '#00ff00': 0.2, '#0088ff': 0.5, '#ffff00': 0 },
+                    '#0088ff': { '#ff0000': 0, '#00ff00': -0.5, '#0088ff': 0.1, '#ffff00': 0.8 },
+                    '#ffff00': { '#ff0000': 0.3, '#00ff00': 0, '#0088ff': -0.8, '#ffff00': 0.2 }
+                };
+            }
+
+            function createParticles(count = 200) {
+                particles = [];
+                const perColor = Math.floor(count / colors.length);
+
+                colors.forEach(color => {
+                    for (let i = 0; i < perColor; i++) {
+                        particles.push({
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height,
+                            vx: 0,
+                            vy: 0,
+                            color: color
+                        });
+                    }
+                });
+            }
+
+            function applyRule(p1, p2, g) {
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const d = Math.sqrt(dx * dx + dy * dy);
+
+                if (d > 0 && d < 80) {
+                    const f = g / d;
+                    p1.vx += f * dx * 0.5;
+                    p1.vy += f * dy * 0.5;
+                }
+            }
+
+            function update() {
+                for (let i = 0; i < particles.length; i++) {
+                    const p1 = particles[i];
+                    let fx = 0, fy = 0;
+
+                    for (let j = 0; j < particles.length; j++) {
+                        if (i === j) continue;
+                        const p2 = particles[j];
+                        const g = rules[p1.color][p2.color];
+                        applyRule(p1, p2, g);
+                    }
+
+                    // Friction
+                    p1.vx *= 0.5;
+                    p1.vy *= 0.5;
+
+                    // Update position
+                    p1.x += p1.vx;
+                    p1.y += p1.vy;
+
+                    // Wrap around
+                    if (p1.x < 0) p1.x = canvas.width;
+                    if (p1.x > canvas.width) p1.x = 0;
+                    if (p1.y < 0) p1.y = canvas.height;
+                    if (p1.y > canvas.height) p1.y = 0;
+                }
+            }
+
+            function draw() {
+                ctx.fillStyle = 'rgba(5, 5, 16, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                particles.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+
+                update();
+                requestAnimationFrame(draw);
+            }
+
+            // Touch to add particles
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const x = e.touches[0].clientX - rect.left;
+                const y = e.touches[0].clientY - rect.top;
+
+                for (let i = 0; i < 10; i++) {
+                    particles.push({
+                        x: x + (Math.random() - 0.5) * 30,
+                        y: y + (Math.random() - 0.5) * 30,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: (Math.random() - 0.5) * 2,
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    });
+                }
+
+                // Limit particles
+                if (particles.length > 400) {
+                    particles = particles.slice(-400);
+                }
+            });
+
+            // Buttons
+            document.getElementById('chaos').addEventListener('click', () => {
+                chaosRules();
+                createParticles(200);
+            });
+
+            document.getElementById('harmony').addEventListener('click', () => {
+                harmonyRules();
+                createParticles(200);
+            });
+
+            document.getElementById('predator').addEventListener('click', () => {
+                predatorRules();
+                createParticles(200);
+            });
+
+            document.getElementById('random').addEventListener('click', () => {
+                randomRules();
+                createParticles(200);
+            });
+
+            // Init
+            randomRules();
+            createParticles(200);
+            draw();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(particle_html, height=620)
+
+# --- SYNTH LAB (EGG #7) ---
+def render_synth_lab():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_synth_back"):
+            return_to_hub()
+            st.rerun()
+
+    synth_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: linear-gradient(180deg, #0a0015 0%, #150025 100%);
+                font-family: 'Courier New', monospace;
+                min-height: 100vh;
+                touch-action: manipulation;
+                -webkit-user-select: none;
+            }
+
+            .container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 15px;
+                max-width: 400px;
+                margin: 0 auto;
+            }
+
+            .title {
+                color: #00efff;
+                font-size: 1.4rem;
+                margin-bottom: 5px;
+                text-shadow: 0 0 30px rgba(0, 239, 255, 0.5);
+            }
+
+            .subtitle {
+                color: #666;
+                font-size: 0.7rem;
+                margin-bottom: 15px;
+            }
+
+            /* Visualizer */
+            #visualizer {
+                width: 100%;
+                height: 80px;
+                border: 1px solid #00efff;
+                border-radius: 10px;
+                margin-bottom: 15px;
+                background: rgba(0, 20, 30, 0.5);
+            }
+
+            /* Pad Grid */
+            .pad-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+                width: 100%;
+                margin-bottom: 15px;
+            }
+
+            .pad {
+                aspect-ratio: 1;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.5rem;
+                cursor: pointer;
+                transition: all 0.1s;
+                -webkit-tap-highlight-color: transparent;
+                border: 2px solid;
+            }
+
+            .pad:active, .pad.active {
+                transform: scale(0.92);
+                filter: brightness(1.5);
+                box-shadow: 0 0 30px var(--glow);
+            }
+
+            .pad.c { background: rgba(255, 0, 100, 0.3); border-color: #ff0064; --glow: #ff0064; }
+            .pad.d { background: rgba(255, 100, 0, 0.3); border-color: #ff6400; --glow: #ff6400; }
+            .pad.e { background: rgba(255, 200, 0, 0.3); border-color: #ffc800; --glow: #ffc800; }
+            .pad.f { background: rgba(0, 255, 100, 0.3); border-color: #00ff64; --glow: #00ff64; }
+            .pad.g { background: rgba(0, 200, 255, 0.3); border-color: #00c8ff; --glow: #00c8ff; }
+            .pad.a { background: rgba(100, 0, 255, 0.3); border-color: #6400ff; --glow: #6400ff; }
+            .pad.b { background: rgba(200, 0, 255, 0.3); border-color: #c800ff; --glow: #c800ff; }
+            .pad.c2 { background: rgba(255, 0, 200, 0.3); border-color: #ff00c8; --glow: #ff00c8; }
+
+            /* Controls */
+            .controls {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+
+            .control-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .control-label {
+                color: #888;
+                font-size: 0.7rem;
+                width: 60px;
+            }
+
+            .slider {
+                flex: 1;
+                -webkit-appearance: none;
+                height: 8px;
+                border-radius: 4px;
+                background: rgba(0, 239, 255, 0.2);
+                outline: none;
+            }
+
+            .slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: #00efff;
+                cursor: pointer;
+            }
+
+            /* Wave selector */
+            .wave-select {
+                display: flex;
+                gap: 8px;
+                justify-content: center;
+                margin-bottom: 15px;
+            }
+
+            .wave-btn {
+                padding: 10px 15px;
+                background: rgba(0, 239, 255, 0.1);
+                border: 1px solid #00efff;
+                color: #00efff;
+                border-radius: 8px;
+                font-size: 0.75rem;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .wave-btn.active {
+                background: rgba(0, 239, 255, 0.4);
+            }
+
+            .wave-btn:active {
+                transform: scale(0.95);
+            }
+
+            .info {
+                color: #444;
+                font-size: 0.65rem;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="title">🎹 SYNTH LAB</div>
+            <div class="subtitle">Sintetizador interativo</div>
+
+            <canvas id="visualizer"></canvas>
+
+            <div class="pad-grid">
+                <div class="pad c" data-note="C4">C</div>
+                <div class="pad d" data-note="D4">D</div>
+                <div class="pad e" data-note="E4">E</div>
+                <div class="pad f" data-note="F4">F</div>
+                <div class="pad g" data-note="G4">G</div>
+                <div class="pad a" data-note="A4">A</div>
+                <div class="pad b" data-note="B4">B</div>
+                <div class="pad c2" data-note="C5">C+</div>
+            </div>
+
+            <div class="wave-select">
+                <button class="wave-btn active" data-wave="sine">Sine</button>
+                <button class="wave-btn" data-wave="square">Square</button>
+                <button class="wave-btn" data-wave="sawtooth">Saw</button>
+                <button class="wave-btn" data-wave="triangle">Tri</button>
+            </div>
+
+            <div class="controls">
+                <div class="control-row">
+                    <span class="control-label">Attack</span>
+                    <input type="range" class="slider" id="attack" min="0" max="1" step="0.01" value="0.1">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Release</span>
+                    <input type="range" class="slider" id="release" min="0" max="2" step="0.01" value="0.5">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Reverb</span>
+                    <input type="range" class="slider" id="reverb" min="0" max="1" step="0.01" value="0.3">
+                </div>
+            </div>
+
+            <div class="info">
+                Toque nos pads para criar música<br>
+                Ajuste os controles para modificar o som
+            </div>
+        </div>
+
+        <script>
+            // Audio context
+            let audioCtx = null;
+            let analyser = null;
+            let waveform = 'sine';
+
+            const noteFreqs = {
+                'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+                'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25
+            };
+
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioCtx.createAnalyser();
+                    analyser.connect(audioCtx.destination);
+                    analyser.fftSize = 256;
+                }
+            }
+
+            function playNote(note, pad) {
+                initAudio();
+
+                const attack = parseFloat(document.getElementById('attack').value);
+                const release = parseFloat(document.getElementById('release').value);
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = waveform;
+                osc.frequency.value = noteFreqs[note];
+
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + attack);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + attack + release);
+
+                osc.connect(gain);
+                gain.connect(analyser);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + attack + release + 0.1);
+
+                // Visual feedback
+                pad.classList.add('active');
+                setTimeout(() => pad.classList.remove('active'), 150);
+            }
+
+            // Visualizer
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = canvas.offsetWidth * 2;
+                canvas.height = canvas.offsetHeight * 2;
+                ctx.scale(2, 2);
+            }
+            resizeCanvas();
+
+            function drawVisualizer() {
+                const width = canvas.offsetWidth;
+                const height = canvas.offsetHeight;
+
+                ctx.fillStyle = 'rgba(0, 20, 30, 0.3)';
+                ctx.fillRect(0, 0, width, height);
+
+                if (analyser) {
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteTimeDomainData(dataArray);
+
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#00efff';
+                    ctx.beginPath();
+
+                    const sliceWidth = width / bufferLength;
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        const v = dataArray[i] / 128.0;
+                        const y = (v * height) / 2;
+
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+
+                        x += sliceWidth;
+                    }
+
+                    ctx.lineTo(width, height / 2);
+                    ctx.stroke();
+
+                    // Glow effect
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00efff';
+                }
+
+                requestAnimationFrame(drawVisualizer);
+            }
+            drawVisualizer();
+
+            // Pad events
+            document.querySelectorAll('.pad').forEach(pad => {
+                const note = pad.dataset.note;
+
+                pad.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    playNote(note, pad);
+                });
+
+                pad.addEventListener('mousedown', () => playNote(note, pad));
+            });
+
+            // Wave selection
+            document.querySelectorAll('.wave-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    waveform = btn.dataset.wave;
+                });
+            });
+        </script>
+    </body>
+    </html>
+    """
+    components.html(synth_html, height=680)
+
 # --- MAIN HUB RENDER ---
 if st.session_state.active_egg is None:
     st.markdown('<div class="glitch-title">HUB DE PROJETOS SECRETOS</div>', unsafe_allow_html=True)
