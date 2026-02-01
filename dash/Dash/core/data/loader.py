@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime
-from core.data_provider import DataProvider
+from core.data.provider import DataProvider
 from core.utils import parse_decimal_br, parse_date_br, normalize_dataframe_columns
 from core.logic import normalize_ticker
 
@@ -156,7 +156,7 @@ def load_fixed_income() -> pd.DataFrame:
 def load_fixed_income_manual() -> pd.DataFrame:
     try:
         # Import dynamically to avoid circular imports if any
-        from core.data_provider import DataProvider
+        from core.data.provider import DataProvider
         df = DataProvider.get_fixed_income_manual()
         if df.empty: return pd.DataFrame()
         

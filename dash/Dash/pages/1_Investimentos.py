@@ -16,8 +16,8 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 
 # --- CORE IMPORTS ---
-from core.data_loader import load_assets, load_proventos, load_fixed_income, load_cambio
-from core.market_data import fetch_market_data
+from core.data.loader import load_assets, load_proventos, load_fixed_income, load_cambio
+from core.data.market import fetch_market_data
 from core.ui_config import get_editor_config
 
 # New Modules
@@ -92,18 +92,36 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: thin; /* Firefox */
+        padding-bottom: 5px; /* Space for scrollbar */
     }
+    
+    /* Scrollbar styling for Webkit */
+    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
+        height: 4px;
+    }
+    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+    }
+
     .stTabs [data-baseweb="tab"] {
         height: 50px;
-        white-space: pre-wrap;
+        white-space: nowrap;
         background-color: rgba(255,255,255,0.05);
         border-radius: 8px;
         gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
+        padding-left: 15px;
+        padding-right: 15px;
         color: #cbd5e1;
         border: 1px solid transparent;
         transition: all 0.3s;
+        flex: 0 0 auto; /* Prevent shrinking */
     }
     .stTabs [aria-selected="true"] {
         background-color: rgba(99, 102, 241, 0.2);
@@ -134,12 +152,12 @@ st.markdown("""
 # Funções Auxiliares de Carga
 @st.cache_data(show_spinner=False)
 def carregar_composicao_extra():
-    from core.data_provider import DataProvider
+    from core.data.provider import DataProvider
     return DataProvider.get_composicao()
 
 @st.cache_data(show_spinner=False)
 def carregar_cambio():
-    from core.data_provider import DataProvider
+    from core.data.provider import DataProvider
     return DataProvider.get_cambio()
     
 # ==============================================================================
@@ -203,7 +221,7 @@ def exibir_editor_dados():
     # Lazy loading of data
     if 'editor_df' not in st.session_state or st.session_state.editor_df is None:
         try:
-            from core.data_provider import DataProvider
+            from core.data.provider import DataProvider
             df = DataProvider.fetch_data(selected_key)
             
             # --- PRE-PROCESSING & CLEANING ---
@@ -397,7 +415,7 @@ def exibir_editor_dados():
                             df_to_save[d_col] = s_dates.dt.strftime('%Y-%m-%d').replace('NaT', '')
 
                     # 2. Save
-                    from core.data_provider import DataProvider
+                    from core.data.provider import DataProvider
                     if DataProvider.save_data(selected_key, df_to_save):
                         st.session_state.editor_df = df_edited # Update session state with the edited version (dates as objects if needed? No, reload next time is safer)
                         # Actually, better to reload to get clean state or keep current edited state
@@ -525,7 +543,7 @@ def main():
     df_rf_completo = pd.DataFrame()
     df_rf_filtrado = pd.DataFrame() # Inicialização segura
 
-    from core.data_loader import load_fixed_income_manual
+    from core.data.loader import load_fixed_income_manual
     from core.finance import summarize_fixed_income_hybrid
     
     df_rf_manual = load_fixed_income_manual()
@@ -559,9 +577,19 @@ def main():
     if 'mapa_precos' not in locals():
         # Se tiver dados, baixa. Se não, dicionário vazio.
         if not df_bruto.empty:
-            mapa_precos, mapa_variacao = fetch_market_data(df_bruto['ticker'].unique().tolist())
+            # Lista base de tickers da carteira
+            lista_tickers = df_bruto['ticker'].unique().tolist()
+            
+            # ADIÇÃO EXPLÍCITA: Tickers de Câmbio (Monitoramento)
+            # Garante que as cotações do cabeçalho da aba Câmbio não fiquem zeradas
+            tickers_cambio = ['BRL=X', 'EURBRL=X', 'CADBRL=X', 'CHFUSD=X']
+            lista_tickers.extend(tickers_cambio)
+            
+            mapa_precos, mapa_variacao = fetch_market_data(lista_tickers)
         else:
-            mapa_precos, mapa_variacao = {}, {}
+            # Mesmo se não tiver carteira, tenta buscar os câmbios
+            tickers_cambio = ['BRL=X', 'EURBRL=X', 'CADBRL=X', 'CHFUSD=X']
+            mapa_precos, mapa_variacao = fetch_market_data(tickers_cambio)
             
     usd = mapa_precos.get('BRL=X', 5.50)
     cad = mapa_precos.get('CADBRL=X', 4.00)
@@ -2157,7 +2185,7 @@ def main():
         def carregar_ptax_oficial():
             """Carrega histórico de PTAX oficial do BCB (aba 'ptax' no Google Sheets)."""
             try:
-                from core.data_provider import DataProvider
+                from core.data.provider import DataProvider
                 from core.utils import parse_decimal_br, parse_date_br
                 
                 df = DataProvider.get_ptax()
@@ -2664,10 +2692,22 @@ def main():
         st.subheader("📊 Curva de Evolução Patrimonial (RF)")
         
         # Integra o motor de curva RF
+        # Custom CSS for this section
+        st.markdown("""
+        <style>
+            .stPlotlyChart {
+                background-color: rgba(0,0,0,0);
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Integrates RF Engine with TWR Canonico
         try:
             from core.fixed_income_engine import FixedIncomeEngine
+            from core.performance.calculator import calculate_canonical_twr
+            from core.performance.visualizations import plot_nav_vs_twr
             
-            # Usa dados brutos de RF
+            # Use raw RF data
             if not df_rf_raw.empty:
                 # Extrai valores manuais se existirem
                 manual_vals = {}
@@ -2681,122 +2721,101 @@ def main():
                 curve_result = engine_rf.build_daily_curve()
                 
                 if not curve_result.daily_curve.empty:
-                    # Card de hipótese (transparência)
-                    st.info(f"""
-                    📌 **Hipótese de Modelagem:** {curve_result.hypothesis_note}
-                    
-                    Esta curva é uma **projeção simplificada** - não reflete as taxas reais de cada título.
-                    """)
-                    
-                    # Métricas
-                    col_rf1, col_rf2, col_rf3, col_rf4 = st.columns(4)
-                    
-                    with col_rf1:
-                        st.metric("💰 Total Investido", f"R$ {curve_result.total_invested:,.0f}")
-                    with col_rf2:
-                        st.metric("📈 Valor Projetado", f"R$ {curve_result.current_value:,.0f}")
-                    with col_rf3:
-                        st.metric("📊 Retorno Projetado", f"{curve_result.total_return_pct:.1f}%")
-                    with col_rf4:
-                        st.metric("📅 Retorno Anualizado", f"{curve_result.annualized_return_pct:.1f}%")
-                    
-                    # Gráfico de curva
-                    fig_curve = go.Figure()
-                    
                     df_curve = curve_result.daily_curve
                     
-                    # Linha de Valor Investido (base)
-                    fig_curve.add_trace(go.Scatter(
-                        x=df_curve.index,
-                        y=df_curve['invested'],
-                        name="Valor Investido",
-                        line=dict(color="#90A4AE", width=2, dash="dot"),
-                        fill='tozeroy',
-                        fillcolor='rgba(144, 164, 174, 0.1)',
-                        hovertemplate="Investido: R$ %{y:,.0f}<extra></extra>"
-                    ))
+                    # 1. Prepare Data for TWR Calculation
+                    # We need a DataFrame with index, 'nav', and 'flow'
                     
-                    # Linha de Valor Corrigido (SELIC proxy)
-                    fig_curve.add_trace(go.Scatter(
-                        x=df_curve.index,
-                        y=df_curve['corrected'],
-                        name="Valor Corrigido (SELIC 15%)",
-                        line=dict(color="#4CAF50", width=2.5),
-                        fill='tonexty',
-                        fillcolor='rgba(76, 175, 80, 0.2)',
-                        hovertemplate="Corrigido: R$ %{y:,.0f}<extra></extra>"
-                    ))
+                    # NAV is the total corrected value (including cash)
+                    nav_series = df_curve['total']
                     
-                    # Adiciona marcadores de eventos
-                    df_events = engine_rf.get_events_for_chart()
-                    if not df_events.empty:
-                        # Compras
-                        compras = df_events[df_events['type'] == 'COMPRA']
-                        if not compras.empty:
-                            fig_curve.add_trace(go.Scatter(
-                                x=compras['date'],
-                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in compras['date']],
-                                mode='markers',
-                                marker=dict(symbol='triangle-up', size=12, color='#4CAF50'),
-                                name='Compras',
-                                hovertemplate="%{text}<extra></extra>",
-                                text=compras['label']
-                            ))
-                        
-                        # Vendas/Vencimentos
-                        saidas = df_events[df_events['type'].isin(['VENDA', 'VENCIMENTO'])]
-                        if not saidas.empty:
-                            fig_curve.add_trace(go.Scatter(
-                                x=saidas['date'],
-                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in saidas['date']],
-                                mode='markers',
-                                marker=dict(symbol='triangle-down', size=12, color='#2196F3'),
-                                name='Saídas',
-                                hovertemplate="%{text}<extra></extra>",
-                                text=saidas['label']
-                            ))
-                        
-                        # Impostos
-                        impostos = df_events[df_events['type'] == 'IMPOSTO']
-                        if not impostos.empty:
-                            fig_curve.add_trace(go.Scatter(
-                                x=impostos['date'],
-                                y=[df_curve.loc[df_curve.index >= d].iloc[0]['corrected'] if len(df_curve.loc[df_curve.index >= d]) > 0 else 0 for d in impostos['date']],
-                                mode='markers',
-                                marker=dict(symbol='x', size=10, color='#FF5722'),
-                                name='Impostos',
-                                hovertemplate="%{text}<extra></extra>",
-                                text=impostos['label']
-                            ))
+                    # Flows need to be mapped from external_flows list to daily series
+                    flow_series = pd.Series(0.0, index=nav_series.index)
                     
-                    fig_curve.update_layout(
-                        template="plotly_dark",
-                        hovermode="x unified",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                        yaxis_title="Valor (R$)",
-                        height=400,
-                        margin=dict(t=40, b=40),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)'
+                    for ef in curve_result.external_flows:
+                        # Normalize date
+                        d_flow = pd.to_datetime(ef.date)
+                        if d_flow.weekday() >= 5: # Adjust weekend flows same as engine
+                            days_to_add = 7 - d_flow.weekday()
+                            d_flow = d_flow + pd.Timedelta(days=days_to_add)
+                            
+                        # Find closest valid date in index
+                        if d_flow in flow_series.index:
+                            flow_series.loc[d_flow] += ef.amount
+                        else:
+                            # Try simple mapping if date matches
+                             # This handles potential mismatched timestamps if index has times
+                            try:
+                                d_idx = flow_series.index[flow_series.index.date == d_flow.date()]
+                                if not d_idx.empty:
+                                    flow_series.loc[d_idx[0]] += ef.amount
+                            except:
+                                pass
+
+                    df_twr_input = pd.DataFrame({
+                        'nav': nav_series,
+                        'flow': flow_series
+                    }).fillna(0)
+                    
+                    # 2. Calculate TWR
+                    twr_result = calculate_canonical_twr(df_twr_input)
+                    
+                    # 3. Metrics Display
+                    c1, c2, c3, c4 = st.columns(4)
+                    
+                    # Invested = Final Invested from curve
+                    val_invested = curve_result.total_invested
+                    
+                    # Current = Final Total from curve
+                    val_atual = curve_result.current_value # + cash if needed, but current_value usually includes it if configured
+                    # Actually FixedIncomeEngine.current_value is usually 'corrected', let's use the curve's last total
+                    val_total = df_curve['total'].iloc[-1]
+                    
+                    with c1:
+                        st.metric("💰 Total Investido", f"R$ {val_invested:,.2f}", help="Soma dos aportes líquidos")
+                    with c2:
+                         st.metric("📈 Patrimônio Atual (RF)", f"R$ {val_total:,.2f}", help="Valor corrigido + Caixa RF")
+                    with c3:
+                        st.metric("📊 TWR Acumulado", f"{twr_result.total_twr:.2%}", help="Rentabilidade Ponderada pelo Tempo")
+                    with c4:
+                        st.metric("📅 TWR Anualizado", f"{twr_result.annualized_twr:.2%}", help="Taxa equivalente anual")
+
+                    # 4. Plot using New Logic (plot_nav_vs_twr)
+                    # We pass the full slice for visualization
+                    fig_evol = plot_nav_vs_twr(
+                        df_twr_input,
+                        twr_result.cumulative_series,
+                        df_twr_input['flow'],
+                        title=""
                     )
                     
-                    st.plotly_chart(fig_curve, use_container_width=True)
+                    # Add "Invested Capital" line (missing in standard TWR plot)
+                    # This is valuable for RF to see the 'floor'
+                    fig_evol.add_trace(go.Scatter(
+                        x=df_curve.index,
+                        y=df_curve['invested'],
+                        name='Capital Investido',
+                        mode='lines',
+                        line=dict(color='#94a3b8', width=2, dash='dot'),
+                        hovertemplate='Investido: R$ %{y:,.2f}<extra></extra>',
+                        yaxis='y' # Use left axis
+                    ))
                     
-                    # Legenda visual
-                    st.caption("""
-                    **Legenda:** ▲ Compra | ▼ Vencimento/Resgate | ✕ Imposto
+                    st.plotly_chart(fig_evol, use_container_width=True)
                     
-                    A área verde mostra o ganho projetado sobre o valor investido (linha cinza pontilhada).
-                    """)
-                    
-                    if curve_result.total_taxes_paid > 0:
-                        st.warning(f"🦁 **Impostos pagos no período:** R$ {curve_result.total_taxes_paid:,.2f}")
+                    # 5. Validation/Hypothesis
+                    if curve_result.hypothesis_note:
+                        st.caption(f"📝 **Nota:** {curve_result.hypothesis_note}")
+                        
+                    if not twr_result.validation.is_valid:
+                         st.warning(f"⚠️ Atenção na métrica TWR: {twr_result.validation.explanation}")
+
                 else:
                     st.caption("Sem dados suficientes para construir curva de evolução.")
             else:
                 st.caption("Nenhum evento de renda fixa encontrado.")
         except Exception as e:
-            st.error(f"Erro ao processar curva RF: {e}")
+            st.error(f"Erro ao processar curva RF (Nova Lógica): {e}")
         
         st.markdown("---")
         st.subheader("📊 Alocação de Recursos (RF + Caixa)")

@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from core.auth import require_auth, get_password, update_password
 
 # --- AUTH CHECK ---
@@ -59,14 +60,30 @@ st.divider()
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    st.markdown("""
-    <div class="tool-card">
-        <h3>📥 Importadores</h3>
-        <p style="color: #94a3b8;">Scripts para importar notas de corretagem e planilhas externas.</p>
-        <br>
-        <p style="font-size: 0.8rem; font-style: italic;">Em breve...</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="tool-card">', unsafe_allow_html=True)
+    st.markdown("<h3>📥 Carregamento de Dados</h3>", unsafe_allow_html=True)
+    st.markdown('<p style="color: #94a3b8;">Importação automática de notas e extratos.</p>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    source = st.selectbox(
+        "Selecione a Fonte:",
+        ["IBKR", "XP", "Nu", "Bradesco"],
+        key="data_source_select"
+    )
+    
+    uploaded_file = st.file_uploader("Arquivo (CSV, PDF, XLSX)", type=['csv', 'pdf', 'xlsx'], key="data_uploader")
+    
+    if st.button("🚀 Processar Arquivo", use_container_width=True):
+        if uploaded_file is None:
+            st.warning("⚠️ Por favor, faça o upload de um arquivo primeiro.")
+        else:
+            with st.spinner(f"Processando dados de {source}..."):
+                time.sleep(2) # Simulação de processamento
+                st.success(f"✅ Arquivo de {source} recebido com sucesso!")
+                st.info("ℹ️ Lógica de processamento detalhada pendente de implementação no backend.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
     st.markdown("""
@@ -108,3 +125,4 @@ with c3:
                             st.error("Erro ao salvar nova senha.")
         
         st.markdown('</div>', unsafe_allow_html=True)
+

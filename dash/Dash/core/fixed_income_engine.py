@@ -19,7 +19,7 @@ from typing import Optional, List, Dict, Tuple
 
 # Import do enum de modo de valorizacao do motor canonico
 try:
-    from core.twr_canonical import RFValuationMode
+    from core.performance.calculator import RFValuationMode
 except ImportError:
     from twr_canonical import RFValuationMode
 

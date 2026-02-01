@@ -27,89 +27,88 @@ def plot_nav_vs_twr(
     df: pd.DataFrame,
     twr_series: pd.Series,
     flow_series: pd.Series,
-    title: str = "Evolução Patrimonial vs Rentabilidade"
+    title: str = ""
 ) -> go.Figure:
     """
-    Cria gráfico dual-axis de NAV (esquerda, R$) vs TWR (direita, %).
-    
-    Args:
-        df: DataFrame com coluna 'nav'
-        twr_series: Série de TWR acumulado
-        flow_series: Série de fluxos (para anotações)
-        title: Título do gráfico
-        
-    Returns:
-        go.Figure (Plotly)
+    Gráfico minimalista de Patrimônio vs TWR.
+    SEM make_subplots para evitar "undefined".
     """
-    
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Série 1: NAV (esquerda)
+
+    fig = go.Figure()
+
+    # Patrimônio - Linha azul com área (eixo Y esquerdo)
     fig.add_trace(
         go.Scatter(
             x=df.index,
             y=df['nav'],
-            name='Patrimônio (R$)',
+            name='Patrimônio',
             mode='lines',
+            line=dict(color='#3b82f6', width=2.5),
             fill='tozeroy',
-            line=dict(color='#1f77b4', width=2),
-            fillcolor='rgba(31, 119, 180, 0.1)',
-            hovertemplate='<b>Data:</b> %{x|%d/%m/%Y}<br>' +
-                         '<b>Patrimônio:</b> R$ %{y:,.2f}<extra></extra>'
-        ),
-        secondary_y=False,
+            fillcolor='rgba(59, 130, 246, 0.15)',
+            hovertemplate='%{x|%d/%m/%Y}<br>R$ %{y:,.0f}<extra></extra>',
+            yaxis='y'
+        )
     )
-    
-    # Série 2: TWR (direita)
+
+    # TWR - Linha verde (eixo Y direito)
     fig.add_trace(
         go.Scatter(
             x=twr_series.index,
-            y=twr_series * 100,  # Converter para percentual
-            name='TWR Acumulado (%)',
-            mode='lines+markers',
-            line=dict(color='#2ca02c', width=2),
-            marker=dict(size=4),
-            hovertemplate='<b>Data:</b> %{x|%d/%m/%Y}<br>' +
-                         '<b>TWR:</b> %{y:.2f}%<extra></extra>'
-        ),
-        secondary_y=True,
-    )
-    
-    # Adicionar anotações de fluxos significativos
-    large_flows = flow_series[abs(flow_series) > flow_series.abs().quantile(0.75)]
-    for date, flow_value in large_flows.items():
-        color = '#d62728' if flow_value < 0 else '#ff7f0e'  # Vermelho (saque), Laranja (aporte)
-        symbol = '▼' if flow_value < 0 else '▲'
-        
-        fig.add_annotation(
-            x=date,
-            y=df.loc[date, 'nav'] if date in df.index else None,
-            text=f'{symbol}<br>R$ {abs(flow_value):,.0f}',
-            showarrow=True,
-            arrowhead=2,
-            arrowcolor=color,
-            arrowsize=1,
-            font=dict(size=8, color=color),
-            yshift=20,
-            xshift=0,
-            secondary_y=False
+            y=twr_series * 100,
+            name='TWR',
+            mode='lines',
+            line=dict(color='#10b981', width=2.5),
+            hovertemplate='%{x|%d/%m/%Y}<br>%{y:.1f}%<extra></extra>',
+            yaxis='y2'
         )
-    
-    # Layout
-    fig.update_xaxes(title_text='Data', showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
-    fig.update_yaxes(title_text='Patrimônio (R$)', secondary_y=False, tickformat='$,.0f')
-    fig.update_yaxes(title_text='TWR Acumulado (%)', secondary_y=True, tickformat='.1f%')
-    
-    fig.update_layout(
-        title=title,
-        hovermode='x unified',
-        plot_bgcolor='rgba(240,240,240,0.5)',
-        height=500,
-        font=dict(family='Arial, sans-serif', size=10),
-        legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
-        margin=dict(l=80, r=80, t=60, b=60)
     )
-    
+
+    fig.update_layout(
+        title=None,
+        hovermode='x unified',
+        hoverlabel=dict(bgcolor='#1e293b', font_size=12, font_color='#f1f5f9'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=380,
+        font=dict(family='system-ui, sans-serif', size=11, color='#94a3b8'),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1.12,
+            xanchor="center",
+            x=0.5,
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#cbd5e1', size=12)
+        ),
+        margin=dict(l=70, r=70, t=50, b=40),
+        xaxis=dict(
+            showgrid=False,
+            showline=False,
+            zeroline=False,
+            tickfont=dict(size=10, color='#64748b')
+        ),
+        yaxis=dict(
+            tickformat=',.0f',
+            tickprefix='R$ ',
+            showgrid=True,
+            gridcolor='rgba(148, 163, 184, 0.1)',
+            zeroline=False,
+            showline=False,
+            tickfont=dict(size=10, color='#64748b'),
+            side='left'
+        ),
+        yaxis2=dict(
+            ticksuffix='%',
+            showgrid=False,
+            zeroline=False,
+            showline=False,
+            tickfont=dict(size=10, color='#64748b'),
+            overlaying='y',
+            side='right'
+        )
+    )
+
     return fig
 
 
@@ -200,26 +199,14 @@ def plot_drawdown_volatility(
     rolling_window: int = 20
 ) -> go.Figure:
     """
-    Cria gráfico com:
-    - Drawdown como área preenchida
-    - Volatilidade rolling como linha
-    
-    Args:
-        df: DataFrame com série de dados
-        drawdown_series: Série de drawdown (%)
-        daily_returns: Série de retornos diários
-        rolling_window: Janela para volatilidade rolling (dias)
-        
-    Returns:
-        go.Figure (Plotly)
+    Gráfico minimalista de Drawdown vs Volatilidade.
     """
-    
-    # Volatilidade rolling
+
     vol_rolling = daily_returns.rolling(window=rolling_window).std() * np.sqrt(252) * 100
-    
-    fig = make_subplots(specs=[[{"secondary_y": False}]])
-    
-    # Drawdown (área)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Drawdown - Área vermelha suave
     fig.add_trace(
         go.Scatter(
             x=drawdown_series.index,
@@ -227,37 +214,82 @@ def plot_drawdown_volatility(
             name='Drawdown',
             mode='lines',
             fill='tozeroy',
-            line=dict(color='#d62728', width=1),
-            fillcolor='rgba(214, 39, 40, 0.3)',
-            hovertemplate='<b>Data:</b> %{x|%d/%m/%Y}<br>' +
-                         '<b>Drawdown:</b> %{y:.2f}%<extra></extra>'
-        )
+            line=dict(color='#f43f5e', width=1.5),
+            fillcolor='rgba(244, 63, 94, 0.12)',
+            hovertemplate='%{x|%d/%m/%Y}<br>%{y:.1f}%<extra></extra>'
+        ),
+        secondary_y=False,
     )
-    
-    # Volatilidade rolling (linha)
+
+    # Volatilidade - Linha amarela/dourada
     fig.add_trace(
         go.Scatter(
             x=vol_rolling.index,
             y=vol_rolling,
-            name=f'Volatilidade {rolling_window}d (anual)',
+            name='Volatilidade',
             mode='lines',
-            line=dict(color='#ff7f0e', width=2),
-            hovertemplate='<b>Data:</b> %{x|%d/%m/%Y}<br>' +
-                         '<b>Volatilidade:</b> %{y:.2f}%<extra></extra>'
-        )
+            line=dict(color='#eab308', width=2),
+            hovertemplate='%{x|%d/%m/%Y}<br>%{y:.1f}%<extra></extra>'
+        ),
+        secondary_y=True,
     )
-    
-    fig.update_xaxes(title_text='Data', showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
-    fig.update_yaxes(title_text='Drawdown / Volatilidade (%)', tickformat='.1f%')
-    
+
+    # Eixos limpos
+    fig.update_xaxes(
+        showgrid=False,
+        showline=False,
+        zeroline=False,
+        tickfont=dict(size=10, color='#64748b')
+    )
+
+    fig.update_yaxes(
+        secondary_y=False,
+        ticksuffix='%',
+        showgrid=True,
+        gridcolor='rgba(148, 163, 184, 0.1)',
+        gridwidth=1,
+        zeroline=False,
+        showline=False,
+        tickfont=dict(size=10, color='#64748b'),
+        title=None
+    )
+
+    fig.update_yaxes(
+        secondary_y=True,
+        ticksuffix='%',
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        tickfont=dict(size=10, color='#64748b'),
+        title=None
+    )
+
     fig.update_layout(
-        title='Drawdown vs Volatilidade',
+        title=None,
+        annotations=[],  # Remove ALL annotations including "undefined"
         hovermode='x unified',
-        plot_bgcolor='rgba(240,240,240,0.5)',
-        height=400,
-        margin=dict(l=80, r=60, t=60, b=60)
+        hoverlabel=dict(
+            bgcolor='#1e293b',
+            font_size=12,
+            font_color='#f1f5f9'
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=280,
+        font=dict(family='system-ui, sans-serif', size=11, color='#94a3b8'),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1.15,
+            xanchor="center",
+            x=0.5,
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#cbd5e1', size=12),
+            itemsizing='constant'
+        ),
+        margin=dict(l=50, r=50, t=50, b=40)
     )
-    
+
     return fig
 
 

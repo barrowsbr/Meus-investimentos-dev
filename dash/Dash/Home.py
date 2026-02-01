@@ -219,8 +219,8 @@ st.markdown("""
 
 # --- IMPORTS ---
 import pandas as pd
-from core.data_loader import load_assets
-from core.market_data import fetch_market_data
+from core.data.loader import load_assets
+from core.data.market import fetch_market_data
 from core.utils import format_decimal_br
 
 # --- HERO SECTION ---

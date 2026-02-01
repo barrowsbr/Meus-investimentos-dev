@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import streamlit as st
 
 # Import existing core functions
-from core.market_data import fetch_market_data
+from core.data.market import fetch_market_data
 from core.consolidator import CurrencyBucket, MultiCurrencyResult, create_empty_bucket, merge_buckets
 
 

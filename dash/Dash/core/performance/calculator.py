@@ -25,7 +25,7 @@ import warnings
 
 # Importar funções de correção (v2.1)
 try:
-    from core.twr_corrections import heal_nav_gaps, validate_twr_continuity, calculate_robust_metrics
+    from core.performance.corrections import heal_nav_gaps, validate_twr_continuity, calculate_robust_metrics
 except ImportError:
     try:
         from twr_corrections import heal_nav_gaps, validate_twr_continuity, calculate_robust_metrics
@@ -318,43 +318,25 @@ def calculate_canonical_twr(
             daily_return = 0.0
             notes = f"Capital base pequeno (R${capital_base:.2f}) - retorno zerado"
 
-        # Caso 3: Cálculo normal
+        # Caso 3: Cálculo normal (LÓGICA ORIGINAL RESTAURADA)
         else:
-            # FÓRMULA CANÔNICA
+            # =====================================================================
+            # TWR ORIGINAL (Versão que funcionava)
+            # Fórmula GIPS End-of-Day:
+            # economic_gain = (NAV_fim + Income) - NAV_inicio - Fluxo
+            # daily_return = economic_gain / NAV_inicio
+            # =====================================================================
+
             economic_gain = (nav_end + income) - nav_start - flow
             daily_return = economic_gain / capital_base
 
-            # =====================================================================
-            # FIX v8.0: Verificação de sanidade para dias de aporte
-            #
-            # PROBLEMA: Se NAV != NAV_start + Flow em um dia de aporte,
-            # significa que há desalinhamento entre NAV e fluxo.
-            #
-            # PRINCÍPIO: Um aporte puro deveria resultar em retorno 0%.
-            # Se há retorno significativo em um dia de aporte grande,
-            # provavelmente é um problema de dados, não performance real.
-            # =====================================================================
-
-            # Se há fluxo significativo (> 5% do NAV), verificar se o retorno faz sentido
-            if abs(flow) > 0.05 * nav_start:
-                # Calcular quanto do "retorno" é explicável pelo fluxo
-                nav_esperado = nav_start + flow
-                diferenca_nav = nav_end - nav_esperado
-                retorno_real_estimado = diferenca_nav / nav_esperado if nav_esperado > 0 else 0
-
-                # Se o retorno real estimado é pequeno (<3%), mas o retorno calculado é grande,
-                # isso indica desalinhamento Flow/NAV
-                if abs(retorno_real_estimado) < 0.03 and abs(daily_return) > 0.10:
-                    # Usar o retorno real estimado em vez do calculado
-                    daily_return = retorno_real_estimado
-                    notes = f"[FIX] Aporte detectado, retorno ajustado de {economic_gain/capital_base:.2%} para {daily_return:.2%}"
-
-            # Diagnóstico de retornos extremos
-            if abs(daily_return) > premises.extreme_return_threshold:
-                date_str = str(idx.date()) if hasattr(idx, 'date') else str(idx)
-                suspicious_dates.append(date_str)
-                if not notes:
-                    notes = f"[!] Retorno extremo: {daily_return:.2%}"
+            # Clip de -50% a +50% (circuit breaker original)
+            if daily_return > 0.5:
+                daily_return = 0.5
+                notes = "Retorno limitado a +50%"
+            elif daily_return < -0.5:
+                daily_return = -0.5
+                notes = "Retorno limitado a -50%"
 
         daily_returns.append(daily_return)
 
@@ -383,10 +365,9 @@ def calculate_canonical_twr(
     # e indicam gaps de preço, splits não ajustados, ou erros de dados.
     # Nesses casos, zeramos o retorno para não distorcer o TWR.
     # =========================================================================
+    # Limite final: 50% (igual ao original)
     MAX_DAILY_RETURN = 0.50  # 50%
-    extreme_mask = abs(df_calc['daily_return']) > MAX_DAILY_RETURN
-    if extreme_mask.any():
-        df_calc.loc[extreme_mask, 'daily_return'] = 0.0
+    df_calc['daily_return'] = df_calc['daily_return'].clip(-MAX_DAILY_RETURN, MAX_DAILY_RETURN)
     
     # =========================================================================
     # 3. CHAIN-LINKING (Encadeamento Geométrico)

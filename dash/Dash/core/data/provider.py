@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.gsheets import get_worksheet
+from core.data.gsheets import get_worksheet
 from datetime import datetime
 
 SPREADSHEET_NAME = 'gdados'
