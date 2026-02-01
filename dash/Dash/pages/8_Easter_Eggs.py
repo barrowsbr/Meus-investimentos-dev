@@ -144,106 +144,264 @@ def return_to_hub():
 def enter_egg(egg_id):
     st.session_state.active_egg = egg_id
 
-# --- SNAKE GAME LOGIC (EGG #1) ---
-def render_snake_game():
+# --- BIO-DOME LOGIC (EGG #2) ---
+def render_bio_dome():
     st.markdown("""
     <style>
-        .game-overlay {
+        .bio-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 1000;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-        .snake-title {
-            font-family: 'Press Start 2P', cursive;
-            color: #00ff41;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ff41;
         }
     </style>
     """, unsafe_allow_html=True)
 
     c1, c2 = st.columns([1, 10])
     with c1:
-        if st.button("⬅ VOLTAR", use_container_width=True):
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_bio_back"):
             return_to_hub()
             st.rerun()
-            
-    # Ticker Feeder
-    df = load_assets()
-    tickers = ["$BRL", "$USD", "$BTC", "$GOLD"]
-    if not df.empty:
-        raw_tickers = df['ticker'].dropna().unique().tolist()
-        if raw_tickers:
-            tickers = [f"${t}" for t in raw_tickers]
-    tickets_js_array = str(tickers)
 
-    game_html = f"""
+    # Data Preparation
+    df = load_assets()
+    ecosystem_data = []
+    
+    if not df.empty:
+        # Group by class/macro-allocation
+        if 'classe' in df.columns and 'valor_atual' in df.columns:
+            # Clean and sum
+            df['valor_atual'] = pd.to_numeric(df['valor_atual'], errors='coerce').fillna(0)
+            grouped = df.groupby('classe')['valor_atual'].sum().reset_index()
+            total_val = grouped['valor_atual'].sum()
+            
+            # Map classes to "Species" colors
+            color_map = {
+                'Renda Fixa': '#00ff41',    # Stable Green
+                'Ações': '#ff00de',         # Volatile Pink
+                'FIIs': '#00efff',          # Blue Construction
+                'Cripto': '#ffcc00',        # Gold/Crypto
+                'Exterior': '#ff4400',      # Red International
+                'Caixa': '#ffffff'          # White Neutral
+            }
+            
+            for _, row in grouped.iterrows():
+                classe = row['classe']
+                val = row['valor_atual']
+                if total_val > 0:
+                    pct = (val / total_val) * 100
+                    # Determine organism count based on allocation %
+                    count = max(3, int(pct / 2)) 
+                    # Normalize radius
+                    radius = max(5, int(pct * 0.8))
+                    
+                    color = color_map.get(classe, '#888888')
+                    
+                    ecosystem_data.append({
+                        'species': classe,
+                        'color': color,
+                        'count': count,
+                        'radius': radius,
+                        'value': float(val)
+                    })
+
+    # Fallback if empty
+    if not ecosystem_data:
+        ecosystem_data = [
+            {'species': 'Unknown', 'color': '#00ff41', 'count': 20, 'radius': 10, 'value': 0}
+        ]
+
+    import json
+    eco_json = json.dumps(ecosystem_data)
+
+    bio_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        body {{ background: transparent; color: white; text-align: center; font-family: 'Courier New', monospace; overflow: hidden; }}
-        canvas {{ border: 4px solid #00ff41; box-shadow: 0 0 20px #00ff41, inset 0 0 20px #00ff41; background-color: #000; display: block; margin: 0 auto; }}
-        #score {{ color: #00ff41; font-size: 24px; margin-bottom: 10px; text-shadow: 0 0 5px #00ff41; font-weight: bold; }}
+        body {{ margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }}
+        canvas {{ display: block; }}
+        #ui-layer {{
+            position: absolute; top: 20px; left: 20px; color: #00ff41; pointer-events: none;
+            text-shadow: 0 0 5px #00ff41; background: rgba(0,0,0,0.5); padding: 10px; border: 1px solid #00ff41;
+        }}
+        .phenomenon {{
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; color: white; opacity: 0; font-weight: bold; pointer-events: none;
+            transition: opacity 1s;
+        }}
     </style>
     </head>
     <body>
-    <div id="score">PATRIMÔNIO: R$ 0,00</div>
-    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="ui-layer">
+        <div>BIO-DOME STATUS: ALIVE</div>
+        <div>SIMULATION SPEED: 1.0x</div>
+        <div style="font-size: 0.8rem; margin-top: 5px; color: #aaa;">> CLICK TO CREATE GRAVITY WELL</div>
+    </div>
+    <div id="phenomenon" class="phenomenon">MARKET SHOCK</div>
+    <canvas id="bioCanvas"></canvas>
+    
     <script>
-        const canvas = document.getElementById("gameCanvas");
+        const canvas = document.getElementById("bioCanvas");
         const ctx = canvas.getContext("2d");
-        const box = 20;
-        let score = 0;
-        const tickers = {tickets_js_array};
-        let snake = [{{ x: 10 * box, y: 10 * box }}];
-        let d;
-        let food = {{ x: Math.floor(Math.random()*(canvas.width/box))*box, y: Math.floor(Math.random()*(canvas.height/box))*box, symbol: tickers[0] }};
+        
+        let width, height;
+        let particles = [];
+        let mouse = {{ x: null, y: null, active: false }};
+        
+        const ecosystem = {eco_json};
 
-        document.addEventListener("keydown", direction);
-        function direction(event) {{
-            if(event.keyCode == 37 && d != "RIGHT") d = "LEFT";
-            else if(event.keyCode == 38 && d != "DOWN") d = "UP";
-            else if(event.keyCode == 39 && d != "LEFT") d = "RIGHT";
-            else if(event.keyCode == 40 && d != "UP") d = "DOWN";
+        function resize() {{
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }}
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Organism {{
+            constructor(x, y, radius, color, species) {{
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.baseRadius = radius;
+                this.color = color;
+                this.species = species;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.life = Math.random() * 100;
+                this.pulseSpeed = 0.05 + Math.random() * 0.05;
+            }}
+
+            update() {{
+                // Movement
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Wall Bounce
+                if (this.x + this.radius > width || this.x - this.radius < 0) this.vx = -this.vx;
+                if (this.y + this.radius > height || this.y - this.radius < 0) this.vy = -this.vy;
+
+                // Mouse Gravity Well
+                if (mouse.active) {{
+                    const dx = mouse.x - this.x;
+                    const dy = mouse.y - this.y;
+                    const distance = Math.sqrt(dx*dx + dy*dy);
+                    if (distance < 300) {{
+                        const force = (300 - distance) / 300;
+                        this.vx += (dx / distance) * force * 0.5;
+                        this.vy += (dy / distance) * force * 0.5;
+                    }}
+                }}
+
+                // Friction
+                this.vx *= 0.99;
+                this.vy *= 0.99;
+
+                // Minimum movement (Brownian motion)
+                if (Math.abs(this.vx) < 0.2) this.vx += (Math.random() - 0.5) * 0.5;
+                if (Math.abs(this.vy) < 0.2) this.vy += (Math.random() - 0.5) * 0.5;
+
+                // Pulsing Life
+                this.life += this.pulseSpeed;
+                this.radius = this.baseRadius + Math.sin(this.life) * 2;
+            }}
+
+            draw() {{
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Math.max(0, this.radius), 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Nucleus
+                ctx.fillStyle = "rgba(255,255,255,0.3)";
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius/4, 0, Math.PI*2);
+                ctx.fill();
+            }}
         }}
 
-        function draw() {{
-            ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height); // Fade effect
-            for(let i=0; i<snake.length; i++) {{
-                ctx.fillStyle = (i==0)? "#00ff41" : "#00cc33";
-                ctx.fillRect(snake[i].x, snake[i].y, box, box);
-                ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.strokeRect(snake[i].x, snake[i].y, box, box);
-            }}
+        function init() {{
+            particles = [];
+            ecosystem.forEach(group => {{
+                for (let i = 0; i < group.count; i++) {{
+                    const x = Math.random() * (width - 100) + 50;
+                    const y = Math.random() * (height - 100) + 50;
+                    particles.push(new Organism(x, y, group.radius, group.color, group.species));
+                }}
+            }});
+        }}
+
+        function animate() {{
+            requestAnimationFrame(animate);
             
-            ctx.fillStyle = "#ff00de"; ctx.font = "16px monospace"; ctx.shadowBlur = 10; ctx.shadowColor = "#ff00de";
-            ctx.fillText(food.symbol, food.x, food.y+15); ctx.shadowBlur = 0;
+            // Trails effect
+            ctx.fillStyle = "rgba(0, 5, 10, 0.2)";
+            ctx.fillRect(0, 0, width, height);
 
-            let snakeX = snake[0].x; let snakeY = snake[0].y;
-            if(d=="LEFT") snakeX -= box; if(d=="UP") snakeY -= box;
-            if(d=="RIGHT") snakeX += box; if(d=="DOWN") snakeY += box;
-
-            if(snakeX == food.x && snakeY == food.y) {{
-                score += (Math.random()*1000)+100;
-                document.getElementById("score").innerText = "PATRIMÔNIO: R$ " + score.toFixed(2);
-                food = {{ x: Math.floor(Math.random()*(canvas.width/box))*box, y: Math.floor(Math.random()*(canvas.height/box))*box, symbol: tickers[Math.floor(Math.random()*tickers.length)] }};
-            }} else {{ snake.pop(); }}
-
-            let newHead = {{ x: snakeX, y: snakeY }};
-            if(snakeX<0 || snakeX>=canvas.width || snakeY<0 || snakeY>=canvas.height || collision(newHead,snake)) {{
-                clearInterval(game);
-                ctx.fillStyle = "white"; ctx.font = "40px monospace";
-                ctx.fillText("BEAR MARKET (GAME OVER)", canvas.width/2 - 250, canvas.height/2);
+            particles.forEach(p => {{
+                p.update();
+                p.draw();
+            }});
+            
+            // Connections
+            ctx.strokeStyle = "rgba(0, 255, 65, 0.05)";
+            ctx.lineWidth = 1;
+            for (let i = 0; i < particles.length; i++) {{
+                for (let j = i; j < particles.length; j++) {{
+                    if (particles[i].species === particles[j].species) {{ // Only connect same species
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 100) {{
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.stroke();
+                        }}
+                    }}
+                }}
             }}
-            snake.unshift(newHead);
         }}
-        function collision(h,a) {{ for(let i=0; i<a.length; i++) {{ if(h.x==a[i].x && h.y==a[i].y) return true; }} return false; }}
-        let game = setInterval(draw, 100);
+
+        // Interact
+        window.addEventListener('mousedown', e => {{
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.active = true;
+        }});
+        
+        window.addEventListener('mousemove', e => {{
+            if (mouse.active) {{
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+            }}
+        }});
+
+        window.addEventListener('mouseup', () => {{
+            mouse.active = false;
+        }});
+        
+        // Touch support
+        window.addEventListener('touchstart', e => {{
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+            mouse.active = true;
+        }});
+        window.addEventListener('touchend', () => {{
+            mouse.active = false;
+        }});
+
+        init();
+        animate();
     </script>
     </body>
     </html>
     """
-    components.html(game_html, height=600)
+    components.html(bio_html, height=700)
+
 
 # --- HOME BUTTON ---
 if st.session_state.active_egg is None:
@@ -258,9 +416,6 @@ if st.session_state.active_egg is None:
     st.markdown('<p style="text-align: center; color: #666; font-size: 1.2rem; margin-bottom: 40px;">// ACESSO RESTRITO: NÍVEL 5 //</p>', unsafe_allow_html=True)
     
     # Grid Layout with Columns
-    # Streamlit buttons don't render well inside HTML hrefs, so we use st.columns and buttons.
-    # To simulate the grid, we'll use rows of columns.
-    
     # ROW 1 (Slots 1-4)
     r1c1, r1c2, r1c3, r1c4 = st.columns(4)
     
@@ -277,8 +432,20 @@ if st.session_state.active_egg is None:
             enter_egg(1)
             st.rerun()
 
+    with r1c2:
+        # SLOT 2: CLIENT REQUEST - BIO DOME
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">🧬</div>
+            <div class="label">MARKET BIO-DOME</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR SIMULAÇÃO", key="btn_egg_2", use_container_width=True):
+            enter_egg(2)
+            st.rerun()
+
     locked_slots = [
-        ("SISTEMA SOLAR (3D)", "🪐"), 
         ("MATRIX RAIN", "💻"), 
         ("NFT GALLERY", "💎"),
         ("CRYPTO MINER", "⛏️"),
@@ -289,27 +456,20 @@ if st.session_state.active_egg is None:
         ("SOURCE CODE", "📜")
     ]
     
-    # Distribute remaining 9 slots
-    cols = [r1c2, r1c3, r1c4] + list(st.columns(4)) + list(st.columns(2)) # Flattening columns for grid logic is tricky in pure python loop, simplistic approach:
-    
-    # Let's do a cleaner grid loop
-    all_placeholders = locked_slots
-    
-    # We already used r1c1.
-    current_col_idx = 0
-    grid_cols = [r1c2, r1c3, r1c4]
+    # Distribute remaining slots
+    remaining_cols = [r1c3, r1c4]
     
     # Create Row 2
     r2 = st.columns(4)
-    grid_cols.extend(r2)
+    remaining_cols.extend(r2)
     
     # Create Row 3
     r3 = st.columns(4)
-    grid_cols.extend(r3)
+    remaining_cols.extend(r3)
     
-    for i, (label, icon) in enumerate(all_placeholders):
-        if i < len(grid_cols):
-            with grid_cols[i]:
+    for i, (label, icon) in enumerate(locked_slots):
+        if i < len(remaining_cols):
+            with remaining_cols[i]:
                 st.markdown(f"""
                 <div class="egg-card locked">
                     <div class="icon">{icon}</div>
@@ -321,3 +481,5 @@ if st.session_state.active_egg is None:
 # --- EGG ROUTER ---
 elif st.session_state.active_egg == 1:
     render_snake_game()
+elif st.session_state.active_egg == 2:
+    render_bio_dome()
