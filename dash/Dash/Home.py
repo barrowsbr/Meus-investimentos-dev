@@ -66,7 +66,7 @@ st.markdown("""
         padding: 0 10px;
     }
 
-    /* Modern Glass Card - Responsive */
+    /* Modern Clickable Glass Card */
     .nav-card {
         background: rgba(30, 41, 59, 0.4);
         backdrop-filter: blur(12px);
@@ -75,18 +75,21 @@ st.markdown("""
         border-radius: 24px;
         padding: 40px 20px;
         width: 100%;
-        max-width: 380px; /* Constrain width on PC */
+        max-width: 380px;
         height: 380px;
-        margin: 0 auto; /* Center in column */
+        margin: 0 auto;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center; /* Center content vertically */
+        justify-content: center;
         text-align: center;
         box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+        text-decoration: none !important;
+        color: white !important;
+        cursor: pointer;
     }
     
     .nav-card:hover {
@@ -128,51 +131,20 @@ st.markdown("""
         color: #94a3b8;
         font-size: 1rem;
         line-height: 1.6;
-        margin-bottom: 30px;
-    }
-
-    /* Button Centering & Alignment */
-    div.stButton {
-        display: flex;
-        justify-content: center;
-        margin-top: 15px;
-    }
-
-    div.stButton > button {
-        background: linear-gradient(90deg, #4f46e5 0%, #4338ca 100%);
-        color: white;
-        border: none;
-        padding: 12px 28px;
-        font-weight: 600;
-        border-radius: 12px;
-        transition: all 0.3s ease;
-        width: 100%;
-        max-width: 380px; /* Match Card Max Width */
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        font-size: 0.85rem;
-    }
-    
-    div.stButton > button:hover {
-        background: linear-gradient(90deg, #4338ca 0%, #3730a3 100%);
-        box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
-        transform: translateY(-2px);
+        margin-bottom: 10px;
     }
 
     /* Mobile Responsive Adjustments */
     @media (max-width: 768px) {
         .hero-title {
-            font-size: 2.8rem; /* Smaller title on mobile */
+            font-size: 2.8rem;
         }
         .nav-card {
-            height: auto; /* Allow auto height on mobile if content wraps */
+            height: auto;
+            min-height: 340px;
             padding: 30px 20px;
-            max-width: 100%; /* Full width on mobile */
+            max-width: 100%;
         }
-        .card-container {
-            gap: 1.5rem;
-        }
-        /* Fix Streamlit column padding on mobile */
         div[data-testid="column"] {
             margin-bottom: 2rem;
         }
@@ -190,7 +162,6 @@ st.markdown("""
         from { opacity: 0; transform: translateY(-20px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    
 
     /* Snapshot Card Styles */
     .snapshot-card {
@@ -213,7 +184,6 @@ st.markdown("""
         border-color: rgba(52, 211, 153, 0.4);
         box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.2);
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -232,11 +202,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- DAILY SNAPSHOT CALCULATION ---
-# Perform lightweight fetch for summary
 with st.spinner("Sintonizando mercado..."):
     df_assets = load_assets()
-    
-    # Defaults
     dolar_val = 0.0
     dolar_var = 0.0
     rv_day_gain = 0.0
@@ -244,34 +211,20 @@ with st.spinner("Sintonizando mercado..."):
     dolar_change = 0.0
     
     if not df_assets.empty:
-        # Filter Active RV Assets
-        df_rv = df_assets[df_assets['ticker'].notna()] # Basic filter
-        # Ideally filter by class if possible, but 'setor' might need processing.
-        # Let's fetch all tickers + BRL=X
-        
+        df_rv = df_assets[df_assets['ticker'].notna()]
         tickers = df_rv['ticker'].unique().tolist()
         if 'BRL=X' not in tickers: tickers.append('BRL=X')
         
-        # Fetch
         map_prices, map_changes = fetch_market_data(tickers)
         
-        # 1. Dollar PTAX/Market
         dolar_val = map_prices.get('BRL=X', 5.0)
         dolar_change = map_changes.get('BRL=X', 0.0)
         dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
-        
-        # 2. RV Day Result
-        # We need Qty held. Calculate current holdings using finance logic or simplified summation
-        # Since 'mean' logic is complex, let's just sum (Qty_Buy - Qty_Sell) per ticker
-        # This is roughly accurate for "Current Portfolio".
-        # Better: Reuse calcular_carteira_fechada logic? It might be heavy for Home.
-        # Let's do a quick agg:
         
         from core.finance import calcular_carteira_fechada
         df_pos, _ = calcular_carteira_fechada(df_assets)
         
         total_mkt_val = 0.0
-        
         if not df_pos.empty:
             for _, row in df_pos.iterrows():
                 t = row['Ticker']
@@ -281,19 +234,13 @@ with st.spinner("Sintonizando mercado..."):
                 if q > 0:
                     delta = map_changes.get(t, 0.0)
                     price = map_prices.get(t, 0.0)
-                    
-                    # Convert delta to BRL
                     rate = 1.0
                     if m == 'USD': rate = dolar_val
-                    # ignoring other currencies for simple home summary or assume USD/BRL only
                     
                     gain_brl = q * delta * rate
                     rv_day_gain += gain_brl
-                    
-                    # For % calculation
                     total_mkt_val += (q * price * rate)
             
-            # Day % = Gain / (Total - Gain) -> approx Gain / YesterdayVal
             if (total_mkt_val - rv_day_gain) > 0:
                 rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
 
@@ -323,78 +270,87 @@ with col_snap_2:
     """, unsafe_allow_html=True)
 
 # --- NAVIGATION CONTAINER ---
-# Use 2 columns equal width for PC, they stack on mobile.
-# Added empty outer columns to centering on ultra-wide screens, but reduced ratio to keep them close.
-# Layout: [Spacer, Card1, Card2, Spacer]
-# Ratios: [1, 5, 5, 1] works well for desktop centering. 
-# --- NAVIGATION CONTAINER (2x2 GRID) ---
 # Row 1: Investimentos | Finanças
 col_r1_l, col_r1_c1, col_r1_c2, col_r1_r = st.columns([1, 6, 6, 1])
 
 with col_r1_c1:
     st.markdown("""
-    <div class="nav-card">
+    <a href="Investimentos" target="_self" class="nav-card">
         <div class="icon-box">🚀</div>
         <div class="card-title">Patrimônio</div>
         <div class="card-desc">
             Dashboard de alocação.<br>
             Acompanhe carteira e ativos.
         </div>
-    </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Carteira →</div>
+    </a>
     """, unsafe_allow_html=True)
-    if st.button("Acessar Carteira →", key="btn_inv", use_container_width=True):
-        st.switch_page("pages/1_Investimentos.py")
 
 with col_r1_c2:
     st.markdown("""
-    <div class="nav-card">
+    <a href="Finanças" target="_self" class="nav-card">
         <div class="icon-box">💎</div>
         <div class="card-title">Finanças</div>
         <div class="card-desc">
             Controle financeiro pessoal.<br>
             Gerencie gastos e cartão de crédito.
         </div>
-    </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Finanças →</div>
+    </a>
     """, unsafe_allow_html=True)
-    if st.button("Acessar Finanças →", key="btn_fin", use_container_width=True):
-        st.switch_page("pages/2_Finanças.py")
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-# Row 2: Performance | Ferramentas
+# Row 2: Performance | Editor
 col_r2_l, col_r2_c1, col_r2_c2, col_r2_r = st.columns([1, 6, 6, 1])
 
 with col_r2_c1:
     st.markdown("""
-    <div class="nav-card">
+    <a href="Performance" target="_self" class="nav-card">
         <div class="icon-box">📈</div>
         <div class="card-title">Performance</div>
         <div class="card-desc">
             Análise GIPS e rentabilidade real.<br>
             Time-Weighted Return (TWR) puro.
         </div>
-    </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Ver Rentabilidade →</div>
+    </a>
     """, unsafe_allow_html=True)
-    if st.button("Ver Rentabilidade →", key="btn_perf", use_container_width=True):
-        st.switch_page("pages/3_Performance.py")
 
 with col_r2_c2:
     st.markdown("""
-    <div class="nav-card">
+    <a href="Editor" target="_self" class="nav-card">
+        <div class="icon-box">📝</div>
+        <div class="card-title">Editor</div>
+        <div class="card-desc">
+            Edição de registros brutos.<br>
+            Ajuste ativos e transações.
+        </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Editor →</div>
+    </a>
+    """, unsafe_allow_html=True)
+
+st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+
+# Row 3: Ferramentas (Aligned with first column)
+col_r3_l, col_r3_c1, col_r3_c2, col_r3_r = st.columns([1, 6, 6, 1])
+
+with col_r3_c1:
+    st.markdown("""
+    <a href="Ferramentas" target="_self" class="nav-card">
         <div class="icon-box">🛠️</div>
         <div class="card-title">Ferramentas</div>
         <div class="card-desc">
             Área de dados e scripts.<br>
             Importação e otimização de registros.
         </div>
-    </div>
+        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Ferramentas →</div>
+    </a>
     """, unsafe_allow_html=True)
-    if st.button("Acessar Ferramentas →", key="btn_tools", use_container_width=True):
-        st.switch_page("pages/4_Ferramentas.py")
 
 # --- FOOTER ---
 st.markdown("""
 <div style="text-align: center; color: #475569; padding-top: 80px; padding-bottom: 40px; font-size: 0.8rem;">
-    VERSION 3.0 • SECURE ENVIRONMENT
+    Version 145.64 - Final 3.4
 </div>
 """, unsafe_allow_html=True)

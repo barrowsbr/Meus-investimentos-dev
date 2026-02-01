@@ -279,8 +279,9 @@ def process_transactions_vectorized(
     df['sinal'] = ((df['tipo'] == 'compra') * 2 - 1).astype(int)
     
     # 3. Mapear datas para index alvo
-    df['idx_mapping'] = pd.searchsorted(idx_dates, df['data'], side='right') - 1
-    df['idx_mapping'] = df['idx_mapping'].clip(lower=0)
+    # FIX: Usar side='left' para mapear fds para próxima segunda (não sexta anterior)
+    df['idx_mapping'] = pd.searchsorted(idx_dates, df['data'], side='left')
+    df['idx_mapping'] = df['idx_mapping'].clip(lower=0, upper=len(idx_dates)-1)
     df['data_valida'] = idx_dates[df['idx_mapping']]
     
     # 4. FX rates

@@ -35,7 +35,8 @@ def _process_transactions_vectorized(
     df = df_ops.copy()
 
     # 1. Mapear datas para o índice de mercado (vetorizado)
-    df['idx_pos'] = np.searchsorted(idx_dates, df['data'], side='right') - 1
+    # FIX: Usar side='left' para mapear fds para próxima segunda (não sexta anterior)
+    df['idx_pos'] = np.searchsorted(idx_dates, df['data'], side='left')
     df['idx_pos'] = df['idx_pos'].clip(lower=0, upper=len(idx_dates)-1)
     df['effective_date'] = idx_dates[df['idx_pos'].values]
 
@@ -285,7 +286,8 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
                 continue
 
             # 3.3 Se há variação extrema sem justificativa, suavizar
-            if nav_prev > 0:
+            # FIX: Apenas suavizar se NÃO houver fluxo no dia, para não mascarar erros de cálculo
+            if nav_prev > 0 and abs(flow_day) < 1.0:
                 nav_expected = nav_prev + flow_day
                 if nav_expected > 0:
                     # Variação percentual do esperado
@@ -296,8 +298,8 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
 
                     if abs(variation) > MAX_UNEXPLAINED_CHANGE:
                         # Interpolar: usar média ponderada entre atual e esperado
-                        # Peso de 0.7 para esperado, 0.3 para atual
-                        nav_values[i] = 0.7 * nav_expected + 0.3 * nav_curr
+                        # Peso de 0.8 para esperado (prioriza estabilidade), 0.2 para atual
+                        nav_values[i] = 0.8 * nav_expected + 0.2 * nav_curr
 
         serie_patrimonio.loc[mask_after] = nav_values
 
@@ -420,17 +422,13 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
             force_zero_arr[i] = True
             note = "Zero NAV start"
         
-        # Rule 2: Very small base (< R$100) - too noisy for reliable return
-        elif n_s < 100.0:
-            force_zero_arr[i] = True
-            note = f"Small base (R${n_s:.0f})"
-        
-        # Rule 3: Large inflow (> 20% of NAV) - use SoD to prevent return inflation
+        # Rule 2: Large inflow (> 1% of NAV) - use SoD to prevent return inflation
+        # FIX: Threshold lowered from 20% to 1% to better handle new stakes
         elif flw > 0 and n_s > 0:
             ratio_inflow = flw / n_s
-            if ratio_inflow > 0.20:  # > 20% inflow
+            if ratio_inflow > 0.01:  # > 1% inflow
                 flow_timing_arr[i] = 1  # Treat as SoD
-                note = f"Large inflow ({ratio_inflow:.1%})"
+                note = f"Inflow ({ratio_inflow:.1%})"
         
         flow_timing_notes.append(note)
     
@@ -565,9 +563,9 @@ def reconstruct_history_multicurrency(
                 sinal = 1 if 'compra' in str(row['tipo']).lower() else -1
                 try:
                     dt_op = row['data']
-                    idx_fluxo = idx_dates.get_indexer([dt_op], method='pad')[0]
-                    if idx_fluxo == -1:
-                        idx_fluxo = idx_dates.get_indexer([dt_op], method='bfill')[0]
+                    # FIX: Usar side='left' para consistência fds -> segunda
+                    idx_fluxo = np.searchsorted(idx_dates, dt_op, side='left')
+                    idx_fluxo = min(idx_fluxo, len(idx_dates) - 1)
                     data_valida = idx_dates[idx_fluxo]
                     df_ops.at[idx_op, 'effective_date'] = data_valida
                     custodia_diaria.loc[data_valida:, t] += (row['quantidade'] * sinal)
@@ -691,11 +689,9 @@ def reconstruct_history_multicurrency(
             
             if n_s <= 0:
                 force_zero_arr[i] = True
-            elif n_s < 100.0:  # Minimum capital threshold
-                force_zero_arr[i] = True
             elif flw > 0 and n_s > 0:
                 ratio_inflow = flw / n_s
-                if ratio_inflow > 0.20:
+                if ratio_inflow > 0.01: # Threshold 1%
                     flow_timing_arr[i] = 1  # SoD
         
         # =========================================================================
@@ -719,14 +715,15 @@ def reconstruct_history_multicurrency(
                     continue
 
                 # Suavizar variações extremas
-                if nav_prev > 0:
+                # FIX: Apenas suavizar se NÃO houver fluxo detectado no dia
+                if nav_prev > 0 and abs(flow_day) < 1.0:
                     nav_expected = nav_prev + flow_day
                     if nav_expected > 0:
                         variation = (nav_curr - nav_expected) / nav_expected
                         MAX_UNEXPLAINED_CHANGE = 0.40
 
                         if abs(variation) > MAX_UNEXPLAINED_CHANGE:
-                            nav_values[i] = 0.7 * nav_expected + 0.3 * nav_curr
+                            nav_values[i] = 0.8 * nav_expected + 0.2 * nav_curr
 
             nav_series = pd.Series(nav_values, index=nav_series.loc[mask_after].index)
             # Reconstruir série completa

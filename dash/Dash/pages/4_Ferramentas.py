@@ -51,7 +51,7 @@ with col_h1:
     st.caption("Scripts de automação, importação e manutenção da base de dados.")
 with col_h2:
     if st.button("🏠 Voltar para Home", use_container_width=True):
-        st.switch_page("app.py")
+        st.switch_page("Home.py")
 
 st.divider()
 
@@ -86,14 +86,28 @@ with c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    st.markdown("""
-    <div class="tool-card">
-        <h3>🧹 Higienização</h3>
-        <p style="color: #94a3b8;">Ferramentas para corrigir tickers, unificar nomes e limpar dados.</p>
-        <br>
-        <p style="font-size: 0.8rem; font-style: italic;">Em breve...</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="tool-card">', unsafe_allow_html=True)
+    st.markdown("<h3>🧹 Manutenção & Dados</h3>", unsafe_allow_html=True)
+    st.markdown('<p style="color: #94a3b8;">Atualização de índices, taxas oficiais e limpeza de registros.</p>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown("#### 🇧🇷 PTAX Oficial (IPEA)")
+    st.caption("Atualiza a base histórica do Dólar para cálculos fiscais e conversões.")
+    
+    if st.button("🚀 Atualizar PTAX (IPEA)", use_container_width=True):
+        from core.ptax_updater import atualizar_ptax
+        with st.spinner("Buscando dados no IPEA..."):
+            success, msg = atualizar_ptax()
+            if success:
+                if "já está atualizada" in msg:
+                    st.info(f"ℹ️ {msg}")
+                else:
+                    st.success(f"✅ {msg}")
+            else:
+                st.error(f"❌ {msg}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with c3:
     with st.container():

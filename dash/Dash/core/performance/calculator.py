@@ -293,8 +293,15 @@ def calculate_canonical_twr(
         income = row['income'] if premises.income_policy == IncomePolicy.INCLUDE else 0.0
 
         # Determinar timing
+        # 1. Prioridade: Override explícito
         if flow_timing_override is not None and idx in flow_timing_override.index:
-            timing = flow_timing_override.loc[idx]
+            timing_val = flow_timing_override.loc[idx]
+            timing = FlowTiming.START_OF_DAY if timing_val in (1, FlowTiming.START_OF_DAY) else FlowTiming.END_OF_DAY
+        # 2. Segunda prioridade: Coluna no DataFrame
+        elif 'flow_timing' in df_calc.columns:
+            timing_val = df_calc.at[idx, 'flow_timing']
+            timing = FlowTiming.START_OF_DAY if timing_val in (1, FlowTiming.START_OF_DAY) else FlowTiming.END_OF_DAY
+        # 3. Fallback: Default das premissas
         else:
             timing = premises.flow_timing_default
 
@@ -309,14 +316,20 @@ def calculate_canonical_twr(
         notes = ""
 
         # Caso 1: Capital insuficiente
-        if capital_base <= 0 or nav_start <= 0:
+        # Caso 1: Capital insuficiente (Sem base para retorno)
+        if capital_base <= 0:
             daily_return = 0.0
-            notes = "Capital inicial zero - retorno não aplicável"
+            notes = "Capital base zero ou negativo - retorno não aplicável"
 
         # Caso 2: Capital muito pequeno
         elif capital_base < premises.min_capital_for_valid_return:
             daily_return = 0.0
             notes = f"Capital base pequeno (R${capital_base:.2f}) - retorno zerado"
+
+        # Caso 2.5: Forçado a zero (Limpeza de ruído/Início de série)
+        elif 'force_return_zero' in df_calc.columns and df_calc.at[idx, 'force_return_zero']:
+            daily_return = 0.0
+            notes = "Retorno forçado a zero (Filtro de ruído)"
 
         # Caso 3: Cálculo normal (LÓGICA ORIGINAL RESTAURADA)
         else:
