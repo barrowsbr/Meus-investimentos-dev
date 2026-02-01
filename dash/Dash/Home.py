@@ -348,19 +348,21 @@ st.markdown(f"""
 </style>
 
 <div class="neon-player-container">
-    <div id="player-card" class="neon-player" onclick="toggleAudio()">
-        <div class="player-icon">📀</div>
-        <div class="player-info">
-            <div class="player-title">{selected_track['title']}</div>
-            <div class="player-artist">{selected_track['artist']} (Now Playing)</div>
+    <a href="Arquitetura" target="_self" style="text-decoration: none;">
+        <div id="player-card" class="neon-player">
+            <div class="player-icon">📀</div>
+            <div class="player-info">
+                <div class="player-title">{selected_track['title']}</div>
+                <div class="player-artist">Ver Arquitetura do Sistema</div>
+            </div>
+            <div class="equalizer">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
         </div>
-        <div class="equalizer">
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-        </div>
-    </div>
+    </a>
 </div>
 
 <audio id="bg-music" autoplay loop>
@@ -449,25 +451,27 @@ with st.spinner("Sintonizando mercado..."):
 col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
 with col_snap_2:
     st.markdown(f"""
-    <div class="snapshot-card">
-        <div style="text-align: center;">
-            <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
-                R$ {format_decimal_br(rv_day_gain, 2)}
-                <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
+    <a href="Easter_Eggs" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
+        <div class="snapshot-card">
+            <div style="text-align: center;">
+                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
+                    R$ {format_decimal_br(rv_day_gain, 2)}
+                    <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
+                </div>
+            </div>
+            <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
+            <div style="text-align: center;">
+                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
+                    R$ {format_decimal_br(dolar_val, 3)}
+                    <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
+                        ({format_decimal_br(dolar_var, 2)}%)
+                    </span>
+                </div>
             </div>
         </div>
-        <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
-        <div style="text-align: center;">
-            <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
-                R$ {format_decimal_br(dolar_val, 3)}
-                <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
-                    ({format_decimal_br(dolar_var, 2)}%)
-                </span>
-            </div>
-        </div>
-    </div>
+    </a>
     """, unsafe_allow_html=True)
 
 # --- NAVIGATION CONTAINER ---
