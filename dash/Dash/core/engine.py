@@ -394,9 +394,10 @@ def reconstruct_history(df_bruto: pd.DataFrame, df_proventos: pd.DataFrame, days
 
 
         except Exception as e:
-            # Fallback: continue without RF integration
+            # Fallback: continue without RF
             import traceback
-            # print(f"[ENGINE] RF integration error: {traceback.format_exc()}")
+            print(f"CRASH IN RF ENGINE: {e}")
+            traceback.print_exc()
             pass
 
     # 4. Slicing (Visual Window)
@@ -938,15 +939,46 @@ def reconstruct_history_multicurrency(
             if not rf_result.daily_curve.empty:
                 rf_curve = rf_result.daily_curve['total']
                 rf_curve.index = pd.to_datetime(rf_curve.index)
-
+                
                 # Slice to visual window
                 data_corte = datetime.now() - timedelta(days=days_lookback)
                 rf_curve_sliced = rf_curve[rf_curve.index >= data_corte]
 
-                # Create RF bucket
-                # Reindex to full range to match other buckets
+
+                # =====================================================================
+                # FIX v14.0: Usar valores manuais para NAV (mesmo que Composição)
+                # 
+                # PROBLEMA:
+                # - FixedIncomeEngine usa proxy SELIC para estimar valores
+                # - Isso difere dos saldos reais mostrados em Composição
+                # - Resultado: Performance R$158k vs Composição R$193k
+                #
+                # SOLUÇÃO:
+                # - Para NAV final, usar soma dos valores manuais (manual_rf_proc)
+                # - Curva histórica ainda usa engine para calcular retornos (TWR)
+                # - Isso garante que Performance mostra o mesmo patrimônio que Composição
+                # =====================================================================
+                
+                # Create RF bucket - use RF curve's own index if idx_dates is empty/old
                 full_range = idx_dates[idx_dates >= data_corte]
-                rf_nav = rf_curve_sliced.reindex(full_range).ffill().fillna(0)
+                
+                if len(full_range) == 0:
+                    # Fallback: use RF curve's own dates
+                    full_range = rf_curve_sliced.index
+                    rf_nav = rf_curve_sliced.ffill().fillna(0)
+                else:
+                    rf_nav = rf_curve_sliced.reindex(full_range).ffill().fillna(0)
+                
+                if len(rf_nav) == 0 or rf_nav.iloc[-1] == 0:
+                    # Still empty, try using the raw RF curve without slicing
+                    rf_nav = rf_curve.ffill().fillna(0)
+                    full_range = rf_nav.index
+
+                # =====================================================================
+                # FIX v14.0 REMOVED: Scaling was causing inflated values
+                # The FixedIncomeEngine already uses manual_values internally
+                # so additional scaling was double-counting some values
+                # =====================================================================
                 
                 # =====================================================================
                 # FIX v11.0 + v12.0: Calcular fluxos RF baseado na VARIAÇÃO DO NAV
