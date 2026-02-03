@@ -55,8 +55,45 @@ def normalize_dataframe_columns(df: pd.DataFrame, mapping: dict = None) -> pd.Da
 def parse_date_br(series: pd.Series) -> pd.Series:
     """
     Parses a series to datetime assuming day-first (BR) format primarily.
-    Handles 'NaT', empty strings, etc.
+    Handles 'NaT', empty strings, and Excel serial dates (integers from Google Sheets).
     """
-    # Clean artifacts like single quotes sometimes exported from Sheets
-    clean_series = series.astype(str).str.replace("'", "", regex=False).str.strip()
-    return pd.to_datetime(clean_series, dayfirst=True, errors='coerce')
+    def convert_value(val):
+        # Handle None/NaN
+        if pd.isna(val):
+            return pd.NaT
+
+        # Handle numeric (Excel serial date from Google Sheets)
+        # Excel serial: 1 = 1900-01-01, with origin at 1899-12-30 (leap year bug)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            try:
+                # Reasonable Excel date range: ~1900 to ~2200
+                if 1 < val < 150000:
+                    return pd.to_datetime(val, unit='D', origin='1899-12-30')
+            except:
+                pass
+            return pd.NaT
+
+        # Handle string
+        s = str(val).replace("'", "").strip()
+        if not s or s.lower() in ['nat', 'none', 'nan', '']:
+            return pd.NaT
+
+        # Check if string is numeric (Excel serial as string)
+        try:
+            num_val = float(s)
+            if 1 < num_val < 150000:  # Reasonable Excel date range
+                return pd.to_datetime(num_val, unit='D', origin='1899-12-30')
+        except ValueError:
+            pass
+
+        # Regular date string parsing
+        try:
+            # If format is YYYY-MM-DD, don't use dayfirst
+            if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+                return pd.to_datetime(s)
+            # Otherwise use dayfirst for BR format (DD/MM/YYYY)
+            return pd.to_datetime(s, dayfirst=True)
+        except:
+            return pd.NaT
+
+    return series.apply(convert_value)

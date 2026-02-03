@@ -57,8 +57,10 @@ def get_worksheet(spreadsheet_name, tab_name):
     """
     Helper to get a specific worksheet safely.
     Robust against SSL Persistence Errors by forcing re-auth.
+    Returns None silently if worksheet doesn't exist.
     """
     import time
+    from gspread.exceptions import WorksheetNotFound
     
     # Retry config
     MAX_RETRIES = 5
@@ -73,6 +75,9 @@ def get_worksheet(spreadsheet_name, tab_name):
             sh = client.open(spreadsheet_name)
             ws = sh.worksheet(tab_name)
             return ws
+        except WorksheetNotFound:
+            # Aba não existe - retorna None silenciosamente
+            return None
         except Exception as e:
             if attempt < MAX_RETRIES - 1:
                 # Exponential backoff

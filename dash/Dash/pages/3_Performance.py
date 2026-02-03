@@ -295,61 +295,9 @@ def main():
         st.warning("Sem dados de transações para calcular performance.")
         st.stop()
 
-    # 2. FILTERS (Enhanced Sidebar)
-    with st.sidebar:
-        st.markdown("""
-        <div style="padding: 8px 0 16px 0;">
-            <div style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9;">⚙️ Configurações</div>
-            <div style="font-size: 0.75rem; color: #64748b;">Personalize sua análise</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Filtros de Ativos
-        st.markdown('<div class="sidebar-title">📊 Filtros de Ativos</div>', unsafe_allow_html=True)
-
-        all_tickers = []
-        if not df_assets.empty:
-            all_tickers += df_assets['ticker'].unique().tolist()
-        if not df_rf_raw.empty:
-            if 'Ticker' in df_rf_raw.columns:
-                all_tickers += df_rf_raw['Ticker'].unique().tolist()
-
-        all_tickers = sorted(list(set(all_tickers)))
-
-        # Contagem de ativos
-        total_rv = len(df_assets['ticker'].unique()) if not df_assets.empty else 0
-        total_rf = len(df_rf_raw['Ticker'].unique()) if not df_rf_raw.empty and 'Ticker' in df_rf_raw.columns else 0
-
-        st.caption(f"📈 {total_rv} ativos RV • 💰 {total_rf} posições RF")
-
-        sel_tickers = st.multiselect(
-            "Selecione ativos específicos:",
-            all_tickers,
-            placeholder="Todos os ativos",
-            help="Deixe vazio para incluir todos os ativos"
-        )
-
-        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-        # Ações
-        st.markdown('<div class="sidebar-title">🔧 Ações</div>', unsafe_allow_html=True)
-
-        if st.button("🔄 Recalcular Dados", use_container_width=True, type="primary"):
-            st.cache_data.clear()
-            st.rerun()
-
-        st.caption("Limpa cache e recarrega dados do mercado")
-
-    # 3. ENGINE EXECUTION
-    # Apply filters
+    # 2. PREPARE DATA (sem filtros de sidebar)
     df_rv_final = df_assets.copy()
     df_rf_final = df_rf_raw.copy()
-    
-    if sel_tickers:
-        if not df_rv_final.empty:
-            df_rv_final = df_rv_final[df_rv_final['ticker'].isin(sel_tickers)]
-        if not df_rf_final.empty:
-            df_rf_final = df_rf_final[df_rf_final['Ticker'].isin(sel_tickers)]
 
     # Fetch History
     with st.spinner("Sincronizando mercado..."):
@@ -382,10 +330,13 @@ def main():
         manual_rf_values = {}
         if not df_rf_manual.empty:
             # Create dictionary {Ticker: Valor Atual}
-            # Cleaning Data
+            # Cleaning Data - UPPERCASE para matching com FixedIncomeEngine (linha 212)
             df_rf_manual['Atual'] = pd.to_numeric(df_rf_manual['Atual'], errors='coerce').fillna(0)
             df_rf_manual = df_rf_manual[df_rf_manual['Atual'] > 0]
-            manual_rf_values = dict(zip(df_rf_manual['Ticker'].str.strip(), df_rf_manual['Atual']))
+            manual_rf_values = dict(zip(
+                df_rf_manual['Ticker'].astype(str).str.strip().str.upper(),
+                df_rf_manual['Atual']
+            ))
         
         multi_result = reconstruct_history_multicurrency(
             df_bruto=df_rv_final,
@@ -488,11 +439,11 @@ def main():
     # Apply Slice
     mask = (df_engine_input.index >= start_date) & (df_engine_input.index <= end_date)
     df_slice = df_engine_input[mask]
-    
+
     if df_slice.empty:
         st.error("Período vazio.")
         st.stop()
-        
+
     # Re-run TWR on slice
     res_period = run_performance_engine_compat(df_slice)
     

@@ -94,7 +94,7 @@ class TWRPremises:
     flow_timing_default: FlowTiming = FlowTiming.END_OF_DAY
     income_policy: IncomePolicy = IncomePolicy.INCLUDE
     rf_valuation_mode: RFValuationMode = RFValuationMode.CURVA_PROXY
-    min_capital_for_valid_return: float = 100.0  # R$
+    min_capital_for_valid_return: float = 1.0  # R$ (reduzido de 100 para capturar retornos iniciais)
     selic_annual_rate: float = 0.15  # 15% a.a.
     business_days_per_year: int = 252
     extreme_return_threshold: float = 0.30  # 30% em um dia = warning

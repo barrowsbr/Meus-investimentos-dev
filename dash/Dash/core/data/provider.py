@@ -127,3 +127,8 @@ class DataProvider:
     def get_history_lb(cls) -> pd.DataFrame:
         """Returns Historical Wealth Data (lb_historic)"""
         return cls.fetch_data('lb_historic')
+
+    @classmethod
+    def get_financas(cls) -> pd.DataFrame:
+        """Returns Personal Finance Data (financas) - Cartões, Contas e Gastos"""
+        return cls.fetch_data('financas')

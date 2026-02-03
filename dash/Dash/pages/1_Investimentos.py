@@ -1965,8 +1965,11 @@ with tab6:
             col_taxa = None
             
             for c in df.columns:
-                if 'data' in c: col_data = c
-                elif 'taxa' in c or 'ptax' in c or 'cotacao' in c or 'valor' in c or 'usd' in c: col_taxa = c
+                c_lower = str(c).lower().strip()
+                if 'data' in c_lower and col_data is None: 
+                    col_data = c
+                elif any(x in c_lower for x in ['taxa', 'ptax', 'cotacao', 'valor', 'usd', 'rate']) and col_taxa is None: 
+                    col_taxa = c
             
             if not col_data or not col_taxa:
                 # Fallback: assume primeira coluna é data, segunda é taxa
@@ -1980,12 +1983,44 @@ with tab6:
             df_ptax = df[[col_data, col_taxa]].copy()
             df_ptax.columns = ['Data', 'Taxa']
             
-            # Parse de data e valores
-            df_ptax['Data'] = parse_date_br(df_ptax['Data'])
-            df_ptax['Taxa'] = df_ptax['Taxa'].apply(parse_decimal_br)
+            # Parse de data - TRATA SERIAL DATES DO EXCEL/SHEETS
+            def safe_parse_date(v):
+                if pd.isna(v) or v is None:
+                    return pd.NaT
+                # Se for número (serial date do Excel: dias desde 1899-12-30)
+                if isinstance(v, (int, float)):
+                    try:
+                        # Origem do Excel: 1899-12-30 (com ajuste do bug de 1900)
+                        return pd.Timestamp('1899-12-30') + pd.Timedelta(days=int(v))
+                    except:
+                        return pd.NaT
+                # Se for string, tentar parse normal
+                try:
+                    return pd.to_datetime(v, dayfirst=True, errors='coerce')
+                except:
+                    return pd.NaT
+            
+            df_ptax['Data'] = df_ptax['Data'].apply(safe_parse_date)
+            
+            # Parse de taxa - trata valores que já são numéricos ou strings
+            def safe_parse_taxa(v):
+                if pd.isna(v) or v is None:
+                    return None
+                if isinstance(v, (int, float)):
+                    return float(v) if not pd.isna(v) else None
+                return parse_decimal_br(v)
+            
+            df_ptax['Taxa'] = df_ptax['Taxa'].apply(safe_parse_taxa)
             
             # Remove inválidos e define índice
             df_ptax = df_ptax.dropna(subset=['Data', 'Taxa'])
+            
+            # Filtra taxas inválidas (zero ou negativas)
+            df_ptax = df_ptax[df_ptax['Taxa'] > 0]
+            
+            if df_ptax.empty:
+                return pd.DataFrame()
+            
             df_ptax = df_ptax.set_index('Data').sort_index()
             
             return df_ptax
@@ -2194,7 +2229,8 @@ with tab6:
                     with m2:
                         st.markdown(render_metric_card("Prejuízo Usado", f"R$ {tot_prej_usado:,.0f}", icon="🧾"), unsafe_allow_html=True)
                     with m3:
-                        st.markdown(render_metric_card("Saldo Restante", f"R$ {loss_swing + loss_fii + loss_dt:,.0f}", icon="🛡️"), unsafe_allow_html=True)
+                        saldo_restante = min(0, loss_swing + loss_fii + loss_dt)  # Só mostra prejuízos
+                        st.markdown(render_metric_card("Saldo Restante", f"R$ {saldo_restante:,.0f}", icon="🛡️"), unsafe_allow_html=True)
                     with m4:
                         st.markdown(render_metric_card("DARF Total", f"R$ {tot_darf_ano:,.0f}", icon="💸"), unsafe_allow_html=True)
 
@@ -2510,14 +2546,38 @@ with tab7:
         
         # Use raw RF data
         if not df_rf_raw.empty:
-            # Extrai valores manuais se existirem
+            # Extrai valores manuais de fixa_aberta (FONTE DE VERDADE)
             manual_vals = {}
-            if 'Valor Atual' in df_rf_raw.columns and 'Ticker' in df_rf_raw.columns:
+
+            # PRIORIDADE 1: Usar df_rf_manual (fixa_aberta) como fonte principal
+            if not df_rf_manual.empty:
+                # Identifica coluna de valor atual (pode ser 'Atual', 'Valor Atual', etc)
+                val_col = None
+                for col in ['Atual', 'Valor Atual', 'atual', 'valor_atual']:
+                    if col in df_rf_manual.columns:
+                        val_col = col
+                        break
+
+                ticker_col = None
+                for col in ['Ticker', 'ticker', 'Ativo', 'ativo']:
+                    if col in df_rf_manual.columns:
+                        ticker_col = col
+                        break
+
+                if val_col and ticker_col:
+                    for _, row in df_rf_manual.iterrows():
+                        t = str(row[ticker_col]).strip().upper()  # Normaliza para UPPERCASE
+                        v = pd.to_numeric(row[val_col], errors='coerce')
+                        if pd.notnull(v) and v > 0 and t:
+                            manual_vals[t] = v
+
+            # PRIORIDADE 2: Fallback para Valor Atual em df_rf_raw (se não tiver fixa_aberta)
+            if not manual_vals and 'Valor Atual' in df_rf_raw.columns and 'Ticker' in df_rf_raw.columns:
                 for t, g in df_rf_raw.groupby('Ticker'):
                     v_max = pd.to_numeric(g['Valor Atual'], errors='coerce').max()
                     if pd.notnull(v_max) and v_max > 0:
                         manual_vals[t] = v_max
-            
+
             engine_rf = FixedIncomeEngine(df_rf_raw, manual_values=manual_vals)
             curve_result = engine_rf.build_daily_curve()
             

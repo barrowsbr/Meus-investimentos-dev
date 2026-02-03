@@ -209,7 +209,7 @@ class FixedIncomeEngine:
                 if date is None or pd.isna(date):
                     continue
                 
-                ticker = str(row.get('Ticker', 'UNKNOWN')).strip()
+                ticker = str(row.get('Ticker', 'UNKNOWN')).strip().upper()  # Normaliza para UPPERCASE
                 tipo = str(row.get('Tipo', '')).strip().upper()
                 
                 # Use standardized robust parser

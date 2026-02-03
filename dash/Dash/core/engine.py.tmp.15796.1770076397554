@@ -1030,11 +1030,80 @@ def reconstruct_history_multicurrency(
 
                 rf_flows = pd.Series(rf_flows_arr, index=rf_nav.index)
 
+                # =====================================================================
+                # FIX v15.0: Integrar juros/cupom de RF no income
+                #
+                # PROBLEMA:
+                # - Income de RF estava zerado, ignorando juros recebidos
+                # - Isso subestimava o retorno total de RF
+                #
+                # SOLUÇÃO:
+                # - Filtrar proventos de RF (JUROS, CUPOM, RENDIMENTO) de df_proventos
+                # - Agregar por data e criar série de income
+                # =====================================================================
+                rf_income_series = pd.Series(0.0, index=rf_nav.index)
+
+                if df_proventos is not None and not df_proventos.empty:
+                    try:
+                        df_p = df_proventos.copy()
+
+                        # Normaliza nomes de colunas
+                        df_p.columns = df_p.columns.str.lower().str.strip()
+
+                        # Identifica coluna de tipo/lançamento
+                        tipo_col = None
+                        for col in ['lancamento', 'tipo', 'type']:
+                            if col in df_p.columns:
+                                tipo_col = col
+                                break
+
+                        # Identifica coluna de data
+                        data_col = None
+                        for col in ['data', 'pagamento', 'date']:
+                            if col in df_p.columns:
+                                data_col = col
+                                break
+
+                        # Identifica coluna de valor
+                        valor_col = None
+                        for col in ['valor', 'value', 'amount']:
+                            if col in df_p.columns:
+                                valor_col = col
+                                break
+
+                        if tipo_col and data_col and valor_col:
+                            # Filtra proventos de RF (JUROS, CUPOM, RENDIMENTO)
+                            mask_rf = df_p[tipo_col].astype(str).str.upper().str.contains(
+                                'JUROS|CUPOM|RENDIMENTO', na=False
+                            )
+                            df_rf_income = df_p[mask_rf].copy()
+
+                            if not df_rf_income.empty:
+                                df_rf_income[data_col] = pd.to_datetime(df_rf_income[data_col], errors='coerce')
+                                df_rf_income[valor_col] = pd.to_numeric(df_rf_income[valor_col], errors='coerce').fillna(0)
+
+                                # Agrupa por data
+                                income_by_date = df_rf_income.groupby(data_col)[valor_col].sum()
+
+                                # Alinha com índice do RF NAV
+                                for dt, val in income_by_date.items():
+                                    if pd.notna(dt) and val > 0:
+                                        # Encontra data mais próxima no índice
+                                        if dt in rf_income_series.index:
+                                            rf_income_series.loc[dt] += val
+                                        else:
+                                            # Tenta encontrar data próxima
+                                            close_dates = rf_income_series.index[rf_income_series.index >= dt]
+                                            if len(close_dates) > 0:
+                                                rf_income_series.loc[close_dates[0]] += val
+                    except Exception:
+                        pass  # Se falhar, mantém income zerado
+
                 rf_bucket = CurrencyBucket(
                     currency='BRL',
                     nav_series=rf_nav,
                     flow_series=rf_flows,
-                    income_series=pd.Series(0.0, index=rf_nav.index),
+                    income_series=rf_income_series,
                     force_zero_series=pd.Series(False, index=rf_nav.index),
                     flow_timing_series=pd.Series(0, index=rf_nav.index),
                     tickers=['RF_AGGREGATED']
