@@ -314,6 +314,14 @@ def exibir_editor_dados():
                             decimals = 4 if ('Quantidade' in k or 'Qtd' in k) else 2
                             parsed_data[k] = format_decimal_br(f_val, decimals)
                     
+                    # AUTO-CALCULATE: Valor líquido = Quantidade * Preço + Taxas (for meus_ativos)
+                    if selected_key == "meus_ativos":
+                        qtd_f = parse_decimal_br(parsed_data.get('Quantidade', '0'))
+                        preco_f = parse_decimal_br(parsed_data.get('Preço', '0'))
+                        taxas_f = parse_decimal_br(parsed_data.get('Taxas', '0'))
+                        valor_liq = (qtd_f * preco_f) + taxas_f
+                        parsed_data['Valor líquido'] = format_decimal_br(valor_liq, 2)
+                    
                     new_row = pd.DataFrame([parsed_data])
                     
                     # Special logic handling

@@ -265,3 +265,148 @@ def calculate_period_costs(
         }
         
     return result
+
+
+def calculate_chained_costs(
+    df_cambio: pd.DataFrame,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    target_currencies: Optional[list] = None
+) -> Dict[str, Dict[str, float]]:
+    """
+    Calculate FX cost basis with CHAINED conversions.
+    
+    Handles scenarios like BRL -> USD -> EUR by tracking the implicit
+    BRL cost through intermediate currencies.
+    
+    For each currency pool, we track:
+    - total_brl: Total BRL spent to acquire this currency (directly or indirectly)
+    - total_units: Total units of this currency acquired
+    
+    When converting X -> Y:
+    - BRL cost transferred = units_X_spent × (pool_X_brl / pool_X_units)
+    - X pool decreases, Y pool increases with inherited BRL cost
+    
+    Returns
+    -------
+    Dict[str, Dict[str, float]]
+        {
+            'USD': {'initial_cost': 5.50, 'period_cost': 5.60},
+            'EUR': {'initial_cost': 6.10, 'period_cost': 6.20},  # Inherited from USD
+            'CAD': ...
+        }
+    """
+    if target_currencies is None:
+        target_currencies = ['USD', 'EUR', 'CAD']
+    
+    # Initialize pools
+    pools = {curr: {'total_brl': 0.0, 'total_units': 0.0} for curr in target_currencies}
+    
+    if df_cambio.empty:
+        return {curr: {'initial_cost': 0.0, 'period_cost': 0.0} for curr in target_currencies}
+    
+    df = df_cambio.copy()
+    if 'data' not in df.columns:
+        return {curr: {'initial_cost': 0.0, 'period_cost': 0.0} for curr in target_currencies}
+    
+    df['data'] = pd.to_datetime(df['data'])
+    df = df.sort_values('data')
+    
+    # Normalize columns
+    for col in ['moeda_origem', 'moeda_destino']:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().str.upper()
+    
+    for col in ['valor_origem', 'valor_destino']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    def get_avg_cost(curr):
+        """Get current average BRL cost per unit for a currency."""
+        if pools[curr]['total_units'] > 0:
+            return pools[curr]['total_brl'] / pools[curr]['total_units']
+        return 0.0
+    
+    def process_conversion(row):
+        """Process a single FX conversion and update pools."""
+        origem = row.get('moeda_origem', '')
+        destino = row.get('moeda_destino', '')
+        val_origem = row.get('valor_origem', 0)
+        val_destino = row.get('valor_destino', 0)
+        
+        if val_destino <= 0:
+            return
+        
+        if destino not in target_currencies:
+            return
+        
+        if origem == 'BRL':
+            # Direct BRL -> Currency: Add directly
+            pools[destino]['total_brl'] += val_origem
+            pools[destino]['total_units'] += val_destino
+            
+        elif origem in target_currencies:
+            # Currency -> Currency: Inherit BRL cost from source
+            # Calculate BRL cost of the source currency being spent
+            src_avg_cost = get_avg_cost(origem)
+            brl_transferred = val_origem * src_avg_cost
+            
+            # Reduce source pool
+            if pools[origem]['total_units'] > 0:
+                fraction_used = min(val_origem / pools[origem]['total_units'], 1.0)
+                pools[origem]['total_brl'] -= pools[origem]['total_brl'] * fraction_used
+                pools[origem]['total_units'] -= val_origem
+                
+                # Prevent negative values due to floating point
+                pools[origem]['total_brl'] = max(0, pools[origem]['total_brl'])
+                pools[origem]['total_units'] = max(0, pools[origem]['total_units'])
+            
+            # Add to destination pool with inherited BRL cost
+            pools[destino]['total_brl'] += brl_transferred
+            pools[destino]['total_units'] += val_destino
+    
+    # Snapshot pools at different points
+    initial_pools = {curr: {'total_brl': 0.0, 'total_units': 0.0} for curr in target_currencies}
+    period_pools = {curr: {'total_brl': 0.0, 'total_units': 0.0} for curr in target_currencies}
+    
+    # Process all conversions BEFORE start_date for initial cost
+    df_before = df[df['data'] < start_date]
+    for _, row in df_before.iterrows():
+        process_conversion(row)
+    
+    # Snapshot initial pools
+    for curr in target_currencies:
+        initial_pools[curr] = pools[curr].copy()
+    
+    # Reset pools for period calculation (start fresh for period-only view)
+    period_pools_start = {curr: pools[curr].copy() for curr in target_currencies}
+    
+    # Process conversions DURING the period
+    df_period = df[(df['data'] >= start_date) & (df['data'] <= end_date)]
+    for _, row in df_period.iterrows():
+        process_conversion(row)
+    
+    # Calculate period-only contributions
+    for curr in target_currencies:
+        period_pools[curr]['total_brl'] = pools[curr]['total_brl'] - period_pools_start[curr]['total_brl']
+        period_pools[curr]['total_units'] = pools[curr]['total_units'] - period_pools_start[curr]['total_units']
+    
+    # Build result
+    result = {}
+    for curr in target_currencies:
+        # Initial cost (from beginning of time to start_date)
+        initial_cost = 0.0
+        if initial_pools[curr]['total_units'] > 0:
+            initial_cost = initial_pools[curr]['total_brl'] / initial_pools[curr]['total_units']
+        
+        # Period cost (only from period contributions)
+        period_cost = 0.0
+        if period_pools[curr]['total_units'] > 0:
+            period_cost = period_pools[curr]['total_brl'] / period_pools[curr]['total_units']
+        
+        result[curr] = {
+            'initial_cost': initial_cost,
+            'period_cost': period_cost
+        }
+    
+    return result

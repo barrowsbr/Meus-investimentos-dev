@@ -11,7 +11,8 @@ def get_editor_config():
             "icon": "📈", "label": "Ações & ETFs", "date_cols": ["Data"],
             "form_fields": {
                 "Símbolo": "text_suggest", "Tipo de transação": ["Compra", "Venda"], 
-                "Quantidade": "number", "Preço": "currency", "Corretora": ["IBKR", "XP", "Avenue", "Binance"],
+                "Quantidade": "number", "Preço": "currency", "Taxas": "currency",
+                "Corretora": ["IBKR", "XP", "Avenue", "Binance"],
                 "Moeda": ["USD", "BRL"], "Data": "date"
             },
             "column_types": {
@@ -20,7 +21,8 @@ def get_editor_config():
                 "Símbolo": st.column_config.TextColumn("Ticker", width="small", validate="^[A-Za-z0-9.]+$", help="Código do ativo (ex: AAPL, PETR4)"),
                 "Quantidade": st.column_config.NumberColumn("Qtd", format="%.4f", help="Número total de cotas/ações"),
                 "Preço": st.column_config.NumberColumn("Preço", format="$ %.2f", help="Preço unitário de execução"),
-                "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f", help="Valor financeiro total (Qtd * Preço + Taxas)"),
+                "Taxas": st.column_config.NumberColumn("Taxas", format="$ %.2f", help="Corretagem e emolumentos"),
+                "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f", help="Qtd * Preço + Taxas (calculado)"),
                 "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"], help="Moeda de liquidação"),
             }
         },

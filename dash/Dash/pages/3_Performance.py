@@ -86,6 +86,28 @@ st.markdown("""
         margin: 0;
     }
 
+    /* ===== VIEW MODE RADIO STYLING ===== */
+    div[data-testid="stRadio"][data-baseweb="radio"] > label {
+        padding: 8px 16px !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        transition: all 0.3s ease !important;
+        margin-right: 8px !important;
+    }
+    
+    div[data-testid="stRadio"] label[data-checked="true"] {
+        background: rgba(167, 139, 250, 0.15) !important;
+        border-color: rgba(167, 139, 250, 0.5) !important;
+        color: #a78bfa !important;
+        box-shadow: 0 0 15px rgba(167, 139, 250, 0.2) !important;
+    }
+    
+    div[data-testid="stRadio"] label:hover {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
     /* ===== PERIOD SELECTOR ===== */
     .period-btn {
         padding: 8px 16px;
@@ -359,25 +381,15 @@ def main():
     """, unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # VIEW MODE SELECTOR: Market vs My Money
+    # VIEW MODE SELECTOR: Simple Toggle
     # ═══════════════════════════════════════════════════════════════════════════
-    st.markdown("""
-    <div class="section-header" style="margin-top: 10px;">
-        <div class="section-icon">🔍</div>
-        <div>
-            <div class="section-title">Modo de Visualização</div>
-            <div class="section-subtitle">Escolha como calcular a rentabilidade</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     col_mode1, col_mode2, col_mode_info = st.columns([2, 2, 4])
     with col_mode1:
         view_mode = st.radio(
             "Modo",
             options=["📈 Visão Mercado", "💰 Meu Dinheiro"],
             label_visibility="collapsed",
-            index=1, # Default to "My Money"
+            index=1,  # Default to "My Money"
             horizontal=True,
             key="perf_view_mode"
         )
@@ -386,6 +398,7 @@ def main():
             st.caption("💡 Usa câmbio de **mercado** do dia — ideal para comparar com benchmarks")
         else:
             st.caption("💡 Usa **seu preço médio** de remessas — mostra retorno real do seu capital em BRL")
+
 
     # 1. LOAD DATA
     with st.spinner("Carregando dados..."):
@@ -1024,10 +1037,76 @@ def main():
             st.write("Sem proventos registrados.")
 
         # =================================================================
-        # 7. RESUMO DO PERÍODO
+        # 7. CÂMBIO ENCADEADO (Debug Completo)
         # =================================================================
         st.markdown("---")
-        st.markdown("### 7. Resumo Geral")
+        st.markdown("### 7. Câmbio Encadeado (FX Debug)")
+        
+        from core.fx_cost_basis import calculate_chained_costs
+        
+        _dbg_fx_chained = calculate_chained_costs(df_cambio, start_date, end_date)
+        
+        st.caption(f"Período: **{start_date.strftime('%d/%m/%Y')}** a **{end_date.strftime('%d/%m/%Y')}**")
+        st.info("💡 Este cálculo considera conversões encadeadas: BRL→USD→EUR herda o custo BRL do USD.")
+        
+        # Mostrar detalhes do câmbio original
+        if not df_cambio.empty:
+            st.markdown("**Transações de Câmbio (todas):**")
+            _dbg_cambio = df_cambio.copy()
+            _dbg_cambio['data'] = pd.to_datetime(_dbg_cambio['data'])
+            _dbg_cambio = _dbg_cambio.sort_values('data')
+            
+            for _, row in _dbg_cambio.iterrows():
+                origem = str(row.get('moeda_origem', '')).upper()
+                destino = str(row.get('moeda_destino', '')).upper()
+                val_orig = float(row.get('valor_origem', 0))
+                val_dest = float(row.get('valor_destino', 0))
+                data_fx = row.get('data')
+                taxa_impl = val_orig / val_dest if val_dest > 0 else 0
+                
+                data_str = data_fx.strftime('%d/%m/%Y') if hasattr(data_fx, 'strftime') else str(data_fx)
+                st.write(f"- **{data_str}**: {origem} {val_orig:,.2f} → {destino} {val_dest:,.2f} (taxa implícita: {taxa_impl:.4f})")
+        else:
+            st.write("Nenhuma transação de câmbio.")
+        
+        st.markdown("---")
+        st.markdown("**Custos Encadeados por Moeda:**")
+        
+        for curr in ['USD', 'EUR', 'CAD']:
+            costs = _dbg_fx_chained.get(curr, {})
+            ini = costs.get('initial_cost', 0)
+            flow = costs.get('period_cost', 0)
+            mkt_rate = _dbg_usd if curr == 'USD' else (_dbg_eur if curr == 'EUR' else _dbg_cad)
+            
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                delta_ini = f"{((mkt_rate/ini - 1)*100):+.1f}% vs Mkt" if ini > 0 else None
+                st.metric(f"{curr} Estoque Inicial", f"R$ {ini:.4f}", delta_ini, delta_color="off")
+            with c2:
+                delta_flow = f"{((mkt_rate/flow - 1)*100):+.1f}% vs Mkt" if flow > 0 else "Sem aportes"
+                st.metric(f"{curr} Fluxo Período", f"R$ {flow:.4f}" if flow > 0 else "—", delta_flow, delta_color="off" if flow == 0 else "normal")
+            with c3:
+                st.metric(f"{curr} Mercado Atual", f"R$ {mkt_rate:.4f}")
+        
+        # NAV por Moeda
+        st.markdown("---")
+        st.markdown("**NAV por Moeda (valores locais):**")
+        for currency, bucket in multi_result.buckets.items():
+            if not bucket.nav_series.empty:
+                nav_val = bucket.nav_series.iloc[-1]
+                base_curr = currency.replace('_DIRECT', '')
+                display_name = f"{base_curr} (Direto)" if '_DIRECT' in currency else currency
+                symbol = "R$" if currency == "BRL" else base_curr
+                st.write(f"- **{display_name}**: {symbol} {nav_val:,.2f}")
+        
+        if not consolidated.nav_brl.empty:
+            st.write(f"- **NAV Consolidado (R$)**: R$ {consolidated.nav_brl.iloc[-1]:,.2f}")
+
+        # =================================================================
+        # 8. RESUMO DO PERÍODO
+        # =================================================================
+        st.markdown("---")
+        st.markdown("### 8. Resumo Geral")
         _nav_ini_dbg = res_period.nav_series.iloc[0] if not res_period.nav_series.empty else 0
         _nav_fin_dbg = res_period.nav_series.iloc[-1] if not res_period.nav_series.empty else 0
         st.write(f"- **NAV Início período**: R$ {_nav_ini_dbg:,.2f}")
@@ -1218,144 +1297,7 @@ def main():
         st.plotly_chart(fig_dd, use_container_width=True, config={'displayModeBar': False})
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # TECHNICAL INFO FOOTER - Subtle debug info for advanced users
-    # ═══════════════════════════════════════════════════════════════════════
-    with st.expander("ℹ️ Informações Técnicas", expanded=False):
-        st.markdown("""
-        <style>
-            .tech-info-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 16px;
-                margin: 10px 0;
-            }
-            .tech-info-card {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 10px;
-                padding: 12px 16px;
-            }
-            .tech-info-label {
-                font-size: 0.75rem;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                margin-bottom: 4px;
-            }
-            .tech-info-value {
-                font-size: 0.95rem;
-                color: #e2e8f0;
-                font-weight: 500;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # --- FX ANALYSIS (Dynamic) ---
-        from core.fx_cost_basis import calculate_period_costs
-        
-        st.markdown("### 💱 Análise de Câmbio (Dinâmica)")
-        
-        if view_mode == "💰 Meu Dinheiro":
-            st.caption(f"Análise de custos para o período: **{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}**")
-            
-            # Calculate dynamic costs
-            period_costs = calculate_period_costs(df_cambio, start_date, end_date)
-            
-            # Display detailed cards for each currency
-            for curr in ['USD', 'EUR', 'CAD']:
-                costs = period_costs.get(curr, {'initial_cost': 0, 'period_cost': 0})
-                ini_cost = costs.get('initial_cost', 0)
-                flow_cost = costs.get('period_cost', 0)
-                
-                # Get end market rate (Dynamic based on end_date)
-                mkt_series = multi_result.fx_rates.get(curr, pd.Series())
-                end_rate = 0.0
-                if not mkt_series.empty:
-                    # Find rate at (or closest before) end_date
-                    # This ensures "2024" filter shows Dec 31st rate, not today's
-                    mkt_slice = mkt_series[mkt_series.index <= end_date]
-                    if not mkt_slice.empty:
-                        end_rate = mkt_slice.iloc[-1]
-                
-                with st.container():
-                    st.markdown(f"**{curr}**")
-                    c_ini, c_flow, c_end = st.columns(3)
-                    
-                    # 1. INITIAL (Stock)
-                    delta_ini = None
-                    if ini_cost > 0 and end_rate > 0:
-                        delta_ini = f"{(end_rate/ini_cost - 1)*100:+.1f}% vs Mkt"
-                    
-                    c_ini.metric(
-                        "Estoque Inicial", 
-                        f"R$ {ini_cost:.4f}", 
-                        delta_ini,
-                        delta_color="off",
-                        help=f"Seu custo médio acumulado até {start_date.strftime('%d/%m/%Y')}"
-                    )
-                    
-                    # 2. PERIOD (Flow)
-                    delta_flow = None
-                    lbl_flow = "Fluxo do Período"
-                    val_flow = f"R$ {flow_cost:.4f}"
-                    if flow_cost == 0:
-                        val_flow = "—"
-                        delta_flow = "Sem aportes"
-                    else:
-                        if end_rate > 0:
-                            delta_flow = f"{(end_rate/flow_cost - 1)*100:+.1f}% vs Mkt"
-                    
-                    c_flow.metric(
-                        lbl_flow, 
-                        val_flow, 
-                        delta_flow,
-                        delta_color="normal" if flow_cost > 0 else "off",
-                        help=f"Custo médio ponderado dos aportes feitos ENTRE {start_date.strftime('%d/%m/%Y')} e {end_date.strftime('%d/%m/%Y')}"
-                    )
-                    
-                    # 3. END (Market)
-                    c_end.metric(
-                        "Mercado Final", 
-                        f"R$ {end_rate:.4f}",
-                        f"Em {end_date.strftime('%d/%m/%Y')}",
-                        delta_color="off"
-                    )
-                    st.divider()
-
-        else:
-            # MARKET MODE - Simple Display
-            st.info("Modo 'Visão Mercado' ativo. Para ver análise de custos reais, mude para 'Meu Dinheiro'.")
-            
-            fx_cols = st.columns(len(multi_result.fx_rates) if multi_result.fx_rates else 1)
-            for i, (currency, fx_series) in enumerate(multi_result.fx_rates.items()):
-                if not fx_series.empty:
-                    with fx_cols[i]:
-                        rate = fx_series.iloc[-1]
-                        st.metric(f"{currency}/BRL", f"{rate:.4f}")
-
-        # --------------------------
-
-
-
-        st.markdown("---")
-        st.markdown("**NAV por Moeda (valores locais)**")
-        nav_cols = st.columns(len(multi_result.buckets) if multi_result.buckets else 1)
-        for i, (currency, bucket) in enumerate(multi_result.buckets.items()):
-            if not bucket.nav_series.empty:
-                with nav_cols[i]:
-                    nav_val = bucket.nav_series.iloc[-1]
-                    base_curr = currency.replace('_DIRECT', '')
-                    display_name = f"{base_curr} (Direto)" if '_DIRECT' in currency else currency
-                    symbol = "R$" if currency == "BRL" else base_curr
-                    st.metric(display_name, f"{symbol} {nav_val:,.2f}")
-
-        st.markdown("---")
-        st.markdown(f"**NAV Consolidado:** R$ {consolidated.nav_brl.iloc[-1]:,.2f}" if not consolidated.nav_brl.empty else "")
-        st.caption(f"Motor: TWR Canonical | Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-
-
-
+    st.markdown('</div class="divider"></div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # SECRET FOOTER - X-RAY ENTRY POINT

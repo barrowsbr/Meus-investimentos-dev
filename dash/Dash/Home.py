@@ -32,6 +32,32 @@ st.markdown("""
     .easter-egg-btn:hover {
         opacity: 0.1;
     }
+    
+    /* Refresh Button - Bottom Left */
+    .refresh-fixed-btn {
+        position: fixed;
+        bottom: 15px;
+        left: 15px;
+        width: 36px;
+        height: 36px;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+        opacity: 0.4;
+    }
+    .refresh-fixed-btn:hover {
+        opacity: 1;
+        background: rgba(99, 102, 241, 0.3);
+        border-color: rgba(99, 102, 241, 0.5);
+        transform: rotate(180deg);
+    }
 
     /* Reset & Base */
     html, body, [class*="css"] {
@@ -373,28 +399,27 @@ with st.spinner("Sintonizando mercado..."):
 with snapshot_placeholder.container():
     col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
     with col_snap_2:
+        # Snapshot card como botão funcional para recarregar dados
         st.markdown(f"""
-        <a href="./" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
-            <div class="snapshot-card">
-                <div style="text-align: center;">
-                    <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
-                    <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
-                        R$ {format_decimal_br(rv_day_gain, 2)}
-                        <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
-                    </div>
-                </div>
-                <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
-                <div style="text-align: center;">
-                    <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
-                    <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
-                        R$ {format_decimal_br(dolar_val, 3)}
-                        <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
-                            ({format_decimal_br(dolar_var, 2)}%)
-                        </span>
-                    </div>
+        <div class="snapshot-card" id="snapshot-display" style="cursor: pointer;">
+            <div style="text-align: center;">
+                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
+                    R$ {format_decimal_br(rv_day_gain, 2)}
+                    <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
                 </div>
             </div>
-        </a>
+            <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
+            <div style="text-align: center;">
+                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
+                    R$ {format_decimal_br(dolar_val, 3)}
+                    <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
+                        ({format_decimal_br(dolar_var, 2)}%)
+                    </span>
+                </div>
+            </div>
+        </div>
         """, unsafe_allow_html=True)
 
 # --- ARCHITECTURE BUTTON (Moved to bottom) ---
@@ -478,4 +503,11 @@ st.markdown("""
     Version 145.64 - Final 3.4
 </div>
 """, unsafe_allow_html=True)
+
+# --- REFRESH BUTTON (Fixed Bottom-Left) ---
+col_refresh_spacer, col_refresh_btn = st.columns([20, 1])
+with col_refresh_btn:
+    if st.button("🔄", key="btn_refresh_fixed", help="Atualizar dados"):
+        st.cache_data.clear()
+        st.rerun()
 
