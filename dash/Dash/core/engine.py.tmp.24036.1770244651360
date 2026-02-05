@@ -640,15 +640,6 @@ def reconstruct_history_multicurrency(
         df_ops['data'] = pd.to_datetime(df_ops['data']).dt.normalize()
         today_norm = pd.Timestamp.now().normalize()
         df_ops = df_ops[df_ops['data'] <= today_norm]
-
-        # Update moeda for DIRECT tickers (e.g., BTC-USD -> USD_DIRECT)
-        for ticker in DIRECT_BRL_TICKERS:
-            mask = df_ops['ticker'].str.upper() == ticker.upper()
-            if mask.any():
-                original_moeda = df_ops.loc[mask, 'moeda'].iloc[0]
-                if original_moeda != 'BRL':
-                    df_ops.loc[mask, 'moeda'] = f"{original_moeda}_DIRECT"
-
         df_ops['effective_date'] = pd.NaT
         
         for idx_op, row in df_ops.iterrows():

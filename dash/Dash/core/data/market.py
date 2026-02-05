@@ -23,9 +23,21 @@ def fetch_historical_data(tickers: List[str], start_date: datetime = None) -> pd
     # Deduplicate and clean tickers
     unique_tickers = list(set([t.strip().upper() for t in tickers if t.strip()]))
     
+    # Identify FX tickers (must NOT be excluded)
+    fx_tickers = ['BRL=X', 'EURUSD=X', 'CADUSD=X', 'EURBRL=X', 'CADBRL=X']
+    
     # Filter out non-Yahoo tickers (Fixed Income, Cash, etc.)
-    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO', 'CDI', 'BRL']
-    valid_tickers = [t for t in unique_tickers if not any(x in t.upper() for x in termos_excluir)]
+    # NOTA: Removido 'BRL' pois BRL=X é um ticker válido de câmbio
+    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'IPCA', 'CAIXA', 'SALDO', 'CDI']
+    
+    valid_tickers = []
+    for t in unique_tickers:
+        # Always include FX tickers
+        if t in fx_tickers:
+            valid_tickers.append(t)
+        # Exclude RF/Cash tickers
+        elif not any(x in t.upper() for x in termos_excluir):
+            valid_tickers.append(t)
     
     if not valid_tickers:
         return pd.DataFrame()

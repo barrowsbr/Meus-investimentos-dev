@@ -201,250 +201,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AMBIENT MUSIC (CUSTOM NEON PLAYER) ---
-# Playlist Definition
-import random
-
-PLAYLIST = [
-    {
-        "title": "Gymnopédie No. 1",
-        "artist": "Erik Satie",
-        "url": "https://archive.org/download/Gymnopedie_201309/Gymnop%C3%A9die%20No.%201.mp3",
-        "type": "audio/mp3"
-    },
-    {
-        "title": "Clair de Lune",
-        "artist": "Claude Debussy",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/2/23/Debussy_-_Clair_de_lune.ogg",
-        "type": "audio/ogg"
-    },
-    {
-        "title": "Moonlight Sonata",
-        "artist": "Ludwig van Beethoven",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Beethoven_Moonlight_1st_movement.ogg",
-        "type": "audio/ogg"
-    },
-    {
-        "title": "Nocturne Op. 9 No. 2",
-        "artist": "Frédéric Chopin",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Chopin_-_Nocturne_Op._9%2C_No._2.ogg",
-        "type": "audio/ogg"
-    }
-]
-
-# Initialize session state for music to keep track consistent across re-runs
-if 'bg_music_track' not in st.session_state:
-    st.session_state['bg_music_track'] = random.choice(PLAYLIST)
-
-selected_track = st.session_state['bg_music_track']
-
-# Music Player HTML/CSS/JS
-st.markdown(f"""
-<style>
-    .music-player-wrapper {{
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 20px;
-        padding: 0 15px;
-    }}
-    .neon-player {{
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border: 1px solid rgba(139, 92, 246, 0.4);
-        border-radius: 20px;
-        padding: 15px 25px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
-        transition: all 0.3s ease;
-        max-width: 350px;
-        width: 100%;
-        cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-    }}
-    .neon-player:hover {{
-        box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
-        border-color: rgba(139, 92, 246, 0.7);
-        transform: translateY(-2px);
-    }}
-    .neon-player:active {{
-        transform: scale(0.98);
-    }}
-    .player-disc {{
-        width: 50px;
-        height: 50px;
-        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        animation: spin 4s linear infinite;
-        box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
-        flex-shrink: 0;
-    }}
-    @keyframes spin {{
-        0% {{ transform: rotate(0deg); }}
-        100% {{ transform: rotate(360deg); }}
-    }}
-    .paused .player-disc {{
-        animation-play-state: paused;
-    }}
-    .player-info {{
-        flex: 1;
-        min-width: 0;
-    }}
-    .player-title {{
-        color: #f8fafc;
-        font-weight: 600;
-        font-size: 0.95rem;
-        text-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }}
-    .player-artist {{
-        color: #94a3b8;
-        font-size: 0.7rem;
-        margin-top: 3px;
-    }}
-    .player-status {{
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 6px;
-    }}
-    .status-dot {{
-        width: 6px;
-        height: 6px;
-        background: #22c55e;
-        border-radius: 50%;
-        animation: pulse-dot 1.5s infinite;
-    }}
-    .paused .status-dot {{
-        background: #6b7280;
-        animation: none;
-    }}
-    @keyframes pulse-dot {{
-        0%, 100% {{ opacity: 1; transform: scale(1); }}
-        50% {{ opacity: 0.5; transform: scale(0.8); }}
-    }}
-    .status-text {{
-        font-size: 0.6rem;
-        color: #22c55e;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }}
-    .paused .status-text {{
-        color: #6b7280;
-    }}
-    .equalizer {{
-        display: flex;
-        gap: 3px;
-        height: 25px;
-        align-items: flex-end;
-        padding: 5px;
-    }}
-    .bar {{
-        width: 4px;
-        background: linear-gradient(to top, #8b5cf6, #c4b5fd);
-        border-radius: 2px;
-        animation: equalize 0.8s infinite ease-in-out alternate;
-        box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
-    }}
-    .paused .bar {{
-        animation: none;
-        height: 4px !important;
-        opacity: 0.3;
-        background: #6b7280;
-        box-shadow: none;
-    }}
-    .bar:nth-child(1) {{ height: 10px; animation-duration: 0.7s; }}
-    .bar:nth-child(2) {{ height: 18px; animation-duration: 0.9s; animation-delay: 0.1s; }}
-    .bar:nth-child(3) {{ height: 25px; animation-duration: 0.6s; animation-delay: 0.2s; }}
-    .bar:nth-child(4) {{ height: 15px; animation-duration: 1s; animation-delay: 0.15s; }}
-    .bar:nth-child(5) {{ height: 20px; animation-duration: 0.75s; animation-delay: 0.05s; }}
-    @keyframes equalize {{
-        0% {{ height: 4px; }}
-        100% {{ height: 100%; }}
-    }}
-    @media (max-width: 480px) {{
-        .neon-player {{
-            padding: 12px 18px;
-            gap: 12px;
-            border-radius: 16px;
-        }}
-        .player-disc {{
-            width: 45px;
-            height: 45px;
-            font-size: 1.3rem;
-        }}
-        .player-title {{
-            font-size: 0.85rem;
-        }}
-    }}
-</style>
-
-<div class="music-player-wrapper">
-    <div id="player-card" class="neon-player" onclick="toggleAudio()" role="button">
-        <div class="player-disc">💿</div>
-        <div class="player-info">
-            <div class="player-title">{selected_track['title']}</div>
-            <div class="player-artist">{selected_track['artist']}</div>
-            <div class="player-status">
-                <div class="status-dot"></div>
-                <span class="status-text">Tocando</span>
-            </div>
-        </div>
-        <div class="equalizer">
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-        </div>
-    </div>
-</div>
-
-<audio id="bg-music" autoplay loop>
-    <source src="{selected_track['url']}" type="{selected_track['type']}">
-</audio>
-
-<script>
-    var audio = document.getElementById("bg-music");
-    var playerCard = document.getElementById("player-card");
-    var statusText = document.querySelector(".status-text");
-    audio.volume = 0.4;
-    function updateStatus() {{
-        if (audio.paused) {{
-            statusText.textContent = "Pausado";
-            playerCard.classList.add("paused");
-        }} else {{
-            statusText.textContent = "Tocando";
-            playerCard.classList.remove("paused");
-        }}
-    }}
-    var promise = audio.play();
-    if (promise !== undefined) {{
-        promise.then(_ => updateStatus()).catch(error => updateStatus());
-    }}
-    function toggleAudio() {{
-        if (audio.paused) {{
-            audio.play().then(() => updateStatus()).catch(() => {{}});
-        }} else {{
-            audio.pause();
-            updateStatus();
-        }}
-    }}
-</script>
-""", unsafe_allow_html=True)
-
-# --- Botão Arquitetura HTML (Mesma identidade visual do Player) ---
+# --- Botão Arquitetura HTML ---
 # Usamos session state para detectar clique e navegar via Streamlit
 if 'nav_to_arch' not in st.session_state:
     st.session_state['nav_to_arch'] = False
@@ -520,80 +277,18 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# =============================================================================
+# LAYOUT: Usar placeholder para manter snapshot no topo visualmente,
+# mas carregar dados DEPOIS dos cards de navegação
+# =============================================================================
 
-# --- DAILY SNAPSHOT CALCULATION ---
-with st.spinner("Sintonizando mercado..."):
-    df_assets = load_assets()
-    dolar_val = 0.0
-    dolar_var = 0.0
-    rv_day_gain = 0.0
-    rv_day_pct = 0.0
-    dolar_change = 0.0
-    
-    if not df_assets.empty:
-        df_rv = df_assets[df_assets['ticker'].notna()]
-        tickers = df_rv['ticker'].unique().tolist()
-        if 'BRL=X' not in tickers: tickers.append('BRL=X')
-        
-        map_prices, map_changes = fetch_market_data(tickers)
-        
-        dolar_val = map_prices.get('BRL=X', 5.0)
-        dolar_change = map_changes.get('BRL=X', 0.0)
-        dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
-        
-        from core.finance import calcular_carteira_fechada
-        df_pos, _ = calcular_carteira_fechada(df_assets)
-        
-        total_mkt_val = 0.0
-        if not df_pos.empty:
-            for _, row in df_pos.iterrows():
-                t = row['Ticker']
-                q = row['Qtd']
-                m = row['Moeda']
-                
-                if q > 0:
-                    delta = map_changes.get(t, 0.0)
-                    price = map_prices.get(t, 0.0)
-                    rate = 1.0
-                    if m == 'USD': rate = dolar_val
-                    
-                    gain_brl = q * delta * rate
-                    rv_day_gain += gain_brl
-                    total_mkt_val += (q * price * rate)
-            
-            if (total_mkt_val - rv_day_gain) > 0:
-                rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
+# 1. Criar placeholder para o snapshot (aparece no topo)
+snapshot_placeholder = st.empty()
 
-# --- SNAPSHOT CARD ---
-col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
-with col_snap_2:
-    st.markdown(f"""
-    <a href="Easter_Eggs" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
-        <div class="snapshot-card">
-            <div style="text-align: center;">
-                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
-                <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
-                    R$ {format_decimal_br(rv_day_gain, 2)}
-                    <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
-                </div>
-            </div>
-            <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
-            <div style="text-align: center;">
-                <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
-                <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
-                    R$ {format_decimal_br(dolar_val, 3)}
-                    <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
-                        ({format_decimal_br(dolar_var, 2)}%)
-                    </span>
-                </div>
-            </div>
-        </div>
-    </a>
-    """, unsafe_allow_html=True)
+# 2. Espaço entre snapshot e cards
+st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-# --- NAVIGATION CONTAINER ---
-# --- NAVIGATION MENU ---
-# Stacked Layout: Cards one below another with fixed spacing
+# 3. NAVIGATION CARDS (renderiza IMEDIATAMENTE - sem esperar dados)
 col_nav_l, col_nav_c, col_nav_r = st.columns([1, 8, 1])
 
 with col_nav_c:
@@ -685,9 +380,83 @@ with col_nav_c:
     </a>
     """, unsafe_allow_html=True)
 
+# =============================================================================
+# 4. DAILY SNAPSHOT (carrega dados DEPOIS dos cards já estarem clicáveis)
+# =============================================================================
+with st.spinner("Sintonizando mercado..."):
+    df_assets = load_assets()
+    dolar_val = 0.0
+    dolar_var = 0.0
+    rv_day_gain = 0.0
+    rv_day_pct = 0.0
+    dolar_change = 0.0
+    
+    if not df_assets.empty:
+        df_rv = df_assets[df_assets['ticker'].notna()]
+        tickers = df_rv['ticker'].unique().tolist()
+        if 'BRL=X' not in tickers: tickers.append('BRL=X')
+        
+        map_prices, map_changes = fetch_market_data(tickers)
+        
+        dolar_val = map_prices.get('BRL=X', 5.0)
+        dolar_change = map_changes.get('BRL=X', 0.0)
+        dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
+        
+        from core.finance import calcular_carteira_fechada
+        df_pos, _ = calcular_carteira_fechada(df_assets)
+        
+        total_mkt_val = 0.0
+        if not df_pos.empty:
+            for _, row in df_pos.iterrows():
+                t = row['Ticker']
+                q = row['Qtd']
+                m = row['Moeda']
+                
+                if q > 0:
+                    delta = map_changes.get(t, 0.0)
+                    price = map_prices.get(t, 0.0)
+                    rate = 1.0
+                    if m == 'USD': rate = dolar_val
+                    
+                    gain_brl = q * delta * rate
+                    rv_day_gain += gain_brl
+                    total_mkt_val += (q * price * rate)
+            
+            if (total_mkt_val - rv_day_gain) > 0:
+                rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
+
+# 5. PREENCHER O PLACEHOLDER com o snapshot (aparece NO TOPO visualmente)
+with snapshot_placeholder.container():
+    col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
+    with col_snap_2:
+        st.markdown(f"""
+        <a href="Easter_Eggs" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
+            <div class="snapshot-card">
+                <div style="text-align: center;">
+                    <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
+                    <div style="font-size: 1.8rem; font-weight: 700; color: {'#34d399' if rv_day_gain >= 0 else '#f87171'};">
+                        R$ {format_decimal_br(rv_day_gain, 2)}
+                        <span style="font-size: 1rem; opacity: 0.8;">({format_decimal_br(rv_day_pct, 2)}%)</span>
+                    </div>
+                </div>
+                <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
+                <div style="text-align: center;">
+                    <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Dólar (USD)</div>
+                    <div style="font-size: 1.8rem; font-weight: 700; color: #f8fafc;">
+                        R$ {format_decimal_br(dolar_val, 3)}
+                        <span style="font-size: 1rem; opacity: 0.8; color: {'#34d399' if dolar_change >= 0 else '#f87171'};">
+                            ({format_decimal_br(dolar_var, 2)}%)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
+
 # --- FOOTER ---
 st.markdown("""
 <div style="text-align: center; color: #475569; padding-top: 80px; padding-bottom: 40px; font-size: 0.8rem;">
     Version 145.64 - Final 3.4
 </div>
 """, unsafe_allow_html=True)
+

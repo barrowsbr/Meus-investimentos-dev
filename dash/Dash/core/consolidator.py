@@ -102,7 +102,9 @@ class ConsolidatedResult:
 def consolidate_to_brl(
     buckets: Dict[str, CurrencyBucket],
     fx_rates: Dict[str, pd.Series],
-    df_cambio: 'pd.DataFrame' = None  # v6.1: For effective rate on flows
+    df_cambio: 'pd.DataFrame' = None,  # v6.1: For effective rate on flows
+    fx_cost_basis: Dict[str, pd.Series] = None,  # v7.0: For "My Money" view
+    fx_cost_basis_excluded_tickers: List[str] = None  # v7.1: Tickers that skip cost basis (e.g. BTC)
 ) -> ConsolidatedResult:
     """
     Consolida todos os buckets de moeda para uma visão unificada em BRL.
@@ -114,15 +116,23 @@ def consolidate_to_brl(
         buckets: Dicionário de CurrencyBucket por moeda
         fx_rates: Séries de câmbio (USD -> BRL, EUR -> BRL, etc.) para NAV
         df_cambio: DataFrame de remessas para taxa efetiva em flows (opcional)
+        fx_cost_basis: Séries de custo médio FX (para "My Money" view).
+                       Quando fornecido, usa custo pessoal ao invés de mercado.
+        fx_cost_basis_excluded_tickers: Tickers que usam mercado mesmo em "My Money"
+                       (ex: ['BTC-USD'] - comprados direto em BRL)
     
     Returns:
         ConsolidatedResult com tudo convertido para BRL
         
     Notas:
-        - NAV usa taxa de MERCADO do dia (para valorização atual)
+        - NAV usa taxa de MERCADO (fx_rates) ou CUSTO PESSOAL (fx_cost_basis)
+        - Tickers em fx_cost_basis_excluded_tickers sempre usam mercado
         - Flows usam taxa EFETIVA das remessas (para custo real)
         - RF (Renda Fixa) já vem em BRL, não precisa conversão
     """
+    # Default excluded tickers (bought directly in BRL)
+    if fx_cost_basis_excluded_tickers is None:
+        fx_cost_basis_excluded_tickers = ['BTC-USD', 'BTC']
     if not buckets:
         # Retornar resultado vazio
         empty_series = pd.Series(dtype=float)
@@ -198,22 +208,54 @@ def consolidate_to_brl(
                 if initial_nav > 0:
                     flow_cur.loc[first_valid_bucket] = flow_cur.loc[first_valid_bucket] + initial_nav
 
-        # Obter taxa de câmbio de MERCADO (para NAV)
+        # =========================================================================
+        # FX RATE SELECTION: Market vs Cost Basis ("My Money" mode)
+        # =========================================================================
+        
+        # Check if this bucket has tickers that should skip cost basis (e.g., BTC)
+        bucket_has_excluded_ticker = any(
+            ticker.upper() in [t.upper() for t in fx_cost_basis_excluded_tickers]
+            for ticker in bucket.tickers
+        )
+        
         if currency == 'BRL':
-            fx_market = pd.Series(1.0, index=idx)
-        elif currency in fx_rates and not fx_rates[currency].empty:
-            fx_market = fx_rates[currency].reindex(idx).ffill().fillna(method='bfill')
-            fx_market = fx_market.fillna(fx_market.dropna().iloc[-1] if not fx_market.dropna().empty else 5.5)
-        else:
-            if currency == 'USD':
-                fx_market = pd.Series(5.5, index=idx)
-            elif currency == 'EUR':
-                fx_market = pd.Series(6.0, index=idx)
+            fx_for_nav = pd.Series(1.0, index=idx)
+        elif fx_cost_basis is not None and currency in fx_cost_basis and not bucket_has_excluded_ticker:
+            # "My Money" mode: Use personal cost basis for NAV conversion
+            # (Only if bucket doesn't contain excluded tickers like BTC)
+            cost_series = fx_cost_basis[currency]
+            if not cost_series.empty and not cost_series.isna().all():
+                fx_for_nav = cost_series.reindex(idx).ffill().bfill()
+                # Fill remaining NaN with market rate as fallback
+                if currency in fx_rates and not fx_rates[currency].empty:
+                    fx_fallback = fx_rates[currency].reindex(idx).ffill().bfill()
+                    fx_for_nav = fx_for_nav.fillna(fx_fallback)
+                fx_for_nav = fx_for_nav.fillna(5.5 if currency == 'USD' else 6.0 if currency == 'EUR' else 4.0)
             else:
-                fx_market = pd.Series(1.0, index=idx)
+                # Cost basis empty, fall back to market rates
+                if currency in fx_rates and not fx_rates[currency].empty:
+                    fx_for_nav = fx_rates[currency].reindex(idx).ffill().bfill()
+                    fx_for_nav = fx_for_nav.fillna(5.5)
+                else:
+                    fx_for_nav = pd.Series(5.5 if currency == 'USD' else 6.0 if currency == 'EUR' else 4.0, index=idx)
+        elif currency in fx_rates and not fx_rates[currency].empty:
+            # Standard market rate mode
+            fx_for_nav = fx_rates[currency].reindex(idx).ffill().fillna(method='bfill')
+            fx_for_nav = fx_for_nav.fillna(fx_for_nav.dropna().iloc[-1] if not fx_for_nav.dropna().empty else 5.5)
+        else:
+            # Fallback rates
+            if currency == 'USD':
+                fx_for_nav = pd.Series(5.5, index=idx)
+            elif currency == 'EUR':
+                fx_for_nav = pd.Series(6.0, index=idx)
+            else:
+                fx_for_nav = pd.Series(1.0, index=idx)
+        
+        # Keep fx_market reference for compatibility with flow conversion below
+        fx_market = fx_for_nav
         
         # Obter taxa EFETIVA para FLUXOS (se df_cambio disponível)
-        if df_cambio is not None and not df_cambio.empty and currency != 'BRL':
+        if df_cambio is not None and not df_cambio.empty and currency != 'BRL' and not currency.endswith('_DIRECT'):
             try:
                 from core.cambio_utils import build_effective_rate_series
                 rate_series = build_effective_rate_series(df_cambio)
