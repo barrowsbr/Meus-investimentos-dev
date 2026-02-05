@@ -377,6 +377,7 @@ def main():
             "Modo",
             options=["📈 Visão Mercado", "💰 Meu Dinheiro"],
             label_visibility="collapsed",
+            index=1, # Default to "My Money"
             horizontal=True,
             key="perf_view_mode"
         )
@@ -462,7 +463,9 @@ def main():
         # Build FX cost basis if "My Money" mode is selected
         fx_cost_basis = None
         if view_mode == "💰 Meu Dinheiro":
-            from core.fx_cost_basis import build_fx_cost_series
+            from core.fx_cost_basis import build_fx_cost_series, get_latest_cost_basis
+
+
             # Build date index from all buckets
             all_dates = set()
             for bucket in multi_result.buckets.values():
@@ -1243,6 +1246,28 @@ def main():
         """, unsafe_allow_html=True)
 
         # FX Rates Section
+        # --- DEBUG USER REQUEST ---
+        from core.fx_cost_basis import get_latest_cost_basis
+        st.warning("⚠️ Lembrar de arrumar!", icon="⚠️")
+        
+        st.markdown("### 💱 Taxas de Câmbio Efetivas (Meu Custo)")
+        real_rates_debug = get_latest_cost_basis(df_cambio)
+        
+        cols_fx_dbg = st.columns(4)
+        with cols_fx_dbg[0]:
+            st.metric("USD (Custo)", f"R$ {real_rates_debug.get('USD', 0):.4f}")
+        with cols_fx_dbg[1]:
+            st.metric("EUR (Custo)", f"R$ {real_rates_debug.get('EUR', 0):.4f}")
+        
+        usd_mkt_dbg = multi_result.fx_rates['USD'].iloc[-1] if 'USD' in multi_result.fx_rates else 0
+        diff_usd_dbg = ((usd_mkt_dbg / real_rates_debug.get('USD', 1)) - 1) * 100 if real_rates_debug.get('USD') else 0
+        
+        with cols_fx_dbg[2]:
+            st.metric("USD (Mkt)", f"R$ {usd_mkt_dbg:.4f}", f"{diff_usd_dbg:+.1f}%")
+            
+        st.divider()
+        # --------------------------
+
         st.markdown("**Taxas de Câmbio (última cotação)**")
         fx_cols = st.columns(len(multi_result.fx_rates) if multi_result.fx_rates else 1)
         for i, (currency, fx_series) in enumerate(multi_result.fx_rates.items()):

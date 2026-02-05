@@ -124,11 +124,13 @@ def load_xray_data():
     df_hist_prices = fetch_historical_data(tickers_download)
     
     # 3. Engine Execution
+    # reconstruct_history_multicurrency(df_bruto, df_proventos, days_lookback, df_prices_external, ...)
     multi_result = reconstruct_history_multicurrency(
-        df_assets=df_assets,
-        df_prices=df_hist_prices,
-        df_rf=df_rf_raw,
+        df_bruto=df_assets,
         df_proventos=df_prov,
+        days_lookback=365*5,  # Default to 5 years
+        df_prices_external=df_hist_prices,
+        df_rf_raw=df_rf_raw,
         df_cambio=df_cambio,
         manual_rf_values=manual_rf_values
     )
@@ -209,10 +211,14 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # ─── SUNBURST: ASSET UNIVERSE ────────────────────────────────────────────────
 st.markdown("### ☀️ CONSTANT UNIVERSE")
+# [FIXED] Restored Definitions
 
 # Prepare Sunburst Data
 # Hierarchy: Portfolio -> Currency -> Class -> Ticker
-sb_data = []
+
+
+# However, the above logic is flawed for px.sunburst which expects a flat table with columns for hierarchy.
+# Let's fix:
 
 # Fetch active positions in BRL
 df_pos_spot, _ = calcular_carteira_fechada(data["df_assets"])
@@ -222,98 +228,6 @@ usd_spot = mapa_precos_spot.get('BRL=X', 5.50)
 eur_spot = mapa_precos_spot.get('EURBRL=X', 6.00)
 cad_spot = mapa_precos_spot.get('CADBRL=X', 4.00)
 
-for _, row in df_pos_spot.iterrows():
-    if row['Qtd'] <= 0: continue
-    
-    t = row['Ticker']
-    m = row['Moeda']
-    # Infer Class (Simple heuristic)
-    classe = "Ações BR" if m == 'BRL' and len(t) <= 6 else "Stocks"
-    if t in ['BTC-USD', 'BTC', 'ETH-USD', 'ETH']: classe = 'Cripto'
-    elif '11' in t and m == 'BRL': classe = 'FIIs'
-    elif m == 'EUR': classe = 'Europa'
-    
-    fx = 1.0
-    if m == 'USD': fx = usd_spot
-    elif m == 'EUR': fx = eur_spot
-    elif m == 'CAD': fx = cad_spot
-    
-    # Get current price
-    price = 0 # Need to fetch valid price, for now use cost if missing (simplify for speed)
-    # Ideally should use loaded prices but for Sunburst "Surreal" let's approximate or fetch
-    # Actually, df_pos_spot uses 'preco' from previous load, let's use it
-    # We need to re-fetch minimal critical data or assume loaded
-    val_brl = row['Qtd'] * row['PM_Origem'] * fx # Fallback to cost if price missing
-    # Better: Use the Engine's last NAV for each bucket/ticker if possible, but engine aggregates.
-    # Let's use the loaded prices from df_hist_prices if avail
-    
-    # Simple logic: Funding -> Currency -> Class -> Ticker
-    # Parent links
-    sb_data.append(dict(
-        id=t,
-        parent=f"{m}-{classe}",
-        value=val_brl, # Using Cost for now or approximate Value
-        color=0 # Neutral
-    ))
-    sb_data.append(dict(id=f"{m}-{classe}", parent=m, value=0, color=0))
-    sb_data.append(dict(id=m, parent="PORTFOLIO", value=0, color=0))
-
-# Clean dedup logic (set based)
-# Re-building properly using plotly's path syntax
-sb_rows = []
-total_val = 0
-for _, row in df_pos_spot.iterrows():
-    if row['Qtd'] <= 0: continue
-    t = row['Ticker']
-    m = row['Moeda']
-    tipo = row['Tipo']
-    val_cost = row['Qtd'] * row['PM_Origem']
-    
-    # Determine basic class
-    classe = tipo if tipo else 'Outros'
-    if t in ['BTC-USD', 'BTC', 'ETH-USD', 'ETH', 'SOL-USD']: classe = 'Cripto'
-    elif m == 'BRL' and '11' in t: classe = 'FIIs'
-    elif m == 'BRL': classe = 'Ações BR'
-    elif m == 'USD': classe = 'Stocks'
-    
-    fx = 1.0
-    if m == 'USD': fx = usd_spot
-    elif m == 'EUR': fx = eur_spot
-    
-    val_brl = val_cost * fx # Using Cost Basis for visualization size
-    
-    sb_rows.append(dict(
-        character="PORTFOLIO",
-        parent="",
-        value=val_brl
-    ))
-    sb_rows.append(dict(
-        character=m,
-        parent="PORTFOLIO",
-        value=val_brl
-    ))
-    sb_rows.append(dict(
-        character=f"{m} - {classe}",
-        parent=m,
-        value=val_brl
-    ))
-    sb_rows.append(dict(
-        character=t,
-        parent=f"{m} - {classe}",
-        value=val_brl
-    ))
-
-df_sb = pd.DataFrame(sb_rows)
-# Use path based sunburst
-fig_sb = px.sunburst(
-    df_sb,
-    path=['parent', 'character'],
-    values='value',
-    color_discrete_sequence=px.colors.qualitative.Pastel
-)
-
-# However, the above logic is flawed for px.sunburst which expects a flat table with columns for hierarchy.
-# Let's fix:
 sunburst_data = []
 for _, row in df_pos_spot.iterrows():
     if row['Qtd'] <= 0: continue
@@ -538,7 +452,7 @@ if not df_pos_spot.empty:
             "Moeda": st.column_config.TextColumn("MOEDA", width="small"),
             "Qtd": st.column_config.NumberColumn("QUANTIDADE", format="%.4f"),
             "PM_Origem": st.column_config.NumberColumn("PM (ORIGEM)", format="%.2f"),
-            "Tipo": st.column_config.TextColumn("CLASSE", width="medium"),
+            "Setor": st.column_config.TextColumn("CLASSE", width="medium"),
         },
         use_container_width=True,
         hide_index=True,
