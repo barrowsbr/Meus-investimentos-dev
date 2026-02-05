@@ -617,7 +617,13 @@ def main():
         elif sel_periodo == "YTD": start_date = pd.Timestamp(data_max.year, 1, 1)
         elif sel_periodo == "1Y": start_date = data_max - pd.DateOffset(years=1)
         elif sel_periodo == "2Y": start_date = data_max - pd.DateOffset(years=2)
-        else: start_date = data_min_global
+        else: 
+            start_date = data_min_global
+            # Para MAX, considerar data mais antiga do câmbio para garantir que Estoque Inicial seja 0 e tudo entre no Fluxo
+            if 'data' in df_cambio.columns and not df_cambio.empty:
+                min_cambio = pd.to_datetime(df_cambio['data']).min()
+                if min_cambio < start_date:
+                    start_date = min_cambio
 
     # Apply Slice
     mask = (df_engine_input.index >= start_date) & (df_engine_input.index <= end_date)
@@ -1245,36 +1251,92 @@ def main():
         </style>
         """, unsafe_allow_html=True)
 
-        # FX Rates Section
-        # --- DEBUG USER REQUEST ---
-        from core.fx_cost_basis import get_latest_cost_basis
-        st.warning("⚠️ Lembrar de arrumar!", icon="⚠️")
+        # --- FX ANALYSIS (Dynamic) ---
+        from core.fx_cost_basis import calculate_period_costs
         
-        st.markdown("### 💱 Taxas de Câmbio Efetivas (Meu Custo)")
-        real_rates_debug = get_latest_cost_basis(df_cambio)
+        st.markdown("### 💱 Análise de Câmbio (Dinâmica)")
         
-        cols_fx_dbg = st.columns(4)
-        with cols_fx_dbg[0]:
-            st.metric("USD (Custo)", f"R$ {real_rates_debug.get('USD', 0):.4f}")
-        with cols_fx_dbg[1]:
-            st.metric("EUR (Custo)", f"R$ {real_rates_debug.get('EUR', 0):.4f}")
-        
-        usd_mkt_dbg = multi_result.fx_rates['USD'].iloc[-1] if 'USD' in multi_result.fx_rates else 0
-        diff_usd_dbg = ((usd_mkt_dbg / real_rates_debug.get('USD', 1)) - 1) * 100 if real_rates_debug.get('USD') else 0
-        
-        with cols_fx_dbg[2]:
-            st.metric("USD (Mkt)", f"R$ {usd_mkt_dbg:.4f}", f"{diff_usd_dbg:+.1f}%")
+        if view_mode == "💰 Meu Dinheiro":
+            st.caption(f"Análise de custos para o período: **{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}**")
             
-        st.divider()
+            # Calculate dynamic costs
+            period_costs = calculate_period_costs(df_cambio, start_date, end_date)
+            
+            # Display detailed cards for each currency
+            for curr in ['USD', 'EUR', 'CAD']:
+                costs = period_costs.get(curr, {'initial_cost': 0, 'period_cost': 0})
+                ini_cost = costs.get('initial_cost', 0)
+                flow_cost = costs.get('period_cost', 0)
+                
+                # Get end market rate (Dynamic based on end_date)
+                mkt_series = multi_result.fx_rates.get(curr, pd.Series())
+                end_rate = 0.0
+                if not mkt_series.empty:
+                    # Find rate at (or closest before) end_date
+                    # This ensures "2024" filter shows Dec 31st rate, not today's
+                    mkt_slice = mkt_series[mkt_series.index <= end_date]
+                    if not mkt_slice.empty:
+                        end_rate = mkt_slice.iloc[-1]
+                
+                with st.container():
+                    st.markdown(f"**{curr}**")
+                    c_ini, c_flow, c_end = st.columns(3)
+                    
+                    # 1. INITIAL (Stock)
+                    delta_ini = None
+                    if ini_cost > 0 and end_rate > 0:
+                        delta_ini = f"{(end_rate/ini_cost - 1)*100:+.1f}% vs Mkt"
+                    
+                    c_ini.metric(
+                        "Estoque Inicial", 
+                        f"R$ {ini_cost:.4f}", 
+                        delta_ini,
+                        delta_color="off",
+                        help=f"Seu custo médio acumulado até {start_date.strftime('%d/%m/%Y')}"
+                    )
+                    
+                    # 2. PERIOD (Flow)
+                    delta_flow = None
+                    lbl_flow = "Fluxo do Período"
+                    val_flow = f"R$ {flow_cost:.4f}"
+                    if flow_cost == 0:
+                        val_flow = "—"
+                        delta_flow = "Sem aportes"
+                    else:
+                        if end_rate > 0:
+                            delta_flow = f"{(end_rate/flow_cost - 1)*100:+.1f}% vs Mkt"
+                    
+                    c_flow.metric(
+                        lbl_flow, 
+                        val_flow, 
+                        delta_flow,
+                        delta_color="normal" if flow_cost > 0 else "off",
+                        help=f"Custo médio ponderado dos aportes feitos ENTRE {start_date.strftime('%d/%m/%Y')} e {end_date.strftime('%d/%m/%Y')}"
+                    )
+                    
+                    # 3. END (Market)
+                    c_end.metric(
+                        "Mercado Final", 
+                        f"R$ {end_rate:.4f}",
+                        f"Em {end_date.strftime('%d/%m/%Y')}",
+                        delta_color="off"
+                    )
+                    st.divider()
+
+        else:
+            # MARKET MODE - Simple Display
+            st.info("Modo 'Visão Mercado' ativo. Para ver análise de custos reais, mude para 'Meu Dinheiro'.")
+            
+            fx_cols = st.columns(len(multi_result.fx_rates) if multi_result.fx_rates else 1)
+            for i, (currency, fx_series) in enumerate(multi_result.fx_rates.items()):
+                if not fx_series.empty:
+                    with fx_cols[i]:
+                        rate = fx_series.iloc[-1]
+                        st.metric(f"{currency}/BRL", f"{rate:.4f}")
+
         # --------------------------
 
-        st.markdown("**Taxas de Câmbio (última cotação)**")
-        fx_cols = st.columns(len(multi_result.fx_rates) if multi_result.fx_rates else 1)
-        for i, (currency, fx_series) in enumerate(multi_result.fx_rates.items()):
-            if not fx_series.empty:
-                with fx_cols[i]:
-                    rate = fx_series.iloc[-1]
-                    st.metric(f"{currency}/BRL", f"{rate:.4f}")
+
 
         st.markdown("---")
         st.markdown("**NAV por Moeda (valores locais)**")

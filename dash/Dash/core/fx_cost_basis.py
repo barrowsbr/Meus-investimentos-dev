@@ -185,3 +185,83 @@ def get_cost_basis_summary(df_cambio: pd.DataFrame) -> pd.DataFrame:
     summary['Avg Rate'] = summary['Avg Rate'].round(4)
     
     return summary
+
+
+def calculate_period_costs(
+    df_cambio: pd.DataFrame,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    target_currencies: Optional[list] = None
+) -> Dict[str, Dict[str, float]]:
+    """
+    Calculate FX cost basis split by:
+    1. Initial Stock (Weighted Avg of all remittances BEFORE start_date)
+    2. Period Flow (Weighted Avg of remittances BETWEEN start_date and end_date)
+    
+    Returns
+    -------
+    Dict[str, Dict[str, float]]
+        {
+            'USD': {'initial_cost': 5.00, 'period_cost': 5.20},
+            'EUR': ...
+        }
+    """
+    if target_currencies is None:
+        target_currencies = ['USD', 'EUR', 'CAD']
+        
+    result = {}
+    
+    if df_cambio.empty:
+        for curr in target_currencies:
+            result[curr] = {'initial_cost': 0.0, 'period_cost': 0.0}
+        return result
+        
+    df = df_cambio.copy()
+    if 'data' not in df.columns:
+        return {}
+        
+    df['data'] = pd.to_datetime(df['data'])
+    
+    # Normalize currency
+    if 'moeda_destino' in df.columns:
+        df['moeda_destino'] = df['moeda_destino'].astype(str).str.strip().str.upper()
+    
+    for col in ['valor_origem', 'valor_destino']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+    for curr in target_currencies:
+        # Filter for this currency (BRL -> CURRENCY only)
+        mask_curr = df['moeda_destino'] == curr
+        if 'moeda_origem' in df.columns:
+            mask_curr &= (df['moeda_origem'].astype(str).str.strip().str.upper() == 'BRL')
+        df_curr = df[mask_curr]
+        
+        # 1. Initial Stock (Before Start Date)
+        mask_initial = df_curr['data'] < start_date
+        df_initial = df_curr[mask_initial]
+        
+        initial_cost = 0.0
+        if not df_initial.empty:
+            tot_brl = df_initial['valor_origem'].sum()
+            tot_foreign = df_initial['valor_destino'].sum()
+            if tot_foreign > 0:
+                initial_cost = tot_brl / tot_foreign
+                
+        # 2. Period Flow (Start Date <= data <= End Date)
+        mask_period = (df_curr['data'] >= start_date) & (df_curr['data'] <= end_date)
+        df_period = df_curr[mask_period]
+        
+        period_cost = 0.0
+        if not df_period.empty:
+            tot_brl = df_period['valor_origem'].sum()
+            tot_foreign = df_period['valor_destino'].sum()
+            if tot_foreign > 0:
+                period_cost = tot_brl / tot_foreign
+                
+        result[curr] = {
+            'initial_cost': initial_cost,
+            'period_cost': period_cost
+        }
+        
+    return result

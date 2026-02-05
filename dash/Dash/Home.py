@@ -17,6 +17,22 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 
+    /* Hidden Easter Egg Button */
+    .easter-egg-btn {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 40px;
+        height: 40px;
+        z-index: 99999;
+        opacity: 0.02;
+        cursor: pointer;
+        background: red; /* Just to catch events, but invisible due to opacity */
+    }
+    .easter-egg-btn:hover {
+        opacity: 0.1;
+    }
+
     /* Reset & Base */
     html, body, [class*="css"] {
         font-family: 'Outfit', sans-serif;
@@ -193,89 +209,17 @@ from core.data.loader import load_assets
 from core.data.market import fetch_market_data
 from core.utils import format_decimal_br
 
+
 # --- HERO SECTION ---
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">BARROOTS</div>
     <div class="hero-subtitle">Sistema Integrado para Gestão Pessoal</div>
+    <a href="Easter_Eggs" target="_self" class="easter-egg-btn" title="?"></a>
 </div>
 """, unsafe_allow_html=True)
 
-# --- Botão Arquitetura HTML ---
-# Usamos session state para detectar clique e navegar via Streamlit
-if 'nav_to_arch' not in st.session_state:
-    st.session_state['nav_to_arch'] = False
 
-st.markdown("""
-<style>
-    .arch-btn-wrapper {
-        display: flex;
-        justify-content: center;
-        padding: 0 15px;
-        margin-bottom: 20px;
-    }
-    .arch-button {
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border: 1px solid rgba(139, 92, 246, 0.4);
-        border-radius: 20px;
-        padding: 15px 25px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
-        transition: all 0.3s ease;
-        max-width: 350px;
-        width: 100%;
-        cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-        text-decoration: none;
-    }
-    .arch-button:hover {
-        box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
-        border-color: rgba(139, 92, 246, 0.7);
-        transform: translateY(-2px);
-    }
-    .arch-button:active {
-        transform: scale(0.98);
-        box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
-    }
-    .arch-icon {
-        font-size: 1.3rem;
-    }
-    .arch-text {
-        color: #f8fafc;
-        font-weight: 600;
-        font-size: 0.95rem;
-        text-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
-        letter-spacing: 0.5px;
-    }
-    .arch-button:hover .arch-text {
-        color: #c4b5fd;
-        text-shadow: 0 0 12px rgba(196, 181, 253, 0.7);
-    }
-    @media (max-width: 480px) {
-        .arch-button {
-            padding: 12px 18px;
-            border-radius: 16px;
-            max-width: 100%;
-        }
-        .arch-text {
-            font-size: 0.85rem;
-        }
-    }
-</style>
-
-<div class="arch-btn-wrapper">
-    <a href="Arquitetura" target="_self" class="arch-button">
-        <span class="arch-icon">🏗️</span>
-        <span class="arch-text">Ver Arquitetura do Sistema</span>
-    </a>
-</div>
-""", unsafe_allow_html=True)
 
 # =============================================================================
 # LAYOUT: Usar placeholder para manter snapshot no topo visualmente,
@@ -430,7 +374,7 @@ with snapshot_placeholder.container():
     col_snap_1, col_snap_2, col_snap_3 = st.columns([1, 8, 1])
     with col_snap_2:
         st.markdown(f"""
-        <a href="Easter_Eggs" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
+        <a href="./" target="_self" style="text-decoration: none; display: block; color: inherit; width: 100%;">
             <div class="snapshot-card">
                 <div style="text-align: center;">
                     <div style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 4px;">Renda Variável (Hoje)</div>
@@ -452,6 +396,81 @@ with snapshot_placeholder.container():
             </div>
         </a>
         """, unsafe_allow_html=True)
+
+# --- ARCHITECTURE BUTTON (Moved to bottom) ---
+st.markdown("""
+<style>
+    .arch-btn-wrapper {
+        display: flex;
+        justify-content: center;
+        padding: 0 15px;
+        margin-bottom: 20px;
+        margin-top: 40px;
+    }
+    .arch-button {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        border-radius: 20px;
+        padding: 15px 25px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+        transition: all 0.3s ease;
+        max-width: 350px;
+        width: 100%;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        text-decoration: none;
+    }
+    .arch-button:hover {
+        box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
+        border-color: rgba(139, 92, 246, 0.7);
+        transform: translateY(-2px);
+    }
+    .arch-button:active {
+        transform: scale(0.98);
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+    }
+    .arch-icon {
+        font-size: 1.3rem;
+    }
+    .arch-text {
+        color: #f8fafc;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+        letter-spacing: 0.5px;
+    }
+    .arch-button:hover .arch-text {
+        color: #c4b5fd;
+        text-shadow: 0 0 12px rgba(196, 181, 253, 0.7);
+    }
+    @media (max-width: 480px) {
+        .arch-button {
+            padding: 12px 18px;
+            border-radius: 16px;
+            max-width: 100%;
+        }
+        .arch-text {
+            font-size: 0.85rem;
+        }
+    }
+</style>
+
+<div class="arch-btn-wrapper">
+    <a href="Arquitetura" target="_self" class="arch-button">
+        <span class="arch-icon">🏗️</span>
+        <span class="arch-text">Ver Arquitetura do Sistema</span>
+    </a>
+</div>
+""", unsafe_allow_html=True)
+
+
 
 # --- FOOTER ---
 st.markdown("""
