@@ -192,7 +192,7 @@ def plot_nav_vs_twr(df_full, cumulative_twr, flow_series, title="Evolução Patr
             font=dict(family='Outfit, sans-serif', size=12, color=COLORS['text']),
             align='left'
         ),
-        margin=dict(t=30, b=50, l=70, r=70),
+        margin=dict(t=20, b=20, l=10, r=10),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -200,24 +200,25 @@ def plot_nav_vs_twr(df_full, cumulative_twr, flow_series, title="Evolução Patr
             xanchor="right",
             x=1,
             bgcolor='rgba(0,0,0,0)',
-            font=dict(size=11, color=COLORS['text_muted'])
+            font=dict(size=10, color=COLORS['text_muted'])
         ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family='Outfit, sans-serif'),
         yaxis=dict(
-            title=dict(text="Patrimônio", font=dict(size=11, color=COLORS['text_muted'])),
+            title=dict(text="Patrimônio", font=dict(size=10, color=COLORS['text_muted'])),
             gridcolor=COLORS['grid'],
             griddash='dot',
             showgrid=True,
             zeroline=False,
             tickfont=dict(size=10, color=COLORS['text_muted']),
             tickprefix="R$ ",
-            tickformat=",.0f",
-            side='left'
+            tickformat=".2s",  # Simplified format: 1.5M, 150k
+            side='left',
+            automargin=True
         ),
         yaxis2=dict(
-            title=dict(text="TWR Acumulado", font=dict(size=11, color=COLORS['text_muted'])),
+            title=dict(text="Rentabilidade", font=dict(size=10, color=COLORS['text_muted'])),
             overlaying='y',
             side='right',
             showgrid=False,
@@ -225,16 +226,18 @@ def plot_nav_vs_twr(df_full, cumulative_twr, flow_series, title="Evolução Patr
             zerolinecolor=COLORS['grid_major'],
             zerolinewidth=1,
             tickfont=dict(size=10, color=COLORS['text_muted']),
-            ticksuffix="%"
+            ticksuffix="%",
+            automargin=True
         ),
         xaxis=dict(
             gridcolor=COLORS['grid'],
             griddash='dot',
             showgrid=True,
             tickfont=dict(size=10, color=COLORS['text_muted']),
-            tickformat="%b %Y",
+            tickformat="%b'%y",  # Shorter date format: Jan'24
             dtick="M3",
-            rangeslider=dict(visible=False)
+            rangeslider=dict(visible=False),
+            automargin=True
         ),
         height=420
     )
@@ -362,7 +365,7 @@ def plot_drawdown_volatility(df_slice, drawdown_series, daily_returns, rolling_w
             font=dict(family='Outfit, sans-serif', size=12, color=COLORS['text']),
             align='left'
         ),
-        margin=dict(t=20, b=50, l=70, r=70),
+        margin=dict(t=20, b=20, l=10, r=10),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -370,13 +373,13 @@ def plot_drawdown_volatility(df_slice, drawdown_series, daily_returns, rolling_w
             xanchor="right",
             x=1,
             bgcolor='rgba(0,0,0,0)',
-            font=dict(size=11, color=COLORS['text_muted'])
+            font=dict(size=10, color=COLORS['text_muted'])
         ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family='Outfit, sans-serif'),
         yaxis=dict(
-            title=dict(text="Drawdown", font=dict(size=11, color=COLORS['text_muted'])),
+            title=dict(text="Drawdown", font=dict(size=10, color=COLORS['text_muted'])),
             gridcolor=COLORS['grid'],
             griddash='dot',
             showgrid=True,
@@ -385,24 +388,27 @@ def plot_drawdown_volatility(df_slice, drawdown_series, daily_returns, rolling_w
             zerolinewidth=1,
             tickfont=dict(size=10, color=COLORS['text_muted']),
             ticksuffix="%",
-            range=[min(dd_values.min() * 1.2, -5), 2]  # Dynamic range with some padding
+            range=[min(dd_values.min() * 1.2, -5), 2],  # Dynamic range with some padding
+            automargin=True
         ),
         yaxis2=dict(
-            title=dict(text="Volatilidade (a.a.)", font=dict(size=11, color=COLORS['text_muted'])),
+            title=dict(text="Volatilidade (a.a.)", font=dict(size=10, color=COLORS['text_muted'])),
             overlaying='y',
             side='right',
             showgrid=False,
             zeroline=False,
             tickfont=dict(size=10, color=COLORS['text_muted']),
-            ticksuffix="%"
+            ticksuffix="%",
+            automargin=True
         ),
         xaxis=dict(
             gridcolor=COLORS['grid'],
             griddash='dot',
             showgrid=True,
             tickfont=dict(size=10, color=COLORS['text_muted']),
-            tickformat="%b %Y",
-            dtick="M3"
+            tickformat="%b'%y",  # Shorter date format
+            dtick="M3",
+            automargin=True
         ),
         height=320
     )

@@ -14,6 +14,7 @@ import numpy as np
 from core.data.loader import load_assets, load_proventos, load_fixed_income, load_cambio
 from core.data.market import fetch_historical_data, fetch_market_data
 from core.finance import calcular_carteira_fechada
+from core.logic import normalize_ticker
 from core.engine import reconstruct_history_multicurrency
 from core.performance.calculator import calculate_canonical_twr, DEFAULT_PREMISES
 
@@ -632,6 +633,46 @@ def main():
 
     # --- Preparar dados para debug ---
     _dbg_pos, _dbg_lucro_moeda = calcular_carteira_fechada(df_assets)
+
+    # FIFO completo: lucro realizado por ticker (inclui ativos 100% vendidos)
+    _dbg_lucro_por_ticker = {}
+    _dbg_moeda_por_ticker = {}
+    if not df_assets.empty:
+        _fifo = {}
+        _local = df_assets.copy()
+        _local['tipo'] = _local['tipo'].astype(str).str.lower().str.strip()
+        _local['moeda'] = _local.get('moeda', 'BRL').astype(str).str.upper().str.strip()
+        if 'data' in _local.columns:
+            _local = _local.sort_values('data')
+        for _, row in _local.iterrows():
+            t = row['ticker']
+            moeda = row['moeda']
+            qtd = float(abs(row['quantidade']))
+            preco = float(row['preco'])
+            taxas = float(row.get('taxas', 0) or 0)
+            if t not in _fifo:
+                _fifo[t] = {"lotes": [], "lucro": 0.0, "moeda": moeda}
+            _dbg_moeda_por_ticker[t] = moeda
+            tipo_op = row['tipo']
+            if any(x in tipo_op for x in ['compra', 'entrada', 'aporte']):
+                pm_lote = ((qtd * preco) + taxas) / qtd if qtd > 0 else 0
+                _fifo[t]["lotes"].append({"qtd": qtd, "pm": pm_lote})
+            elif any(x in tipo_op for x in ['venda', 'saida', 'resgate']):
+                qtd_vender = qtd
+                lucro_op = 0.0
+                while qtd_vender > 0 and _fifo[t]["lotes"]:
+                    lote = _fifo[t]["lotes"][0]
+                    qtd_consumida = min(lote["qtd"], qtd_vender)
+                    if lote["qtd"] <= qtd_vender:
+                        _fifo[t]["lotes"].pop(0)
+                    else:
+                        lote["qtd"] -= qtd_consumida
+                    lucro_op += (preco - lote["pm"]) * qtd_consumida
+                    qtd_vender -= qtd_consumida
+                _fifo[t]["lucro"] += lucro_op
+        for t, d in _fifo.items():
+            _dbg_lucro_por_ticker[t] = d["lucro"]
+
     _dbg_tickers_all = _dbg_pos['Ticker'].unique().tolist() if not _dbg_pos.empty else []
     _dbg_tickers_all += ['BRL=X', 'EURBRL=X', 'CADBRL=X']
     _dbg_mapa, _ = fetch_market_data(list(set(_dbg_tickers_all)))
@@ -652,27 +693,31 @@ def main():
             _dbg_rf = summarize_fixed_income(_dbg_rf_raw)
         else:
             _dbg_rf = summarize_fixed_income_hybrid(_dbg_rf_manual, _dbg_rf_raw, _dbg_prov)
+            # Complementar com encerrados das transações (hybrid não detecta)
+            from core.finance import summarize_fixed_income as _sf
+            _dbg_rf_full = _sf(_dbg_rf_raw)
+            if not _dbg_rf_full.empty:
+                _dbg_rf_encerrados = _dbg_rf_full[_dbg_rf_full['Status'] == 'Encerrado']
+                if not _dbg_rf_encerrados.empty:
+                    # Só adicionar encerrados que não estão nos saldos manuais
+                    tickers_hybrid = set(_dbg_rf['Ticker'].values) if not _dbg_rf.empty else set()
+                    _dbg_rf_novos = _dbg_rf_encerrados[~_dbg_rf_encerrados['Ticker'].isin(tickers_hybrid)]
+                    if not _dbg_rf_novos.empty:
+                        _dbg_rf = pd.concat([_dbg_rf, _dbg_rf_novos], ignore_index=True)
 
-    # Filtrar proventos pelo período selecionado
+    # Proventos: SEM filtro de período (all-time, = Investimentos)
     _dbg_prov_periodo = _dbg_prov.copy() if not _dbg_prov.empty else pd.DataFrame()
-    if not _dbg_prov_periodo.empty and 'data' in _dbg_prov_periodo.columns:
-        _dbg_prov_periodo = _dbg_prov_periodo[
-            (_dbg_prov_periodo['data'] >= start_date) &
-            (_dbg_prov_periodo['data'] <= end_date)
-        ]
 
     # Filtrar vendas RV pelo período para lucro realizado do período
     _dbg_vendas_periodo = df_assets[
-        (df_assets['tipo'].str.lower().str.contains('venda|saida|resgate', na=False)) &
-        (df_assets['data'] >= start_date) &
-        (df_assets['data'] <= end_date)
+        (df_assets['tipo'].str.lower().str.contains('venda|saida|resgate', na=False))
     ] if not df_assets.empty else pd.DataFrame()
 
-    # Proventos por ticker (filtrado pelo período)
+    # Proventos por ticker (all-time) — usa normalize_ticker para match com posições
     _dbg_prov_ticker = {}
     if not _dbg_prov_periodo.empty:
         for _, r in _dbg_prov_periodo.iterrows():
-            t_p = str(r.get('ticker', '')).strip().upper()
+            t_p = normalize_ticker(str(r.get('ticker', '')).strip().upper())
             m_p = str(r.get('moeda', 'BRL')).strip().upper()
             v_p = float(r.get('valor', 0))
             fx_p = 1.0
@@ -725,7 +770,7 @@ def main():
                     'Qtd': qtd, 'PM': pm, 'Preço': preco, 'FX': fx,
                     'Valor (R$)': valor_brl, 'Custo (R$)': custo_brl,
                     'L. Aberto (R$)': lucro_aberto,
-                    'Prov. Período (R$)': prov,
+                    'Proventos (R$)': prov,
                     'Rent. %': rent_pct
                 })
                 if qtd > 0:
@@ -740,7 +785,7 @@ def main():
             st.dataframe(
                 _dbg_carteira[['Ticker', 'Classe', 'Moeda', 'Qtd', 'PM', 'Preço', 'FX',
                                'Valor (R$)', 'Custo (R$)', 'L. Aberto (R$)',
-                               'Prov. Período (R$)', 'Rent. %']],
+                               'Proventos (R$)', 'Rent. %']],
                 column_config={
                     'Qtd': st.column_config.NumberColumn(format="%.4f"),
                     'PM': st.column_config.NumberColumn(format="%.2f"),
@@ -749,7 +794,7 @@ def main():
                     'Valor (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
                     'Custo (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
                     'L. Aberto (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
-                    'Prov. Período (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
+                    'Proventos (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
                     'Rent. %': st.column_config.NumberColumn(format="%.2f%%"),
                 },
                 use_container_width=True, hide_index=True
@@ -758,41 +803,92 @@ def main():
         c1, c2, c3 = st.columns(3)
         c1.metric("Valor RV", f"R$ {_dbg_total_valor:,.0f}")
         c2.metric("Lucro Aberto", f"R$ {_dbg_total_lucro_aberto:,.0f}")
-        c3.metric("Proventos (Período)", f"R$ {_dbg_total_prov_rv:,.0f}")
+        c3.metric("Proventos RV (All-Time)", f"R$ {_dbg_total_prov_rv:,.0f}")
 
         # =================================================================
-        # 2. LUCRO REALIZADO RV — Vendas no período
+        # 2. LUCRO REALIZADO RV — FIFO correto por ticker
         # =================================================================
         st.markdown("---")
-        st.markdown("### 2. Lucro Realizado RV (vendas no período)")
+        st.markdown("### 2. Lucro Realizado RV (FIFO)")
+
+        # Calcular lucro realizado filtrado pelo período usando FIFO incremental
         _dbg_total_lucro_realiz = 0.0
-        if not _dbg_vendas_periodo.empty:
-            # Calcular lucro realizado por venda usando PM das posições
-            for _, venda in _dbg_vendas_periodo.iterrows():
-                t_v = venda['ticker']
-                q_v = float(venda['quantidade'])
-                p_v = float(venda['preco'])
-                m_v = str(venda.get('moeda', 'BRL')).upper()
+        if not df_assets.empty:
+            _fifo_period = {}
+            _local_sorted = df_assets.copy()
+            _local_sorted['tipo'] = _local_sorted['tipo'].astype(str).str.lower().str.strip()
+            _local_sorted['moeda'] = _local_sorted.get('moeda', 'BRL').astype(str).str.upper().str.strip()
+            if 'data' in _local_sorted.columns:
+                _local_sorted = _local_sorted.sort_values('data')
 
-                # PM do ticker (do FIFO completo)
-                pm_v = 0.0
-                if not _dbg_pos.empty:
-                    match = _dbg_pos[_dbg_pos['Ticker'] == t_v]
-                    if not match.empty:
-                        pm_v = match.iloc[0]['PM_Origem']
+            _lucro_por_ticker_periodo = {}
+            _vendas_detalhe = []
 
-                fx_v = 1.0
-                if m_v == 'USD': fx_v = _dbg_usd
-                elif m_v == 'EUR': fx_v = _dbg_eur
-                elif m_v == 'CAD': fx_v = _dbg_cad
+            for _, row in _local_sorted.iterrows():
+                t = row['ticker']
+                moeda = row['moeda']
+                qtd = float(abs(row['quantidade']))
+                preco = float(row['preco'])
+                taxas = float(row.get('taxas', 0) or 0)
+                data_op = row['data']
 
-                lucro_v = (p_v - pm_v) * q_v * fx_v
-                _dbg_total_lucro_realiz += lucro_v
-                data_v = venda['data'].strftime('%d/%m/%Y') if hasattr(venda['data'], 'strftime') else str(venda['data'])
-                st.write(f"- **{t_v}** {data_v}: {q_v:.4f} × (R$ {p_v:.2f} - PM {pm_v:.2f}) × FX {fx_v:.4f} = R$ {lucro_v:,.2f}")
-            st.metric("Total Realizado RV (Período)", f"R$ {_dbg_total_lucro_realiz:,.0f}")
+                if t not in _fifo_period:
+                    _fifo_period[t] = {"lotes": [], "moeda": moeda}
+
+                tipo_op = row['tipo']
+                if any(x in tipo_op for x in ['compra', 'entrada', 'aporte']):
+                    pm_lote = ((qtd * preco) + taxas) / qtd if qtd > 0 else 0
+                    _fifo_period[t]["lotes"].append({"qtd": qtd, "pm": pm_lote})
+                elif any(x in tipo_op for x in ['venda', 'saida', 'resgate']):
+                    qtd_vender = qtd
+                    lucro_op = 0.0
+                    pm_medio_venda = 0.0
+                    qtd_consumida_total = 0.0
+                    while qtd_vender > 0 and _fifo_period[t]["lotes"]:
+                        lote = _fifo_period[t]["lotes"][0]
+                        qtd_consumida = min(lote["qtd"], qtd_vender)
+                        pm_medio_venda += lote["pm"] * qtd_consumida
+                        qtd_consumida_total += qtd_consumida
+                        if lote["qtd"] <= qtd_vender:
+                            _fifo_period[t]["lotes"].pop(0)
+                        else:
+                            lote["qtd"] -= qtd_consumida
+                        lucro_op += (preco - lote["pm"]) * qtd_consumida
+                        qtd_vender -= qtd_consumida
+
+                    pm_medio_venda = pm_medio_venda / qtd_consumida_total if qtd_consumida_total > 0 else 0
+
+                    # Registra todas as vendas (all-time)
+                    if True:
+                        fx_v = 1.0
+                        if moeda == 'USD': fx_v = _dbg_usd
+                        elif moeda == 'EUR': fx_v = _dbg_eur
+                        elif moeda == 'CAD': fx_v = _dbg_cad
+
+                        lucro_brl = lucro_op * fx_v
+                        _lucro_por_ticker_periodo[t] = _lucro_por_ticker_periodo.get(t, 0.0) + lucro_brl
+                        _vendas_detalhe.append({
+                            'ticker': t, 'data': data_op, 'qtd': qtd,
+                            'preco_venda': preco, 'pm_fifo': pm_medio_venda,
+                            'moeda': moeda, 'fx': fx_v,
+                            'lucro_nativo': lucro_op, 'lucro_brl': lucro_brl
+                        })
+                        _dbg_total_lucro_realiz += lucro_brl
+
+            if _vendas_detalhe:
+                for v in _vendas_detalhe:
+                    data_v = v['data'].strftime('%d/%m/%Y') if hasattr(v['data'], 'strftime') else str(v['data'])
+                    st.write(f"- **{v['ticker']}** {data_v}: {v['qtd']:.4f} × ({v['moeda']} {v['preco_venda']:.2f} - PM {v['pm_fifo']:.2f}) × FX {v['fx']:.4f} = R$ {v['lucro_brl']:,.2f}")
+
+                st.markdown("**Por ticker:**")
+                for t_r, l_r in sorted(_lucro_por_ticker_periodo.items(), key=lambda x: x[1], reverse=True):
+                    st.write(f"- **{t_r}**: R$ {l_r:,.2f}")
+            else:
+                st.write("Nenhuma venda registrada.")
+
+            st.metric("Total Realizado RV (All-Time)", f"R$ {_dbg_total_lucro_realiz:,.0f}")
         else:
-            st.write("Nenhuma venda no período.")
+            st.write("Sem dados de transações.")
 
         # =================================================================
         # 3. CRIPTO — Separado
@@ -876,10 +972,10 @@ def main():
             st.write("Sem dados de Renda Fixa.")
 
         # =================================================================
-        # 6. PROVENTOS — Filtrado pelo período
+        # 6. PROVENTOS — All-Time (sem filtro de período)
         # =================================================================
         st.markdown("---")
-        st.markdown("### 6. Proventos (no período)")
+        st.markdown("### 6. Proventos (All-Time)")
         _dbg_prov_bruto_total = 0.0
         _dbg_prov_imposto_total = 0.0
         _dbg_prov_liq_total = 0.0
@@ -916,13 +1012,13 @@ def main():
             c2.metric("Impostos", f"R$ {_dbg_prov_imposto_total:,.0f}")
             c3.metric("Líquido", f"R$ {_dbg_prov_liq_total:,.0f}")
         else:
-            st.write("Sem proventos no período.")
+            st.write("Sem proventos registrados.")
 
         # =================================================================
         # 7. RESUMO DO PERÍODO
         # =================================================================
         st.markdown("---")
-        st.markdown("### 7. Resumo do Período")
+        st.markdown("### 7. Resumo Geral")
         _nav_ini_dbg = res_period.nav_series.iloc[0] if not res_period.nav_series.empty else 0
         _nav_fin_dbg = res_period.nav_series.iloc[-1] if not res_period.nav_series.empty else 0
         st.write(f"- **NAV Início período**: R$ {_nav_ini_dbg:,.2f}")
@@ -932,8 +1028,8 @@ def main():
         st.write(f"- **PnL (NAV)**: R$ {res_period.total_pnl:,.2f}")
         st.markdown("---")
         st.write(f"- **Lucro Aberto RV**: R$ {_dbg_total_lucro_aberto:,.2f}")
-        st.write(f"- **Lucro Realiz. RV (período)**: R$ {_dbg_total_lucro_realiz:,.2f}")
-        st.write(f"- **Proventos (período)**: R$ {_dbg_prov_liq_total:,.2f}")
+        st.write(f"- **Lucro Realiz. RV (All-Time)**: R$ {_dbg_total_lucro_realiz:,.2f}")
+        st.write(f"- **Proventos (All-Time)**: R$ {_dbg_prov_liq_total:,.2f}")
         st.write(f"- **Lucro RF Aberto**: R$ {_dbg_total_rf_lucro:,.2f}")
         st.write(f"- **Lucro RF Realizado**: R$ {_dbg_total_rf_realiz:,.2f}")
         _resultado_periodo = _dbg_total_lucro_aberto + _dbg_total_lucro_realiz + _dbg_prov_liq_total + _dbg_total_rf_lucro + _dbg_total_rf_realiz
@@ -1172,6 +1268,16 @@ def main():
         st.caption(f"Motor: TWR Canonical | Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 
+
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # SECRET FOOTER - X-RAY ENTRY POINT
+    # ═══════════════════════════════════════════════════════════════════════════════
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col_spacer, col_xray = st.columns([10, 1])
+    with col_xray:
+        if st.button("🧬", key="btn_xray_entry", help="Visualizar X-Ray"):
+            st.switch_page("pages/9_XRay.py")
 
 if __name__ == "__main__":
     main()
