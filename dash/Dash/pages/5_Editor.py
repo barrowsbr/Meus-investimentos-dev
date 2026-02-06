@@ -314,13 +314,33 @@ def exibir_editor_dados():
                             decimals = 4 if ('Quantidade' in k or 'Qtd' in k) else 2
                             parsed_data[k] = format_decimal_br(f_val, decimals)
                     
-                    # AUTO-CALCULATE: Valor líquido = Quantidade * Preço + Taxas (for meus_ativos)
+                    # AUTO-CALCULATE: Valor bruto e Valor líquido (for meus_ativos)
+                    # CRITICAL: Rebuild dict in correct column order for spreadsheet
                     if selected_key == "meus_ativos":
                         qtd_f = parse_decimal_br(parsed_data.get('Quantidade', '0'))
                         preco_f = parse_decimal_br(parsed_data.get('Preço', '0'))
-                        taxas_f = parse_decimal_br(parsed_data.get('Taxas', '0'))
-                        valor_liq = (qtd_f * preco_f) + taxas_f
-                        parsed_data['Valor líquido'] = format_decimal_br(valor_liq, 2)
+                        
+                        # Usar 'Taxa de corretagem' conforme definido no ui_config
+                        taxas_f = parse_decimal_br(parsed_data.get('Taxa de corretagem', '0'))
+                        
+                        valor_bruto = qtd_f * preco_f
+                        valor_liq = valor_bruto + taxas_f
+                        
+                        # Rebuild in EXACT spreadsheet column order:
+                        # Data | Tipo de transação | Símbolo | Quantidade | Preço | Valor bruto | Taxa de corretagem | Valor líquido | Moeda | Corretora
+                        ordered_data = {
+                            'Data': parsed_data.get('Data'),
+                            'Tipo de transação': parsed_data.get('Tipo de transação'),
+                            'Símbolo': parsed_data.get('Símbolo'),
+                            'Quantidade': parsed_data.get('Quantidade'),
+                            'Preço': parsed_data.get('Preço'),
+                            'Valor bruto': format_decimal_br(valor_bruto, 2),
+                            'Taxa de corretagem': format_decimal_br(taxas_f, 2), # Exibir taxas inseridas
+                            'Valor líquido': format_decimal_br(valor_liq, 2),
+                            'Moeda': parsed_data.get('Moeda'),
+                            'Corretora': parsed_data.get('Corretora'),
+                        }
+                        parsed_data = ordered_data
                     
                     new_row = pd.DataFrame([parsed_data])
                     
@@ -349,11 +369,26 @@ def exibir_editor_dados():
                     
                     # 1. Prepare Row with FLOATS for internal storage
                     row_floats = new_row.copy()
-                    for col in numeric_cols:
+
+                    # Parse numeric columns back to float
+                    all_numeric = list(numeric_cols) + ['Valor bruto', 'Valor líquido', 'Taxa de corretagem']
+                    for col in all_numeric:
                         if col in row_floats.columns:
-                            # It is currently formatted string. Parse back to float.
                             row_floats[col] = row_floats[col].apply(parse_decimal_br)
-                            
+
+                    # 2. CRITICAL: Match columns with existing DataFrame (sheet order)
+                    if not st.session_state.editor_df.empty:
+                        existing_cols = st.session_state.editor_df.columns.tolist()
+
+                        # Remove legacy "Taxas" column if it exists (should be "Taxa de corretagem")
+                        if 'Taxas' in existing_cols and 'Taxa de corretagem' in existing_cols:
+                            existing_cols.remove('Taxas')
+                            if 'Taxas' in st.session_state.editor_df.columns:
+                                st.session_state.editor_df = st.session_state.editor_df.drop(columns=['Taxas'])
+
+                        # Only use columns that exist - don't create new ones
+                        row_floats = row_floats.reindex(columns=existing_cols)
+
                     st.session_state.editor_df = pd.concat([st.session_state.editor_df, row_floats], ignore_index=True)
                     st.success("Linha adicionada!")
                     st.rerun()

@@ -1302,15 +1302,46 @@ with tab3:
                     "Lucro Aberto (R$)": st.column_config.NumberColumn("PnL (R$)", format="R$ %.2f"),
                     "Custo BRL": st.column_config.NumberColumn("Investido (R$)", format="R$ %.2f"),
                     "Rent. (%)": st.column_config.ProgressColumn(
-                        "Rentabilidade", 
-                        format="%.1f%%", 
-                        min_value=-100, 
+                        "Rentabilidade",
+                        format="%.1f%%",
+                        min_value=-100,
                         max_value=100
                     ),
                 },
                 use_container_width=True,
                 height=max(200, len(df_cripto) * 35 + 38)
             )
+
+            # Histórico de Operações Individuais
+            st.divider()
+            st.subheader("📜 Histórico de Operações")
+
+            tickers_cripto = df_cripto['Ticker'].unique().tolist()
+            if not df_bruto.empty:
+                df_ops_cripto = df_bruto[df_bruto['ticker'].isin(tickers_cripto)].copy()
+
+                if not df_ops_cripto.empty:
+                    df_ops_cripto = df_ops_cripto.sort_values('data', ascending=False)
+
+                    cols_ops = ['data', 'ticker', 'tipo', 'quantidade', 'preco', 'taxas', 'total']
+                    cols_disponveis = [c for c in cols_ops if c in df_ops_cripto.columns]
+
+                    st.dataframe(
+                        df_ops_cripto[cols_disponveis],
+                        column_config={
+                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            "ticker": st.column_config.TextColumn("Ativo"),
+                            "tipo": st.column_config.TextColumn("Operação"),
+                            "quantidade": st.column_config.NumberColumn("Qtd", format="%.6f"),
+                            "preco": st.column_config.NumberColumn("Preço", format="$ %.2f"),
+                            "taxas": st.column_config.NumberColumn("Taxas", format="$ %.2f"),
+                            "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
+                        },
+                        use_container_width=True,
+                        height=max(200, len(df_ops_cripto) * 35 + 38)
+                    )
+                else:
+                    st.info("Nenhuma operação encontrada para os ativos cripto.")
 
         else:
             st.info("ℹ️ Nenhuma criptomoeda encontrada na sua carteira. Adicione transações com setor 'Cripto'.")

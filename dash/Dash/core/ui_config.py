@@ -9,11 +9,20 @@ def get_editor_config():
     return {
         "meus_ativos": {
             "icon": "📈", "label": "Ações & ETFs", "date_cols": ["Data"],
+            # ORDEM DOS CAMPOS: deve coincidir com a planilha Google Sheets
+            # Data | Tipo de transação | Símbolo | Quantidade | Preço | Valor bruto | Taxa de corretagem | Valor líquido | Moeda | Corretora
             "form_fields": {
-                "Símbolo": "text_suggest", "Tipo de transação": ["Compra", "Venda"], 
-                "Quantidade": "number", "Preço": "currency", "Taxas": "currency",
-                "Corretora": ["IBKR", "XP", "Avenue", "Binance"],
-                "Moeda": ["USD", "BRL"], "Data": "date"
+                "Data": "date",
+                "Tipo de transação": ["Compra", "Venda"], 
+                "Símbolo": "text_suggest",
+                "Quantidade": "number", 
+                "Preço": "currency", 
+                # Valor bruto é calculado e inserido aqui na ordem
+                "Taxa de corretagem": "currency",
+                # Valor líquido é calculado
+                # Valor bruto e Valor líquido são calculados automaticamente no Editor
+                "Moeda": ["USD", "BRL", "EUR", "CAD"],
+                "Corretora": ["IBKR", "XP", "Avenue", "Binance", "BTG", "Nubank"],
             },
             "column_types": {
                 "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY", help="Data da execução da ordem"),
@@ -21,9 +30,11 @@ def get_editor_config():
                 "Símbolo": st.column_config.TextColumn("Ticker", width="small", validate="^[A-Za-z0-9.]+$", help="Código do ativo (ex: AAPL, PETR4)"),
                 "Quantidade": st.column_config.NumberColumn("Qtd", format="%.4f", help="Número total de cotas/ações"),
                 "Preço": st.column_config.NumberColumn("Preço", format="$ %.2f", help="Preço unitário de execução"),
-                "Taxas": st.column_config.NumberColumn("Taxas", format="$ %.2f", help="Corretagem e emolumentos"),
+                "Valor bruto": st.column_config.NumberColumn("Bruto", format="$ %.2f", help="Qtd * Preço (calculado)"),
+                "Taxa de corretagem": st.column_config.NumberColumn("Taxas", format="$ %.2f", help="Corretagem e emolumentos"),
                 "Valor líquido": st.column_config.NumberColumn("Total", format="$ %.2f", help="Qtd * Preço + Taxas (calculado)"),
-                "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR"], help="Moeda de liquidação"),
+                "Moeda": st.column_config.SelectboxColumn("Moeda", options=["USD", "BRL", "EUR", "CAD"], help="Moeda de liquidação"),
+                "Corretora": st.column_config.SelectboxColumn("Corretora", options=["IBKR", "XP", "Avenue", "Binance", "BTG", "Nubank"], help="Instituição"),
             }
         },
         "meus_proventos": {

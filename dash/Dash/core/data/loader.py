@@ -13,9 +13,10 @@ COLUMN_MAP_ASSETS = {
     'símbolo': 'ticker', 'simbolo': 'ticker',
     'tipo de transação': 'tipo', 'tipo_de_transacao': 'tipo', 'tipo_de_transacão': 'tipo', 'tipo_de_transação': 'tipo',
     'preço': 'preco', 'preco': 'preco',
-    'data': 'data', 
-    'taxa de corretagem': 'taxas', 'taxa_de_corretagem': 'taxas',
-    'valor líquido': 'total', 'valor_liquido': 'total', 'valor_líquido': 'total'
+    'data': 'data',
+    'taxa de corretagem': 'taxas', 'taxa_de_corretagem': 'taxas', 'taxas': 'taxas',
+    'valor líquido': 'total', 'valor_liquido': 'total', 'valor_líquido': 'total',
+    'valor bruto': 'valor_bruto', 'valor_bruto': 'valor_bruto'
 }
 
 COLUMN_MAP_PROVENTOS = {
@@ -67,7 +68,7 @@ def load_assets() -> pd.DataFrame:
         if 'data' in df.columns:
              df['data'] = parse_date_br(df['data'])
 
-        for c in ['quantidade', 'preco', 'taxas', 'total']:
+        for c in ['quantidade', 'preco', 'taxas', 'total', 'valor_bruto']:
             if c in df.columns:
                  df[c] = df[c].apply(parse_decimal_br)
         
