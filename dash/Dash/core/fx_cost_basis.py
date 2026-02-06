@@ -408,5 +408,239 @@ def calculate_chained_costs(
             'initial_cost': initial_cost,
             'period_cost': period_cost
         }
-    
+
+    return result
+
+
+def calculate_period_pm_with_reset(
+    df_cambio: pd.DataFrame,
+    df_assets: pd.DataFrame,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    market_fx_first_day: Dict[str, float],
+    target_currencies: Optional[list] = None
+) -> Dict[str, Dict[str, float]]:
+    """
+    Calculate FX cost basis with PERIOD RESET logic.
+
+    This is different from the cumulative PM approach:
+    - Initial position (assets held before start_date) uses MARKET FX rate of first day
+    - New remittances during period use actual weighted average
+    - Asset purchases without FX remittance use first day market rate
+    - Asset sales crystallize at the sale day's FX rate (reduces base)
+
+    Parameters
+    ----------
+    df_cambio : pd.DataFrame
+        Remittance history
+    df_assets : pd.DataFrame
+        Asset transaction history (to detect buys/sells in foreign currency)
+    start_date : pd.Timestamp
+        Period start date
+    end_date : pd.Timestamp
+        Period end date
+    market_fx_first_day : Dict[str, float]
+        Market FX rates on the first day of period {'USD': 5.50, 'EUR': 6.10, ...}
+    target_currencies : list, optional
+        Currencies to calculate (default: ['USD', 'EUR', 'CAD'])
+
+    Returns
+    -------
+    Dict[str, Dict[str, float]]
+        {
+            'USD': {
+                'pm_periodo': 5.25,           # Weighted avg for period analysis
+                'posicao_inicial_qtd': 10000, # Foreign units held at start
+                'aportes_periodo_qtd': 2000,  # Foreign units added in period
+                'vendas_periodo_qtd': 500,    # Foreign units sold in period
+            },
+            ...
+        }
+    """
+    if target_currencies is None:
+        target_currencies = ['USD', 'EUR', 'CAD']
+
+    result = {}
+
+    # Normalize dataframes
+    df_c = df_cambio.copy() if not df_cambio.empty else pd.DataFrame()
+    df_a = df_assets.copy() if not df_assets.empty else pd.DataFrame()
+
+    if not df_c.empty and 'data' in df_c.columns:
+        df_c['data'] = pd.to_datetime(df_c['data'])
+        df_c = df_c.sort_values('data')
+        for col in ['moeda_origem', 'moeda_destino']:
+            if col in df_c.columns:
+                df_c[col] = df_c[col].astype(str).str.strip().str.upper()
+        for col in ['valor_origem', 'valor_destino']:
+            if col in df_c.columns:
+                df_c[col] = pd.to_numeric(df_c[col], errors='coerce').fillna(0)
+
+    if not df_a.empty and 'data' in df_a.columns:
+        df_a['data'] = pd.to_datetime(df_a['data'])
+        df_a = df_a.sort_values('data')
+        if 'moeda' in df_a.columns:
+            df_a['moeda'] = df_a['moeda'].astype(str).str.strip().str.upper()
+        if 'tipo' in df_a.columns:
+            df_a['tipo'] = df_a['tipo'].astype(str).str.strip().str.lower()
+        for col in ['quantidade', 'preco', 'total']:
+            if col in df_a.columns:
+                df_a[col] = pd.to_numeric(df_a[col], errors='coerce').fillna(0)
+
+    for currency in target_currencies:
+        market_rate_1st = market_fx_first_day.get(currency, 0.0)
+
+        # 1. Calculate initial position = VALUE OF ASSETS in foreign currency (before start_date)
+        # This is the net position in assets (buys - sells), NOT cash
+        initial_fx_qty = 0.0
+        if not df_a.empty and 'moeda' in df_a.columns:
+            mask_assets_before = (df_a['data'] < start_date) & (df_a['moeda'] == currency)
+            df_assets_before = df_a[mask_assets_before]
+
+            for _, row in df_assets_before.iterrows():
+                tipo = row.get('tipo', '')
+                total_op = row.get('total', 0)
+                if total_op <= 0:
+                    total_op = row.get('quantidade', 0) * row.get('preco', 0)
+
+                # Compra adiciona à posição, Venda reduz
+                if 'compra' in tipo or 'buy' in tipo:
+                    initial_fx_qty += total_op
+                elif 'venda' in tipo or 'sell' in tipo:
+                    initial_fx_qty -= total_op
+
+        initial_fx_qty = max(0, initial_fx_qty)  # Can't be negative
+
+        # 2. Remittances DURING period
+        period_remit_brl = 0.0
+        period_remit_fx = 0.0
+        if not df_c.empty and 'moeda_destino' in df_c.columns:
+            mask_period = (df_c['data'] >= start_date) & (df_c['data'] <= end_date) & (df_c['moeda_destino'] == currency)
+            if 'moeda_origem' in df_c.columns:
+                mask_period &= (df_c['moeda_origem'] == 'BRL')
+            period_remit_brl = df_c.loc[mask_period, 'valor_origem'].sum()
+            period_remit_fx = df_c.loc[mask_period, 'valor_destino'].sum()
+
+        # 3. Asset transactions DURING period (affects position but uses 1st day rate if no remittance)
+        period_buys_fx = 0.0  # Foreign currency used for purchases
+        period_sales_fx = 0.0  # Foreign currency received from sales
+        period_sales_brl_crystallized = 0.0  # BRL value crystallized at sale time
+
+        if not df_a.empty and 'moeda' in df_a.columns:
+            mask_assets_period = (df_a['data'] >= start_date) & (df_a['data'] <= end_date) & (df_a['moeda'] == currency)
+            df_assets_period = df_a[mask_assets_period]
+
+            for _, row in df_assets_period.iterrows():
+                tipo = row.get('tipo', '')
+                total_op = row.get('total', 0)
+                if total_op <= 0:
+                    total_op = row.get('quantidade', 0) * row.get('preco', 0)
+
+                if 'compra' in tipo or 'buy' in tipo:
+                    period_buys_fx += total_op
+                elif 'venda' in tipo or 'sell' in tipo:
+                    period_sales_fx += total_op
+                    # Crystallize at market rate (ideally would use rate of sale day)
+                    # For simplicity, use first day rate here
+                    period_sales_brl_crystallized += total_op * market_rate_1st
+
+        # 4. Calculate weighted average PM for the period
+        # Formula: (Initial_qty * Market_1st_day + Period_remit_BRL) / (Initial_qty + Period_remit_FX)
+
+        # Numerator: BRL "invested" in the period view
+        brl_initial = initial_fx_qty * market_rate_1st  # Reset: use market rate
+        brl_period_remit = period_remit_brl             # Actual BRL spent on remittances
+        # Purchases without new remittance use 1st day rate
+        brl_period_buys_no_remit = max(0, period_buys_fx - period_remit_fx) * market_rate_1st
+
+        total_brl_base = brl_initial + brl_period_remit + brl_period_buys_no_remit
+
+        # Adjust for sales (reduce base proportionally)
+        # When you sell, you crystallize that portion at the sale rate
+        # The remaining base continues with the PM
+        total_fx_base = initial_fx_qty + period_remit_fx + max(0, period_buys_fx - period_remit_fx) - period_sales_fx
+
+        # Calculate PM
+        pm_periodo = 0.0
+        if total_fx_base > 0:
+            # Adjust BRL base for sales (remove proportional BRL)
+            if (initial_fx_qty + period_remit_fx + max(0, period_buys_fx - period_remit_fx)) > 0:
+                sale_fraction = period_sales_fx / (initial_fx_qty + period_remit_fx + max(0, period_buys_fx - period_remit_fx))
+                brl_removed_by_sales = total_brl_base * min(sale_fraction, 1.0)
+                total_brl_base -= brl_removed_by_sales
+
+            pm_periodo = total_brl_base / total_fx_base if total_fx_base > 0 else market_rate_1st
+        else:
+            pm_periodo = market_rate_1st  # Fallback
+
+        # Calculate purchases without corresponding remittance (use 1st day rate)
+        compras_sem_remessa_fx = max(0, period_buys_fx - period_remit_fx)
+        compras_sem_remessa_brl = compras_sem_remessa_fx * market_rate_1st
+
+        result[currency] = {
+            'pm_periodo': round(pm_periodo, 4),
+            'posicao_inicial_qtd': round(initial_fx_qty, 2),
+            'aportes_periodo_qtd': round(period_remit_fx, 2),
+            'aportes_periodo_brl': round(period_remit_brl, 2),
+            'compras_periodo_fx': round(period_buys_fx, 2),
+            'vendas_periodo_fx': round(period_sales_fx, 2),
+            'market_rate_1st_day': market_rate_1st,
+            'posicao_final_fx': round(total_fx_base, 2),
+            'compras_sem_remessa_fx': round(compras_sem_remessa_fx, 2),
+            'compras_sem_remessa_brl': round(compras_sem_remessa_brl, 2),
+        }
+
+    return result
+
+
+def build_period_fx_series(
+    df_cambio: pd.DataFrame,
+    df_assets: pd.DataFrame,
+    idx_dates: pd.DatetimeIndex,
+    start_date: pd.Timestamp,
+    market_fx_first_day: Dict[str, float],
+    target_currencies: Optional[list] = None
+) -> Dict[str, pd.Series]:
+    """
+    Build time series of FX cost basis using PERIOD RESET logic.
+
+    For each day in idx_dates (within the period), calculates the running
+    weighted average PM considering:
+    - Initial position valued at market rate of first day
+    - Remittances up to that day valued at actual cost
+
+    This is used for "Meu Dinheiro" view with period filters.
+
+    Parameters
+    ----------
+    df_cambio, df_assets, idx_dates, start_date, market_fx_first_day, target_currencies
+
+    Returns
+    -------
+    Dict[str, pd.Series]
+        {currency: pm_series} where each series has the PM for that currency over time
+    """
+    if target_currencies is None:
+        target_currencies = ['USD', 'EUR', 'CAD']
+
+    result = {}
+
+    for currency in target_currencies:
+        # Get period PM calculation for each date in the series
+        pm_series = pd.Series(dtype=float, index=idx_dates)
+
+        for dt in idx_dates:
+            if dt < start_date:
+                # Before period start, use market rate
+                pm_series[dt] = market_fx_first_day.get(currency, np.nan)
+            else:
+                # Calculate PM up to this date
+                period_result = calculate_period_pm_with_reset(
+                    df_cambio, df_assets, start_date, dt,
+                    market_fx_first_day, [currency]
+                )
+                pm_series[dt] = period_result.get(currency, {}).get('pm_periodo', np.nan)
+
+        result[currency] = pm_series
+
     return result

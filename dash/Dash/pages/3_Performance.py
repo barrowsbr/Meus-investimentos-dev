@@ -474,19 +474,32 @@ def main():
             st.stop()
         
         # Build FX cost basis if "My Money" mode is selected
+        # NOTE: For period filters (not MAX), we use a RESET logic where:
+        # - Initial position uses market FX of first day of period
+        # - New remittances use actual weighted average
+        # This is stored in session_state and recalculated when period changes
+
         fx_cost_basis = None
         if view_mode == "💰 Meu Dinheiro":
-            from core.fx_cost_basis import build_fx_cost_series, get_latest_cost_basis
-
+            from core.fx_cost_basis import build_fx_cost_series, build_period_fx_series, get_latest_cost_basis
 
             # Build date index from all buckets
             all_dates = set()
             for bucket in multi_result.buckets.values():
                 if not bucket.nav_series.empty:
                     all_dates.update(bucket.nav_series.index)
+
             if all_dates:
                 idx_dates = pd.DatetimeIndex(sorted(all_dates))
+
+                # For now, build standard fx_cost_basis (historical PM)
+                # Period-specific logic will be applied later in the slice section
                 fx_cost_basis = build_fx_cost_series(df_cambio, idx_dates)
+
+                # Store for later period-specific calculations
+                st.session_state['_fx_idx_dates'] = idx_dates
+                st.session_state['_fx_df_cambio'] = df_cambio
+                st.session_state['_fx_df_assets'] = df_rv_final
         
         # Consolidate with appropriate FX mode
         consolidated = consolidate_to_brl(
@@ -605,7 +618,7 @@ def main():
         sel_periodo = st.radio(
             "Período:",
             periodos,
-            index=6,
+            index=3,  # YTD como padrão
             horizontal=True,
             help="Selecione o período de análise"
         )
@@ -650,478 +663,143 @@ def main():
     res_period = run_performance_engine_compat(df_slice)
 
     # =====================================================================
-    # DEBUG: Verificação Manual — Filtrado pelo Período Selecionado
+    # PERIOD-SPECIFIC PM CALCULATION (Meu Dinheiro mode with period filter)
+    # When not MAX, use RESET logic: initial position at market rate of 1st day
+    # =====================================================================
+    is_period_filtered = sel_periodo != "MAX" or sel_ano != "Todos"
+    pm_periodo_info = {}
+
+    if view_mode == "💰 Meu Dinheiro" and is_period_filtered:
+        from core.fx_cost_basis import calculate_period_pm_with_reset
+
+        # Get market FX rate for first day of period
+        # Try to get from historical data or use current as fallback
+        market_fx_first_day = {}
+
+        try:
+            # Try to get historical rate from df_hist_prices
+            if 'df_hist_prices' in dir() and not df_hist_prices.empty:
+                first_day_data = start_date
+
+                # USD/BRL (BRL=X)
+                if 'BRL=X' in df_hist_prices.columns:
+                    usd_series = df_hist_prices['BRL=X'].dropna()
+                    if not usd_series.empty:
+                        # Find closest date >= start_date
+                        valid_dates = usd_series[usd_series.index >= first_day_data]
+                        if not valid_dates.empty:
+                            market_fx_first_day['USD'] = float(valid_dates.iloc[0])
+                        else:
+                            # Fallback to last known before start
+                            before_dates = usd_series[usd_series.index < first_day_data]
+                            if not before_dates.empty:
+                                market_fx_first_day['USD'] = float(before_dates.iloc[-1])
+
+                # EUR/BRL (calculate from EURUSD * USDBRL)
+                if 'EURUSD=X' in df_hist_prices.columns and 'USD' in market_fx_first_day:
+                    eur_series = df_hist_prices['EURUSD=X'].dropna()
+                    if not eur_series.empty:
+                        valid_dates = eur_series[eur_series.index >= first_day_data]
+                        if not valid_dates.empty:
+                            market_fx_first_day['EUR'] = float(valid_dates.iloc[0]) * market_fx_first_day['USD']
+                        else:
+                            before_dates = eur_series[eur_series.index < first_day_data]
+                            if not before_dates.empty:
+                                market_fx_first_day['EUR'] = float(before_dates.iloc[-1]) * market_fx_first_day['USD']
+
+                # CAD/BRL (calculate from CADUSD * USDBRL)
+                if 'CADUSD=X' in df_hist_prices.columns and 'USD' in market_fx_first_day:
+                    cad_series = df_hist_prices['CADUSD=X'].dropna()
+                    if not cad_series.empty:
+                        valid_dates = cad_series[cad_series.index >= first_day_data]
+                        if not valid_dates.empty:
+                            market_fx_first_day['CAD'] = float(valid_dates.iloc[0]) * market_fx_first_day['USD']
+                        else:
+                            before_dates = cad_series[cad_series.index < first_day_data]
+                            if not before_dates.empty:
+                                market_fx_first_day['CAD'] = float(before_dates.iloc[-1]) * market_fx_first_day['USD']
+        except Exception as e:
+            pass  # Will use fallback below
+
+        # Fallback to current rates if historical not available
+        if 'USD' not in market_fx_first_day:
+            _tmp_mapa, _ = fetch_market_data(['BRL=X', 'EURBRL=X', 'CADBRL=X'])
+            market_fx_first_day['USD'] = _tmp_mapa.get('BRL=X', 5.50)
+            market_fx_first_day['EUR'] = _tmp_mapa.get('EURBRL=X', 6.00)
+            market_fx_first_day['CAD'] = _tmp_mapa.get('CADBRL=X', 4.00)
+
+        # Calculate PM with reset for period
+        df_cambio_calc = st.session_state.get('_fx_df_cambio', df_cambio)
+        df_assets_calc = st.session_state.get('_fx_df_assets', df_assets)
+
+        pm_periodo_info = calculate_period_pm_with_reset(
+            df_cambio_calc,
+            df_assets_calc,
+            pd.Timestamp(start_date),
+            pd.Timestamp(end_date),
+            market_fx_first_day
+        )
+
+    # =====================================================================
+    # COTAÇÃO DO ÚLTIMO DIA DO PERÍODO (para períodos fechados)
+    # =====================================================================
+    # Se o período está fechado (end_date < hoje), usar cotação histórica
+    today = pd.Timestamp.now().normalize()
+    is_period_closed = end_date < today
+
+    market_fx_last_day = {}
+
+    if is_period_closed and is_period_filtered:
+        try:
+            if 'df_hist_prices' in dir() and not df_hist_prices.empty:
+                last_day_data = end_date
+
+                # USD/BRL (BRL=X)
+                if 'BRL=X' in df_hist_prices.columns:
+                    usd_series = df_hist_prices['BRL=X'].dropna()
+                    if not usd_series.empty:
+                        # Find closest date <= end_date
+                        valid_dates = usd_series[usd_series.index <= last_day_data]
+                        if not valid_dates.empty:
+                            market_fx_last_day['USD'] = float(valid_dates.iloc[-1])
+
+                # EUR/BRL (calculate from EURUSD * USDBRL)
+                if 'EURUSD=X' in df_hist_prices.columns and 'USD' in market_fx_last_day:
+                    eur_series = df_hist_prices['EURUSD=X'].dropna()
+                    if not eur_series.empty:
+                        valid_dates = eur_series[eur_series.index <= last_day_data]
+                        if not valid_dates.empty:
+                            market_fx_last_day['EUR'] = float(valid_dates.iloc[-1]) * market_fx_last_day['USD']
+
+                # CAD/BRL (calculate from CADUSD * USDBRL)
+                if 'CADUSD=X' in df_hist_prices.columns and 'USD' in market_fx_last_day:
+                    cad_series = df_hist_prices['CADUSD=X'].dropna()
+                    if not cad_series.empty:
+                        valid_dates = cad_series[cad_series.index <= last_day_data]
+                        if not valid_dates.empty:
+                            market_fx_last_day['CAD'] = float(valid_dates.iloc[-1]) * market_fx_last_day['USD']
+        except Exception as e:
+            pass  # Will use current rates as fallback
+
+    # =====================================================================
+    # DEBUG: Análise de Câmbio - Focado na lógica de PM por período
     # =====================================================================
 
-    # --- Preparar dados para debug ---
-    _dbg_pos, _dbg_lucro_moeda = calcular_carteira_fechada(df_assets)
+    # Buscar cotações de mercado atuais (fallback ou para períodos abertos)
+    _fx_mapa, _ = fetch_market_data(['BRL=X', 'EURBRL=X', 'CADBRL=X'])
+    _fx_usd_current = _fx_mapa.get('BRL=X', 5.50)
+    _fx_eur_current = _fx_mapa.get('EURBRL=X', 6.00)
+    _fx_cad_current = _fx_mapa.get('CADBRL=X', 4.00)
 
-    # FIFO completo: lucro realizado por ticker (inclui ativos 100% vendidos)
-    _dbg_lucro_por_ticker = {}
-    _dbg_moeda_por_ticker = {}
-    if not df_assets.empty:
-        _fifo = {}
-        _local = df_assets.copy()
-        _local['tipo'] = _local['tipo'].astype(str).str.lower().str.strip()
-        _local['moeda'] = _local.get('moeda', 'BRL').astype(str).str.upper().str.strip()
-        if 'data' in _local.columns:
-            _local = _local.sort_values('data')
-        for _, row in _local.iterrows():
-            t = row['ticker']
-            moeda = row['moeda']
-            qtd = float(abs(row['quantidade']))
-            preco = float(row['preco'])
-            taxas = float(row.get('taxas', 0) or 0)
-            if t not in _fifo:
-                _fifo[t] = {"lotes": [], "lucro": 0.0, "moeda": moeda}
-            _dbg_moeda_por_ticker[t] = moeda
-            tipo_op = row['tipo']
-            if any(x in tipo_op for x in ['compra', 'entrada', 'aporte']):
-                pm_lote = ((qtd * preco) + taxas) / qtd if qtd > 0 else 0
-                _fifo[t]["lotes"].append({"qtd": qtd, "pm": pm_lote})
-            elif any(x in tipo_op for x in ['venda', 'saida', 'resgate']):
-                qtd_vender = qtd
-                lucro_op = 0.0
-                while qtd_vender > 0 and _fifo[t]["lotes"]:
-                    lote = _fifo[t]["lotes"][0]
-                    qtd_consumida = min(lote["qtd"], qtd_vender)
-                    if lote["qtd"] <= qtd_vender:
-                        _fifo[t]["lotes"].pop(0)
-                    else:
-                        lote["qtd"] -= qtd_consumida
-                    lucro_op += (preco - lote["pm"]) * qtd_consumida
-                    qtd_vender -= qtd_consumida
-                _fifo[t]["lucro"] += lucro_op
-        for t, d in _fifo.items():
-            _dbg_lucro_por_ticker[t] = d["lucro"]
-
-    _dbg_tickers_all = _dbg_pos['Ticker'].unique().tolist() if not _dbg_pos.empty else []
-    _dbg_tickers_all += ['BRL=X', 'EURBRL=X', 'CADBRL=X']
-    _dbg_mapa, _ = fetch_market_data(list(set(_dbg_tickers_all)))
-    _dbg_usd = _dbg_mapa.get('BRL=X', 5.50)
-    _dbg_eur = _dbg_mapa.get('EURBRL=X', 6.00)
-    _dbg_cad = _dbg_mapa.get('CADBRL=X', 4.00)
-
-    # RF
-    from core.data.loader import load_fixed_income_manual
-    from core.finance import summarize_fixed_income_hybrid
-    _dbg_rf_manual = load_fixed_income_manual()
-    _dbg_rf_raw = load_fixed_income()
-    _dbg_prov = load_proventos()
-    _dbg_rf = pd.DataFrame()
-    if not _dbg_rf_raw.empty:
-        if _dbg_rf_manual.empty:
-            from core.finance import summarize_fixed_income
-            _dbg_rf = summarize_fixed_income(_dbg_rf_raw)
-        else:
-            _dbg_rf = summarize_fixed_income_hybrid(_dbg_rf_manual, _dbg_rf_raw, _dbg_prov)
-            # Complementar com encerrados das transações (hybrid não detecta)
-            from core.finance import summarize_fixed_income as _sf
-            _dbg_rf_full = _sf(_dbg_rf_raw)
-            if not _dbg_rf_full.empty:
-                _dbg_rf_encerrados = _dbg_rf_full[_dbg_rf_full['Status'] == 'Encerrado']
-                if not _dbg_rf_encerrados.empty:
-                    # Só adicionar encerrados que não estão nos saldos manuais
-                    tickers_hybrid = set(_dbg_rf['Ticker'].values) if not _dbg_rf.empty else set()
-                    _dbg_rf_novos = _dbg_rf_encerrados[~_dbg_rf_encerrados['Ticker'].isin(tickers_hybrid)]
-                    if not _dbg_rf_novos.empty:
-                        _dbg_rf = pd.concat([_dbg_rf, _dbg_rf_novos], ignore_index=True)
-
-    # Proventos: SEM filtro de período (all-time, = Investimentos)
-    _dbg_prov_periodo = _dbg_prov.copy() if not _dbg_prov.empty else pd.DataFrame()
-
-    # Filtrar vendas RV pelo período para lucro realizado do período
-    _dbg_vendas_periodo = df_assets[
-        (df_assets['tipo'].str.lower().str.contains('venda|saida|resgate', na=False))
-    ] if not df_assets.empty else pd.DataFrame()
-
-    # Proventos por ticker (all-time) — usa normalize_ticker para match com posições
-    _dbg_prov_ticker = {}
-    if not _dbg_prov_periodo.empty:
-        for _, r in _dbg_prov_periodo.iterrows():
-            t_p = normalize_ticker(str(r.get('ticker', '')).strip().upper())
-            m_p = str(r.get('moeda', 'BRL')).strip().upper()
-            v_p = float(r.get('valor', 0))
-            fx_p = 1.0
-            if m_p == 'USD': fx_p = _dbg_usd
-            elif m_p == 'EUR': fx_p = _dbg_eur
-            elif m_p == 'CAD': fx_p = _dbg_cad
-            _dbg_prov_ticker[t_p] = _dbg_prov_ticker.get(t_p, 0.0) + (v_p * fx_p)
-
-    CRIPTO_LIST = ['BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'BTC-USD', 'HBAR', 'ADA', 'XRP']
-
-    with st.expander(f"🔍 DEBUG — Verificação ({sel_ano if sel_ano != 'Todos' else sel_periodo}): {start_date.strftime('%d/%m/%Y')} → {end_date.strftime('%d/%m/%Y')}", expanded=True):
-
-        # =================================================================
-        # 1. ATIVOS RV — Posições atuais
-        # =================================================================
-        st.markdown("### 1. Renda Variável — Posições Atuais")
-        _dbg_rows = []
-        _dbg_total_valor = 0.0
-        _dbg_total_custo = 0.0
-        _dbg_total_lucro_aberto = 0.0
-        _dbg_total_prov_rv = 0.0
-
-        if not _dbg_pos.empty:
-            for _, row in _dbg_pos.iterrows():
-                t = row['Ticker']
-                qtd = row['Qtd']
-                m = row['Moeda']
-                pm = row['PM_Origem']
-
-                preco = _dbg_mapa.get(t, 0.0)
-                if preco <= 0 or 'TESOURO' in t or 'CDB' in t:
-                    preco = pm
-
-                fx = 1.0
-                if m == 'USD': fx = _dbg_usd
-                elif m == 'EUR': fx = _dbg_eur
-                elif m == 'CAD': fx = _dbg_cad
-
-                valor_brl = qtd * preco * fx
-                custo_brl = qtd * pm * fx
-                lucro_aberto = valor_brl - custo_brl
-                prov = _dbg_prov_ticker.get(t, 0.0)
-                rent_pct = ((preco - pm) / pm * 100) if pm > 0 else 0.0
-
-                is_cripto = t.upper() in [c.upper() for c in CRIPTO_LIST]
-                classe = "Cripto" if is_cripto else "RV"
-
-                _dbg_rows.append({
-                    'Ticker': t, 'Classe': classe, 'Moeda': m,
-                    'Qtd': qtd, 'PM': pm, 'Preço': preco, 'FX': fx,
-                    'Valor (R$)': valor_brl, 'Custo (R$)': custo_brl,
-                    'L. Aberto (R$)': lucro_aberto,
-                    'Proventos (R$)': prov,
-                    'Rent. %': rent_pct
-                })
-                if qtd > 0:
-                    _dbg_total_valor += valor_brl
-                    _dbg_total_custo += custo_brl
-                    _dbg_total_lucro_aberto += lucro_aberto
-                _dbg_total_prov_rv += prov
-
-        if _dbg_rows:
-            _dbg_df = pd.DataFrame(_dbg_rows)
-            _dbg_carteira = _dbg_df[_dbg_df['Qtd'] > 0].sort_values('Valor (R$)', ascending=False)
-            st.dataframe(
-                _dbg_carteira[['Ticker', 'Classe', 'Moeda', 'Qtd', 'PM', 'Preço', 'FX',
-                               'Valor (R$)', 'Custo (R$)', 'L. Aberto (R$)',
-                               'Proventos (R$)', 'Rent. %']],
-                column_config={
-                    'Qtd': st.column_config.NumberColumn(format="%.4f"),
-                    'PM': st.column_config.NumberColumn(format="%.2f"),
-                    'Preço': st.column_config.NumberColumn(format="%.2f"),
-                    'FX': st.column_config.NumberColumn(format="%.4f"),
-                    'Valor (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
-                    'Custo (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
-                    'L. Aberto (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
-                    'Proventos (R$)': st.column_config.NumberColumn(format="R$ %.2f"),
-                    'Rent. %': st.column_config.NumberColumn(format="%.2f%%"),
-                },
-                use_container_width=True, hide_index=True
-            )
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Valor RV", f"R$ {_dbg_total_valor:,.0f}")
-        c2.metric("Lucro Aberto", f"R$ {_dbg_total_lucro_aberto:,.0f}")
-        c3.metric("Proventos RV (All-Time)", f"R$ {_dbg_total_prov_rv:,.0f}")
-
-        # =================================================================
-        # 2. LUCRO REALIZADO RV — FIFO correto por ticker
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 2. Lucro Realizado RV (FIFO)")
-
-        # Calcular lucro realizado filtrado pelo período usando FIFO incremental
-        _dbg_total_lucro_realiz = 0.0
-        if not df_assets.empty:
-            _fifo_period = {}
-            _local_sorted = df_assets.copy()
-            _local_sorted['tipo'] = _local_sorted['tipo'].astype(str).str.lower().str.strip()
-            _local_sorted['moeda'] = _local_sorted.get('moeda', 'BRL').astype(str).str.upper().str.strip()
-            if 'data' in _local_sorted.columns:
-                _local_sorted = _local_sorted.sort_values('data')
-
-            _lucro_por_ticker_periodo = {}
-            _vendas_detalhe = []
-
-            for _, row in _local_sorted.iterrows():
-                t = row['ticker']
-                moeda = row['moeda']
-                qtd = float(abs(row['quantidade']))
-                preco = float(row['preco'])
-                taxas = float(row.get('taxas', 0) or 0)
-                data_op = row['data']
-
-                if t not in _fifo_period:
-                    _fifo_period[t] = {"lotes": [], "moeda": moeda}
-
-                tipo_op = row['tipo']
-                if any(x in tipo_op for x in ['compra', 'entrada', 'aporte']):
-                    pm_lote = ((qtd * preco) + taxas) / qtd if qtd > 0 else 0
-                    _fifo_period[t]["lotes"].append({"qtd": qtd, "pm": pm_lote})
-                elif any(x in tipo_op for x in ['venda', 'saida', 'resgate']):
-                    qtd_vender = qtd
-                    lucro_op = 0.0
-                    pm_medio_venda = 0.0
-                    qtd_consumida_total = 0.0
-                    while qtd_vender > 0 and _fifo_period[t]["lotes"]:
-                        lote = _fifo_period[t]["lotes"][0]
-                        qtd_consumida = min(lote["qtd"], qtd_vender)
-                        pm_medio_venda += lote["pm"] * qtd_consumida
-                        qtd_consumida_total += qtd_consumida
-                        if lote["qtd"] <= qtd_vender:
-                            _fifo_period[t]["lotes"].pop(0)
-                        else:
-                            lote["qtd"] -= qtd_consumida
-                        lucro_op += (preco - lote["pm"]) * qtd_consumida
-                        qtd_vender -= qtd_consumida
-
-                    pm_medio_venda = pm_medio_venda / qtd_consumida_total if qtd_consumida_total > 0 else 0
-
-                    # Registra todas as vendas (all-time)
-                    if True:
-                        fx_v = 1.0
-                        if moeda == 'USD': fx_v = _dbg_usd
-                        elif moeda == 'EUR': fx_v = _dbg_eur
-                        elif moeda == 'CAD': fx_v = _dbg_cad
-
-                        lucro_brl = lucro_op * fx_v
-                        _lucro_por_ticker_periodo[t] = _lucro_por_ticker_periodo.get(t, 0.0) + lucro_brl
-                        _vendas_detalhe.append({
-                            'ticker': t, 'data': data_op, 'qtd': qtd,
-                            'preco_venda': preco, 'pm_fifo': pm_medio_venda,
-                            'moeda': moeda, 'fx': fx_v,
-                            'lucro_nativo': lucro_op, 'lucro_brl': lucro_brl
-                        })
-                        _dbg_total_lucro_realiz += lucro_brl
-
-            if _vendas_detalhe:
-                for v in _vendas_detalhe:
-                    data_v = v['data'].strftime('%d/%m/%Y') if hasattr(v['data'], 'strftime') else str(v['data'])
-                    st.write(f"- **{v['ticker']}** {data_v}: {v['qtd']:.4f} × ({v['moeda']} {v['preco_venda']:.2f} - PM {v['pm_fifo']:.2f}) × FX {v['fx']:.4f} = R$ {v['lucro_brl']:,.2f}")
-
-                st.markdown("**Por ticker:**")
-                for t_r, l_r in sorted(_lucro_por_ticker_periodo.items(), key=lambda x: x[1], reverse=True):
-                    st.write(f"- **{t_r}**: R$ {l_r:,.2f}")
-            else:
-                st.write("Nenhuma venda registrada.")
-
-            st.metric("Total Realizado RV (All-Time)", f"R$ {_dbg_total_lucro_realiz:,.0f}")
-        else:
-            st.write("Sem dados de transações.")
-
-        # =================================================================
-        # 3. CRIPTO — Separado
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 3. Cripto")
-        if _dbg_rows:
-            _dbg_cripto = _dbg_df[(_dbg_df['Classe'] == 'Cripto') & (_dbg_df['Qtd'] > 0)]
-            if not _dbg_cripto.empty:
-                total_cripto_val = _dbg_cripto['Valor (R$)'].sum()
-                total_cripto_aberto = _dbg_cripto['L. Aberto (R$)'].sum()
-                for _, cr in _dbg_cripto.iterrows():
-                    st.write(f"- **{cr['Ticker']}** ({cr['Moeda']}): {cr['Qtd']:.6f} × {cr['Preço']:.2f} × FX {cr['FX']:.4f} = R$ {cr['Valor (R$)']:,.2f} | Lucro: R$ {cr['L. Aberto (R$)']:,.2f} ({cr['Rent. %']:.1f}%)")
-                st.write(f"**TOTAL Cripto**: R$ {total_cripto_val:,.2f} | Lucro Aberto: R$ {total_cripto_aberto:,.2f}")
-            else:
-                st.write("Nenhuma posição cripto ativa.")
-
-        # =================================================================
-        # 4. CÂMBIO
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 4. Câmbio")
-        st.write(f"- **USD/BRL**: {_dbg_usd:.4f} | **EUR/BRL**: {_dbg_eur:.4f} | **CAD/BRL**: {_dbg_cad:.4f}")
-        if _dbg_rows:
-            for moeda_fx in ['USD', 'EUR', 'CAD']:
-                _dbg_fx_ativos = _dbg_df[(_dbg_df['Moeda'] == moeda_fx) & (_dbg_df['Qtd'] > 0)]
-                if not _dbg_fx_ativos.empty:
-                    total_native = (_dbg_fx_ativos['Qtd'] * _dbg_fx_ativos['PM']).sum()
-                    total_native_atual = (_dbg_fx_ativos['Qtd'] * _dbg_fx_ativos['Preço']).sum()
-                    st.write(f"**{moeda_fx}**: PM {total_native:,.2f} | Atual {total_native_atual:,.2f} | Tickers: {', '.join(_dbg_fx_ativos['Ticker'].tolist())}")
-
-        # =================================================================
-        # 5. RENDA FIXA (Ativos + Encerrados)
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 5. Renda Fixa")
-        _dbg_total_rf = 0.0
-        _dbg_total_rf_investido = 0.0
-        _dbg_total_rf_lucro = 0.0
-        _dbg_total_rf_juros = 0.0
-        _dbg_total_rf_realiz = 0.0
-
-        if not _dbg_rf.empty:
-            _dbg_rf_ativos = _dbg_rf[_dbg_rf['Status'] == 'Ativo']
-            if not _dbg_rf_ativos.empty:
-                st.markdown("**Ativos (em carteira):**")
-                for _, rf_r in _dbg_rf_ativos.iterrows():
-                    m_rf = rf_r.get('Moeda', 'BRL')
-                    fx_rf = 1.0
-                    if m_rf == 'USD': fx_rf = _dbg_usd
-                    elif m_rf == 'EUR': fx_rf = _dbg_eur
-                    val_atual = float(rf_r['Atual']) * fx_rf
-                    val_invest = float(rf_r['Investido']) * fx_rf
-                    val_lucro = float(rf_r['Lucro']) * fx_rf
-                    val_juros = float(rf_r.get('Proventos_RF', 0)) * fx_rf
-                    _dbg_total_rf += val_atual
-                    _dbg_total_rf_investido += val_invest
-                    _dbg_total_rf_lucro += val_lucro
-                    _dbg_total_rf_juros += val_juros
-                    st.write(f"- **{rf_r['Ticker']}** ({m_rf}): Invest R$ {val_invest:,.2f} | Atual R$ {val_atual:,.2f} | Lucro R$ {val_lucro:,.2f} | Juros R$ {val_juros:,.2f} | Rent. {rf_r['Rent. %']:.1f}%")
-
-            _dbg_rf_enc = _dbg_rf[_dbg_rf['Status'] == 'Encerrado']
-            if not _dbg_rf_enc.empty:
-                st.markdown("**Encerrados (realizado):**")
-                for _, rf_r in _dbg_rf_enc.iterrows():
-                    m_rf = rf_r.get('Moeda', 'BRL')
-                    fx_rf = 1.0
-                    if m_rf == 'USD': fx_rf = _dbg_usd
-                    elif m_rf == 'EUR': fx_rf = _dbg_eur
-                    val_invest = float(rf_r['Investido']) * fx_rf
-                    val_lucro = float(rf_r['Lucro']) * fx_rf
-                    _dbg_total_rf_realiz += val_lucro
-                    st.write(f"- **{rf_r['Ticker']}** ({m_rf}): Invest R$ {val_invest:,.2f} | Lucro Realiz R$ {val_lucro:,.2f} | Rent. {rf_r['Rent. %']:.1f}%")
-
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("RF Atual", f"R$ {_dbg_total_rf:,.0f}")
-            c2.metric("RF Lucro Aberto", f"R$ {_dbg_total_rf_lucro:,.0f}")
-            c3.metric("RF Realizado", f"R$ {_dbg_total_rf_realiz:,.0f}")
-            c4.metric("RF Juros", f"R$ {_dbg_total_rf_juros:,.0f}")
-        else:
-            st.write("Sem dados de Renda Fixa.")
-
-        # =================================================================
-        # 6. PROVENTOS — All-Time (sem filtro de período)
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 6. Proventos (All-Time)")
-        _dbg_prov_bruto_total = 0.0
-        _dbg_prov_imposto_total = 0.0
-        _dbg_prov_liq_total = 0.0
-
-        if not _dbg_prov_periodo.empty:
-            def _conv_brl_prov(row):
-                m = str(row.get('moeda', 'BRL')).strip().upper()
-                v = float(row.get('valor', 0))
-                if m == 'USD': return v * _dbg_usd
-                if m == 'EUR': return v * _dbg_eur
-                if m == 'CAD': return v * _dbg_cad
-                return v
-            _dbg_prov_periodo_calc = _dbg_prov_periodo.copy()
-            _dbg_prov_periodo_calc['valor_brl'] = _dbg_prov_periodo_calc.apply(_conv_brl_prov, axis=1)
-
-            _dbg_prov_bruto_total = _dbg_prov_periodo_calc[_dbg_prov_periodo_calc['valor_brl'] > 0]['valor_brl'].sum()
-            _dbg_prov_imposto_total = abs(_dbg_prov_periodo_calc[_dbg_prov_periodo_calc['valor_brl'] < 0]['valor_brl'].sum())
-            _dbg_prov_liq_total = _dbg_prov_periodo_calc['valor_brl'].sum()
-
-            if 'lancamento' in _dbg_prov_periodo_calc.columns:
-                _dbg_prov_tipo = _dbg_prov_periodo_calc.groupby('lancamento')['valor_brl'].sum().sort_values(ascending=False)
-                st.markdown("**Por Tipo:**")
-                for tipo, val in _dbg_prov_tipo.items():
-                    st.write(f"- {tipo}: R$ {val:,.2f}")
-
-            _dbg_prov_resumo = _dbg_prov_periodo_calc.groupby('ticker')['valor_brl'].sum().sort_values(ascending=False)
-            st.markdown("**Por Ticker:**")
-            for tkr, val in _dbg_prov_resumo.items():
-                if abs(val) > 0.01:
-                    st.write(f"- **{tkr}**: R$ {val:,.2f}")
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Bruto", f"R$ {_dbg_prov_bruto_total:,.0f}")
-            c2.metric("Impostos", f"R$ {_dbg_prov_imposto_total:,.0f}")
-            c3.metric("Líquido", f"R$ {_dbg_prov_liq_total:,.0f}")
-        else:
-            st.write("Sem proventos registrados.")
-
-        # =================================================================
-        # 7. CÂMBIO ENCADEADO (Debug Completo)
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 7. Câmbio Encadeado (FX Debug)")
-        
-        from core.fx_cost_basis import calculate_chained_costs
-        
-        _dbg_fx_chained = calculate_chained_costs(df_cambio, start_date, end_date)
-        
-        st.caption(f"Período: **{start_date.strftime('%d/%m/%Y')}** a **{end_date.strftime('%d/%m/%Y')}**")
-        st.info("💡 Este cálculo considera conversões encadeadas: BRL→USD→EUR herda o custo BRL do USD.")
-        
-        # Mostrar detalhes do câmbio original
-        if not df_cambio.empty:
-            st.markdown("**Transações de Câmbio (todas):**")
-            _dbg_cambio = df_cambio.copy()
-            _dbg_cambio['data'] = pd.to_datetime(_dbg_cambio['data'])
-            _dbg_cambio = _dbg_cambio.sort_values('data')
-            
-            for _, row in _dbg_cambio.iterrows():
-                origem = str(row.get('moeda_origem', '')).upper()
-                destino = str(row.get('moeda_destino', '')).upper()
-                val_orig = float(row.get('valor_origem', 0))
-                val_dest = float(row.get('valor_destino', 0))
-                data_fx = row.get('data')
-                taxa_impl = val_orig / val_dest if val_dest > 0 else 0
-                
-                data_str = data_fx.strftime('%d/%m/%Y') if hasattr(data_fx, 'strftime') else str(data_fx)
-                st.write(f"- **{data_str}**: {origem} {val_orig:,.2f} → {destino} {val_dest:,.2f} (taxa implícita: {taxa_impl:.4f})")
-        else:
-            st.write("Nenhuma transação de câmbio.")
-        
-        st.markdown("---")
-        st.markdown("**Custos Encadeados por Moeda:**")
-        
-        for curr in ['USD', 'EUR', 'CAD']:
-            costs = _dbg_fx_chained.get(curr, {})
-            ini = costs.get('initial_cost', 0)
-            flow = costs.get('period_cost', 0)
-            mkt_rate = _dbg_usd if curr == 'USD' else (_dbg_eur if curr == 'EUR' else _dbg_cad)
-            
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                delta_ini = f"{((mkt_rate/ini - 1)*100):+.1f}% vs Mkt" if ini > 0 else None
-                st.metric(f"{curr} Estoque Inicial", f"R$ {ini:.4f}", delta_ini, delta_color="off")
-            with c2:
-                delta_flow = f"{((mkt_rate/flow - 1)*100):+.1f}% vs Mkt" if flow > 0 else "Sem aportes"
-                st.metric(f"{curr} Fluxo Período", f"R$ {flow:.4f}" if flow > 0 else "—", delta_flow, delta_color="off" if flow == 0 else "normal")
-            with c3:
-                st.metric(f"{curr} Mercado Atual", f"R$ {mkt_rate:.4f}")
-        
-        # NAV por Moeda
-        st.markdown("---")
-        st.markdown("**NAV por Moeda (valores locais):**")
-        for currency, bucket in multi_result.buckets.items():
-            if not bucket.nav_series.empty:
-                nav_val = bucket.nav_series.iloc[-1]
-                base_curr = currency.replace('_DIRECT', '')
-                display_name = f"{base_curr} (Direto)" if '_DIRECT' in currency else currency
-                symbol = "R$" if currency == "BRL" else base_curr
-                st.write(f"- **{display_name}**: {symbol} {nav_val:,.2f}")
-        
-        if not consolidated.nav_brl.empty:
-            st.write(f"- **NAV Consolidado (R$)**: R$ {consolidated.nav_brl.iloc[-1]:,.2f}")
-
-        # =================================================================
-        # 8. RESUMO DO PERÍODO
-        # =================================================================
-        st.markdown("---")
-        st.markdown("### 8. Resumo Geral")
-        _nav_ini_dbg = res_period.nav_series.iloc[0] if not res_period.nav_series.empty else 0
-        _nav_fin_dbg = res_period.nav_series.iloc[-1] if not res_period.nav_series.empty else 0
-        st.write(f"- **NAV Início período**: R$ {_nav_ini_dbg:,.2f}")
-        st.write(f"- **NAV Fim período**: R$ {_nav_fin_dbg:,.2f}")
-        st.write(f"- **Patrimônio Spot**: R$ {patrimonio_spot:,.2f}")
-        st.write(f"- **Fluxos no período**: R$ {res_period.total_flow:,.2f}")
-        st.write(f"- **PnL (NAV)**: R$ {res_period.total_pnl:,.2f}")
-        st.markdown("---")
-        st.write(f"- **Lucro Aberto RV**: R$ {_dbg_total_lucro_aberto:,.2f}")
-        st.write(f"- **Lucro Realiz. RV (All-Time)**: R$ {_dbg_total_lucro_realiz:,.2f}")
-        st.write(f"- **Proventos (All-Time)**: R$ {_dbg_prov_liq_total:,.2f}")
-        st.write(f"- **Lucro RF Aberto**: R$ {_dbg_total_rf_lucro:,.2f}")
-        st.write(f"- **Lucro RF Realizado**: R$ {_dbg_total_rf_realiz:,.2f}")
-        _resultado_periodo = _dbg_total_lucro_aberto + _dbg_total_lucro_realiz + _dbg_prov_liq_total + _dbg_total_rf_lucro + _dbg_total_rf_realiz
-        st.write(f"- **Resultado Total**: R$ {_resultado_periodo:,.2f}")
+    # Usar cotação do último dia do período se fechado, senão cotação atual
+    if is_period_closed and market_fx_last_day:
+        _fx_usd = market_fx_last_day.get('USD', _fx_usd_current)
+        _fx_eur = market_fx_last_day.get('EUR', _fx_eur_current)
+        _fx_cad = market_fx_last_day.get('CAD', _fx_cad_current)
+    else:
+        _fx_usd = _fx_usd_current
+        _fx_eur = _fx_eur_current
+        _fx_cad = _fx_cad_current
 
     # --- METRICS ---
 
@@ -1298,6 +976,88 @@ def main():
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     st.markdown('</div class="divider"></div>', unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # ANÁLISE DE CÂMBIO (Debug Discreto)
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    if view_mode == "💰 Meu Dinheiro":
+        from core.fx_cost_basis import get_latest_cost_basis
+
+        with st.expander("💱 Detalhes do Câmbio", expanded=False):
+            # Cotações de referência
+            if is_period_closed and market_fx_last_day:
+                st.caption(f"📅 Período fechado: cotações de {end_date.strftime('%d/%m/%Y')}")
+
+            cols = st.columns(3)
+            cols[0].metric("USD", f"R$ {_fx_usd:.4f}", help="Cotação de referência")
+            cols[1].metric("EUR", f"R$ {_fx_eur:.4f}", help="Cotação de referência")
+            cols[2].metric("CAD", f"R$ {_fx_cad:.4f}", help="Cotação de referência")
+
+            # PM por período (se filtrado)
+            if is_period_filtered and pm_periodo_info:
+                st.markdown("---")
+                st.caption(f"**PM do Período** ({start_date.strftime('%d/%m/%Y')} → {end_date.strftime('%d/%m/%Y')})")
+
+                for curr in ['USD', 'EUR', 'CAD']:
+                    info = pm_periodo_info.get(curr, {})
+                    pm = info.get('pm_periodo', 0)
+                    mkt_1st = info.get('market_rate_1st_day', 0)
+                    pos_ini = info.get('posicao_inicial_qtd', 0)
+                    aportes_qtd = info.get('aportes_periodo_qtd', 0)
+                    aportes_brl = info.get('aportes_periodo_brl', 0)
+                    compras_sem_remessa_fx = info.get('compras_sem_remessa_fx', 0)
+                    mkt = _fx_usd if curr == 'USD' else (_fx_eur if curr == 'EUR' else _fx_cad)
+
+                    if pm > 0:
+                        rent = ((mkt / pm) - 1) * 100
+                        c1, c2, c3 = st.columns([1, 1, 1])
+                        c1.metric(f"{curr} PM", f"R$ {pm:.4f}")
+                        c2.metric("1º Dia", f"R$ {mkt_1st:.4f}")
+                        c3.metric("Rent.", f"{rent:+.1f}%")
+
+                        # Composição compacta
+                        parts = []
+                        if pos_ini > 0:
+                            parts.append(f"Pos.Ini: {curr} {pos_ini:,.0f}")
+                        if aportes_qtd > 0:
+                            parts.append(f"Aportes: {curr} {aportes_qtd:,.0f}")
+                        if compras_sem_remessa_fx > 0:
+                            parts.append(f"Compras s/Rem: {curr} {compras_sem_remessa_fx:,.0f}")
+                        if parts:
+                            st.caption(" · ".join(parts))
+
+            # Histórico de remessas (compacto)
+            if not df_cambio.empty:
+                st.markdown("---")
+                _cambio_display = df_cambio.copy()
+                _cambio_display['data'] = pd.to_datetime(_cambio_display['data'])
+                _cambio_display = _cambio_display.sort_values('data', ascending=False)
+                _cambio_display['taxa'] = _cambio_display.apply(
+                    lambda r: r['valor_origem'] / r['valor_destino'] if r['valor_destino'] > 0 else 0, axis=1
+                )
+
+                # Mostrar apenas período selecionado ou últimas 5
+                if is_period_filtered:
+                    mask = (_cambio_display['data'] >= start_date) & (_cambio_display['data'] <= end_date)
+                    df_show = _cambio_display[mask].head(10)
+                    label = f"Remessas no período ({len(df_show)})"
+                else:
+                    df_show = _cambio_display.head(5)
+                    label = "Últimas remessas"
+
+                if not df_show.empty:
+                    st.caption(f"**{label}**")
+                    st.dataframe(
+                        df_show[['data', 'moeda_destino', 'valor_destino', 'taxa']],
+                        column_config={
+                            'data': st.column_config.DateColumn("Data", format="DD/MM/YY"),
+                            'moeda_destino': st.column_config.TextColumn("Moeda", width="small"),
+                            'valor_destino': st.column_config.NumberColumn("Valor", format="%.0f"),
+                            'taxa': st.column_config.NumberColumn("Taxa", format="%.4f"),
+                        },
+                        hide_index=True, use_container_width=True, height=150
+                    )
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # SECRET FOOTER - X-RAY ENTRY POINT
