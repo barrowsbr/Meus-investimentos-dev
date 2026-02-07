@@ -143,14 +143,16 @@ header, [data-testid="stHeader"], div[data-testid="stDecoration"], [data-testid=
     html, body {
         overflow-x: hidden !important;
         width: 100% !important;
-        position: relative; /* Ensure it doesn't float */
+        /* position: relative; REMOVED to avoid layout locking issues */
     }
     .stApp {
         overflow-x: hidden !important;
         width: 100% !important;
     }
     .block-container {
-        margin-top: -55px !important; /* Slightly less aggressive on mobile if needed, but usually same */
+        /* Reset aggressive pull-up on mobile to check if content returns */
+        margin-top: 0px !important; 
+        padding-top: 20px !important; /* Safe padding */
     }
 }
 
