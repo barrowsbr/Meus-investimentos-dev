@@ -56,10 +56,6 @@ def render_fab():
         transform: scale(1.1) translateY(-2px);
         box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
     }
-    @keyframes pulse-glow {
-        0%, 100% { transform: scale(1); box-shadow: 0 0 5px rgba(250, 204, 21, 0.2); }
-        50% { transform: scale(1.1); box-shadow: 0 0 20px rgba(250, 204, 21, 0.5); }
-    }
     
     @media (max-width: 768px) {
         .tools-fab {
@@ -81,7 +77,7 @@ def render_fab():
     st.markdown(f"""
     <div class="fab-container">
         <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
-        <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados" style="animation: pulse-glow 1.5s ease-in-out infinite; color: #facc15 !important; text-shadow: 0 0 10px #facc15;">⚡</a>
+        <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">↻</a>
         <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
     </div>
     """, unsafe_allow_html=True)

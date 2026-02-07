@@ -317,17 +317,31 @@ CSS_PART2 = """
     to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes divineGlow {
+    0%, 100% { 
+        text-shadow: 
+            2px 2px 10px rgba(0, 0, 0, 0.8),
+            0 0 15px rgba(255, 255, 255, 0.9),
+            0 0 30px rgba(255, 255, 255, 0.4);
+        transform: translateY(0);
+    }
+    50% { 
+        text-shadow: 
+            4px 4px 20px rgba(0, 0, 0, 0.9),
+            0 0 20px rgba(255, 255, 255, 1),
+            0 0 40px rgba(255, 255, 255, 0.7);
+        transform: translateY(-8px);
+    }
+}
+
 .hero-title {
-    font-size: 6.5rem;
+    font-size: 7.2rem;
     font-weight: 800;
     color: #ffffff;
-    letter-spacing: 4px;
+    letter-spacing: 6px;
     margin-bottom: 14px;
-    text-shadow: 
-        0 0 10px rgba(255,255,255,0.8),
-        0 0 20px rgba(255,255,255,0.6),
-        0 0 40px rgba(255,255,255,0.4),
-        0 0 80px rgba(255,255,255,0.2);
+    animation: fadeIn 1s ease-out, divineGlow 4s ease-in-out infinite alternate;
+    will-change: transform, text-shadow;
 }
 
 .hero-subtitle {
@@ -417,6 +431,25 @@ CSS_PART2 = """
     cursor: pointer;
     position: relative;
     z-index: 10;
+}
+
+.neon-footer {
+    color: #ffffff !important;
+    text-shadow: 
+        0 0 5px rgba(255, 255, 255, 0.8),
+        0 0 10px rgba(99, 102, 241, 0.6),
+        0 0 20px rgba(99, 102, 241, 0.4);
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.neon-footer:hover {
+    text-shadow: 
+        0 0 10px rgba(255, 255, 255, 1),
+        0 0 20px rgba(99, 102, 241, 0.8),
+        0 0 40px rgba(99, 102, 241, 0.6);
+    transform: scale(1.05);
 }
 
 .nav-card::before {
@@ -1062,8 +1095,8 @@ st.markdown('''
 
 # --- FOOTER ---
 st.markdown('''
-<div style="text-align: center; color: #475569; padding-top: 40px; padding-bottom: 20px; font-size: 0.8rem; position: relative; z-index: 15;">
-    Lucas Barroso Fourauxd - 2026
+<div class="neon-footer" style="text-align: center; padding-top: 40px; padding-bottom: 20px; font-size: 0.85rem; position: relative; z-index: 15; cursor: pointer;">
+    Lucas Barroso Fouraux - 2026
 </div>
 ''', unsafe_allow_html=True)
 
