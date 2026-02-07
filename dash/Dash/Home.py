@@ -15,11 +15,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- META TAGS FOR MOBILE (Theme Color) ---
+st.markdown("""
+<meta name="theme-color" content="#0b1120" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+""", unsafe_allow_html=True)
+
 # --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
 st.markdown("""
 <style>
 /* HIDE DEFAULT ELEMENTS IMMEDIATELY */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"] {
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"] {
     visibility: hidden !important;
     display: none !important;
     height: 0px !important;
@@ -88,17 +94,7 @@ CSS_PART1 = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 
-.easter-egg-btn {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 40px;
-    height: 40px;
-    z-index: 99999;
-    opacity: 0.02;
-    cursor: pointer;
-}
-.easter-egg-btn:hover { opacity: 0.1; }
+
 
 .tools-fab {
     position: fixed;
@@ -756,7 +752,7 @@ dolar_pct = format_decimal_br(dolar_var, 2)
 
 # --- HERO SECTION ---
 st.markdown("""
-<a href="Easter_Eggs" target="_self" class="easter-egg-btn" title="?"></a>
+
 <a href="Ferramentas" target="_self" class="tools-fab" title="Ferramentas">⚙️</a>
 
 <div class="hero-section">
