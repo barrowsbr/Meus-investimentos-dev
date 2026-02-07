@@ -57,7 +57,7 @@ st.markdown(f"""
     animation: fadeOutPreloader 0.5s ease-out 3s forwards;
 }}
 .preloader-logo {{
-    width: 270px;
+    width: 190px;
     height: auto;
     background: transparent;
     border: none;
@@ -310,6 +310,23 @@ CSS_PART2 = """
     z-index: 10;
     text-align: center;
     animation: fadeIn 1s ease-out;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hero-logo {
+    width: 60px;
+    height: auto;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.hero-logo:hover {
+    transform: scale(1.15) rotate(5deg);
+    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8));
 }
 
 @keyframes fadeIn {
@@ -339,6 +356,7 @@ CSS_PART2 = """
     font-weight: 800;
     color: #ffffff;
     letter-spacing: 6px;
+    margin-right: -6px; /* Compensate for letter-spacing to center perfectly */
     margin-bottom: 14px;
     animation: fadeIn 1s ease-out, divineGlow 4s ease-in-out infinite alternate;
     will-change: transform, text-shadow;
@@ -349,6 +367,7 @@ CSS_PART2 = """
     font-weight: 500;
     color: #ffffff;
     letter-spacing: 3px;
+    margin-right: -3px; /* Compensate for letter-spacing to center perfectly */
     margin-bottom: 40px;
     text-shadow: 
         0 0 10px rgba(255,255,255,0.6),
@@ -888,6 +907,7 @@ render_fab()
 st.markdown(f"""
 <div class="hero-section">
     <div class="hero-content">
+        <img src="data:image/png;base64,{logo_b64}" class="hero-logo" alt="Logo" />
         <h1 class="hero-title">BARROOTS</h1>
         <p class="hero-subtitle">Sistema Integrado para Gestão Pessoal</p>
     </div>
