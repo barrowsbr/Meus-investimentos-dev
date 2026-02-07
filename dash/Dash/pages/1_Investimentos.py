@@ -113,6 +113,11 @@ st.markdown("""
         border-right: 1px solid rgba(255,255,255,0.05);
     }
     
+    /* Hide Default Sidebar Navigation */
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    
     /* HERO TITLE (BARROOTS) */
     .hero-container {
         text-align: center;

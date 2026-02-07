@@ -952,12 +952,12 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Investimentos" target="_self" class="sub-item">
-                    <span class="sub-item-icon">◇</span>
+                    <span class="sub-item-icon">❖</span>
                     <span class="sub-item-text">Composição</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Performance" target="_self" class="sub-item">
-                    <span class="sub-item-icon">△</span>
+                    <span class="sub-item-icon">▲</span>
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -967,7 +967,7 @@ st.markdown('''
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▢</span>
+                    <span class="sub-item-icon">▦</span>
                     <span class="sub-item-text">Renda Fixa</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -977,7 +977,7 @@ st.markdown('''
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos" target="_self" class="sub-item">
-                    <span class="sub-item-icon">◎</span>
+                    <span class="sub-item-icon">❂</span>
                     <span class="sub-item-text">Cripto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -987,12 +987,12 @@ st.markdown('''
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos" target="_self" class="sub-item">
-                    <span class="sub-item-icon">△</span>
+                    <span class="sub-item-icon">▼</span>
                     <span class="sub-item-text">Imposto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Historico_Patrimonial" target="_self" class="sub-item">
-                    <span class="sub-item-icon">◎</span>
+                    <span class="sub-item-icon">∞</span>
                     <span class="sub-item-text">Legado</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -1002,13 +1002,13 @@ st.markdown('''
 </div>
 
 <a href="Finanças" target="_self" class="nav-card card-financas">
-    <div class="card-title"><i class="card-icon">◇</i> Finanças</div>
+    <div class="card-title"><i class="card-icon">◆</i> Finanças</div>
     <div class="card-desc">Controle financeiro pessoal</div>
     <span class="card-arrow">→</span>
 </a>
 
 <a href="Editor" target="_self" class="nav-card card-editor">
-    <div class="card-title"><i class="card-icon">▢</i> Editor</div>
+    <div class="card-title"><i class="card-icon">▣</i> Editor</div>
     <div class="card-desc">Edição de registros e transações</div>
     <span class="card-arrow">→</span>
 </a>
