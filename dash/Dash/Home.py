@@ -15,65 +15,94 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- META TAGS FOR MOBILE (Theme Color) ---
-st.markdown("""
-<meta name="theme-color" content="#0b1120" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-""", unsafe_allow_html=True)
-
-# --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
+# --- JS INJECTION FOR PWA META TAGS AND TOOLBAR REMOVAL ---
 components.html("""
 <script>
-    // Access window.parent to target Streamlit UI outside the iframe
-    window.onload = function() {
-        // 1. Force Theme Color (Meta Tag Injection)
-        const injectMeta = (name, content) => {
+(function() {
+    // Function to inject meta tags into parent document
+    const injectMetaToParent = (name, content) => {
+        try {
+            const targetDoc = window.parent.document || document;
+            let meta = targetDoc.querySelector(`meta[name="${name}"]`);
+            if (!meta) {
+                meta = targetDoc.createElement('meta');
+                meta.name = name;
+                targetDoc.head.appendChild(meta);
+            }
+            meta.content = content;
+        } catch(e) {
+            // Fallback to current document
             let meta = document.querySelector(`meta[name="${name}"]`);
             if (!meta) {
                 meta = document.createElement('meta');
                 meta.name = name;
-                document.getElementsByTagName('head')[0].appendChild(meta);
+                document.head.appendChild(meta);
             }
             meta.content = content;
-        };
-        
-        injectMeta("theme-color", "#0b1120");
-        injectMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
-        injectMeta("apple-mobile-web-app-capable", "yes");
-
-        // 2. Remove Streamlit Toolbar (Aggressive)
-        const removeToolbar = () => {
-            try {
-                const selectors = [
-                    '[data-testid="stToolbar"]', 
-                    '[data-testid="stHeader"]', 
-                    '[data-testid="stAppDeployButton"]', 
-                    '[data-testid="stStatusWidget"]', 
-                    'div[class*="viewerBadge"]',
-                    '[data-testid="stManageAppButton"]'
-                ];
-                const docs = [document];
-                try { docs.push(window.parent.document); } catch(e){}
-                
-                docs.forEach(doc => {
-                    selectors.forEach(selector => {
-                        const elements = doc.querySelectorAll(selector);
-                        elements.forEach(el => {
-                            el.style.display = 'none';
-                            el.style.visibility = 'hidden';
-                        });
-                    });
-                    const header = doc.querySelector('header');
-                    if (header) header.style.display = 'none';
-                });
-            } catch (e) {
-                console.log("Toolbar removal error:", e);
-            }
-        };
-        // Run repeatedly to catch late rendering
-        setInterval(removeToolbar, 500);
-        removeToolbar();
+        }
     };
+
+    // PWA Meta Tags - inject immediately and repeatedly
+    const injectPWAMetas = () => {
+        injectMetaToParent("theme-color", "#0b1120");
+        injectMetaToParent("apple-mobile-web-app-capable", "yes");
+        injectMetaToParent("apple-mobile-web-app-status-bar-style", "black");
+        injectMetaToParent("mobile-web-app-capable", "yes");
+        injectMetaToParent("msapplication-navbutton-color", "#0b1120");
+        injectMetaToParent("msapplication-TileColor", "#0b1120");
+
+        // Update viewport for iOS safe area
+        try {
+            const targetDoc = window.parent.document || document;
+            let viewport = targetDoc.querySelector('meta[name="viewport"]');
+            if (viewport && !viewport.content.includes('viewport-fit')) {
+                viewport.content += ', viewport-fit=cover';
+            }
+        } catch(e) {}
+    };
+
+    // Remove Streamlit Toolbar
+    const removeToolbar = () => {
+        try {
+            const selectors = [
+                '[data-testid="stToolbar"]',
+                '[data-testid="stHeader"]',
+                '[data-testid="stAppDeployButton"]',
+                '[data-testid="stStatusWidget"]',
+                'div[class*="viewerBadge"]',
+                '[data-testid="stManageAppButton"]'
+            ];
+            const docs = [document];
+            try { docs.push(window.parent.document); } catch(e){}
+
+            docs.forEach(doc => {
+                selectors.forEach(selector => {
+                    const elements = doc.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                    });
+                });
+                const header = doc.querySelector('header');
+                if (header) header.style.display = 'none';
+            });
+        } catch (e) {}
+    };
+
+    // Execute immediately
+    injectPWAMetas();
+    removeToolbar();
+
+    // Also run on load and repeatedly
+    window.addEventListener('load', () => {
+        injectPWAMetas();
+        removeToolbar();
+    });
+    setInterval(() => {
+        injectPWAMetas();
+        removeToolbar();
+    }, 500);
+})();
 </script>
 """, height=0)
 
@@ -93,6 +122,16 @@ st.markdown("""
 /* FORCE DARK BACKGROUND IMMEDIATELY (Reduces FOUC) */
 html, body, .stApp {
     background-color: #0b1120 !important;
+}
+
+/* PWA SAFE AREA SUPPORT (iOS notch/status bar) */
+@supports (padding-top: env(safe-area-inset-top)) {
+    html, body, .stApp {
+        padding-top: env(safe-area-inset-top) !important;
+        padding-left: env(safe-area-inset-left) !important;
+        padding-right: env(safe-area-inset-right) !important;
+        padding-bottom: env(safe-area-inset-bottom) !important;
+    }
 }
 
 /* RESET STREAMLIT LAYOUT */
@@ -816,7 +855,7 @@ st.markdown("""
 
 <div class="hero-section">
     <div class="hero-content">
-        <h1 class="hero-title">BARROOTS</h1>
+        <h1 class="hero-title"> BARROOTS</h1>
         <p class="hero-subtitle">Sistema Integrado para Gestão Pessoal</p>
     </div>
 </div>
