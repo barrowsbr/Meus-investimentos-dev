@@ -8,6 +8,7 @@ from core.visuals.global_map import render_global_map
 from core.finance import calcular_carteira_fechada, summarize_fixed_income, summarize_fixed_income_hybrid
 from core.data.market import fetch_market_data
 from core.logic import identificar_setor_ativo
+from core.ui import get_logo_base64
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -3849,6 +3850,436 @@ def render_synth_lab():
     """
     components.html(synth_html, height=680)
 
+# --- BIO-LAB: GENETIC CULTIVATOR MINI-GAME (EGG #5) ---
+def render_bio_lab():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_biolab_back"):
+            return_to_hub()
+            st.rerun()
+
+    logo_b64 = get_logo_base64()
+    
+    biolab_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                overflow: hidden;
+                background: #020502;
+                font-family: 'Orbitron', sans-serif;
+                touch-action: none;
+                color: #e2e8f0;
+            }}
+            canvas {{ display: block; }}
+            
+            #ui-panel {{
+                position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+                width: 95%; max-width: 420px;
+                background: rgba(5, 15, 5, 0.85);
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(0, 255, 65, 0.2);
+                border-radius: 24px;
+                padding: 12px;
+                z-index: 100;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 65, 0.1);
+            }}
+
+            .game-header {{
+                display: flex; justify-content: space-between; align-items: center;
+                margin-bottom: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+                padding-bottom: 8px;
+            }}
+            .game-title {{ font-size: 0.65rem; color: #00ff41; font-weight: 900; letter-spacing: 2px; }}
+            .game-phase {{ font-size: 0.6rem; color: #fff; background: rgba(0, 255, 65, 0.15); padding: 3px 8px; border-radius: 6px; }}
+
+            .bars-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }}
+            .bar-item {{ display: flex; flex-direction: column; gap: 4px; }}
+            .bar-label {{ font-size: 0.5rem; color: #888; text-transform: uppercase; display: flex; justify-content: space-between; }}
+            .bar-bg {{ height: 4px; background: #0a0a0a; border-radius: 2px; overflow: hidden; }}
+            .bar-fill {{ height: 100%; width: 0%; transition: width 0.3s ease; }}
+            
+            #water-fill {{ background: #0ea5e9; box-shadow: 0 0 8px #0ea5e9; }}
+            #nutri-fill {{ background: #facc15; box-shadow: 0 0 8px #facc15; }}
+            #health-fill {{ background: #10b981; box-shadow: 0 0 12px #10b981; }}
+            #progress-fill {{ background: linear-gradient(90deg, #ff00de, #00ff41); box-shadow: 0 0 15px #00ff41; }}
+
+            .controls-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }}
+            .game-btn {{
+                aspect-ratio: 1; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(255, 255, 255, 0.05); color: #fff; font-size: 1.2rem;
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                cursor: pointer; transition: all 0.2s; position: relative; gap: 4px;
+            }}
+            .game-btn:active {{ transform: scale(0.9); background: rgba(0, 255, 65, 0.2); }}
+            .game-btn span {{ font-size: 0.45rem; color: #aaa; text-transform: uppercase; font-weight: 600; }}
+            .game-btn:disabled {{ opacity: 0.3; cursor: not-allowed; }}
+
+            #event-msg {{
+                position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+                color: #00ff41; font-size: 0.7rem; text-align: center;
+                background: rgba(0,0,0,0.8); padding: 8px 16px; border-radius: 20px;
+                border: 1px solid #00ff41; opacity: 0; transition: opacity 0.3s;
+                z-index: 50; pointer-events: none;
+            }}
+
+            #atmosphere {{
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: radial-gradient(circle at center, transparent 0%, #000 120%);
+                pointer-events: none; z-index: 10;
+            }}
+
+            @keyframes harvest-flash {{
+                0% {{ opacity: 0; }} 50% {{ opacity: 1; }} 100% {{ opacity: 0; }}
+            }}
+            .flash {{ animation: harvest-flash 0.5s ease-out; position: fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:999; pointer-events:none; }}
+        </style>
+    </head>
+    <body>
+        <div id="atmosphere"></div>
+        <div id="event-msg">SISTEMA INICIALIZADO</div>
+        <div id="flash-effect"></div>
+
+        <div id="ui-panel">
+            <div class="game-header">
+                <div class="game-title">BARROOTS LAB v2.0</div>
+                <div id="phase-label" class="game-phase">Semente</div>
+            </div>
+
+            <div class="bars-grid">
+                <div class="bar-item">
+                    <div class="bar-label">ÁGUA <span id="val-water">0%</span></div>
+                    <div class="bar-bg"><div id="water-fill" class="bar-fill"></div></div>
+                </div>
+                <div class="bar-item">
+                    <div class="bar-label">SUBSTRATO <span id="val-nutri">0%</span></div>
+                    <div class="bar-bg"><div id="nutri-fill" class="bar-fill"></div></div>
+                </div>
+            </div>
+
+            <div class="bar-item" style="margin-bottom: 12px;">
+                <div class="bar-label">DESENVOLVIMENTO <span id="val-prog">0%</span></div>
+                <div class="bar-bg" style="height: 6px;"><div id="progress-fill" class="bar-fill"></div></div>
+            </div>
+
+            <div class="controls-grid">
+                <button class="game-btn" id="btn-water" onclick="game.interact('water')">💧<span>Regar</span></button>
+                <button class="game-btn" id="btn-nutri" onclick="game.interact('nutri')">🌱<span>Bio-Adubo</span></button>
+                <button class="game-btn" id="btn-boost" onclick="game.interact('boost')">💡<span>UV-Boost</span></button>
+                <button class="game-btn" id="btn-action" onclick="game.mainAction()">🌱<span>Plantar</span></button>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <script>
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            let w, h;
+            
+            const logoImg = new Image();
+            logoImg.src = "data:image/png;base64,{logo_b64}";
+
+            function resize() {{
+                w = window.innerWidth;
+                h = window.innerHeight;
+                canvas.width = w * devicePixelRatio;
+                canvas.height = h * devicePixelRatio;
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+                ctx.scale(devicePixelRatio, devicePixelRatio);
+            }}
+            window.addEventListener('resize', resize);
+            resize();
+
+            // === GAME LOGIC ===
+            const game = {{
+                phase: 'idle', // idle, seed, veg, bloom, harvest
+                water: 0,
+                nutri: 0,
+                health: 0,
+                progress: 0,
+                lastTick: Date.now(),
+                particles: [],
+                branches: [],
+                flowers: [],
+                
+                init() {{
+                    this.loop();
+                    this.showMsg("PRONTO PARA CULTIVO");
+                }},
+
+                update() {{
+                    const now = Date.now();
+                    const dt = (now - this.lastTick) / 1000;
+                    this.lastTick = now;
+
+                    if (this.phase !== 'idle' && this.phase !== 'harvest') {{
+                        // Decay
+                        this.water = Math.max(0, this.water - 1.5 * dt);
+                        this.nutri = Math.max(0, this.nutri - 1.0 * dt);
+                        
+                        // Health Logic
+                        let idealWater = this.water > 20 && this.water < 90;
+                        let idealNutri = this.nutri > 20 && this.nutri < 90;
+                        
+                        if (idealWater && idealNutri) this.health = Math.min(100, this.health + 5 * dt);
+                        else this.health = Math.max(0, this.health - 10 * dt);
+
+                        // Progress
+                        if (this.health > 50) {{
+                            this.progress += (this.health / 100) * 2 * dt;
+                        }}
+
+                        // Phase Transitions
+                        if (this.phase === 'seed' && this.progress > 20) this.setPhase('veg');
+                        if (this.phase === 'veg' && this.progress > 60) this.setPhase('bloom');
+                        if (this.phase === 'bloom' && this.progress >= 100) {{
+                            this.progress = 100;
+                        }}
+                    }}
+
+                    this.updateUI();
+                    this.updateParticles(dt);
+                }},
+
+                setPhase(p) {{
+                    this.phase = p;
+                    const labels = {{ idle: 'Vazio', seed: 'Semente', veg: 'Vegativo', bloom: 'Floração', bloom_ready: 'Pronto!' }};
+                    document.getElementById('phase-label').innerText = labels[p] || p;
+                    
+                    const actionBtn = document.getElementById('btn-action');
+                    if (p === 'veg') {{ actionBtn.innerHTML = '✂️<span>Pruning</span>'; actionBtn.disabled = true; }}
+                    if (p === 'bloom') {{ actionBtn.innerHTML = '🔍<span>Monitor</span>'; actionBtn.disabled = true; }}
+                    if (this.progress >= 100) {{
+                        this.phase = 'bloom_ready';
+                        actionBtn.innerHTML = '✂️<span>Colher</span>';
+                        actionBtn.disabled = false;
+                        document.getElementById('phase-label').innerText = "PRONTA!";
+                        this.showMsg("FLORAÇÃO COMPLETA!");
+                    }}
+                }},
+
+                mainAction() {{
+                    if (this.phase === 'idle') {{
+                        this.phase = 'seed';
+                        this.water = 50;
+                        this.nutri = 50;
+                        this.progress = 1;
+                        this.health = 80;
+                        this.setPhase('seed');
+                        document.getElementById('btn-action').disabled = true;
+                        this.showMsg("SEMENTE PLANTADA");
+                    }} else if (this.phase === 'bloom_ready') {{
+                        this.harvest();
+                    }}
+                }},
+
+                interact(type) {{
+                    if (this.phase === 'idle') return;
+                    if (type === 'water') {{
+                        this.water = Math.min(100, this.water + 15);
+                        this.spawnParticles('#0ea5e9', 10);
+                    }}
+                    if (type === 'nutri') {{
+                        this.nutri = Math.min(100, this.nutri + 15);
+                        this.spawnParticles('#facc15', 10);
+                    }}
+                    if (type === 'boost') {{
+                        if (this.health > 20) this.progress += 2;
+                        this.spawnParticles('#fff', 5);
+                    }}
+                }},
+
+                harvest() {{
+                    document.getElementById('flash-effect').classList.add('flash');
+                    setTimeout(() => {{
+                        document.getElementById('flash-effect').classList.remove('flash');
+                        this.phase = 'idle';
+                        this.progress = 0;
+                        this.water = 0;
+                        this.nutri = 0;
+                        this.health = 0;
+                        this.setPhase('idle');
+                        document.getElementById('btn-action').innerHTML = '🌱<span>Plantar</span>';
+                        this.showMsg("COLHEITA REALIZADA! +100 XP");
+                    }}, 500);
+                }},
+
+                updateUI() {{
+                    document.getElementById('water-fill').style.width = this.water + '%';
+                    document.getElementById('nutri-fill').style.width = this.nutri + '%';
+                    document.getElementById('progress-fill').style.width = this.progress + '%';
+                    
+                    document.getElementById('val-water').innerText = Math.round(this.water) + '%';
+                    document.getElementById('val-nutri').innerText = Math.round(this.nutri) + '%';
+                    document.getElementById('val-prog').innerText = Math.round(this.progress) + '%';
+                }},
+
+                showMsg(txt) {{
+                    const m = document.getElementById('event-msg');
+                    m.innerText = txt;
+                    m.style.opacity = 1;
+                    setTimeout(() => m.style.opacity = 0, 2000);
+                }},
+
+                spawnParticles(color, count) {{
+                    for(let i=0; i<count; i++) {{
+                        this.particles.push({{
+                            x: w/2 + (Math.random()-0.5)*100,
+                            y: h/2,
+                            vx: (Math.random()-0.5)*4,
+                            vy: -Math.random()*5 - 2,
+                            life: 1,
+                            color: color
+                        }});
+                    }}
+                }},
+
+                updateParticles(dt) {{
+                    for(let i=this.particles.length-1; i>=0; i--) {{
+                        const p = this.particles[i];
+                        p.x += p.vx; p.y += p.vy;
+                        p.vy += 0.1; p.life -= 0.02;
+                        if (p.life <= 0) this.particles.splice(i, 1);
+                    }}
+                }},
+
+                draw() {{
+                    ctx.clearRect(0,0,w,h);
+                    
+                    const centerX = w/2;
+                    const bottomY = h * 0.7;
+
+                    // Draw Logo/Pot
+                    if (logoImg.complete) {{
+                        const s = 100;
+                        ctx.save();
+                        ctx.globalAlpha = 0.8;
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = '#00ff41';
+                        ctx.drawImage(logoImg, centerX - s/2, bottomY - s/2, s, s);
+                        ctx.restore();
+                    }}
+
+                    if (this.phase !== 'idle') {{
+                        this.drawPlant(centerX, bottomY);
+                    }}
+
+                    // Particles
+                    this.particles.forEach(p => {{
+                        ctx.fillStyle = p.color;
+                        ctx.globalAlpha = p.life;
+                        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                    }});
+                }},
+
+                drawPlant(x, y) {{
+                    const scale = (h / 700) * (this.progress / 100);
+                    const tilt = Math.sin(Date.now()/2000)*0.05;
+
+                    if (this.progress < 5) {{
+                        // Just a seed glow
+                        ctx.fillStyle = '#00ff41';
+                        ctx.beginPath(); ctx.arc(x, y-10, 5, 0, Math.PI*2); ctx.fill();
+                        return;
+                    }}
+
+                    // Main Stem
+                    ctx.strokeStyle = '#004411';
+                    ctx.lineWidth = 10 * scale + 2;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    const stemH = h * 0.4 * (this.progress/100);
+                    ctx.quadraticCurveTo(x + 20*tilt, y - stemH/2, x, y - stemH);
+                    ctx.stroke();
+
+                    // Leaves
+                    const leafCount = Math.floor(this.progress / 8) + 2;
+                    for(let i=1; i<=leafCount; i++) {{
+                        const nodeY = y - (i/leafCount)*stemH;
+                        const side = i % 2 === 0 ? 1 : -1;
+                        const lScale = scale * (1.2 - (i/leafCount)*0.5);
+                        this.drawCannabisLeaf(x, nodeY, lScale, side*Math.PI/3 + tilt);
+                    }}
+
+                    // Flowers in Bloom Phase
+                    if (this.phase === 'bloom' || this.phase === 'bloom_ready') {{
+                        const flowerProg = (this.progress - 60) / 40;
+                        const fCount = 5;
+                        for(let i=0; i<fCount; i++) {{
+                            const fy = y - stemH * (0.6 + (i/fCount)*0.4);
+                            const fs = 15 * flowerProg * scale;
+                            this.drawBud(x + (Math.random()-0.5)*10, fy, fs);
+                        }}
+                    }}
+                }},
+
+                drawCannabisLeaf(x, y, s, a) {{
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(a);
+                    
+                    const blades = 7;
+                    for(let i=0; i<blades; i++) {{
+                        const ba = ((i/(blades-1)) - 0.5) * Math.PI * 0.7;
+                        const len = (1 - Math.abs(i - 3)*0.2) * 60 * s;
+                        ctx.save();
+                        ctx.rotate(ba);
+                        
+                        const g = ctx.createLinearGradient(0,0,0,-len);
+                        g.addColorStop(0, '#042b04');
+                        g.addColorStop(1, '#00ff41');
+                        ctx.fillStyle = g;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(0,0);
+                        ctx.quadraticCurveTo(5*s, -len/2, 0, -len);
+                        ctx.quadraticCurveTo(-5*s, -len/2, 0, 0);
+                        ctx.fill();
+                        
+                        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                        ctx.restore();
+                    }}
+                    ctx.restore();
+                }},
+
+                drawBud(x, y, s) {{
+                    ctx.fillStyle = '#ff00de';
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#ff00de';
+                    ctx.beginPath();
+                    ctx.arc(x, y, s, 0, Math.PI*2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#fff';
+                    for(let i=0; i<3; i++) {{
+                        ctx.beginPath();
+                        ctx.arc(x+(Math.random()-0.5)*s, y+(Math.random()-0.5)*s, 2, 0, Math.PI*2);
+                        ctx.fill();
+                    }}
+                }},
+
+                loop() {{
+                    this.update();
+                    this.draw();
+                    requestAnimationFrame(() => this.loop());
+                }}
+            }};
+
+            game.init();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(biolab_html, height=750)
+
 # --- MAIN HUB RENDER ---
 if st.session_state.active_egg is None:
     st.markdown('<div class="glitch-title">HUB DE PROJETOS SECRETOS</div>', unsafe_allow_html=True)
@@ -3908,8 +4339,23 @@ if st.session_state.active_egg is None:
             enter_egg(4)
             st.rerun()
 
+    # --- ROW 2: BIO-LAB ---
+    r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+    with r2c1:
+        # SLOT 5: BIO-LAB
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">🌿</div>
+            <div class="label">BIO-LAB BREEDER</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR CULTIVO", key="btn_egg_5", use_container_width=True):
+            enter_egg(5)
+            st.rerun()
+
     locked_slots = [
-        ("NFT GALLERY", "💎"),
+        # Removed ("NFT GALLERY", "💎") to fit BIO-LAB
         ("CRYPTO MINER", "⛏️"),
         ("AI CHATBOT", "🤖"),
         ("TIME TRAVEL", "⏳"),
@@ -3918,9 +4364,7 @@ if st.session_state.active_egg is None:
         ("SOURCE CODE", "📜")
     ]
     
-    remaining_cols = []
-    r2 = st.columns(4)
-    remaining_cols.extend(r2)
+    remaining_cols = [r2c2, r2c3, r2c4]
     r3 = st.columns(4)
     remaining_cols.extend(r3)
     
@@ -3944,3 +4388,5 @@ elif st.session_state.active_egg == 3:
     render_solar_system()
 elif st.session_state.active_egg == 4:
     render_global_map(return_to_hub)
+elif st.session_state.active_egg == 5:
+    render_bio_lab()

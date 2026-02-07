@@ -1,3 +1,8 @@
+import streamlit as st
+import streamlit.components.v1 as components
+import base64
+from pathlib import Path
+from core.auth import init_auth_state
 from core.ui import render_fab
 
 # --- INIT SESSION STATE ---
@@ -176,8 +181,10 @@ a, a:visited, a:hover, a:active {
 .block-container {
     padding: 0 !important;
     padding-top: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
     margin: 0 !important;
-    margin-top: -80px !important;
+    margin-top: -95px !important;
     max-width: 100% !important;
     width: 100% !important;
 }
