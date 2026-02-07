@@ -77,14 +77,20 @@ CSS_PART1 = """
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif;
     overflow-x: hidden;
+    max-width: 100%;
 }
 
 .stApp {
     background: #0b1120;
     min-height: 100vh;
+    overflow-x: hidden; /* Force no horizontal scroll */
 }
 
-#MainMenu, footer, header { visibility: hidden; }
+/* Hide Default Elements */
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
+    visibility: hidden !important;
+    display: none !important;
+}
 [data-testid="stSidebar"] { display: none; }
 
 .hero-section {
@@ -95,11 +101,16 @@ html, body, [class*="css"] {
     align-items: center;
     justify-content: center;
     padding: 50px 20px 60px;
-    margin: -10rem -10rem 0 -10rem;
+    margin: 0; /* Reset margins */
+    width: 100%; /* Full width */
     background-color: #0b1120;
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
+    align-self: center; /* Center in parent */
+    left: 0;
+    right: 0;
+
 """
 
 CSS_PART2 = """
@@ -381,25 +392,30 @@ CSS_PART2 = """
     transition: all 0.3s ease;
 }
 
+/* Expandable Card CSS Logic (Checkbox Hack) */
+.expand-toggle {
+    display: none;
+}
+
 .expandable-content {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.expandable-card.expanded .expand-icon {
+.expand-toggle:checked ~ .expandable-card .expand-icon {
     transform: translateY(-50%) rotate(180deg);
 }
 
-.expandable-card.expanded .expandable-content {
+.expand-toggle:checked ~ .expandable-card .expandable-content {
     max-height: 500px;
 }
 
-.expandable-card.expanded {
+.expand-toggle:checked ~ .expandable-card {
     box-shadow: 0 20px 50px -10px rgba(245, 222, 179, 0.2);
 }
 
-.expandable-card.expanded::before {
+.expand-toggle:checked ~ .expandable-card::before {
     background: linear-gradient(135deg, rgba(245, 222, 179, 0.4) 0%, rgba(210, 180, 140, 0.2) 100%);
 }
 
@@ -527,8 +543,8 @@ div[data-testid="column"] {
     .hero-section {
         min-height: 300px;
         padding: 60px 15px 50px;
-        margin: -4rem -1rem 0 -1rem;
-        width: calc(100% + 2rem);
+        margin: 0;
+        width: 100%;
     }
     .nav-card {
         padding: 15px 20px;
@@ -746,88 +762,84 @@ st.markdown(metrics_html, unsafe_allow_html=True)
 st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS ---
-st.markdown("""
-<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 20px;">
+# --- NAVIGATION CARDS ---
+st.markdown('''
+<div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
 
-    <div class="expandable-wrapper">
-        <div class="expandable-card" id="patrimonio-card">
-            <div class="expandable-header" onclick="togglePatrimonio()">
-                <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
-                <div class="card-desc">Dashboard de alocação e carteira</div>
-                <span class="expand-icon" id="expand-icon">▼</span>
-            </div>
-            <div class="expandable-content" id="patrimonio-content">
-                <div class="divider-line"></div>
-                <div class="sub-items">
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">◇</span>
-                        <span class="sub-item-text">Composição</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">▤</span>
-                        <span class="sub-item-text">Renda Variável</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">◎</span>
-                        <span class="sub-item-text">Cripto</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">⬡</span>
-                        <span class="sub-item-text">Câmbio</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">◐</span>
-                        <span class="sub-item-text">Proventos</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">△</span>
-                        <span class="sub-item-text">Imposto</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                    <a href="Investimentos" target="_self" class="sub-item">
-                        <span class="sub-item-icon">▢</span>
-                        <span class="sub-item-text">Renda Fixa</span>
-                        <span class="sub-item-arrow">→</span>
-                    </a>
-                </div>
+<!-- Patrimônio Expandable Card -->
+<div class="expandable-wrapper">
+    <input type="checkbox" id="patrimonio-toggle" class="expand-toggle">
+    <div class="expandable-card">
+        <label for="patrimonio-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
+            <div class="card-desc">Dashboard de alocação e carteira</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div class="sub-items">
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">◇</span>
+                    <span class="sub-item-text">Composição</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">▤</span>
+                    <span class="sub-item-text">Renda Variável</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">▢</span>
+                    <span class="sub-item-text">Renda Fixa</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">◐</span>
+                    <span class="sub-item-text">Proventos</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">◎</span>
+                    <span class="sub-item-text">Cripto</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">⬡</span>
+                    <span class="sub-item-text">Câmbio</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Investimentos" target="_self" class="sub-item">
+                    <span class="sub-item-icon">△</span>
+                    <span class="sub-item-text">Imposto</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
             </div>
         </div>
     </div>
-
-    <a href="Finanças" target="_self" class="nav-card card-financas">
-        <div class="card-title"><i class="card-icon">◇</i> Finanças</div>
-        <div class="card-desc">Controle financeiro pessoal</div>
-        <span class="card-arrow">→</span>
-    </a>
-    <a href="Performance" target="_self" class="nav-card card-performance">
-        <div class="card-title"><i class="card-icon">△</i> Performance</div>
-        <div class="card-desc">Rentabilidade TWR e análise GIPS</div>
-        <span class="card-arrow">→</span>
-    </a>
-    <a href="Historico_Patrimonial" target="_self" class="nav-card card-legado">
-        <div class="card-title"><i class="card-icon">◎</i> Legado</div>
-        <div class="card-desc">Evolução patrimonial histórica</div>
-        <span class="card-arrow">→</span>
-    </a>
-    <a href="Editor" target="_self" class="nav-card card-editor">
-        <div class="card-title"><i class="card-icon">▢</i> Editor</div>
-        <div class="card-desc">Edição de registros e transações</div>
-        <span class="card-arrow">→</span>
-    </a>
 </div>
 
-<script>
-function togglePatrimonio() {
-    var card = document.getElementById('patrimonio-card');
-    card.classList.toggle('expanded');
-}
-</script>
-""", unsafe_allow_html=True)
+<a href="Finanças" target="_self" class="nav-card card-financas">
+    <div class="card-title"><i class="card-icon">◇</i> Finanças</div>
+    <div class="card-desc">Controle financeiro pessoal</div>
+    <span class="card-arrow">→</span>
+</a>
+<a href="Performance" target="_self" class="nav-card card-performance">
+    <div class="card-title"><i class="card-icon">△</i> Performance</div>
+    <div class="card-desc">Rentabilidade TWR e análise GIPS</div>
+    <span class="card-arrow">→</span>
+</a>
+<a href="Historico_Patrimonial" target="_self" class="nav-card card-legado">
+    <div class="card-title"><i class="card-icon">◎</i> Legado</div>
+    <div class="card-desc">Evolução patrimonial histórica</div>
+    <span class="card-arrow">→</span>
+</a>
+<a href="Editor" target="_self" class="nav-card card-editor">
+    <div class="card-title"><i class="card-icon">▢</i> Editor</div>
+    <div class="card-desc">Edição de registros e transações</div>
+    <span class="card-arrow">→</span>
+</a>
+</div>
+''', unsafe_allow_html=True)
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
