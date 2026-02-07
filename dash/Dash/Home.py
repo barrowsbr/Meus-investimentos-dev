@@ -18,28 +18,16 @@ st.set_page_config(
 # --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
 st.markdown("""
 <style>
-/* PRE-LOADER MASK */
-#pre-loader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: #0b1120;
-    z-index: 999999;
-    animation: fadeOut 0.5s ease-in-out 0.5s forwards;
-    pointer-events: none;
-}
-@keyframes fadeOut {
-    0% { opacity: 1; }
-    100% { opacity: 0; visibility: hidden; }
-}
-
 /* HIDE DEFAULT ELEMENTS IMMEDIATELY */
 #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"] {
     visibility: hidden !important;
     display: none !important;
     height: 0px !important;
+}
+
+/* FORCE DARK BACKGROUND IMMEDIATELY (Reduces FOUC) */
+html, body, .stApp {
+    background-color: #0b1120 !important;
 }
 
 /* RESET STREAMLIT LAYOUT */
@@ -75,7 +63,6 @@ st.markdown("""
     }
 }
 </style>
-<div id="pre-loader"></div>
 """, unsafe_allow_html=True)
 
 # --- LOAD BACKGROUND IMAGE AS BASE64 ---
