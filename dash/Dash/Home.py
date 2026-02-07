@@ -93,6 +93,67 @@ html, body, [class*="css"] {
 }
 [data-testid="stSidebar"] { display: none; }
 
+/* RESET STREAMLIT LAYOUT */
+.block-container {
+    padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+    padding-left: 0rem !important;
+    padding-right: 0rem !important;
+    max-width: 100%;
+}
+
+[data-testid="stAppViewContainer"] > .main {
+    padding-top: 0rem !important;
+    padding-right: 0rem !important;
+    padding-left: 0rem !important;
+    padding-bottom: 0rem !important;
+}
+
+/* REMOVE TOP HEADER DECORATION & FORCE GAP REMOVAL */
+header, [data-testid="stHeader"], div[data-testid="stDecoration"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
+    visibility: hidden !important;
+    display: none !important;
+    height: 0px !important;
+}
+
+/* RESET STREAMLIT LAYOUT */
+.block-container {
+    padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+    padding-left: 0rem !important;
+    padding-right: 0rem !important;
+    max-width: 100%;
+    margin-top: -65px !important; /* Aggressive pull-up to cover header space */
+}
+
+[data-testid="stAppViewContainer"] > .main {
+    padding-top: 0rem !important;
+    padding-right: 0rem !important;
+    padding-left: 0rem !important;
+    padding-bottom: 0rem !important;
+}
+
+/* Force specific top margin removal if needed */
+.stApp > header {
+    display: none !important;
+}
+
+/* MOBILE LOCK - Prevent horizontal scroll */
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        position: relative; /* Ensure it doesn't float */
+    }
+    .stApp {
+        overflow-x: hidden !important;
+        width: 100% !important;
+    }
+    .block-container {
+        margin-top: -55px !important; /* Slightly less aggressive on mobile if needed, but usually same */
+    }
+}
+
 .hero-section {
     position: relative;
     min-height: 420px;

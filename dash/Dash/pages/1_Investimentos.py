@@ -271,13 +271,13 @@ with st.sidebar:
 
 # --- TABS (Moved to top to prevent reset on re-run) ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "💎 Composição", 
-    "📊 Renda Variável", 
-    "₿ Cripto", 
-    "💱 Câmbio", 
-    "💰 Proventos", 
-    "🦁 Imposto", 
-    "🏦 Renda Fixa"
+    "💎 Composição",
+    "📊 Renda Variável",
+    "🏦 Renda Fixa",
+    "💰 Proventos",
+    "₿ Cripto",
+    "💱 Câmbio",
+    "🦁 Imposto"
 ])
 
 # 5. PROCESSAMENTO DE RENDA FIXA (Corrigido: 'Data' e 'Rent. %' restaurados)
@@ -1153,7 +1153,7 @@ with tab2:
         st.info("Nenhum dado disponível para visualização.")
 
 
-with tab3:
+with tab5:
     col_head, col_logo = st.columns([5, 1])
     with col_head:
         st.header("₿ Cripto Command Center")
@@ -1349,7 +1349,7 @@ with tab3:
         st.info("Carregando dados...")
 
 
-with tab4:
+with tab6:
     c_head, c_refresh = st.columns([5,1])
     with c_head:
         st.header("💱 FX Command Center")
@@ -1767,7 +1767,7 @@ with tab4:
         with sc3:
             st.markdown(render_metric_card("Impacto Financeiro", f"{simbolo_base} {diff_financeira:,.0f}", "Ganho" if diff_financeira > 0 else "Perda", diff_financeira >= 0, icon="⚡"), unsafe_allow_html=True)
 
-with tab5:
+with tab4:
     if not df_proventos_bruto.empty:
         df_p = df_proventos_bruto.copy()
         
@@ -1969,7 +1969,7 @@ with tab5:
     else: 
         st.info("Arquivo de proventos vazio.")
         
-with tab6:
+with tab7:
     st.subheader("🦁 Central Fiscal Inteligente")
     st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
     
@@ -2412,7 +2412,7 @@ with tab6:
                 
                 st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", type="primary")                                      
                                     
-with tab7:
+with tab3:
     st.subheader("🏦 Gestão de Renda Fixa & Liquidez")
     
     mask_caixa = df_rf_filtrado['Ticker'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
