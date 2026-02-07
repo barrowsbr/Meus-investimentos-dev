@@ -202,13 +202,20 @@ with st.sidebar:
     df_bruto = load_assets()
     df_proventos_bruto = load_proventos()
     df_rf_raw = load_fixed_income()
-    
+
     # 2. DEFINIÇÃO DE VARIÁVEIS TEMPORAIS (Correção 'data_primeira_transacao')
     if not df_bruto.empty:
         df_bruto['setor_calc'] = df_bruto['ticker'].apply(identificar_setor_ativo)
         if 'moeda' not in df_bruto.columns: df_bruto['moeda'] = 'BRL'
         df_bruto['moeda'] = df_bruto['moeda'].str.upper().str.strip()
         df_bruto['ticker'] = df_bruto['ticker'].str.upper().str.strip()
+
+    # Garantir coluna moeda em proventos
+    if not df_proventos_bruto.empty:
+        if 'moeda' not in df_proventos_bruto.columns:
+            df_proventos_bruto['moeda'] = 'BRL'
+        df_proventos_bruto['moeda'] = df_proventos_bruto['moeda'].fillna('BRL').astype(str).str.upper().str.strip()
+        df_proventos_bruto['moeda'] = df_proventos_bruto['moeda'].replace({'': 'BRL', 'NAN': 'BRL', 'NONE': 'BRL'})
         
         data_primeira_transacao = df_bruto['data'].min()
     else:
@@ -346,9 +353,10 @@ if not df_proventos_bruto.empty:
         t_prov_raw = str(r['ticker']).strip().upper()
         t_prov = normalize_ticker(t_prov_raw) # <--- APLICA PADRONIZAÇÃO
 
-        m_prov = str(r['moeda']).strip().upper()
-        val_prov = r['valor']
-        
+        m_prov = str(r.get('moeda', 'BRL')).strip().upper()
+        if m_prov in ['NAN', 'NONE', '']: m_prov = 'BRL'
+        val_prov = r['valor'] if pd.notna(r['valor']) else 0.0
+
         fator_prov = 1.0
         if m_prov == 'USD': fator_prov = usd
         elif m_prov == 'CAD': fator_prov = cad
@@ -1792,8 +1800,9 @@ with tab4:
             df_p = df_p[0:0]
 
         def conv_brl(row):
-            m = str(row['moeda']).strip().upper()
-            v = row['valor']
+            m = str(row.get('moeda', 'BRL')).strip().upper()
+            if m in ['NAN', 'NONE', '']: m = 'BRL'
+            v = row['valor'] if pd.notna(row['valor']) else 0.0
             if m == 'USD': return v * usd
             if m == 'CAD': return v * cad
             if m == 'EUR': return v * eur
@@ -1882,10 +1891,14 @@ with tab4:
 
 
                 st.markdown("### 🌊 Fluxo de Capital (Ticker ➔ Setor ➔ Moeda)")
-                
+
+                # Garantir coluna moeda existe
+                if 'moeda' not in df_filter.columns:
+                    df_filter['moeda'] = 'BRL'
+
                 df_L1 = df_filter.groupby(['ticker', 'setor_calc'])['valor_brl'].sum().reset_index()
                 df_L1.columns = ['source', 'target', 'value']
-                
+
                 df_L2 = df_filter.groupby(['setor_calc', 'moeda'])['valor_brl'].sum().reset_index()
                 df_L2.columns = ['source', 'target', 'value']
 

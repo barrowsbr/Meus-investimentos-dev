@@ -15,10 +15,65 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- LOAD LOGO FOR PRELOADER ---
+def get_logo_base64():
+    """Load logo image as base64 for preloader."""
+    try:
+        logo_path = Path(__file__).parent / "pictures" / "Sem fundo.png"
+        with open(logo_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+logo_b64 = get_logo_base64()
+logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
+
 # --- META TAGS FOR MOBILE (Theme Color) ---
-st.markdown("""
+st.markdown(f"""
 <meta name="theme-color" content="#0b1120" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+/* PRELOADER - Cobre tudo durante carregamento */
+.preloader-overlay {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0b1120;
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+    animation: fadeOutPreloader 0.5s ease-out 0.8s forwards;
+}}
+.preloader-logo {{
+    width: 180px;
+    height: auto;
+    animation: pulseLogo 1.5s ease-in-out infinite;
+}}
+.preloader-spinner {{
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #a5b4fc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}}
+@keyframes spin {{
+    to {{ transform: rotate(360deg); }}
+}}
+@keyframes pulseLogo {{
+    0%, 100% {{ opacity: 0.7; transform: scale(1); }}
+    50% {{ opacity: 1; transform: scale(1.05); }}
+}}
+@keyframes fadeOutPreloader {{
+    to {{ opacity: 0; visibility: hidden; }}
+}}
+</style>
+<div class="preloader-overlay">{logo_html}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -80,16 +135,23 @@ components.html("""
 # --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
 st.markdown("""
 <style>
-/* HIDE DEFAULT ELEMENTS */
+/* HIDE DEFAULT ELEMENTS - Sempre esconder */
 #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"], [data-testid="stSidebar"], [data-testid="collapsedControl"], section[data-testid="stSidebar"], div[data-testid="stSidebarNav"] {
     display: none !important;
 }
 
-/* FORCE DARK BACKGROUND */
+/* FORCE DARK BACKGROUND E CORES - Sempre aplicar */
 html, body, .stApp {
     background-color: #0b1120 !important;
     margin: 0 !important;
     padding: 0 !important;
+    color: #e2e8f0 !important;
+}
+
+/* Previne texto azul durante carregamento */
+a, a:visited, a:hover, a:active {
+    color: inherit !important;
+    text-decoration: none !important;
 }
 
 /* RESET STREAMLIT LAYOUT - FULL BLEED */
@@ -751,64 +813,11 @@ from core.utils import format_decimal_br
 # </script>
 # """, height=0)
 
-# --- LOAD DATA ---
-with st.spinner(""):
-    df_assets = load_assets()
-    dolar_val = 0.0
-    dolar_var = 0.0
-    rv_day_gain = 0.0
-    rv_day_pct = 0.0
-    dolar_change = 0.0
+# === STEP 1: RENDER ALL VISUAL STRUCTURE FIRST ===
 
-    if not df_assets.empty:
-        df_rv = df_assets[df_assets['ticker'].notna()]
-        tickers = df_rv['ticker'].unique().tolist()
-        if 'BRL=X' not in tickers:
-            tickers.append('BRL=X')
-
-        map_prices, map_changes = fetch_market_data(tickers)
-
-        dolar_val = map_prices.get('BRL=X', 5.0)
-        dolar_change = map_changes.get('BRL=X', 0.0)
-        dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
-
-        from core.finance import calcular_carteira_fechada
-        df_pos, _ = calcular_carteira_fechada(df_assets)
-
-        total_mkt_val = 0.0
-        if not df_pos.empty:
-            for _, row in df_pos.iterrows():
-                t = row['Ticker']
-                q = row['Qtd']
-                m = row['Moeda']
-
-                if q > 0:
-                    delta = map_changes.get(t, 0.0)
-                    price = map_prices.get(t, 0.0)
-                    rate = 1.0
-                    if m == 'USD':
-                        rate = dolar_val
-
-                    gain_brl = q * delta * rate
-                    rv_day_gain += gain_brl
-                    total_mkt_val += (q * price * rate)
-
-            if (total_mkt_val - rv_day_gain) > 0:
-                rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
-
-# Format values
-rv_class = "positive" if rv_day_gain >= 0 else "negative"
-dolar_class = "positive" if dolar_change >= 0 else "negative"
-rv_value = format_decimal_br(rv_day_gain, 2)
-rv_pct = format_decimal_br(rv_day_pct, 2)
-dolar_value = format_decimal_br(dolar_val, 3)
-dolar_pct = format_decimal_br(dolar_var, 2)
-
-# --- HERO SECTION ---
+# --- HERO SECTION (static - no data needed) ---
 st.markdown("""
-
 <a href="Ferramentas" target="_self" class="tools-fab" title="Ferramentas">⚙️</a>
-
 <div class="hero-section">
     <div class="hero-content">
         <h1 class="hero-title"> BARROOTS</h1>
@@ -817,7 +826,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- METRICS CARD (using native Streamlit) ---
+# --- METRICS CSS (render first) ---
 st.markdown("""
 <style>
 .metrics-container {
@@ -869,17 +878,24 @@ st.markdown("""
     height: 50px;
     background: rgba(255,255,255,0.1);
 }
-.color-positive { color: #34d399; }
-.color-negative { color: #f87171; }
+.color-positive { color: #34d399 !important; }
+.color-negative { color: #f87171 !important; }
+.skeleton-pulse {
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+@keyframes skeletonPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
 
 @media (max-width: 768px) {
     .metrics-container { margin-top: -60px; }
     .metrics-box {
         flex-direction: column;
         gap: 15px;
-        padding: 25px 40px; /* Increased horizontal padding (spaces before/after info) */
-        width: 100%; /* Force wider card */
-        max-width: 500px; /* Limit max width */
+        padding: 25px 40px;
+        width: 100%;
+        max-width: 500px;
     }
     .metric-divider {
         width: 60%;
@@ -899,38 +915,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-rv_sign = "+" if rv_day_gain >= 0 else ""
-dolar_sign = "+" if dolar_change >= 0 else ""
+# --- METRICS PLACEHOLDER (will be updated with data) ---
+metrics_placeholder = st.empty()
 
-metrics_html = f"""
+# Show skeleton/loading state initially
+metrics_placeholder.markdown("""
 <div class="metrics-container">
     <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Renda Variável (Hoje)</div>
-            <div class="metric-item-value color-{rv_class}">
-                R$ {rv_value}
-                <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
-            </div>
+            <div class="metric-item-value skeleton-pulse">R$ ---.--</div>
         </div>
         <div class="metric-divider"></div>
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
-            <div class="metric-item-value">
-                R$ {dolar_value}
-                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
-            </div>
+            <div class="metric-item-value skeleton-pulse">R$ --.---</div>
         </div>
     </div>
 </div>
-"""
-
-st.markdown(metrics_html, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- SPACER ---
 st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
-# --- NAVIGATION CARDS ---
-# --- NAVIGATION CARDS ---
+# --- NAVIGATION CARDS (static - no data needed) ---
 st.markdown('''
 <div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
 
@@ -1030,3 +1038,80 @@ with col_refresh_btn:
     if st.button("🔄", key="btn_refresh_fixed", help="Atualizar dados"):
         st.cache_data.clear()
         st.rerun()
+
+# === STEP 2: NOW LOAD DATA (after visual structure is rendered) ===
+df_assets = load_assets()
+dolar_val = 0.0
+dolar_var = 0.0
+rv_day_gain = 0.0
+rv_day_pct = 0.0
+dolar_change = 0.0
+
+if not df_assets.empty:
+    df_rv = df_assets[df_assets['ticker'].notna()]
+    tickers = df_rv['ticker'].unique().tolist()
+    if 'BRL=X' not in tickers:
+        tickers.append('BRL=X')
+
+    map_prices, map_changes = fetch_market_data(tickers)
+
+    dolar_val = map_prices.get('BRL=X', 5.0)
+    dolar_change = map_changes.get('BRL=X', 0.0)
+    dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
+
+    from core.finance import calcular_carteira_fechada
+    df_pos, _ = calcular_carteira_fechada(df_assets)
+
+    total_mkt_val = 0.0
+    if not df_pos.empty:
+        for _, row in df_pos.iterrows():
+            t = row['Ticker']
+            q = row['Qtd']
+            m = row['Moeda']
+
+            if q > 0:
+                delta = map_changes.get(t, 0.0)
+                price = map_prices.get(t, 0.0)
+                rate = 1.0
+                if m == 'USD':
+                    rate = dolar_val
+
+                gain_brl = q * delta * rate
+                rv_day_gain += gain_brl
+                total_mkt_val += (q * price * rate)
+
+        if (total_mkt_val - rv_day_gain) > 0:
+            rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
+
+# === STEP 3: UPDATE METRICS WITH ACTUAL DATA ===
+rv_class = "positive" if rv_day_gain >= 0 else "negative"
+dolar_class = "positive" if dolar_change >= 0 else "negative"
+rv_value = format_decimal_br(rv_day_gain, 2)
+rv_pct = format_decimal_br(rv_day_pct, 2)
+dolar_value = format_decimal_br(dolar_val, 3)
+dolar_pct = format_decimal_br(dolar_var, 2)
+rv_sign = "+" if rv_day_gain >= 0 else ""
+dolar_sign = "+" if dolar_change >= 0 else ""
+
+# Update the placeholder with real data
+metrics_placeholder.markdown(f"""
+<div class="metrics-container">
+    <div class="metrics-box">
+        <div class="metric-item">
+            <div class="metric-item-label">Renda Variável (Hoje)</div>
+            <div class="metric-item-value color-{rv_class}">
+                R$ {rv_value}
+                <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
+            </div>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric-item">
+            <div class="metric-item-label">Dólar (USD)</div>
+            <div class="metric-item-value">
+                R$ {dolar_value}
+                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
+            </div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)

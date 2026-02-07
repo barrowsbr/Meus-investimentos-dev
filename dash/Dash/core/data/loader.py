@@ -24,7 +24,8 @@ COLUMN_MAP_PROVENTOS = {
     'data': 'data', 'pagamento': 'data',
     'valor': 'valor', 'valor líquido': 'valor', 'valor_liquido': 'valor',
     'tipo': 'lancamento', 'lançamento': 'lancamento', 'lancamento': 'lancamento', 'evento': 'lancamento',
-    'categoria': 'categoria'
+    'categoria': 'categoria',
+    'moeda': 'moeda', 'currency': 'moeda'
 }
 
 # ------------------------------------------------------------------------------
@@ -82,18 +83,26 @@ def load_proventos() -> pd.DataFrame:
     try:
         df = DataProvider.get_proventos()
         if df.empty: return pd.DataFrame()
-        
+
         df = normalize_dataframe_columns(df, COLUMN_MAP_PROVENTOS)
-              
+
         if 'ticker' in df.columns:
             df['ticker'] = df['ticker'].apply(normalize_ticker)
-            
+
         if 'data' in df.columns:
             df['data'] = parse_date_br(df['data'])
-            
+
         if 'valor' in df.columns:
-             df['valor'] = df['valor'].apply(parse_decimal_br)
-             
+            df['valor'] = df['valor'].apply(parse_decimal_br)
+
+        # Garantir coluna 'moeda' com valor padrao BRL
+        if 'moeda' not in df.columns:
+            df['moeda'] = 'BRL'
+        else:
+            # Normalizar valores existentes e preencher vazios
+            df['moeda'] = df['moeda'].fillna('BRL').astype(str).str.strip().str.upper()
+            df['moeda'] = df['moeda'].replace({'': 'BRL', 'NAN': 'BRL', 'NONE': 'BRL'})
+
         return df.sort_values('data') if 'data' in df.columns else df
     except Exception as e:
         st.error(f"Error loading proventos: {e}")
