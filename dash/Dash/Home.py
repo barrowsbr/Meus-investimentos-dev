@@ -58,6 +58,14 @@ components.html("""
             if (viewport && !viewport.content.includes('viewport-fit')) {
                 viewport.content += ', viewport-fit=cover';
             }
+
+            // Inject manifest link for PWA
+            if (!targetDoc.querySelector('link[rel="manifest"]')) {
+                const manifest = targetDoc.createElement('link');
+                manifest.rel = 'manifest';
+                manifest.href = './static/manifest.json';
+                targetDoc.head.appendChild(manifest);
+            }
         } catch(e) {}
     };
 

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0b1120">
+    <meta name="msapplication-navbutton-color" content="#0b1120">
+    <meta name="msapplication-TileColor" content="#0b1120">
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="BARROOTS">
+
+    <!-- Android PWA -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="BARROOTS">
+
+    <!-- Prevent white flash on load -->
+    <style>
+        html, body {
+            background-color: #0b1120 !important;
+            margin: 0;
+            padding: 0;
+        }
+        /* iOS safe area */
+        @supports (padding-top: env(safe-area-inset-top)) {
+            body {
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+        }
+    </style>
+
+    <!-- Streamlit default head content will be injected here -->
+    {{HEAD}}
+</head>
+<body>
+    {{BODY}}
+</body>
+</html>
