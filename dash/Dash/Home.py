@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import base64
 from pathlib import Path
 from core.auth import init_auth_state
@@ -75,6 +76,7 @@ CSS_PART1 = """
 
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif;
+    overflow-x: hidden;
 }
 
 .stApp {
@@ -319,6 +321,181 @@ CSS_PART2 = """
     transform: translateX(0);
 }
 
+/* Expandable Card Styles */
+.expandable-wrapper {
+    width: 100%;
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+.expandable-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid transparent;
+    border-radius: 20px;
+    width: 100%;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.expandable-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+.expandable-header {
+    padding: 18px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.expandable-header:hover {
+    background: rgba(255,255,255,0.02);
+}
+
+.expand-icon {
+    position: absolute;
+    right: 25px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,0.4);
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.expandable-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.expandable-card.expanded .expand-icon {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+.expandable-card.expanded .expandable-content {
+    max-height: 500px;
+}
+
+.expandable-card.expanded {
+    box-shadow: 0 20px 50px -10px rgba(245, 222, 179, 0.2);
+}
+
+.expandable-card.expanded::before {
+    background: linear-gradient(135deg, rgba(245, 222, 179, 0.4) 0%, rgba(210, 180, 140, 0.2) 100%);
+}
+
+.expandable-card:hover {
+    transform: translateY(-4px);
+    background: rgba(15, 23, 42, 0.75);
+    box-shadow: 0 20px 50px -10px rgba(245, 222, 179, 0.2);
+}
+
+.expandable-card:hover::before {
+    background: linear-gradient(135deg, rgba(245, 222, 179, 0.4) 0%, rgba(210, 180, 140, 0.2) 100%);
+}
+
+.sub-items {
+    padding: 0 20px 15px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sub-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    text-decoration: none !important;
+    color: #e2e8f0 !important;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.sub-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(to bottom, rgba(245, 222, 179, 0.6), rgba(210, 180, 140, 0.3));
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.sub-item:hover {
+    background: rgba(245, 222, 179, 0.08);
+    border-color: rgba(245, 222, 179, 0.15);
+    transform: translateX(4px);
+}
+
+.sub-item:hover::before {
+    opacity: 1;
+}
+
+.sub-item-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-right: 14px;
+    font-size: 0.85rem;
+    color: rgba(245, 222, 179, 0.7);
+}
+
+.sub-item-text {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.sub-item-arrow {
+    color: rgba(255,255,255,0.2);
+    font-size: 0.8rem;
+    transition: all 0.25s ease;
+    transform: translateX(-5px);
+    opacity: 0;
+}
+
+.sub-item:hover .sub-item-arrow {
+    transform: translateX(0);
+    opacity: 1;
+    color: rgba(245, 222, 179, 0.6);
+}
+
+.divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+    margin: 5px 30px 10px 30px;
+}
+
 div[data-testid="column"] {
     display: flex;
     flex-direction: column;
@@ -350,7 +527,8 @@ div[data-testid="column"] {
     .hero-section {
         min-height: 300px;
         padding: 60px 15px 50px;
-        margin: -10rem -3rem 0 -3rem;
+        margin: -4rem -1rem 0 -1rem;
+        width: calc(100% + 2rem);
     }
     .nav-card {
         padding: 15px 20px;
@@ -365,6 +543,19 @@ div[data-testid="column"] {
         height: 40px;
         font-size: 1.2rem;
     }
+    .expandable-wrapper { max-width: 100%; }
+    .expandable-header { padding: 15px 20px; }
+    .expand-icon { right: 15px; }
+    .sub-items { padding: 0 12px 12px 12px; }
+    .sub-item { padding: 10px 14px; }
+    .sub-item-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.75rem;
+        margin-right: 10px;
+    }
+    .sub-item-text { font-size: 0.82rem; }
+    .divider-line { margin: 5px 20px 8px 20px; }
 }
 </style>
 """
@@ -555,13 +746,59 @@ st.markdown(metrics_html, unsafe_allow_html=True)
 st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS ---
-st.markdown('''
+st.markdown("""
 <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 20px;">
-    <a href="Investimentos" target="_self" class="nav-card card-patrimonio">
-        <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
-        <div class="card-desc">Dashboard de alocação e carteira</div>
-        <span class="card-arrow">→</span>
-    </a>
+
+    <div class="expandable-wrapper">
+        <div class="expandable-card" id="patrimonio-card">
+            <div class="expandable-header" onclick="togglePatrimonio()">
+                <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
+                <div class="card-desc">Dashboard de alocação e carteira</div>
+                <span class="expand-icon" id="expand-icon">▼</span>
+            </div>
+            <div class="expandable-content" id="patrimonio-content">
+                <div class="divider-line"></div>
+                <div class="sub-items">
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">◇</span>
+                        <span class="sub-item-text">Composição</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">▤</span>
+                        <span class="sub-item-text">Renda Variável</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">◎</span>
+                        <span class="sub-item-text">Cripto</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">⬡</span>
+                        <span class="sub-item-text">Câmbio</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">◐</span>
+                        <span class="sub-item-text">Proventos</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">△</span>
+                        <span class="sub-item-text">Imposto</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                    <a href="Investimentos" target="_self" class="sub-item">
+                        <span class="sub-item-icon">▢</span>
+                        <span class="sub-item-text">Renda Fixa</span>
+                        <span class="sub-item-arrow">→</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <a href="Finanças" target="_self" class="nav-card card-financas">
         <div class="card-title"><i class="card-icon">◇</i> Finanças</div>
         <div class="card-desc">Controle financeiro pessoal</div>
@@ -583,7 +820,14 @@ st.markdown('''
         <span class="card-arrow">→</span>
     </a>
 </div>
-''', unsafe_allow_html=True)
+
+<script>
+function togglePatrimonio() {
+    var card = document.getElementById('patrimonio-card');
+    card.classList.toggle('expanded');
+}
+</script>
+""", unsafe_allow_html=True)
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
