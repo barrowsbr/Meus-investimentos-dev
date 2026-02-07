@@ -52,7 +52,7 @@ CSS_PART1 = """
 .tools-fab {
     position: fixed;
     bottom: 20px;
-    right: 20px;
+    left: 20px;
     width: 50px;
     height: 50px;
     z-index: 99999;
@@ -205,69 +205,118 @@ CSS_PART2 = """
 .negative { color: #f87171; }
 
 .nav-card {
-    background: rgba(30, 41, 59, 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 24px;
-    padding: 40px 20px;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid transparent;
+    border-radius: 20px;
+    padding: 18px 30px;
     width: 100%;
-    max-width: 380px;
-    height: 380px;
+    max-width: 580px;
     margin: 0 auto;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
     text-decoration: none !important;
     color: white !important;
     cursor: pointer;
+    position: relative;
+}
+
+.nav-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
 }
 
 .nav-card:hover {
-    transform: translateY(-8px) scale(1.01);
-    background: rgba(30, 41, 59, 0.7);
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25);
+    transform: translateY(-4px);
+    background: rgba(15, 23, 42, 0.75);
 }
 
-.icon-box {
-    font-size: 4rem;
-    margin-bottom: 25px;
-    background: rgba(255,255,255,0.03);
-    width: 100px;
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.05);
-    transition: 0.4s;
+.nav-card.card-patrimonio:hover {
+    box-shadow: 0 20px 50px -10px rgba(245, 222, 179, 0.2);
+}
+.nav-card.card-patrimonio:hover::before {
+    background: linear-gradient(135deg, rgba(245, 222, 179, 0.4) 0%, rgba(210, 180, 140, 0.2) 100%);
 }
 
-.nav-card:hover .icon-box {
-    background: rgba(99, 102, 241, 0.1);
-    border-color: rgba(99, 102, 241, 0.3);
-    transform: scale(1.1) rotate(5deg);
+.nav-card.card-financas:hover {
+    box-shadow: 0 20px 50px -10px rgba(222, 184, 135, 0.2);
+}
+.nav-card.card-financas:hover::before {
+    background: linear-gradient(135deg, rgba(222, 184, 135, 0.4) 0%, rgba(188, 143, 95, 0.2) 100%);
+}
+
+.nav-card.card-performance:hover {
+    box-shadow: 0 20px 50px -10px rgba(250, 240, 230, 0.2);
+}
+.nav-card.card-performance:hover::before {
+    background: linear-gradient(135deg, rgba(250, 240, 230, 0.4) 0%, rgba(220, 200, 180, 0.2) 100%);
+}
+
+.nav-card.card-legado:hover {
+    box-shadow: 0 20px 50px -10px rgba(255, 228, 196, 0.2);
+}
+.nav-card.card-legado:hover::before {
+    background: linear-gradient(135deg, rgba(255, 228, 196, 0.4) 0%, rgba(210, 180, 150, 0.2) 100%);
+}
+
+.nav-card.card-editor:hover {
+    box-shadow: 0 20px 50px -10px rgba(240, 230, 220, 0.2);
+}
+.nav-card.card-editor:hover::before {
+    background: linear-gradient(135deg, rgba(240, 230, 220, 0.4) 0%, rgba(200, 190, 180, 0.2) 100%);
 }
 
 .card-title {
     color: white;
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin-bottom: 12px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card-icon {
+    font-size: 1rem;
+    opacity: 0.6;
+    font-style: normal;
 }
 
 .card-desc {
     color: #94a3b8;
-    font-size: 1rem;
-    line-height: 1.6;
-    margin-bottom: 10px;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+.card-arrow {
+    position: absolute;
+    right: 25px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+    color: rgba(255,255,255,0.5);
+    font-size: 1.2rem;
+}
+
+.nav-card:hover .card-arrow {
+    opacity: 1;
+    transform: translateX(0);
 }
 
 div[data-testid="column"] {
@@ -276,72 +325,45 @@ div[data-testid="column"] {
     align-items: center;
 }
 
-.arch-btn-wrapper {
-    display: flex;
-    justify-content: center;
-    padding: 0 15px;
-    margin-bottom: 20px;
-    margin-top: 40px;
+.arch-link {
+    display: block;
+    text-align: center;
+    margin-top: 30px;
+    margin-bottom: 10px;
 }
 
-.arch-button {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 20, 50, 0.8) 100%);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(139, 92, 246, 0.4);
-    border-radius: 20px;
-    padding: 15px 25px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
-    transition: all 0.3s ease;
-    max-width: 350px;
-    width: 100%;
-    cursor: pointer;
+.arch-link a {
+    color: #64748b;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
     text-decoration: none;
+    transition: all 0.3s ease;
 }
 
-.arch-button:hover {
-    box-shadow: 0 0 35px rgba(139, 92, 246, 0.4);
-    border-color: rgba(139, 92, 246, 0.7);
-    transform: translateY(-2px);
-}
-
-.arch-icon { font-size: 1.3rem; }
-
-.arch-text {
-    color: #f8fafc;
-    font-weight: 600;
-    font-size: 0.95rem;
-    letter-spacing: 0.5px;
+.arch-link a:hover {
+    color: #94a3b8;
 }
 
 @media (max-width: 768px) {
-    .hero-title { font-size: 3rem; }
-    .hero-section { min-height: 350px; padding: 40px 15px 50px; }
-    .metrics-card {
-        flex-direction: column;
-        gap: 20px;
-        padding: 20px;
-    }
-    .metrics-divider {
-        width: 80%;
-        height: 1px;
+    .hero-title { font-size: 2.8rem; letter-spacing: 2px; }
+    .hero-subtitle { font-size: 1rem; letter-spacing: 1px; }
+    .hero-section {
+        min-height: 300px;
+        padding: 60px 15px 50px;
+        margin: -10rem -3rem 0 -3rem;
     }
     .nav-card {
-        height: auto;
-        min-height: 340px;
-        padding: 30px 20px;
+        padding: 15px 20px;
         max-width: 100%;
     }
-    div[data-testid="column"] {
-        margin-bottom: 2rem;
-    }
+    .card-title { font-size: 1.2rem; }
+    .card-desc { font-size: 0.75rem; }
+    .card-icon { font-size: 0.85rem; }
+    .card-arrow { right: 15px; font-size: 1rem; }
     .tools-fab {
-        width: 45px;
-        height: 45px;
-        font-size: 1.3rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
     }
 }
 </style>
@@ -476,6 +498,29 @@ st.markdown("""
 }
 .color-positive { color: #34d399; }
 .color-negative { color: #f87171; }
+
+@media (max-width: 768px) {
+    .metrics-container { margin-top: -60px; }
+    .metrics-box {
+        flex-direction: column;
+        gap: 15px;
+        padding: 20px 25px;
+    }
+    .metric-divider {
+        width: 60%;
+        height: 1px;
+    }
+    .metric-item-value {
+        font-size: 1.3rem;
+        white-space: nowrap;
+    }
+    .metric-item-change {
+        font-size: 0.85rem;
+    }
+    .metric-item-label {
+        font-size: 0.8rem;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -510,84 +555,40 @@ st.markdown(metrics_html, unsafe_allow_html=True)
 st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS ---
-col_nav_l, col_nav_c, col_nav_r = st.columns([1, 8, 1])
-
-with col_nav_c:
-    st.markdown('''
-    <a href="Investimentos" target="_self" class="nav-card">
-        <div class="icon-box">🚀</div>
-        <div class="card-title">Patrimônio</div>
-        <div class="card-desc">
-            Dashboard de alocação.<br>
-            Acompanhe carteira e ativos.
-        </div>
-        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Carteira →</div>
-    </a>
-    ''', unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
-
-    st.markdown('''
-    <a href="Finanças" target="_self" class="nav-card">
-        <div class="icon-box">💎</div>
-        <div class="card-title">Finanças</div>
-        <div class="card-desc">
-            Controle financeiro pessoal.<br>
-            Gerencie gastos e cartão de crédito.
-        </div>
-        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Finanças →</div>
-    </a>
-    ''', unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
-
-    st.markdown('''
-    <a href="Performance" target="_self" class="nav-card">
-        <div class="icon-box">📈</div>
-        <div class="card-title">Performance</div>
-        <div class="card-desc">
-            Análise GIPS e rentabilidade real.<br>
-            Time-Weighted Return (TWR) puro.
-        </div>
-        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Ver Rentabilidade →</div>
-    </a>
-    ''', unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
-
-    st.markdown('''
-    <a href="Historico_Patrimonial" target="_self" class="nav-card">
-        <div class="icon-box">🏛️</div>
-        <div class="card-title">Legado</div>
-        <div class="card-desc">
-            Evolução patrimonial histórica.<br>
-            Construção de riqueza vs Anos.
-        </div>
-        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Ver Evolução →</div>
-    </a>
-    ''', unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
-
-    st.markdown('''
-    <a href="Editor" target="_self" class="nav-card">
-        <div class="icon-box">📝</div>
-        <div class="card-title">Editor</div>
-        <div class="card-desc">
-            Edição de registros brutos.<br>
-            Ajuste ativos e transações.
-        </div>
-        <div style="font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-top: 10px;">Acessar Editor →</div>
-    </a>
-    ''', unsafe_allow_html=True)
-
-# --- ARCHITECTURE BUTTON ---
 st.markdown('''
-<div class="arch-btn-wrapper">
-    <a href="Arquitetura" target="_self" class="arch-button">
-        <span class="arch-icon">🏗️</span>
-        <span class="arch-text">Ver Arquitetura do Sistema</span>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 20px;">
+    <a href="Investimentos" target="_self" class="nav-card card-patrimonio">
+        <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
+        <div class="card-desc">Dashboard de alocação e carteira</div>
+        <span class="card-arrow">→</span>
     </a>
+    <a href="Finanças" target="_self" class="nav-card card-financas">
+        <div class="card-title"><i class="card-icon">◇</i> Finanças</div>
+        <div class="card-desc">Controle financeiro pessoal</div>
+        <span class="card-arrow">→</span>
+    </a>
+    <a href="Performance" target="_self" class="nav-card card-performance">
+        <div class="card-title"><i class="card-icon">△</i> Performance</div>
+        <div class="card-desc">Rentabilidade TWR e análise GIPS</div>
+        <span class="card-arrow">→</span>
+    </a>
+    <a href="Historico_Patrimonial" target="_self" class="nav-card card-legado">
+        <div class="card-title"><i class="card-icon">◎</i> Legado</div>
+        <div class="card-desc">Evolução patrimonial histórica</div>
+        <span class="card-arrow">→</span>
+    </a>
+    <a href="Editor" target="_self" class="nav-card card-editor">
+        <div class="card-title"><i class="card-icon">▢</i> Editor</div>
+        <div class="card-desc">Edição de registros e transações</div>
+        <span class="card-arrow">→</span>
+    </a>
+</div>
+''', unsafe_allow_html=True)
+
+# --- ARCHITECTURE LINK ---
+st.markdown('''
+<div class="arch-link">
+    <a href="Arquitetura" target="_self">Ver Arquitetura do Sistema</a>
 </div>
 ''', unsafe_allow_html=True)
 
