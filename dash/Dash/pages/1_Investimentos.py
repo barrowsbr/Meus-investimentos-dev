@@ -36,7 +36,7 @@ st.set_page_config(
 
 # --- CSS PERSONALIZADO ---
 # --- CSS PERSONALIZADO (GLOBAL THEME) ---
-from core.ui import get_card_css, render_metric_card
+from core.ui import get_card_css, render_metric_card, render_fab
 
 st.markdown("""
 <style>
@@ -204,6 +204,7 @@ def carregar_cambio():
 st.markdown(get_card_css(), unsafe_allow_html=True)
 
 # --- PAGE HEADER ---
+render_fab()
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">Patrimônio & Alocação</div>

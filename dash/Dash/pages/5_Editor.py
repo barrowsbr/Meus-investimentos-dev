@@ -8,6 +8,7 @@ import pandas as pd
 import datetime as dt
 from datetime import datetime, date
 from core.ui_config import get_editor_config
+from core.ui import render_fab
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -130,6 +131,7 @@ st.markdown("""
 
 # --- FUNÇÃO DO EDITOR DE DADOS ---
 def exibir_editor_dados():
+    render_fab()
     # Botao voltar no topo
     if st.button("← Voltar para Home", type="secondary"):
         st.switch_page("Home.py")

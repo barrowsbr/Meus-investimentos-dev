@@ -1,8 +1,4 @@
-import streamlit as st
-import streamlit.components.v1 as components
-import base64
-from pathlib import Path
-from core.auth import init_auth_state
+from core.ui import render_fab
 
 # --- INIT SESSION STATE ---
 init_auth_state()
@@ -840,14 +836,9 @@ from core.utils import format_decimal_br
 # === STEP 1: RENDER ALL VISUAL STRUCTURE FIRST ===
 
 # --- HERO SECTION (static - no data needed) ---
-logo_icon_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 22px; height: auto;" />' if logo_b64 else '🎈'
+render_fab()
 
 st.markdown(f"""
-<div class="fab-container">
-    <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
-    <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">🔄</a>
-    <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
-</div>
 <div class="hero-section">
     <div class="hero-content">
         <h1 class="hero-title"> BARROOTS</h1>

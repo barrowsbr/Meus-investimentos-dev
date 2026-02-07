@@ -40,7 +40,7 @@ st.set_page_config(
 # --- CSS / THEME ---
 # Imports global theme from .streamlit/config.toml implicitly,
 # but we add specific overrides here if needed.
-from core.ui import get_card_css, render_metric_card
+from core.ui import get_card_css, render_metric_card, render_fab
 
 st.markdown(get_card_css(), unsafe_allow_html=True)
 
@@ -293,6 +293,7 @@ def run_performance_engine_compat(df_input_frozen):
 def main():
     # --- PAGE HEADER ---
     # --- PAGE HEADER ---
+    render_fab()
     st.markdown("""
     <div class="hero-container">
         <div class="hero-title">Análise de Performance</div>

@@ -1,4 +1,87 @@
 import streamlit as st
+import base64
+from pathlib import Path
+
+def get_logo_base64():
+    """Load logo image as base64."""
+    try:
+        # Resolve path relative to this file: core/ui.py -> ../../pictures/Logo.png
+        logo_path = Path(__file__).parent.parent / "pictures" / "Sem Fundo - Copia.png"
+        with open(logo_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+def render_fab():
+    """
+    Renderiza o Container de FABs (Floating Action Buttons) lateral.
+    """
+    logo_b64 = get_logo_base64()
+    logo_icon_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 22px; height: auto;" />' if logo_b64 else '🎈'
+
+    # CSS for FAB
+    st.markdown("""
+    <style>
+    .fab-container {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 12px;
+        z-index: 99999;
+    }
+
+    .tools-fab {
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(30, 41, 59, 0.8);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        font-size: 1.25rem;
+        text-decoration: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        color: white !important;
+    }
+
+    .tools-fab:hover {
+        background: rgba(99, 102, 241, 0.3);
+        border-color: rgba(99, 102, 241, 0.5);
+        transform: scale(1.1) translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+    }
+    
+    @media (max-width: 768px) {
+        .tools-fab {
+            width: 36px;
+            height: 36px;
+            font-size: 1rem;
+        }
+        .fab-container {
+            bottom: 15px;
+            left: 15px;
+            gap: 8px;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # FAB HTML
+    # Note: refresh parameter works best if we point to current page
+    st.markdown(f"""
+    <div class="fab-container">
+        <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
+        <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">🔄</a>
+        <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 def get_view_mode_css() -> str:
     """
