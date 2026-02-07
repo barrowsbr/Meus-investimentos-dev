@@ -646,6 +646,76 @@ from core.data.loader import load_assets
 from core.data.market import fetch_market_data
 from core.utils import format_decimal_br
 
+# --- PULL-TO-REFRESH (MOBILE) ---
+# Inject custom JS to detect pull-down gesture and reload page
+# --- PULL-TO-REFRESH (MOBILE) ---
+# Inject custom JS to detect pull-down gesture and reload page
+# components.html("""
+# <script>
+# document.addEventListener('DOMContentLoaded', function() {
+#     let touchStartY = 0;
+#     let touchEndY = 0;
+#     const threshold = 150; // Minimum distance to trigger reload
+#     const indicator = document.createElement('div');
+#     indicator.style.position = 'fixed';
+#     indicator.style.top = '-50px';
+#     indicator.style.left = '50%';
+#     indicator.style.transform = 'translateX(-50%)';
+#     indicator.style.zIndex = '9999';
+#     indicator.style.width = '30px';
+#     indicator.style.height = '30px';
+#     indicator.style.borderRadius = '50%';
+#     indicator.style.border = '3px solid rgba(255,255,255,0.3)';
+#     indicator.style.borderTopColor = '#ffffff';
+#     indicator.style.animation = 'spin 1s linear infinite';
+#     indicator.style.display = 'none';
+#     indicator.id = 'pull-refresh-indicator';
+#     
+#     // Add spinner css
+#     const style = document.createElement('style');
+#     style.innerHTML = `
+#         @keyframes spin { to { transform: translateX(-50%) rotate(360deg); } }
+#     `;
+#     document.head.appendChild(style);
+#     document.body.appendChild(indicator);
+#
+#     window.addEventListener('touchstart', e => {
+#         if (window.scrollY === 0) {
+#             touchStartY = e.changedTouches[0].screenY;
+#         }
+#     }, {passive: true});
+#
+#     window.addEventListener('touchmove', e => {
+#         if (window.scrollY === 0) {
+#             const currentY = e.changedTouches[0].screenY;
+#             const distance = currentY - touchStartY;
+#             
+#             if (distance > 0) {
+#                 indicator.style.display = 'block';
+#                 indicator.style.top = Math.min(distance / 2, 60) + 'px'; // Limit visual pull
+#             }
+#         }
+#     }, {passive: true});
+#
+#     window.addEventListener('touchend', e => {
+#         if (window.scrollY === 0) {
+#             touchEndY = e.changedTouches[0].screenY;
+#             const distance = touchEndY - touchStartY;
+#             
+#             if (distance > threshold) {
+#                 // Trigger reload
+#                 window.parent.location.reload(); 
+#             } else {
+#                 // Reset indicator
+#                 indicator.style.top = '-50px';
+#                 setTimeout(() => { indicator.style.display = 'none'; }, 300);
+#             }
+#         }
+#     }, {passive: true});
+# });
+# </script>
+# """, height=0)
+
 # --- LOAD DATA ---
 with st.spinner(""):
     df_assets = load_assets()
