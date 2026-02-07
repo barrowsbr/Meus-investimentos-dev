@@ -81,7 +81,7 @@ components.html("""
 st.markdown("""
 <style>
 /* HIDE DEFAULT ELEMENTS IMMEDIATELY */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"] {
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"], [data-testid="stSidebar"], [data-testid="collapsedControl"], section[data-testid="stSidebar"], div[data-testid="stSidebarNav"] {
     visibility: hidden !important;
     display: none !important;
     height: 0px !important;
@@ -123,8 +123,8 @@ html, body, .stApp {
         width: 100% !important;
     }
     .block-container {
-        margin-top: -60px !important; 
-        padding-top: 0rem !important;
+        margin-top: -120px !important; 
+        padding-top: 0px !important;
     }
 }
 </style>
