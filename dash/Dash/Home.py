@@ -80,51 +80,49 @@ components.html("""
 # --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
 st.markdown("""
 <style>
-/* HIDE DEFAULT ELEMENTS IMMEDIATELY */
+/* HIDE DEFAULT ELEMENTS */
 #MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"], [data-testid="stSidebar"], [data-testid="collapsedControl"], section[data-testid="stSidebar"], div[data-testid="stSidebarNav"] {
-    visibility: hidden !important;
     display: none !important;
-    height: 0px !important;
-    width: 0px !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
 }
 
-/* FORCE DARK BACKGROUND IMMEDIATELY (Reduces FOUC) */
+/* FORCE DARK BACKGROUND */
 html, body, .stApp {
     background-color: #0b1120 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
-/* RESET STREAMLIT LAYOUT */
-.block-container {
-    padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
-    padding-left: 0rem !important;
-    padding-right: 0rem !important;
-    max-width: 100%;
-    margin-top: -65px !important;
+/* RESET STREAMLIT LAYOUT - FULL BLEED */
+.stApp > header {
+    display: none !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 [data-testid="stAppViewContainer"] > .main {
-    padding-top: 0rem !important;
-    padding-right: 0rem !important;
-    padding-left: 0rem !important;
-    padding-bottom: 0rem !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-/* MOBILE ADJUSTMENTS */
+.block-container {
+    padding: 0 !important;
+    padding-top: 0 !important;
+    margin: 0 !important;
+    margin-top: -80px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+}
+
+/* MOBILE */
 @media (max-width: 768px) {
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-    }
-    .stApp {
-        overflow-x: hidden !important;
-        width: 100% !important;
-    }
     .block-container {
-        margin-top: -120px !important; 
-        padding-top: 0px !important;
+        margin-top: -100px !important;
+    }
+    html, body, .stApp {
+        overflow-x: hidden !important;
     }
 }
 </style>
@@ -202,15 +200,12 @@ html, body, [class*="css"] {
     align-items: center;
     justify-content: center;
     padding: 50px 20px 60px;
-    margin: 0; /* Reset margins */
-    width: 100%; /* Full width */
+    margin: 0;
+    width: 100%;
     background-color: #0b1120;
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
-    align-self: center; /* Center in parent */
-    left: 0;
-    right: 0;
 
 """
 

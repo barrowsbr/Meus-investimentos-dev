@@ -13,7 +13,7 @@ from core.ui_config import get_editor_config
 st.set_page_config(
     page_title="Editor de Dados",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="📝"
 )
 
@@ -113,12 +113,12 @@ st.markdown("""
          border-radius: 8px;
     }
     
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #0f1724;
-        border-right: 1px solid rgba(255,255,255,0.05);
+    /* HIDE SIDEBAR */
+    section[data-testid="stSidebar"],
+    [data-testid="collapsedControl"] {
+        display: none !important;
     }
-    
+
     h1, h2, h3 { color: #f1f5f9; }
     
     @keyframes fadeIn {
@@ -130,6 +130,10 @@ st.markdown("""
 
 # --- FUNÇÃO DO EDITOR DE DADOS ---
 def exibir_editor_dados():
+    # Botao voltar no topo
+    if st.button("← Voltar para Home", type="secondary"):
+        st.switch_page("Home.py")
+
     # Styled Hero Header
     st.markdown("""
     <div class="hero-container">
@@ -300,34 +304,30 @@ def exibir_editor_dados():
             
             if submit_btn:
                 if any(str(v).strip() == "" for v in input_data.values()):
-                    st.warning("⚠️ Preencha todos os campos obrigatórios.")
+                    st.warning("Preencha todos os campos obrigatorios.")
                 else:
                     # Clean/Parse Input Data before creating row
                     parsed_data = input_data.copy()
-                    
+
                     # Parse Numerics
                     for k, v in parsed_data.items():
                         if k in numeric_cols:
-                            # Convert BRL String -> Float -> Then Format BACK to BRL String for consistency with Display DF
-                            # Wait, the df_display expects STRINGS. So we format it.
                             f_val = parse_decimal_br(v)
-                            decimals = 4 if ('Quantidade' in k or 'Qtd' in k) else 2
+                            decimals = 4 if ('Quantidade' in k or 'Qtd' in k or 'VET' in k) else 2
                             parsed_data[k] = format_decimal_br(f_val, decimals)
-                    
-                    # AUTO-CALCULATE: Valor bruto e Valor líquido (for meus_ativos)
-                    # CRITICAL: Rebuild dict in correct column order for spreadsheet
+
+                    # =========================================================
+                    # MEUS_ATIVOS: Calcular Valor bruto e Valor liquido
+                    # Ordem: Data | Tipo | Simbolo | Qtd | Preco | Bruto | Taxas | Liquido | Moeda | Corretora
+                    # =========================================================
                     if selected_key == "meus_ativos":
                         qtd_f = parse_decimal_br(parsed_data.get('Quantidade', '0'))
                         preco_f = parse_decimal_br(parsed_data.get('Preço', '0'))
-                        
-                        # Usar 'Taxa de corretagem' conforme definido no ui_config
                         taxas_f = parse_decimal_br(parsed_data.get('Taxa de corretagem', '0'))
-                        
+
                         valor_bruto = qtd_f * preco_f
                         valor_liq = valor_bruto + taxas_f
-                        
-                        # Rebuild in EXACT spreadsheet column order:
-                        # Data | Tipo de transação | Símbolo | Quantidade | Preço | Valor bruto | Taxa de corretagem | Valor líquido | Moeda | Corretora
+
                         ordered_data = {
                             'Data': parsed_data.get('Data'),
                             'Tipo de transação': parsed_data.get('Tipo de transação'),
@@ -335,58 +335,84 @@ def exibir_editor_dados():
                             'Quantidade': parsed_data.get('Quantidade'),
                             'Preço': parsed_data.get('Preço'),
                             'Valor bruto': format_decimal_br(valor_bruto, 2),
-                            'Taxa de corretagem': format_decimal_br(taxas_f, 2), # Exibir taxas inseridas
+                            'Taxa de corretagem': format_decimal_br(taxas_f, 2),
                             'Valor líquido': format_decimal_br(valor_liq, 2),
                             'Moeda': parsed_data.get('Moeda'),
                             'Corretora': parsed_data.get('Corretora'),
                         }
                         parsed_data = ordered_data
-                    
-                    new_row = pd.DataFrame([parsed_data])
-                    
-                    # Special logic handling
-                    if selected_key == "meus_proventos":
+
+                    # =========================================================
+                    # MEUS_PROVENTOS: Calcular mes, ano e decisao
+                    # Ordem: ticker | data | lancamento | categoria | valor | moeda | mes | ano | decisao
+                    # =========================================================
+                    elif selected_key == "meus_proventos":
                         d_obj = pd.to_datetime(input_data['data'])
-                        meses_dict = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun', 
+                        meses_dict = {1:'jan', 2:'fev', 3:'mar', 4:'abr', 5:'mai', 6:'jun',
                                  7:'jul', 8:'ago', 9:'set', 10:'out', 11:'nov', 12:'dez'}
-                        try:
-                            new_row['mes'] = f"{meses_dict[d_obj.month]}/{str(d_obj.year)[-2:]}"
-                            new_row['ano'] = d_obj.year
-                        except: pass 
-                        if 'decisao' in df_current.columns: 
-                            new_row['decisao'] = input_data.get('lancamento', '')
+
+                        ordered_data = {
+                            'ticker': parsed_data.get('ticker'),
+                            'data': parsed_data.get('data'),
+                            'lancamento': parsed_data.get('lancamento'),
+                            'categoria': parsed_data.get('categoria'),
+                            'valor': parsed_data.get('valor'),
+                            'moeda': parsed_data.get('moeda'),
+                            'mes': f"{meses_dict.get(d_obj.month, '')}/{str(d_obj.year)[-2:]}",
+                            'ano': d_obj.year,
+                            'decisao': parsed_data.get('lancamento', ''),
+                        }
+                        parsed_data = ordered_data
+
+                    # =========================================================
+                    # RENDA_FIXA: Ordem correta
+                    # Ordem: Ticker | Compra | Tipo de transacao | Valor | Valor atual | Moeda
+                    # =========================================================
+                    elif selected_key == "renda_fixa":
+                        ordered_data = {
+                            'Ticker': parsed_data.get('Ticker'),
+                            'Compra': parsed_data.get('Compra'),
+                            'Tipo de transação': parsed_data.get('Tipo de transação'),
+                            'Valor': parsed_data.get('Valor'),
+                            'Valor atual': parsed_data.get('Valor atual'),
+                            'Moeda': parsed_data.get('Moeda'),
+                        }
+                        parsed_data = ordered_data
+
+                    # =========================================================
+                    # CAMBIO: Ordem correta
+                    # Ordem: Data | Moeda Origem | Moeda Destino | Entrada | Saida | VET | Corretora
+                    # =========================================================
+                    elif selected_key == "cambio":
+                        ordered_data = {
+                            'Data': parsed_data.get('Data'),
+                            'Moeda Origem': parsed_data.get('Moeda Origem'),
+                            'Moeda Destino': parsed_data.get('Moeda Destino'),
+                            'Valor Total entrada': parsed_data.get('Valor Total entrada'),
+                            'Valor Total saída': parsed_data.get('Valor Total saída'),
+                            'VET': parsed_data.get('VET'),
+                            'Corretora destino': parsed_data.get('Corretora destino'),
+                        }
+                        parsed_data = ordered_data
+
+                    new_row = pd.DataFrame([parsed_data])
 
                     for d_col in cfg.get("date_cols", []):
-                        if d_col in new_row.columns: 
+                        if d_col in new_row.columns:
                             new_row[d_col] = pd.to_datetime(new_row[d_col])
 
-                    # Append to current session state (source of truth)
-                    # BUT wait, session_state.editor_df holds FLOATS.
-                    # We need to append the FLOAT version to editor_df? 
-                    # OR we append the FORMATTED version to df_display logic?
-                    # The architecture here re-loads editor_df from session.
-                    # Simple fix: Append to session_state with PARSED floats, then rerun refetches and formats.
-                    
-                    # 1. Prepare Row with FLOATS for internal storage
+                    # Prepare Row with FLOATS for internal storage
                     row_floats = new_row.copy()
 
                     # Parse numeric columns back to float
-                    all_numeric = list(numeric_cols) + ['Valor bruto', 'Valor líquido', 'Taxa de corretagem']
+                    all_numeric = list(numeric_cols) + ['Valor bruto', 'Valor líquido', 'Taxa de corretagem', 'VET']
                     for col in all_numeric:
                         if col in row_floats.columns:
                             row_floats[col] = row_floats[col].apply(parse_decimal_br)
 
-                    # 2. CRITICAL: Match columns with existing DataFrame (sheet order)
+                    # Match columns with existing DataFrame (sheet order)
                     if not st.session_state.editor_df.empty:
                         existing_cols = st.session_state.editor_df.columns.tolist()
-
-                        # Remove legacy "Taxas" column if it exists (should be "Taxa de corretagem")
-                        if 'Taxas' in existing_cols and 'Taxa de corretagem' in existing_cols:
-                            existing_cols.remove('Taxas')
-                            if 'Taxas' in st.session_state.editor_df.columns:
-                                st.session_state.editor_df = st.session_state.editor_df.drop(columns=['Taxas'])
-
-                        # Only use columns that exist - don't create new ones
                         row_floats = row_floats.reindex(columns=existing_cols)
 
                     st.session_state.editor_df = pd.concat([st.session_state.editor_df, row_floats], ignore_index=True)
@@ -495,12 +521,6 @@ def exibir_editor_dados():
                 st.rerun()
 
 def main():
-    with st.sidebar:
-        st.header("📝 Editor")
-        st.caption("Gerenciamento de tabelas brutas")
-        if st.button("🏠 Voltar para Início", use_container_width=True):
-            st.switch_page("Home.py")
-
     exibir_editor_dados()
 
 if __name__ == "__main__":
