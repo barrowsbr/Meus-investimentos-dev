@@ -21,14 +21,73 @@ st.markdown("""
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 """, unsafe_allow_html=True)
 
+# --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
+components.html("""
+<script>
+    // Access window.parent to target Streamlit UI outside the iframe
+    window.onload = function() {
+        // 1. Force Theme Color (Meta Tag Injection)
+        const injectMeta = (name, content) => {
+            let meta = document.querySelector(`meta[name="${name}"]`);
+            if (!meta) {
+                meta = document.createElement('meta');
+                meta.name = name;
+                document.getElementsByTagName('head')[0].appendChild(meta);
+            }
+            meta.content = content;
+        };
+        
+        injectMeta("theme-color", "#0b1120");
+        injectMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
+        injectMeta("apple-mobile-web-app-capable", "yes");
+
+        // 2. Remove Streamlit Toolbar (Aggressive)
+        const removeToolbar = () => {
+            try {
+                const selectors = [
+                    '[data-testid="stToolbar"]', 
+                    '[data-testid="stHeader"]', 
+                    '[data-testid="stAppDeployButton"]', 
+                    '[data-testid="stStatusWidget"]', 
+                    'div[class*="viewerBadge"]',
+                    '[data-testid="stManageAppButton"]'
+                ];
+                const docs = [document];
+                try { docs.push(window.parent.document); } catch(e){}
+                
+                docs.forEach(doc => {
+                    selectors.forEach(selector => {
+                        const elements = doc.querySelectorAll(selector);
+                        elements.forEach(el => {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                        });
+                    });
+                    const header = doc.querySelector('header');
+                    if (header) header.style.display = 'none';
+                });
+            } catch (e) {
+                console.log("Toolbar removal error:", e);
+            }
+        };
+        // Run repeatedly to catch late rendering
+        setInterval(removeToolbar, 500);
+        removeToolbar();
+    };
+</script>
+""", height=0)
+
 # --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
 st.markdown("""
 <style>
 /* HIDE DEFAULT ELEMENTS IMMEDIATELY */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"] {
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"] {
     visibility: hidden !important;
     display: none !important;
     height: 0px !important;
+    width: 0px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 /* FORCE DARK BACKGROUND IMMEDIATELY (Reduces FOUC) */
@@ -450,7 +509,7 @@ CSS_PART2 = """
 }
 
 .expand-toggle:checked ~ .expandable-card .expandable-content {
-    max-height: 500px;
+    max-height: 800px;
 }
 
 .expand-toggle:checked ~ .expandable-card {
