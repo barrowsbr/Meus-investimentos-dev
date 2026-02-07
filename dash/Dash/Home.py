@@ -15,6 +15,69 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- CRITICAL CSS INJECTION (AVOID LAYOUT SHIFT) ---
+st.markdown("""
+<style>
+/* PRE-LOADER MASK */
+#pre-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #0b1120;
+    z-index: 999999;
+    animation: fadeOut 0.5s ease-in-out 0.5s forwards;
+    pointer-events: none;
+}
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+/* HIDE DEFAULT ELEMENTS IMMEDIATELY */
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
+    visibility: hidden !important;
+    display: none !important;
+    height: 0px !important;
+}
+
+/* RESET STREAMLIT LAYOUT */
+.block-container {
+    padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+    padding-left: 0rem !important;
+    padding-right: 0rem !important;
+    max-width: 100%;
+    margin-top: -65px !important;
+}
+
+[data-testid="stAppViewContainer"] > .main {
+    padding-top: 0rem !important;
+    padding-right: 0rem !important;
+    padding-left: 0rem !important;
+    padding-bottom: 0rem !important;
+}
+
+/* MOBILE ADJUSTMENTS */
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+    }
+    .stApp {
+        overflow-x: hidden !important;
+        width: 100% !important;
+    }
+    .block-container {
+        margin-top: 0px !important; 
+        padding-top: 20px !important;
+    }
+}
+</style>
+<div id="pre-loader"></div>
+""", unsafe_allow_html=True)
+
 # --- LOAD BACKGROUND IMAGE AS BASE64 ---
 def get_base64_image(image_path):
     """Convert image to base64 string."""
@@ -87,74 +150,7 @@ html, body, [class*="css"] {
 }
 
 /* Hide Default Elements */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
-    visibility: hidden !important;
-    display: none !important;
-}
-[data-testid="stSidebar"] { display: none; }
-
-/* RESET STREAMLIT LAYOUT */
-.block-container {
-    padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
-    padding-left: 0rem !important;
-    padding-right: 0rem !important;
-    max-width: 100%;
-}
-
-[data-testid="stAppViewContainer"] > .main {
-    padding-top: 0rem !important;
-    padding-right: 0rem !important;
-    padding-left: 0rem !important;
-    padding-bottom: 0rem !important;
-}
-
-/* REMOVE TOP HEADER DECORATION & FORCE GAP REMOVAL */
-header, [data-testid="stHeader"], div[data-testid="stDecoration"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
-    visibility: hidden !important;
-    display: none !important;
-    height: 0px !important;
-}
-
-/* RESET STREAMLIT LAYOUT */
-.block-container {
-    padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
-    padding-left: 0rem !important;
-    padding-right: 0rem !important;
-    max-width: 100%;
-    margin-top: -65px !important; /* Aggressive pull-up to cover header space */
-}
-
-[data-testid="stAppViewContainer"] > .main {
-    padding-top: 0rem !important;
-    padding-right: 0rem !important;
-    padding-left: 0rem !important;
-    padding-bottom: 0rem !important;
-}
-
-/* Force specific top margin removal if needed */
-.stApp > header {
-    display: none !important;
-}
-
-/* MOBILE LOCK - Prevent horizontal scroll */
-@media (max-width: 768px) {
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        /* position: relative; REMOVED to avoid layout locking issues */
-    }
-    .stApp {
-        overflow-x: hidden !important;
-        width: 100% !important;
-    }
-    .block-container {
-        /* Reset aggressive pull-up on mobile to check if content returns */
-        margin-top: 0px !important; 
-        padding-top: 20px !important; /* Safe padding */
-    }
-}
+/* REMOVED DUPLICATE CSS BLOCK */
 
 .hero-section {
     position: relative;
@@ -844,7 +840,9 @@ st.markdown("""
     .metrics-box {
         flex-direction: column;
         gap: 15px;
-        padding: 20px 25px;
+        padding: 25px 40px; /* Increased horizontal padding (spaces before/after info) */
+        width: 100%; /* Force wider card */
+        max-width: 500px; /* Limit max width */
     }
     .metric-divider {
         width: 60%;
