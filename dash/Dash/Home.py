@@ -25,7 +25,7 @@ if st.query_params.get("refresh") == "1":
 def get_logo_base64():
     """Load logo image as base64 for preloader."""
     try:
-        logo_path = Path(__file__).parent / "pictures" / "Sem fundo.png"
+        logo_path = Path(__file__).parent / "pictures" / "Sem Fundo - Copia.png"
         with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except:
@@ -840,11 +840,13 @@ from core.utils import format_decimal_br
 # === STEP 1: RENDER ALL VISUAL STRUCTURE FIRST ===
 
 # --- HERO SECTION (static - no data needed) ---
-st.markdown("""
+logo_icon_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 22px; height: auto;" />' if logo_b64 else '🎈'
+
+st.markdown(f"""
 <div class="fab-container">
     <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
     <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">🔄</a>
-    <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">🎈</a>
+    <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
 </div>
 <div class="hero-section">
     <div class="hero-content">
