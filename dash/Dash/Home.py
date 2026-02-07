@@ -70,8 +70,8 @@ st.markdown("""
         width: 100% !important;
     }
     .block-container {
-        margin-top: 0px !important; 
-        padding-top: 20px !important;
+        margin-top: -60px !important; 
+        padding-top: 0rem !important;
     }
 }
 </style>
