@@ -36,7 +36,7 @@ st.markdown("""
 }
 
 /* HIDE DEFAULT ELEMENTS IMMEDIATELY */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob {
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"] {
     visibility: hidden !important;
     display: none !important;
     height: 0px !important;
