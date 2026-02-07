@@ -15,6 +15,12 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- CACHE REFRESH LOGIC ---
+if st.query_params.get("refresh") == "1":
+    st.cache_data.clear()
+    st.query_params.clear()
+    st.rerun()
+
 # --- LOAD LOGO FOR PRELOADER ---
 def get_logo_base64():
     """Load logo image as base64 for preloader."""
@@ -47,11 +53,13 @@ st.markdown(f"""
     justify-content: center;
     flex-direction: column;
     pointer-events: none;
-    animation: fadeOutPreloader 0.5s ease-out 0.8s forwards;
+    animation: fadeOutPreloader 0.5s ease-out 3s forwards;
 }}
 .preloader-logo {{
-    width: 180px;
+    width: 270px;
     height: auto;
+    background: transparent;
+    border: none;
     animation: pulseLogo 1.5s ease-in-out infinite;
 }}
 .preloader-spinner {{
@@ -215,28 +223,39 @@ CSS_PART1 = """
 
 
 
-.tools-fab {
+.fab-container {
     position: fixed;
     bottom: 20px;
     left: 20px;
-    width: 50px;
-    height: 50px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
     z-index: 99999;
+}
+
+.tools-fab {
+    width: 42px;
+    height: 42px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     text-decoration: none;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    color: white !important;
 }
+
 .tools-fab:hover {
     background: rgba(99, 102, 241, 0.3);
     border-color: rgba(99, 102, 241, 0.5);
-    transform: scale(1.1);
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
 }
 
 html, body, [class*="css"] {
@@ -713,9 +732,14 @@ div[data-testid="column"] {
     .card-icon { font-size: 0.85rem; }
     .card-arrow { right: 15px; font-size: 1rem; }
     .tools-fab {
-        width: 40px;
-        height: 40px;
-        font-size: 1.2rem;
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    .fab-container {
+        bottom: 15px;
+        left: 15px;
+        gap: 8px;
     }
     .expandable-wrapper { max-width: 100%; }
     .expandable-header { padding: 15px 20px; }
@@ -817,7 +841,11 @@ from core.utils import format_decimal_br
 
 # --- HERO SECTION (static - no data needed) ---
 st.markdown("""
-<a href="Ferramentas" target="_self" class="tools-fab" title="Ferramentas">⚙️</a>
+<div class="fab-container">
+    <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
+    <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">🔄</a>
+    <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">🎈</a>
+</div>
 <div class="hero-section">
     <div class="hero-content">
         <h1 class="hero-title"> BARROOTS</h1>
@@ -954,7 +982,7 @@ st.markdown('''
         <div class="expandable-content">
             <div class="divider-line"></div>
             <div class="sub-items">
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=0" target="_self" class="sub-item">
                     <span class="sub-item-icon">❖</span>
                     <span class="sub-item-text">Composição</span>
                     <span class="sub-item-arrow">→</span>
@@ -964,32 +992,32 @@ st.markdown('''
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=1" target="_self" class="sub-item">
                     <span class="sub-item-icon">▤</span>
                     <span class="sub-item-text">Renda Variável</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=2" target="_self" class="sub-item">
                     <span class="sub-item-icon">▦</span>
                     <span class="sub-item-text">Renda Fixa</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=3" target="_self" class="sub-item">
                     <span class="sub-item-icon">◐</span>
                     <span class="sub-item-text">Proventos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=4" target="_self" class="sub-item">
                     <span class="sub-item-icon">❂</span>
                     <span class="sub-item-text">Cripto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=5" target="_self" class="sub-item">
                     <span class="sub-item-icon">⬡</span>
                     <span class="sub-item-text">Câmbio</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos" target="_self" class="sub-item">
+                <a href="Investimentos?tab=6" target="_self" class="sub-item">
                     <span class="sub-item-icon">▼</span>
                     <span class="sub-item-text">Imposto</span>
                     <span class="sub-item-arrow">→</span>
@@ -1031,13 +1059,6 @@ st.markdown('''
     Version 145.64 - Final 3.4
 </div>
 ''', unsafe_allow_html=True)
-
-# --- REFRESH BUTTON ---
-col_refresh_spacer, col_refresh_btn = st.columns([20, 1])
-with col_refresh_btn:
-    if st.button("🔄", key="btn_refresh_fixed", help="Atualizar dados"):
-        st.cache_data.clear()
-        st.rerun()
 
 # === STEP 2: NOW LOAD DATA (after visual structure is rendered) ===
 df_assets = load_assets()

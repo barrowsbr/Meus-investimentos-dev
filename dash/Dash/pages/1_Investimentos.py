@@ -154,6 +154,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- TAB SELECTION FROM QUERY PARAMS ---
+import streamlit.components.v1 as components
+
+# Read query parameter for tab selection
+tab_param = st.query_params.get("tab", "0")
+try:
+    tab_index = int(tab_param)
+except:
+    tab_index = 0
+
+# Inject JavaScript to click the correct tab after page loads
+if tab_index > 0:
+    components.html(f"""
+    <script>
+        function selectTab() {{
+            const tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+            if (tabs && tabs.length > {tab_index}) {{
+                tabs[{tab_index}].click();
+            }} else {{
+                // Retry if tabs not loaded yet
+                setTimeout(selectTab, 100);
+            }}
+        }}
+        // Wait for DOM to be ready
+        setTimeout(selectTab, 300);
+    </script>
+    """, height=0)
 
 # --- 2. LOCALIZAÇÃO E CARREGAMENTO (MODULARIZADO) ---
 
