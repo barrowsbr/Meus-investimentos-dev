@@ -39,7 +39,7 @@ def render_global_map(return_callback):
         'Taiwan': {'lat': 23.6978, 'lon': 120.9605},
         'Coreia do Sul': {'lat': 35.9078, 'lon': 127.7669},
         'Índia': {'lat': 20.5937, 'lon': 78.9629},
-        'Austrália': {'lat': -25.2744, 'lon': 133.7751}
+        'Austrália': {'lat': -25.2744, 'lon': 133.7751}     
     }
 
     # Processing Data

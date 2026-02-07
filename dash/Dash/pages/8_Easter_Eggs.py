@@ -3865,122 +3865,143 @@ def render_bio_lab():
     <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Exo+2:wght@300;600&display=swap" rel="stylesheet">
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
             body {{
                 overflow: hidden;
-                background: #020502;
-                font-family: 'Orbitron', sans-serif;
+                background: #010401;
+                font-family: 'Exo 2', sans-serif;
                 touch-action: none;
                 color: #e2e8f0;
             }}
             canvas {{ display: block; }}
             
-            #ui-panel {{
-                position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-                width: 95%; max-width: 420px;
-                background: rgba(5, 15, 5, 0.85);
+            /* UI PANELS */
+            .glass-panel {{
+                background: rgba(5, 15, 5, 0.75);
                 backdrop-filter: blur(20px);
                 border: 1px solid rgba(0, 255, 65, 0.2);
-                border-radius: 24px;
+                border-radius: 20px;
                 padding: 12px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
                 z-index: 100;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 65, 0.1);
+                position: absolute;
             }}
 
-            .game-header {{
+            #top-status {{
+                top: 15px; left: 50%; transform: translateX(-50%);
+                width: 90%; max-width: 450px;
                 display: flex; justify-content: space-between; align-items: center;
-                margin-bottom: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-                padding-bottom: 8px;
+                border-top: 2px solid #00ff41;
             }}
-            .game-title {{ font-size: 0.65rem; color: #00ff41; font-weight: 900; letter-spacing: 2px; }}
-            .game-phase {{ font-size: 0.6rem; color: #fff; background: rgba(0, 255, 65, 0.15); padding: 3px 8px; border-radius: 6px; }}
 
-            .bars-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }}
-            .bar-item {{ display: flex; flex-direction: column; gap: 4px; }}
-            .bar-label {{ font-size: 0.5rem; color: #888; text-transform: uppercase; display: flex; justify-content: space-between; }}
-            .bar-bg {{ height: 4px; background: #0a0a0a; border-radius: 2px; overflow: hidden; }}
-            .bar-fill {{ height: 100%; width: 0%; transition: width 0.3s ease; }}
-            
-            #water-fill {{ background: #0ea5e9; box-shadow: 0 0 8px #0ea5e9; }}
-            #nutri-fill {{ background: #facc15; box-shadow: 0 0 8px #facc15; }}
-            #health-fill {{ background: #10b981; box-shadow: 0 0 12px #10b981; }}
-            #progress-fill {{ background: linear-gradient(90deg, #ff00de, #00ff41); box-shadow: 0 0 15px #00ff41; }}
+            #bottom-controls {{
+                bottom: 15px; left: 50%; transform: translateX(-50%);
+                width: 95%; max-width: 480px;
+                display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+            }}
 
-            .controls-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }}
+            #info-log {{
+                top: 80px; left: 15px; width: 180px; height: 160px;
+                display: flex; flex-direction: column; gap: 8px;
+                font-size: 0.6rem; overflow-y: auto;
+                background: rgba(0, 10, 0, 0.6);
+            }}
+
+            /* TYPOGRAPHY */
+            .label {{ font-family: 'Orbitron', sans-serif; font-size: 0.55rem; color: #00ff41; letter-spacing: 1px; text-transform: uppercase; }}
+            .value {{ font-weight: 800; font-size: 0.85rem; color: #fff; }}
+            .phase-title {{ font-family: 'Orbitron', sans-serif; font-size: 0.75rem; color: #00ff41; }}
+
+            /* BARS */
+            .bar-container {{ width: 100%; height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; margin-top: 4px; overflow: hidden; }}
+            .bar-fill {{ height: 100%; width: 0%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
+            #water-bar {{ background: #0ea5e9; box-shadow: 0 0 10px #0ea5e9; }}
+            #nutri-bar {{ background: #facc15; box-shadow: 0 0 10px #facc15; }}
+            #prog-bar {{ background: linear-gradient(90deg, #00ff41, #fff); box-shadow: 0 0 15px #00ff41; }}
+
+            /* CONTROLS */
+            .ctrl-group {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
             .game-btn {{
-                aspect-ratio: 1; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1);
-                background: rgba(255, 255, 255, 0.05); color: #fff; font-size: 1.2rem;
-                display: flex; flex-direction: column; align-items: center; justify-content: center;
-                cursor: pointer; transition: all 0.2s; position: relative; gap: 4px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(0, 255, 65, 0.3);
+                border-radius: 12px;
+                padding: 10px;
+                color: white;
+                display: flex; flex-direction: column; align-items: center; gap: 4px;
+                cursor: pointer; transition: 0.2s;
             }}
-            .game-btn:active {{ transform: scale(0.9); background: rgba(0, 255, 65, 0.2); }}
-            .game-btn span {{ font-size: 0.45rem; color: #aaa; text-transform: uppercase; font-weight: 600; }}
-            .game-btn:disabled {{ opacity: 0.3; cursor: not-allowed; }}
+            .game-btn:active {{ transform: scale(0.95); background: rgba(0, 255, 65, 0.2); }}
+            .game-btn i {{ font-size: 1.2rem; font-style: normal; }}
+            .game-btn span {{ font-size: 0.5rem; text-transform: uppercase; color: #888; }}
+
+            #phase-desc {{ font-size: 0.55rem; color: #aaa; font-style: italic; margin-top: 4px; line-height: 1.3; }}
+
+            /* MINI VARS (Temp/Hum/Light) */
+            .mini-vars {{ display: flex; gap: 15px; }}
+            .mini-item {{ display: flex; flex-direction: column; align-items: center; }}
+            .mini-val {{ font-size: 0.7rem; color: #fff; font-weight: bold; }}
+            .mini-lbl {{ font-size: 0.45rem; color: #666; }}
 
             #event-msg {{
-                position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
-                color: #00ff41; font-size: 0.7rem; text-align: center;
-                background: rgba(0,0,0,0.8); padding: 8px 16px; border-radius: 20px;
-                border: 1px solid #00ff41; opacity: 0; transition: opacity 0.3s;
-                z-index: 50; pointer-events: none;
+                position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+                color: #00ff41; font-family: 'Orbitron', sans-serif; font-size: 1rem;
+                text-shadow: 0 0 10px #00ff41; opacity: 0; pointer-events: none; z-index: 200;
             }}
 
-            #atmosphere {{
-                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: radial-gradient(circle at center, transparent 0%, #000 120%);
-                pointer-events: none; z-index: 10;
-            }}
-
-            @keyframes harvest-flash {{
-                0% {{ opacity: 0; }} 50% {{ opacity: 1; }} 100% {{ opacity: 0; }}
-            }}
-            .flash {{ animation: harvest-flash 0.5s ease-out; position: fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:999; pointer-events:none; }}
+            /* ANIMATIONS */
+            @keyframes scanline {{ 0%{{ top: 0% }} 100%{{ top: 100% }} }}
+            #scanline {{ position: fixed; top: 0; left: 0; width: 100%; height: 2px; background: rgba(0, 255, 65, 0.1); z-index: 50; animation: scanline 8s linear infinite; pointer-events: none; }}
         </style>
     </head>
     <body>
-        <div id="atmosphere"></div>
-        <div id="event-msg">SISTEMA INICIALIZADO</div>
-        <div id="flash-effect"></div>
+        <div id="scanline"></div>
+        <div id="event-msg">SISTEMA ATIVO</div>
 
-        <div id="ui-panel">
-            <div class="game-header">
-                <div class="game-title">BARROOTS LAB v2.0</div>
-                <div id="phase-label" class="game-phase">Semente</div>
+        <!-- TOP STATUS -->
+        <div id="top-status" class="glass-panel">
+            <div>
+                <div class="label">Status Genético</div>
+                <div id="phase-name" class="phase-title">GERMINAÇÃO</div>
+                <div id="phase-desc">Aguardando ativação celular...</div>
             </div>
-
-            <div class="bars-grid">
-                <div class="bar-item">
-                    <div class="bar-label">ÁGUA <span id="val-water">0%</span></div>
-                    <div class="bar-bg"><div id="water-fill" class="bar-fill"></div></div>
-                </div>
-                <div class="bar-item">
-                    <div class="bar-label">SUBSTRATO <span id="val-nutri">0%</span></div>
-                    <div class="bar-bg"><div id="nutri-fill" class="bar-fill"></div></div>
-                </div>
-            </div>
-
-            <div class="bar-item" style="margin-bottom: 12px;">
-                <div class="bar-label">DESENVOLVIMENTO <span id="val-prog">0%</span></div>
-                <div class="bar-bg" style="height: 6px;"><div id="progress-fill" class="bar-fill"></div></div>
-            </div>
-
-            <div class="controls-grid">
-                <button class="game-btn" id="btn-water" onclick="game.interact('water')">💧<span>Regar</span></button>
-                <button class="game-btn" id="btn-nutri" onclick="game.interact('nutri')">🌱<span>Bio-Adubo</span></button>
-                <button class="game-btn" id="btn-boost" onclick="game.interact('boost')">💡<span>UV-Boost</span></button>
-                <button class="game-btn" id="btn-action" onclick="game.mainAction()">🌱<span>Plantar</span></button>
+            <div class="mini-vars">
+                <div class="mini-item"><span class="mini-val" id="val-temp">24°</span><span class="mini-lbl">TEMP</span></div>
+                <div class="mini-item"><span class="mini-val" id="val-hum">60%</span><span class="mini-lbl">HUM</span></div>
+                <div class="mini-item"><span class="mini-val" id="val-light">80%</span><span class="mini-lbl">UV</span></div>
             </div>
         </div>
 
-        <canvas id="gameCanvas"></canvas>
+        <!-- LOG PANEL -->
+        <div id="info-log" class="glass-panel">
+            <div class="label" style="border-bottom: 1px solid #333; padding-bottom: 2px;">Data_Log.exe</div>
+            <div id="log-content"></div>
+        </div>
+
+        <!-- BOTTOM CONTROLS -->
+        <div id="bottom-controls" class="glass-panel">
+            <div>
+                <div class="label">Vigor da Planta <span id="txt-health" style="float:right">100%</span></div>
+                <div class="bar-container"><div id="health-bar" class="bar-fill" style="background: #10b981;"></div></div>
+                <div class="label" style="margin-top: 8px;">Desenvolvimento <span id="txt-prog" style="float:right">0%</span></div>
+                <div class="bar-container"><div id="prog-bar" class="bar-fill"></div></div>
+            </div>
+            <div class="ctrl-group">
+                <button class="game-btn" onclick="game.interact('water')"><i>💧</i><span>Regar</span></button>
+                <button class="game-btn" onclick="game.interact('nutri')"><i>🌱</i><span>Nutri</span></button>
+                <button class="game-btn" onclick="game.interact('temp')"><i>🌡️</i><span>Temp</span></button>
+                <button class="game-btn" onclick="game.interact('light')"><i>💡</i><span>Light</span></button>
+            </div>
+        </div>
+
+        <canvas id="renderContext"></canvas>
 
         <script>
-            const canvas = document.getElementById('gameCanvas');
+            const canvas = document.getElementById('renderContext');
             const ctx = canvas.getContext('2d');
             let w, h;
-            
+
             const logoImg = new Image();
             logoImg.src = "data:image/png;base64,{logo_b64}";
 
@@ -3989,189 +4010,164 @@ def render_bio_lab():
                 h = window.innerHeight;
                 canvas.width = w * devicePixelRatio;
                 canvas.height = h * devicePixelRatio;
-                canvas.style.width = w + 'px';
-                canvas.style.height = h + 'px';
                 ctx.scale(devicePixelRatio, devicePixelRatio);
             }}
             window.addEventListener('resize', resize);
             resize();
 
-            // === GAME LOGIC ===
             const game = {{
-                phase: 'idle', // idle, seed, veg, bloom, harvest
-                water: 0,
-                nutri: 0,
-                health: 0,
-                progress: 0,
+                phase: 'seed',
+                progress: 1,
+                health: 90,
+                water: 60,
+                nutri: 50,
+                temp: 24,
+                hum: 60,
+                light: 80,
                 lastTick: Date.now(),
                 particles: [],
-                branches: [],
-                flowers: [],
-                
-                init() {{
-                    this.loop();
-                    this.showMsg("PRONTO PARA CULTIVO");
+
+                phases: {{
+                    seed: {{ name: "Germinação", desc: "A zona radicular está se estabelecendo. Mantenha umidade alta.", color: "#00ff41" }},
+                    veg: {{ name: "Vegetativo", desc: "Fase de explosão fóliar. Requer alta intensidade de UV e nutrientes.", color: "#34d399" }},
+                    bloom: {{ name: "Floração", desc: "Produção de resina e terpenos. Reduza a umidade para evitar mofo.", color: "#ff00de" }},
+                    ready: {{ name: "Maturação", desc: "Tricomas leitosos detectados. Pronto para colheita final.", color: "#fff" }}
                 }},
 
-                update() {{
-                    const now = Date.now();
-                    const dt = (now - this.lastTick) / 1000;
-                    this.lastTick = now;
-
-                    if (this.phase !== 'idle' && this.phase !== 'harvest') {{
-                        // Decay
-                        this.water = Math.max(0, this.water - 1.5 * dt);
-                        this.nutri = Math.max(0, this.nutri - 1.0 * dt);
-                        
-                        // Health Logic
-                        let idealWater = this.water > 20 && this.water < 90;
-                        let idealNutri = this.nutri > 20 && this.nutri < 90;
-                        
-                        if (idealWater && idealNutri) this.health = Math.min(100, this.health + 5 * dt);
-                        else this.health = Math.max(0, this.health - 10 * dt);
-
-                        // Progress
-                        if (this.health > 50) {{
-                            this.progress += (this.health / 100) * 2 * dt;
-                        }}
-
-                        // Phase Transitions
-                        if (this.phase === 'seed' && this.progress > 20) this.setPhase('veg');
-                        if (this.phase === 'veg' && this.progress > 60) this.setPhase('bloom');
-                        if (this.phase === 'bloom' && this.progress >= 100) {{
-                            this.progress = 100;
-                        }}
-                    }}
-
-                    this.updateUI();
-                    this.updateParticles(dt);
+                init() {{
+                    this.addLog("Iniciando bio-sequenciamento...");
+                    this.loop();
+                    this.setPhase('seed');
                 }},
 
                 setPhase(p) {{
                     this.phase = p;
-                    const labels = {{ idle: 'Vazio', seed: 'Semente', veg: 'Vegativo', bloom: 'Floração', bloom_ready: 'Pronto!' }};
-                    document.getElementById('phase-label').innerText = labels[p] || p;
+                    const info = this.phases[p];
+                    document.getElementById('phase-name').innerText = info.name;
+                    document.getElementById('phase-name').style.color = info.color;
+                    document.getElementById('phase-desc').innerText = info.desc;
+                    this.addLog(`Entrando em fase: ${{info.name}}`);
+                }},
+
+                addLog(msg) {{
+                    const log = document.getElementById('log-content');
+                    const div = document.createElement('div');
+                    div.style.color = (msg.includes('!')) ? '#f87171' : '#888';
+                    div.innerText = `> ${{msg}}`;
+                    log.prepend(div);
+                    if (log.children.length > 8) log.lastChild.remove();
+                }},
+
+                update() {{
+                    const dt = (Date.now() - this.lastTick) / 1000;
+                    this.lastTick = Date.now();
+
+                    // Natural decay
+                    this.water = Math.max(0, this.water - 1.2 * dt);
+                    this.nutri = Math.max(0, this.nutri - 0.8 * dt);
+                    this.hum = 40 + (this.water / 2); // Humidity tied to soil water
                     
-                    const actionBtn = document.getElementById('btn-action');
-                    if (p === 'veg') {{ actionBtn.innerHTML = '✂️<span>Pruning</span>'; actionBtn.disabled = true; }}
-                    if (p === 'bloom') {{ actionBtn.innerHTML = '🔍<span>Monitor</span>'; actionBtn.disabled = true; }}
-                    if (this.progress >= 100) {{
-                        this.phase = 'bloom_ready';
-                        actionBtn.innerHTML = '✂️<span>Colher</span>';
-                        actionBtn.disabled = false;
-                        document.getElementById('phase-label').innerText = "PRONTA!";
-                        this.showMsg("FLORAÇÃO COMPLETA!");
+                    // Temp drift
+                    this.temp += (Math.random() - 0.5) * 0.1;
+                    
+                    // Condition evaluation
+                    let badConditions = 0;
+                    if (this.water < 20 || this.water > 90) badConditions++;
+                    if (this.temp < 18 || this.temp > 32) badConditions++;
+                    if (this.nutri < 10) badConditions++;
+                    
+                    if (badConditions > 0) {{
+                        this.health = Math.max(0, this.health - 2 * badConditions * dt);
+                    }} else {{
+                        this.health = Math.min(100, this.health + 1 * dt);
                     }}
-                }},
 
-                mainAction() {{
-                    if (this.phase === 'idle') {{
-                        this.phase = 'seed';
-                        this.water = 50;
-                        this.nutri = 50;
-                        this.progress = 1;
-                        this.health = 80;
-                        this.setPhase('seed');
-                        document.getElementById('btn-action').disabled = true;
-                        this.showMsg("SEMENTE PLANTADA");
-                    }} else if (this.phase === 'bloom_ready') {{
-                        this.harvest();
+                    // Development
+                    if (this.health > 40) {{
+                        const speed = (this.health / 100) * (this.light / 100) * 1.5;
+                        this.progress += speed * dt;
                     }}
-                }},
 
-                interact(type) {{
-                    if (this.phase === 'idle') return;
-                    if (type === 'water') {{
-                        this.water = Math.min(100, this.water + 15);
-                        this.spawnParticles('#0ea5e9', 10);
+                    // Phase logic
+                    if (this.phase === 'seed' && this.progress > 25) this.setPhase('veg');
+                    if (this.phase === 'veg' && this.progress > 70) this.setPhase('bloom');
+                    if (this.phase === 'bloom' && this.progress >= 100) {{
+                        this.progress = 100;
+                        this.setPhase('ready');
                     }}
-                    if (type === 'nutri') {{
-                        this.nutri = Math.min(100, this.nutri + 15);
-                        this.spawnParticles('#facc15', 10);
-                    }}
-                    if (type === 'boost') {{
-                        if (this.health > 20) this.progress += 2;
-                        this.spawnParticles('#fff', 5);
-                    }}
-                }},
 
-                harvest() {{
-                    document.getElementById('flash-effect').classList.add('flash');
-                    setTimeout(() => {{
-                        document.getElementById('flash-effect').classList.remove('flash');
-                        this.phase = 'idle';
-                        this.progress = 0;
-                        this.water = 0;
-                        this.nutri = 0;
-                        this.health = 0;
-                        this.setPhase('idle');
-                        document.getElementById('btn-action').innerHTML = '🌱<span>Plantar</span>';
-                        this.showMsg("COLHEITA REALIZADA! +100 XP");
-                    }}, 500);
+                    this.updateUI();
                 }},
 
                 updateUI() {{
-                    document.getElementById('water-fill').style.width = this.water + '%';
-                    document.getElementById('nutri-fill').style.width = this.nutri + '%';
-                    document.getElementById('progress-fill').style.width = this.progress + '%';
+                    document.getElementById('val-temp').innerText = Math.round(this.temp) + '°';
+                    document.getElementById('val-hum').innerText = Math.round(this.hum) + '%';
+                    document.getElementById('val-light').innerText = Math.round(this.light) + '%';
                     
-                    document.getElementById('val-water').innerText = Math.round(this.water) + '%';
-                    document.getElementById('val-nutri').innerText = Math.round(this.nutri) + '%';
-                    document.getElementById('val-prog').innerText = Math.round(this.progress) + '%';
+                    document.getElementById('health-bar').style.width = this.health + '%';
+                    document.getElementById('prog-bar').style.width = this.progress + '%';
+                    document.getElementById('txt-health').innerText = Math.round(this.health) + '%';
+                    document.getElementById('txt-prog').innerText = Math.round(this.progress) + '%';
                 }},
 
-                showMsg(txt) {{
-                    const m = document.getElementById('event-msg');
-                    m.innerText = txt;
-                    m.style.opacity = 1;
-                    setTimeout(() => m.style.opacity = 0, 2000);
+                interact(type) {{
+                    if (type === 'water') {{
+                        this.water = Math.min(100, this.water + 15);
+                        this.addLog("Irrigação manual ativada.");
+                        this.spawnParticles('#0ea5e9', 15);
+                    }}
+                    if (type === 'nutri') {{
+                        this.nutri = Math.min(100, this.nutri + 20);
+                        this.addLog("Solução nutriente injetada.");
+                        this.spawnParticles('#facc15', 15);
+                    }}
+                    if (type === 'temp') {{
+                        this.temp = 25;
+                        this.addLog("ESTABILIZADOR TÉRMICO ATIVO.");
+                    }}
+                    if (type === 'light') {{
+                        this.light = (this.light > 80) ? 50 : 100;
+                        this.addLog(`Ciclo de luz: ${{Math.round(this.light)}}%`);
+                    }}
                 }},
 
                 spawnParticles(color, count) {{
                     for(let i=0; i<count; i++) {{
                         this.particles.push({{
-                            x: w/2 + (Math.random()-0.5)*100,
-                            y: h/2,
+                            x: w/2 + (Math.random()-0.5)*120,
+                            y: h/2 - 50,
                             vx: (Math.random()-0.5)*4,
-                            vy: -Math.random()*5 - 2,
+                            vy: Math.random()*5,
                             life: 1,
                             color: color
                         }});
                     }}
                 }},
 
-                updateParticles(dt) {{
-                    for(let i=this.particles.length-1; i>=0; i--) {{
-                        const p = this.particles[i];
-                        p.x += p.vx; p.y += p.vy;
-                        p.vy += 0.1; p.life -= 0.02;
-                        if (p.life <= 0) this.particles.splice(i, 1);
-                    }}
-                }},
-
                 draw() {{
                     ctx.clearRect(0,0,w,h);
                     
-                    const centerX = w/2;
-                    const bottomY = h * 0.7;
+                    // Atmosphere Glow
+                    const g = ctx.createRadialGradient(w/2, h*0.6, 10, w/2, h*0.6, 300);
+                    g.addColorStop(0, 'rgba(0, 40, 0, 0.4)');
+                    g.addColorStop(1, 'transparent');
+                    ctx.fillStyle = g;
+                    ctx.fillRect(0,0,w,h);
 
-                    // Draw Logo/Pot
+                    this.drawPlant(w/2, h*0.7);
+
+                    // Logo / Pot
                     if (logoImg.complete) {{
-                        const s = 100;
                         ctx.save();
-                        ctx.globalAlpha = 0.8;
-                        ctx.shadowBlur = 20;
-                        ctx.shadowColor = '#00ff41';
-                        ctx.drawImage(logoImg, centerX - s/2, bottomY - s/2, s, s);
+                        ctx.shadowBlur = 25; ctx.shadowColor = '#00ff41';
+                        ctx.drawImage(logoImg, w/2 - 50, h*0.7 - 50, 100, 100);
                         ctx.restore();
                     }}
 
-                    if (this.phase !== 'idle') {{
-                        this.drawPlant(centerX, bottomY);
-                    }}
-
                     // Particles
-                    this.particles.forEach(p => {{
+                    this.particles.forEach((p, idx) => {{
+                        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                        if (p.life <= 0) this.particles.splice(idx, 1);
                         ctx.fillStyle = p.color;
                         ctx.globalAlpha = p.life;
                         ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
@@ -4179,91 +4175,78 @@ def render_bio_lab():
                 }},
 
                 drawPlant(x, y) {{
-                    const scale = (h / 700) * (this.progress / 100);
-                    const tilt = Math.sin(Date.now()/2000)*0.05;
+                    const s = (h/800) * (this.progress/100);
+                    const tilt = Math.sin(Date.now()/1500)*0.08;
 
                     if (this.progress < 5) {{
-                        // Just a seed glow
                         ctx.fillStyle = '#00ff41';
-                        ctx.beginPath(); ctx.arc(x, y-10, 5, 0, Math.PI*2); ctx.fill();
+                        ctx.shadowBlur = 10; ctx.shadowColor = '#00ff41';
+                        ctx.beginPath(); ctx.arc(x, y-10, 4, 0, Math.PI*2); ctx.fill();
                         return;
                     }}
 
-                    // Main Stem
-                    ctx.strokeStyle = '#004411';
-                    ctx.lineWidth = 10 * scale + 2;
+                    const stemH = h * 0.45 * (this.progress/100);
+                    ctx.strokeStyle = '#042b04';
+                    ctx.lineWidth = 14 * s + 2;
                     ctx.lineCap = 'round';
                     ctx.beginPath();
                     ctx.moveTo(x, y);
-                    const stemH = h * 0.4 * (this.progress/100);
-                    ctx.quadraticCurveTo(x + 20*tilt, y - stemH/2, x, y - stemH);
+                    ctx.quadraticCurveTo(x + 40*tilt, y - stemH/2, x, y - stemH);
                     ctx.stroke();
 
-                    // Leaves
-                    const leafCount = Math.floor(this.progress / 8) + 2;
-                    for(let i=1; i<=leafCount; i++) {{
-                        const nodeY = y - (i/leafCount)*stemH;
-                        const side = i % 2 === 0 ? 1 : -1;
-                        const lScale = scale * (1.2 - (i/leafCount)*0.5);
-                        this.drawCannabisLeaf(x, nodeY, lScale, side*Math.PI/3 + tilt);
+                    // Foliage
+                    const nodeCount = Math.floor(this.progress/10) + 2;
+                    for(let i=1; i<=nodeCount; i++) {{
+                        const ny = y - (i/nodeCount)*stemH;
+                        const side = (i%2 === 0) ? 1 : -1;
+                        const ls = s * (1.3 - (i/nodeCount)*0.6);
+                        this.drawLeaf(x, ny, ls, side*Math.PI/3 + tilt);
                     }}
 
-                    // Flowers in Bloom Phase
-                    if (this.phase === 'bloom' || this.phase === 'bloom_ready') {{
-                        const flowerProg = (this.progress - 60) / 40;
-                        const fCount = 5;
-                        for(let i=0; i<fCount; i++) {{
-                            const fy = y - stemH * (0.6 + (i/fCount)*0.4);
-                            const fs = 15 * flowerProg * scale;
-                            this.drawBud(x + (Math.random()-0.5)*10, fy, fs);
+                    // Flowers (Bloom)
+                    if (this.phase === 'bloom' || this.phase === 'ready') {{
+                        const fS = (this.progress-70)/30;
+                        for(let i=0; i<6; i++) {{
+                            const fy = y - stemH * (0.5 + (i/6)*0.5);
+                            this.drawBud(x + (Math.random()-0.5)*15, fy, 18*fS*s);
                         }}
                     }}
                 }},
 
-                drawCannabisLeaf(x, y, s, a) {{
+                drawLeaf(x, y, s, a) {{
                     ctx.save();
-                    ctx.translate(x, y);
-                    ctx.rotate(a);
-                    
+                    ctx.translate(x, y); ctx.rotate(a);
                     const blades = 7;
                     for(let i=0; i<blades; i++) {{
-                        const ba = ((i/(blades-1)) - 0.5) * Math.PI * 0.7;
-                        const len = (1 - Math.abs(i - 3)*0.2) * 60 * s;
+                        const ba = ((i/(blades-1))-0.5)*Math.PI*0.8;
+                        const len = (1 - Math.abs(i-3)*0.2) * 70 * s;
                         ctx.save();
                         ctx.rotate(ba);
-                        
-                        const g = ctx.createLinearGradient(0,0,0,-len);
-                        g.addColorStop(0, '#042b04');
-                        g.addColorStop(1, '#00ff41');
-                        ctx.fillStyle = g;
-                        
+                        const grad = ctx.createLinearGradient(0,0,0,-len);
+                        grad.addColorStop(0, '#042b04'); grad.addColorStop(1, '#00ff41');
+                        ctx.fillStyle = grad;
                         ctx.beginPath();
                         ctx.moveTo(0,0);
-                        ctx.quadraticCurveTo(5*s, -len/2, 0, -len);
-                        ctx.quadraticCurveTo(-5*s, -len/2, 0, 0);
+                        ctx.quadraticCurveTo(6*s, -len/2, 0, -len);
+                        ctx.quadraticCurveTo(-6*s, -len/2, 0, 0);
                         ctx.fill();
-                        
-                        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                        ctx.lineWidth = 0.5;
-                        ctx.stroke();
                         ctx.restore();
                     }}
                     ctx.restore();
                 }},
 
-                drawBud(x, y, s) {{
+                drawBud(x, y, sz) {{
                     ctx.fillStyle = '#ff00de';
-                    ctx.shadowBlur = 10; ctx.shadowColor = '#ff00de';
-                    ctx.beginPath();
-                    ctx.arc(x, y, s, 0, Math.PI*2);
-                    ctx.fill();
-                    
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#ff00de';
+                    ctx.beginPath(); ctx.arc(x, y, sz, 0, Math.PI*2); ctx.fill();
                     ctx.fillStyle = '#fff';
-                    for(let i=0; i<3; i++) {{
+                    ctx.globalAlpha = 0.5;
+                    for(let i=0; i<4; i++) {{
                         ctx.beginPath();
-                        ctx.arc(x+(Math.random()-0.5)*s, y+(Math.random()-0.5)*s, 2, 0, Math.PI*2);
+                        ctx.arc(x+(Math.random()-0.5)*sz, y+(Math.random()-0.5)*sz, 2, 0, Math.PI*2);
                         ctx.fill();
                     }}
+                    ctx.globalAlpha = 1;
                 }},
 
                 loop() {{

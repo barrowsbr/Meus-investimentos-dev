@@ -149,9 +149,9 @@ st.markdown("""
     display: none !important;
 }
 
-/* FORCE DARK BACKGROUND E CORES - Sempre aplicar */
+/* FORCE DARK BACKGROUND E CORES */
 html, body, .stApp {
-    background-color: #0b1120 !important;
+    background-color: transparent !important;
     margin: 0 !important;
     padding: 0 !important;
     color: #e2e8f0 !important;
@@ -210,14 +210,16 @@ def get_base64_image(image_path):
     except:
         return None
 
-# Path to the wave image
-img_path = Path(__file__).parent / "pictures" / "Gemini_Generated_Image_khtz3ukhtz3ukhtz.png"
-bg_image_base64 = get_base64_image(img_path)
-
-# Build background CSS
-bg_image_css = ""
-if bg_image_base64:
-    bg_image_css = f"background-image: url('data:image/png;base64,{bg_image_base64}');"
+# Build background images CSS
+fundo_path = Path(__file__).parent / "pictures" / "Fundo.png"
+bg_base64 = get_base64_image(fundo_path)
+global_bg_css = f"""
+    background-image: url('data:image/png;base64,{bg_base64}');
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+""" if bg_base64 else ""
 
 # --- CSS STYLES (static, no f-string issues) ---
 CSS_PART1 = """
@@ -268,7 +270,6 @@ html, body, [class*="css"] {
 }
 
 .stApp {
-    background: #0b1120;
     min-height: 100vh;
     overflow-x: hidden; /* Force no horizontal scroll */
 }
@@ -286,25 +287,22 @@ html, body, [class*="css"] {
     padding: 50px 20px 60px;
     margin: 0;
     width: 100%;
-    background-color: #0b1120;
+    background-color: transparent;
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
+}
 
 """
 
+# --- FOOTER CSS PART REMOVED ---
+FOOTER_STYLE = ""
+
 CSS_PART2 = """
 }
-
-.hero-section::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 150px;
-    background: linear-gradient(to bottom, transparent 0%, #0b1120 100%);
-    pointer-events: none;
+""" + FOOTER_STYLE + """
+.hero-section::after, .footer-section::before {
+    display: none !important;
 }
 
 .hero-content {
@@ -418,6 +416,7 @@ CSS_PART2 = """
     color: white !important;
     cursor: pointer;
     position: relative;
+    z-index: 10;
 }
 
 .nav-card::before {
@@ -761,8 +760,17 @@ div[data-testid="column"] {
 </style>
 """
 
-# Inject CSS with background image
-st.markdown(CSS_PART1 + bg_image_css + CSS_PART2, unsafe_allow_html=True)
+# Inject Global Background and CSS
+st.markdown(f"""
+<style>
+html, body, [data-testid="stAppViewContainer"] {{
+    {global_bg_css}
+    background-color: #0b1120;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown(CSS_PART1 + CSS_PART2, unsafe_allow_html=True)
 
 # --- IMPORTS ---
 import pandas as pd
@@ -842,13 +850,12 @@ from core.utils import format_decimal_br
 
 # === STEP 1: RENDER ALL VISUAL STRUCTURE FIRST ===
 
-# --- HERO SECTION (static - no data needed) ---
+# --- HERO SECTION ---
 render_fab()
-
 st.markdown(f"""
 <div class="hero-section">
     <div class="hero-content">
-        <h1 class="hero-title"> BARROOTS</h1>
+        <h1 class="hero-title">BARROOTS</h1>
         <p class="hero-subtitle">Sistema Integrado para Gestão Pessoal</p>
     </div>
 </div>
@@ -1048,17 +1055,20 @@ st.markdown('''
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
-<div class="arch-link">
+<div class="arch-link" style="position: relative; z-index: 15; margin-top: 20px;">
     <a href="Arquitetura" target="_self">Ver Arquitetura do Sistema</a>
 </div>
 ''', unsafe_allow_html=True)
 
 # --- FOOTER ---
 st.markdown('''
-<div style="text-align: center; color: #475569; padding-top: 80px; padding-bottom: 40px; font-size: 0.8rem;">
-    Version 145.64 - Final 3.4
+<div style="text-align: center; color: #475569; padding-top: 40px; padding-bottom: 20px; font-size: 0.8rem; position: relative; z-index: 15;">
+    Lucas Barroso Fourauxd - 2026
 </div>
 ''', unsafe_allow_html=True)
+
+# --- SPACER BOTTOM ---
+st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
 
 # === STEP 2: NOW LOAD DATA (after visual structure is rendered) ===
 df_assets = load_assets()
@@ -1136,3 +1146,5 @@ metrics_placeholder.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# --- FOOTER SECTION REMOVED FROM HERE ---
