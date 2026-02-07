@@ -896,14 +896,33 @@ def main():
         <div class="section-icon">📈</div>
         <div>
             <div class="section-title">Evolução Patrimonial</div>
-            <div class="section-subtitle">Patrimônio (R$) vs Rentabilidade Acumulada (%)</div>
+            <div class="section-subtitle">Patrimônio (R$) vs Rentabilidade Acumulada (%) — sem caixa</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # =====================================================================
+    # CHART: Desconsiderar caixa no gráfico (apenas visual)
+    # =====================================================================
+    df_slice_chart = df_slice.copy()
+
+    # Calcular valor de caixa a partir dos valores manuais de RF
+    caixa_total = 0.0
+    termos_caixa = ['CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'LIQUIDEZ']
+    if manual_rf_values:
+        for ticker, valor in manual_rf_values.items():
+            if any(termo in ticker.upper() for termo in termos_caixa):
+                caixa_total += valor
+
+    # Subtrair caixa do NAV para o gráfico
+    if caixa_total > 0 and 'nav' in df_slice_chart.columns:
+        df_slice_chart['nav'] = df_slice_chart['nav'] - caixa_total
+        # Garantir que NAV não fique negativo
+        df_slice_chart['nav'] = df_slice_chart['nav'].clip(lower=0)
+
     # 1. Evolution (Dual Axis) - VERSÃO OTIMIZADA v2.1
     fig_evol = plot_nav_vs_twr(
-        df_slice,
+        df_slice_chart,
         res_period.cumulative_series,
         df_slice['flow'],
         title=""  # Title handled by section header
