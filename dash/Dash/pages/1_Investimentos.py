@@ -1810,10 +1810,30 @@ with tab6:
 
 with tab4:
     if not df_proventos_bruto.empty:
-        # PROVENTOS HISTÓRICOS COMPLETOS - sem filtros de sidebar
-        # Consistente com cálculo da Performance (TWR)
         df_p = df_proventos_bruto.copy()
         df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
+
+        # Normalizar ticker para comparação
+        def limpar_ticker_prov(t):
+            return str(t).replace('.SA', '').replace('.TO', '').replace('.L', '').strip().upper()
+
+        # Aplicar filtros da sidebar
+        if filtro_moeda != 'Todas':
+            df_p = df_p[df_p['moeda'] == filtro_moeda]
+
+        if filtro_setor:
+            df_p = df_p[df_p['setor_calc'].isin(filtro_setor)]
+
+        if filtro_ticker:
+            tickers_permitidos = {limpar_ticker_prov(t) for t in filtro_ticker}
+            df_p = df_p[df_p['ticker'].apply(limpar_ticker_prov).isin(tickers_permitidos)]
+
+        if opcao_ativo == "Sim":
+            tickers_carteira = {limpar_ticker_prov(t) for t in ativos_vivos}
+            df_p = df_p[df_p['ticker'].apply(limpar_ticker_prov).isin(tickers_carteira)]
+        elif opcao_ativo == "Não":
+            tickers_carteira = {limpar_ticker_prov(t) for t in ativos_vivos}
+            df_p = df_p[~df_p['ticker'].apply(limpar_ticker_prov).isin(tickers_carteira)]
 
         def conv_brl(row):
             m = str(row.get('moeda', 'BRL')).strip().upper()
@@ -1830,14 +1850,12 @@ with tab4:
         st.subheader("💰 Extrato de Proventos (Consolidado R$)")
 
         # === SINCRONIZAÇÃO IBKR ===
-        with st.expander("🔄 Sincronizar Proventos IBKR", expanded=False):
-            st.caption("Importe proventos do CSV do Interactive Brokers")
-
+        with st.expander("🔄 Importar Proventos IBKR", expanded=False):
             uploaded_file = st.file_uploader(
-                "Upload do CSV do IBKR",
+                "Arraste o CSV do IBKR aqui",
                 type=['csv'],
                 key="ibkr_csv_upload",
-                help="Faça download do histórico de transações no IBKR e carregue aqui"
+                label_visibility="collapsed"
             )
 
             if uploaded_file is not None:
@@ -1845,58 +1863,81 @@ with tab4:
                 import os as os_sync
                 from core.ibkr_sync import IBKRSyncManager
 
-                # Salvar arquivo temporariamente
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
                     tmp.write(uploaded_file.getvalue())
                     tmp_path = tmp.name
 
                 try:
-                    # Inicializar manager
                     sync_manager = IBKRSyncManager(csv_path=tmp_path)
-
-                    # Carregar CSV
                     qtd_div, qtd_imp = sync_manager.load_csv()
-                    st.info(f"📊 CSV carregado: {qtd_div} dividendos, {qtd_imp} impostos")
 
-                    # Encontrar faltantes
+                    # Debug: mostrar o que foi carregado
+                    st.caption(f"📄 CSV: {qtd_div} dividendos, {qtd_imp} impostos | Base: {len(df_proventos_bruto)} registros")
+
                     df_faltantes = sync_manager.find_missing(df_proventos_bruto)
 
                     if df_faltantes.empty:
-                        st.success("✅ Todos os proventos já estão sincronizados!")
+                        st.success("✅ Tudo sincronizado! Nenhum provento novo encontrado.")
                     else:
-                        st.warning(f"⚠️ Encontrados {len(df_faltantes)} proventos faltantes")
+                        summary = sync_manager.get_summary()
 
-                        # Mostrar preview
+                        # KPIs do que será adicionado
+                        st.markdown("#### 📊 Resumo da Importação")
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Novos", f"{summary['total']}")
+                        c2.metric("Dividendos", f"{summary['dividendos']}")
+                        c3.metric("Impostos", f"{summary['impostos']}")
+                        c4.metric("Líquido", f"$ {summary['valor_liquido']:,.2f}")
+
+                        # Tabela detalhada
+                        st.markdown("#### 📋 Proventos a Adicionar")
+
+                        df_display = df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']].copy()
+                        df_display = df_display.sort_values('data', ascending=False)
+
                         st.dataframe(
-                            df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']],
+                            df_display,
+                            column_config={
+                                'data': st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                'ticker': st.column_config.TextColumn("Ticker", width="small"),
+                                'decisao': st.column_config.TextColumn("Tipo", width="small"),
+                                'valor': st.column_config.TextColumn("Valor", width="small"),
+                                'moeda': st.column_config.TextColumn("Moeda", width="small"),
+                            },
                             use_container_width=True,
-                            height=200
+                            height=250,
+                            hide_index=True
                         )
 
-                        col_sync1, col_sync2 = st.columns(2)
+                        # Resumo por ticker
+                        st.markdown("#### 🏷️ Por Ativo")
+                        df_por_ticker = pd.DataFrame([
+                            {'Ticker': k, 'Total': v}
+                            for k, v in sorted(summary['por_ticker'].items(), key=lambda x: x[1], reverse=True)
+                        ])
+                        st.dataframe(
+                            df_por_ticker,
+                            column_config={
+                                'Ticker': st.column_config.TextColumn("Ticker"),
+                                'Total': st.column_config.NumberColumn("Total", format="$ %.2f"),
+                            },
+                            use_container_width=True,
+                            height=150,
+                            hide_index=True
+                        )
 
-                        with col_sync1:
-                            if st.button("📝 Enviar para Aba de Teste", key="btn_sync_test", use_container_width=True):
-                                success, msg = sync_manager.sync_to_test()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    st.info("📌 Verifique a aba 'meus_proventos_test' no Google Sheets")
-                                else:
-                                    st.error(f"❌ {msg}")
+                        st.markdown("---")
 
-                        with col_sync2:
-                            if st.button("🚀 Aplicar em Produção", key="btn_sync_prod", type="primary", use_container_width=True):
-                                # Backup + Merge
-                                backup_dir = os_sync.path.join(os_sync.path.dirname(__file__), '..', 'backups')
-                                success, msg, backup_path = sync_manager.apply_to_production()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    if backup_path:
-                                        st.info(f"💾 Backup salvo em: {backup_path}")
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ {msg}")
+                        if st.button("🚀 Adicionar ao Google Sheets", key="btn_sync_direct", type="primary", use_container_width=True):
+                            with st.spinner("Sincronizando..."):
+                                success, msg, backup_path = sync_manager.sync_direct_to_production()
+                            if success:
+                                st.success(f"✅ {msg}")
+                                st.caption(f"💾 Backup: {backup_path}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
 
                 except Exception as e:
                     st.error(f"Erro ao processar CSV: {e}")
