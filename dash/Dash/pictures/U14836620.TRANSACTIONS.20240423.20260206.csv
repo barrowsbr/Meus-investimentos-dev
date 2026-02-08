@@ -1,0 +1,178 @@
+Statement,Header,Nome do campo,Valor do campo
+Statement,Data,Title,Histórico de transações
+Statement,Data,Period,"Abril 23, 2024 - Fevereiro 6, 2026"
+Statement,Data,WhenGenerated,"2026-02-08, 11:47:56 EST"
+Resumo,Header,Nome do campo,Valor do campo
+Resumo,Data,Moeda-base,USD
+Resumo,Data,Saldo inicial,0.0
+Resumo,Data,Variação,1170.2483205192227
+Resumo,Data,Saldo final,1170.2483205192227
+Histórico de transações,Header,Data,Conta,Descrição,Tipo de transação,Símbolo,Quantidade,Preço,Moeda do preço,Valor bruto,Taxa de corretagem,Valor líquido
+Histórico de transações,Data,2026-02-06,U***36620,FX Translations P&L,Ajuste,-,-,-,-,5.3130002099999984,-,5.3130002099999984
+Histórico de transações,Data,2026-02-05,U***36620,MICROSOFT CORP,Compra,MSFT,1.0,400.11,USD,-400.11,-0.35045725,-400.46045725
+Histórico de transações,Data,2026-02-05,U***36620,MICROSOFT CORP,Compra,MSFT,1.0,400.11,USD,-400.11,-2.0E-4,-400.1102
+Histórico de transações,Data,2026-02-04,U***36620,CAD Juros de débito para Jan-2026,Juros de débito,-,-,-,-,-0.073185,-,-0.073185
+Histórico de transações,Data,2026-01-30,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.993368 por ação (Dividendo ordinário),Dividendo,SPY,-,-,-,3.99,-,3.99
+Histórico de transações,Data,2026-01-30,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.993368 por ação - US Impostos,Retenção de imposto estrangeiro,SPY,-,-,-,-1.2,-,-1.2
+Histórico de transações,Data,2026-01-29,U***36620,MICROSOFT CORP,Compra,MSFT,1.0,448.7,USD,-448.7,-0.35045725,-449.05045724999997
+Histórico de transações,Data,2026-01-29,U***36620,ABRDN PHYSICAL SILVER SHARES,Compra,SIVR,5.0,113.09,USD,-565.45,-0.35025725,-565.8002572500001
+Histórico de transações,Data,2026-01-29,U***36620,DPM METALS INC,Compra,DPM,10.0,54.24,CAD,-402.075696,-0.754484962,-402.830180962
+Histórico de transações,Data,2026-01-29,U***36620,MICROSOFT CORP,Compra,MSFT,1.0,433.52,USD,-433.52,-0.35045725,-433.87045724999996
+Histórico de transações,Data,2026-01-28,U***36620,Transferência eletrônica de recursos (N/A),Depósito,-,-,-,-,3808.85,-,3808.85
+Histórico de transações,Data,2026-01-23,U***36620,Valor líquido na base da negociação de Forex: 0.5368 USD.CAD,Componente de negociação de Forex,USD.CAD,0.5368,1.37865,CAD,-0.003353999999999968,-,-0.003353999999999968
+Histórico de transações,Data,2026-01-22,U***36620,Transferência eletrônica de recursos (N/A),Depósito,-,-,-,-,17.48,-,17.48
+Histórico de transações,Data,2026-01-15,U***36620,DPM (CA26139R1091) Dividendos disponíveis CAD 0.054824 (Dividendo ordinário),Dividendo,DPM,-,-,-,0.715473,-,0.715473
+Histórico de transações,Data,2026-01-15,U***36620,DPM (CA26139R1091) Dividendos disponíveis CAD 0.054824 - CA Impostos,Retenção de imposto estrangeiro,DPM,-,-,-,-0.180675,-,-0.180675
+Histórico de transações,Data,2026-01-08,U***36620,META PLATFORMS INC-CLASS A,Compra,META,1.0,643.79,USD,-643.79,-0.35045725,-644.1404572499999
+Histórico de transações,Data,2026-01-08,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.79542 por ação (Ordinary Div - NRA Withholding Exempt),Dividendo,TSM,-,-,-,2.39,-,2.39
+Histórico de transações,Data,2026-01-08,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.79542 por ação - TW Impostos,Retenção de imposto estrangeiro,TSM,-,-,-,-0.5,-,-0.5
+Histórico de transações,Data,2025-12-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.79408 por ação (Dividendo ordinário),Dividendo,QQQ,-,-,-,0.79,-,0.79
+Histórico de transações,Data,2025-12-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.79408 por ação - US Impostos,Retenção de imposto estrangeiro,QQQ,-,-,-,-0.24,-,-0.24
+Histórico de transações,Data,2025-12-29,U***36620,MICROSOFT CORP,Compra,MSFT,1.0,487.405,USD,-487.405,-0.35045725,-487.75545724999995
+Histórico de transações,Data,2025-12-29,U***36620,COCA-COLA CO/THE,Compra,KO,7.0,70.2393,USD,-491.6751,-0.35165725,-492.02675725
+Histórico de transações,Data,2025-12-29,U***36620,SPDR S&P 500 ETF TRUST,Compra,SPY,1.0,687.255,USD,-687.255,-0.35045725,-687.60545725
+Histórico de transações,Data,2025-12-26,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação (Dividendo ordinário),Dividendo,NVDA,-,-,-,0.17,-,0.17
+Histórico de transações,Data,2025-12-26,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação - US Impostos,Retenção de imposto estrangeiro,NVDA,-,-,-,-0.05,-,-0.05
+Histórico de transações,Data,2025-12-26,U***36620,Transferência eletrônica de recursos (FROM DolarApp Inc.),Depósito,-,-,-,-,11.6,-,11.6
+Histórico de transações,Data,2025-12-26,U***36620,Transferência eletrônica de recursos (FROM DolarApp Inc.),Depósito,-,-,-,-,2139.93,-,2139.93
+Histórico de transações,Data,2025-12-23,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação (Dividendo ordinário),Dividendo,META,-,-,-,1.05,-,1.05
+Histórico de transações,Data,2025-12-23,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação - US Impostos,Retenção de imposto estrangeiro,META,-,-,-,-0.32,-,-0.32
+Histórico de transações,Data,2025-12-15,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação (Dividendo ordinário),Dividendo,KO,-,-,-,4.08,-,4.08
+Histórico de transações,Data,2025-12-15,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação - US Impostos,Retenção de imposto estrangeiro,KO,-,-,-,-1.22,-,-1.22
+Histórico de transações,Data,2025-12-15,U***36620,GOOGL(US02079K3059) Dividendos disponíveis USD 0.21 por ação (Dividendo ordinário),Dividendo,GOOGL,-,-,-,1.47,-,1.47
+Histórico de transações,Data,2025-12-15,U***36620,GOOGL(US02079K3059) Dividendos disponíveis USD 0.21 por ação - US Impostos,Retenção de imposto estrangeiro,GOOGL,-,-,-,-0.44,-,-0.44
+Histórico de transações,Data,2025-12-12,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.08 por ação (Dividendo ordinário),Dividendo,IBKR,-,-,-,0.64,-,0.64
+Histórico de transações,Data,2025-12-12,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.08 por ação - US Impostos,Retenção de imposto estrangeiro,IBKR,-,-,-,-0.19,-,-0.19
+Histórico de transações,Data,2025-11-25,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação (Dividendo ordinário),Dividendo,VRSN,-,-,-,0.77,-,0.77
+Histórico de transações,Data,2025-11-25,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação - US Impostos,Retenção de imposto estrangeiro,VRSN,-,-,-,-0.23,-,-0.23
+Histórico de transações,Data,2025-11-06,U***36620,ASML(NL0010273215) Dividendos disponíveis EUR 1.60 por ação (Dividendo ordinário),Dividendo,ASML,-,-,-,1.8475200000000003,-,1.8475200000000003
+Histórico de transações,Data,2025-11-06,U***36620,ASML(NL0010273215) Dividendos disponíveis EUR 1.60 por ação - NL Impostos,Retenção de imposto estrangeiro,ASML,-,-,-,-0.277128,-,-0.277128
+Histórico de transações,Data,2025-11-06,U***36620,Valor líquido na base da negociação de Forex: -1.36 EUR.USD,Componente de negociação de Forex,EUR.USD,-1.36,1.1541323,USD,-7.719999999999949E-4,-,-7.719999999999949E-4
+Histórico de transações,Data,2025-10-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.69395 por ação (Dividendo ordinário),Dividendo,QQQ,-,-,-,0.69,-,0.69
+Histórico de transações,Data,2025-10-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.69395 por ação - US Impostos,Retenção de imposto estrangeiro,QQQ,-,-,-,-0.21,-,-0.21
+Histórico de transações,Data,2025-10-31,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.831114 por ação (Dividendo ordinário),Dividendo,SPY,-,-,-,3.66,-,3.66
+Histórico de transações,Data,2025-10-31,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.831114 por ação - US Impostos,Retenção de imposto estrangeiro,SPY,-,-,-,-1.1,-,-1.1
+Histórico de transações,Data,2025-10-17,U***36620,Valor líquido na base da negociação de Forex: 0.53468008 USD.CAD,Componente de negociação de Forex,USD.CAD,0.53468008,1.40270795,CAD,-2.1999999999999797E-4,-,-2.1999999999999797E-4
+Histórico de transações,Data,2025-10-15,U***36620,DPM (CA26139R1091) Dividendos disponíveis CAD 0.0558 (Dividendo ordinário),Dividendo,DPM,-,-,-,0.7132,-,0.7132
+Histórico de transações,Data,2025-10-15,U***36620,DPM (CA26139R1091) Dividendos disponíveis CAD 0.0558 - CA Impostos,Retenção de imposto estrangeiro,DPM,-,-,-,-0.1783,-,-0.1783
+Histórico de transações,Data,2025-10-09,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.821965 por ação (Ordinary Div - NRA Withholding Exempt),Dividendo,TSM,-,-,-,2.47,-,2.47
+Histórico de transações,Data,2025-10-09,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.821965 por ação - TW Impostos,Retenção de imposto estrangeiro,TSM,-,-,-,-0.52,-,-0.52
+Histórico de transações,Data,2025-10-02,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação (Dividendo ordinário),Dividendo,NVDA,-,-,-,0.17,-,0.17
+Histórico de transações,Data,2025-10-02,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação - US Impostos,Retenção de imposto estrangeiro,NVDA,-,-,-,-0.05,-,-0.05
+Histórico de transações,Data,2025-10-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação (Dividendo ordinário),Dividendo,KO,-,-,-,4.08,-,4.08
+Histórico de transações,Data,2025-10-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação - US Impostos,Retenção de imposto estrangeiro,KO,-,-,-,-1.22,-,-1.22
+Histórico de transações,Data,2025-09-29,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação (Dividendo ordinário),Dividendo,META,-,-,-,1.05,-,1.05
+Histórico de transações,Data,2025-09-29,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação - US Impostos,Retenção de imposto estrangeiro,META,-,-,-,-0.32,-,-0.32
+Histórico de transações,Data,2025-09-15,U***36620,GOOGL(US02079K3059) Dividendos disponíveis USD 0.21 por ação (Dividendo ordinário),Dividendo,GOOGL,-,-,-,1.47,-,1.47
+Histórico de transações,Data,2025-09-15,U***36620,GOOGL(US02079K3059) Dividendos disponíveis USD 0.21 por ação - US Impostos,Retenção de imposto estrangeiro,GOOGL,-,-,-,-0.44,-,-0.44
+Histórico de transações,Data,2025-09-12,U***36620,TAKE-TWO INTERACTIVE SOFTWRE,Compra,TTWO,2.0,245.97,USD,-491.94,-0.35370125,-492.29370124999997
+Histórico de transações,Data,2025-09-12,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.08 por ação (Dividendo ordinário),Dividendo,IBKR,-,-,-,0.64,-,0.64
+Histórico de transações,Data,2025-09-12,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.08 por ação - US Impostos,Retenção de imposto estrangeiro,IBKR,-,-,-,-0.19,-,-0.19
+Histórico de transações,Data,2025-08-27,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação (Dividendo ordinário),Dividendo,VRSN,-,-,-,0.77,-,0.77
+Histórico de transações,Data,2025-08-27,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação - US Impostos,Retenção de imposto estrangeiro,VRSN,-,-,-,-0.23,-,-0.23
+Histórico de transações,Data,2025-08-06,U***36620,ASML(NL0010273215) Dividendos disponíveis EUR 1.60 por ação (Dividendo ordinário),Dividendo,ASML,-,-,-,1.8656,-,1.8656
+Histórico de transações,Data,2025-08-06,U***36620,ASML(NL0010273215) Dividendos disponíveis EUR 1.60 por ação - NL Impostos,Retenção de imposto estrangeiro,ASML,-,-,-,-0.27984,-,-0.27984
+Histórico de transações,Data,2025-08-06,U***36620,Valor líquido na base da negociação de Forex: -1.36 EUR.USD,Componente de negociação de Forex,EUR.USD,-1.36,1.16549895,USD,-6.810000000001537E-4,-,-6.810000000001537E-4
+Histórico de transações,Data,2025-08-04,U***36620,Transferência eletrônica de recursos (FROM DolarApp Inc.),Depósito,-,-,-,-,5.97,-,5.97
+Histórico de transações,Data,2025-07-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.59111 por ação (Dividendo ordinário),Dividendo,QQQ,-,-,-,0.59,-,0.59
+Histórico de transações,Data,2025-07-31,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.59111 por ação - US Impostos,Retenção de imposto estrangeiro,QQQ,-,-,-,-0.18,-,-0.18
+Histórico de transações,Data,2025-07-31,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.761117 por ação (Dividendo ordinário),Dividendo,SPY,-,-,-,3.52,-,3.52
+Histórico de transações,Data,2025-07-31,U***36620,SPY(US78462F1030) Dividendos disponíveis USD 1.761117 por ação - US Impostos,Retenção de imposto estrangeiro,SPY,-,-,-,-1.06,-,-1.06
+Histórico de transações,Data,2025-07-16,U***36620,Valor líquido na base da negociação de Forex: 0.53336246 USD.CAD,Componente de negociação de Forex,USD.CAD,0.53336246,1.36867526,CAD,-1.8799999999996597E-4,-,-1.8799999999996597E-4
+Histórico de transações,Data,2025-07-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.054688 (Dividendo ordinário),Dividendo,DPM,-,-,-,0.7162722,-,0.7162722
+Histórico de transações,Data,2025-07-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.054688 - CA Impostos,Retenção de imposto estrangeiro,DPM,-,-,-,-0.1827225,-,-0.1827225
+Histórico de transações,Data,2025-07-10,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.780305 por ação (Ordinary Div - NRA Withholding Exempt),Dividendo,TSM,-,-,-,2.34,-,2.34
+Histórico de transações,Data,2025-07-10,U***36620,TSM(US8740391003) Dividendos disponíveis USD 0.780305 por ação - TW Impostos,Retenção de imposto estrangeiro,TSM,-,-,-,-0.49,-,-0.49
+Histórico de transações,Data,2025-07-03,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação (Dividendo ordinário),Dividendo,NVDA,-,-,-,0.17,-,0.17
+Histórico de transações,Data,2025-07-03,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação - US Impostos,Retenção de imposto estrangeiro,NVDA,-,-,-,-0.05,-,-0.05
+Histórico de transações,Data,2025-07-03,U***36620,L******BR:Instantâneo global para Jun 2025,Outras taxas,-,-,-,-,0.03,-,0.03
+Histórico de transações,Data,2025-07-02,U***36620,ALPHABET INC-CL A,Compra,GOOGL,5.0,178.549,USD,-892.745,-0.35139225,-893.09639225
+Histórico de transações,Data,2025-07-02,U***36620,L******BR:Instantâneo global para Jun 2025,Outras taxas,-,-,-,-,-0.03,-,-0.03
+Histórico de transações,Data,2025-07-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação (Dividendo ordinário),Dividendo,KO,-,-,-,4.08,-,4.08
+Histórico de transações,Data,2025-07-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação - US Impostos,Retenção de imposto estrangeiro,KO,-,-,-,-1.22,-,-1.22
+Histórico de transações,Data,2025-06-26,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação (Dividendo ordinário),Dividendo,META,-,-,-,1.05,-,1.05
+Histórico de transações,Data,2025-06-26,U***36620,META(US30303M1027) Dividendos disponíveis USD 0.525 por ação - US Impostos,Retenção de imposto estrangeiro,META,-,-,-,-0.32,-,-0.32
+Histórico de transações,Data,2025-06-24,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,1426.58,-,1426.58
+Histórico de transações,Data,2025-06-13,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.32 por ação - US Impostos,Retenção de imposto estrangeiro,IBKR,-,-,-,-0.19,-,-0.19
+Histórico de transações,Data,2025-06-13,U***36620,IBKR(US45841N1072) Dividendos disponíveis USD 0.32 por ação (Dividendo ordinário),Dividendo,IBKR,-,-,-,0.64,-,0.64
+Histórico de transações,Data,2025-06-12,U***36620,Valor líquido na base da negociação de Forex: 0.0046475 EUR.USD,Componente de negociação de Forex,EUR.USD,0.0046475,1.15853751,USD,-,-,-
+Histórico de transações,Data,2025-06-12,U***36620,Valor líquido na base da negociação de Forex: 680.5 EUR.USD,Componente de negociação de Forex,EUR.USD,680.5,1.15355,USD,3.3684749999999894,-,3.3684749999999894
+Histórico de transações,Data,2025-06-12,U***36620,ASML HOLDING NV,Compra,ASML,1.0,680.5,EUR,-788.3592500000001,-1.71996412875,-790.0792141287501
+Histórico de transações,Data,2025-06-12,U***36620,Valor líquido na base da negociação de Forex: 1.48 EUR.USD,Componente de negociação de Forex,EUR.USD,1.48,1.15307,USD,0.008035999999999932,-,0.008035999999999932
+Histórico de transações,Data,2025-06-11,U***36620,ALPHABET INC-CL A,Compra,GOOGL,2.0,177.35,USD,-354.7,-0.35074925,-355.05074924999997
+Histórico de transações,Data,2025-06-11,U***36620,META PLATFORMS INC-CLASS A,Compra,META,1.0,694.3,USD,-694.3,-0.35349225,-694.65349225
+Histórico de transações,Data,2025-06-11,U***36620,TESLA INC,Venda,TSLA,-2.0,327.27,USD,654.54,-0.35705925,654.18294075
+Histórico de transações,Data,2025-06-05,U***36620,TESLA INC,Compra,TSLA,1.0,284.995,USD,-284.995,-0.35050325,-285.34550325
+Histórico de transações,Data,2025-06-04,U***36620,META PLATFORMS INC-CLASS A,Compra,META,1.0,681.435,USD,-681.435,-0.35050325,-681.7855032499999
+Histórico de transações,Data,2025-05-28,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação - US Impostos,Retenção de imposto estrangeiro,VRSN,-,-,-,-0.23,-,-0.23
+Histórico de transações,Data,2025-05-28,U***36620,VRSN(US92343E1029) Dividendos disponíveis USD 0.77 por ação (Dividendo ordinário),Dividendo,VRSN,-,-,-,0.77,-,0.77
+Histórico de transações,Data,2025-05-15,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,1618.8,-,1618.8
+Histórico de transações,Data,2025-05-09,U***36620,GLOBAL X MSCI ARGENTINA ETF,Venda,ARGT,-6.0,89.69,USD,538.14,-0.358023542,537.781976458
+Histórico de transações,Data,2025-05-02,U***36620,L******BR:PNP de instantâneo global para Abr 2025,Outras taxas,-,-,-,-,0.03,-,0.03
+Histórico de transações,Data,2025-05-02,U***36620,L******BR:PNP de instantâneo global para Abr 2025,Outras taxas,-,-,-,-,-0.03,-,-0.03
+Histórico de transações,Data,2025-04-30,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.71571 por ação - US Impostos,Retenção de imposto estrangeiro,QQQ,-,-,-,-0.22,-,-0.22
+Histórico de transações,Data,2025-04-30,U***36620,QQQ(US46090E1038) Dividendos disponíveis USD 0.71571 por ação (Dividendo ordinário),Dividendo,QQQ,-,-,-,0.72,-,0.72
+Histórico de transações,Data,2025-04-17,U***36620,NVIDIA CORP,Compra,NVDA,6.0,100.725,USD,-604.35,-0.35173325,-604.7017332500001
+Histórico de transações,Data,2025-04-16,U***36620,Valor líquido na base da negociação de Forex: 0.54826656 USD.CAD,Componente de negociação de Forex,USD.CAD,0.54826656,1.38618705,CAD,-1.8700000000004824E-4,-,-1.8700000000004824E-4
+Histórico de transações,Data,2025-04-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.05682 (Dividendo ordinário),Dividendo,DPM,-,-,-,0.736083,-,0.736083
+Histórico de transações,Data,2025-04-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.05682 - CA Impostos,Retenção de imposto estrangeiro,DPM,-,-,-,-0.18762900000000002,-,-0.18762900000000002
+Histórico de transações,Data,2025-04-07,U***36620,VANG FTSE AW USDA,Compra,VWRA,2.0,119.06,USD,-238.12,-1.90894574,-240.02894574
+Histórico de transações,Data,2025-04-04,U***36620,SPDR S&P 500 ETF TRUST,Compra,SPY,2.0,504.56,USD,-1009.12,-0.34752725,-1009.46752725
+Histórico de transações,Data,2025-04-04,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,1846.06,-,1846.06
+Histórico de transações,Data,2025-04-04,U***36620,NVIDIA CORP,Compra,NVDA,5.0,102.0,USD,-510.0,-0.35143225,-510.35143225
+Histórico de transações,Data,2025-04-02,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação - US Impostos,Retenção de imposto estrangeiro,NVDA,-,-,-,-0.02,-,-0.02
+Histórico de transações,Data,2025-04-02,U***36620,NVDA(US67066G1040) Dividendos disponíveis USD 0.01 por ação (Dividendo ordinário),Dividendo,NVDA,-,-,-,0.06,-,0.06
+Histórico de transações,Data,2025-04-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação - US Impostos,Retenção de imposto estrangeiro,KO,-,-,-,-1.22,-,-1.22
+Histórico de transações,Data,2025-04-01,U***36620,KO(US1912161007) Dividendos disponíveis USD 0.51 por ação (Dividendo ordinário),Dividendo,KO,-,-,-,4.08,-,4.08
+Histórico de transações,Data,2025-03-26,U***36620,INTERACTIVE BROKERS GRO-CL A,Compra,IBKR,2.0,179.05,USD,-358.1,-0.34432725,-358.44432725
+Histórico de transações,Data,2025-03-26,U***36620,TESLA INC,Compra,TSLA,1.0,286.9,USD,-286.9,-0.35049225,-287.25049225
+Histórico de transações,Data,2025-03-26,U***36620,VERISIGN INC,Compra,VRSN,1.0,245.81,USD,-245.81,-0.34729225,-246.15729225
+Histórico de transações,Data,2025-03-26,U***36620,TAIWAN SEMICONDUCTOR-SP ADR,Compra,TSM,3.0,180.88,USD,-542.64,-0.35096225,-542.9909622499999
+Histórico de transações,Data,2025-03-14,U***36620,"Reembolso (DXJ, -5, 2025-03-14)",Ajuste de taxa de corretagem,DXJ,-,-,-,0.35974963,-,0.35974963
+Histórico de transações,Data,2025-03-14,U***36620,WISDOMTREE JAPAN HEDGED EQ,Venda,DXJ,-5.0,111.42,USD,557.1,-0.35974963,556.74025037
+Histórico de transações,Data,2025-03-13,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,1361.33,-,1361.33
+Histórico de transações,Data,2025-03-11,U***36620,VANG FTSE AW USDA,Compra,VWRA,1.0,136.62,USD,-136.62,-1.7002,-138.3202
+Histórico de transações,Data,2025-03-06,U***36620,VANG FTSE AW USDA,Compra,VWRA,3.0,141.341,USD,-424.02,-1.7006,-425.7206
+Histórico de transações,Data,2025-03-05,U***36620,ISHARES MSCI ALL COUNTRY ASI,Venda,AAXJ,-7.0,74.84,USD,523.88,-0.345228114,523.534771886
+Histórico de transações,Data,2025-03-04,U***36620,L******BR:PNP de instantâneo global para Fev 2025,Outras taxas,-,-,-,-,0.03,-,0.03
+Histórico de transações,Data,2025-03-04,U***36620,L******BR:PNP de instantâneo global para Fev 2025,Outras taxas,-,-,-,-,-0.03,-,-0.03
+Histórico de transações,Data,2025-03-04,U***36620,VANG FTSE AW USDA,Compra,VWRA,1.0,139.54,USD,-139.54,-1.907014772,-141.447014772
+Histórico de transações,Data,2025-03-03,U***36620,NVIDIA CORP,Compra,NVDA,3.0,119.024,USD,-357.072,-0.35099525,-357.42299525
+Histórico de transações,Data,2025-03-03,U***36620,ISHARES CORE MSCI EUROPE ETF,Venda,IEUR,-9.0,60.99,USD,548.91,-0.354725948,548.555274052
+Histórico de transações,Data,2025-02-26,U***36620,"Reembolso (DXJ, 5, 2025-01-27)",Ajuste de taxa de corretagem,DXJ,-,-,-,0.35443225,-,0.35443225
+Histórico de transações,Data,2025-01-28,U***36620,NVIDIA CORP,Compra,NVDA,3.0,121.86,USD,-365.58,-0.35546225,-365.93546225
+Histórico de transações,Data,2025-01-28,U***36620,COCA-COLA CO/THE,Compra,KO,8.0,63.51,USD,-508.08,-0.36013725,-508.44013724999996
+Histórico de transações,Data,2025-01-27,U***36620,Valor líquido na base da negociação de Forex: 0.0034801 USD.CAD,Componente de negociação de Forex,USD.CAD,0.0034801,1.43783122,CAD,-1.0000000000001327E-6,-,-1.0000000000001327E-6
+Histórico de transações,Data,2025-01-27,U***36620,Valor líquido na base da negociação de Forex: -79.58 USD.CAD,Componente de negociação de Forex,USD.CAD,-79.58,1.43761,CAD,0.012704999999996858,-,0.012704999999996858
+Histórico de transações,Data,2025-01-27,U***36620,ISHARES MSCI ALL COUNTRY ASI,Compra,AAXJ,7.0,71.69,USD,-501.83,-0.36240225,-502.19240225
+Histórico de transações,Data,2025-01-27,U***36620,INVESCO QQQ TRUST SERIES 1,Compra,QQQ,1.0,511.0,USD,-511.0,-0.35199225,-511.35199225
+Histórico de transações,Data,2025-01-27,U***36620,Valor líquido na base da negociação de Forex: 0.00221166 USD.CAD,Componente de negociação de Forex,USD.CAD,0.00221166,1.43788025,CAD,-,-,-
+Histórico de transações,Data,2025-01-27,U***36620,DUNDEE PRECIOUS METALS INC,Compra,DPM,8.0,14.3,CAD,-79.58922400000002,-0.40785303040000004,-79.9970770304
+Histórico de transações,Data,2025-01-27,U***36620,Valor líquido na base da negociação de Forex: -0.41 USD.CAD,Componente de negociação de Forex,USD.CAD,-0.41,1.43761,CAD,6.500000000003725E-5,-,6.500000000003725E-5
+Histórico de transações,Data,2025-01-27,U***36620,ISHARES GOLD TRUST,Compra,IAU,10.0,51.93,USD,-519.3,-0.35860725,-519.6586072499999
+Histórico de transações,Data,2025-01-27,U***36620,WISDOMTREE JAPAN HEDGED EQ,Compra,DXJ,5.0,108.65,USD,-543.25,-0.35443225,-543.60443225
+Histórico de transações,Data,2025-01-27,U***36620,GLOBAL X MSCI ARGENTINA ETF,Compra,ARGT,3.0,84.83,USD,-254.49,-0.35276225,-254.84276225000002
+Histórico de transações,Data,2025-01-27,U***36620,ISHARES CORE MSCI EUROPE ETF,Compra,IEUR,9.0,57.09,USD,-513.81,-0.35777225,-514.16777225
+Histórico de transações,Data,2025-01-27,U***36620,VANG FTSE AW USDA,Compra,VWRA,3.0,141.74,USD,-425.22,-1.904819012,-427.12481901200005
+Histórico de transações,Data,2025-01-22,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,4250.19,-,4250.19
+Histórico de transações,Data,2025-01-16,U***36620,Valor líquido na base da negociação de Forex: 0.29863597 USD.CAD,Componente de negociação de Forex,USD.CAD,0.29863597,1.43988015,CAD,-1.0199999999999099E-4,-,-1.0199999999999099E-4
+Histórico de transações,Data,2025-01-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.057524 (Dividendo ordinário),Dividendo,DPM,-,-,-,0.4029492,-,0.4029492
+Histórico de transações,Data,2025-01-15,U***36620,DPM (CA2652692096) Dividendos disponíveis CAD 0.057524 - CA Impostos,Retenção de imposto estrangeiro,DPM,-,-,-,-0.104211,-,-0.104211
+Histórico de transações,Data,2025-01-07,U***36620,ARGT(US37950E2596) Dividendos disponíveis USD 0.953392 por ação (Dividendo ordinário),Dividendo,ARGT,-,-,-,2.86,-,2.86
+Histórico de transações,Data,2025-01-07,U***36620,ARGT(US37950E2596) Dividendos disponíveis USD 0.953392 por ação - US Impostos,Retenção de imposto estrangeiro,ARGT,-,-,-,-0.86,-,-0.86
+Histórico de transações,Data,2024-12-18,U***36620,Ajuste de taxa de corretagem (Consolidated Audit Trail Fee Refund),Depósito,-,-,-,-,0.01,-,0.01
+Histórico de transações,Data,2024-10-22,U***36620,ABRDN PHYSICAL SILVER SHARES,Compra,SIVR,2.0,33.095,USD,-66.19,-0.35080125,-66.54080125
+Histórico de transações,Data,2024-10-22,U***36620,Valor líquido na base da negociação de Forex: -0.00702462 USD.CAD,Componente de negociação de Forex,USD.CAD,-0.00702462,1.38128549,CAD,-2.0000000000002655E-6,-,-2.0000000000002655E-6
+Histórico de transações,Data,2024-10-22,U***36620,DUNDEE PRECIOUS METALS INC,Compra,DPM,10.0,14.54,CAD,-105.23325,-0.539049,-105.772299
+Histórico de transações,Data,2024-10-22,U***36620,Valor líquido na base da negociação de Forex: -105.24 USD.CAD,Componente de negociação de Forex,USD.CAD,-105.24,1.3815,CAD,-0.014668000000000347,-,-0.014668000000000347
+Histórico de transações,Data,2024-10-22,U***36620,Valor líquido na base da negociação de Forex: -0.54 USD.CAD,Componente de negociação de Forex,USD.CAD,-0.54,1.38155,CAD,-5.6000000000056005E-5,-,-5.6000000000056005E-5
+Histórico de transações,Data,2024-10-04,U***36620,GLOBAL X MSCI ARGENTINA ETF,Compra,ARGT,1.0,67.3,USD,-67.3,-0.35052925,-67.65052924999999
+Histórico de transações,Data,2024-10-04,U***36620,GLOBAL X MSCI ARGENTINA ETF,Compra,ARGT,1.0,67.3,USD,-67.3,-2.72E-4,-67.30027199999999
+Histórico de transações,Data,2024-09-30,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,235.32,-,235.32
+Histórico de transações,Data,2024-09-25,U***36620,GLOBAL X MSCI ARGENTINA ETF,Compra,ARGT,1.0,68.53,USD,-68.53,-0.35110925,-68.88110925
+Histórico de transações,Data,2024-08-22,U***36620,VANG FTSE AW USDA,Compra,VWRA,9.0,135.5,USD,-1219.5,-1.910900332,-1221.410900332
+Histórico de transações,Data,2024-08-21,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,1365.77,-,1365.77
+Histórico de transações,Data,2024-05-27,U***36620,Valor líquido na base da negociação de Forex: 8.783 USD.JPY,Componente de negociação de Forex,USD.JPY,8.783,157.005,JPY,-0.006861999999999924,-,-0.006861999999999924
+Histórico de transações,Data,2024-05-10,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,37.21,-,37.21
+Histórico de transações,Data,2024-05-06,U***36620,Valor líquido na base da negociação de Forex: -9 USD.JPY,Componente de negociação de Forex,USD.JPY,-9.0,153.22,JPY,-2.040077,-2.0,-2.040077
+Histórico de transações,Data,2024-05-02,U***36620,Transferência eletrônica de recursos,Depósito,-,-,-,-,18.1,-,18.1

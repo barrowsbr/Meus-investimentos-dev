@@ -134,9 +134,45 @@ components.html("""
                 console.log("Toolbar removal error:", e);
             }
         };
+
+        // 3. Easter Egg: 5 Clicks on Logo to Unlock Protocol
+        const setupEasterEgg = () => {
+             try {
+                const logo = window.parent.document.querySelector('.hero-logo');
+                if (logo && !logo.dataset.eggAttached) {
+                    logo.dataset.eggAttached = "true"; 
+                    let clicks = 0;
+                    let timer;
+                    
+                    logo.style.cursor = "pointer";
+                    logo.addEventListener('click', (e) => {
+                        clicks++;
+                        
+                        // Visual Feedback (Subtle shake)
+                        logo.style.transform = `scale(1.1) rotate(${Math.random() * 10 - 5}deg)`;
+                        setTimeout(() => logo.style.transform = "scale(1)", 200);
+
+                        clearTimeout(timer);
+                        timer = setTimeout(() => clicks = 0, 2000); // Reset after 2s
+                        
+                        if (clicks === 5) {
+                            // Trigger Navigation
+                            window.parent.location.href = 'Easter_Eggs';
+                            clicks = 0;
+                        }
+                    });
+                }
+             } catch (e) {
+                console.log("Easter egg error:", e);
+             }
+        };
+
         // Run repeatedly to catch late rendering
         setInterval(removeToolbar, 500);
+        setInterval(setupEasterEgg, 1000);
+        
         removeToolbar();
+        setupEasterEgg();
     };
 </script>
 """, height=0)
@@ -316,7 +352,7 @@ CSS_PART2 = """
 }
 
 .hero-logo {
-    width: 60px;
+    width: 84px;
     height: auto;
     margin-bottom: 20px;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));

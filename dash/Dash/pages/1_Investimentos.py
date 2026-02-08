@@ -1840,7 +1840,85 @@ with tab4:
             df_p['valor_brl'] = df_p.apply(conv_brl, axis=1)
 
         st.subheader("💰 Extrato de Proventos (Consolidado R$)")
-        
+
+        # === SINCRONIZAÇÃO IBKR ===
+        with st.expander("🔄 Sincronizar Proventos IBKR", expanded=False):
+            st.caption("Importe proventos do CSV do Interactive Brokers")
+
+            uploaded_file = st.file_uploader(
+                "Upload do CSV do IBKR",
+                type=['csv'],
+                key="ibkr_csv_upload",
+                help="Faça download do histórico de transações no IBKR e carregue aqui"
+            )
+
+            if uploaded_file is not None:
+                import tempfile
+                import os as os_sync
+                from core.ibkr_sync import IBKRSyncManager
+
+                # Salvar arquivo temporariamente
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = tmp.name
+
+                try:
+                    # Inicializar manager
+                    sync_manager = IBKRSyncManager(csv_path=tmp_path)
+
+                    # Carregar CSV
+                    qtd_div, qtd_imp = sync_manager.load_csv()
+                    st.info(f"📊 CSV carregado: {qtd_div} dividendos, {qtd_imp} impostos")
+
+                    # Encontrar faltantes
+                    df_faltantes = sync_manager.find_missing(df_proventos_bruto)
+
+                    if df_faltantes.empty:
+                        st.success("✅ Todos os proventos já estão sincronizados!")
+                    else:
+                        st.warning(f"⚠️ Encontrados {len(df_faltantes)} proventos faltantes")
+
+                        # Mostrar preview
+                        st.dataframe(
+                            df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']],
+                            use_container_width=True,
+                            height=200
+                        )
+
+                        col_sync1, col_sync2 = st.columns(2)
+
+                        with col_sync1:
+                            if st.button("📝 Enviar para Aba de Teste", key="btn_sync_test", use_container_width=True):
+                                success, msg = sync_manager.sync_to_test()
+                                if success:
+                                    st.success(f"✅ {msg}")
+                                    st.info("📌 Verifique a aba 'meus_proventos_test' no Google Sheets")
+                                else:
+                                    st.error(f"❌ {msg}")
+
+                        with col_sync2:
+                            if st.button("🚀 Aplicar em Produção", key="btn_sync_prod", type="primary", use_container_width=True):
+                                # Backup + Merge
+                                backup_dir = os_sync.path.join(os_sync.path.dirname(__file__), '..', 'backups')
+                                success, msg, backup_path = sync_manager.apply_to_production()
+                                if success:
+                                    st.success(f"✅ {msg}")
+                                    if backup_path:
+                                        st.info(f"💾 Backup salvo em: {backup_path}")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg}")
+
+                except Exception as e:
+                    st.error(f"Erro ao processar CSV: {e}")
+                finally:
+                    # Limpar arquivo temporário
+                    try:
+                        os_sync.unlink(tmp_path)
+                    except:
+                        pass
+
         if not df_p.empty:
             df_p['ano_real'] = df_p['data'].dt.year
             df_p['mes_real'] = df_p['data'].dt.month
