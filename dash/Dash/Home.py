@@ -26,7 +26,7 @@ if st.query_params.get("refresh") == "1":
 def get_logo_base64():
     """Load logo image as base64 for preloader."""
     try:
-        logo_path = Path(__file__).parent / "pictures" / "Sem Fundo - Copia.png"
+        logo_path = Path(__file__).parent / "pictures" / "Logo carregamento.PNG"
         with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except:

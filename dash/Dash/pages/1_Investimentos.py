@@ -1810,22 +1810,10 @@ with tab6:
 
 with tab4:
     if not df_proventos_bruto.empty:
+        # PROVENTOS HISTÓRICOS COMPLETOS - sem filtros de sidebar
+        # Consistente com cálculo da Performance (TWR)
         df_p = df_proventos_bruto.copy()
-        
-        if filtro_moeda != 'Todas': 
-            df_p = df_p[df_p['moeda'] == filtro_moeda]
-        
         df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
-
-        if filtro_setor:
-            df_p = df_p[df_p['setor_calc'].isin(filtro_setor)]
-        
-        if lista_tickers_final:
-            def limpar_sufixo_prov(t): return str(t).replace('.SA', '').replace('.TO', '').replace('.L', '').strip().upper()
-            tickers_permitidos = {limpar_sufixo_prov(t) for t in lista_tickers_final}
-            df_p = df_p[df_p['ticker'].apply(limpar_sufixo_prov).isin(tickers_permitidos)]
-        else: 
-            df_p = df_p[0:0]
 
         def conv_brl(row):
             m = str(row.get('moeda', 'BRL')).strip().upper()

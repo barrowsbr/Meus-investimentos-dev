@@ -6,7 +6,7 @@ def get_logo_base64():
     """Load logo image as base64."""
     try:
         # Resolve path relative to this file: core/ui.py -> ../../pictures/Logo.png
-        logo_path = Path(__file__).parent.parent / "pictures" / "Sem Fundo - Copia.png"
+        logo_path = Path(__file__).parent.parent / "pictures" / "Logo carregamento.PNG"
         with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except:
