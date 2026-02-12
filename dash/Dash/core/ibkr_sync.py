@@ -163,18 +163,14 @@ def find_missing_proventos(
     def normalize_date(d):
         if pd.isna(d):
             return ''
+        if isinstance(d, str):
+            # Já é string, retornar apenas os primeiros 10 chars (YYYY-MM-DD)
+            return str(d)[:10]
         try:
-            # Tentar converter para datetime e formatar
-            dt = pd.to_datetime(d, dayfirst=True, errors='coerce')
-            if pd.isna(dt):
-                # Tentar formato americano
-                dt = pd.to_datetime(d, dayfirst=False, errors='coerce')
-            if pd.notna(dt):
-                return dt.strftime('%Y-%m-%d')
+            # É datetime, converter
+            return pd.Timestamp(d).strftime('%Y-%m-%d')
         except:
-            pass
-        # Fallback: retornar string limpa
-        return str(d)[:10]
+            return str(d)[:10]
 
     # Criar chave única: data + ticker + tipo (Dividendo/IMPOSTO)
     def create_key(row):
@@ -435,89 +431,3 @@ class IBKRSyncManager:
         Aplica mudanças da aba de teste para produção.
         """
         return merge_test_to_production(backup_dir=self.backup_dir)
-
-    def sync_direct_to_production(self) -> Tuple[bool, str, str]:
-        """
-        Sincroniza proventos faltantes DIRETAMENTE para produção (sem aba de teste).
-
-        Returns:
-            Tuple[sucesso, mensagem, backup_path]
-        """
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return True, "Nenhum provento faltante para sincronizar", ""
-
-        try:
-            from core.data.gsheets import _authenticate_no_cache
-
-            client = _authenticate_no_cache()
-            if not client:
-                return False, "Falha na autenticação com Google Sheets", ""
-
-            sh = client.open('gdados')
-            ws_prod = sh.worksheet('meus_proventos')
-
-            # Ler dados atuais
-            prod_data = ws_prod.get_all_values()
-            if len(prod_data) < 1:
-                return False, "Aba de produção vazia ou sem cabeçalhos", ""
-
-            headers = prod_data[0]
-            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-
-            # Criar backup
-            backup_path = create_backup(df_prod, self.backup_dir)
-
-            # Preparar dados para inserção
-            cols_order = ['ticker', 'data', 'decisao', 'mes', 'ano', 'lancamento', 'categoria', 'valor', 'moeda']
-
-            # Converter df_faltantes para o formato correto
-            df_new = self.df_faltantes[cols_order].copy()
-
-            # Mesclar com produção
-            df_merged = pd.concat([df_prod, df_new], ignore_index=True)
-
-            # Ordenar por data (mais recente primeiro)
-            df_merged['data_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
-            df_merged = df_merged.sort_values('data_sort', ascending=False)
-            df_merged = df_merged.drop(columns=['data_sort'])
-
-            # Atualizar produção
-            data_to_write = [headers] + df_merged.values.tolist()
-            ws_prod.clear()
-            ws_prod.update('A1', data_to_write)
-
-            return True, f"Adicionados {len(self.df_faltantes)} proventos diretamente em produção", backup_path
-
-        except Exception as e:
-            return False, f"Erro ao sincronizar: {e}", ""
-
-    def get_summary(self) -> Dict:
-        """
-        Retorna resumo dos proventos a serem adicionados.
-        """
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return {'total': 0, 'dividendos': 0, 'impostos': 0, 'por_ticker': {}}
-
-        df = self.df_faltantes.copy()
-
-        # Converter valor de string BR para float
-        def parse_valor_br(v):
-            try:
-                return float(str(v).replace(',', '.'))
-            except:
-                return 0.0
-
-        df['valor_float'] = df['valor'].apply(parse_valor_br)
-
-        dividendos = df[df['decisao'] == 'Dividendo']
-        impostos = df[df['decisao'] == 'IMPOSTO']
-
-        return {
-            'total': len(df),
-            'dividendos': len(dividendos),
-            'impostos': len(impostos),
-            'valor_bruto': dividendos['valor_float'].sum(),
-            'valor_impostos': abs(impostos['valor_float'].sum()),
-            'valor_liquido': df['valor_float'].sum(),
-            'por_ticker': df.groupby('ticker')['valor_float'].sum().to_dict()
-        }
