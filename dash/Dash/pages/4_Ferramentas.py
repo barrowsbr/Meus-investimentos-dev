@@ -73,240 +73,270 @@ with c1:
                 help="Selecione se deseja importar proventos (dividendos/impostos) ou novos ativos"
             )
 
-        # ── Upload do arquivo ──
-        file_types = ['csv', 'pdf', 'xlsx']
-        if source == "IBKR":
-            file_types = ['csv']  # IBKR exporta CSV
-
+        
+        # ── 1. UNIFIED UPLOADER ──
+        # Aceita CSV (IBKR/Outros) e OFX (Bancos)
         uploaded_file = st.file_uploader(
-            "Arquivo (CSV)" if source == "IBKR" else "Arquivo (CSV/XLSX/PDF)",
-            type=file_types,
-            key="data_uploader"
+            "Selecione o arquivo (OFX, CSV)",
+            type=['csv', 'ofx', 'txt'],
+            key="universal_uploader"
         )
 
-        # ── IBKR PROVENTOS FLOW ──
-        if source == "IBKR" and import_type == "📊 Proventos":
-            if uploaded_file is not None:
-                import tempfile
-                import os as os_sync
-                from core.ibkr_sync import IBKRSyncManager
-                from core.data.loader import load_proventos
-
-                # Salvar arquivo temporariamente
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                    tmp.write(uploaded_file.getvalue())
-                    tmp_path = tmp.name
-
-                try:
-                    # Inicializar manager
-                    sync_manager = IBKRSyncManager(csv_path=tmp_path)
-
-                    # Carregar CSV
-                    qtd_div, qtd_imp = sync_manager.load_csv()
-                    st.info(f"📊 CSV carregado: **{qtd_div}** dividendos, **{qtd_imp}** impostos")
-
-                    # Carregar proventos existentes do GSheets
-                    st.cache_data.clear()
-                    df_proventos_bruto = load_proventos()
-
-                    # Encontrar faltantes
-                    df_faltantes = sync_manager.find_missing(df_proventos_bruto)
-
-
-                    if df_faltantes.empty:
-                        st.success("✅ Todos os proventos já estão sincronizados!")
-                    else:
-                        st.warning(f"⚠️ Encontrados **{len(df_faltantes)}** proventos faltantes")
-
-                        # Mostrar preview
-                        st.dataframe(
-                            df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']],
-                            use_container_width=True,
-                            height=200
-                        )
-
-                        col_sync1, col_sync2 = st.columns(2)
-
-                        with col_sync1:
-                            if st.button("📝 Enviar para Teste", key="btn_sync_test", use_container_width=True):
-                                success, msg = sync_manager.sync_to_test()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    st.info("📌 Verifique a aba 'meus_proventos_test' no Google Sheets")
-                                else:
-                                    st.error(f"❌ {msg}")
-
-                        with col_sync2:
-                            if st.button("🚀 Aplicar em Produção", key="btn_sync_prod", type="primary", use_container_width=True):
-                                backup_dir = os_sync.path.join(os_sync.path.dirname(__file__), '..', 'backups')
-                                success, msg, backup_path = sync_manager.apply_to_production()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    if backup_path:
-                                        st.info(f"💾 Backup salvo em: {backup_path}")
-                                    # Limpar aba de teste após aplicar em produção
-                                    try:
-                                        from core.data.gsheets import _authenticate_no_cache
-                                        client = _authenticate_no_cache()
-                                        if client:
-                                            sh = client.open('gdados')
-                                            try:
-                                                ws_test = sh.worksheet('meus_proventos_test')
-                                                sh.del_worksheet(ws_test)
-                                                st.info("🗑️ Aba 'meus_proventos_test' removida")
-                                            except Exception:
-                                                pass  # Aba não existe, tudo certo
-                                    except Exception:
-                                        pass
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ {msg}")
-
-                except Exception as e:
-                    st.error(f"Erro ao processar CSV: {e}")
-                finally:
-                    try:
-                        os_sync.unlink(tmp_path)
-                    except:
-                        pass
-            else:
-                st.caption("Faça upload do CSV de transações do Interactive Brokers")
-
-        # ── IBKR ATIVOS FLOW ──
-        elif source == "IBKR" and import_type == "📈 Ativos":
-            if uploaded_file is not None:
-                import tempfile
-                import os as os_sync
-                import importlib
-                import core.ibkr_sync
-                importlib.reload(core.ibkr_sync)
-                from core.ibkr_sync import IBKRTradesManager
-                from core.data.provider import DataProvider
-
-                # Salvar arquivo temporariamente
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                    tmp.write(uploaded_file.getvalue())
-                    tmp_path = tmp.name
-
-                try:
-                    # Inicializar manager
-                    trades_manager = IBKRTradesManager(csv_path=tmp_path)
-
-                    # Carregar CSV
-                    qtd_compras, qtd_vendas = trades_manager.load_csv()
-                    st.info(f"📈 CSV carregado: **{qtd_compras}** compras, **{qtd_vendas}** vendas")
-
-                    # Carregar ativos existentes do GSheets
-                    st.cache_data.clear()
-                    df_ativos = DataProvider.get_assets()
-
-
-                    # Encontrar faltantes (inclui marcação de Splits)
-                    df_faltantes_raw = trades_manager.find_missing(df_ativos)
-
-                    # Separar Splits de Missing Real
-                    if 'status_match' in df_faltantes_raw.columns:
-                        df_splits = df_faltantes_raw[df_faltantes_raw['status_match'] == 'POTENTIAL_SPLIT']
-                        df_missing = df_faltantes_raw[df_faltantes_raw['status_match'] == 'MISSING']
-                    else:
-                        df_splits = pd.DataFrame()
-                        df_missing = df_faltantes_raw
-
-                    # Atualizar o manager APENAS com os missing reais para importação
-                    trades_manager.df_faltantes = df_missing
-
-                    # 1. Alerta de Splits/Modificações
-                    if not df_splits.empty:
-                        with st.expander(f"⚠️ **Atenção:** {len(df_splits)} transações parecem já existir (Splits/Ajustes)", expanded=True):
-                            st.warning("Estas transações tem valor financeiro compatível com itens da sua planilha, mas quantidade/preço diferentes. Provavelmente são **Splits (Desdobramentos)** ou ajustes manuais que você já fez. **Elas NÃO serão importadas automaticamente** para evitar duplicidade.")
-                            
-                            cols_split = ['Data', 'Símbolo', 'Tipo de transação', 'Quantidade', 'Preço', 'match_details']
-                            # Garantir que colunas existam
-                            cols_show_split = [c for c in cols_split if c in df_splits.columns]
-                            
-                            st.dataframe(
-                                df_splits[cols_show_split],
-                                use_container_width=True,
-                                height=150,
-                                column_config={
-                                    "match_details": st.column_config.ListColumn("Compatível com (GSheets)")
-                                }
-                            )
-
-                    # 2. Fluxo Normal de Importação (Missing)
-                    if df_missing.empty:
-                        if df_splits.empty:
-                            st.success("✅ Todos os trades já estão sincronizados!")
-                        else:
-                            st.info("📌 Nenhuma nova transação para importar (apenas ajustes/splits detectados).")
-                    else:
-                        st.info(f"📥 **{len(df_missing)}** novas transações encontradas para importar:")
-
-                        # Mostrar preview
-                        cols_show = [c for c in ['Data', 'Tipo de transação', 'Símbolo', 'Quantidade', 'Preço', 'Moeda'] if c in df_missing.columns]
-                        st.dataframe(
-                            df_missing[cols_show],
-                            use_container_width=True,
-                            height=200
-                        )
-
-                        col_sync1, col_sync2 = st.columns(2)
-
-                        with col_sync1:
-                            if st.button("📝 Enviar para Teste", key="btn_trades_test", use_container_width=True):
-                                success, msg = trades_manager.sync_to_test()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    st.info("📌 Verifique a aba 'meus_ativos_test' no Google Sheets")
-                                else:
-                                    st.error(f"❌ {msg}")
-
-                        with col_sync2:
-                            if st.button("🚀 Aplicar em Produção", key="btn_trades_prod", type="primary", use_container_width=True):
-                                success, msg, backup_path = trades_manager.apply_to_production()
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                    if backup_path:
-                                        st.info(f"💾 Backup salvo em: {backup_path}")
-                                    # Limpar aba de teste
-                                    try:
-                                        from core.data.gsheets import _authenticate_no_cache
-                                        client = _authenticate_no_cache()
-                                        if client:
-                                            # ... (código existente de limpeza)
-                                            sh = client.open('gdados')
-                                            try:
-                                                ws_test = sh.worksheet('meus_ativos_test')
-                                                sh.del_worksheet(ws_test)
-                                            except: pass
-                                    except: pass
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ {msg}")
-
-                except Exception as e:
-                    st.error(f"Erro ao processar CSV: {e}")
-                finally:
-                    try:
-                        os_sync.unlink(tmp_path)
-                    except:
-                        pass
-            else:
-                st.caption("Faça upload do CSV de transações do Interactive Brokers")
-
-        # ── GENERIC FLOW (XP, Nu, Bradesco) ──
-        else:
-            st.write("")
-            if st.button("Iniciar Upload", use_container_width=True, key="btn_upload"):
-                if uploaded_file is None:
-                    st.warning("⚠️ Nenhum arquivo selecionado.")
+        # ── 2. PROCESSAMENTO (Router) ──
+        if uploaded_file is not None:
+            file_ext = uploaded_file.name.split('.')[-1].lower()
+            
+            # --- ROTEAMENTO IBKR ---
+            if source == "IBKR":
+                if file_ext != 'csv':
+                    st.error("❌ Para IBKR, por favor use arquivos .csv")
                 else:
-                    with st.spinner("Enviando dados..."):
-                        time.sleep(2)
-                        st.success(f"✅ Dados de **{source}** importados com sucesso.")
-                        st.toast("Upload concluído", icon="📥")
+                    # .. Lógica IBKR ...
+                    if import_type == "📊 Proventos":
+                        import tempfile
+                        import os as os_sync
+                        from core.ibkr_sync import IBKRSyncManager
+                        from core.data.loader import load_proventos
+        
+                        # Salvar arquivo temporariamente
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                            tmp.write(uploaded_file.getvalue())
+                            tmp_path = tmp.name
+        
+                        try:
+                            # Inicializar manager
+                            sync_manager = IBKRSyncManager(csv_path=tmp_path)
+        
+                            # Carregar CSV
+                            qtd_div, qtd_imp = sync_manager.load_csv()
+                            st.info(f"📊 CSV carregado: **{qtd_div}** dividendos, **{qtd_imp}** impostos")
+        
+                            # Carregar proventos existentes do GSheets
+                            st.cache_data.clear()
+                            df_proventos_bruto = load_proventos()
+        
+                            # Encontrar faltantes
+                            df_faltantes = sync_manager.find_missing(df_proventos_bruto)
+        
+                            if df_faltantes.empty:
+                                st.success("✅ Todos os proventos já estão sincronizados!")
+                            else:
+                                st.warning(f"⚠️ Encontrados **{len(df_faltantes)}** proventos faltantes")
+        
+                                # Mostrar preview
+                                st.dataframe(
+                                    df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']],
+                                    use_container_width=True,
+                                    height=200
+                                )
+        
+                                col_sync1, col_sync2 = st.columns(2)
+        
+                                with col_sync1:
+                                    if st.button("📝 Enviar para Teste", key="btn_sync_test", use_container_width=True):
+                                        success, msg = sync_manager.sync_to_test()
+                                        if success:
+                                            st.success(f"✅ {msg}")
+                                            st.info("📌 Verifique a aba 'meus_proventos_test' no Google Sheets")
+                                        else:
+                                            st.error(f"❌ {msg}")
+        
+                                with col_sync2:
+                                    if st.button("🚀 Aplicar em Produção", key="btn_sync_prod", type="primary", use_container_width=True):
+                                        backup_dir = os_sync.path.join(os_sync.path.dirname(__file__), '..', 'backups')
+                                        success, msg, backup_path = sync_manager.apply_to_production()
+                                        if success:
+                                            st.success(f"✅ {msg}")
+                                            if backup_path:
+                                                st.info(f"💾 Backup salvo em: {backup_path}")
+                                            # Limpar aba de teste após aplicar em produção
+                                            try:
+                                                from core.data.gsheets import _authenticate_no_cache
+                                                client = _authenticate_no_cache()
+                                                if client:
+                                                    sh = client.open('gdados')
+                                                    try:
+                                                        ws_test = sh.worksheet('meus_proventos_test')
+                                                        sh.del_worksheet(ws_test)
+                                                        st.info("🗑️ Aba 'meus_proventos_test' removida")
+                                                    except Exception:
+                                                        pass  # Aba não existe, tudo certo
+                                            except Exception:
+                                                pass
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                        else:
+                                            st.error(f"❌ {msg}")
+        
+                        except Exception as e:
+                            st.error(f"Erro ao processar CSV: {e}")
+                        finally:
+                            try:
+                                os_sync.unlink(tmp_path)
+                            except:
+                                pass
+
+                    elif import_type == "📈 Ativos":
+                        import tempfile
+                        import os as os_sync
+                        # import importlib
+                        # import core.ibkr_sync
+                        # importlib.reload(core.ibkr_sync)
+                        from core.ibkr_sync import IBKRTradesManager
+                        from core.data.provider import DataProvider
+        
+                        # Salvar arquivo temporariamente
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                            tmp.write(uploaded_file.getvalue())
+                            tmp_path = tmp.name
+        
+                        try:
+                            # Inicializar manager
+                            trades_manager = IBKRTradesManager(csv_path=tmp_path)
+        
+                            # Carregar CSV
+                            qtd_compras, qtd_vendas = trades_manager.load_csv()
+                            st.info(f"📈 CSV carregado: **{qtd_compras}** compras, **{qtd_vendas}** vendas")
+        
+                            # Carregar ativos existentes do GSheets
+                            st.cache_data.clear()
+                            df_ativos = DataProvider.get_assets()
+        
+                            # Encontrar faltantes (inclui marcação de Splits)
+                            df_faltantes_raw = trades_manager.find_missing(df_ativos)
+        
+                            # Separar Splits de Missing Real
+                            if 'status_match' in df_faltantes_raw.columns:
+                                df_splits = df_faltantes_raw[df_faltantes_raw['status_match'] == 'POTENTIAL_SPLIT']
+                                df_missing = df_faltantes_raw[df_faltantes_raw['status_match'] == 'MISSING']
+                            else:
+                                df_splits = pd.DataFrame()
+                                df_missing = df_faltantes_raw
+        
+                            # Atualizar o manager APENAS com os missing reais para importação
+                            trades_manager.df_faltantes = df_missing
+        
+                            # 1. Alerta de Splits/Modificações
+                            if not df_splits.empty:
+                                with st.expander(f"⚠️ **Atenção:** {len(df_splits)} transações parecem já existir (Splits/Ajustes)", expanded=True):
+                                    st.warning("Estas transações tem valor financeiro compatível com itens da sua planilha, mas quantidade/preço diferentes. Provavelmente são **Splits (Desdobramentos)** ou ajustes manuais que você já fez. **Elas NÃO serão importadas automaticamente** para evitar duplicidade.")
+                                    
+                                    cols_split = ['Data', 'Símbolo', 'Tipo de transação', 'Quantidade', 'Preço', 'match_details']
+                                    # Garantir que colunas existam
+                                    cols_show_split = [c for c in cols_split if c in df_splits.columns]
+                                    
+                                    st.dataframe(
+                                        df_splits[cols_show_split],
+                                        use_container_width=True,
+                                        height=150,
+                                        column_config={
+                                            "match_details": st.column_config.ListColumn("Compatível com (GSheets)")
+                                        }
+                                    )
+        
+                            # 2. Fluxo Normal de Importação (Missing)
+                            if df_missing.empty:
+                                if df_splits.empty:
+                                    st.success("✅ Todos os trades já estão sincronizados!")
+                                else:
+                                    st.info("📌 Nenhuma nova transação para importar (apenas ajustes/splits detectados).")
+                            else:
+                                st.info(f"📥 **{len(df_missing)}** novas transações encontradas para importar:")
+        
+                                # Mostrar preview
+                                cols_show = [c for c in ['Data', 'Tipo de transação', 'Símbolo', 'Quantidade', 'Preço', 'Moeda'] if c in df_missing.columns]
+                                st.dataframe(
+                                    df_missing[cols_show],
+                                    use_container_width=True,
+                                    height=200
+                                )
+        
+                                col_sync1, col_sync2 = st.columns(2)
+        
+                                with col_sync1:
+                                    if st.button("📝 Enviar para Teste", key="btn_trades_test", use_container_width=True):
+                                        success, msg = trades_manager.sync_to_test()
+                                        if success:
+                                            st.success(f"✅ {msg}")
+                                            st.info("📌 Verifique a aba 'meus_ativos_test' no Google Sheets")
+                                        else:
+                                            st.error(f"❌ {msg}")
+        
+                                with col_sync2:
+                                    if st.button("🚀 Aplicar em Produção", key="btn_trades_prod", type="primary", use_container_width=True):
+                                        success, msg, backup_path = trades_manager.apply_to_production()
+                                        if success:
+                                            st.success(f"✅ {msg}")
+                                            if backup_path:
+                                                st.info(f"💾 Backup salvo em: {backup_path}")
+                                            # Limpar aba de teste
+                                            try:
+                                                from core.data.gsheets import _authenticate_no_cache
+                                                client = _authenticate_no_cache()
+                                                if client:
+                                                    sh = client.open('gdados')
+                                                    try:
+                                                        ws_test = sh.worksheet('meus_ativos_test')
+                                                        sh.del_worksheet(ws_test)
+                                                    except: pass
+                                            except: pass
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                        else:
+                                            st.error(f"❌ {msg}")
+        
+                        except Exception as e:
+                            st.error(f"Erro ao processar CSV: {e}")
+                        finally:
+                            try:
+                                os_sync.unlink(tmp_path)
+                            except:
+                                pass
+
+            # --- ROTEAMENTO OFX (Nu, XP, Bradesco) ---
+            else:
+                if file_ext not in ['ofx', 'txt']:
+                     st.error(f"❌ Para {source}, por favor use arquivos .ofx")
+                else:
+                    import importlib
+                    import core.finance_sync
+                    importlib.reload(core.finance_sync)
+                    from core.finance_sync import FinanceSyncManager
+                    
+                    # Tipo de conta selector
+                    t_conta = st.radio("Tipo de Conta", ["Cartão de Crédito", "Conta Corrente"], horizontal=True, key=f"t_conta_{source}")
+                    tipo_bd = "Cartão" if t_conta == "Cartão de Crédito" else "Conta"
+                    
+                    # Manager
+                    f_manager = FinanceSyncManager()
+                    
+                    # Process
+                    df_new, msg = f_manager.process_file(uploaded_file, source, tipo_bd)
+                    
+                    if not msg and not df_new.empty:
+                        st.info(f"📥 **{len(df_new)}** novas transações identificadas.")
+                        
+                        # Preview
+                        st.dataframe(
+                            df_new[['data', 'descricao', 'valor', 'categoria']], 
+                            use_container_width=True, 
+                            height=200
+                        )
+                        
+                        if st.button(f"🚀 Importar para 'financas'", use_container_width=True, key="btn_imp_ofx"):
+                            success, save_msg = f_manager.save_to_gsheets()
+                            if success:
+                                st.success(save_msg)
+                                st.cache_data.clear()
+                                time.sleep(2)
+                                st.rerun()
+                            else:
+                                st.error(save_msg)
+                    
+                    elif msg:
+                         st.error(msg)
+                    else:
+                         st.warning("Nenhuma nova transação encontrada (todas já importadas ou arquivo vazio).")
 
 # ════════════════════════════════════════════════════════
 # 2. SYSTEM SYNC

@@ -84,14 +84,17 @@ st.markdown("""
     }
     
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
+        height: 60px; /* Increased height */
         white-space: nowrap;
         background-color: rgba(255,255,255,0.05);
         border-radius: 8px;
-        padding: 10px 20px;
+        padding: 10px 24px;
         color: #cbd5e1;
         border: 1px solid transparent;
         transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .stTabs [aria-selected="true"] {
@@ -121,27 +124,27 @@ st.markdown("""
     /* HERO TITLE (BARROOTS) */
     .hero-container {
         text-align: center;
-        padding-top: 2vh;
-        padding-bottom: 2vh;
+        padding-top: 0vh; /* Moved up */
+        padding-bottom: 1vh;
         animation: fadeIn 1.2s ease-out;
     }
     
     .hero-title {
-        font-size: 3.5rem;
+        font-size: 2.2rem; /* Decreased size */
         font-weight: 800;
         background: linear-gradient(to right, #ffffff, #a5b4fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0px;
-        letter-spacing: -2px;
-        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
+        letter-spacing: -1.5px;
+        text-shadow: 0 0 30px rgba(165, 180, 252, 0.2);
     }
     
     .hero-subtitle {
         color: #94a3b8;
-        font-size: 1.1rem;
+        font-size: 0.95rem; /* Decreased size */
         font-weight: 300;
-        margin-top: 5px;
+        margin-top: 2px;
     }
 
     /* Animation provided by Home.py styles usually, but ensuring here */

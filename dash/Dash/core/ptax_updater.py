@@ -31,7 +31,8 @@ def atualizar_ptax():
 
     # 2. Scrape IPEA
     try:
-        tables = pd.read_html(url, decimal=',', thousands='.')
+        # Read without forcing decimal/thousands to allow string capture
+        tables = pd.read_html(url, flavor='lxml')
         
         df_ipea = None
         for i, t in enumerate(tables):
@@ -56,6 +57,13 @@ def atualizar_ptax():
         from core.utils import parse_date_br, parse_decimal_br
         df_ipea['Data_dt'] = parse_date_br(df_ipea['Data'])
         df_ipea['Taxa'] = df_ipea['Taxa'].apply(parse_decimal_br)
+        
+        # Heuristic fix for PTAX scaling issues (e.g. 5.1950 coming as 51950.0)
+        # PTAX should be small (e.g. < 20). If >> 100, it's likely a parsing error where separator was ignored/stripped.
+        mask_scaling = df_ipea['Taxa'] > 100
+        if mask_scaling.any():
+            print(f"DEBUG PTAX: Found {mask_scaling.sum()} rows with scaling issue (Taxa > 100). Fixing by dividing by 10000.")
+            df_ipea.loc[mask_scaling, 'Taxa'] = df_ipea.loc[mask_scaling, 'Taxa'] / 10000.0
         
         df_ipea = df_ipea.dropna(subset=['Data_dt'])
         
