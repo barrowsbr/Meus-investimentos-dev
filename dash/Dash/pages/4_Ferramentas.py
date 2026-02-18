@@ -47,21 +47,127 @@ with c1:
             key="data_source_select"
         )
 
+        # ── Sub-seletor para IBKR ──
+        import_type = None
+        if source == "IBKR":
+            import_type = st.radio(
+                "Tipo de importação",
+                ["📊 Proventos", "📈 Ativos"],
+                horizontal=True,
+                key="ibkr_import_type",
+                help="Selecione se deseja importar proventos (dividendos/impostos) ou novos ativos"
+            )
+
+        # ── Upload do arquivo ──
+        file_types = ['csv', 'pdf', 'xlsx']
+        if source == "IBKR":
+            file_types = ['csv']  # IBKR exporta CSV
+
         uploaded_file = st.file_uploader(
-            "Arquivo (CSV/XLSX/PDF)",
-            type=['csv', 'pdf', 'xlsx'],
+            "Arquivo (CSV)" if source == "IBKR" else "Arquivo (CSV/XLSX/PDF)",
+            type=file_types,
             key="data_uploader"
         )
 
-        st.write("")
-        if st.button("Iniciar Upload", use_container_width=True, key="btn_upload"):
-            if uploaded_file is None:
-                st.warning("⚠️ Nenhum arquivo selecionado.")
+        # ── IBKR PROVENTOS FLOW ──
+        if source == "IBKR" and import_type == "📊 Proventos":
+            if uploaded_file is not None:
+                import tempfile
+                import os as os_sync
+                from core.ibkr_sync import IBKRSyncManager
+                from core.data.loader import load_proventos
+
+                # Salvar arquivo temporariamente
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = tmp.name
+
+                try:
+                    # Inicializar manager
+                    sync_manager = IBKRSyncManager(csv_path=tmp_path)
+
+                    # Carregar CSV
+                    qtd_div, qtd_imp = sync_manager.load_csv()
+                    st.info(f"📊 CSV carregado: **{qtd_div}** dividendos, **{qtd_imp}** impostos")
+
+                    # Carregar proventos existentes do GSheets
+                    df_proventos_bruto = load_proventos()
+
+                    # Debug: dados do GSheets
+                    with st.expander("🔍 Debug: Dados do GSheets"):
+                        st.write("**Colunas disponíveis:**", list(df_proventos_bruto.columns))
+                        st.write("**Amostra (últimos 10):**")
+                        cols_show = [c for c in ['ticker', 'data', 'decisao', 'lancamento', 'valor', 'moeda'] if c in df_proventos_bruto.columns]
+                        st.dataframe(df_proventos_bruto[cols_show].tail(10))
+
+                    # Encontrar faltantes
+                    df_faltantes = sync_manager.find_missing(df_proventos_bruto)
+
+                    if df_faltantes.empty:
+                        st.success("✅ Todos os proventos já estão sincronizados!")
+                    else:
+                        st.warning(f"⚠️ Encontrados **{len(df_faltantes)}** proventos faltantes")
+
+                        # Mostrar preview
+                        st.dataframe(
+                            df_faltantes[['data', 'ticker', 'decisao', 'valor', 'moeda']],
+                            use_container_width=True,
+                            height=200
+                        )
+
+                        col_sync1, col_sync2 = st.columns(2)
+
+                        with col_sync1:
+                            if st.button("📝 Enviar para Teste", key="btn_sync_test", use_container_width=True):
+                                success, msg = sync_manager.sync_to_test()
+                                if success:
+                                    st.success(f"✅ {msg}")
+                                    st.info("📌 Verifique a aba 'meus_proventos_test' no Google Sheets")
+                                else:
+                                    st.error(f"❌ {msg}")
+
+                        with col_sync2:
+                            if st.button("🚀 Aplicar em Produção", key="btn_sync_prod", type="primary", use_container_width=True):
+                                backup_dir = os_sync.path.join(os_sync.path.dirname(__file__), '..', 'backups')
+                                success, msg, backup_path = sync_manager.apply_to_production()
+                                if success:
+                                    st.success(f"✅ {msg}")
+                                    if backup_path:
+                                        st.info(f"💾 Backup salvo em: {backup_path}")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg}")
+
+                except Exception as e:
+                    st.error(f"Erro ao processar CSV: {e}")
+                finally:
+                    try:
+                        os_sync.unlink(tmp_path)
+                    except:
+                        pass
             else:
-                with st.spinner("Enviando dados..."):
-                    time.sleep(2)
-                    st.success(f"✅ Dados de **{source}** importados com sucesso.")
-                    st.toast("Upload concluído", icon="📥")
+                st.caption("Faça upload do CSV de transações do Interactive Brokers")
+
+        # ── IBKR ATIVOS FLOW (placeholder) ──
+        elif source == "IBKR" and import_type == "📈 Ativos":
+            if uploaded_file is not None:
+                st.info("🚧 Importação de ativos IBKR — em breve.")
+                st.caption("Esta funcionalidade será implementada para sincronizar novos trades automaticamente.")
+            else:
+                st.caption("Faça upload do CSV de transações do Interactive Brokers")
+
+        # ── GENERIC FLOW (XP, Nu, Bradesco) ──
+        else:
+            st.write("")
+            if st.button("Iniciar Upload", use_container_width=True, key="btn_upload"):
+                if uploaded_file is None:
+                    st.warning("⚠️ Nenhum arquivo selecionado.")
+                else:
+                    with st.spinner("Enviando dados..."):
+                        time.sleep(2)
+                        st.success(f"✅ Dados de **{source}** importados com sucesso.")
+                        st.toast("Upload concluído", icon="📥")
 
 # ════════════════════════════════════════════════════════
 # 2. SYSTEM SYNC
