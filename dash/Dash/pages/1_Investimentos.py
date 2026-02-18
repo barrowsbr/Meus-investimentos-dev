@@ -164,6 +164,12 @@ try:
 except:
     tab_index = 0
 
+# Redirect for external pages (Performance = tab 1, Legado = tab 8)
+if tab_index == 1:
+    st.switch_page("pages/3_Performance.py")
+elif tab_index == 8:
+    st.switch_page("pages/6_Historico_Patrimonial.py")
+
 # Inject JavaScript to click the correct tab after page loads
 if tab_index > 0:
     components.html(f"""
@@ -310,15 +316,44 @@ with st.sidebar:
 # --- FIM DO SIDEBAR / INÍCIO DO CORPO PRINCIPAL ---
 
 # --- TABS (Moved to top to prevent reset on re-run) ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+# Ordem segue a estrutura da Home:
+# 0: Composição | 1: Performance (redirect) | 2: Renda Variável | 3: Renda Fixa
+# 4: Proventos | 5: Cripto | 6: Câmbio | 7: Imposto | 8: Legado (redirect)
+
+tab1, tab_perf, tab2, tab3, tab4, tab5, tab6, tab7, tab_legado = st.tabs([
     "💎 Composição",
+    "🚀 Performance",
     "📊 Renda Variável",
     "🏦 Renda Fixa",
     "💰 Proventos",
     "₿ Cripto",
     "💱 Câmbio",
-    "🦁 Imposto"
+    "🦁 Imposto",
+    "🏛️ Legado"
 ])
+
+# --- REDIRECT TABS (Performance e Legado) ---
+with tab_perf:
+    st.markdown("""
+    <div style="text-align: center; padding: 60px 20px;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">🚀</div>
+        <h2 style="color: #f1f5f9; margin-bottom: 8px;">Performance GIPS</h2>
+        <p style="color: #64748b; margin-bottom: 24px;">Análise detalhada de rentabilidade e risco</p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Acessar Performance Completa", key="btn_goto_perf", use_container_width=True, type="primary"):
+        st.switch_page("pages/3_Performance.py")
+
+with tab_legado:
+    st.markdown("""
+    <div style="text-align: center; padding: 60px 20px;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">🏛️</div>
+        <h2 style="color: #f1f5f9; margin-bottom: 8px;">Histórico Patrimonial</h2>
+        <p style="color: #64748b; margin-bottom: 24px;">Evolução do patrimônio ao longo do tempo</p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Acessar Legado Completo", key="btn_goto_legado", use_container_width=True, type="primary"):
+        st.switch_page("pages/6_Historico_Patrimonial.py")
 
 # 5. PROCESSAMENTO DE RENDA FIXA (Corrigido: 'Data' e 'Rent. %' restaurados)
 df_rf_completo = pd.DataFrame()

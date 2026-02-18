@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from core.auth import require_auth
 from core.data.provider import DataProvider
 from core.utils import parse_decimal_br
+from core.theme import inject_global_theme, render_page_header, render_back_button, COLORS
+from core.ui import render_fab
 
 # --- AUTH CHECK ---
 require_auth()
@@ -17,229 +17,293 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS / VISUAL IDENTITY (BARROOTS) ---
-st.markdown("""
+# --- APPLY GLOBAL THEME ---
+inject_global_theme()
+
+# --- PAGE-SPECIFIC STYLES ---
+C = COLORS
+st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+    /* ═══ SUMMARY CARDS ═══ */
+    .summary-row {{
+        display: flex;
+        gap: 16px;
+        margin-bottom: 32px;
+        flex-wrap: wrap;
+    }}
 
-    html, body, [class*="css"] {
-        font-family: 'Outfit', sans-serif;
-        color: #e2e8f0;
-    }
-    
-    /* Background Gradient Animation */
-    .stApp {
-        background: linear-gradient(-45deg, #0e1217, #171c26, #0f1724, #000000);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
-    }
-    
-    @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-
-    /* Hero Styles */
-    .hero-container {
+    .summary-card {{
+        flex: 1;
+        min-width: 200px;
+        background: {C['card_bg']};
+        backdrop-filter: blur(16px);
+        border: 1px solid {C['border']};
+        border-radius: 16px;
+        padding: 20px 24px;
         text-align: center;
-        padding-top: 2vh;
-        padding-bottom: 4vh;
-        animation: fadeIn 1.2s ease-out;
-    }
-    
-    .hero-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        background: linear-gradient(to right, #ffffff, #a5b4fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
-        letter-spacing: -2px;
-        text-shadow: 0 0 40px rgba(165, 180, 252, 0.2);
-    }
-    
-    .hero-subtitle {
-        color: #94a3b8;
-        font-size: 1.1rem;
-        font-weight: 300;
-        margin-top: 5px;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    }}
 
-    /* GLASS CARD STYLE */
-    .glass-card {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 20px;
-        padding: 25px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease, border-color 0.3s ease;
-    }
-    
-    .glass-card:hover {
-        transform: translateY(-5px);
-        border-color: rgba(99, 102, 241, 0.3);
-    }
+    .summary-label {{
+        font-size: 0.8rem;
+        color: {C['text_muted']};
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }}
 
-    /* Hide Streamlit elements */
-    #MainMenu, footer, header {visibility: hidden;}
-    [data-testid="stSidebar"] {display: none;}
-    
+    .summary-value {{
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: {C['text_primary']};
+    }}
+
+    .summary-value.positive {{ color: {C['positive']}; }}
+    .summary-value.accent {{ color: {C['accent']}; }}
+
+    /* ═══ HISTORY TABLE ═══ */
+    .history-table {{
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: {C['card_bg']};
+        backdrop-filter: blur(16px);
+        border: 1px solid {C['border']};
+        border-radius: 16px;
+        overflow: hidden;
+    }}
+
+    .history-table thead {{
+        background: rgba(99, 102, 241, 0.1);
+    }}
+
+    .history-table th {{
+        padding: 16px 20px;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: {C['text_muted']};
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid {C['border']};
+    }}
+
+    .history-table th.year-col {{
+        text-align: right;
+    }}
+
+    .history-table td {{
+        padding: 14px 20px;
+        font-size: 0.9rem;
+        color: {C['text_primary']};
+        border-bottom: 1px solid {C['divider']};
+    }}
+
+    .history-table tr:last-child td {{
+        border-bottom: none;
+    }}
+
+    .history-table tr:hover {{
+        background: rgba(99, 102, 241, 0.05);
+    }}
+
+    .history-table td.institution {{
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+
+    .history-table td.value {{
+        text-align: right;
+        font-family: 'JetBrains Mono', 'Consolas', monospace;
+        font-size: 0.85rem;
+    }}
+
+    .history-table tr.total-row {{
+        background: rgba(99, 102, 241, 0.08);
+    }}
+
+    .history-table tr.total-row td {{
+        font-weight: 700;
+        color: {C['text_primary']};
+        border-top: 2px solid {C['border']};
+    }}
+
+    .owner-badge {{
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }}
+
+    .owner-lucas {{ background: rgba(129, 140, 248, 0.2); color: #a5b4fc; }}
+    .owner-maria {{ background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }}
+    .owner-conjunto {{ background: rgba(45, 212, 191, 0.2); color: #5eead4; }}
+
+    /* ═══ EMPTY STATE ═══ */
+    .empty-state {{
+        text-align: center;
+        padding: 60px 20px;
+        color: {C['text_muted']};
+    }}
+
+    .empty-state-icon {{
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
-c1, c2 = st.columns([8, 1])
-with c1:
-    st.markdown("""
-    <div class="hero-container" style="text-align: left; padding-top: 0;">
-        <div class="hero-title" style="font-size: 3rem;">Legado Patrimonial</div>
-        <div class="hero-subtitle">Visualização da construção de riqueza ao longo dos anos</div>
-    </div>
-    """, unsafe_allow_html=True)
-with c2:
-    if st.button("🏠 Home", use_container_width=True):
-        st.switch_page("Home.py")
+render_fab()
+render_back_button()
+render_page_header("Legado Patrimonial", "Registro histórico da construção de riqueza", "🏛️")
 
-# --- DATA PROCESSING ---
+# --- HELPERS ---
+def fmt_brl(v):
+    """Format value as BRL currency."""
+    if pd.isna(v) or v == 0:
+        return "—"
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def classify_owner(name):
+    """Classify owner based on institution name."""
+    n = str(name).lower()
+    if 'lucas' in n:
+        return 'lucas'
+    if 'maria' in n:
+        return 'maria'
+    return 'conjunto'
+
+# --- DATA LOADING ---
 try:
-    # Construct/Fetch Data directly to avoid caching issues with new methods
     df_raw = DataProvider.fetch_data('lb_historic')
-    
+
     if df_raw.empty:
-        st.info("Nenhum dado histórico encontrado na aba 'lb_historic'.")
-    else: # Process Data
-        # Assume format: 
-        # Col 0: Index/Names
-        # Cols 1+: Years (2019, 2020...)
-        
-        # 1. Clean Column Names to simpler years
-        # The provider might have loaded headers. Let's inspect columns.
-        # If headers are 2019, 2020... good.
-        
-        # Melt dataframe to long format for Plotly
-        # Expected cols: ['Instituição', '2019', '2020', ...]
-        
-        # Detect year columns (numeric-ish)
-        year_cols = [c for c in df_raw.columns if str(c).strip().isdigit()]
-        
-        # Filter rows: Remove "Total" and empty
-        # Assuming first column is "Instituição" or empty name
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-state-icon">🏛️</div>
+            <h3>Nenhum registro histórico</h3>
+            <p>A aba 'lb_historic' está vazia ou não foi encontrada.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # --- PROCESS DATA ---
         first_col = df_raw.columns[0]
-        
+        year_cols = [c for c in df_raw.columns if str(c).strip().isdigit()]
+        year_cols_sorted = sorted(year_cols, key=lambda x: int(x))
+
+        # Clean data
         df_clean = df_raw[
-            (df_raw[first_col].astype(str).str.lower() != 'total') & 
-            (df_raw[first_col].notna())
+            (df_raw[first_col].notna()) &
+            (df_raw[first_col].astype(str).str.strip() != '')
         ].copy()
-        
-        # Convert Values to Float
+
+        # Convert values
         for yc in year_cols:
             df_clean[yc] = df_clean[yc].apply(parse_decimal_br)
-            
-        # Melt
-        df_melted = df_clean.melt(id_vars=[first_col], value_vars=year_cols, var_name='Ano', value_name='Valor')
-        df_melted['Ano'] = df_melted['Ano'].astype(str)
-        
-        # Enrich Data (Lucas vs Maria vs Joint)
-        def classify_owner(row_name):
-            n = str(row_name).lower()
-            if 'lucas' in n: return 'Lucas'
-            if 'maria' in n: return 'Maria'
-            return 'Conjunto'
-            
-        df_melted['Titular'] = df_melted[first_col].apply(classify_owner)
-        
-        # --- DASHBOARD ---
-        
-        # KPI: Total Atual (Max Year)
-        max_year = df_melted['Ano'].max()
-        total_current = df_melted[df_melted['Ano'] == max_year]['Valor'].sum()
-        
-        # KPI: Growth compared to start
-        min_year = df_melted['Ano'].min()
-        total_start = df_melted[df_melted['Ano'] == min_year]['Valor'].sum()
-        growth = ((total_current / total_start) - 1) * 100 if total_start > 0 else 0
-        
-        # ROW 1: KPIs
-        k1, k2, k3 = st.columns(3)
-        
-        with k1:
-             st.markdown(f"""
-            <div class="glass-card">
-                <div style="color: #94a3b8; font-size: 0.9rem;">Patrimônio Acumulado ({max_year})</div>
-                <div style="font-size: 2.2rem; font-weight: 700; color: #fff;">R$ {total_current:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with k2:
-            color_g = "#4ade80" if growth > 0 else "#f87171"
+
+        # Separate totals row
+        df_data = df_clean[df_clean[first_col].astype(str).str.lower() != 'total'].copy()
+        df_total = df_clean[df_clean[first_col].astype(str).str.lower() == 'total']
+
+        # Calculate totals if not present
+        if df_total.empty:
+            totals = {first_col: 'Total'}
+            for yc in year_cols:
+                totals[yc] = df_data[yc].sum()
+            df_total = pd.DataFrame([totals])
+
+        # --- SUMMARY CARDS ---
+        min_year = year_cols_sorted[0] if year_cols_sorted else None
+        max_year = year_cols_sorted[-1] if year_cols_sorted else None
+
+        if min_year and max_year:
+            total_start = df_data[min_year].sum()
+            total_current = df_data[max_year].sum()
+            growth_pct = ((total_current / total_start) - 1) * 100 if total_start > 0 else 0
+            years_span = int(max_year) - int(min_year)
+
             st.markdown(f"""
-            <div class="glass-card">
-                <div style="color: #94a3b8; font-size: 0.9rem;">Crescimento Total ({min_year}-{max_year})</div>
-                <div style="font-size: 2.2rem; font-weight: 700; color: {color_g};">+{growth:,.0f}%</div>
+            <div class="summary-row">
+                <div class="summary-card">
+                    <div class="summary-label">Patrimônio Atual ({max_year})</div>
+                    <div class="summary-value">{fmt_brl(total_current)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Crescimento Total</div>
+                    <div class="summary-value positive">+{growth_pct:,.0f}%</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Período Registrado</div>
+                    <div class="summary-value accent">{years_span} anos</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Patrimônio Inicial ({min_year})</div>
+                    <div class="summary-value">{fmt_brl(total_start)}</div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
-        with k3:
-             # Most representative holder
-             df_last = df_melted[df_melted['Ano'] == max_year]
-             grp = df_last.groupby('Titular')['Valor'].sum()
-             top_holder = grp.idxmax() if not grp.empty else "-"
-             val_holder = grp.max() if not grp.empty else 0
-             st.markdown(f"""
-            <div class="glass-card">
-                <div style="color: #94a3b8; font-size: 0.9rem;">Maior Contribuição ({top_holder})</div>
-                <div style="font-size: 2.2rem; font-weight: 700; color: #a5b4fc;">R$ {val_holder:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        # ROW 2: MAIN CHART
-        st.markdown("### 📈 Evolução Patrimonial")
-        
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        
-        # Stacked Bar Chart
-        fig = px.bar(
-            df_melted, 
-            x="Ano", 
-            y="Valor", 
-            color="Titular",
-            hover_data=[first_col],
-            color_discrete_map={'Lucas': '#818cf8', 'Maria': '#f472b6', 'Conjunto': '#2dd4bf'},
-            title=""
-        )
-        
-        fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Outfit, sans-serif", color="#e2e8f0"),
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', tickformat="R$ "),
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center", title=None),
-            hovermode="x unified",
-            height=500
-        )
-        # Add total labels on top? Maybe clutter.
-        
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # ROW 3: DETAILED TABLE
-        with st.expander("🔍 Visualizar Dados Detalhados em Tabela"):
-             st.dataframe(
-                 df_raw.style.format(precision=2),
-                 use_container_width=True,
-                 height=400
-             )
+        # --- HISTORY TABLE ---
+        # Build HTML table
+        table_html = '<table class="history-table">'
+
+        # Header
+        table_html += '<thead><tr>'
+        table_html += f'<th style="width: 280px;">Instituição</th>'
+        for year in year_cols_sorted:
+            table_html += f'<th class="year-col">{year}</th>'
+        table_html += '</tr></thead>'
+
+        # Body
+        table_html += '<tbody>'
+
+        for _, row in df_data.iterrows():
+            institution = str(row[first_col]).strip()
+            owner = classify_owner(institution)
+            badge_class = f"owner-{owner}"
+
+            table_html += '<tr>'
+            table_html += f'''
+                <td class="institution">
+                    <span class="owner-badge {badge_class}">{owner.upper()}</span>
+                    {institution}
+                </td>
+            '''
+
+            for year in year_cols_sorted:
+                val = row[year]
+                formatted = fmt_brl(val)
+                table_html += f'<td class="value">{formatted}</td>'
+
+            table_html += '</tr>'
+
+        # Total row
+        if not df_total.empty:
+            total_row = df_total.iloc[0]
+            table_html += '<tr class="total-row">'
+            table_html += '<td class="institution">TOTAL GERAL</td>'
+
+            for year in year_cols_sorted:
+                val = total_row[year] if year in df_total.columns else df_data[year].sum()
+                formatted = fmt_brl(val)
+                table_html += f'<td class="value">{formatted}</td>'
+
+            table_html += '</tr>'
+
+        table_html += '</tbody></table>'
+
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # --- FOOTER ---
+        st.markdown("<div style='height: 32px'></div>", unsafe_allow_html=True)
+
+        st.caption(f"Dados atualizados manualmente. Período: {min_year} a {max_year}.")
 
 except Exception as e:
-    st.error(f"Erro ao processar dados históricos: {e}")
-    st.exception(e)
+    st.error(f"Erro ao carregar dados históricos: {e}")

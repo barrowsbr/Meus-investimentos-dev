@@ -74,6 +74,9 @@ with c1:
             if uploaded_file is not None:
                 import tempfile
                 import os as os_sync
+                import importlib
+                import core.ibkr_sync
+                importlib.reload(core.ibkr_sync)
                 from core.ibkr_sync import IBKRSyncManager
                 from core.data.loader import load_proventos
 
@@ -90,18 +93,35 @@ with c1:
                     qtd_div, qtd_imp = sync_manager.load_csv()
                     st.info(f"📊 CSV carregado: **{qtd_div}** dividendos, **{qtd_imp}** impostos")
 
-                    # Carregar proventos existentes do GSheets
+                    # Carregar proventos existentes do GSheets (forçar dados frescos)
+                    st.cache_data.clear()
                     df_proventos_bruto = load_proventos()
 
                     # Debug: dados do GSheets
                     with st.expander("🔍 Debug: Dados do GSheets"):
+                        st.write(f"**Total de linhas:** {len(df_proventos_bruto)}")
                         st.write("**Colunas disponíveis:**", list(df_proventos_bruto.columns))
-                        st.write("**Amostra (últimos 10):**")
-                        cols_show = [c for c in ['ticker', 'data', 'decisao', 'lancamento', 'valor', 'moeda'] if c in df_proventos_bruto.columns]
-                        st.dataframe(df_proventos_bruto[cols_show].tail(10))
+                        if not df_proventos_bruto.empty:
+                            st.write("**dtypes:**")
+                            st.text(str(df_proventos_bruto.dtypes))
+                            st.write("**Amostra (últimos 10):**")
+                            cols_show = [c for c in ['ticker', 'data', 'decisao', 'lancamento', 'valor', 'moeda'] if c in df_proventos_bruto.columns]
+                            st.dataframe(df_proventos_bruto[cols_show].tail(10))
+                        else:
+                            st.error("⚠️ DataFrame vazio! load_proventos() retornou sem dados.")
 
-                    # Encontrar faltantes
+                    # Encontrar faltantes (reconciliação)
                     df_faltantes = sync_manager.find_missing(df_proventos_bruto)
+
+                    # Debug: relatório de reconciliação
+                    with st.expander("🔍 Debug: Reconciliação"):
+                        try:
+                            summary = sync_manager.get_summary()
+                            st.write(f"**CSV:** {summary['total_csv']} | **Base:** {summary['total_existentes']} | **Novos:** {summary['novos']} | **Duplicados:** {summary['duplicados']}")
+                            report = sync_manager.get_reconciliation_report()
+                            st.code(report)
+                        except AttributeError:
+                            st.warning("⚠️ Reinicie o Streamlit para carregar o módulo atualizado (método de relatório não encontrado)")
 
                     if df_faltantes.empty:
                         st.success("✅ Todos os proventos já estão sincronizados!")

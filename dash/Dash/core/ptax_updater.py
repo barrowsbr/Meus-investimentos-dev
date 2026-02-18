@@ -68,24 +68,33 @@ def atualizar_ptax():
         if df_new.empty:
             return True, "Base já está atualizada."
 
+        # Helper to format decimal with comma (Brazilian format)
+        def fmt_decimal_br(val):
+            if pd.isna(val):
+                return ""
+            # Format with 4 decimal places, then replace dot with comma
+            return f"{val:.4f}".replace('.', ',')
+
         # Prepare for save
         if not df_existing.empty:
             df_existing_clean = df_existing.copy()
             df_existing_clean['Data_dt'] = parse_date_br(df_existing_clean['Data'])
             df_existing_clean['Taxa'] = df_existing_clean['Taxa'].apply(parse_decimal_br)
-            
+
             df_combined = pd.concat([df_existing_clean, df_new], ignore_index=True)
             # Remove duplicates by date
             df_combined = df_combined.drop_duplicates(subset=['Data_dt'], keep='last')
             df_combined = df_combined.sort_values('Data_dt', ascending=False)
-            
+
             # Format back to strings for Sheets compatibility
             df_combined['Data'] = df_combined['Data_dt'].dt.strftime('%d/%m/%Y')
-            
+            df_combined['Taxa'] = df_combined['Taxa'].apply(fmt_decimal_br)
+
             df_save = df_combined[['Data', 'Taxa']].copy()
         else:
             df_new = df_new.sort_values('Data_dt', ascending=False)
             df_new['Data'] = df_new['Data_dt'].dt.strftime('%d/%m/%Y')
+            df_new['Taxa'] = df_new['Taxa'].apply(fmt_decimal_br)
             df_save = df_new[['Data', 'Taxa']]
 
         # 3. Save to Sheets

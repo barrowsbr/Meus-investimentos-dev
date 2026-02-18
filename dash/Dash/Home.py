@@ -1083,42 +1083,42 @@ st.markdown('''
                     <span class="sub-item-text">Composição</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Performance" target="_self" class="sub-item">
+                <a href="Investimentos?tab=1" target="_self" class="sub-item">
                     <span class="sub-item-icon">▲</span>
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=1" target="_self" class="sub-item">
+                <a href="Investimentos?tab=2" target="_self" class="sub-item">
                     <span class="sub-item-icon">▤</span>
                     <span class="sub-item-text">Renda Variável</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=2" target="_self" class="sub-item">
+                <a href="Investimentos?tab=3" target="_self" class="sub-item">
                     <span class="sub-item-icon">▦</span>
                     <span class="sub-item-text">Renda Fixa</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=3" target="_self" class="sub-item">
+                <a href="Investimentos?tab=4" target="_self" class="sub-item">
                     <span class="sub-item-icon">◐</span>
                     <span class="sub-item-text">Proventos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=4" target="_self" class="sub-item">
+                <a href="Investimentos?tab=5" target="_self" class="sub-item">
                     <span class="sub-item-icon">❂</span>
                     <span class="sub-item-text">Cripto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=5" target="_self" class="sub-item">
+                <a href="Investimentos?tab=6" target="_self" class="sub-item">
                     <span class="sub-item-icon">⬡</span>
                     <span class="sub-item-text">Câmbio</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=6" target="_self" class="sub-item">
+                <a href="Investimentos?tab=7" target="_self" class="sub-item">
                     <span class="sub-item-icon">▼</span>
                     <span class="sub-item-text">Imposto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Historico_Patrimonial" target="_self" class="sub-item">
+                <a href="Investimentos?tab=8" target="_self" class="sub-item">
                     <span class="sub-item-icon">∞</span>
                     <span class="sub-item-text">Legado</span>
                     <span class="sub-item-arrow">→</span>
