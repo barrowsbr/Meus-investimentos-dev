@@ -163,37 +163,49 @@ def find_missing_proventos(
     def normalize_date(d):
         if pd.isna(d):
             return ''
-        if isinstance(d, str):
-            # Já é string, retornar apenas os primeiros 10 chars (YYYY-MM-DD)
-            return str(d)[:10]
+        # Se já é datetime/Timestamp, formatar direto
+        if hasattr(d, 'strftime'):
+            return d.strftime('%Y-%m-%d')
+        # Se é string, converter
         try:
-            # É datetime, converter
-            return pd.Timestamp(d).strftime('%Y-%m-%d')
+            dt = pd.to_datetime(str(d), dayfirst=True, errors='coerce')
+            if pd.notna(dt):
+                return dt.strftime('%Y-%m-%d')
         except:
-            return str(d)[:10]
+            pass
+        # Fallback: pegar primeiros 10 chars
+        return str(d)[:10]
 
-    # Criar chave única: data + ticker + tipo (Dividendo/IMPOSTO)
+    # Criar chave única: data + ticker (simplificado)
     def create_key(row):
         ticker_norm = normalize_ticker(row.get('ticker', ''))
         data = normalize_date(row.get('data', ''))
-        tipo = str(row.get('decisao', row.get('lancamento', ''))).upper()
-        # Normalizar tipo
-        if 'DIV' in tipo:
-            tipo = 'DIVIDENDO'
-        elif 'IMPOSTO' in tipo:
-            tipo = 'IMPOSTO'
-        return f"{data}|{ticker_norm}|{tipo}"
+        return f"{data}|{ticker_norm}"
 
     # Chaves existentes no GSheets
     gsheets_keys = set()
     tickers_ignorar_norm = {normalize_ticker(t) for t in tickers_ignorar}
+
+    # DEBUG: Imprimir colunas disponíveis
+    print(f"[DEBUG] Colunas GSheets: {list(df_gsheets.columns)}")
+    print(f"[DEBUG] Total linhas GSheets: {len(df_gsheets)}")
 
     for _, row in df_gsheets.iterrows():
         ticker_norm = normalize_ticker(row.get('ticker', ''))
         # Ignorar tickers da lista
         if ticker_norm in tickers_ignorar_norm:
             continue
-        gsheets_keys.add(create_key(row))
+        key = create_key(row)
+        gsheets_keys.add(key)
+
+    # DEBUG: Mostrar algumas chaves
+    print(f"[DEBUG] Total chaves GSheets: {len(gsheets_keys)}")
+    print(f"[DEBUG] Exemplo chaves GSheets (primeiras 5): {list(gsheets_keys)[:5]}")
+
+    # DEBUG: Mostrar chaves do IBKR
+    print(f"[DEBUG] Colunas IBKR: {list(df_ibkr.columns)}")
+    ibkr_keys_debug = [create_key(row) for _, row in df_ibkr.head(5).iterrows()]
+    print(f"[DEBUG] Exemplo chaves IBKR (primeiras 5): {ibkr_keys_debug}")
 
     # Encontrar faltantes
     faltantes = []
@@ -205,6 +217,7 @@ def find_missing_proventos(
 
         key = create_key(row)
         if key not in gsheets_keys:
+            print(f"[DEBUG] Faltante: {key}")
             faltantes.append(row.to_dict())
 
     return pd.DataFrame(faltantes)
@@ -431,3 +444,89 @@ class IBKRSyncManager:
         Aplica mudanças da aba de teste para produção.
         """
         return merge_test_to_production(backup_dir=self.backup_dir)
+
+    def sync_direct_to_production(self) -> Tuple[bool, str, str]:
+        """
+        Sincroniza proventos faltantes DIRETAMENTE para produção (sem aba de teste).
+
+        Returns:
+            Tuple[sucesso, mensagem, backup_path]
+        """
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return True, "Nenhum provento faltante para sincronizar", ""
+
+        try:
+            from core.data.gsheets import _authenticate_no_cache
+
+            client = _authenticate_no_cache()
+            if not client:
+                return False, "Falha na autenticação com Google Sheets", ""
+
+            sh = client.open('gdados')
+            ws_prod = sh.worksheet('meus_proventos')
+
+            # Ler dados atuais
+            prod_data = ws_prod.get_all_values()
+            if len(prod_data) < 1:
+                return False, "Aba de produção vazia ou sem cabeçalhos", ""
+
+            headers = prod_data[0]
+            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
+
+            # Criar backup
+            backup_path = create_backup(df_prod, self.backup_dir)
+
+            # Preparar dados para inserção
+            cols_order = ['ticker', 'data', 'decisao', 'mes', 'ano', 'lancamento', 'categoria', 'valor', 'moeda']
+
+            # Converter df_faltantes para o formato correto
+            df_new = self.df_faltantes[cols_order].copy()
+
+            # Mesclar com produção
+            df_merged = pd.concat([df_prod, df_new], ignore_index=True)
+
+            # Ordenar por data (mais recente primeiro)
+            df_merged['data_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
+            df_merged = df_merged.sort_values('data_sort', ascending=False)
+            df_merged = df_merged.drop(columns=['data_sort'])
+
+            # Atualizar produção
+            data_to_write = [headers] + df_merged.values.tolist()
+            ws_prod.clear()
+            ws_prod.update('A1', data_to_write)
+
+            return True, f"Adicionados {len(self.df_faltantes)} proventos diretamente em produção", backup_path
+
+        except Exception as e:
+            return False, f"Erro ao sincronizar: {e}", ""
+
+    def get_summary(self) -> Dict:
+        """
+        Retorna resumo dos proventos a serem adicionados.
+        """
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return {'total': 0, 'dividendos': 0, 'impostos': 0, 'por_ticker': {}}
+
+        df = self.df_faltantes.copy()
+
+        # Converter valor de string BR para float
+        def parse_valor_br(v):
+            try:
+                return float(str(v).replace(',', '.'))
+            except:
+                return 0.0
+
+        df['valor_float'] = df['valor'].apply(parse_valor_br)
+
+        dividendos = df[df['decisao'] == 'Dividendo']
+        impostos = df[df['decisao'] == 'IMPOSTO']
+
+        return {
+            'total': len(df),
+            'dividendos': len(dividendos),
+            'impostos': len(impostos),
+            'valor_bruto': dividendos['valor_float'].sum(),
+            'valor_impostos': abs(impostos['valor_float'].sum()),
+            'valor_liquido': df['valor_float'].sum(),
+            'por_ticker': df.groupby('ticker')['valor_float'].sum().to_dict()
+        }

@@ -24,6 +24,7 @@ COLUMN_MAP_PROVENTOS = {
     'data': 'data', 'pagamento': 'data',
     'valor': 'valor', 'valor líquido': 'valor', 'valor_liquido': 'valor',
     'tipo': 'lancamento', 'lançamento': 'lancamento', 'lancamento': 'lancamento', 'evento': 'lancamento',
+    'decisao': 'decisao', 'decisão': 'decisao',  # Coluna para IBKR sync (Dividendo/IMPOSTO)
     'categoria': 'categoria',
     'moeda': 'moeda', 'currency': 'moeda'
 }
