@@ -263,14 +263,13 @@ def find_missing_proventos(df_gsheets: pd.DataFrame, df_ibkr: pd.DataFrame) -> p
     return pd.DataFrame(faltantes)
 
 
-
 # ── Backup ──────────────────────────────────────────────────
 
-def create_backup(df: pd.DataFrame, backup_dir: str, prefix: str = 'backup') -> str:
+def create_backup(df: pd.DataFrame, backup_dir: str) -> str:
     """Cria backup do DataFrame atual em CSV."""
     os.makedirs(backup_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    path = os.path.join(backup_dir, f'{prefix}_{timestamp}.csv')
+    path = os.path.join(backup_dir, f'meus_proventos_backup_{timestamp}.csv')
     df.to_csv(path, index=False, encoding='utf-8-sig')
     return path
 
@@ -332,8 +331,7 @@ def merge_test_to_production(spreadsheet='gdados', test_tab='meus_proventos_test
         headers = prod_data[0]
         df_prod = pd.DataFrame(prod_data[1:], columns=headers)
 
-        # Prefix correto para proventos
-        backup_path = create_backup(df_prod, backup_dir, prefix='meus_proventos_backup') if backup_dir else ""
+        backup_path = create_backup(df_prod, backup_dir) if backup_dir else ""
 
         try:
             ws_test = sh.worksheet(test_tab)
@@ -424,9 +422,7 @@ class IBKRSyncManager:
 
             headers = prod_data[0]
             df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-            
-            # Prefix correto para proventos
-            backup_path = create_backup(df_prod, self.backup_dir, prefix='meus_proventos_backup')
+            backup_path = create_backup(df_prod, self.backup_dir)
 
             df_merged = pd.concat([df_prod, df_new[COLS_GSHEETS]], ignore_index=True)
             df_merged['_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
@@ -637,113 +633,19 @@ def find_missing_trades(df_gsheets: pd.DataFrame, df_ibkr: pd.DataFrame) -> pd.D
                 return trade
         return None
 
-
-
-    def find_split_or_correction(ticker, tipo, valor_total_ibkr, ibkr_row):
-        """
-        Procura se existe algum trade no GSheets com mesmo Ticker e Tipo,
-        mas com Quantidade/Preço diferentes, porem Valor Total *similar* (Split ou Agrupamento).
-        """
-        candidates = []
-        for trade in existing_trades:
-            if trade['matched']: continue
-            if trade['ticker'] != ticker: continue
-            if trade['tipo'] != tipo: continue
-            
-            # Calcular valor total no GSheets (Qty * Preco)
-            # Preço no GSheets pode estar zerado se for bonificação, mas aqui estamos buscando Splits
-            valor_total_gs = trade['qty'] * trade['preco']
-            
-            # Tolerância de $5 ou 1% no valor total (pra cobrir arredondamentos de taxas/preço medio)
-            diff = abs(valor_total_gs - valor_total_ibkr)
-            if diff < 5 or (valor_total_ibkr > 0 and diff / valor_total_ibkr < 0.01):
-                 candidates.append(trade)
-        
-        return candidates
-
-
-
-    
-    # 0. Agrupamento (Fragmented Orders)
-    # IBKR manda 1+1, GSheets tem 2. Vamos agrupar IBKR por Ticker/Data/Tipo para ver se bate.
-    
-    # Criar coluna auxiliar de data normalizada (sem horas) para agrupamento
-    # O df_ibkr já tem 'Data' normalizada pela função _normalize_date
-    df_ibkr['_group_key'] = df_ibkr.apply(lambda r: f"{r['Símbolo']}|{r['Tipo de transação']}|{r['Data']}", axis=1)
-    
-    # Identificar quais grupos têm > 1 transação (potenciais fragmentados)
-    group_counts = df_ibkr['_group_key'].value_counts()
-    fragmented_groups = group_counts[group_counts > 1].index.tolist()
-    
-    # Dicionário para marcar quais rows do IBKR já foram "consumidas" por um match agrupado
-    processed_indices = set()
-    
-    # Lista de faltantes finais
+    # Verificar cada trade IBKR contra as chaves existentes
     faltantes = []
-    
-    # A. Processar Agrupados Primeiro
-    for group_key in fragmented_groups:
-        # Pegar as linhas desse grupo
-        group_rows = df_ibkr[df_ibkr['_group_key'] == group_key]
-        
-        # Calcular os totais do grupo
-        total_qty = group_rows['Quantidade'].sum()
-        avg_price = (group_rows['Quantidade'] * group_rows['Preço']).sum() / total_qty if total_qty > 0 else 0
-        total_val = group_rows['Valor bruto'].sum() # Melhor usar o valor bruto total
-        
-        # Dados para busca
-        first_row = group_rows.iloc[0]
-        ticker = _normalize_ticker(str(first_row.get('Símbolo', '')))
-        tipo = str(first_row.get('Tipo de transação', '')).strip()
-        
-        # Tentar match do GRUPO com um item ÚNICO do GSheets
-        # Ex: IBKR (1, 1) -> Virtual (2). GSheets (2). Match!
-        match = find_match(ticker, tipo, round(total_qty, 2), float(avg_price))
-        
-        if match:
-            # SUCESSO! O grupo todo corresponde a um item do GSheets.
-            match['matched'] = True
-            # Marcar todas as linhas originais como processadas (não são faltantes)
-            processed_indices.update(group_rows.index.tolist())
-            # (Opcional) Poderíamos logar que houve um match agrupado
-        else:
-            # Se não bateu o grupo inteiro, solta para o processamento individual
-            pass
-
-    # B. Processamento Individual (para o que sobrou)
-    for idx, row in df_ibkr.iterrows():
-        if idx in processed_indices:
-            continue
-            
+    for _, row in df_ibkr.iterrows():
         ticker = _normalize_ticker(str(row.get('Símbolo', '')))
         tipo = str(row.get('Tipo de transação', '')).strip()
         qty = round(float(row.get('Quantidade', 0)), 2)
         preco = float(row.get('Preço', 0))
-        valor_total = qty * preco
 
-        # 1. Tenta encontrar Match Exato (ou com pequena tolerância de preço)
         match = find_match(ticker, tipo, qty, preco)
-        
         if match:
-            match['matched'] = True
+            match['matched'] = True  # Consumir match (pra trades duplicados legítimos)
         else:
-            # 2. Se não achou exato, tenta encontrar "Split/Ajuste" (Valor Total bate, mas Qty/Preço não)
-            possible_splits = find_split_or_correction(ticker, tipo, valor_total, row)
-            
-            row_dict = row.to_dict()
-            if '_group_key' in row_dict: del row_dict['_group_key']
-            
-            if possible_splits:
-                # Encontrou um possível split/ajuste manual
-                row_dict['status_match'] = 'POTENTIAL_SPLIT'
-                row_dict['match_details'] = [
-                    f"{s['qty']} x {s['preco']} (Total: {s['qty']*s['preco']:.2f})" for s in possible_splits
-                ]
-            else:
-                # Realmente novo
-                row_dict['status_match'] = 'MISSING'
-            
-            faltantes.append(row_dict)
+            faltantes.append(row.to_dict())
 
     return pd.DataFrame(faltantes)
 
@@ -809,7 +711,7 @@ class IBKRTradesManager:
 
             headers = prod_data[0]
             df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-            backup_path = create_backup(df_prod, self.backup_dir, prefix='meus_ativos_backup')
+            backup_path = create_backup(df_prod, self.backup_dir)
 
             # Preparar novos registros
             new_rows = self.df_faltantes[COLS_ATIVOS].copy()

@@ -19,6 +19,21 @@ st.set_page_config(
 # --- APPLY GLOBAL THEME ---
 inject_global_theme()
 
+# Custom styles for this page
+st.markdown("""
+<style>
+/* More opaque cards for settings page */
+.glass-card {
+    background: rgba(15, 23, 42, 0.85) !important;
+}
+/* White subtitle with shadow for contrast */
+.glass-card-desc {
+    color: white !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- HEADER ---
 render_fab()
 render_back_button()
@@ -186,18 +201,52 @@ with c1:
                     st.cache_data.clear()
                     df_ativos = DataProvider.get_assets()
 
-                    # Encontrar faltantes
-                    df_faltantes = trades_manager.find_missing(df_ativos)
 
-                    if df_faltantes.empty:
-                        st.success("✅ Todos os trades já estão sincronizados!")
+                    # Encontrar faltantes (inclui marcação de Splits)
+                    df_faltantes_raw = trades_manager.find_missing(df_ativos)
+
+                    # Separar Splits de Missing Real
+                    if 'status_match' in df_faltantes_raw.columns:
+                        df_splits = df_faltantes_raw[df_faltantes_raw['status_match'] == 'POTENTIAL_SPLIT']
+                        df_missing = df_faltantes_raw[df_faltantes_raw['status_match'] == 'MISSING']
                     else:
-                        st.warning(f"⚠️ Encontrados **{len(df_faltantes)}** trades faltantes")
+                        df_splits = pd.DataFrame()
+                        df_missing = df_faltantes_raw
+
+                    # Atualizar o manager APENAS com os missing reais para importação
+                    trades_manager.df_faltantes = df_missing
+
+                    # 1. Alerta de Splits/Modificações
+                    if not df_splits.empty:
+                        with st.expander(f"⚠️ **Atenção:** {len(df_splits)} transações parecem já existir (Splits/Ajustes)", expanded=True):
+                            st.warning("Estas transações tem valor financeiro compatível com itens da sua planilha, mas quantidade/preço diferentes. Provavelmente são **Splits (Desdobramentos)** ou ajustes manuais que você já fez. **Elas NÃO serão importadas automaticamente** para evitar duplicidade.")
+                            
+                            cols_split = ['Data', 'Símbolo', 'Tipo de transação', 'Quantidade', 'Preço', 'match_details']
+                            # Garantir que colunas existam
+                            cols_show_split = [c for c in cols_split if c in df_splits.columns]
+                            
+                            st.dataframe(
+                                df_splits[cols_show_split],
+                                use_container_width=True,
+                                height=150,
+                                column_config={
+                                    "match_details": st.column_config.ListColumn("Compatível com (GSheets)")
+                                }
+                            )
+
+                    # 2. Fluxo Normal de Importação (Missing)
+                    if df_missing.empty:
+                        if df_splits.empty:
+                            st.success("✅ Todos os trades já estão sincronizados!")
+                        else:
+                            st.info("📌 Nenhuma nova transação para importar (apenas ajustes/splits detectados).")
+                    else:
+                        st.info(f"📥 **{len(df_missing)}** novas transações encontradas para importar:")
 
                         # Mostrar preview
-                        cols_show = [c for c in ['Data', 'Tipo de transação', 'Símbolo', 'Quantidade', 'Preço', 'Moeda'] if c in df_faltantes.columns]
+                        cols_show = [c for c in ['Data', 'Tipo de transação', 'Símbolo', 'Quantidade', 'Preço', 'Moeda'] if c in df_missing.columns]
                         st.dataframe(
-                            df_faltantes[cols_show],
+                            df_missing[cols_show],
                             use_container_width=True,
                             height=200
                         )
@@ -225,14 +274,13 @@ with c1:
                                         from core.data.gsheets import _authenticate_no_cache
                                         client = _authenticate_no_cache()
                                         if client:
+                                            # ... (código existente de limpeza)
                                             sh = client.open('gdados')
                                             try:
                                                 ws_test = sh.worksheet('meus_ativos_test')
                                                 sh.del_worksheet(ws_test)
-                                            except Exception:
-                                                pass
-                                    except Exception:
-                                        pass
+                                            except: pass
+                                    except: pass
                                     st.cache_data.clear()
                                     st.rerun()
                                 else:
