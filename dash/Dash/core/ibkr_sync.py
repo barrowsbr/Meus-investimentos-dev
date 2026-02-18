@@ -39,18 +39,38 @@ def _format_valor_br(valor: float) -> str:
 
 def _normalize_date(d) -> str:
     """Normaliza qualquer formato de data para 'YYYY-MM-DD'."""
-    if pd.isna(d) if not isinstance(d, str) else False:
+    if d is None:
         return ''
+    try:
+        if pd.isna(d):
+            return ''
+    except (ValueError, TypeError):
+        pass
     if hasattr(d, 'strftime'):
         return d.strftime('%Y-%m-%d')
     s = str(d).strip()
+    if not s:
+        return ''
+    # Tentar YYYY-MM-DD primeiro (formato ISO, mais comum no IBKR e backup)
     try:
-        dt = pd.to_datetime(s, dayfirst=True, errors='coerce')
-        if pd.notna(dt):
-            return dt.strftime('%Y-%m-%d')
-    except:
+        dt = datetime.strptime(s[:10], '%Y-%m-%d')
+        return dt.strftime('%Y-%m-%d')
+    except ValueError:
+        pass
+    # Fallback: dd/mm/yyyy
+    try:
+        dt = datetime.strptime(s[:10], '%d/%m/%Y')
+        return dt.strftime('%Y-%m-%d')
+    except ValueError:
+        pass
+    # Fallback: dd-mm-yyyy (IBKR usa hifens às vezes)
+    try:
+        dt = datetime.strptime(s[:10], '%d-%m-%Y')
+        return dt.strftime('%Y-%m-%d')
+    except ValueError:
         pass
     return s[:10]
+
 
 
 def _normalize_ticker(t: str) -> str:
@@ -418,7 +438,7 @@ class IBKRSyncManager:
     def get_summary(self) -> Dict:
         """Resumo dos proventos a serem adicionados."""
         if self.df_faltantes is None or self.df_faltantes.empty:
-            return {'total': 0, 'dividendos': 0, 'impostos': 0, 'por_ticker': {}}
+            return {'total': 0, 'dividendos': 0, 'impostos': 0, 'valor_bruto': 0, 'valor_impostos': 0, 'valor_liquido': 0, 'por_ticker': {}}
 
         df = self.df_faltantes.copy()
         df['_val'] = df['valor'].apply(_parse_valor)
@@ -447,3 +467,290 @@ class IBKRSyncManager:
             f"  Impostos: {s['valor_impostos']:.2f}",
             f"  Líquido: {s['valor_liquido']:.2f}",
         ])
+
+
+# ══════════════════════════════════════════════════════════════
+# IBKR TRADES (ATIVOS) — Compra e Venda
+# ══════════════════════════════════════════════════════════════
+
+# Colunas na ordem do GSheets meus_ativos
+COLS_ATIVOS = ['Data', 'Tipo de transação', 'Símbolo', 'Quantidade', 'Preço',
+               'Valor bruto', 'Taxa de corretagem', 'Valor líquido', 'Moeda', 'Corretora']
+
+
+def parse_ibkr_trades(file_path: str) -> pd.DataFrame:
+    """
+    Parseia o CSV do IBKR e extrai APENAS compras e vendas de ativos.
+    Ignora: dividendos, impostos, câmbio, transferências, etc.
+
+    Returns: DataFrame com trades
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    trades = []
+
+    for line in lines:
+        if not line.startswith('Histórico de transações,Data,'):
+            continue
+
+        parts = line.strip().split(',')
+        if len(parts) < 13:
+            continue
+
+        tipo = parts[5].strip()
+        descricao = parts[4].strip()
+        simbolo = parts[6].strip()
+        data = parts[2].strip()
+        valor_str = parts[10].strip()
+
+        # Aceitar APENAS compras e vendas
+        if tipo not in ('Compra', 'Venda', 'Buy', 'Sell'):
+            continue
+
+        # Ignorar se não tem símbolo
+        if not simbolo:
+            continue
+
+        try:
+            valor = float(valor_str)
+        except (ValueError, TypeError):
+            continue
+
+        # Tentar extrair quantidade e preço da descrição ou campos adicionais
+        quantidade = 0.0
+        preco = 0.0
+
+        # Campo 7 geralmente é quantidade, campo 8 é preço no IBKR CSV
+        try:
+            quantidade = abs(float(parts[7].strip()))
+        except (ValueError, TypeError, IndexError):
+            pass
+
+        try:
+            preco = abs(float(parts[8].strip()))
+        except (ValueError, TypeError, IndexError):
+            pass
+
+        # Se quantidade e preço vieram zerados, tentar extrair da descrição
+        # Formato: "BOT 10 MSFT@420.50" ou "SLD 5 MSFT@430.00"
+        if quantidade == 0 and preco == 0:
+            import re
+            match = re.search(r'(?:BOT|SLD|BOUGHT|SOLD)\s+([\d.]+)\s+\w+@([\d.]+)', descricao)
+            if match:
+                quantidade = float(match.group(1))
+                preco = float(match.group(2))
+
+        # Extrair comissão (campo 11 ou 12)
+        comissao = 0.0
+        for idx in [11, 12]:
+            try:
+                val = float(parts[idx].strip())
+                if val < 0:  # Comissão vem negativa
+                    comissao = abs(val)
+                    break
+            except (ValueError, TypeError, IndexError):
+                continue
+
+        # Extrair moeda da descrição
+        moeda = 'USD'
+        for m in ['CAD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD']:
+            if m in descricao:
+                moeda = m
+                break
+
+        # Normalizar tipo
+        tipo_norm = 'Compra' if tipo in ('Compra', 'Buy') else 'Venda'
+
+        # Calcular valor bruto e líquido
+        valor_bruto = abs(valor)
+        if valor_bruto == 0 and quantidade > 0 and preco > 0:
+            valor_bruto = round(quantidade * preco, 2)
+
+        valor_liquido = valor_bruto + comissao if tipo_norm == 'Compra' else valor_bruto - comissao
+
+        trades.append({
+            'Data': _normalize_date(data),
+            'Tipo de transação': tipo_norm,
+            'Símbolo': simbolo,
+            'Quantidade': quantidade,
+            'Preço': preco,
+            'Valor bruto': valor_bruto,
+            'Taxa de corretagem': comissao,
+            'Valor líquido': round(valor_liquido, 2),
+            'Moeda': moeda,
+            'Corretora': 'IBKR'
+        })
+
+    return pd.DataFrame(trades)
+
+
+def find_missing_trades(df_gsheets: pd.DataFrame, df_ibkr: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compara trades do IBKR com GSheets meus_ativos e retorna os faltantes.
+    Chave de dedup: ticker + tipo + quantidade + preço (arredondado a 1 casa)
+    Não usa data na chave porque entradas manuais podem ter dia/mês invertido.
+    
+    Pode ser executado infinitas vezes sem criar duplicatas.
+    """
+    if df_ibkr.empty:
+        return pd.DataFrame()
+
+    # Construir multiset de chaves existentes (conta ocorrências para trades duplicados)
+    from collections import Counter
+    existing_keys = Counter()
+
+    for _, row in df_gsheets.iterrows():
+        ticker = _normalize_ticker(str(row.get('Símbolo', row.get('ticker', ''))))
+        tipo = str(row.get('Tipo de transação', '')).strip()
+        qty = round(float(_parse_valor(row.get('Quantidade', 0))), 2)
+        preco = round(float(_parse_valor(row.get('Preço', row.get('Preco', 0)))), 1)
+
+        key = f"{ticker}|{tipo}|{qty}|{preco}"
+        existing_keys[key] += 1
+
+    # Verificar cada trade IBKR contra as chaves existentes
+    faltantes = []
+    for _, row in df_ibkr.iterrows():
+        ticker = _normalize_ticker(str(row.get('Símbolo', '')))
+        tipo = str(row.get('Tipo de transação', '')).strip()
+        qty = round(float(row.get('Quantidade', 0)), 2)
+        preco = round(float(row.get('Preço', 0)), 1)
+
+        key = f"{ticker}|{tipo}|{qty}|{preco}"
+
+        if existing_keys.get(key, 0) > 0:
+            existing_keys[key] -= 1  # Consumir uma ocorrência (pra trades duplicados legítimos)
+        else:
+            faltantes.append(row.to_dict())
+
+    return pd.DataFrame(faltantes)
+
+
+# ── API Pública: IBKRTradesManager ──────────────────────────
+
+class IBKRTradesManager:
+    """
+    Gerenciador de sincronização IBKR Trades → GSheets meus_ativos.
+    Mesmo padrão do IBKRSyncManager: parseia, compara, insere.
+    """
+
+    def __init__(self, csv_path: str = None, backup_dir: str = None):
+        self.csv_path = csv_path
+        self.backup_dir = backup_dir or os.path.join(os.path.dirname(__file__), '..', 'backups')
+        self.df_trades = None
+        self.df_faltantes = None
+
+    def load_csv(self, csv_path: str = None) -> Tuple[int, int]:
+        """Carrega e parseia trades do CSV. Retorna (qtd_compras, qtd_vendas)."""
+        path = csv_path or self.csv_path
+        if not path:
+            raise ValueError("Caminho do CSV não especificado")
+
+        self.csv_path = path
+        self.df_trades = parse_ibkr_trades(path)
+
+        n_compras = len(self.df_trades[self.df_trades['Tipo de transação'] == 'Compra'])
+        n_vendas = len(self.df_trades[self.df_trades['Tipo de transação'] == 'Venda'])
+
+        return n_compras, n_vendas
+
+    def find_missing(self, df_gsheets: pd.DataFrame) -> pd.DataFrame:
+        """Encontra trades faltantes comparando IBKR vs GSheets."""
+        if self.df_trades is None:
+            raise ValueError("CSV não carregado. Execute load_csv() primeiro.")
+
+        self.df_faltantes = find_missing_trades(df_gsheets, self.df_trades)
+        return self.df_faltantes
+
+    def sync_to_test(self) -> Tuple[bool, str]:
+        """Envia faltantes para aba de teste."""
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return True, "Nenhum trade faltante"
+        return _sync_trades_to_tab(self.df_faltantes, 'meus_ativos_test')
+
+    def apply_to_production(self) -> Tuple[bool, str, str]:
+        """Aplica faltantes diretamente em produção com backup."""
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return True, "Nenhum trade faltante", ""
+
+        try:
+            client = _get_gsheets_client()
+            if not client:
+                return False, "Falha na autenticação", ""
+
+            sh = client.open('gdados')
+            ws = sh.worksheet('meus_ativos')
+            prod_data = ws.get_all_values()
+
+            if len(prod_data) < 1:
+                return False, "Aba vazia", ""
+
+            headers = prod_data[0]
+            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
+            backup_path = create_backup(df_prod, self.backup_dir)
+
+            # Preparar novos registros
+            new_rows = self.df_faltantes[COLS_ATIVOS].copy()
+            # Formatar valores para o GSheets
+            for col in ['Quantidade', 'Preço', 'Valor bruto', 'Taxa de corretagem', 'Valor líquido']:
+                if col in new_rows.columns:
+                    new_rows[col] = new_rows[col].apply(lambda v: str(round(float(v), 2)).replace('.', ',') if pd.notna(v) else '0')
+
+            df_merged = pd.concat([df_prod, new_rows], ignore_index=True)
+            df_merged['_sort'] = pd.to_datetime(df_merged['Data'], errors='coerce')
+            df_merged = df_merged.sort_values('_sort', ascending=False).drop(columns=['_sort'])
+
+            ws.clear()
+            ws.update('A1', [headers] + df_merged.values.tolist())
+
+            return True, f"Adicionados {len(self.df_faltantes)} trades", backup_path
+        except Exception as e:
+            return False, f"Erro: {e}", ""
+
+    def get_summary(self) -> Dict:
+        """Resumo dos trades a serem adicionados."""
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return {'total': 0, 'compras': 0, 'vendas': 0, 'por_ticker': {}}
+
+        compras = self.df_faltantes[self.df_faltantes['Tipo de transação'] == 'Compra']
+        vendas = self.df_faltantes[self.df_faltantes['Tipo de transação'] == 'Venda']
+
+        return {
+            'total': len(self.df_faltantes),
+            'compras': len(compras),
+            'vendas': len(vendas),
+            'por_ticker': self.df_faltantes.groupby('Símbolo').size().to_dict()
+        }
+
+
+def _sync_trades_to_tab(df, tab_name):
+    """Envia trades para uma aba do GSheets."""
+    try:
+        import gspread
+        client = _get_gsheets_client()
+        if not client:
+            return False, "Falha na autenticação"
+
+        sh = client.open('gdados')
+        try:
+            ws = sh.worksheet(tab_name)
+        except gspread.WorksheetNotFound:
+            ws = sh.add_worksheet(title=tab_name, rows=1000, cols=len(COLS_ATIVOS))
+            ws.update('A1:J1', [COLS_ATIVOS])
+
+        existing = ws.get_all_values()
+        next_row = max(len(existing) + 1, 2)
+
+        rows = []
+        for _, row in df.iterrows():
+            rows.append([str(row.get(c, '')) for c in COLS_ATIVOS])
+
+        if rows:
+            ws.update(f'A{next_row}:J{next_row + len(rows) - 1}', rows)
+            return True, f"Adicionados {len(rows)} trades na aba '{tab_name}'"
+        return True, "Nenhum trade novo"
+
+    except Exception as e:
+        return False, f"Erro: {e}"
+

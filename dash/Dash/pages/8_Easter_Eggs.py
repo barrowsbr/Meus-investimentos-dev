@@ -4263,6 +4263,1115 @@ def render_bio_lab():
     """
     components.html(biolab_html, height=750)
 
+# --- MATRIX RAIN (EGG #6) - INTERACTIVE VERSION ---
+def render_matrix_rain():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_matrix_back"):
+            return_to_hub()
+            st.rerun()
+
+    matrix_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #000; overflow: hidden; font-family: 'Orbitron', sans-serif; }
+            canvas { display: block; }
+
+            .hud {
+                position: fixed; top: 20px; left: 20px;
+                color: #00ff41; font-family: 'Share Tech Mono', monospace;
+                font-size: 0.85rem; z-index: 100; text-shadow: 0 0 10px #00ff41;
+            }
+            .hud-row { margin: 5px 0; }
+            .hud-label { color: #008f11; }
+            .hud-value { color: #00ff41; }
+
+            .typed-message {
+                position: fixed; top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                font-family: 'Orbitron', sans-serif; font-size: 4rem;
+                color: #fff; text-shadow: 0 0 30px #00ff41, 0 0 60px #00ff41;
+                pointer-events: none; opacity: 0; transition: opacity 0.3s;
+                z-index: 200; text-align: center; max-width: 90vw;
+            }
+            .typed-message.show { opacity: 1; }
+
+            .instructions {
+                position: fixed; bottom: 20px; left: 50%;
+                transform: translateX(-50%); color: #008f11;
+                font-family: 'Share Tech Mono', monospace;
+                font-size: 0.8rem; text-align: center; z-index: 100;
+            }
+            .instructions span { color: #00ff41; }
+
+            .power-indicator {
+                position: fixed; top: 20px; right: 20px;
+                width: 150px; z-index: 100;
+            }
+            .power-bar {
+                height: 8px; background: rgba(0, 255, 65, 0.2);
+                border: 1px solid #00ff41; border-radius: 4px; overflow: hidden;
+            }
+            .power-fill {
+                height: 100%; background: linear-gradient(90deg, #00ff41, #22d3ee);
+                width: 0%; transition: width 0.3s;
+            }
+            .power-label {
+                color: #008f11; font-family: 'Share Tech Mono', monospace;
+                font-size: 0.7rem; margin-top: 5px; text-align: center;
+            }
+
+            .ripple {
+                position: fixed; border: 2px solid #00ff41; border-radius: 50%;
+                pointer-events: none; animation: rippleExpand 1s ease-out forwards;
+            }
+            @keyframes rippleExpand {
+                0% { width: 0; height: 0; opacity: 1; }
+                100% { width: 300px; height: 300px; opacity: 0; margin: -150px; }
+            }
+
+            .achievement {
+                position: fixed; top: -100px; left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, #fbbf24, #f59e0b);
+                color: #000; padding: 15px 30px; border-radius: 50px;
+                font-family: 'Orbitron', sans-serif; font-weight: 700;
+                z-index: 300; transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                box-shadow: 0 10px 40px rgba(251, 191, 36, 0.5);
+            }
+            .achievement.show { top: 80px; }
+
+            .combo-display {
+                position: fixed; top: 50%; right: 30px;
+                transform: translateY(-50%);
+                font-family: 'Orbitron', sans-serif; font-size: 2rem;
+                color: #fbbf24; text-shadow: 0 0 20px #fbbf24;
+                opacity: 0; transition: all 0.3s; z-index: 150;
+            }
+            .combo-display.show { opacity: 1; transform: translateY(-50%) scale(1.2); }
+        </style>
+    </head>
+    <body>
+        <canvas id="matrix"></canvas>
+
+        <div class="hud">
+            <div class="hud-row"><span class="hud-label">STREAMS:</span> <span class="hud-value" id="streams">0</span></div>
+            <div class="hud-row"><span class="hud-label">FPS:</span> <span class="hud-value" id="fps">60</span></div>
+            <div class="hud-row"><span class="hud-label">SCORE:</span> <span class="hud-value" id="score">0</span></div>
+            <div class="hud-row"><span class="hud-label">MODE:</span> <span class="hud-value" id="mode">NORMAL</span></div>
+        </div>
+
+        <div class="power-indicator">
+            <div class="power-bar"><div class="power-fill" id="power-fill"></div></div>
+            <div class="power-label">CHAOS POWER</div>
+        </div>
+
+        <div class="typed-message" id="typed-message"></div>
+        <div class="combo-display" id="combo">x1</div>
+
+        <div class="instructions">
+            <span>[CLICK]</span> Ripple +10pts | <span>[TYPE]</span> Message | <span>[SPACE]</span> Chaos mode | <span>[1-5]</span> Colors
+        </div>
+
+        <div class="achievement" id="achievement"></div>
+
+        <script>
+            const canvas = document.getElementById('matrix');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colorThemes = {
+                matrix: ['#00ff41', '#008f11', '#22d3ee'],
+                fire: ['#ff4400', '#ff8800', '#ffcc00'],
+                ice: ['#00ffff', '#0088ff', '#ffffff'],
+                purple: ['#ff00de', '#8b5cf6', '#a855f7'],
+                gold: ['#fbbf24', '#f59e0b', '#eab308']
+            };
+
+            let colors = colorThemes.matrix;
+            const chars = 'BARROOTS$¥€£₿01アイウエオカキクケコ金融投資株式';
+            const fontSize = 16;
+            let columns = Math.floor(canvas.width / fontSize);
+            let drops = Array(columns).fill(1);
+            let speeds = Array(columns).fill(0).map(() => 0.5 + Math.random() * 1.5);
+
+            let score = 0, combo = 1, comboTimer = null;
+            let chaosPower = 0, chaosMode = false;
+            let typedText = '', typedTimeout = null;
+            let frameCount = 0, lastTime = performance.now(), fps = 60;
+
+            const achievements = {
+                first100: { u: false, t: '🎯 First 100 Points!' },
+                chaos: { u: false, t: '🌀 CHAOS UNLEASHED!' },
+                combo5: { u: false, t: '🔥 5x Combo!' },
+                score1000: { u: false, t: '💰 1000 Points!' },
+                colorist: { u: false, t: '🎨 Color Master!' }
+            };
+
+            function showAchievement(key) {
+                if (achievements[key].u) return;
+                achievements[key].u = true;
+                const el = document.getElementById('achievement');
+                el.textContent = achievements[key].t;
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 3000);
+            }
+
+            function addScore(pts) {
+                score += pts * combo;
+                clearTimeout(comboTimer);
+                combo = Math.min(10, combo + 1);
+                document.getElementById('combo').textContent = 'x' + combo;
+                document.getElementById('combo').classList.add('show');
+                comboTimer = setTimeout(() => {
+                    combo = 1;
+                    document.getElementById('combo').classList.remove('show');
+                }, 2000);
+
+                if (score >= 100 && !achievements.first100.u) showAchievement('first100');
+                if (score >= 1000 && !achievements.score1000.u) showAchievement('score1000');
+                if (combo >= 5 && !achievements.combo5.u) showAchievement('combo5');
+            }
+
+            function createRipple(x, y) {
+                const ripple = document.createElement('div');
+                ripple.className = 'ripple';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.style.borderColor = colors[0];
+                document.body.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 1000);
+
+                const col = Math.floor(x / fontSize);
+                for (let i = Math.max(0, col - 5); i < Math.min(columns, col + 5); i++) {
+                    drops[i] = Math.random() * 10;
+                    speeds[i] = 2 + Math.random() * 3;
+                }
+            }
+
+            function draw() {
+                const fadeAlpha = chaosMode ? 0.02 : 0.05;
+                ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < drops.length; i++) {
+                    const char = chars[Math.floor(Math.random() * chars.length)];
+                    let color = colors[Math.floor(Math.random() * colors.length)];
+
+                    if (chaosMode) {
+                        color = `hsl(${(Date.now() / 10 + i * 10) % 360}, 100%, 50%)`;
+                        speeds[i] = 1 + Math.sin(Date.now() / 500 + i) * 2;
+                    }
+
+                    if (Math.random() > 0.9) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = color;
+                    } else {
+                        ctx.fillStyle = color;
+                        ctx.shadowBlur = 0;
+                    }
+
+                    ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+                    ctx.shadowBlur = 0;
+
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                        speeds[i] = 0.5 + Math.random() * 1.5;
+                    }
+                    drops[i] += speeds[i];
+                }
+
+                frameCount++;
+                const now = performance.now();
+                if (now - lastTime >= 1000) {
+                    fps = frameCount;
+                    frameCount = 0;
+                    lastTime = now;
+                }
+
+                document.getElementById('streams').textContent = columns;
+                document.getElementById('fps').textContent = fps;
+                document.getElementById('score').textContent = score;
+                document.getElementById('mode').textContent = chaosMode ? 'CHAOS' : 'NORMAL';
+                document.getElementById('power-fill').style.width = chaosPower + '%';
+
+                if (!chaosMode && chaosPower > 0) chaosPower = Math.max(0, chaosPower - 0.1);
+
+                requestAnimationFrame(draw);
+            }
+
+            canvas.addEventListener('click', (e) => {
+                addScore(10);
+                chaosPower = Math.min(100, chaosPower + 5);
+                createRipple(e.clientX, e.clientY);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (chaosPower >= 50) {
+                        chaosMode = !chaosMode;
+                        chaosPower = chaosMode ? chaosPower : 0;
+                        if (chaosMode) showAchievement('chaos');
+                    }
+                    return;
+                }
+
+                if (e.key >= '1' && e.key <= '5') {
+                    const themes = Object.keys(colorThemes);
+                    colors = colorThemes[themes[parseInt(e.key) - 1]];
+                    showAchievement('colorist');
+                    return;
+                }
+
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                    addScore(5);
+                    typedText += e.key.toUpperCase();
+                    if (typedText.length > 20) typedText = typedText.slice(-20);
+                    const msgEl = document.getElementById('typed-message');
+                    msgEl.textContent = typedText;
+                    msgEl.classList.add('show');
+                    clearTimeout(typedTimeout);
+                    typedTimeout = setTimeout(() => {
+                        msgEl.classList.remove('show');
+                        typedText = '';
+                    }, 2000);
+                    chaosPower = Math.min(100, chaosPower + 2);
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                columns = Math.floor(canvas.width / fontSize);
+                drops = Array(columns).fill(1);
+                speeds = Array(columns).fill(0).map(() => 0.5 + Math.random() * 1.5);
+            });
+
+            draw();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(matrix_html, height=700)
+
+# --- CONFETTI PARTY (EGG #7) - CLICKER GAME ---
+def render_confetti_party():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_confetti_back"):
+            return_to_hub()
+            st.rerun()
+
+    confetti_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+                min-height: 100vh; overflow: hidden; font-family: 'Orbitron', sans-serif;
+            }
+            canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 5; }
+
+            .game-ui {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                display: flex; flex-direction: column; align-items: center;
+                justify-content: center; z-index: 10;
+            }
+
+            .stats-bar {
+                position: fixed; top: 20px; left: 20px; right: 20px;
+                display: flex; justify-content: space-between; gap: 20px;
+                z-index: 100;
+            }
+            .stat-box {
+                background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3);
+                padding: 15px 25px; border-radius: 12px; text-align: center; flex: 1;
+            }
+            .stat-label { font-size: 0.7rem; color: #a5b4fc; margin-bottom: 5px; }
+            .stat-value { font-size: 1.5rem; color: #fff; font-weight: 700; }
+            .stat-value.gold { color: #fbbf24; }
+
+            .main-btn {
+                width: 200px; height: 200px; border-radius: 50%;
+                background: linear-gradient(135deg, #6366f1, #a855f7);
+                border: 4px solid #fff; font-size: 4rem;
+                cursor: pointer; transition: all 0.1s;
+                box-shadow: 0 0 60px rgba(99, 102, 241, 0.5);
+                display: flex; align-items: center; justify-content: center;
+            }
+            .main-btn:hover { transform: scale(1.05); box-shadow: 0 0 80px rgba(99, 102, 241, 0.7); }
+            .main-btn:active { transform: scale(0.9); }
+            .main-btn.fever { animation: feverPulse 0.2s infinite; background: linear-gradient(135deg, #f59e0b, #ef4444); }
+            @keyframes feverPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+            .multiplier {
+                margin-top: 20px; font-size: 2rem; color: #fbbf24;
+                text-shadow: 0 0 20px #fbbf24; opacity: 0;
+                transition: all 0.3s; transform: scale(0.5);
+            }
+            .multiplier.show { opacity: 1; transform: scale(1); }
+
+            .powerups {
+                position: fixed; bottom: 20px; left: 50%;
+                transform: translateX(-50%);
+                display: flex; gap: 15px; z-index: 100;
+            }
+            .powerup-btn {
+                width: 70px; height: 70px; border-radius: 12px;
+                border: 2px solid #333; background: rgba(0,0,0,0.5);
+                font-size: 1.8rem; cursor: pointer; transition: all 0.3s;
+                display: flex; align-items: center; justify-content: center;
+                flex-direction: column; position: relative;
+            }
+            .powerup-btn:hover:not(:disabled) { border-color: #6366f1; transform: translateY(-5px); }
+            .powerup-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+            .powerup-btn .cost {
+                position: absolute; bottom: -20px; font-size: 0.6rem;
+                color: #fbbf24; font-family: 'Share Tech Mono', monospace;
+            }
+            .powerup-btn.active { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.5); }
+
+            .floating-text {
+                position: fixed; pointer-events: none; font-weight: 700;
+                font-size: 1.5rem; animation: floatUp 1s ease-out forwards; z-index: 200;
+            }
+            @keyframes floatUp {
+                0% { opacity: 1; transform: translateY(0) scale(1); }
+                100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+            }
+
+            .progress-bar {
+                width: 200px; height: 8px; background: rgba(255,255,255,0.1);
+                border-radius: 4px; margin-top: 15px; overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%; background: linear-gradient(90deg, #fbbf24, #ef4444);
+                width: 0%; transition: width 0.1s;
+            }
+
+            .level-up {
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                font-size: 3rem; color: #fbbf24; text-shadow: 0 0 30px #fbbf24;
+                opacity: 0; pointer-events: none; z-index: 300;
+            }
+            .level-up.show { animation: levelUpAnim 1.5s ease-out forwards; }
+            @keyframes levelUpAnim {
+                0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+                20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                100% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="confetti"></canvas>
+
+        <div class="stats-bar">
+            <div class="stat-box">
+                <div class="stat-label">CONFETTI</div>
+                <div class="stat-value gold" id="points">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">PER CLICK</div>
+                <div class="stat-value" id="perClick">1</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">AUTO/SEC</div>
+                <div class="stat-value" id="autoRate">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">LEVEL</div>
+                <div class="stat-value" id="level">1</div>
+            </div>
+        </div>
+
+        <div class="game-ui">
+            <button class="main-btn" id="main-btn">🎉</button>
+            <div class="multiplier" id="multiplier">x1</div>
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+        </div>
+
+        <div class="powerups">
+            <button class="powerup-btn" id="pu-click" title="Double Click Power">
+                👆<span class="cost">100</span>
+            </button>
+            <button class="powerup-btn" id="pu-auto" title="Auto Clicker">
+                🤖<span class="cost">250</span>
+            </button>
+            <button class="powerup-btn" id="pu-fever" title="Fever Mode (10s)">
+                🔥<span class="cost">500</span>
+            </button>
+            <button class="powerup-btn" id="pu-boom" title="Mega Explosion">
+                💥<span class="cost">1000</span>
+            </button>
+        </div>
+
+        <div class="level-up" id="level-up">LEVEL UP!</div>
+
+        <script>
+            const canvas = document.getElementById('confetti');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // Game State
+            let points = 0, perClick = 1, autoRate = 0, level = 1;
+            let combo = 1, comboTimer = null, feverMode = false;
+            let confettis = [], floatingTexts = [];
+
+            const colors = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#22d3ee', '#f472b6', '#34d399'];
+
+            const costs = { click: 100, auto: 250, fever: 500, boom: 1000 };
+
+            class Confetti {
+                constructor(x, y, explosive = false) {
+                    this.x = x; this.y = y;
+                    this.size = explosive ? Math.random() * 15 + 8 : Math.random() * 10 + 5;
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+                    const force = explosive ? 25 : 15;
+                    this.speedX = (Math.random() - 0.5) * force;
+                    this.speedY = Math.random() * -force - 5;
+                    this.gravity = 0.3;
+                    this.rotation = Math.random() * 360;
+                    this.rotationSpeed = (Math.random() - 0.5) * 15;
+                    this.opacity = 1;
+                    this.shapes = ['rect', 'circle', 'star', 'heart'];
+                    this.shape = this.shapes[Math.floor(Math.random() * this.shapes.length)];
+                }
+
+                update() {
+                    this.speedY += this.gravity;
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    this.rotation += this.rotationSpeed;
+                    this.opacity -= 0.008;
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rotation * Math.PI / 180);
+                    ctx.globalAlpha = this.opacity;
+                    ctx.fillStyle = this.color;
+
+                    if (this.shape === 'rect') {
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                    } else if (this.shape === 'circle') {
+                        ctx.beginPath();
+                        ctx.arc(0, 0, this.size/2, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (this.shape === 'star') {
+                        this.drawStar(ctx, 0, 0, 5, this.size/2, this.size/4);
+                    } else if (this.shape === 'heart') {
+                        this.drawHeart(ctx, 0, 0, this.size);
+                    }
+                    ctx.restore();
+                }
+
+                drawStar(ctx, cx, cy, spikes, outerR, innerR) {
+                    ctx.beginPath();
+                    for (let i = 0; i < spikes * 2; i++) {
+                        const r = i % 2 === 0 ? outerR : innerR;
+                        const angle = (i * Math.PI) / spikes - Math.PI / 2;
+                        ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                drawHeart(ctx, x, y, size) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y + size / 4);
+                    ctx.bezierCurveTo(x, y, x - size / 2, y, x - size / 2, y + size / 4);
+                    ctx.bezierCurveTo(x - size / 2, y + size / 2, x, y + size * 0.7, x, y + size * 0.7);
+                    ctx.bezierCurveTo(x, y + size * 0.7, x + size / 2, y + size / 2, x + size / 2, y + size / 4);
+                    ctx.bezierCurveTo(x + size / 2, y, x, y, x, y + size / 4);
+                    ctx.fill();
+                }
+            }
+
+            function createFloatingText(x, y, text, color = '#fbbf24') {
+                const el = document.createElement('div');
+                el.className = 'floating-text';
+                el.style.left = x + 'px';
+                el.style.top = y + 'px';
+                el.style.color = color;
+                el.textContent = text;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 1000);
+            }
+
+            function explode(x, y, count = 50, explosive = false) {
+                for (let i = 0; i < count; i++) {
+                    confettis.push(new Confetti(x, y, explosive));
+                }
+            }
+
+            function addPoints(amount, x, y) {
+                const total = Math.floor(amount * combo * (feverMode ? 3 : 1));
+                points += total;
+                createFloatingText(x, y, '+' + total);
+                updateUI();
+                checkLevelUp();
+            }
+
+            function updateUI() {
+                document.getElementById('points').textContent = Math.floor(points);
+                document.getElementById('perClick').textContent = perClick;
+                document.getElementById('autoRate').textContent = autoRate;
+                document.getElementById('level').textContent = level;
+
+                // Update powerup buttons
+                document.getElementById('pu-click').disabled = points < costs.click;
+                document.getElementById('pu-auto').disabled = points < costs.auto;
+                document.getElementById('pu-fever').disabled = points < costs.fever || feverMode;
+                document.getElementById('pu-boom').disabled = points < costs.boom;
+            }
+
+            function checkLevelUp() {
+                const nextLevel = Math.floor(points / 1000) + 1;
+                if (nextLevel > level) {
+                    level = nextLevel;
+                    perClick = Math.floor(1 + level * 0.5);
+                    document.getElementById('level-up').classList.add('show');
+                    setTimeout(() => document.getElementById('level-up').classList.remove('show'), 1500);
+
+                    // Big celebration
+                    for (let i = 0; i < 5; i++) {
+                        setTimeout(() => {
+                            explode(Math.random() * canvas.width, Math.random() * canvas.height * 0.7, 80, true);
+                        }, i * 100);
+                    }
+                }
+
+                // Progress to next level
+                const progress = ((points % 1000) / 1000) * 100;
+                document.getElementById('progress').style.width = progress + '%';
+            }
+
+            function handleClick(e) {
+                const rect = e.target.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+
+                addPoints(perClick, x, y);
+                explode(x, y, feverMode ? 80 : 30);
+
+                // Combo system
+                clearTimeout(comboTimer);
+                combo = Math.min(10, combo + 0.5);
+                document.getElementById('multiplier').textContent = 'x' + combo.toFixed(1);
+                document.getElementById('multiplier').classList.add('show');
+                comboTimer = setTimeout(() => {
+                    combo = 1;
+                    document.getElementById('multiplier').classList.remove('show');
+                }, 1000);
+            }
+
+            // Main button
+            document.getElementById('main-btn').addEventListener('click', handleClick);
+
+            // Powerups
+            document.getElementById('pu-click').addEventListener('click', () => {
+                if (points >= costs.click) {
+                    points -= costs.click;
+                    perClick += 1;
+                    costs.click = Math.floor(costs.click * 1.5);
+                    document.querySelector('#pu-click .cost').textContent = costs.click;
+                    updateUI();
+                }
+            });
+
+            document.getElementById('pu-auto').addEventListener('click', () => {
+                if (points >= costs.auto) {
+                    points -= costs.auto;
+                    autoRate += 1;
+                    costs.auto = Math.floor(costs.auto * 1.5);
+                    document.querySelector('#pu-auto .cost').textContent = costs.auto;
+                    updateUI();
+                }
+            });
+
+            document.getElementById('pu-fever').addEventListener('click', () => {
+                if (points >= costs.fever && !feverMode) {
+                    points -= costs.fever;
+                    feverMode = true;
+                    document.getElementById('main-btn').classList.add('fever');
+                    setTimeout(() => {
+                        feverMode = false;
+                        document.getElementById('main-btn').classList.remove('fever');
+                    }, 10000);
+                    updateUI();
+                }
+            });
+
+            document.getElementById('pu-boom').addEventListener('click', () => {
+                if (points >= costs.boom) {
+                    points -= costs.boom;
+                    for (let i = 0; i < 10; i++) {
+                        setTimeout(() => {
+                            const x = Math.random() * canvas.width;
+                            const y = Math.random() * canvas.height;
+                            explode(x, y, 100, true);
+                            addPoints(50, x, y);
+                        }, i * 100);
+                    }
+                    updateUI();
+                }
+            });
+
+            // Auto clicker
+            setInterval(() => {
+                if (autoRate > 0) {
+                    const x = canvas.width / 2;
+                    const y = canvas.height / 2;
+                    addPoints(autoRate, x, y);
+                    if (Math.random() > 0.7) explode(x, y, 10);
+                }
+            }, 1000);
+
+            // Animation loop
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                confettis = confettis.filter(c => c.opacity > 0);
+                confettis.forEach(c => { c.update(); c.draw(); });
+                requestAnimationFrame(animate);
+            }
+
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+
+            updateUI();
+            animate();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(confetti_html, height=700)
+
+# --- CYBER GLITCH (EGG #8) - INTERACTIVE HACKER TERMINAL ---
+def render_cyber_glitch():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_glitch_back"):
+            return_to_hub()
+            st.rerun()
+
+    glitch_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: #0a0a0a; min-height: 100vh; overflow: hidden;
+                font-family: 'Share Tech Mono', monospace; padding: 20px;
+            }
+
+            .terminal-window {
+                background: rgba(0, 20, 0, 0.9); border: 2px solid #00ff41;
+                border-radius: 8px; max-width: 900px; margin: 0 auto;
+                box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
+            }
+
+            .terminal-header {
+                background: linear-gradient(90deg, #1a1a1a, #2a2a2a);
+                padding: 10px 15px; border-bottom: 1px solid #00ff41;
+                display: flex; align-items: center; gap: 10px;
+            }
+            .terminal-btn { width: 12px; height: 12px; border-radius: 50%; }
+            .btn-red { background: #ff5f56; }
+            .btn-yellow { background: #ffbd2e; }
+            .btn-green { background: #27ca3f; }
+            .terminal-title {
+                color: #00ff41; font-size: 0.8rem; margin-left: 10px;
+                font-family: 'Orbitron', sans-serif;
+            }
+
+            .terminal-body {
+                padding: 20px; height: 500px; overflow-y: auto;
+                font-size: 0.9rem; line-height: 1.6;
+            }
+            .terminal-body::-webkit-scrollbar { width: 8px; }
+            .terminal-body::-webkit-scrollbar-track { background: #0a0a0a; }
+            .terminal-body::-webkit-scrollbar-thumb { background: #00ff41; border-radius: 4px; }
+
+            .output-line { margin: 3px 0; }
+            .output-line.system { color: #00ff41; }
+            .output-line.error { color: #ff4444; }
+            .output-line.warning { color: #fbbf24; }
+            .output-line.info { color: #22d3ee; }
+            .output-line.success { color: #34d399; }
+            .output-line.ascii { color: #a5b4fc; white-space: pre; font-size: 0.7rem; }
+
+            .input-line {
+                display: flex; align-items: center; margin-top: 10px;
+            }
+            .prompt { color: #00ff41; margin-right: 10px; }
+            .input-field {
+                flex: 1; background: transparent; border: none;
+                color: #00ff41; font-family: inherit; font-size: inherit;
+                outline: none; caret-color: #00ff41;
+            }
+
+            .scanline {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: repeating-linear-gradient(
+                    0deg, rgba(0, 0, 0, 0.1) 0px, rgba(0, 0, 0, 0.1) 1px,
+                    transparent 1px, transparent 2px
+                );
+                pointer-events: none; z-index: 100; animation: scanMove 8s linear infinite;
+            }
+            @keyframes scanMove {
+                0% { transform: translateY(0); }
+                100% { transform: translateY(100%); }
+            }
+
+            .glitch-overlay {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                pointer-events: none; z-index: 101; opacity: 0;
+            }
+            .glitch-overlay.active {
+                animation: glitchFlash 0.5s ease-out;
+            }
+            @keyframes glitchFlash {
+                0% { opacity: 0.8; background: #ff00de; }
+                50% { opacity: 0.5; background: #00ff41; }
+                100% { opacity: 0; }
+            }
+
+            .status-bar {
+                position: fixed; bottom: 0; left: 0; right: 0;
+                background: #111; padding: 8px 20px;
+                display: flex; justify-content: space-between;
+                font-size: 0.75rem; color: #666; border-top: 1px solid #333;
+            }
+            .status-bar span { color: #00ff41; }
+
+            .achievement-popup {
+                position: fixed; top: 20px; right: -400px;
+                background: linear-gradient(135deg, #fbbf24, #f59e0b);
+                color: #000; padding: 15px 25px; border-radius: 8px;
+                font-weight: 700; transition: right 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                z-index: 200; box-shadow: 0 10px 40px rgba(251, 191, 36, 0.5);
+            }
+            .achievement-popup.show { right: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="scanline"></div>
+        <div class="glitch-overlay" id="glitch-overlay"></div>
+
+        <div class="terminal-window">
+            <div class="terminal-header">
+                <div class="terminal-btn btn-red"></div>
+                <div class="terminal-btn btn-yellow"></div>
+                <div class="terminal-btn btn-green"></div>
+                <span class="terminal-title">BARROOTS_TERMINAL v3.14</span>
+            </div>
+            <div class="terminal-body" id="terminal-body">
+                <div class="output-line ascii">
+ ██████╗██╗   ██╗██████╗ ███████╗██████╗
+██╔════╝╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗
+██║      ╚████╔╝ ██████╔╝█████╗  ██████╔╝
+██║       ╚██╔╝  ██╔══██╗██╔══╝  ██╔══██╗
+╚██████╗   ██║   ██████╔╝███████╗██║  ██║
+ ╚═════╝   ╚═╝   ╚═════╝ ╚══════╝╚═╝  ╚═╝
+                </div>
+                <div class="output-line system">[SYSTEM] Welcome to BARROOTS Cyber Terminal</div>
+                <div class="output-line info">[INFO] Type 'help' for available commands</div>
+            </div>
+            <div class="input-line">
+                <span class="prompt">root@barroots:~$</span>
+                <input type="text" class="input-field" id="input-field" autofocus autocomplete="off">
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div>STATUS: <span>CONNECTED</span> | UPTIME: <span id="uptime">00:00:00</span></div>
+            <div>COMMANDS: <span id="cmd-count">0</span> | LEVEL: <span id="level">ROOKIE</span></div>
+        </div>
+
+        <div class="achievement-popup" id="achievement"></div>
+
+        <script>
+            const terminal = document.getElementById('terminal-body');
+            const input = document.getElementById('input-field');
+            const glitchOverlay = document.getElementById('glitch-overlay');
+
+            let commandCount = 0;
+            let startTime = Date.now();
+            let secretsFound = 0;
+            const history = [];
+            let historyIndex = -1;
+
+            const achievements = {
+                first: { u: false, t: '🎯 First Command!' },
+                hacker: { u: false, t: '💻 Hacker Mode!' },
+                explorer: { u: false, t: '🔍 Secret Hunter!' },
+                master: { u: false, t: '👑 Terminal Master!' },
+                glitcher: { u: false, t: '👾 Glitch Lord!' }
+            };
+
+            const secrets = {
+                'barroots': 'You found the secret word! 🌿',
+                '42': 'The answer to life, universe, and everything!',
+                'konami': '↑↑↓↓←→←→BA - Classic!',
+                'neo': 'Follow the white rabbit...',
+                'hack': 'You are already in. 😎',
+                'money': '💰💰💰 STONKS! 📈',
+                'crypto': '₿ To the moon! 🚀',
+                'matrix': 'There is no spoon.',
+                'password': 'Nice try! The password is... just kidding.',
+                'sudo': 'With great power comes great responsibility.'
+            };
+
+            const commands = {
+                help: () => [
+                    { t: 'system', m: '╔══════════════════════════════════════╗' },
+                    { t: 'system', m: '║       AVAILABLE COMMANDS             ║' },
+                    { t: 'system', m: '╠══════════════════════════════════════╣' },
+                    { t: 'info', m: '║ help     - Show this menu            ║' },
+                    { t: 'info', m: '║ clear    - Clear terminal            ║' },
+                    { t: 'info', m: '║ status   - System status             ║' },
+                    { t: 'info', m: '║ scan     - Scan network              ║' },
+                    { t: 'info', m: '║ decrypt  - Decrypt files             ║' },
+                    { t: 'info', m: '║ hack     - Initiate hack sequence    ║' },
+                    { t: 'info', m: '║ portfolio- View portfolio data       ║' },
+                    { t: 'info', m: '║ glitch   - Trigger glitch effect     ║' },
+                    { t: 'info', m: '║ matrix   - Enter the matrix          ║' },
+                    { t: 'info', m: '║ fortune  - Get your fortune          ║' },
+                    { t: 'info', m: '║ secrets  - Find hidden secrets       ║' },
+                    { t: 'system', m: '╚══════════════════════════════════════╝' }
+                ],
+
+                clear: () => {
+                    terminal.innerHTML = '';
+                    return [];
+                },
+
+                status: () => [
+                    { t: 'system', m: '[SYSTEM STATUS]' },
+                    { t: 'success', m: '  CPU: ████████░░ 82%' },
+                    { t: 'success', m: '  RAM: ██████░░░░ 64%' },
+                    { t: 'warning', m: '  NET: █████████░ 91%' },
+                    { t: 'success', m: '  SEC: ██████████ 100% SECURE' },
+                    { t: 'info', m: '  Commands executed: ' + commandCount }
+                ],
+
+                scan: () => {
+                    triggerGlitch();
+                    return [
+                        { t: 'system', m: '[SCANNING NETWORK...]' },
+                        { t: 'info', m: '  192.168.1.1 - Router (SECURE)' },
+                        { t: 'info', m: '  192.168.1.42 - BARROOTS_SERVER' },
+                        { t: 'warning', m: '  192.168.1.66 - Unknown Device' },
+                        { t: 'success', m: '  192.168.1.100 - Your Machine' },
+                        { t: 'system', m: '[SCAN COMPLETE] 4 devices found' }
+                    ];
+                },
+
+                decrypt: () => {
+                    triggerGlitch();
+                    return [
+                        { t: 'system', m: '[DECRYPTING FILES...]' },
+                        { t: 'info', m: '  ████░░░░░░ 40%' },
+                        { t: 'info', m: '  ████████░░ 80%' },
+                        { t: 'success', m: '  ██████████ 100%' },
+                        { t: 'success', m: '[DECRYPTION COMPLETE]' },
+                        { t: 'warning', m: '  SECRET: Your portfolio is looking good! 📈' }
+                    ];
+                },
+
+                hack: () => {
+                    triggerGlitch();
+                    showAchievement('hacker');
+                    return [
+                        { t: 'error', m: '[WARNING] INITIATING HACK SEQUENCE...' },
+                        { t: 'system', m: '  Bypassing firewall...' },
+                        { t: 'system', m: '  Injecting payload...' },
+                        { t: 'system', m: '  Escalating privileges...' },
+                        { t: 'success', m: '[SUCCESS] ACCESS GRANTED' },
+                        { t: 'warning', m: '  Just kidding. This is a simulation. 😎' }
+                    ];
+                },
+
+                portfolio: () => [
+                    { t: 'system', m: '[PORTFOLIO DATA]' },
+                    { t: 'success', m: '  Total: R$ ∞' },
+                    { t: 'info', m: '  Stocks: █████████░ 90%' },
+                    { t: 'info', m: '  Crypto: ██░░░░░░░░ 20%' },
+                    { t: 'info', m: '  Fixed:  ████░░░░░░ 40%' },
+                    { t: 'success', m: '  Status: TO THE MOON 🚀' }
+                ],
+
+                glitch: () => {
+                    for (let i = 0; i < 5; i++) {
+                        setTimeout(triggerGlitch, i * 200);
+                    }
+                    showAchievement('glitcher');
+                    return [{ t: 'error', m: '[GLITCH ACTIVATED] R̷E̷A̷L̷I̷T̷Y̷ ̷C̷O̷R̷R̷U̷P̷T̷E̷D̷' }];
+                },
+
+                matrix: () => {
+                    triggerGlitch();
+                    return [
+                        { t: 'success', m: '  Wake up, Neo...' },
+                        { t: 'success', m: '  The Matrix has you...' },
+                        { t: 'success', m: '  Follow the white rabbit.' },
+                        { t: 'warning', m: '  Knock, knock, Neo.' }
+                    ];
+                },
+
+                fortune: () => {
+                    const fortunes = [
+                        '💰 Your investments will multiply soon!',
+                        '📈 A bull market approaches...',
+                        '🚀 Prepare for liftoff!',
+                        '💎 Diamond hands will be rewarded.',
+                        '🌙 Buy the dip, hold the rip!',
+                        '🔮 The stars align for financial success.',
+                        '⚡ Great gains await the patient.',
+                        '🎯 Trust the process.'
+                    ];
+                    return [{ t: 'warning', m: fortunes[Math.floor(Math.random() * fortunes.length)] }];
+                },
+
+                secrets: () => {
+                    showAchievement('explorer');
+                    return [
+                        { t: 'system', m: '[SECRET WORDS HINT]' },
+                        { t: 'info', m: '  Try typing: barroots, 42, neo, hack...' },
+                        { t: 'info', m: '  There are ' + Object.keys(secrets).length + ' secrets to find!' },
+                        { t: 'warning', m: '  Secrets found: ' + secretsFound + '/' + Object.keys(secrets).length }
+                    ];
+                }
+            };
+
+            function addOutput(type, message) {
+                const line = document.createElement('div');
+                line.className = 'output-line ' + type;
+                line.textContent = message;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+
+            function processCommand(cmd) {
+                const trimmed = cmd.trim().toLowerCase();
+                if (!trimmed) return;
+
+                commandCount++;
+                document.getElementById('cmd-count').textContent = commandCount;
+                history.unshift(cmd);
+                historyIndex = -1;
+
+                addOutput('system', '> ' + cmd);
+
+                // Check for secrets
+                if (secrets[trimmed]) {
+                    secretsFound++;
+                    addOutput('success', '[SECRET FOUND] ' + secrets[trimmed]);
+                    triggerGlitch();
+                    if (secretsFound >= 5) showAchievement('explorer');
+                    return;
+                }
+
+                // Execute command
+                if (commands[trimmed]) {
+                    const output = commands[trimmed]();
+                    output.forEach((o, i) => {
+                        setTimeout(() => addOutput(o.t, o.m), i * 100);
+                    });
+                } else {
+                    addOutput('error', '[ERROR] Command not found: ' + trimmed);
+                    addOutput('info', '[HINT] Type "help" for available commands');
+                }
+
+                // Achievements
+                if (commandCount === 1) showAchievement('first');
+                if (commandCount >= 20) showAchievement('master');
+
+                // Update level
+                const levels = ['ROOKIE', 'HACKER', 'ELITE', 'MASTER', 'LEGEND'];
+                const lvl = Math.min(4, Math.floor(commandCount / 10));
+                document.getElementById('level').textContent = levels[lvl];
+            }
+
+            function triggerGlitch() {
+                glitchOverlay.classList.add('active');
+                setTimeout(() => glitchOverlay.classList.remove('active'), 500);
+            }
+
+            function showAchievement(key) {
+                if (achievements[key].u) return;
+                achievements[key].u = true;
+                const el = document.getElementById('achievement');
+                el.textContent = achievements[key].t;
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 3000);
+            }
+
+            // Input handling
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    processCommand(input.value);
+                    input.value = '';
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (historyIndex < history.length - 1) {
+                        historyIndex++;
+                        input.value = history[historyIndex];
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                        input.value = history[historyIndex];
+                    } else {
+                        historyIndex = -1;
+                        input.value = '';
+                    }
+                }
+            });
+
+            // Uptime counter
+            setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+                const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('uptime').textContent = h + ':' + m + ':' + s;
+            }, 1000);
+
+            // Random glitch
+            setInterval(() => {
+                if (Math.random() > 0.98) triggerGlitch();
+            }, 2000);
+
+            // Focus input on click
+            document.addEventListener('click', () => input.focus());
+        </script>
+    </body>
+    </html>
+    """
+    components.html(glitch_html, height=700)
+
 # --- MAIN HUB RENDER ---
 if st.session_state.active_egg is None:
     st.markdown('<div class="glitch-title">HUB DE PROJETOS SECRETOS</div>', unsafe_allow_html=True)
@@ -4337,23 +5446,58 @@ if st.session_state.active_egg is None:
             enter_egg(5)
             st.rerun()
 
+    with r2c2:
+        # SLOT 6: MATRIX RAIN
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">🔢</div>
+            <div class="label">MATRIX RAIN</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR DOWNLOAD", key="btn_egg_6", use_container_width=True):
+            enter_egg(6)
+            st.rerun()
+
+    with r2c3:
+        # SLOT 7: CONFETTI PARTY
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">🎊</div>
+            <div class="label">CONFETTI PARTY</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR FESTA", key="btn_egg_7", use_container_width=True):
+            enter_egg(7)
+            st.rerun()
+
+    with r2c4:
+        # SLOT 8: CYBER GLITCH
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">👾</div>
+            <div class="label">CYBER GLITCH</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR HACK", key="btn_egg_8", use_container_width=True):
+            enter_egg(8)
+            st.rerun()
+
+    # --- ROW 3: LOCKED SLOTS ---
     locked_slots = [
-        # Removed ("NFT GALLERY", "💎") to fit BIO-LAB
         ("CRYPTO MINER", "⛏️"),
         ("AI CHATBOT", "🤖"),
         ("TIME TRAVEL", "⏳"),
-        ("HOLODECK", "🧊"),
-        ("PORTAL GUN", "🌀"),
-        ("SOURCE CODE", "📜")
+        ("HOLODECK", "🧊")
     ]
-    
-    remaining_cols = [r2c2, r2c3, r2c4]
+
     r3 = st.columns(4)
-    remaining_cols.extend(r3)
-    
+
     for i, (label, icon) in enumerate(locked_slots):
-        if i < len(remaining_cols):
-            with remaining_cols[i]:
+        if i < len(r3):
+            with r3[i]:
                 st.markdown(f"""
                 <div class="egg-card locked">
                     <div class="icon">{icon}</div>
@@ -4373,3 +5517,9 @@ elif st.session_state.active_egg == 4:
     render_global_map(return_to_hub)
 elif st.session_state.active_egg == 5:
     render_bio_lab()
+elif st.session_state.active_egg == 6:
+    render_matrix_rain()
+elif st.session_state.active_egg == 7:
+    render_confetti_party()
+elif st.session_state.active_egg == 8:
+    render_cyber_glitch()

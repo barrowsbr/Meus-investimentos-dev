@@ -1151,7 +1151,7 @@ st.markdown('''
 
 # --- FOOTER ---
 st.markdown('''
-<div class="neon-footer" style="text-align: center; padding-top: 40px; padding-bottom: 20px; font-size: 0.85rem; position: relative; z-index: 15; cursor: pointer;">
+<div class="neon-footer" style="text-align: center; padding-top: 40px; padding-bottom: 20px; font-size: 0.85rem; position: relative; z-index: 15;">
     Lucas Barroso Fouraux - 2026
 </div>
 ''', unsafe_allow_html=True)
