@@ -96,11 +96,18 @@ st.markdown("""
         align-items: center;
         justify-content: center;
     }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        border-color: rgba(251, 191, 36, 0.4);
+        color: #fbbf24;
+    }
 
     .stTabs [aria-selected="true"] {
-        background-color: rgba(99, 102, 241, 0.2);
-        border: 1px solid rgba(99, 102, 241, 0.5);
-        color: #ffffff;
+        background-color: rgba(251, 191, 36, 0.1);
+        border: 1px solid rgba(251, 191, 36, 0.6);
+        color: #fbbf24;
+        text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        box-shadow: 0 0 15px rgba(251, 191, 36, 0.1);
     }
     
     /* Table Styling */
