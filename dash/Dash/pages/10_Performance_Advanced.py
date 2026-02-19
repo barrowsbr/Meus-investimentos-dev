@@ -393,6 +393,7 @@ def main():
             multi_result.fx_rates,
             consolidated_result=twr_result,
             premises=DEFAULT_PREMISES,
+            fx_cost_basis=fx_cost_basis,  # Pass cost basis for "Meu Dinheiro" mode
         )
 
         # 4. Atribuição por ativo

@@ -251,30 +251,11 @@ def consolidate_to_brl(
             else:
                 fx_for_nav = pd.Series(1.0, index=idx)
         
-        # Keep fx_market reference for compatibility with flow conversion below
+        # Keep fx_market reference for flow conversion
         fx_market = fx_for_nav
-        
-        # Obter taxa EFETIVA para FLUXOS (se df_cambio disponível)
-        if df_cambio is not None and not df_cambio.empty and currency != 'BRL' and not currency.endswith('_DIRECT'):
-            try:
-                from core.cambio_utils import build_effective_rate_series
-                rate_series = build_effective_rate_series(df_cambio)
-                if not rate_series.empty:
-                    # Usar taxa efetiva para cada fluxo
-                    fx_effective = pd.Series(index=idx, dtype=float)
-                    for d in idx:
-                        fx_effective.loc[d] = rate_series.asof(d) if not pd.isna(rate_series.asof(d)) else fx_market.loc[d]
-                    fx_effective = fx_effective.fillna(fx_market)
-                else:
-                    fx_effective = fx_market
-            except:
-                fx_effective = fx_market
-        else:
-            fx_effective = fx_market
-        
+        fx_effective = fx_market  # Flows use same rate as NAV
+
         # Converter para BRL
-        # NAV: usa taxa de MERCADO (valor atual da carteira)
-        # Flow: usa taxa EFETIVA (quanto realmente pagou em BRL)
         nav_brl = nav_cur * fx_market
         flow_brl = flow_cur * fx_effective
         income_brl = income_cur * fx_market  # Proventos usam taxa de mercado do dia

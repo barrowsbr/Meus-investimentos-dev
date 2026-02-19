@@ -771,6 +771,10 @@ class IBKRTradesManager:
         self.csv_path = path
         self.df_trades = parse_ibkr_trades(path)
 
+        # Lidar com DataFrame vazio (sem colunas)
+        if self.df_trades.empty or 'Tipo de transação' not in self.df_trades.columns:
+            return 0, 0
+
         n_compras = len(self.df_trades[self.df_trades['Tipo de transação'] == 'Compra'])
         n_vendas = len(self.df_trades[self.df_trades['Tipo de transação'] == 'Venda'])
 
@@ -811,8 +815,13 @@ class IBKRTradesManager:
             df_prod = pd.DataFrame(prod_data[1:], columns=headers)
             backup_path = create_backup(df_prod, self.backup_dir, prefix='meus_ativos_backup')
 
-            # Preparar novos registros
-            new_rows = self.df_faltantes[COLS_ATIVOS].copy()
+            # Preparar novos registros (filtrar apenas colunas existentes)
+            cols_to_use = [c for c in COLS_ATIVOS if c in self.df_faltantes.columns]
+            new_rows = self.df_faltantes[cols_to_use].copy()
+            # Garantir que todas as colunas existam
+            for c in COLS_ATIVOS:
+                if c not in new_rows.columns:
+                    new_rows[c] = ''
             # Formatar valores para o GSheets
             for col in ['Quantidade', 'Preço', 'Valor bruto', 'Taxa de corretagem', 'Valor líquido']:
                 if col in new_rows.columns:
@@ -834,14 +843,22 @@ class IBKRTradesManager:
         if self.df_faltantes is None or self.df_faltantes.empty:
             return {'total': 0, 'compras': 0, 'vendas': 0, 'por_ticker': {}}
 
+        # Verificar se colunas existem antes de acessá-las
+        if 'Tipo de transação' not in self.df_faltantes.columns:
+            return {'total': len(self.df_faltantes), 'compras': 0, 'vendas': 0, 'por_ticker': {}}
+
         compras = self.df_faltantes[self.df_faltantes['Tipo de transação'] == 'Compra']
         vendas = self.df_faltantes[self.df_faltantes['Tipo de transação'] == 'Venda']
+
+        por_ticker = {}
+        if 'Símbolo' in self.df_faltantes.columns:
+            por_ticker = self.df_faltantes.groupby('Símbolo').size().to_dict()
 
         return {
             'total': len(self.df_faltantes),
             'compras': len(compras),
             'vendas': len(vendas),
-            'por_ticker': self.df_faltantes.groupby('Símbolo').size().to_dict()
+            'por_ticker': por_ticker
         }
 
 
@@ -865,7 +882,11 @@ def _sync_trades_to_tab(df, tab_name):
 
         rows = []
         for _, row in df.iterrows():
-            rows.append([str(row.get(c, '')) for c in COLS_ATIVOS])
+            row_data = []
+            for c in COLS_ATIVOS:
+                val = row.get(c, '')
+                row_data.append(str(val) if pd.notna(val) else '')
+            rows.append(row_data)
 
         if rows:
             ws.update(f'A{next_row}:J{next_row + len(rows) - 1}', rows)

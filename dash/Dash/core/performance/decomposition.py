@@ -213,6 +213,7 @@ def decompose_portfolio(
     fx_rates: Dict[str, pd.Series],
     consolidated_result: Optional[CanonicalTWRResult] = None,
     premises=DEFAULT_PREMISES,
+    fx_cost_basis: Dict[str, pd.Series] = None,  # For "Meu Dinheiro" mode
 ) -> PortfolioDecomposition:
     """
     Decompõe o retorno do portfólio inteiro por camadas.
@@ -220,14 +221,32 @@ def decompose_portfolio(
     Parameters
     ----------
     buckets : Dict de CurrencyBucket por moeda
-    fx_rates : Dict de séries de câmbio
+    fx_rates : Dict de séries de câmbio (mercado)
     consolidated_result : TWR consolidado em BRL (para validação)
     premises : Premissas de TWR
+    fx_cost_basis : Dict de séries de custo médio FX (para modo "Meu Dinheiro")
+                    Quando fornecido, usa custo pessoal ao invés de mercado.
 
     Returns
     -------
     PortfolioDecomposition
     """
+    # Determine which FX series to use for decomposition
+    # In "Meu Dinheiro" mode, use cost basis; otherwise use market rates
+    fx_for_decomp = {}
+    for curr in set(list(fx_rates.keys()) + (list(fx_cost_basis.keys()) if fx_cost_basis else [])):
+        if fx_cost_basis and curr in fx_cost_basis:
+            cost_series = fx_cost_basis[curr]
+            if not cost_series.empty and not cost_series.isna().all():
+                # Use cost basis, fill NaN with market rates as fallback
+                if curr in fx_rates:
+                    fx_for_decomp[curr] = cost_series.combine_first(fx_rates[curr])
+                else:
+                    fx_for_decomp[curr] = cost_series
+            elif curr in fx_rates:
+                fx_for_decomp[curr] = fx_rates[curr]
+        elif curr in fx_rates:
+            fx_for_decomp[curr] = fx_rates[curr]
     decompositions = {}
 
     # Get common index from all buckets
@@ -240,18 +259,18 @@ def decompose_portfolio(
             all_dates.update(bucket.nav_series.index)
             nav_last = bucket.nav_series.iloc[-1]
             base_curr = currency.replace('_DIRECT', '')
-            if base_curr in fx_rates and base_curr != 'BRL' and not currency.endswith('_DIRECT'):
-                fx_last = fx_rates[base_curr].asof(bucket.nav_series.index[-1])
+            if base_curr in fx_for_decomp and base_curr != 'BRL' and not currency.endswith('_DIRECT'):
+                fx_last = fx_for_decomp[base_curr].asof(bucket.nav_series.index[-1])
                 if pd.isna(fx_last):
                     fx_last = 1.0
                 nav_brl = nav_last * fx_last
             elif currency == 'BRL':
                 nav_brl = nav_last
             else:
-                # DIRECT or unknown → use market FX
+                # DIRECT or unknown → use selected FX
                 base = currency.replace('_DIRECT', '')
-                if base in fx_rates:
-                    fx_last = fx_rates[base].asof(bucket.nav_series.index[-1])
+                if base in fx_for_decomp:
+                    fx_last = fx_for_decomp[base].asof(bucket.nav_series.index[-1])
                     if pd.isna(fx_last):
                         fx_last = 1.0
                     nav_brl = nav_last * fx_last
@@ -269,7 +288,7 @@ def decompose_portfolio(
     # Decompose each bucket
     for currency, bucket in buckets.items():
         base_curr = currency.replace('_DIRECT', '')
-        fx_series = fx_rates.get(base_curr, pd.Series(1.0, index=common_idx))
+        fx_series = fx_for_decomp.get(base_curr, pd.Series(1.0, index=common_idx))
         dec = decompose_bucket_return(bucket, fx_series, premises=premises)
         decompositions[currency] = dec
 
@@ -306,8 +325,8 @@ def decompose_portfolio(
         bucket = buckets[curr]
         nav_native = bucket.nav_series.reindex(common_idx).ffill().fillna(0)
         base_curr = curr.replace('_DIRECT', '')
-        if base_curr in fx_rates and base_curr != 'BRL' and not curr.endswith('_DIRECT'):
-            fx_s = fx_rates[base_curr].reindex(common_idx).ffill().bfill().fillna(1.0)
+        if base_curr in fx_for_decomp and base_curr != 'BRL' and not curr.endswith('_DIRECT'):
+            fx_s = fx_for_decomp[base_curr].reindex(common_idx).ffill().bfill().fillna(1.0)
         elif curr == 'BRL' or curr.endswith('_DIRECT'):
             fx_s = pd.Series(1.0, index=common_idx)
         else:
