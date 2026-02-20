@@ -953,29 +953,6 @@ def reconstruct_history_multicurrency(
             df_rf_proc = df_rf_raw.copy()
             manual_rf_proc = manual_rf_values.copy() if manual_rf_values else {}
 
-            # =====================================================================
-            # FIX v19.0: Filtrar CAIXA/SALDO/CASH de df_rf_proc ANTES do engine
-            #
-            # PROBLEMA:
-            # - CAIXA existe em duas abas do GSheets (RF transações e RF manual)
-            # - Se Ticker=CAIXA tem Tipo=Compra, entra como lote normal em 'corrected'
-            # - cash_balance é extraído separadamente de RF manual
-            # - Resultado: CAIXA contado duas vezes (~R$ 4k extra)
-            #
-            # SOLUÇÃO:
-            # - Filtrar tickers CAIXA/SALDO/CASH de df_rf_proc
-            # - CAIXA só é usado via cash_balance (de Performance_Advanced._load_all_data)
-            # =====================================================================
-            CASH_TICKERS = ['CAIXA', 'SALDO', 'CASH']
-            if 'Ticker' in df_rf_proc.columns:
-                # DEBUG v19.0: Log quantas linhas de CAIXA foram filtradas
-                mask_cash = df_rf_proc['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS)
-                n_cash_removed = mask_cash.sum()
-                if n_cash_removed > 0:
-                    cash_value = df_rf_proc.loc[mask_cash, 'Valor'].sum() if 'Valor' in df_rf_proc.columns else 0
-                    print(f"[FIX v19.0] Removendo {n_cash_removed} linhas de CAIXA do RF (valor total: R$ {cash_value:,.2f})")
-                df_rf_proc = df_rf_proc[~mask_cash]
-
             # Ensure Moeda column
             if 'Moeda' not in df_rf_proc.columns:
                 df_rf_proc['Moeda'] = 'BRL'

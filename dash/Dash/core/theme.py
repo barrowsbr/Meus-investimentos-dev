@@ -84,7 +84,13 @@ def inject_global_theme(*, hide_sidebar: bool = True):
 
     html, body, [data-testid="stAppViewContainer"] {{
         background-color: {C['bg']} !important;
+        background-image: none !important; /* Force remove any default light theme pattern */
         {bg_image_css}
+    }}
+
+    /* Force text color for light mode override */
+    p, h1, h2, h3, h4, h5, h6, span, div, label, li {{
+        color: {C['text_primary']} !important;
     }}
 
     .stApp {{

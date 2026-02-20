@@ -78,7 +78,7 @@ def render_fab():
     <div class="fab-container">
         <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
         <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">↻</a>
-        <a href="Performance_Advanced" target="_self" class="tools-fab" title="Debug Performance">🔬</a>
+        <a href="./" target="_self" class="tools-fab" title="Home">🏠</a>
         <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
     </div>
     """, unsafe_allow_html=True)

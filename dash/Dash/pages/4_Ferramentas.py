@@ -22,6 +22,25 @@ inject_global_theme()
 # Custom styles for this page
 st.markdown("""
 <style>
+/* ═══════════════════════════════════════════════════════
+   FUNDO SÓLIDO — Remove imagem, mantém azul escuro
+   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   FUNDO SÓLIDO — Remove imagem, mantém azul escuro
+   ═══════════════════════════════════════════════════════ */
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    background: linear-gradient(180deg, #0b1120 0%, #0f172a 50%, #1e293b 100%) !important;
+    background-color: #0b1120 !important;
+    background-image: none !important;
+    background-attachment: fixed !important;
+    color: #f1f5f9 !important;
+}
+
+/* Force text color in all standard containers to avoid white-on-white */
+p, h1, h2, h3, h4, h5, h6, span, div, label, li {
+    color: #f1f5f9 !important;
+}
+
 /* More opaque cards for settings page */
 /* hide any leftover glass-card usage */
 .glass-card { display: none; }
@@ -30,16 +49,16 @@ st.markdown("""
    STATUS CARDS
    ═══════════════════════════════════════════════════════ */
 .status-card {
-    background: rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.95);
     border-radius: 12px;
     padding: 16px;
     margin: 12px 0;
     border-left: 4px solid;
 }
-.status-card.info    { border-left-color: #60a5fa; background: rgba(96, 165, 250, 0.08); }
-.status-card.success { border-left-color: #34d399; background: rgba(52, 211, 153, 0.08); }
-.status-card.warning { border-left-color: #fbbf24; background: rgba(251, 191, 36, 0.08); }
-.status-card.error   { border-left-color: #f87171; background: rgba(248, 113, 113, 0.08); }
+.status-card.info    { border-left-color: #60a5fa; background: rgba(15, 23, 42, 0.92); }
+.status-card.success { border-left-color: #34d399; background: rgba(15, 23, 42, 0.92); }
+.status-card.warning { border-left-color: #fbbf24; background: rgba(15, 23, 42, 0.92); }
+.status-card.error   { border-left-color: #f87171; background: rgba(15, 23, 42, 0.92); }
 .status-card-header {
     display: flex;
     align-items: center;
@@ -54,15 +73,15 @@ st.markdown("""
    GLASS CARD — targets ALL st.container(border=True)
    ═══════════════════════════════════════════════════════ */
 [data-testid="stVerticalBlockBorderWrapper"] {
-    background: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.82)) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    border: 1px solid rgba(212, 160, 23, 0.12) !important;
+    background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.97)) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(212, 160, 23, 0.15) !important;
     border-radius: 20px !important;
     padding: 22px 20px !important;
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
     transition: all 0.35s ease !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:hover {

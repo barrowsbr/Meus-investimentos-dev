@@ -451,6 +451,14 @@ def main():
             # Cleaning Data - UPPERCASE para matching com FixedIncomeEngine (linha 212)
             df_rf_manual['Atual'] = pd.to_numeric(df_rf_manual['Atual'], errors='coerce').fillna(0)
             df_rf_manual = df_rf_manual[df_rf_manual['Atual'] > 0]
+
+            # FIX v18.0: Excluir CAIXA/SALDO dos valores manuais para cálculo de performance
+            # Caixa é tratado separadamente e não deve ser incluído no NAV do portfólio
+            CASH_TICKERS = ['CAIXA', 'SALDO', 'CASH']
+            df_rf_manual = df_rf_manual[
+                ~df_rf_manual['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS)
+            ]
+
             manual_rf_values = dict(zip(
                 df_rf_manual['Ticker'].astype(str).str.strip().str.upper(),
                 df_rf_manual['Atual']

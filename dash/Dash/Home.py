@@ -1083,7 +1083,7 @@ st.markdown('''
                     <span class="sub-item-text">Composição</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
-                <a href="Investimentos?tab=1" target="_self" class="sub-item">
+                <a href="Performance_Advanced" target="_self" class="sub-item">
                     <span class="sub-item-icon">▲</span>
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
