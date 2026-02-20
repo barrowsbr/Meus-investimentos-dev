@@ -779,11 +779,12 @@ def main():
     k1, k2, k3, k4, k5 = st.columns(5)
 
     with k1:
-        # Patrimônio = Capital Investido + Caixa (conforme solicitado)
-        patrimonio_total = invested_capital + cash_balance
-        subtitle_text = f"Investido R$ {invested_capital:,.0f} + Caixa R$ {cash_balance:,.0f}" if cash_balance > 0 else "Capital total investido"
+        # Patrimônio = NAV dos ativos + Caixa (valor total real)
+        patrimonio_total = nav_final + cash_balance
+        # Mostrar composição no subtitle
+        subtitle_text = f"Ativos R$ {nav_final:,.0f} + Caixa R$ {cash_balance:,.0f}" if cash_balance > 0 else "Valor atual do portfólio"
         st.markdown(render_metric_card(
-            label="Patrimônio (Custo)",
+            label="Patrimônio",
             value=f"R$ {patrimonio_total:,.0f}",
             delta=None,
             delta_positive=True,
