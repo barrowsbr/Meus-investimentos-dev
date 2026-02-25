@@ -36,7 +36,7 @@ from config import BASE_DIR
 
 # --- CONFIG ---
 st.set_page_config(
-    page_title="Debug Performance",
+    page_title="Performance Advanced",
     page_icon="◇",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -135,7 +135,7 @@ st.markdown("""
         letter-spacing: 0.08em;
         font-family: 'JetBrains Mono', monospace;
     }
-    .badge-debug {
+    .badge-secondary {
         background: rgba(148, 163, 184, 0.08);
         color: #94a3b8;
         border: 1px solid rgba(148, 163, 184, 0.15);
@@ -496,18 +496,13 @@ def _fetch_prices(tickers, min_date):
 def main():
     render_fab()
 
-    # Debug: Clear cache button (temporário para testar fix v19.0)
-    if st.sidebar.button("🗑️ Limpar Cache", help="Limpa cache do Streamlit para aplicar correções"):
-        st.cache_data.clear()
-        st.rerun()
-
     # Header — Institutional, understated
     st.markdown("""
     <div class="hero-container">
         <div class="hero-title">Performance Audit</div>
         <div class="hero-subtitle">
             Decomposição matemática auditável
-            <span class="badge badge-debug">v2.0</span>
+            <span class="badge badge-secondary">v2.0</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -515,21 +510,6 @@ def main():
     # ── DATA LOADING ──────────────────────────────────────────────────
     with st.spinner("Carregando dados..."):
         df_assets, df_proventos, df_rf_raw, df_cambio, manual_rf_values, cash_balance = _load_all_data()
-
-    # DEBUG v19.0: Verificar se CAIXA está no df_rf_raw
-    if st.sidebar.checkbox("Debug CAIXA", value=False):
-        st.sidebar.write("**df_rf_raw tickers:**")
-        if not df_rf_raw.empty and 'Ticker' in df_rf_raw.columns:
-            tickers_rf = df_rf_raw['Ticker'].unique().tolist()
-            st.sidebar.write(tickers_rf)
-            caixa_rows = df_rf_raw[df_rf_raw['Ticker'].astype(str).str.upper().str.contains('CAIXA|SALDO|CASH')]
-            if not caixa_rows.empty:
-                st.sidebar.warning(f"CAIXA no df_rf_raw: {len(caixa_rows)} linhas")
-                st.sidebar.dataframe(caixa_rows[['Ticker', 'Tipo', 'Valor']] if 'Valor' in caixa_rows.columns else caixa_rows)
-            else:
-                st.sidebar.success("Nenhum CAIXA no df_rf_raw")
-        st.sidebar.write(f"**cash_balance:** R$ {cash_balance:,.2f}")
-        st.sidebar.write(f"**manual_rf_values:** {manual_rf_values}")
 
     if df_assets.empty:
         st.warning("Nenhum ativo encontrado.")
@@ -555,15 +535,11 @@ def main():
     days_lookback = (datetime.now() - min_date).days + 10
 
     # ── ENGINE ────────────────────────────────────────────────────────
-    # FIX v19.1: Filtrar CAIXA de df_rf_raw AQUI, antes de passar ao engine
-    # O filtro no engine.py pode não estar sendo executado por cache do Python
+    # Filtrar CAIXA de df_rf_raw antes de passar ao engine
     CASH_TICKERS_RF = ['CAIXA', 'SALDO', 'CASH']
     df_rf_filtered = df_rf_raw.copy()
     if not df_rf_filtered.empty and 'Ticker' in df_rf_filtered.columns:
         mask = df_rf_filtered['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS_RF)
-        n_removed = mask.sum()
-        if n_removed > 0:
-            st.toast(f"FIX v19.1: Removidas {n_removed} linhas de CAIXA do RF")
         df_rf_filtered = df_rf_filtered[~mask]
 
     with st.spinner("Rodando engine multi-currency..."):
@@ -790,20 +766,6 @@ def main():
             delta_positive=True,
             subtitle=subtitle_text,
         ), unsafe_allow_html=True)
-
-    # DEBUG: Mostrar de onde vem cada valor
-    with st.expander("🔍 DEBUG: De onde vem o NAV?", expanded=True):
-        st.write(f"**nav_final (da engine):** R$ {nav_final:,.2f}")
-        st.write(f"**cash_balance (de RF manual):** R$ {cash_balance:,.2f}")
-        st.write(f"**Capital Investido:** R$ {invested_capital:,.2f}")
-        st.write(f"**Diferença (nav_final - invested_capital):** R$ {nav_final - invested_capital:,.2f}")
-        st.write("---")
-        st.write("**Buckets por moeda:**")
-        for curr, bucket in multi_result.buckets.items():
-            nav_last = bucket.nav_series.iloc[-1] if not bucket.nav_series.empty else 0
-            st.write(f"- **{curr}**: R$ {nav_last:,.2f} | Tickers: {bucket.tickers}")
-        st.write("---")
-        st.write(f"**manual_rf_values:** {manual_rf_values}")
 
     with k2:
         mtm_positive = retorno_mtm >= 0
@@ -1304,7 +1266,7 @@ def main():
         else:
             st.info("Nenhum fluxo registrado no período.")
 
-    with st.expander("Dados Brutos (Debug)", expanded=False):
+    with st.expander("Dados Brutos", expanded=False):
         st.markdown("**NAV + Flows (input do TWR engine)**")
         st.dataframe(df_engine.head(30), use_container_width=True)
 
