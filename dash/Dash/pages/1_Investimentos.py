@@ -1233,7 +1233,220 @@ with tab2:
             st.plotly_chart(fig_perf, use_container_width=True)
             st.markdown("---")
 
-        else: 
+            # ======================================================================
+            # 🔬 DECOMPOSIÇÃO DE PREÇO MÉDIO POR LOTE
+            # ======================================================================
+            st.markdown("### 🔬 Decomposição de Preço Médio por Lote")
+            st.caption("Selecione um ativo para ver cada aporte individual e a rentabilidade de cada lote que compõe seu preço médio.")
+
+            tickers_rv_disponiveis = sorted(df_bruto[df_bruto['ticker'].isin(df_detalhes['Ticker'].tolist())]['ticker'].unique().tolist())
+
+            if tickers_rv_disponiveis:
+                col_sel1, col_sel2 = st.columns([2, 5])
+                with col_sel1:
+                    ticker_decomp = st.selectbox(
+                        "Ativo para decompor:",
+                        tickers_rv_disponiveis,
+                        key="selectbox_decomp_pm"
+                    )
+
+                # --- Filtra lotes de compra do ativo selecionado ---
+                df_lotes = df_bruto[
+                    (df_bruto['ticker'] == ticker_decomp) &
+                    (df_bruto['tipo'].str.lower().str.contains('compra'))
+                ].copy()
+
+                if not df_lotes.empty:
+                    # Dados do ativo selecionado
+                    moeda_ativo = df_lotes['moeda'].iloc[0] if 'moeda' in df_lotes.columns else 'BRL'
+                    preco_atual_decomp = mapa_precos.get(ticker_decomp, 0.0)
+
+                    # Câmbio
+                    fx_decomp = 1.0
+                    if moeda_ativo == 'USD': fx_decomp = usd
+                    elif moeda_ativo == 'CAD': fx_decomp = cad
+                    elif moeda_ativo == 'EUR': fx_decomp = eur
+
+                    # Posição atual (para verificar PM e Qtd real)
+                    df_pos_ativo = df_posicao[df_posicao['Ticker'] == ticker_decomp]
+                    pm_real = df_pos_ativo['PM_Origem'].values[0] if not df_pos_ativo.empty else 0.0
+                    qtd_real = df_pos_ativo['Qtd'].values[0] if not df_pos_ativo.empty else 0.0
+
+                    # Monta tabela de lotes
+                    df_lotes['data'] = pd.to_datetime(df_lotes['data'], errors='coerce')
+                    df_lotes = df_lotes.sort_values('data').reset_index(drop=True)
+                    df_lotes['Lote'] = range(1, len(df_lotes) + 1)
+                    df_lotes['Qtd Comprada'] = pd.to_numeric(df_lotes['quantidade'], errors='coerce').fillna(0)
+                    df_lotes['Preço de Compra'] = pd.to_numeric(df_lotes['preco'], errors='coerce').fillna(0)
+                    df_lotes['Valor Investido'] = df_lotes['Qtd Comprada'] * df_lotes['Preço de Compra']
+                    df_lotes['Preço Atual'] = preco_atual_decomp if preco_atual_decomp > 0 else pm_real
+                    df_lotes['Rent. Lote (%)'] = df_lotes.apply(
+                        lambda r: (df_lotes['Preço Atual'].iloc[0] / r['Preço de Compra'] - 1) if r['Preço de Compra'] > 0 else 0.0,
+                        axis=1
+                    )
+                    df_lotes['Lucro do Lote'] = df_lotes['Qtd Comprada'] * (df_lotes['Preço Atual'] - df_lotes['Preço de Compra'])
+                    df_lotes['Lucro do Lote (R$)'] = df_lotes['Lucro do Lote'] * fx_decomp
+                    df_lotes['Valor Investido (R$)'] = df_lotes['Valor Investido'] * fx_decomp
+
+                    total_investido = df_lotes['Valor Investido'].sum()
+                    total_aportes = len(df_lotes)
+                    qtd_total_comprada = df_lotes['Qtd Comprada'].sum()
+                    rent_total_pm = (preco_atual_decomp / pm_real - 1) if pm_real > 0 and preco_atual_decomp > 0 else 0.0
+
+                    # --- KPI Cards ---
+                    st.markdown("""
+                    <style>
+                    .lote-card {
+                        background: rgba(30, 41, 59, 0.5);
+                        backdrop-filter: blur(10px);
+                        border: 1px solid rgba(255,255,255,0.07);
+                        border-radius: 12px;
+                        padding: 16px 20px;
+                        text-align: center;
+                    }
+                    .lote-card .lote-label { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+                    .lote-card .lote-value { color: #f1f5f9; font-size: 1.4rem; font-weight: 700; }
+                    .lote-card .lote-sub { font-size: 0.85rem; font-weight: 500; margin-top: 2px; }
+                    .lote-pos { color: #4ade80; }
+                    .lote-neg { color: #f87171; }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    k1, k2, k3, k4, k5 = st.columns(5)
+                    with k1:
+                        st.markdown(f"""<div class="lote-card">
+                            <div class="lote-label">Preço Médio</div>
+                            <div class="lote-value">{pm_real:,.2f}</div>
+                            <div class="lote-sub" style="color:#94a3b8;">{moeda_ativo}</div>
+                        </div>""", unsafe_allow_html=True)
+                    with k2:
+                        st.markdown(f"""<div class="lote-card">
+                            <div class="lote-label">Preço Atual</div>
+                            <div class="lote-value">{preco_atual_decomp:,.2f}</div>
+                            <div class="lote-sub" style="color:#94a3b8;">{moeda_ativo}</div>
+                        </div>""", unsafe_allow_html=True)
+                    with k3:
+                        cor_rent = "lote-pos" if rent_total_pm >= 0 else "lote-neg"
+                        sinal = "▲" if rent_total_pm >= 0 else "▼"
+                        st.markdown(f"""<div class="lote-card">
+                            <div class="lote-label">Rent. s/ PM</div>
+                            <div class="lote-value {cor_rent}">{rent_total_pm:+.2%}</div>
+                            <div class="lote-sub {cor_rent}">{sinal} desde o 1º aporte</div>
+                        </div>""", unsafe_allow_html=True)
+                    with k4:
+                        st.markdown(f"""<div class="lote-card">
+                            <div class="lote-label">Nº de Aportes</div>
+                            <div class="lote-value">{total_aportes}</div>
+                            <div class="lote-sub" style="color:#94a3b8;">lotes de compra</div>
+                        </div>""", unsafe_allow_html=True)
+                    with k5:
+                        st.markdown(f"""<div class="lote-card">
+                            <div class="lote-label">Qtd em Custódia</div>
+                            <div class="lote-value">{qtd_real:,.2f}</div>
+                            <div class="lote-sub" style="color:#94a3b8;">de {qtd_total_comprada:,.2f} compradas</div>
+                        </div>""", unsafe_allow_html=True)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+                    # --- Tabela de Lotes ---
+                    tabela_lotes = df_lotes[['Lote', 'data', 'Qtd Comprada', 'Preço de Compra', 'Valor Investido', 'Preço Atual', 'Rent. Lote (%)', 'Lucro do Lote (R$)']].copy()
+                    tabela_lotes.rename(columns={'data': 'Data'}, inplace=True)
+                    tabela_lotes['Data'] = tabela_lotes['Data'].dt.strftime('%d/%m/%Y')
+
+                    def _cor_rent_lote(val):
+                        cor = '#4ade80' if val >= 0 else '#f87171'
+                        return f'color: {cor}; font-weight: bold'
+
+                    def _cor_lucro_lote(val):
+                        cor = '#4ade80' if val >= 0 else '#f87171'
+                        return f'color: {cor}'
+
+                    moeda_fmt = 'R$' if moeda_ativo == 'BRL' else moeda_ativo
+                    fmt_preco = f'{{:,.2f}}'
+                    fmt_valor_brl = 'R$ {:,.2f}'
+
+                    st.dataframe(
+                        tabela_lotes.style
+                            .format({
+                                'Qtd Comprada': '{:,.4f}',
+                                'Preço de Compra': fmt_preco,
+                                'Valor Investido': fmt_preco,
+                                'Preço Atual': fmt_preco,
+                                'Rent. Lote (%)': '{:+.2%}',
+                                'Lucro do Lote (R$)': fmt_valor_brl,
+                            })
+                            .map(_cor_rent_lote, subset=['Rent. Lote (%)'])
+                            .map(_cor_lucro_lote, subset=['Lucro do Lote (R$)']),
+                        use_container_width=True,
+                        hide_index=True,
+                        height=min(400, (len(tabela_lotes) + 1) * 38 + 38),
+                        column_config={
+                            "Lote": st.column_config.NumberColumn("Lote #", width="small"),
+                            "Data": st.column_config.TextColumn("Data", width="small"),
+                            "Rent. Lote (%)": st.column_config.TextColumn("Rentab.", width="small"),
+                        }
+                    )
+
+                    st.caption(f"💡 Preço Atual: {preco_atual_decomp:,.2f} {moeda_ativo} · PM Ponderado: {pm_real:,.2f} {moeda_ativo} · Lucro do Lote em R$ considera câmbio atual.")
+
+                    # --- Gráfico de barras por lote ---
+                    if len(df_lotes) > 1:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        cores_lotes = ['#4ade80' if x >= 0 else '#f87171' for x in df_lotes['Rent. Lote (%)']]
+                        labels_lotes = df_lotes.apply(
+                            lambda r: f"Lote {int(r['Lote'])}<br>{r['data'].strftime('%m/%Y') if pd.notna(r['data']) else ''}", axis=1
+                        )
+
+                        fig_lotes = go.Figure()
+                        fig_lotes.add_trace(go.Bar(
+                            x=labels_lotes,
+                            y=df_lotes['Rent. Lote (%)'],
+                            marker_color=cores_lotes,
+                            text=[f"{v:+.1%}" for v in df_lotes['Rent. Lote (%)']],
+                            textposition='outside',
+                            customdata=np.stack((
+                                df_lotes['Preço de Compra'],
+                                df_lotes['Qtd Comprada'],
+                                df_lotes['Lucro do Lote (R$)'],
+                            ), axis=-1),
+                            hovertemplate=(
+                                "<b>%{x}</b><br>"
+                                "Preço de Compra: %{customdata[0]:,.2f}<br>"
+                                "Quantidade: %{customdata[1]:,.4f}<br>"
+                                "Rentab. Lote: %{y:+.2%}<br>"
+                                "Lucro (R$): R$ %{customdata[2]:,.2f}<extra></extra>"
+                            )
+                        ))
+
+                        fig_lotes.add_hline(
+                            y=0,
+                            line_width=1,
+                            line_color="rgba(255,255,255,0.3)",
+                            line_dash="dot"
+                        )
+
+                        # Linha do PM (rent = 0 já é o PM, mas adiciona referência visual)
+                        fig_lotes.update_layout(
+                            title=dict(text=f"Rentabilidade Individual dos Lotes — {ticker_decomp}", font=dict(size=14, color='#94a3b8')),
+                            height=380,
+                            margin=dict(t=55, b=10, l=0, r=0),
+                            yaxis=dict(tickformat='+.1%', title=None, gridcolor='rgba(255,255,255,0.06)'),
+                            xaxis=dict(title=None),
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            showlegend=False,
+                        )
+
+                        st.plotly_chart(fig_lotes, use_container_width=True)
+
+                else:
+                    st.info(f"Nenhum registro de compra encontrado para {ticker_decomp}.")
+            else:
+                st.info("Selecione um ativo de Renda Variável nos filtros laterais para decompor.")
+
+            st.markdown("---")
+
+        else:
             st.info("Nenhuma posição de Renda Variável encontrada.")
     else: 
         st.info("Nenhum dado disponível para visualização.")
