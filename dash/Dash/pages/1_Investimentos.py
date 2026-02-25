@@ -442,7 +442,11 @@ if not df_proventos_bruto.empty:
 # ==============================================================================
 # 8. CONSOLIDAÇÃO DA VISÃO ATUAL (Recuperando df_view)
 # ==============================================================================
-df_view = pd.DataFrame() # Inicializa vazio para evitar o erro
+df_view = pd.DataFrame()      # Inicializa vazio para evitar o erro
+df_detalhes = pd.DataFrame()  # Pré-inicializa para uso em tab1 e tab2
+df_kpi = pd.DataFrame()       # Pré-inicializa para uso em tab1 e tab2
+total_valor = 0.0              # Pré-inicializa para uso em tab1 e tab2
+df_grafico = pd.DataFrame()   # Pré-inicializa para uso em tab2
 
 if not df_bruto.empty:
     # Recupera posição de custódia (Qtd)
@@ -515,6 +519,65 @@ if not df_bruto.empty:
         })
         
     df_view = pd.DataFrame(lista_final)
+
+    # -----------------------------------------------------------------------
+    # PRÉ-CÁLCULO: df_detalhes com todos os campos necessários
+    # Disponível tanto em tab1 (Composição) quanto em tab2 (Renda Variável)
+    # -----------------------------------------------------------------------
+    if not df_view.empty:
+        _setores_rv = ['Ações Brasil', 'Ações Internacional', 'ETF', 'FIIs',
+                       'Cripto', 'Commodities', 'REITs']
+        df_detalhes = df_view[df_view['Setor'].isin(_setores_rv)].copy()
+        if not df_detalhes.empty:
+            _fx_map = {"USD": usd, "CAD": cad, "EUR": eur, "BRL": 1}
+            mapa_var_local = mapa_variacao
+            for col in ['PM Compra', 'Preço Atual', 'Qtd']:
+                df_detalhes[col] = pd.to_numeric(df_detalhes[col], errors='coerce').fillna(0)
+            df_detalhes['FX'] = df_detalhes['Moeda'].map(_fx_map).fillna(1)
+            df_detalhes['Valor Atual BRL'] = df_detalhes['Qtd'] * df_detalhes['Preço Atual'] * df_detalhes['FX']
+            df_detalhes['Custo BRL'] = df_detalhes['Qtd'] * df_detalhes['PM Compra'] * df_detalhes['FX']
+
+            def calc_daily_profit(row):
+                tkr = row['Ticker']
+                moeda = row['Moeda']
+                qtd = row['Qtd']
+                price_today = row['Preço Atual']
+                fx_today = row['FX']
+                var_asset = mapa_var_local.get(tkr, 0.0)
+                price_yesterday = price_today - var_asset
+                fx_ticker_map = {'USD': 'BRL=X', 'CAD': 'CADBRL=X', 'EUR': 'EURBRL=X'}
+                fx_ticker = fx_ticker_map.get(moeda)
+                var_fx = 0.0
+                if fx_ticker:
+                    var_fx = mapa_var_local.get(fx_ticker, 0.0)
+                fx_yesterday = fx_today - var_fx
+                val_today_brl = qtd * price_today * fx_today
+                val_yesterday_brl = qtd * price_yesterday * fx_yesterday
+                return val_today_brl - val_yesterday_brl
+
+            df_detalhes['Lucro Diário (R$)'] = df_detalhes.apply(calc_daily_profit, axis=1)
+            df_detalhes['Lucro Não Realizado (BRL)'] = df_detalhes['Valor Atual BRL'] - df_detalhes['Custo BRL']
+            if 'Lucro Realiz. (R$)' in df_detalhes.columns:
+                df_detalhes['Lucro Realizado (BRL)'] = df_detalhes['Lucro Realiz. (R$)']
+            else:
+                df_detalhes['Lucro Realizado (BRL)'] = 0
+            df_kpi = df_detalhes[df_detalhes['Qtd'] > 0]
+            total_valor = df_kpi['Valor Atual BRL'].sum()
+            df_detalhes['Resultado Total (R$)'] = (
+                df_detalhes['Lucro Não Realizado (BRL)'].fillna(0) +
+                df_detalhes['Lucro Realizado (BRL)'].fillna(0) +
+                df_detalhes['Proventos (R$)'].fillna(0)
+            )
+
+            def calcular_rentabilidade_total(row):
+                custo = row['Custo BRL']
+                if custo <= 0:
+                    custo = row['Volume Vendas (R$)'] - row['Lucro Realizado (BRL)']
+                if custo > 0:
+                    return (row['Resultado Total (R$)'] / custo)
+                return 0.0
+
+            df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
 
     with tab1:
             st.subheader("💎 Visão do Gestor (Portfólio Global)")
@@ -871,43 +934,85 @@ if not df_bruto.empty:
                 st.markdown("---")
 
 
-                st.markdown("#### 🏆 Ranking de Rentabilidade (Carteira Completa)")
-                
-                if not df_grafico.empty:
-                    df_podium = df_grafico.sort_values('Rent. (%)', ascending=True).copy()
-                    
-                    df_podium['Cor'] = df_podium['Rent. (%)'].apply(lambda x: '#4CAF50' if x >= 0 else '#FF5252')
-                    
-                    altura_dinamica = max(450, len(df_podium) * 30)
+                st.markdown("### 🧬 Rentabilidade Total por Ativo")
+                st.caption("Barra Sólida: Valorização Não Realizada | Barra Clara: Lucro Realizado + Proventos")
 
-                    fig_bar = px.bar(
-                        df_podium, 
-                        x='Rent. (%)', 
-                        y='Ticker', 
-                        orientation='h', 
-                        text='Rent. (%)', 
-                        hover_data=['Valor Hoje (R$)', 'Setor']
+                if not df_detalhes.empty:
+                    df_chart = df_detalhes.sort_values('Rent. BRL (%)', ascending=True).copy()
+
+                    df_chart['Resultado_Bolso_Abs'] = df_chart['Proventos (R$)'].fillna(0) + df_chart['Lucro Realizado (BRL)'].fillna(0)
+                    df_chart['Resultado_NaoRealizado_Abs'] = df_chart['Resultado Total (R$)'] - df_chart['Resultado_Bolso_Abs']
+
+                    df_chart['Custo_Estimado'] = df_chart.apply(
+                        lambda x: x['Resultado Total (R$)'] / (x['Rent. BRL (%)']) if x['Rent. BRL (%)'] != 0 else 0,
+                        axis=1
                     )
-                    
-                    fig_bar.update_traces(
-                        marker_color=df_podium['Cor'], 
-                        texttemplate='%{text:.1%}', 
-                        textposition='outside'
+                    df_chart['Pct_Nao_Realizado'] = df_chart.apply(
+                        lambda x: (x['Resultado_NaoRealizado_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0,
+                        axis=1
                     )
-                    
-                    fig_bar.update_layout(
-                        yaxis={'categoryorder':'total ascending'}, 
-                        height=altura_dinamica, 
-                        margin=dict(r=50), 
-                        xaxis_title="Rentabilidade",
+                    df_chart['Pct_Bolso'] = df_chart.apply(
+                        lambda x: (x['Resultado_Bolso_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0,
+                        axis=1
+                    )
+
+                    cores_base_comp = [
+                        '#4CAF50' if x > 0 else '#FF5252' if x < 0 else '#FFEB3B'
+                        for x in df_chart['Rent. BRL (%)']
+                    ]
+                    altura_grafico_comp = max(600, len(df_chart) * 25)
+
+                    fig_perf_comp = go.Figure()
+                    fig_perf_comp.add_trace(go.Bar(
+                        y=df_chart['Ticker'],
+                        x=df_chart['Pct_Nao_Realizado'],
+                        name='Não Realizado (Valorização)',
+                        orientation='h',
+                        marker_color=cores_base_comp,
+                        marker_opacity=1.0,
+                        customdata=np.stack((
+                            df_chart['Resultado_NaoRealizado_Abs'],
+                            df_chart['Rent. BRL (%)']
+                        ), axis=-1),
+                        hovertemplate="<b>Não Realizado:</b> %{x:.1%}<br>R$ %{customdata[0]:.2f}<extra></extra>"
+                    ))
+                    fig_perf_comp.add_trace(go.Bar(
+                        y=df_chart['Ticker'],
+                        x=df_chart['Pct_Bolso'],
+                        name='Realizado + Proventos',
+                        orientation='h',
+                        marker_color=cores_base_comp,
+                        marker_opacity=0.3,
+                        text=df_chart['Rent. BRL (%)'],
+                        texttemplate='%{text:.1%}',
+                        textposition='outside',
+                        customdata=np.stack((
+                            df_chart['Resultado_Bolso_Abs'],
+                            df_chart['Proventos (R$)'],
+                            df_chart['Lucro Realizado (BRL)']
+                        ), axis=-1),
+                        hovertemplate=(
+                            "<b>Bolso (Realizado + Prov):</b> %{x:.1%}<br>"
+                            "Total Bolso: R$ %{customdata[0]:.2f}<br>"
+                            "<i>(Div: %{customdata[1]:.2f} + Realiz: %{customdata[2]:.2f})</i><extra></extra>"
+                        )
+                    ))
+                    fig_perf_comp.update_layout(
+                        barmode='relative',
+                        height=altura_grafico_comp,
+                        xaxis_title="Rentabilidade Total",
                         yaxis_title=None,
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        margin=dict(l=0, r=40, t=30, b=30),
+                        yaxis=dict(type='category'),
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)'
                     )
-                    
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    fig_perf_comp.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
+                    st.plotly_chart(fig_perf_comp, use_container_width=True)
                 else:
-                    st.info("Nenhum ativo encontrado com os filtros atuais.")        
+                    st.info("Nenhum ativo de Renda Variável encontrado para exibir o gráfico.")
 
 
                 st.markdown("#### 🎯 Risco x Retorno (Scatter)")
@@ -1014,62 +1119,7 @@ if not df_bruto.empty:
 with tab2:
     st.subheader("🌍 Renda Variável - Detalhamento")
     if not df_view.empty:
-        df_detalhes = df_view[df_view['Setor'].isin(['Ações Brasil', 'Ações Internacional', 'ETF', 'FIIs', 'Cripto', 'Commodities', 'REITs'])].copy()
-        
         if not df_detalhes.empty:
-            usd = mapa_precos.get('BRL=X', 5.00)
-            cad = mapa_precos.get('CADBRL=X', 3.70)
-            eur = mapa_precos.get('EURBRL=X', 5.40)
-            fx_map = {"USD": usd, "CAD": cad, "EUR": eur, "BRL": 1}
-            
-            mapa_var_local = locals().get('mapa_variacao', globals().get('mapa_variacao', {}))
-
-            for col in ['PM Compra', 'Preço Atual', 'Qtd']: 
-                df_detalhes[col] = pd.to_numeric(df_detalhes[col], errors='coerce').fillna(0)
-            
-            df_detalhes['FX'] = df_detalhes['Moeda'].map(fx_map).fillna(1)
-            df_detalhes['Valor Atual BRL'] = df_detalhes['Qtd'] * df_detalhes['Preço Atual'] * df_detalhes['FX']
-            df_detalhes['Custo BRL'] = df_detalhes['Qtd'] * df_detalhes['PM Compra'] * df_detalhes['FX']
-            
-            def calc_daily_profit(row):
-                tkr = row['Ticker']
-                moeda = row['Moeda']
-                qtd = row['Qtd']
-                
-                # Prices & FX Today
-                price_today = row['Preço Atual']
-                fx_today = row['FX']
-                
-                # Asset Variation (Native)
-                var_asset = mapa_var_local.get(tkr, 0.0)
-                price_yesterday = price_today - var_asset
-                
-                # FX Variation
-                fx_ticker_map = {'USD': 'BRL=X', 'CAD': 'CADBRL=X', 'EUR': 'EURBRL=X'}
-                fx_ticker = fx_ticker_map.get(moeda)
-                var_fx = 0.0
-                if fx_ticker:
-                     var_fx = mapa_var_local.get(fx_ticker, 0.0)
-                
-                fx_yesterday = fx_today - var_fx
-                
-                # PnL Calculation
-                val_today_brl = qtd * price_today * fx_today
-                val_yesterday_brl = qtd * price_yesterday * fx_yesterday
-                
-                return val_today_brl - val_yesterday_brl
-            df_detalhes['Lucro Diário (R$)'] = df_detalhes.apply(calc_daily_profit, axis=1)
-
-            df_detalhes['Lucro Não Realizado (BRL)'] = df_detalhes['Valor Atual BRL'] - df_detalhes['Custo BRL']
-            
-            if 'Lucro Realiz. (R$)' in df_detalhes.columns: 
-                df_detalhes['Lucro Realizado (BRL)'] = df_detalhes['Lucro Realiz. (R$)']
-            else: 
-                df_detalhes['Lucro Realizado (BRL)'] = 0
-            
-            df_kpi = df_detalhes[df_detalhes['Qtd'] > 0]
-            total_valor = df_kpi['Valor Atual BRL'].sum()
-            
             st.markdown("---")
             st.markdown("### 🏅 Destaques — Lucro NÃO Realizado (BRL)")
             df_rank = df_kpi.sort_values('Lucro Não Realizado (BRL)', ascending=False)
@@ -1082,30 +1132,14 @@ with tab2:
                 st.dataframe(df_rank[['Ticker', 'Moeda', 'Lucro Não Realizado (BRL)']].tail(5).style.format({'Lucro Não Realizado (BRL)': 'R$ {:,.2f}'}), use_container_width=True)
 
             st.markdown("---")
-            
-            df_detalhes['Resultado Total (R$)'] = (
-                df_detalhes['Lucro Não Realizado (BRL)'].fillna(0) + 
-                df_detalhes['Lucro Realizado (BRL)'].fillna(0) + 
-                df_detalhes['Proventos (R$)'].fillna(0)
-            )
-
-            def calcular_rentabilidade_total(row):
-                custo = row['Custo BRL']
-                if custo <= 0: 
-                    custo = row['Volume Vendas (R$)'] - row['Lucro Realizado (BRL)']
-                if custo > 0:
-                    return (row['Resultado Total (R$)'] / custo)
-                return 0.0
-
-            df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
 
             st.markdown("### 📊 Tabela Consolidada — Ativos Atuais + Encerrados")
 
-            tabela = df_detalhes.rename(columns={'Valor Atual BRL': 'Valor Mercado (R$)'})[[ 
+            tabela = df_detalhes.rename(columns={'Valor Atual BRL': 'Valor Mercado (R$)'})[[
                 'Ticker', 'Setor', 'Moeda', 'Qtd', 'PM Compra', 'Preço Atual',
                 'Lucro Diário (R$)',
                 'Custo BRL', 'Valor Mercado (R$)', 'Volume Vendas (R$)',
-                'Lucro Não Realizado (BRL)', 'Lucro Realizado (BRL)', 'Proventos (R$)', 
+                'Lucro Não Realizado (BRL)', 'Lucro Realizado (BRL)', 'Proventos (R$)',
                 'Resultado Total (R$)', 'Rent. BRL (%)'
             ]].copy()
 
@@ -1117,23 +1151,23 @@ with tab2:
 
             st.dataframe(
                 tabela.style.format({
-                    'Qtd': '{:,.2f}', 
-                    'PM Compra': '{:,.2f}', 
+                    'Qtd': '{:,.2f}',
+                    'PM Compra': '{:,.2f}',
                     'Preço Atual': '{:,.2f}',
                     'Lucro Diário (R$)': 'R$ {:,.2f}',
-                    'Custo BRL': 'R$ {:,.2f}', 
-                    'Valor Mercado (R$)': 'R$ {:,.2f}', 
-                    'Volume Vendas (R$)': 'R$ {:,.2f}', 
+                    'Custo BRL': 'R$ {:,.2f}',
+                    'Valor Mercado (R$)': 'R$ {:,.2f}',
+                    'Volume Vendas (R$)': 'R$ {:,.2f}',
                     'Lucro Não Realizado (BRL)': 'R$ {:,.2f}',
-                    'Lucro Realizado (BRL)': 'R$ {:,.2f}', 
-                    'Proventos (R$)': 'R$ {:,.2f}', 
+                    'Lucro Realizado (BRL)': 'R$ {:,.2f}',
+                    'Proventos (R$)': 'R$ {:,.2f}',
                     'Resultado Total (R$)': 'R$ {:,.2f}',
                     'Rent. BRL (%)': '{:.2%}'
                 })
                 .map(color_diario, subset=['Lucro Diário (R$)'])
                 .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
                 .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1),
-                
+
                 column_config={
                     "Rent. BRL (%)": st.column_config.NumberColumn(
                         "Rentabilidade",
@@ -1146,91 +1180,38 @@ with tab2:
                 hide_index=True
             )
 
-            st.markdown("### 🧬 Rentabilidade Total por Ativo (Composição)")
-            st.caption("Barra Sólida: Valorização Não Realizada | Barra Clara: Lucro Realizado + Proventos")
+            st.markdown("---")
+            st.markdown("#### 🏆 Ranking de Rentabilidade (Não Realizado — Carteira Completa)")
 
-            # Use all assets from df_detalhes (already includes both current and sold assets)
-            df_chart = df_detalhes.sort_values('Rent. BRL (%)', ascending=True).copy()
-
-            df_chart['Resultado_Bolso_Abs'] = df_chart['Proventos (R$)'].fillna(0) + df_chart['Lucro Realizado (BRL)'].fillna(0)
-            df_chart['Resultado_NaoRealizado_Abs'] = df_chart['Resultado Total (R$)'] - df_chart['Resultado_Bolso_Abs']
-
-            df_chart['Custo_Estimado'] = df_chart.apply(
-                lambda x: x['Resultado Total (R$)'] / (x['Rent. BRL (%)']) if x['Rent. BRL (%)'] != 0 else 0, 
-                axis=1
-            )
-
-            df_chart['Pct_Nao_Realizado'] = df_chart.apply(
-                lambda x: (x['Resultado_NaoRealizado_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0, 
-                axis=1
-            )
-            df_chart['Pct_Bolso'] = df_chart.apply(
-                lambda x: (x['Resultado_Bolso_Abs'] / x['Custo_Estimado']) if x['Custo_Estimado'] != 0 else 0, 
-                axis=1
-            )
-
-            cores_base = [
-                '#4CAF50' if x > 0 else '#FF5252' if x < 0 else '#FFEB3B' 
-                for x in df_chart['Rent. BRL (%)']
-            ]
-
-            # Aumenta altura para caber todos os ativos (mínimo de 600px)
-            altura_grafico = max(600, len(df_chart) * 25)
-
-            fig_perf = go.Figure()
-
-            fig_perf.add_trace(go.Bar(
-                y=df_chart['Ticker'],
-                x=df_chart['Pct_Nao_Realizado'],
-                name='Não Realizado (Valoriação)',
-                orientation='h',
-                marker_color=cores_base,
-                marker_opacity=1.0, 
-                customdata=np.stack((
-                    df_chart['Resultado_NaoRealizado_Abs'], 
-                    df_chart['Rent. BRL (%)']
-                ), axis=-1),
-                hovertemplate="<b>Não Realizado:</b> %{x:.1%}<br>R$ %{customdata[0]:.2f}<extra></extra>"
-            ))
-
-            fig_perf.add_trace(go.Bar(
-                y=df_chart['Ticker'],
-                x=df_chart['Pct_Bolso'],
-                name='Realizado + Proventos',
-                orientation='h',
-                marker_color=cores_base,
-                marker_opacity=0.3, 
-                text=df_chart['Rent. BRL (%)'], 
-                texttemplate='%{text:.1%}',
-                textposition='outside',
-                customdata=np.stack((
-                    df_chart['Resultado_Bolso_Abs'], 
-                    df_chart['Proventos (R$)'], 
-                    df_chart['Lucro Realizado (BRL)']
-                ), axis=-1),
-                hovertemplate=(
-                    "<b>Bolso (Realizado + Prov):</b> %{x:.1%}<br>"
-                    "Total Bolso: R$ %{customdata[0]:.2f}<br>"
-                    "<i>(Div: %{customdata[1]:.2f} + Realiz: %{customdata[2]:.2f})</i><extra></extra>"
+            if not df_grafico.empty:
+                df_podium = df_grafico.sort_values('Rent. (%)', ascending=True).copy()
+                df_podium['Cor'] = df_podium['Rent. (%)'].apply(lambda x: '#4CAF50' if x >= 0 else '#FF5252')
+                altura_dinamica = max(450, len(df_podium) * 30)
+                fig_bar = px.bar(
+                    df_podium,
+                    x='Rent. (%)',
+                    y='Ticker',
+                    orientation='h',
+                    text='Rent. (%)',
+                    hover_data=['Valor Hoje (R$)', 'Setor']
                 )
-            ))
-
-            fig_perf.update_layout(
-                barmode='relative', 
-                height=altura_grafico,
-                xaxis_title="Rentabilidade Total",
-                yaxis_title=None,
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=0, r=40, t=30, b=30),
-                yaxis=dict(type='category'),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
-
-            fig_perf.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
-
-            st.plotly_chart(fig_perf, use_container_width=True)
+                fig_bar.update_traces(
+                    marker_color=df_podium['Cor'],
+                    texttemplate='%{text:.1%}',
+                    textposition='outside'
+                )
+                fig_bar.update_layout(
+                    yaxis={'categoryorder': 'total ascending'},
+                    height=altura_dinamica,
+                    margin=dict(r=50),
+                    xaxis_title="Rentabilidade",
+                    yaxis_title=None,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.info("Nenhum ativo encontrado para exibir o ranking.")
             st.markdown("---")
 
             # ======================================================================
