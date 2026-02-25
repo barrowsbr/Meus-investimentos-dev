@@ -1144,6 +1144,7 @@ with tab2:
             ]].copy()
 
             tabela = tabela.sort_values('Valor Mercado (R$)', ascending=False)
+            tabela = tabela.set_index('Ticker')  # índice → coluna fixada no scroll horizontal
 
             def color_diario(val):
                 color = '#2E7D32' if val >= 0 else '#C62828'
@@ -1166,18 +1167,17 @@ with tab2:
                 })
                 .map(color_diario, subset=['Lucro Diário (R$)'])
                 .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
-                .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1),
+                .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x.name == 'TOTAL 💰' else '' for i in x], axis=1),
 
                 column_config={
                     "Rent. BRL (%)": st.column_config.NumberColumn(
                         "Rentabilidade",
                         format="%.2f %%"
                     ),
-                    "Ticker": st.column_config.TextColumn("Ativo", width="small"),
                 },
                 use_container_width=True,
                 height=600,
-                hide_index=True
+                hide_index=False  # exibe o índice (Ticker) como coluna fixada
             )
 
             st.markdown("---")
