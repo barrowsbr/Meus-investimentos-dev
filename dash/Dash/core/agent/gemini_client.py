@@ -70,7 +70,14 @@ class GeminiAgent:
             response = agent.chat("Como está minha carteira?", portfolio_context)
     """
 
-    MODEL = "gemini-1.5-flash"  # Rápido, barato e muito capaz
+    # Modelos em ordem de preferência (tenta o primeiro, cai para o próximo)
+    _MODEL_CANDIDATES = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro-latest",
+    ]
+    MODEL = "gemini-2.0-flash"
 
     def __init__(self) -> None:
         self._api_key = _get_api_key()
@@ -79,10 +86,20 @@ class GeminiAgent:
 
         if _GENAI_AVAILABLE and self._api_key:
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel(
-                model_name=self.MODEL,
-                system_instruction=SYSTEM_PROMPT_BASE,
-            )
+            # Tenta cada modelo em ordem até um funcionar
+            for candidate in self._MODEL_CANDIDATES:
+                try:
+                    m = genai.GenerativeModel(
+                        model_name=candidate,
+                        system_instruction=SYSTEM_PROMPT_BASE,
+                    )
+                    # Teste rápido para verificar se o modelo existe
+                    m.count_tokens("ping")
+                    self._model = m
+                    self.MODEL = candidate
+                    break
+                except Exception:
+                    continue
 
     def is_ready(self) -> bool:
         return self._model is not None
@@ -144,7 +161,22 @@ class GeminiAgent:
                 yield text
 
         except Exception as e:
-            error_msg = f"⚠️ Erro ao chamar Gemini: {e}"
+            err = str(e)
+            if "404" in err or "not found" in err.lower():
+                error_msg = (
+                    f"⚠️ Modelo `{self.MODEL}` não disponível para esta chave de API.\n\n"
+                    "Verifique em [Google AI Studio](https://aistudio.google.com) quais modelos "
+                    "estão disponíveis para sua conta."
+                )
+            elif "403" in err or "permission" in err.lower():
+                error_msg = "⚠️ Chave de API inválida ou sem permissão. Verifique em [Google AI Studio](https://aistudio.google.com/apikey)."
+            elif "429" in err or "quota" in err.lower():
+                error_msg = "⚠️ Limite de requisições atingido (quota). Aguarde alguns instantes e tente novamente."
+            else:
+                error_msg = f"⚠️ Erro ao chamar Gemini: {e}"
+            # Remove do histórico a mensagem que gerou erro
+            if self._history and self._history[-1]["role"] == "user":
+                self._history.pop()
             yield error_msg
 
     def clear_history(self) -> None:

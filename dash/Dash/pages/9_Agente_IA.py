@@ -273,7 +273,8 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    st.caption(f"Modelo: `{GeminiAgent.MODEL}`")
+    modelo_ativo = agent.MODEL if agent.is_ready() else GeminiAgent._MODEL_CANDIDATES[0]
+    st.caption(f"Modelo: `{modelo_ativo}`")
     st.caption(f"Histórico: {len(st.session_state.chat_history)} mensagens")
 
 
