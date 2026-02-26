@@ -23,6 +23,9 @@ def _fmt_pct(v: float) -> str:
 
 def build_portfolio_context(
     df_rv: Optional[pd.DataFrame] = None,
+    df_rf_atual: Optional[pd.DataFrame] = None,   # fixa_aberta — o que você TEM agora
+    df_rf_hist: Optional[pd.DataFrame] = None,    # renda_fixa  — histórico de transações
+    # Compatibilidade com chamadas antigas que usavam df_rf
     df_rf: Optional[pd.DataFrame] = None,
     df_crypto: Optional[pd.DataFrame] = None,
     df_proventos: Optional[pd.DataFrame] = None,
@@ -32,16 +35,20 @@ def build_portfolio_context(
     Retorna uma string com o resumo completo do portfólio para ser incluída
     no system_instruction do Gemini via set_context().
 
-    Colunas esperadas em df_rv:
-      ticker, setor, moeda, quantidade, preco_medio, preco_atual,
-      valor_atual, resultado, resultado_pct, variacao_dia (opcional)
-
-    Colunas esperadas em df_rf (após renomeação em _load_rf):
-      ticker, valor_atual, taxa (opcional), vencimento (opcional), Status/Ativo (opcional)
-
-    Colunas esperadas em df_proventos:
-      data, ticker, valor
+    Fontes do Google Sheets:
+      df_rv        — meus_ativos   → posições RV abertas (FIFO + preços Yahoo)
+                     Colunas: ticker, setor, moeda, quantidade, preco_medio,
+                               preco_atual, valor_atual, resultado, resultado_pct
+      df_rf_atual  — fixa_aberta   → posições RF que você TEM AGORA
+                     Colunas: Ticker, Atual, Data, Moeda, Tipo
+      df_rf_hist   — renda_fixa    → histórico de transações RF (resumido)
+                     Colunas: ticker, valor_atual, taxa, vencimento, Status
+      df_proventos — meus_proventos → dividendos e JCP recebidos
+                     Colunas: data, ticker, valor
     """
+    # Suporte a chamadas legadas com df_rf
+    if df_rf_atual is None and df_rf is not None:
+        df_rf_atual = df_rf
     today = date.today().strftime("%d/%m/%Y")
 
     # ── Totais ────────────────────────────────────────────────────────────
@@ -50,10 +57,14 @@ def build_portfolio_context(
 
     if df_rv is not None and not df_rv.empty and "valor_atual" in df_rv.columns:
         total_rv = float(df_rv["valor_atual"].sum())
-    if df_rf is not None and not df_rf.empty:
-        col_v = "valor_atual" if "valor_atual" in df_rf.columns else ("saldo" if "saldo" in df_rf.columns else None)
+
+    # Total RF: preferência para fixa_aberta (posições reais atuais)
+    if df_rf_atual is not None and not df_rf_atual.empty and "Atual" in df_rf_atual.columns:
+        total_rf = float(df_rf_atual["Atual"].sum())
+    elif df_rf_hist is not None and not df_rf_hist.empty:
+        col_v = "valor_atual" if "valor_atual" in df_rf_hist.columns else None
         if col_v:
-            total_rf = float(df_rf[col_v].sum())
+            total_rf = float(df_rf_hist[col_v].sum())
 
     total_port = total_rv + total_rf
 
@@ -139,20 +150,57 @@ def build_portfolio_context(
 
         lines.append("")
 
-    # ── Renda Fixa ─────────────────────────────────────────────────────────
-    if df_rf is not None and not df_rf.empty:
-        col_v = "valor_atual" if "valor_atual" in df_rf.columns else ("saldo" if "saldo" in df_rf.columns else None)
-        lines.append("## Renda Fixa")
+    # ── Renda Fixa — Posições Atuais (fixa_aberta) ────────────────────────
+    # Esta aba contém o que você TEM de fato agora, com o valor atual de cada posição.
+    if df_rf_atual is not None and not df_rf_atual.empty:
+        lines.append("## Renda Fixa — Posições Atuais (fixa_aberta)")
+        lines.append("  ⚠️ Estes são os ativos de renda fixa que você POSSUI atualmente.")
 
-        df_rf_s = df_rf.sort_values(col_v, ascending=False) if col_v else df_rf
-        for _, row in df_rf_s.iterrows():
+        # Ordena por valor atual (Atual)
+        col_sort = "Atual" if "Atual" in df_rf_atual.columns else None
+        df_rfa_s = df_rf_atual.sort_values(col_sort, ascending=False) if col_sort else df_rf_atual
+
+        for _, row in df_rfa_s.iterrows():
+            nome  = str(row.get("Ticker", row.get("ticker", "—")))
+            atual = row.get("Atual", row.get("atual", None))
+            moeda = str(row.get("Moeda", row.get("moeda", "BRL")))
+            tipo  = row.get("Tipo", row.get("tipo", None))
+            data  = row.get("Data", row.get("data", None))
+
+            parts = [f"  {nome}"]
+            if moeda != "BRL":
+                parts.append(f"[{moeda}]")
+            if atual is not None:
+                parts.append(f"Saldo Atual={_fmt_brl(float(atual))}")
+            if tipo is not None:
+                parts.append(f"Tipo={tipo}")
+            if data is not None:
+                try:
+                    data_str = data.strftime("%d/%m/%Y") if hasattr(data, "strftime") else str(data)
+                    parts.append(f"Data={data_str}")
+                except Exception:
+                    pass
+            lines.append(" | ".join(parts))
+
+        lines.append(f"\n  Total RF (atual): {_fmt_brl(total_rf)}")
+        lines.append("")
+
+    # ── Renda Fixa — Histórico de Transações (renda_fixa) ─────────────────
+    # Esta aba contém o histórico de operações (compras, resgates, vencimentos).
+    if df_rf_hist is not None and not df_rf_hist.empty:
+        col_v = "valor_atual" if "valor_atual" in df_rf_hist.columns else None
+        lines.append("## Renda Fixa — Histórico de Transações (renda_fixa)")
+        lines.append("  ℹ️ Registro histórico de operações — inclui ativos já encerrados.")
+
+        df_rfh_s = df_rf_hist.sort_values(col_v, ascending=False) if col_v else df_rf_hist
+        for _, row in df_rfh_s.iterrows():
             nome   = row.get("ticker", row.get("Ticker", row.get("nome", "—")))
             valor  = float(row.get(col_v, 0)) if col_v else 0.0
             taxa   = row.get("taxa", None)
             venc   = row.get("vencimento", None)
             status = row.get("Status", row.get("Ativo", None))
 
-            parts = [f"  {nome}", f"Saldo={_fmt_brl(valor)}"]
+            parts = [f"  {nome}", f"ValorRef={_fmt_brl(valor)}"]
             if taxa is not None:
                 parts.append(f"Taxa={taxa}")
             if venc is not None:
@@ -160,8 +208,6 @@ def build_portfolio_context(
             if status is not None:
                 parts.append(f"Status={status}")
             lines.append(" | ".join(parts))
-
-        lines.append(f"\n  Total RF: {_fmt_brl(total_rf)}")
         lines.append("")
 
     # ── Cripto (se separado de RV) ──────────────────────────────────────────

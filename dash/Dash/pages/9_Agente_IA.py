@@ -10,7 +10,7 @@ require_auth()
 import pandas as pd
 
 # Core imports
-from core.data.loader import load_assets, load_proventos, load_fixed_income
+from core.data.loader import load_assets, load_proventos, load_fixed_income, load_fixed_income_manual
 from core.finance import calcular_carteira_fechada, summarize_fixed_income
 from core.data.market import fetch_market_data
 from core.ui import get_card_css, render_fab
@@ -320,15 +320,33 @@ def _load_rv() -> tuple[pd.DataFrame, str]:
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def _load_rf() -> tuple[pd.DataFrame, str]:
-    """Renda fixa resumida. Retorna (df, erro)."""
+def _load_rf_atual() -> tuple[pd.DataFrame, str]:
+    """
+    Posições atuais de RF (aba 'fixa_aberta') — o que você TEM agora.
+    Colunas: Ticker, Atual, Data, Moeda, Tipo
+    """
+    try:
+        df = load_fixed_income_manual()
+        if df.empty:
+            return pd.DataFrame(), "Aba 'fixa_aberta' vazia."
+        return df, ""
+    except Exception as e:
+        return pd.DataFrame(), str(e)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _load_rf_hist() -> tuple[pd.DataFrame, str]:
+    """
+    Histórico de transações RF (aba 'renda_fixa') — operações passadas.
+    Resumido via summarize_fixed_income().
+    """
     try:
         df_raw = load_fixed_income()
         if df_raw.empty:
             return pd.DataFrame(), "Aba 'renda_fixa' vazia."
         df_rf = summarize_fixed_income(df_raw)
         if df_rf.empty:
-            return pd.DataFrame(), "Renda fixa sem posições ativas."
+            return pd.DataFrame(), "Renda fixa sem posições calculadas."
         df_rf = df_rf.rename(columns={
             "Ticker": "ticker", "Atual": "valor_atual",
             "Rent. %": "taxa",  "Data":  "vencimento",
@@ -366,15 +384,23 @@ def _sync_context() -> None:
     """
     Carrega dados do GSheets, monta contexto e injeta no agente SE mudou.
     Executado a cada page render (rápido quando cache ativo).
+
+    Fontes:
+      RV        → meus_ativos   (FIFO + preços Yahoo)
+      RF atual  → fixa_aberta   (posições que você tem agora)
+      RF hist   → renda_fixa    (histórico de transações)
+      Proventos → meus_proventos
     """
-    df_rv,   err_rv = _load_rv()
-    df_rf,   err_rf = _load_rf()
-    df_prov, err_pv = _load_proventos()
+    df_rv,       err_rv  = _load_rv()
+    df_rf_atual, err_rfa = _load_rf_atual()
+    df_rf_hist,  err_rfh = _load_rf_hist()
+    df_prov,     err_pv  = _load_proventos()
 
     portfolio_ctx = build_portfolio_context(
-        df_rv=df_rv       if not df_rv.empty   else None,
-        df_rf=df_rf       if not df_rf.empty   else None,
-        df_proventos=df_prov if not df_prov.empty else None,
+        df_rv=df_rv               if not df_rv.empty       else None,
+        df_rf_atual=df_rf_atual   if not df_rf_atual.empty else None,
+        df_rf_hist=df_rf_hist     if not df_rf_hist.empty  else None,
+        df_proventos=df_prov      if not df_prov.empty     else None,
     )
 
     new_hash = hashlib.md5(portfolio_ctx.encode()).hexdigest()
@@ -387,7 +413,6 @@ def _sync_context() -> None:
             news_data = _fetch_news_cached(tickers, max_per_ticker=3, max_tickers=max_tickers_news)
         news_ctx = format_news_for_prompt(news_data) if news_data else ""
 
-        # Injeta no system_instruction mantendo histórico da conversa
         agent.set_context(
             portfolio_ctx,
             news_ctx,
@@ -398,7 +423,9 @@ def _sync_context() -> None:
         st.session_state.portfolio_context = portfolio_ctx
         st.session_state.news_context      = news_ctx
         st.session_state.ctx_updated_at    = datetime.now().strftime("%H:%M:%S")
-        st.session_state.load_errors       = [e for e in [err_rv, err_rf, err_pv] if e]
+        st.session_state.load_errors       = [
+            e for e in [err_rv, err_rfa, err_rfh, err_pv] if e
+        ]
 
 
 # Executa sincronização (instantânea quando cache ativo, ~2s na 1ª vez)
