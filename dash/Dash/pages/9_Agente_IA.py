@@ -11,8 +11,6 @@ import pandas as pd
 
 # Core imports
 from core.data.loader import load_assets, load_proventos, load_fixed_income, load_fixed_income_manual
-from core.finance import calcular_carteira_fechada, summarize_fixed_income
-from core.data.market import fetch_market_data
 from core.ui import get_card_css, render_fab
 
 # Agent imports
@@ -277,44 +275,12 @@ with st.sidebar:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rv() -> tuple[pd.DataFrame, str]:
-    """Posições RV: FIFO + preços Yahoo Finance. Retorna (df, erro)."""
+    """Transações brutas de RV da aba 'meus_ativos'. Retorna (df, erro)."""
     try:
-        df_assets = load_assets()
-        if df_assets.empty:
+        df = load_assets()
+        if df.empty:
             return pd.DataFrame(), "Aba 'meus_ativos' vazia."
-
-        result    = calcular_carteira_fechada(df_assets)
-        positions = result[0] if isinstance(result, tuple) else result
-        if positions.empty:
-            return pd.DataFrame(), "Nenhuma posição aberta calculada."
-
-        tickers      = positions["Ticker"].dropna().tolist()
-        price_result = fetch_market_data(tickers)
-        prices, changes = price_result if isinstance(price_result, tuple) else (price_result, {})
-
-        rows = []
-        for _, row in positions.iterrows():
-            tkr   = row["Ticker"]
-            qtd   = float(row.get("Qtd", 0))
-            pm    = float(row.get("PM_Origem", 0))
-            moeda = str(row.get("Moeda", "BRL"))
-            setor = str(row.get("Setor", "—"))
-
-            preco_atual   = float(prices.get(tkr, pm))
-            valor_atual   = qtd * preco_atual
-            custo         = qtd * pm
-            resultado     = valor_atual - custo
-            resultado_pct = (resultado / custo * 100) if custo else 0.0
-            variacao_dia  = float(changes.get(tkr, 0.0))
-
-            rows.append({
-                "ticker": tkr, "setor": setor, "moeda": moeda,
-                "quantidade": qtd, "preco_medio": pm,
-                "preco_atual": preco_atual, "valor_atual": valor_atual,
-                "resultado": resultado, "resultado_pct": resultado_pct,
-                "variacao_dia": variacao_dia,
-            })
-        return pd.DataFrame(rows), ""
+        return df, ""
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -336,22 +302,12 @@ def _load_rf_atual() -> tuple[pd.DataFrame, str]:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rf_hist() -> tuple[pd.DataFrame, str]:
-    """
-    Histórico de transações RF (aba 'renda_fixa') — operações passadas.
-    Resumido via summarize_fixed_income().
-    """
+    """Transações brutas de RF da aba 'renda_fixa'. Retorna (df, erro)."""
     try:
-        df_raw = load_fixed_income()
-        if df_raw.empty:
+        df = load_fixed_income()
+        if df.empty:
             return pd.DataFrame(), "Aba 'renda_fixa' vazia."
-        df_rf = summarize_fixed_income(df_raw)
-        if df_rf.empty:
-            return pd.DataFrame(), "Renda fixa sem posições calculadas."
-        df_rf = df_rf.rename(columns={
-            "Ticker": "ticker", "Atual": "valor_atual",
-            "Rent. %": "taxa",  "Data":  "vencimento",
-        })
-        return df_rf, ""
+        return df, ""
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -382,13 +338,14 @@ def _fetch_news_cached(tickers: tuple, max_per_ticker: int, max_tickers: int) ->
 
 def _sync_context() -> None:
     """
-    Carrega dados do GSheets, monta contexto e injeta no agente SE mudou.
-    Executado a cada page render (rápido quando cache ativo).
+    Carrega dados brutos do GSheets, monta contexto e injeta no agente SE mudou.
+    Executado a cada page render (rápido quando cache ativo, ~0ms).
+    Bate no GSheets só quando o cache expira (5 min) ou botão força reload.
 
-    Fontes:
-      RV        → meus_ativos   (FIFO + preços Yahoo)
+    Fontes (dados brutos, sem cálculos):
+      RV        → meus_ativos   (transações de renda variável)
       RF atual  → fixa_aberta   (posições que você tem agora)
-      RF hist   → renda_fixa    (histórico de transações)
+      RF hist   → renda_fixa    (histórico de transações RF)
       Proventos → meus_proventos
     """
     df_rv,       err_rv  = _load_rv()
@@ -409,7 +366,10 @@ def _sync_context() -> None:
         # Dados mudaram (ou 1ª carga) → busca notícias e re-injeta no agente
         news_data: dict = {}
         if fetch_news and not df_rv.empty and "ticker" in df_rv.columns:
-            tickers   = tuple(df_rv["ticker"].dropna().tolist()[:max_tickers_news])
+            # Tickers únicos da aba meus_ativos (dados brutos têm 1 linha/transação)
+            tickers = tuple(
+                df_rv["ticker"].dropna().unique().tolist()[:max_tickers_news]
+            )
             news_data = _fetch_news_cached(tickers, max_per_ticker=3, max_tickers=max_tickers_news)
         news_ctx = format_news_for_prompt(news_data) if news_data else ""
 
