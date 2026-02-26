@@ -1,6 +1,5 @@
 import hashlib
 from datetime import datetime
-from urllib.parse import quote as urlquote
 
 import streamlit as st
 from core.auth import require_auth
@@ -53,12 +52,12 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 64px 24px 32px;
+        padding: 48px 24px 24px;
         text-align: center;
     }
     .hero-icon {
-        font-size: 4rem;
-        margin-bottom: 16px;
+        font-size: 3.5rem;
+        margin-bottom: 14px;
         filter: drop-shadow(0 0 24px rgba(99,102,241,0.6));
         animation: pulse 3s ease-in-out infinite;
     }
@@ -67,62 +66,40 @@ st.markdown("""
         50%       { transform: scale(1.08); filter: drop-shadow(0 0 40px rgba(99,102,241,0.9)); }
     }
     .hero-title {
-        font-size: 2rem;
+        font-size: 1.8rem;
         font-weight: 800;
         color: #f1f5f9;
         margin: 0 0 8px;
     }
     .hero-sub {
-        font-size: 1rem;
+        font-size: 0.95rem;
         color: #94a3b8;
         max-width: 480px;
         line-height: 1.6;
     }
 
-    /* ── Suggestion chips – fixed horizontal bar ── */
-    .chips-fixed {
-        position: fixed;
-        bottom: 70px;
-        left: 0;
-        right: 0;
-        z-index: 999;
-        display: flex;
-        flex-direction: row;
-        gap: 8px;
-        overflow-x: auto;
-        padding: 10px 16px;
-        -webkit-overflow-scrolling: touch;
+    /* ── Suggestion chips – horizontal row (via st.columns) ── */
+    /* Faz o bloco horizontal scrollar sem quebrar linha */
+    [data-testid="stHorizontalBlock"] {
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
         scrollbar-width: none;
-        background: linear-gradient(
-            to bottom,
-            rgba(10, 14, 22, 0) 0%,
-            rgba(10, 14, 22, 0.85) 30%
-        );
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
+        padding-bottom: 2px;
     }
-    .chips-fixed::-webkit-scrollbar { display: none; }
+    [data-testid="stHorizontalBlock"]::-webkit-scrollbar { display: none; }
 
-    .chip-btn {
-        display: inline-block;
-        white-space: nowrap;
-        flex-shrink: 0;
-        padding: 7px 14px;
-        border-radius: 20px;
-        background: rgba(99, 102, 241, 0.12);
-        border: 1px solid rgba(99, 102, 241, 0.32);
-        color: #a5b4fc;
-        text-decoration: none;
-        font-size: 0.82rem;
-        font-family: 'Outfit', sans-serif;
-        transition: background 0.18s, border-color 0.18s, color 0.18s;
-        cursor: pointer;
-        user-select: none;
+    /* Cada coluna do bloco: tamanho mínimo pelo conteúdo, não cresce */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        min-width: fit-content !important;
+        flex: 0 0 auto !important;
     }
-    .chip-btn:hover, .chip-btn:active {
-        background: rgba(99, 102, 241, 0.26);
-        border-color: rgba(99, 102, 241, 0.6);
-        color: #c7d2fe;
+
+    /* Botões dos chips: sem quebra de texto */
+    [data-testid="stHorizontalBlock"] button {
+        white-space: nowrap !important;
+        border-radius: 20px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 14px !important;
     }
 
     /* ── Chat messages ── */
@@ -177,38 +154,18 @@ st.markdown("""
         border-radius: 12px !important;
     }
 
-    /* ── Espaço para não sobrepor os chips fixos ── */
-    [data-testid="stAppViewBlockContainer"],
-    .block-container {
-        padding-bottom: 120px !important;
-    }
-
-    /* ── Mobile optimizations ── */
+    /* ── Mobile ── */
     @media (max-width: 768px) {
-        .hero-wrap {
-            padding: 32px 16px 20px;
-        }
-        .hero-icon {
-            font-size: 2.8rem;
-            margin-bottom: 10px;
-        }
-        .hero-title {
-            font-size: 1.4rem;
-        }
-        .hero-sub {
-            font-size: 0.88rem;
-        }
+        .hero-wrap   { padding: 28px 16px 18px; }
+        .hero-icon   { font-size: 2.6rem; }
+        .hero-title  { font-size: 1.3rem; }
+        .hero-sub    { font-size: 0.86rem; }
         [data-testid="stChatMessage"] {
             padding: 12px !important;
             border-radius: 12px;
             margin-bottom: 6px;
         }
-        [data-testid="stChatInput"] textarea {
-            font-size: 0.95rem !important;
-        }
-        [data-testid="stSidebarNav"] {
-            padding-top: 8px;
-        }
+        [data-testid="stChatInput"] textarea { font-size: 0.95rem !important; }
         .block-container {
             padding-left: 12px !important;
             padding-right: 12px !important;
@@ -236,13 +193,6 @@ if "load_errors" not in st.session_state:
     st.session_state.load_errors = []
 
 agent: GeminiAgent = st.session_state.agent
-
-
-# ── Query param → quick prompt (chip click) ───────────────────────────────
-_qp_quick = st.query_params.get("quick", "")
-if _qp_quick and "_quick_prompt" not in st.session_state:
-    st.session_state._quick_prompt = _qp_quick
-    st.query_params.clear()
 
 
 # ── Verificações de setup ──────────────────────────────────────────────────
@@ -304,9 +254,7 @@ with st.sidebar:
 def _load_rv() -> tuple[pd.DataFrame, str]:
     try:
         df = load_assets()
-        if df.empty:
-            return pd.DataFrame(), "Aba 'meus_ativos' vazia."
-        return df, ""
+        return (df, "") if not df.empty else (pd.DataFrame(), "Aba 'meus_ativos' vazia.")
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -315,9 +263,7 @@ def _load_rv() -> tuple[pd.DataFrame, str]:
 def _load_rf_atual() -> tuple[pd.DataFrame, str]:
     try:
         df = load_fixed_income_manual()
-        if df.empty:
-            return pd.DataFrame(), "Aba 'fixa_aberta' vazia."
-        return df, ""
+        return (df, "") if not df.empty else (pd.DataFrame(), "Aba 'fixa_aberta' vazia.")
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -326,9 +272,7 @@ def _load_rf_atual() -> tuple[pd.DataFrame, str]:
 def _load_rf_hist() -> tuple[pd.DataFrame, str]:
     try:
         df = load_fixed_income()
-        if df.empty:
-            return pd.DataFrame(), "Aba 'renda_fixa' vazia."
-        return df, ""
+        return (df, "") if not df.empty else (pd.DataFrame(), "Aba 'renda_fixa' vazia.")
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -385,7 +329,7 @@ SUGESTOES = [
 ]
 
 
-# ── Tela vazia — welcome hero ──────────────────────────────────────────────
+# ── Tela inicial (sem histórico) ───────────────────────────────────────────
 if not st.session_state.chat_history:
     st.markdown("""
     <div class="hero-wrap">
@@ -395,20 +339,20 @@ if not st.session_state.chat_history:
     </div>
     """, unsafe_allow_html=True)
 
+    # Chips horizontais – st.button nativo (sem reload de página)
+    cols = st.columns(len(SUGESTOES))
+    for i, (col, sug) in enumerate(zip(cols, SUGESTOES)):
+        with col:
+            if st.button(sug, key=f"sug_{i}", use_container_width=True):
+                st.session_state._quick_prompt = sug
+                st.rerun()
+
 
 # ── Histórico do chat ──────────────────────────────────────────────────────
 for msg in st.session_state.chat_history:
     avatar = "👤" if msg["role"] == "user" else "🤖"
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
-
-
-# ── Chips de sugestão – barra horizontal fixa ─────────────────────────────
-chips_html = '<div class="chips-fixed">'
-for sug in SUGESTOES:
-    chips_html += f'<a class="chip-btn" href="?quick={urlquote(sug)}">{sug}</a>'
-chips_html += '</div>'
-st.markdown(chips_html, unsafe_allow_html=True)
 
 
 # ── Input ──────────────────────────────────────────────────────────────────
