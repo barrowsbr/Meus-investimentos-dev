@@ -5,13 +5,11 @@ from core.auth import require_auth
 require_auth()
 
 import pandas as pd
-from datetime import datetime
 
 # Core imports
 from core.data.loader import load_assets, load_proventos, load_fixed_income
 from core.finance import calcular_carteira_fechada, summarize_fixed_income
 from core.data.market import fetch_market_data
-from core.logic import normalize_ticker
 from core.ui import get_card_css, render_fab
 
 # Agent imports
@@ -43,59 +41,82 @@ st.markdown("""
     }
 
     @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
+        0%   { background-position: 0% 50%; }
+        50%  { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
     }
 
-    /* ── Lote Cards (KPI glass) ── */
-    .lote-card {
-        background: rgba(30, 41, 59, 0.5);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-        padding: 20px 24px;
+    /* ── Welcome Hero ── */
+    .hero-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 64px 24px 32px;
         text-align: center;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        transition: transform 0.2s, box-shadow 0.2s;
-        height: 100%;
     }
-    .lote-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    .hero-icon {
+        font-size: 4rem;
+        margin-bottom: 16px;
+        filter: drop-shadow(0 0 24px rgba(99,102,241,0.6));
+        animation: pulse 3s ease-in-out infinite;
     }
-    .lote-card .lc-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #94a3b8;
-        margin-bottom: 8px;
+    @keyframes pulse {
+        0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 24px rgba(99,102,241,0.5)); }
+        50%       { transform: scale(1.08); filter: drop-shadow(0 0 40px rgba(99,102,241,0.9)); }
     }
-    .lote-card .lc-value {
-        font-size: 1.5rem;
+    .hero-title {
+        font-size: 2rem;
         font-weight: 800;
-        color: #ffffff;
-        line-height: 1.2;
-    }
-    .lote-card .lc-sub {
-        font-size: 0.8rem;
-        color: #94a3b8;
-        margin-top: 4px;
-    }
-    .lc-pos  { color: #34d399 !important; }
-    .lc-neg  { color: #f87171 !important; }
-    .lc-neu  { color: #60a5fa !important; }
-
-    /* ── Tab Header ── */
-    .tab-header {
-        font-size: 1.3rem;
-        font-weight: 700;
         color: #f1f5f9;
-        border-bottom: 2px solid rgba(99,102,241,0.4);
-        padding-bottom: 8px;
-        margin: 24px 0 16px 0;
+        margin: 0 0 8px;
+    }
+    .hero-sub {
+        font-size: 1rem;
+        color: #94a3b8;
+        max-width: 480px;
+        line-height: 1.6;
+    }
+
+    /* ── Suggestion chips ── */
+    .chips-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 32px;
+        padding: 0 24px;
+    }
+
+    /* ── Chat messages ── */
+    [data-testid="stChatMessage"] {
+        background: rgba(30, 41, 59, 0.45);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 18px;
+        padding: 18px !important;
+        margin-bottom: 10px;
+    }
+
+    /* ── Chat input ── */
+    [data-testid="stChatInput"] textarea {
+        background: rgba(15, 23, 42, 0.7) !important;
+        border: 1px solid rgba(99,102,241,0.35) !important;
+        border-radius: 14px !important;
+        color: #f1f5f9 !important;
+        font-family: 'Outfit', sans-serif !important;
+    }
+    [data-testid="stChatInput"] textarea:focus {
+        border-color: rgba(99,102,241,0.7) !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2) !important;
+    }
+
+    /* ── Sidebar ── */
+    [data-testid="stSidebar"] {
+        background: rgba(10,14,22,0.88) !important;
+        backdrop-filter: blur(16px);
+        border-right: 1px solid rgba(255,255,255,0.06);
     }
 
     /* ── Glass Alerts ── */
@@ -105,37 +126,18 @@ st.markdown("""
         margin: 12px 0;
         font-size: 0.9rem;
         backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
         border-left: 4px solid;
         line-height: 1.5;
     }
-    .glass-info    { background: rgba(59,130,246,0.12); border-color: #3b82f6; color: #93c5fd; }
-    .glass-warn    { background: rgba(245,158,11,0.12); border-color: #f59e0b; color: #fcd34d; }
-    .glass-success { background: rgba(16,185,129,0.12); border-color: #10b981; color: #6ee7b7; }
-    .glass-error   { background: rgba(239,68,68,0.12);  border-color: #ef4444; color: #fca5a5; }
+    .glass-info  { background: rgba(59,130,246,0.12); border-color: #3b82f6; color: #93c5fd; }
+    .glass-warn  { background: rgba(245,158,11,0.12);  border-color: #f59e0b; color: #fcd34d; }
+    .glass-error { background: rgba(239,68,68,0.12);   border-color: #ef4444; color: #fca5a5; }
 
-    /* ── Chat ── */
-    [data-testid="stChatMessage"] {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 16px;
-        padding: 16px !important;
-        margin-bottom: 12px;
-    }
-
-    /* ── Sidebar ── */
-    [data-testid="stSidebar"] {
-        background: rgba(10,14,22,0.8) !important;
-        backdrop-filter: blur(16px);
-        border-right: 1px solid rgba(255,255,255,0.06);
-    }
-
-    /* Stagger animation para cards */
-    .lote-card { animation: fadeUp 0.4s ease both; }
-    @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(12px); }
-        to   { opacity: 1; transform: translateY(0); }
+    /* ── Status/spinner ── */
+    [data-testid="stStatus"] {
+        background: rgba(15,23,42,0.7) !important;
+        border: 1px solid rgba(255,255,255,0.07) !important;
+        border-radius: 12px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -143,26 +145,11 @@ st.markdown("""
 render_fab()
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
-def fmt_brl(v: float) -> str:
-    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-def metric_card(label: str, value: str, sub: str = "", color_class: str = "lc-neu") -> str:
-    sub_html = f'<div class="lc-sub">{sub}</div>' if sub else ""
-    return f"""
-    <div class="lote-card">
-        <div class="lc-label">{label}</div>
-        <div class="lc-value {color_class}">{value}</div>
-        {sub_html}
-    </div>
-    """
-
-
-# ── Inicialização do agente (session state) ────────────────────────────────
+# ── Session State ──────────────────────────────────────────────────────────
 if "agent" not in st.session_state:
     st.session_state.agent = GeminiAgent()
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []  # [{"role": "user"|"assistant", "content": str}]
+    st.session_state.chat_history = []
 if "portfolio_context" not in st.session_state:
     st.session_state.portfolio_context = ""
 if "news_context" not in st.session_state:
@@ -170,72 +157,62 @@ if "news_context" not in st.session_state:
 if "context_loaded" not in st.session_state:
     st.session_state.context_loaded = False
 
-
-# ── Header ────────────────────────────────────────────────────────────────
-st.markdown('<div class="tab-header">🤖 Agente IA de Investimentos</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="glass-alert glass-info">Assistente inteligente alimentado pelo <strong>Google Gemini</strong>. '
-    'Analisa seu portfólio em tempo real e busca notícias relevantes para seus ativos.</div>',
-    unsafe_allow_html=True,
-)
-
 agent: GeminiAgent = st.session_state.agent
 
 
 # ── Verificações de setup ──────────────────────────────────────────────────
 if agent.missing_dependency():
     st.markdown(
-        '<div class="glass-alert glass-error">📦 Dependência não instalada. Execute:<br>'
-        '<code>pip install google-generativeai</code> e reinicie o app.</div>',
+        '<div class="glass-alert glass-error">📦 Pacote não instalado. Execute:<br>'
+        '<code>pip install google-genai</code> e reinicie o app.</div>',
         unsafe_allow_html=True,
     )
     st.stop()
 
 if agent.missing_key():
-    st.markdown(
-        '<div class="glass-alert glass-warn">🔑 Chave de API do Gemini não configurada. '
-        'Digite sua chave abaixo para continuar.</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("""
+    <div class="hero-wrap">
+        <div class="hero-icon">🔑</div>
+        <div class="hero-title">Configure sua chave de API</div>
+        <div class="hero-sub">Você precisa de uma chave do Google Gemini para usar o assistente.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.form("api_key_form", border=False):
-        st.markdown('<div class="tab-header">🔑 Configurar Chave de API</div>', unsafe_allow_html=True)
-        key_input = st.text_input(
-            "Google Gemini API Key",
-            type="password",
-            placeholder="AIza...",
-            help="Obtenha sua chave em https://aistudio.google.com/apikey",
-        )
-        col_btn, col_help = st.columns([1, 3])
-        with col_btn:
-            submitted = st.form_submit_button("✅ Salvar e continuar", use_container_width=True)
-        with col_help:
-            st.markdown(
-                '<div class="glass-alert glass-info" style="margin:0">'
-                'A chave fica salva apenas nesta sessão. Para persistir, '
-                'adicione em <code>.streamlit/secrets.toml</code>.</div>',
-                unsafe_allow_html=True,
+        col_k, col_b = st.columns([3, 1])
+        with col_k:
+            key_input = st.text_input(
+                "Google Gemini API Key",
+                type="password",
+                placeholder="AIza...",
+                label_visibility="collapsed",
             )
+        with col_b:
+            submitted = st.form_submit_button("Salvar", use_container_width=True)
+
+        st.markdown(
+            '<div class="glass-alert glass-info" style="margin-top:8px">'
+            'Obtenha sua chave grátis em '
+            '<a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>. '
+            'A chave fica salva apenas nesta sessão. Para persistir, adicione em '
+            '<code>.streamlit/secrets.toml</code>.</div>',
+            unsafe_allow_html=True,
+        )
+
         if submitted and key_input.strip():
             st.session_state["gemini_api_key_input"] = key_input.strip()
-            # Recria o agente com a nova chave
             st.session_state.agent = GeminiAgent()
             st.session_state.context_loaded = False
             st.rerun()
-
-    with st.expander("Como configurar permanentemente"):
-        st.code('# .streamlit/secrets.toml\nGEMINI_API_KEY = "AIza..."', language="toml")
-        st.code("# Ou variável de ambiente\nexport GEMINI_API_KEY='AIza...'", language="bash")
     st.stop()
 
 
 # ── Sidebar – controles ────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### ⚙️ Configurações do Agente")
+    st.markdown("### ⚙️ Agente IA")
     st.divider()
 
-    # ── Campo de chave de API na sidebar ──
-    with st.expander("🔑 Chave de API Gemini", expanded=not agent.is_ready()):
+    with st.expander("🔑 Chave de API", expanded=True):
         api_key_sidebar = st.text_input(
             "Gemini API Key",
             value=st.session_state.get("gemini_api_key_input", ""),
@@ -244,7 +221,7 @@ with st.sidebar:
             key="sidebar_api_key",
             label_visibility="collapsed",
         )
-        if st.button("Aplicar chave", use_container_width=True, key="apply_key_btn"):
+        if st.button("Aplicar", use_container_width=True, key="apply_key_btn"):
             if api_key_sidebar.strip():
                 st.session_state["gemini_api_key_input"] = api_key_sidebar.strip()
                 st.session_state.agent = GeminiAgent()
@@ -254,9 +231,8 @@ with st.sidebar:
 
     st.divider()
 
-    fetch_news = st.toggle("📰 Buscar notícias", value=True, help="Busca notícias do Google News para seus tickers")
+    fetch_news = st.toggle("📰 Incluir notícias", value=True, help="Busca notícias do Google News para os seus tickers")
     max_tickers_news = st.slider("Tickers para notícias", 1, 10, 5)
-    auto_analysis = st.toggle("🔍 Análise automática ao carregar", value=True)
 
     st.divider()
 
@@ -279,35 +255,29 @@ with st.sidebar:
     st.caption(f"Histórico: {len(st.session_state.chat_history)} mensagens")
 
 
-# ── Carregamento do contexto ──────────────────────────────────────────────
+# ── Helpers para carregar contexto (lazy) ──────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=300)
-def load_rv_summary():
-    """Retorna DataFrame resumido de RV (posições abertas)."""
+def _load_rv():
     try:
-        df_assets = load_assets()
-        if df_assets.empty:
+        df = load_assets()
+        if df.empty:
             return pd.DataFrame()
-        tickers = df_assets["ticker"].dropna().unique().tolist()
-        prices = fetch_market_data(tickers)
-        result = calcular_carteira_fechada(df_assets, prices)
-        if isinstance(result, tuple):
-            result = result[0]
-        return result if isinstance(result, pd.DataFrame) else pd.DataFrame()
+        prices = fetch_market_data(df["ticker"].dropna().unique().tolist())
+        result = calcular_carteira_fechada(df, prices)
+        return result[0] if isinstance(result, tuple) else (result if isinstance(result, pd.DataFrame) else pd.DataFrame())
     except Exception:
         return pd.DataFrame()
 
-
 @st.cache_data(show_spinner=False, ttl=300)
-def load_rf_summary():
+def _load_rf():
     try:
-        df_rf = load_fixed_income()
-        return df_rf if not df_rf.empty else pd.DataFrame()
+        df = load_fixed_income()
+        return df if not df.empty else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
-
 @st.cache_data(show_spinner=False, ttl=300)
-def load_proventos_summary():
+def _load_proventos():
     try:
         df = load_proventos()
         return df if not df.empty else pd.DataFrame()
@@ -315,22 +285,24 @@ def load_proventos_summary():
         return pd.DataFrame()
 
 
-if not st.session_state.context_loaded:
-    with st.status("Carregando dados do portfólio...", expanded=False) as status:
-        df_rv = load_rv_summary()
+def _ensure_context_loaded():
+    """Carrega o contexto do portfólio apenas quando necessário (primeira pergunta)."""
+    if st.session_state.context_loaded:
+        return
+    with st.status("Carregando seu portfólio...", expanded=False) as status:
+        df_rv   = _load_rv()
         status.update(label="Carregando renda fixa...")
-        df_rf = load_rf_summary()
+        df_rf   = _load_rf()
         status.update(label="Carregando proventos...")
-        df_prov = load_proventos_summary()
+        df_prov = _load_proventos()
 
-        # Notícias
         news_data = {}
         if fetch_news and not df_rv.empty and "ticker" in df_rv.columns:
             status.update(label="Buscando notícias...")
             tickers = df_rv["ticker"].dropna().tolist()[:max_tickers_news]
             news_data = fetch_news_for_tickers(tickers, max_per_ticker=3, max_tickers=max_tickers_news)
 
-        status.update(label="Construindo contexto para o Gemini...")
+        status.update(label="Preparando contexto...")
         st.session_state.portfolio_context = build_portfolio_context(
             df_rv=df_rv if not df_rv.empty else None,
             df_rf=df_rf if not df_rf.empty else None,
@@ -338,101 +310,73 @@ if not st.session_state.context_loaded:
         )
         st.session_state.news_context = format_news_for_prompt(news_data) if news_data else ""
         st.session_state.context_loaded = True
-        status.update(label="✅ Contexto pronto!", state="complete")
-
-    # Análise automática
-    if auto_analysis and not st.session_state.chat_history:
-        with st.chat_message("assistant", avatar="🤖"):
-            placeholder = st.empty()
-            full_response = ""
-            for chunk in agent.get_quick_analysis(
-                st.session_state.portfolio_context,
-                st.session_state.news_context,
-            ):
-                full_response += chunk
-                placeholder.markdown(full_response + "▌")
-            placeholder.markdown(full_response)
-        st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+        status.update(label="✅ Pronto!", state="complete")
 
 
-# ── KPI Cards ─────────────────────────────────────────────────────────────
-df_rv_disp = load_rv_summary()
-df_rf_disp = load_rf_summary()
-
-col1, col2, col3, col4 = st.columns(4)
-
-total_rv = df_rv_disp["valor_atual"].sum() if not df_rv_disp.empty and "valor_atual" in df_rv_disp.columns else 0
-total_rf = 0
-if not df_rf_disp.empty:
-    if "valor_atual" in df_rf_disp.columns:
-        total_rf = df_rf_disp["valor_atual"].sum()
-    elif "saldo" in df_rf_disp.columns:
-        total_rf = df_rf_disp["saldo"].sum()
-
-total_port = total_rv + total_rf
-
-resultado_rv = df_rv_disp["resultado"].sum() if not df_rv_disp.empty and "resultado" in df_rv_disp.columns else 0
-color_res = "lc-pos" if resultado_rv >= 0 else "lc-neg"
-
-n_tickers = df_rv_disp["ticker"].nunique() if not df_rv_disp.empty and "ticker" in df_rv_disp.columns else 0
-n_news    = sum(len(v) for v in ([] if not st.session_state.news_context else [st.session_state.news_context.split("###")]))
-
-with col1:
-    st.markdown(metric_card("Portfólio Total", fmt_brl(total_port), "RV + RF"), unsafe_allow_html=True)
-with col2:
-    st.markdown(metric_card("Renda Variável", fmt_brl(total_rv), f"{n_tickers} ativos"), unsafe_allow_html=True)
-with col3:
-    st.markdown(metric_card("Renda Fixa", fmt_brl(total_rf)), unsafe_allow_html=True)
-with col4:
-    sinal = "+" if resultado_rv >= 0 else ""
-    st.markdown(metric_card("Resultado RV", f"{sinal}{fmt_brl(resultado_rv)}", "desde aporte", color_res), unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-
-# ── Histórico do chat ─────────────────────────────────────────────────────
-for msg in st.session_state.chat_history:
-    avatar = "👤" if msg["role"] == "user" else "🤖"
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
-
-
-# ── Input do usuário ──────────────────────────────────────────────────────
+# ── Tela vazia — welcome state ─────────────────────────────────────────────
 SUGESTOES = [
-    "Quais são meus maiores riscos hoje?",
-    "Analise minha concentração setorial",
-    "Como as notícias de hoje impactam minha carteira?",
-    "Devo rebalancear alguma posição?",
+    "Quais são meus maiores riscos?",
+    "Como está minha alocação setorial?",
     "Quais ativos tiveram pior desempenho?",
+    "As notícias de hoje impactam minha carteira?",
+    "Devo rebalancear alguma posição?",
 ]
 
 if not st.session_state.chat_history:
-    st.markdown('<div class="tab-header">💡 Sugestões</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="hero-wrap">
+        <div class="hero-icon">🤖</div>
+        <div class="hero-title">Olá, vamos analisar sua carteira?</div>
+        <div class="hero-sub">Pergunte qualquer coisa sobre seu portfólio. Eu leio seus dados e busco notícias automaticamente antes de responder.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Chips de sugestão
+    st.markdown('<div class="chips-wrap">', unsafe_allow_html=True)
     cols = st.columns(len(SUGESTOES))
     for i, (col, sug) in enumerate(zip(cols, SUGESTOES)):
         with col:
             if st.button(sug, key=f"sug_{i}", use_container_width=True):
                 st.session_state._quick_prompt = sug
                 st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# Pega prompt rápido se clicou em sugestão
-user_input = st.chat_input("Pergunte sobre seu portfólio, estratégia, notícias...")
+
+# ── Histórico do chat ──────────────────────────────────────────────────────
+for msg in st.session_state.chat_history:
+    avatar = "👤" if msg["role"] == "user" else "🤖"
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
+
+# ── Notícias brutas (colapsado) ───────────────────────────────────────────
+if st.session_state.news_context and st.session_state.chat_history:
+    with st.expander("📰 Ver notícias carregadas"):
+        st.markdown(st.session_state.news_context)
+
+
+# ── Input ──────────────────────────────────────────────────────────────────
+user_input = st.chat_input("Pergunte sobre seu portfólio...")
+
+# Sugestão clicada tem prioridade
 if hasattr(st.session_state, "_quick_prompt"):
     user_input = st.session_state._quick_prompt
     del st.session_state._quick_prompt
 
 if user_input:
-    # Exibe mensagem do usuário
+    # Mostra a mensagem do usuário imediatamente
     st.session_state.chat_history.append({"role": "user", "content": user_input})
     with st.chat_message("user", avatar="👤"):
         st.markdown(user_input)
 
-    # Contexto apenas na primeira mensagem (o agente já tem o histórico)
+    # Carrega contexto na primeira mensagem (lazy)
+    _ensure_context_loaded()
+
+    # Contexto só precisa ser enviado uma vez (agente mantém histórico)
     is_first = len(st.session_state.chat_history) == 1
     portfolio_ctx = st.session_state.portfolio_context if is_first else ""
-    news_ctx = st.session_state.news_context if is_first else ""
+    news_ctx      = st.session_state.news_context      if is_first else ""
 
-    # Resposta do agente com streaming
+    # Resposta em streaming
     with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         full_response = ""
@@ -443,9 +387,3 @@ if user_input:
 
     st.session_state.chat_history.append({"role": "assistant", "content": full_response})
     st.rerun()
-
-
-# ── Expander: notícias brutas ──────────────────────────────────────────────
-if st.session_state.news_context:
-    with st.expander("📰 Ver notícias carregadas"):
-        st.markdown(st.session_state.news_context)
