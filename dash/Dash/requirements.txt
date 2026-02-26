@@ -22,3 +22,6 @@ toml>=0.10.2
 
 # Python version compatibility
 python-dateutil>=2.8.2
+
+# Agente IA (Gemini)
+google-generativeai>=0.7.0
