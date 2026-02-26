@@ -20,7 +20,7 @@ from typing import Generator, Optional
 
 # ── Chave de API (edite aqui manualmente) ─────────────────────────────────
 # Obtenha sua chave gratuita em: https://aistudio.google.com/apikey
-_HARDCODED_KEY: str = ""  # ex.: "AIzaSy..."
+_HARDCODED_KEY: str = "AIzaSyDtlceSFQNzV7aWOxtw98COt6uDW9SvQX4"
 
 # ── Detecção de SDK disponível ─────────────────────────────────────────────
 _NEW_SDK = False   # google-genai  (novo)
