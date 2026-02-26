@@ -140,6 +140,64 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.07) !important;
         border-radius: 12px !important;
     }
+
+    /* ── Mobile optimizations ── */
+    @media (max-width: 768px) {
+        .hero-wrap {
+            padding: 32px 16px 20px;
+        }
+        .hero-icon {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+        }
+        .hero-title {
+            font-size: 1.4rem;
+        }
+        .hero-sub {
+            font-size: 0.88rem;
+        }
+        .chips-wrap {
+            gap: 8px;
+            padding: 0 8px;
+            margin-top: 20px;
+        }
+        [data-testid="stChatMessage"] {
+            padding: 12px !important;
+            border-radius: 12px;
+            margin-bottom: 6px;
+        }
+        [data-testid="stChatInput"] textarea {
+            font-size: 0.95rem !important;
+        }
+        /* Hide sidebar toggle on mobile for cleaner look */
+        [data-testid="stSidebarNav"] {
+            padding-top: 8px;
+        }
+        /* Tighten column padding */
+        .block-container {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+            padding-top: 16px !important;
+        }
+        /* Suggestion buttons: 2 per row on mobile */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        [data-testid="stHorizontalBlock"] > div {
+            min-width: 48% !important;
+            flex: 1 1 48% !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .hero-title { font-size: 1.2rem; }
+        .hero-sub   { font-size: 0.82rem; }
+        [data-testid="stHorizontalBlock"] > div {
+            min-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -175,65 +233,18 @@ if agent.missing_dependency():
     st.stop()
 
 if agent.missing_key():
-    st.markdown("""
-    <div class="hero-wrap">
-        <div class="hero-icon">🔑</div>
-        <div class="hero-title">Configure sua chave de API</div>
-        <div class="hero-sub">Você precisa de uma chave do Google Gemini para usar o assistente.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.form("api_key_form", border=False):
-        col_k, col_b = st.columns([3, 1])
-        with col_k:
-            key_input = st.text_input(
-                "Google Gemini API Key",
-                type="password",
-                placeholder="AIza...",
-                label_visibility="collapsed",
-            )
-        with col_b:
-            submitted = st.form_submit_button("Salvar", use_container_width=True)
-
-        st.markdown(
-            '<div class="glass-alert glass-info" style="margin-top:8px">'
-            'Obtenha sua chave grátis em '
-            '<a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>. '
-            'A chave fica salva apenas nesta sessão. Para persistir, adicione em '
-            '<code>.streamlit/secrets.toml</code>.</div>',
-            unsafe_allow_html=True,
-        )
-
-        if submitted and key_input.strip():
-            st.session_state["gemini_api_key_input"] = key_input.strip()
-            st.session_state.agent = GeminiAgent()
-            st.session_state.context_loaded = False
-            st.rerun()
+    st.markdown(
+        '<div class="glass-alert glass-error">🔑 Chave de API não configurada. '
+        'Edite <code>_HARDCODED_KEY</code> em <code>core/agent/gemini_client.py</code> '
+        'ou adicione <code>GEMINI_API_KEY</code> no <code>.streamlit/secrets.toml</code>.</div>',
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 
 # ── Sidebar – controles ────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Agente IA")
-    st.divider()
-
-    with st.expander("🔑 Chave de API", expanded=True):
-        api_key_sidebar = st.text_input(
-            "Gemini API Key",
-            value=st.session_state.get("gemini_api_key_input", ""),
-            type="password",
-            placeholder="AIza...",
-            key="sidebar_api_key",
-            label_visibility="collapsed",
-        )
-        if st.button("Aplicar", use_container_width=True, key="apply_key_btn"):
-            if api_key_sidebar.strip():
-                st.session_state["gemini_api_key_input"] = api_key_sidebar.strip()
-                st.session_state.agent = GeminiAgent()
-                st.session_state.context_loaded = False
-                st.rerun()
-        st.caption("[Obter chave →](https://aistudio.google.com/apikey)")
-
     st.divider()
 
     fetch_news = st.toggle("📰 Incluir notícias", value=True, help="Busca notícias do Google News para os seus tickers")
