@@ -1,5 +1,6 @@
 import hashlib
 from datetime import datetime
+from urllib.parse import quote as urlquote
 
 import streamlit as st
 from core.auth import require_auth
@@ -78,14 +79,50 @@ st.markdown("""
         line-height: 1.6;
     }
 
-    /* ── Suggestion chips ── */
-    .chips-wrap {
+    /* ── Suggestion chips – fixed horizontal bar ── */
+    .chips-fixed {
+        position: fixed;
+        bottom: 70px;
+        left: 0;
+        right: 0;
+        z-index: 999;
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-        margin-top: 32px;
-        padding: 0 24px;
+        flex-direction: row;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 10px 16px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        background: linear-gradient(
+            to bottom,
+            rgba(10, 14, 22, 0) 0%,
+            rgba(10, 14, 22, 0.85) 30%
+        );
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+    .chips-fixed::-webkit-scrollbar { display: none; }
+
+    .chip-btn {
+        display: inline-block;
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding: 7px 14px;
+        border-radius: 20px;
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.32);
+        color: #a5b4fc;
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-family: 'Outfit', sans-serif;
+        transition: background 0.18s, border-color 0.18s, color 0.18s;
+        cursor: pointer;
+        user-select: none;
+    }
+    .chip-btn:hover, .chip-btn:active {
+        background: rgba(99, 102, 241, 0.26);
+        border-color: rgba(99, 102, 241, 0.6);
+        color: #c7d2fe;
     }
 
     /* ── Chat messages ── */
@@ -140,6 +177,12 @@ st.markdown("""
         border-radius: 12px !important;
     }
 
+    /* ── Espaço para não sobrepor os chips fixos ── */
+    [data-testid="stAppViewBlockContainer"],
+    .block-container {
+        padding-bottom: 120px !important;
+    }
+
     /* ── Mobile optimizations ── */
     @media (max-width: 768px) {
         .hero-wrap {
@@ -154,11 +197,6 @@ st.markdown("""
         }
         .hero-sub {
             font-size: 0.88rem;
-        }
-        .chips-wrap {
-            gap: 8px;
-            padding: 0 8px;
-            margin-top: 20px;
         }
         [data-testid="stChatMessage"] {
             padding: 12px !important;
@@ -175,23 +213,6 @@ st.markdown("""
             padding-left: 12px !important;
             padding-right: 12px !important;
             padding-top: 16px !important;
-        }
-        [data-testid="stHorizontalBlock"] {
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        [data-testid="stHorizontalBlock"] > div {
-            min-width: 48% !important;
-            flex: 1 1 48% !important;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .hero-title { font-size: 1.2rem; }
-        .hero-sub   { font-size: 0.82rem; }
-        [data-testid="stHorizontalBlock"] > div {
-            min-width: 100% !important;
-            flex: 1 1 100% !important;
         }
     }
 </style>
@@ -215,6 +236,13 @@ if "load_errors" not in st.session_state:
     st.session_state.load_errors = []
 
 agent: GeminiAgent = st.session_state.agent
+
+
+# ── Query param → quick prompt (chip click) ───────────────────────────────
+_qp_quick = st.query_params.get("quick", "")
+if _qp_quick and "_quick_prompt" not in st.session_state:
+    st.session_state._quick_prompt = _qp_quick
+    st.query_params.clear()
 
 
 # ── Verificações de setup ──────────────────────────────────────────────────
@@ -274,7 +302,6 @@ with st.sidebar:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rv() -> tuple[pd.DataFrame, str]:
-    """Transações brutas de RV da aba 'meus_ativos'. Retorna (df, erro)."""
     try:
         df = load_assets()
         if df.empty:
@@ -286,10 +313,6 @@ def _load_rv() -> tuple[pd.DataFrame, str]:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rf_atual() -> tuple[pd.DataFrame, str]:
-    """
-    Posições atuais de RF (aba 'fixa_aberta') — o que você TEM agora.
-    Colunas: Ticker, Atual, Data, Moeda, Tipo
-    """
     try:
         df = load_fixed_income_manual()
         if df.empty:
@@ -301,7 +324,6 @@ def _load_rf_atual() -> tuple[pd.DataFrame, str]:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rf_hist() -> tuple[pd.DataFrame, str]:
-    """Transações brutas de RF da aba 'renda_fixa'. Retorna (df, erro)."""
     try:
         df = load_fixed_income()
         if df.empty:
@@ -313,7 +335,6 @@ def _load_rf_hist() -> tuple[pd.DataFrame, str]:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_proventos() -> tuple[pd.DataFrame, str]:
-    """Proventos históricos. Retorna (df, erro)."""
     try:
         df = load_proventos()
         return (df, "") if not df.empty else (pd.DataFrame(), "Aba 'meus_proventos' vazia.")
@@ -324,16 +345,6 @@ def _load_proventos() -> tuple[pd.DataFrame, str]:
 # ── Auto-sincronização com GSheets a cada page render ──────────────────────
 
 def _sync_context() -> None:
-    """
-    Carrega dados brutos do GSheets, monta contexto e injeta no agente SE mudou.
-    Executado a cada page render (rápido quando cache ativo, ~0ms).
-
-    Fontes (dados brutos, sem cálculos):
-      RV        → meus_ativos   (transações de renda variável)
-      RF atual  → fixa_aberta   (posições que você tem agora)
-      RF hist   → renda_fixa    (histórico de transações RF)
-      Proventos → meus_proventos
-    """
     df_rv,       err_rv  = _load_rv()
     df_rf_atual, err_rfa = _load_rf_atual()
     df_rf_hist,  err_rfh = _load_rf_hist()
@@ -353,7 +364,7 @@ def _sync_context() -> None:
             portfolio_ctx,
             chat_history=st.session_state.chat_history,
         )
-        st.session_state.ctx_hash         = new_hash
+        st.session_state.ctx_hash          = new_hash
         st.session_state.portfolio_context = portfolio_ctx
         st.session_state.ctx_updated_at    = datetime.now().strftime("%H:%M:%S")
         st.session_state.load_errors       = [
@@ -361,11 +372,10 @@ def _sync_context() -> None:
         ]
 
 
-# Executa sincronização (instantânea quando cache ativo, ~2s na 1ª vez)
 _sync_context()
 
 
-# ── Tela vazia — welcome state ─────────────────────────────────────────────
+# ── Sugestões ──────────────────────────────────────────────────────────────
 SUGESTOES = [
     "Quais são meus maiores riscos?",
     "Como está minha alocação setorial?",
@@ -374,6 +384,8 @@ SUGESTOES = [
     "Resuma meu portfólio em 5 pontos.",
 ]
 
+
+# ── Tela vazia — welcome hero ──────────────────────────────────────────────
 if not st.session_state.chat_history:
     st.markdown("""
     <div class="hero-wrap">
@@ -383,22 +395,20 @@ if not st.session_state.chat_history:
     </div>
     """, unsafe_allow_html=True)
 
-    # Chips de sugestão
-    st.markdown('<div class="chips-wrap">', unsafe_allow_html=True)
-    cols = st.columns(len(SUGESTOES))
-    for i, (col, sug) in enumerate(zip(cols, SUGESTOES)):
-        with col:
-            if st.button(sug, key=f"sug_{i}", use_container_width=True):
-                st.session_state._quick_prompt = sug
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ── Histórico do chat ──────────────────────────────────────────────────────
 for msg in st.session_state.chat_history:
     avatar = "👤" if msg["role"] == "user" else "🤖"
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
+
+
+# ── Chips de sugestão – barra horizontal fixa ─────────────────────────────
+chips_html = '<div class="chips-fixed">'
+for sug in SUGESTOES:
+    chips_html += f'<a class="chip-btn" href="?quick={urlquote(sug)}">{sug}</a>'
+chips_html += '</div>'
+st.markdown(chips_html, unsafe_allow_html=True)
 
 
 # ── Input ──────────────────────────────────────────────────────────────────
