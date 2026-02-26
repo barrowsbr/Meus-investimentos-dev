@@ -210,39 +210,60 @@ class GeminiAgent:
         }
         return labels.get(self._sdk_used, "desconhecido")
 
+    # ── Contexto do portfólio ─────────────────────────────────────────────
+
+    def set_context(self, portfolio_context: str, news_context: str = "") -> None:
+        """
+        Atualiza o system instruction com os dados reais do portfólio e
+        recria a sessão de chat. Deve ser chamado após carregar os dados
+        do Google Sheets, antes da primeira mensagem do usuário.
+        """
+        if not self.is_ready():
+            return
+
+        ctx_parts = [SYSTEM_PROMPT_BASE]
+        if portfolio_context.strip():
+            ctx_parts.append(portfolio_context)
+        if news_context.strip():
+            ctx_parts.append(f"## Notícias Relevantes para os seus ativos\n{news_context}")
+
+        full_system = "\n\n---\n\n".join(ctx_parts)
+
+        if self._sdk_used == "new":
+            self._config = _genai_types.GenerateContentConfig(
+                system_instruction=full_system,
+            )
+            self._new_chat()   # recria sessão com novo system instruction
+        elif self._sdk_used == "old":
+            try:
+                self._old_model = _old_genai.GenerativeModel(
+                    model_name=self.MODEL,
+                    system_instruction=full_system,
+                )
+                self._history = []
+            except Exception:
+                pass
+
     # ── Chat ──────────────────────────────────────────────────────────────
 
     def chat(
         self,
         user_message: str,
-        portfolio_context: str = "",
-        news_context: str = "",
         stream: bool = True,
     ) -> Generator[str, None, None]:
-        """Envia uma mensagem e retorna chunks de texto via generator."""
+        """
+        Envia uma mensagem e retorna chunks de texto via generator.
+        O contexto do portfólio já deve ter sido injetado via set_context().
+        """
         if not self.is_ready():
             yield "⚠️ Agente não inicializado. Verifique a chave de API."
             return
 
-        # Injeta contexto como prefixo na primeira mensagem
-        full_message = user_message
-        if portfolio_context or news_context:
-            ctx_parts = []
-            if portfolio_context:
-                ctx_parts.append(portfolio_context)
-            if news_context:
-                ctx_parts.append(news_context)
-            ctx_block = "\n\n".join(ctx_parts)
-            full_message = (
-                f"<contexto_portfólio>\n{ctx_block}\n</contexto_portfólio>\n\n"
-                f"**Pergunta:** {user_message}"
-            )
-
         try:
             if self._sdk_used == "new":
-                yield from self._chat_new(full_message, stream)
+                yield from self._chat_new(user_message, stream)
             else:
-                yield from self._chat_old(full_message, stream)
+                yield from self._chat_old(user_message, stream)
         except Exception as e:
             yield self._format_error(e)
 
@@ -297,12 +318,12 @@ class GeminiAgent:
         if self._sdk_used == "new":
             self._new_chat()
 
-    def get_quick_analysis(self, portfolio_context: str, news_context: str = "") -> Generator[str, None, None]:
-        """Gera análise automática do portfólio sem pergunta do usuário."""
+    def get_quick_analysis(self) -> Generator[str, None, None]:
+        """Gera análise automática do portfólio (contexto já em set_context())."""
         prompt = (
             "Faça uma análise completa do meu portfólio. "
             "Destaque: 1) Performance geral, 2) Principais posições, "
             "3) Riscos e concentrações, 4) Impacto das notícias recentes nos meus ativos. "
             "Seja objetivo e use no máximo 400 palavras."
         )
-        yield from self.chat(prompt, portfolio_context, news_context, stream=True)
+        yield from self.chat(prompt, stream=True)
