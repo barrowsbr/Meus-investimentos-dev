@@ -561,6 +561,13 @@ CSS_PART2 = """
     background: linear-gradient(135deg, rgba(240, 230, 220, 0.4) 0%, rgba(200, 190, 180, 0.2) 100%);
 }
 
+.nav-card.card-noticias:hover {
+    box-shadow: 0 20px 50px -10px rgba(6, 182, 212, 0.2);
+}
+.nav-card.card-noticias:hover::before {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.4) 0%, rgba(8, 145, 178, 0.2) 100%);
+}
+
 .card-title {
     color: white;
     font-size: 1.5rem;
@@ -1137,6 +1144,12 @@ st.markdown('''
 <a href="Editor" target="_self" class="nav-card card-editor">
     <div class="card-title"><i class="card-icon">▣</i> Editor</div>
     <div class="card-desc">Edição de registros e transações</div>
+    <span class="card-arrow">→</span>
+</a>
+
+<a href="Noticias" target="_self" class="nav-card card-noticias">
+    <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+    <div class="card-desc">Mercado, portfólio e tendências do dia</div>
     <span class="card-arrow">→</span>
 </a>
 </div>
