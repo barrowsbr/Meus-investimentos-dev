@@ -231,6 +231,20 @@ with st.sidebar:
     st.markdown("### ⚙️ Agente IA")
     st.divider()
 
+    # ── Toggle: Busca na internet ──────────────────────────────────────────
+    web_search_on = st.toggle(
+        "🌐 Busca na internet",
+        value=agent.enable_web_search,
+        help="Permite que o Gemini consulte o Google Search em tempo real para responder perguntas de mercado, cotações e notícias.",
+    )
+    if web_search_on != agent.enable_web_search:
+        agent.enable_web_search = web_search_on
+        # Força rebuild do contexto para recriar o config com/sem tool
+        st.session_state.ctx_hash = ""
+        st.rerun()
+
+    st.divider()
+
     if st.button("🔄 Forçar atualização", use_container_width=True):
         st.session_state.ctx_hash = ""
         st.session_state.portfolio_context = ""
@@ -250,6 +264,10 @@ with st.sidebar:
     st.caption(f"Histórico: {len(st.session_state.chat_history)} mensagens")
     if st.session_state.ctx_updated_at:
         st.caption(f"📊 GSheets: `{st.session_state.ctx_updated_at}`")
+    if agent.is_ready():
+        status = agent.web_search_status()
+        icon = "🟢" if status == "ativa" else "🔴" if status == "desativada" else "🟡"
+        st.caption(f"Web search: {icon} `{status}`")
 
     if st.session_state.portfolio_context:
         with st.expander("🔍 Ver contexto enviado ao Gemini", expanded=False):
