@@ -269,9 +269,10 @@ CSS_PART1 = """
     bottom: 20px;
     left: 20px;
     display: flex;
-    flex-direction: column-reverse;
-    gap: 12px;
+    flex-direction: row;
+    gap: 10px;
     z-index: 99999;
+    flex-wrap: nowrap;
 }
 
 .tools-fab {
@@ -290,6 +291,7 @@ CSS_PART1 = """
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     color: white !important;
+    flex-shrink: 0;
 }
 
 .tools-fab:hover {
