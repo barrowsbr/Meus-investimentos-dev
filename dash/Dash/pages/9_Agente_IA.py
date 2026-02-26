@@ -14,8 +14,7 @@ from core.data.loader import load_assets, load_proventos, load_fixed_income, loa
 from core.ui import get_card_css, render_fab
 
 # Agent imports
-from core.agent import build_portfolio_context, fetch_news_for_tickers, GeminiAgent
-from core.agent.news_fetcher import format_news_for_prompt
+from core.agent import build_portfolio_context, GeminiAgent
 
 # ── Configuração da Página ─────────────────────────────────────────────────
 st.set_page_config(
@@ -169,17 +168,14 @@ st.markdown("""
         [data-testid="stChatInput"] textarea {
             font-size: 0.95rem !important;
         }
-        /* Hide sidebar toggle on mobile for cleaner look */
         [data-testid="stSidebarNav"] {
             padding-top: 8px;
         }
-        /* Tighten column padding */
         .block-container {
             padding-left: 12px !important;
             padding-right: 12px !important;
             padding-top: 16px !important;
         }
-        /* Suggestion buttons: 2 per row on mobile */
         [data-testid="stHorizontalBlock"] {
             flex-wrap: wrap;
             gap: 8px;
@@ -211,8 +207,6 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "portfolio_context" not in st.session_state:
     st.session_state.portfolio_context = ""
-if "news_context" not in st.session_state:
-    st.session_state.news_context = ""
 if "ctx_hash" not in st.session_state:
     st.session_state.ctx_hash = ""
 if "ctx_updated_at" not in st.session_state:
@@ -247,15 +241,9 @@ with st.sidebar:
     st.markdown("### ⚙️ Agente IA")
     st.divider()
 
-    fetch_news = st.toggle("📰 Incluir notícias", value=True, help="Busca notícias do Google News para os seus tickers")
-    max_tickers_news = st.slider("Tickers para notícias", 1, 10, 5)
-
-    st.divider()
-
     if st.button("🔄 Forçar atualização", use_container_width=True):
-        st.session_state.ctx_hash = ""   # força re-injeção mesmo sem mudança
+        st.session_state.ctx_hash = ""
         st.session_state.portfolio_context = ""
-        st.session_state.news_context = ""
         st.session_state.load_errors = []
         st.cache_data.clear()
         st.rerun()
@@ -333,25 +321,12 @@ def _load_proventos() -> tuple[pd.DataFrame, str]:
         return pd.DataFrame(), str(e)
 
 
-@st.cache_data(show_spinner=False, ttl=600)
-def _fetch_news_cached(tickers: tuple, max_per_ticker: int, max_tickers: int) -> dict:
-    """Notícias do Google News (cache 10 min)."""
-    try:
-        return fetch_news_for_tickers(list(tickers), max_per_ticker=max_per_ticker, max_tickers=max_tickers)
-    except Exception:
-        return {}
-
-
 # ── Auto-sincronização com GSheets a cada page render ──────────────────────
-# As funções acima são cacheadas (ttl=300), então não batem no GSheets a
-# cada rerun — apenas quando o cache expira (5 min) ou o botão força reload.
-# O hash detecta se o conteúdo mudou e só re-injeta no agente se mudou.
 
 def _sync_context() -> None:
     """
     Carrega dados brutos do GSheets, monta contexto e injeta no agente SE mudou.
     Executado a cada page render (rápido quando cache ativo, ~0ms).
-    Bate no GSheets só quando o cache expira (5 min) ou botão força reload.
 
     Fontes (dados brutos, sem cálculos):
       RV        → meus_ativos   (transações de renda variável)
@@ -374,25 +349,12 @@ def _sync_context() -> None:
     new_hash = hashlib.md5(portfolio_ctx.encode()).hexdigest()
 
     if st.session_state.ctx_hash != new_hash:
-        # Dados mudaram (ou 1ª carga) → busca notícias e re-injeta no agente
-        news_data: dict = {}
-        if fetch_news and not df_rv.empty and "ticker" in df_rv.columns:
-            # Tickers únicos da aba meus_ativos (dados brutos têm 1 linha/transação)
-            tickers = tuple(
-                df_rv["ticker"].dropna().unique().tolist()[:max_tickers_news]
-            )
-            news_data = _fetch_news_cached(tickers, max_per_ticker=3, max_tickers=max_tickers_news)
-        news_ctx = format_news_for_prompt(news_data) if news_data else ""
-
         agent.set_context(
             portfolio_ctx,
-            news_ctx,
             chat_history=st.session_state.chat_history,
         )
-
         st.session_state.ctx_hash         = new_hash
         st.session_state.portfolio_context = portfolio_ctx
-        st.session_state.news_context      = news_ctx
         st.session_state.ctx_updated_at    = datetime.now().strftime("%H:%M:%S")
         st.session_state.load_errors       = [
             e for e in [err_rv, err_rfa, err_rfh, err_pv] if e
@@ -408,8 +370,8 @@ SUGESTOES = [
     "Quais são meus maiores riscos?",
     "Como está minha alocação setorial?",
     "Quais ativos tiveram pior desempenho?",
-    "As notícias de hoje impactam minha carteira?",
     "Devo rebalancear alguma posição?",
+    "Resuma meu portfólio em 5 pontos.",
 ]
 
 if not st.session_state.chat_history:
@@ -417,7 +379,7 @@ if not st.session_state.chat_history:
     <div class="hero-wrap">
         <div class="hero-icon">🤖</div>
         <div class="hero-title">Olá, vamos analisar sua carteira?</div>
-        <div class="hero-sub">Pergunte qualquer coisa sobre seu portfólio. Eu leio seus dados e busco notícias automaticamente antes de responder.</div>
+        <div class="hero-sub">Pergunte qualquer coisa sobre seu portfólio. Eu leio seus dados automaticamente antes de responder.</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -438,11 +400,6 @@ for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# ── Notícias brutas (colapsado) ───────────────────────────────────────────
-if st.session_state.news_context and st.session_state.chat_history:
-    with st.expander("📰 Ver notícias carregadas"):
-        st.markdown(st.session_state.news_context)
-
 
 # ── Input ──────────────────────────────────────────────────────────────────
 user_input = st.chat_input("Pergunte sobre seu portfólio...")
@@ -457,7 +414,6 @@ if user_input:
     with st.chat_message("user", avatar="👤"):
         st.markdown(user_input)
 
-    # Contexto já está no system_instruction (injetado por _sync_context() acima)
     with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         full_response = ""
