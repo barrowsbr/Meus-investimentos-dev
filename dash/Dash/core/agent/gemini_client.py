@@ -8,8 +8,8 @@ Suporta dois SDKs em ordem de preferência:
   2. google-generativeai (legado)   → Gemini 2.0 / 1.5
 
 A chave de API é lida de:
-  1. st.session_state["gemini_api_key_input"]  (digitada na UI)
-  2. st.secrets["GEMINI_API_KEY"]               (secrets.toml)
+  1. _HARDCODED_KEY  (edite manualmente abaixo)
+  2. st.secrets["GEMINI_API_KEY"]  (secrets.toml)
   3. variável de ambiente GEMINI_API_KEY
 """
 
@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import os
 from typing import Generator, Optional
+
+# ── Chave de API (edite aqui manualmente) ─────────────────────────────────
+# Obtenha sua chave gratuita em: https://aistudio.google.com/apikey
+_HARDCODED_KEY: str = "AIzaSyDtlceSFQNzV7aWOxtw98COt6uDW9SvQX4"
 
 # ── Detecção de SDK disponível ─────────────────────────────────────────────
 _NEW_SDK = False   # google-genai  (novo)
@@ -44,13 +48,9 @@ try:
     import streamlit as _st
 
     def _get_api_key() -> Optional[str]:
-        # 1. Chave digitada na UI (session_state)
-        try:
-            k = _st.session_state.get("gemini_api_key_input", "").strip()
-            if k:
-                return k
-        except Exception:
-            pass
+        # 1. Chave hardcoded no código (edite _HARDCODED_KEY acima)
+        if _HARDCODED_KEY.strip():
+            return _HARDCODED_KEY.strip()
         # 2. secrets.toml
         try:
             k = _st.secrets.get("GEMINI_API_KEY", "")
@@ -63,6 +63,8 @@ try:
 
 except ImportError:
     def _get_api_key() -> Optional[str]:
+        if _HARDCODED_KEY.strip():
+            return _HARDCODED_KEY.strip()
         return os.getenv("GEMINI_API_KEY") or None
 
 

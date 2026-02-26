@@ -56,7 +56,19 @@ def render_fab():
         transform: scale(1.1) translateY(-2px);
         box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
     }
-    
+
+    .tools-fab-ai {
+        background: rgba(99, 102, 241, 0.18);
+        border-color: rgba(99, 102, 241, 0.4);
+        box-shadow: 0 4px 15px rgba(99,102,241,0.25);
+    }
+
+    .tools-fab-ai:hover {
+        background: rgba(99, 102, 241, 0.45) !important;
+        border-color: rgba(99, 102, 241, 0.8) !important;
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5) !important;
+    }
+
     @media (max-width: 768px) {
         .tools-fab {
             width: 36px;
@@ -80,6 +92,7 @@ def render_fab():
         <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">↻</a>
         <a href="./" target="_self" class="tools-fab" title="Home">🏠</a>
         <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
+        <a href="Agente_IA" target="_self" class="tools-fab tools-fab-ai" title="Agente IA – Grimmi">🤖</a>
     </div>
     """, unsafe_allow_html=True)
 
