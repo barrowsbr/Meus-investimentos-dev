@@ -183,13 +183,13 @@ class GeminiAgent:
         except Exception:
             pass
 
-    def _new_chat(self) -> None:
-        """Cria (ou recria) a sessão de chat no novo SDK."""
+    def _new_chat(self, history: list | None = None) -> None:
+        """Cria (ou recria) a sessão de chat no novo SDK, opcionalmente com histórico."""
         if self._client:
-            self._chat = self._client.chats.create(
-                model=self.MODEL,
-                config=self._config,
-            )
+            kwargs: dict = {"model": self.MODEL, "config": self._config}
+            if history:
+                kwargs["history"] = history
+            self._chat = self._client.chats.create(**kwargs)
 
     # ── Status ────────────────────────────────────────────────────────────
 
@@ -212,11 +212,17 @@ class GeminiAgent:
 
     # ── Contexto do portfólio ─────────────────────────────────────────────
 
-    def set_context(self, portfolio_context: str, news_context: str = "") -> None:
+    def set_context(
+        self,
+        portfolio_context: str,
+        news_context: str = "",
+        chat_history: list[dict] | None = None,
+    ) -> None:
         """
-        Atualiza o system instruction com os dados reais do portfólio e
-        recria a sessão de chat. Deve ser chamado após carregar os dados
-        do Google Sheets, antes da primeira mensagem do usuário.
+        Atualiza o system instruction com os dados do portfólio e recria a
+        sessão de chat preservando o histórico de conversa existente.
+
+        chat_history: lista de {"role": "user"|"assistant", "content": str}
         """
         if not self.is_ready():
             return
@@ -233,14 +239,34 @@ class GeminiAgent:
             self._config = _genai_types.GenerateContentConfig(
                 system_instruction=full_system,
             )
-            self._new_chat()   # recria sessão com novo system instruction
+            # Reconstrói histórico no formato do SDK
+            history = None
+            if chat_history:
+                history = [
+                    _genai_types.Content(
+                        role="user" if msg["role"] == "user" else "model",
+                        parts=[_genai_types.Part(text=msg["content"])],
+                    )
+                    for msg in chat_history
+                    if msg.get("content", "").strip()
+                ]
+            self._new_chat(history=history)
+
         elif self._sdk_used == "old":
             try:
                 self._old_model = _old_genai.GenerativeModel(
                     model_name=self.MODEL,
                     system_instruction=full_system,
                 )
-                self._history = []
+                # Reconstrói histórico no formato legado
+                if chat_history:
+                    self._history = [
+                        {"role": "user" if m["role"] == "user" else "model",
+                         "parts": [m["content"]]}
+                        for m in chat_history if m.get("content", "").strip()
+                    ]
+                else:
+                    self._history = []
             except Exception:
                 pass
 
