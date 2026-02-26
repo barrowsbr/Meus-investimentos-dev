@@ -156,6 +156,8 @@ if "news_context" not in st.session_state:
     st.session_state.news_context = ""
 if "context_loaded" not in st.session_state:
     st.session_state.context_loaded = False
+if "load_errors" not in st.session_state:
+    st.session_state.load_errors = []
 
 agent: GeminiAgent = st.session_state.agent
 
@@ -240,6 +242,7 @@ with st.sidebar:
         st.session_state.context_loaded = False
         st.session_state.portfolio_context = ""
         st.session_state.news_context = ""
+        st.session_state.load_errors = []
         st.cache_data.clear()
         st.rerun()
 
@@ -254,123 +257,146 @@ with st.sidebar:
         st.caption(f"SDK: `{agent.sdk_label()}`")
     st.caption(f"Histórico: {len(st.session_state.chat_history)} mensagens")
 
+    if st.session_state.context_loaded and st.session_state.portfolio_context:
+        with st.expander("🔍 Ver contexto enviado ao Gemini", expanded=False):
+            st.code(st.session_state.portfolio_context, language="markdown")
+    elif st.session_state.load_errors:
+        st.error("Erros ao carregar portfólio:\n" + "\n".join(st.session_state.load_errors))
+
 
 # ── Helpers para carregar contexto (lazy) ──────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=300)
-def _load_rv():
+def _load_rv() -> tuple[pd.DataFrame, str]:
     """
-    Carrega posições de renda variável com preços atuais e P&L.
-    Retorna DataFrame com colunas que build_portfolio_context() espera.
+    Carrega posições de RV do Google Sheets, processa via FIFO e enriquece
+    com preços atuais do Yahoo Finance.
+    Retorna (DataFrame, erro_str).
     """
     try:
         df_assets = load_assets()
         if df_assets.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(), "Nenhum ativo encontrado na aba 'meus_ativos'."
 
-        # Passo 1: calcula posições abertas via FIFO (só aceita df, sem preços)
-        result = calcular_carteira_fechada(df_assets)
+        # FIFO → posições abertas (função só aceita df)
+        result    = calcular_carteira_fechada(df_assets)
         positions = result[0] if isinstance(result, tuple) else result
         if positions.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(), "Nenhuma posição aberta calculada."
 
-        # Passo 2: busca preços atuais via Yahoo Finance
-        tickers = positions["Ticker"].dropna().tolist()
+        # Cotações via Yahoo Finance
+        tickers      = positions["Ticker"].dropna().tolist()
         price_result = fetch_market_data(tickers)
-        prices, changes = (price_result if isinstance(price_result, tuple) else (price_result, {}))
+        prices, changes = price_result if isinstance(price_result, tuple) else (price_result, {})
 
-        # Passo 3: enriquece com preço atual e P&L
         rows = []
         for _, row in positions.iterrows():
-            tkr    = row["Ticker"]
-            qtd    = float(row.get("Qtd", 0))
-            pm     = float(row.get("PM_Origem", 0))
-            moeda  = str(row.get("Moeda", "BRL"))
-            setor  = str(row.get("Setor", "—"))
+            tkr   = row["Ticker"]
+            qtd   = float(row.get("Qtd", 0))
+            pm    = float(row.get("PM_Origem", 0))
+            moeda = str(row.get("Moeda", "BRL"))
+            setor = str(row.get("Setor", "—"))
 
-            preco_atual  = float(prices.get(tkr, pm))   # fallback: PM quando sem cotação
-            valor_atual  = qtd * preco_atual
-            custo        = qtd * pm
-            resultado    = valor_atual - custo
+            preco_atual   = float(prices.get(tkr, pm))  # fallback: PM
+            valor_atual   = qtd * preco_atual
+            custo         = qtd * pm
+            resultado     = valor_atual - custo
             resultado_pct = (resultado / custo * 100) if custo else 0.0
             variacao_dia  = float(changes.get(tkr, 0.0))
 
             rows.append({
-                "ticker":        tkr,
-                "setor":         setor,
-                "moeda":         moeda,
-                "quantidade":    qtd,
-                "preco_medio":   pm,
-                "preco_atual":   preco_atual,
-                "valor_atual":   valor_atual,
-                "resultado":     resultado,
-                "resultado_pct": resultado_pct,
-                "variacao_dia":  variacao_dia,
+                "ticker": tkr, "setor": setor, "moeda": moeda,
+                "quantidade": qtd, "preco_medio": pm,
+                "preco_atual": preco_atual, "valor_atual": valor_atual,
+                "resultado": resultado, "resultado_pct": resultado_pct,
+                "variacao_dia": variacao_dia,
             })
 
-        return pd.DataFrame(rows)
-    except Exception:
-        return pd.DataFrame()
+        return pd.DataFrame(rows), ""
+    except Exception as e:
+        return pd.DataFrame(), str(e)
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def _load_rf():
-    """
-    Carrega renda fixa resumida e renomeia colunas para o context_builder.
-    """
+def _load_rf() -> tuple[pd.DataFrame, str]:
+    """Carrega renda fixa do Google Sheets e resume via summarize_fixed_income()."""
     try:
         df_raw = load_fixed_income()
         if df_raw.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(), "Nenhum dado em 'renda_fixa'."
         df_rf = summarize_fixed_income(df_raw)
         if df_rf.empty:
-            return pd.DataFrame()
-        # Renomeia para o formato esperado pelo build_portfolio_context()
+            return pd.DataFrame(), "summarize_fixed_income retornou vazio."
         df_rf = df_rf.rename(columns={
             "Ticker": "ticker",
             "Atual":  "valor_atual",
             "Rent. %": "taxa",
             "Data":   "vencimento",
         })
-        return df_rf
-    except Exception:
-        return pd.DataFrame()
+        return df_rf, ""
+    except Exception as e:
+        return pd.DataFrame(), str(e)
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def _load_proventos():
+def _load_proventos() -> tuple[pd.DataFrame, str]:
     try:
         df = load_proventos()
-        return df if not df.empty else pd.DataFrame()
-    except Exception:
-        return pd.DataFrame()
+        return (df, "") if not df.empty else (pd.DataFrame(), "Nenhum provento encontrado.")
+    except Exception as e:
+        return pd.DataFrame(), str(e)
 
 
 def _ensure_context_loaded():
-    """Carrega o contexto do portfólio apenas quando necessário (primeira pergunta)."""
+    """
+    Carrega dados do Google Sheets e injeta no system_instruction do agente.
+    Executado apenas uma vez por sessão (lazy, na primeira pergunta).
+    """
     if st.session_state.context_loaded:
         return
-    with st.status("Carregando seu portfólio...", expanded=False) as status:
-        df_rv   = _load_rv()
-        status.update(label="Carregando renda fixa...")
-        df_rf   = _load_rf()
-        status.update(label="Carregando proventos...")
-        df_prov = _load_proventos()
+
+    erros: list[str] = []
+
+    with st.status("Lendo seu portfólio do Google Sheets...", expanded=False) as status:
+
+        status.update(label="📊 Carregando renda variável...")
+        df_rv, err_rv = _load_rv()
+        if err_rv:
+            erros.append(f"RV: {err_rv}")
+
+        status.update(label="💰 Carregando renda fixa...")
+        df_rf, err_rf = _load_rf()
+        if err_rf:
+            erros.append(f"RF: {err_rf}")
+
+        status.update(label="💸 Carregando proventos...")
+        df_prov, err_pv = _load_proventos()
+        if err_pv:
+            erros.append(f"Proventos: {err_pv}")
 
         news_data = {}
         if fetch_news and not df_rv.empty and "ticker" in df_rv.columns:
-            status.update(label="Buscando notícias...")
-            tickers = df_rv["ticker"].dropna().tolist()[:max_tickers_news]
+            status.update(label="📰 Buscando notícias dos seus ativos...")
+            tickers   = df_rv["ticker"].dropna().tolist()[:max_tickers_news]
             news_data = fetch_news_for_tickers(tickers, max_per_ticker=3, max_tickers=max_tickers_news)
 
-        status.update(label="Preparando contexto...")
-        st.session_state.portfolio_context = build_portfolio_context(
-            df_rv=df_rv if not df_rv.empty else None,
-            df_rf=df_rf if not df_rf.empty else None,
+        status.update(label="🧠 Montando contexto para o Gemini...")
+        portfolio_ctx = build_portfolio_context(
+            df_rv=df_rv       if not df_rv.empty   else None,
+            df_rf=df_rf       if not df_rf.empty   else None,
             df_proventos=df_prov if not df_prov.empty else None,
         )
-        st.session_state.news_context = format_news_for_prompt(news_data) if news_data else ""
-        st.session_state.context_loaded = True
-        status.update(label="✅ Pronto!", state="complete")
+        news_ctx = format_news_for_prompt(news_data) if news_data else ""
+
+        # Injeta no system_instruction do agente (NÃO na mensagem do usuário)
+        agent.set_context(portfolio_ctx, news_ctx)
+
+        st.session_state.portfolio_context = portfolio_ctx
+        st.session_state.news_context      = news_ctx
+        st.session_state.context_loaded    = True
+        st.session_state.load_errors       = erros
+
+        label = "✅ Portfólio carregado!" if not erros else f"⚠️ Carregado com {len(erros)} aviso(s)"
+        status.update(label=label, state="complete" if not erros else "error")
 
 
 # ── Tela vazia — welcome state ─────────────────────────────────────────────
@@ -428,19 +454,18 @@ if user_input:
     with st.chat_message("user", avatar="👤"):
         st.markdown(user_input)
 
-    # Carrega contexto na primeira mensagem (lazy)
+    # Carrega dados do GSheets e injeta no system_instruction (lazy, só na 1ª vez)
     _ensure_context_loaded()
 
-    # Contexto só precisa ser enviado uma vez (agente mantém histórico)
-    is_first = len(st.session_state.chat_history) == 1
-    portfolio_ctx = st.session_state.portfolio_context if is_first else ""
-    news_ctx      = st.session_state.news_context      if is_first else ""
+    # Erros de carregamento
+    for err in st.session_state.get("load_errors", []):
+        st.warning(f"⚠️ {err}")
 
-    # Resposta em streaming
+    # Resposta em streaming — contexto já está no system_instruction do agente
     with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         full_response = ""
-        for chunk in agent.chat(user_input, portfolio_ctx, news_ctx, stream=True):
+        for chunk in agent.chat(user_input, stream=True):
             full_response += chunk
             placeholder.markdown(full_response + "▌")
         placeholder.markdown(full_response)
