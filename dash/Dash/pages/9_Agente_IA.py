@@ -15,6 +15,8 @@ from core.ui import get_card_css, render_fab
 
 # Agent imports
 from core.agent import build_portfolio_context, GeminiAgent
+from core.agent.context_builder import build_market_snapshot
+from core.computed import get_portfolio_snapshot
 
 # ── Configuração da Página ─────────────────────────────────────────────────
 st.set_page_config(
@@ -324,6 +326,7 @@ def _sync_context() -> None:
     df_rf_hist,  err_rfh = _load_rf_hist()
     df_prov,     err_pv  = _load_proventos()
 
+    # Dados brutos do Google Sheets (histórico completo de transações)
     portfolio_ctx = build_portfolio_context(
         df_rv=df_rv               if not df_rv.empty       else None,
         df_rf_atual=df_rf_atual   if not df_rf_atual.empty else None,
@@ -331,18 +334,32 @@ def _sync_context() -> None:
         df_proventos=df_prov      if not df_prov.empty     else None,
     )
 
-    new_hash = hashlib.md5(portfolio_ctx.encode()).hexdigest()
+    # Snapshot de mercado — calculado pelas mesmas funções do dashboard
+    # (garante que o agente veja os mesmos números que aparecem nas outras páginas)
+    try:
+        snapshot = get_portfolio_snapshot()
+        snapshot_ctx = build_market_snapshot(snapshot)
+        snapshot_errors = snapshot.get('errors', [])
+    except Exception as exc:
+        snapshot_ctx = ""
+        snapshot_errors = [f"Snapshot de mercado indisponível: {exc}"]
+
+    full_ctx = portfolio_ctx
+    if snapshot_ctx:
+        full_ctx = full_ctx + "\n\n---\n\n" + snapshot_ctx
+
+    new_hash = hashlib.md5(full_ctx.encode()).hexdigest()
 
     if st.session_state.ctx_hash != new_hash:
         agent.set_context(
-            portfolio_ctx,
+            full_ctx,
             chat_history=st.session_state.chat_history,
         )
         st.session_state.ctx_hash          = new_hash
-        st.session_state.portfolio_context = portfolio_ctx
+        st.session_state.portfolio_context = full_ctx
         st.session_state.ctx_updated_at    = datetime.now().strftime("%H:%M:%S")
         st.session_state.load_errors       = [
-            e for e in [err_rv, err_rfa, err_rfh, err_pv] if e
+            e for e in [err_rv, err_rfa, err_rfh, err_pv] + snapshot_errors if e
         ]
 
 
