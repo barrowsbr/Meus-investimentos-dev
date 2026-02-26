@@ -161,6 +161,84 @@ st.markdown("""
     }
 
     h1, h2, h3 { color: #f1f5f9; }
+
+    /* ===== SISTEMA DE KPI CARDS (lote-card) ===== */
+    .lote-card {
+        background: rgba(30, 41, 59, 0.5);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 12px;
+        padding: 16px 20px;
+        text-align: center;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+        margin-bottom: 8px;
+    }
+    .lote-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(255,255,255,0.14);
+    }
+    .lote-card .lote-label {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+    .lote-card .lote-value {
+        color: #f1f5f9;
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+    .lote-card .lote-sub {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-top: 2px;
+    }
+    .lote-pos { color: #4ade80; }
+    .lote-neg { color: #f87171; }
+
+    /* ===== GLASS ALERTS (substituem st.info/warning/success) ===== */
+    .glass-alert {
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+    .glass-info {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        color: #bfdbfe;
+    }
+    .glass-warn {
+        background: rgba(245, 158, 11, 0.1);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        color: #fde68a;
+    }
+    .glass-success {
+        background: rgba(74, 222, 128, 0.1);
+        border: 1px solid rgba(74, 222, 128, 0.25);
+        color: #bbf7d0;
+    }
+
+    /* ===== TAB SECTION HEADERS ===== */
+    .tab-header {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 8px 0 14px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .tab-header-sm {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #cbd5e1;
+        margin: 6px 0 10px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -580,7 +658,7 @@ if not df_bruto.empty:
             df_detalhes['Rent. BRL (%)'] = df_detalhes.apply(calcular_rentabilidade_total, axis=1)
 
     with tab1:
-            st.subheader("💎 Visão do Gestor (Portfólio Global)")
+            st.markdown('<div class="tab-header">💎 Visão do Gestor (Portfólio Global)</div>', unsafe_allow_html=True)
         
             lista_global_graficos = []
             
@@ -1012,7 +1090,7 @@ if not df_bruto.empty:
                     fig_perf_comp.add_vline(x=0, line_width=1, line_color="gray", line_dash="dot")
                     st.plotly_chart(fig_perf_comp, use_container_width=True)
                 else:
-                    st.info("Nenhum ativo de Renda Variável encontrado para exibir o gráfico.")
+                    st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhum ativo de Renda Variável encontrado para exibir o gráfico.</div>', unsafe_allow_html=True)
 
 
                 st.markdown("#### 🎯 Risco x Retorno (Scatter)")
@@ -1057,7 +1135,7 @@ if not df_bruto.empty:
                     st.plotly_chart(fig_pareto, use_container_width=True)
 
                 st.markdown("---")
-                st.header("📂 Composição Detalhada (Extra - USD)")
+                st.markdown('<div class="tab-header">📂 Composição Detalhada (Extra — USD)</div>', unsafe_allow_html=True)
                 df_comp = carregar_composicao_extra()
                 if not df_comp.empty:
                     # Normalização de Colunas Essenciais
@@ -1096,28 +1174,28 @@ if not df_bruto.empty:
                     
                     col_c1, col_c2 = st.columns(2)
                     with col_c1:
-                        st.subheader("🍩 Por Classe")
+                        st.markdown('<div class="tab-header-sm">🍩 Por Classe</div>', unsafe_allow_html=True)
                         fig_comp = px.pie(df_comp, values=col_valor, names='Classe', hole=0.5, color_discrete_sequence=px.colors.qualitative.Vivid)
                         fig_comp.update_traces(textinfo="percent+label")
                         fig_comp.update_layout(margin=dict(t=20, l=20, r=20, b=20), height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                         st.plotly_chart(fig_comp, use_container_width=True)
                     with col_c2:
-                        st.subheader("🍩 Por Ativo")
+                        st.markdown('<div class="tab-header-sm">🍩 Por Ativo</div>', unsafe_allow_html=True)
                         fig_ativo = px.pie(df_comp, values=col_valor, names='Ativo', hole=0.5, color_discrete_sequence=px.colors.qualitative.Prism)
                         fig_ativo.update_traces(textinfo="percent+label")
                         fig_ativo.update_layout(margin=dict(t=20, l=20, r=20, b=20), height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                         st.plotly_chart(fig_ativo, use_container_width=True)
 
                     
-                    st.subheader("📋 Tabela de Ativos (Decrescente)")
+                    st.markdown('<div class="tab-header-sm">📋 Tabela de Ativos (Decrescente)</div>', unsafe_allow_html=True)
                     altura_tabela = min((len(df_comp) + 1) * 35, 1200)
                     st.dataframe(df_comp.style.format({col_valor: 'US$ {:,.2f}', 'Peso (%)': '{:.2f}%'}), use_container_width=True, height=altura_tabela)
-                else: 
-                    st.info("Arquivo 'composicao.csv' não encontrado ou vazio.")
+                else:
+                    st.markdown('<div class="glass-alert glass-info">ℹ️ Arquivo de composição não encontrado ou vazio.</div>', unsafe_allow_html=True)
             else:
-                st.info("Nenhum ativo com saldo positivo para gerar gráficos globais.")
+                st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhum ativo com saldo positivo para gerar gráficos globais.</div>', unsafe_allow_html=True)
 with tab2:
-    st.subheader("🌍 Renda Variável - Detalhamento")
+    st.markdown('<div class="tab-header">🌍 Renda Variável — Detalhamento</div>', unsafe_allow_html=True)
     if not df_view.empty:
         if not df_detalhes.empty:
             st.markdown("---")
@@ -1144,6 +1222,7 @@ with tab2:
             ]].copy()
 
             tabela = tabela.sort_values('Valor Mercado (R$)', ascending=False)
+            tabela = tabela.set_index('Ticker')  # índice → coluna fixada no scroll horizontal
 
             def color_diario(val):
                 color = '#2E7D32' if val >= 0 else '#C62828'
@@ -1166,18 +1245,17 @@ with tab2:
                 })
                 .map(color_diario, subset=['Lucro Diário (R$)'])
                 .background_gradient(subset=['Resultado Total (R$)'], cmap='RdYlGn', vmin=-total_valor*0.1, vmax=total_valor*0.1)
-                .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x['Ticker'] == 'TOTAL 💰' else '' for i in x], axis=1),
+                .apply(lambda x: ['font-weight: bold; background-color: #f0f2f6' if x.name == 'TOTAL 💰' else '' for i in x], axis=1),
 
                 column_config={
                     "Rent. BRL (%)": st.column_config.NumberColumn(
                         "Rentabilidade",
                         format="%.2f %%"
                     ),
-                    "Ticker": st.column_config.TextColumn("Ativo", width="small"),
                 },
                 use_container_width=True,
                 height=600,
-                hide_index=True
+                hide_index=False  # exibe o índice (Ticker) como coluna fixada
             )
 
             st.markdown("---")
@@ -1211,7 +1289,7 @@ with tab2:
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
-                st.info("Nenhum ativo encontrado para exibir o ranking.")
+                st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhum ativo encontrado para exibir o ranking.</div>', unsafe_allow_html=True)
             st.markdown("---")
 
             # ======================================================================
@@ -1275,24 +1353,6 @@ with tab2:
                     rent_total_pm = (preco_atual_decomp / pm_real - 1) if pm_real > 0 and preco_atual_decomp > 0 else 0.0
 
                     # --- KPI Cards ---
-                    st.markdown("""
-                    <style>
-                    .lote-card {
-                        background: rgba(30, 41, 59, 0.5);
-                        backdrop-filter: blur(10px);
-                        border: 1px solid rgba(255,255,255,0.07);
-                        border-radius: 12px;
-                        padding: 16px 20px;
-                        text-align: center;
-                    }
-                    .lote-card .lote-label { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-                    .lote-card .lote-value { color: #f1f5f9; font-size: 1.4rem; font-weight: 700; }
-                    .lote-card .lote-sub { font-size: 0.85rem; font-weight: 500; margin-top: 2px; }
-                    .lote-pos { color: #4ade80; }
-                    .lote-neg { color: #f87171; }
-                    </style>
-                    """, unsafe_allow_html=True)
-
                     k1, k2, k3, k4, k5 = st.columns(5)
                     with k1:
                         st.markdown(f"""<div class="lote-card">
@@ -1421,22 +1481,22 @@ with tab2:
                         st.plotly_chart(fig_lotes, use_container_width=True)
 
                 else:
-                    st.info(f"Nenhum registro de compra encontrado para {ticker_decomp}.")
+                    st.markdown(f'<div class="glass-alert glass-info">ℹ️ Nenhum registro de compra encontrado para {ticker_decomp}.</div>', unsafe_allow_html=True)
             else:
-                st.info("Selecione um ativo de Renda Variável nos filtros laterais para decompor.")
+                st.markdown('<div class="glass-alert glass-info">ℹ️ Selecione um ativo de Renda Variável nos filtros laterais para decompor.</div>', unsafe_allow_html=True)
 
             st.markdown("---")
 
         else:
-            st.info("Nenhuma posição de Renda Variável encontrada.")
-    else: 
-        st.info("Nenhum dado disponível para visualização.")
+            st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma posição de Renda Variável encontrada.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhum dado disponível para visualização.</div>', unsafe_allow_html=True)
 
 
 with tab5:
     col_head, col_logo = st.columns([5, 1])
     with col_head:
-        st.header("₿ Cripto Command Center")
+        st.markdown('<div class="tab-header">₿ Cripto Command Center</div>', unsafe_allow_html=True)
         st.caption("Monitoramento de ativos digitais, volatilidade e custódia.")
     
     st.divider()
@@ -1496,9 +1556,9 @@ with tab5:
                 # Exibir preço atual no topo
                 if not df_chart.empty:
                     current_price = df_chart['Close'].iloc[-1]
-                    st.metric(f"Preço Atual de {ativo_sel}", f"${current_price:,.2f}", help="Cotação em USD do ativo selecionado.")
+                    st.markdown(render_metric_card(f"Preço Atual de {ativo_sel}", f"${current_price:,.2f}", icon="💹"), unsafe_allow_html=True)
                 else:
-                    st.warning("Não foi possível obter o preço atual.")
+                    st.markdown('<div class="glass-alert glass-warn">⚠️ Não foi possível obter o preço atual.</div>', unsafe_allow_html=True)
 
                 if not df_chart.empty:
                     current_price = df_chart['Close'].iloc[-1]
@@ -1567,7 +1627,7 @@ with tab5:
 
             st.divider()
 
-            st.subheader("📋 Detalhamento de Posições")
+            st.markdown('<div class="tab-header-sm">📋 Detalhamento de Posições</div>', unsafe_allow_html=True)
             
             cols_show = ['Ticker', 'Qtd', 'PM Compra', 'Preço Atual', 'Valor Hoje (R$)', 'Lucro Aberto (R$)', 'Rent. (%)', 'Custo BRL']
             
@@ -1594,7 +1654,7 @@ with tab5:
 
             # Histórico de Operações Individuais
             st.divider()
-            st.subheader("📜 Histórico de Operações")
+            st.markdown('<div class="tab-header-sm">📜 Histórico de Operações</div>', unsafe_allow_html=True)
 
             tickers_cripto = df_cripto['Ticker'].unique().tolist()
             if not df_bruto.empty:
@@ -1621,18 +1681,18 @@ with tab5:
                         height=max(200, len(df_ops_cripto) * 35 + 38)
                     )
                 else:
-                    st.info("Nenhuma operação encontrada para os ativos cripto.")
+                    st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma operação encontrada para os ativos cripto.</div>', unsafe_allow_html=True)
 
         else:
-            st.info("ℹ️ Nenhuma criptomoeda encontrada na sua carteira. Adicione transações com setor 'Cripto'.")
+            st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma criptomoeda encontrada na sua carteira. Adicione transações com setor \'Cripto\'.</div>', unsafe_allow_html=True)
     else:
-        st.info("Carregando dados...")
+        st.markdown('<div class="glass-alert glass-info">⏳ Carregando dados...</div>', unsafe_allow_html=True)
 
 
 with tab6:
     c_head, c_refresh = st.columns([5,1])
     with c_head:
-        st.header("💱 FX Command Center")
+        st.markdown('<div class="tab-header">💱 FX Command Center</div>', unsafe_allow_html=True)
     
     st.divider()
 
@@ -1737,7 +1797,7 @@ with tab6:
     lista_moedas = sorted(list(moedas_encontradas))
 
     if not lista_moedas:
-        st.info("Nenhuma exposição em moeda estrangeira identificada.")
+        st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma exposição em moeda estrangeira identificada.</div>', unsafe_allow_html=True)
     else:
         c_sel, _ = st.columns([2, 5])
         with c_sel:
@@ -1885,8 +1945,8 @@ with tab6:
                 hide_index=True
             )
         else:
-            st.info(f"Nenhum registro encontrado para {moeda_sel}.")
-    
+            st.markdown(f'<div class="glass-alert glass-info">ℹ️ Nenhum registro encontrado para {moeda_sel}.</div>', unsafe_allow_html=True)
+
     inverter = is_indirect
 
     if d['investido_rv'] > 0 and pm_usuario > 0:
@@ -1938,7 +1998,7 @@ with tab6:
     col_grafico, col_dados = st.columns([2, 1])
 
     with col_grafico:
-        st.subheader(f"📈 Análise Técnica: {moeda_sel} vs {d['moeda_base']}")
+        st.markdown(f'<div class="tab-header-sm">📈 Análise Técnica: {moeda_sel} → {d["moeda_base"]}</div>', unsafe_allow_html=True)
         
         if not df_hist.empty:
             if isinstance(df_hist, pd.Series): df_hist = df_hist.to_frame()
@@ -1995,10 +2055,10 @@ with tab6:
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("Dados históricos indisponíveis.")
+            st.markdown('<div class="glass-alert glass-warn">⚠️ Dados históricos indisponíveis.</div>', unsafe_allow_html=True)
 
     with col_dados:
-        st.subheader("📊 Alocação")
+        st.markdown('<div class="tab-header-sm">📊 Alocação</div>', unsafe_allow_html=True)
         
         labels = ['Caixa', 'Renda Variável', 'Renda Fixa']
         values = [caixa, d['atual_rv'], d['atual_rf']]
@@ -2028,7 +2088,7 @@ with tab6:
     st.markdown("---")
 
     with st.container(border=True):
-        st.subheader("⚡ Stress Test & Cenários")
+        st.markdown('<div class="tab-header-sm">⚡ Stress Test & Cenários</div>', unsafe_allow_html=True)
         st.caption(f"Simule o impacto da variação cambial sobre o seu patrimônio total em {moeda_sel}.")
         
         shock = st.slider(f"Ajuste a Variação da Cotação ({moeda_sel})", -50, 50, 0, format="%+d%%")
@@ -2078,7 +2138,7 @@ with tab4:
         if not df_p.empty: 
             df_p['valor_brl'] = df_p.apply(conv_brl, axis=1)
 
-        st.subheader("💰 Extrato de Proventos (Consolidado R$)")
+        st.markdown('<div class="tab-header">💰 Extrato de Proventos (Consolidado R$)</div>', unsafe_allow_html=True)
         st.caption("💡 Para importar proventos do IBKR, acesse **Configurações** → **Importar Dados**")
 
         if not df_p.empty:
@@ -2118,8 +2178,8 @@ with tab4:
                         fig_p.update_traces(textinfo='percent+label', textposition='inside')
                         fig_p.update_layout(showlegend=False, margin=dict(t=20, b=0, l=0, r=0), height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                         st.plotly_chart(fig_p, use_container_width=True)
-                    else: 
-                        st.info("Sem valores positivos para gráfico.")
+                    else:
+                        st.markdown('<div class="glass-alert glass-info">ℹ️ Sem valores positivos para gráfico.</div>', unsafe_allow_html=True)
 
                 with container_kpi:
                     bruto = df_filter[df_filter['valor_brl'] > 0]['valor_brl'].sum()
@@ -2235,10 +2295,10 @@ with tab4:
                     st.plotly_chart(fig_sankey, use_container_width=True)
                     
                 else:
-                    st.info("Dados insuficientes para gerar o fluxo de 3 níveis.")
+                    st.markdown('<div class="glass-alert glass-info">ℹ️ Dados insuficientes para gerar o fluxo de 3 níveis.</div>', unsafe_allow_html=True)
                 
                 st.markdown("---")
-                st.subheader("📋 Detalhamento")
+                st.markdown('<div class="tab-header-sm">📋 Detalhamento</div>', unsafe_allow_html=True)
                 def st_neg(v): return 'color: #ff4b4b' if v < 0 else 'color: #4CAF50'
                 cols = ['data','ticker','lancamento','valor','moeda','valor_brl']
                 cols = [c for c in cols if c in df_filter.columns]
@@ -2248,15 +2308,15 @@ with tab4:
                     df_display.style.format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'}).map(st_neg, subset=['valor','valor_brl']),
                     use_container_width=True
                 )
-            else: 
-                st.warning("Sem dados para o período selecionado.")
-        else: 
-            st.warning("Nenhum provento encontrado para os ativos filtrados.")
-    else: 
-        st.info("Arquivo de proventos vazio.")
+            else:
+                st.markdown('<div class="glass-alert glass-warn">⚠️ Sem dados para o período selecionado.</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="glass-alert glass-warn">⚠️ Nenhum provento encontrado para os ativos filtrados.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="glass-alert glass-info">ℹ️ Arquivo de proventos vazio.</div>', unsafe_allow_html=True)
         
 with tab7:
-    st.subheader("🦁 Central Fiscal Inteligente")
+    st.markdown('<div class="tab-header">🦁 Central Fiscal Inteligente</div>', unsafe_allow_html=True)
     st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
     
     # Configuração fixa: Regra dos 20k sempre ativa
@@ -2351,7 +2411,7 @@ with tab7:
     
     # 2. FALLBACK: Yahoo Finance se não tiver dados oficiais
     if df_ptax_index.empty:
-        st.info("ℹ️ Dados oficiais de PTAX não encontrados. Usando cotação do mercado (Yahoo Finance).")
+        st.markdown('<div class="glass-alert glass-info">ℹ️ Dados oficiais de PTAX não encontrados. Usando cotação do mercado (Yahoo Finance).</div>', unsafe_allow_html=True)
         if 'df_prices' in locals() and not df_prices.empty and 'BRL=X' in df_prices.columns:
             df_ptax_index = df_prices[['BRL=X']].copy()
             df_ptax_index.columns = ['Taxa']
@@ -2589,7 +2649,7 @@ with tab7:
                         st.markdown("**Cesta Isolada:** Compra/Venda no mesmo dia.\n**Alíquota:** 20%.")
                     st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", type="primary")
             else:
-                st.info("Sem operações BR.")
+                st.markdown('<div class="glass-alert glass-info">ℹ️ Sem operações BR no período selecionado.</div>', unsafe_allow_html=True)
 
         with t2:
             col_ex_main, col_ex_side = st.columns([3, 1], gap="medium")
@@ -2598,7 +2658,7 @@ with tab7:
             df_ex = df_view[df_view[col_mercado] == 'EX'].copy()
             
             with col_ex_main:
-                st.info("ℹ️ **Análise Cambial:** Compara a Taxa PTAX do dia da liquidação (Venda) com a Taxa PTAX do dia da aquisição.")
+                st.markdown('<div class="glass-alert glass-info">ℹ️ <b>Análise Cambial:</b> Compara a Taxa PTAX do dia da liquidação (Venda) com a Taxa PTAX do dia da aquisição.</div>', unsafe_allow_html=True)
                 
                 if not df_ex.empty:
                     st.markdown("##### 🌎 Detalhamento da Composição do Lucro")
@@ -2658,7 +2718,7 @@ with tab7:
                         st.markdown(render_metric_card("Diferença Timing", f"R$ {diff_timing:,.0f}", icon="⏳"), unsafe_allow_html=True)
                     
                 else:
-                    st.warning("Sem operações no Exterior neste ano.")
+                    st.markdown('<div class="glass-alert glass-warn">⚠️ Sem operações no Exterior neste ano.</div>', unsafe_allow_html=True)
 
             with col_ex_side:
                 col_res = 'resultado' if 'resultado' in df_ex.columns else 'Lucro (R$)'
@@ -2672,7 +2732,7 @@ with tab7:
                         st.divider()
                         st.markdown(render_metric_card("Imposto (15%)", f"R$ {imposto:,.0f}", "DARF 8528", False, icon="💸"), unsafe_allow_html=True)
                 else:
-                    st.info("Sem dados.")
+                    st.markdown('<div class="glass-alert glass-info">ℹ️ Sem dados de lucro disponíveis.</div>', unsafe_allow_html=True)
 
                 st.markdown("### 📚 Guia Fiscal")
                 
@@ -2699,7 +2759,7 @@ with tab7:
                 st.link_button("🌐 SicalcWeb", "https://sicalc.receita.economia.gov.br/sicalc/principal", type="primary")                                      
                                     
 with tab3:
-    st.subheader("🏦 Gestão de Renda Fixa & Liquidez")
+    st.markdown('<div class="tab-header">🏦 Gestão de Renda Fixa & Liquidez</div>', unsafe_allow_html=True)
     
     mask_caixa = df_rf_filtrado['Ticker'].str.contains('Caixa|Cash|Disponivel|Saldo', case=False, na=False)
     
@@ -2723,19 +2783,19 @@ with tab3:
         caixa_total_em_brl = caixa_brl + (caixa_usd * taxa_usd)
         
         if caixa_total_em_brl > 0:
-            st.info(f"💵 **Liquidez Total (Estimada):** R$ {caixa_total_em_brl:,.2f}")
-            
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3)
             with c1:
-                if caixa_brl > 0:
-                    st.success(f"🇧🇷 **Caixa BRL:** R$ {caixa_brl:,.2f}")
-                else:
-                    st.write("Caixa BRL: R$ 0,00")
+                st.markdown(render_metric_card("Liquidez Total (BRL)", f"R$ {caixa_total_em_brl:,.2f}", icon="💵"), unsafe_allow_html=True)
             with c2:
-                if caixa_usd > 0:
-                    st.warning(f"🇺🇸 **Caixa USD:** $ {caixa_usd:,.2f}  _(~R$ {caixa_usd * taxa_usd:,.2f})_")
+                if caixa_brl > 0:
+                    st.markdown(render_metric_card("Caixa BRL 🇧🇷", f"R$ {caixa_brl:,.2f}", icon="🏦"), unsafe_allow_html=True)
                 else:
-                    st.write("Caixa USD: $ 0,00")
+                    st.markdown(render_metric_card("Caixa BRL 🇧🇷", "R$ 0,00", icon="🏦"), unsafe_allow_html=True)
+            with c3:
+                if caixa_usd > 0:
+                    st.markdown(render_metric_card("Caixa USD 🇺🇸", f"$ {caixa_usd:,.2f}", f"~R$ {caixa_usd * taxa_usd:,.2f}", True, icon="💱"), unsafe_allow_html=True)
+                else:
+                    st.markdown(render_metric_card("Caixa USD 🇺🇸", "$ 0,00", icon="💱"), unsafe_allow_html=True)
             st.write("")
 
     if not df_custodia.empty:
@@ -2807,7 +2867,7 @@ with tab3:
 
             
     elif opcao_ativo == "Sim":
-        st.warning("⚠️ Nenhuma custódia de Títulos de Renda Fixa encontrada. (Verifique se há apenas Caixa)")
+        st.markdown('<div class="glass-alert glass-warn">⚠️ Nenhuma custódia de Títulos de Renda Fixa encontrada. (Verifique se há apenas Caixa)</div>', unsafe_allow_html=True)
 
     if not df_realizado.empty:
         st.markdown("---")
@@ -2840,10 +2900,10 @@ with tab3:
 
         )
     elif opcao_ativo == "Não" and df_realizado.empty:
-        st.info("Nenhum histórico de operações finalizadas encontrado.")
+        st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhum histórico de operações finalizadas encontrado.</div>', unsafe_allow_html=True)
 
     st.markdown("---") 
-    st.subheader("📊 Curva de Evolução Patrimonial (RF)")
+    st.markdown('<div class="tab-header-sm">📊 Curva de Evolução Patrimonial (RF)</div>', unsafe_allow_html=True)
     
     # Integra o motor de curva RF
     # Custom CSS for this section
@@ -2950,13 +3010,13 @@ with tab3:
                 val_total = df_curve['total'].iloc[-1]
                 
                 with c1:
-                    st.metric("💰 Total Investido", f"R$ {val_invested:,.2f}", help="Soma dos aportes líquidos")
+                    st.markdown(render_metric_card("Total Investido", f"R$ {val_invested:,.2f}", icon="💰"), unsafe_allow_html=True)
                 with c2:
-                     st.metric("📈 Patrimônio Atual (RF)", f"R$ {val_total:,.2f}", help="Valor corrigido + Caixa RF")
+                    st.markdown(render_metric_card("Patrimônio Atual (RF)", f"R$ {val_total:,.2f}", icon="📈"), unsafe_allow_html=True)
                 with c3:
-                    st.metric("📊 TWR Acumulado", f"{twr_result.total_twr:.2%}", help="Rentabilidade Ponderada pelo Tempo")
+                    st.markdown(render_metric_card("TWR Acumulado", f"{twr_result.total_twr:.2%}", icon="📊"), unsafe_allow_html=True)
                 with c4:
-                    st.metric("📅 TWR Anualizado", f"{twr_result.annualized_twr:.2%}", help="Taxa equivalente anual")
+                    st.markdown(render_metric_card("TWR Anualizado", f"{twr_result.annualized_twr:.2%}", icon="📅"), unsafe_allow_html=True)
 
                 # 4. Plot using New Logic (plot_nav_vs_twr)
                 # We pass the full slice for visualization
@@ -2986,7 +3046,7 @@ with tab3:
                     st.caption(f"📝 **Nota:** {curve_result.hypothesis_note}")
                     
                 if not twr_result.validation.is_valid:
-                     st.warning(f"⚠️ Atenção na métrica TWR: {twr_result.validation.explanation}")
+                    st.markdown(f'<div class="glass-alert glass-warn">⚠️ Atenção na métrica TWR: {twr_result.validation.explanation}</div>', unsafe_allow_html=True)
 
             else:
                 st.caption("Sem dados suficientes para construir curva de evolução.")
@@ -2996,7 +3056,7 @@ with tab3:
         st.error(f"Erro ao processar curva RF (Nova Lógica): {e}")
     
     st.markdown("---")
-    st.subheader("📊 Alocação de Recursos (RF + Caixa)")
+    st.markdown('<div class="tab-header-sm">📊 Alocação de Recursos (RF + Caixa)</div>', unsafe_allow_html=True)
     
     df_grafico_rf = pd.concat([df_custodia, df_liquidez[df_liquidez['Status']=='Ativo']])
     
