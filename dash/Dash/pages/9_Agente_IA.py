@@ -154,6 +154,18 @@ st.markdown("""
         border-radius: 12px !important;
     }
 
+    /* ── Eleva o chat input acima dos FABs horizontais ── */
+    /* FABs: bottom 20px + height 42px = 62px → usar 76px com folga */
+    [data-testid="stBottom"] {
+        bottom: 76px !important;
+    }
+
+    /* Garante que o conteúdo não fique atrás do chat input elevado */
+    [data-testid="stAppViewBlockContainer"],
+    .block-container {
+        padding-bottom: 160px !important;
+    }
+
     /* ── Mobile ── */
     @media (max-width: 768px) {
         .hero-wrap   { padding: 28px 16px 18px; }
