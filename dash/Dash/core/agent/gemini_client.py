@@ -77,14 +77,16 @@ Sua missão:
 2. Identificar oportunidades, riscos e desequilíbrios de alocação.
 3. Resumir notícias relevantes e explicar o impacto nos ativos do portfólio.
 4. Responder perguntas sobre finanças pessoais, estratégia e mercado.
+5. Quando necessário, buscar informações atualizadas na internet (cotações, notícias, indicadores macroeconômicos).
 
 Regras:
 - Sempre responda em português do Brasil.
 - Seja conciso e direto. Use bullet points e markdown para clareza.
-- Nunca invente dados — use apenas o que está no contexto fornecido.
-- Se o contexto não tiver informação suficiente, diga claramente.
+- Para dados do portfólio, use exclusivamente o contexto fornecido.
+- Para dados de mercado em tempo real (preços, taxas, notícias), use a busca na web quando disponível.
 - Não dê recomendações de compra/venda como verdade absoluta — sempre inclua ressalvas.
 - Use emojis com moderação para melhorar a legibilidade (📈 📉 ⚠️ ✅).
+- Quando usar dados da web, indique a fonte brevemente.
 """
 
 # ── Candidatos de modelo ───────────────────────────────────────────────────
@@ -115,12 +117,12 @@ class GeminiAgent:
     Agente de análise financeira baseado no Gemini.
 
     Detecta automaticamente o SDK disponível e seleciona o melhor modelo.
-    Suporta streaming via generator.
+    Suporta streaming via generator e Google Search grounding opcional.
     """
 
     MODEL = _CANDIDATES_NEW_SDK[0] if _NEW_SDK else (_CANDIDATES_OLD_SDK[0] if _OLD_SDK else "—")
 
-    def __init__(self) -> None:
+    def __init__(self, enable_web_search: bool = True) -> None:
         self._api_key = _get_api_key()
         self._client = None    # Novo SDK: google.genai.Client
         self._old_model = None # Legado: GenerativeModel
@@ -128,6 +130,8 @@ class GeminiAgent:
         self._history: list[dict] = []  # Legado: histórico manual
         self.MODEL = GeminiAgent.MODEL
         self._sdk_used = "none"
+        self.enable_web_search = enable_web_search
+        self._web_search_active = False  # True quando a tool foi aceita pelo modelo
 
         if not _ANY_SDK or not self._api_key:
             return
@@ -137,18 +141,43 @@ class GeminiAgent:
         elif _OLD_SDK:
             self._init_old_sdk()
 
+    # ── Helpers de ferramentas ─────────────────────────────────────────────
+
+    def _new_sdk_tools(self) -> list:
+        """Retorna lista de tools para o novo SDK (google-genai)."""
+        if not self.enable_web_search:
+            return []
+        try:
+            tool = _genai_types.Tool(google_search=_genai_types.GoogleSearch())
+            return [tool]
+        except (AttributeError, Exception):
+            return []
+
+    def _old_sdk_tools(self) -> list:
+        """Retorna lista de tools para o SDK legado (google-generativeai)."""
+        if not self.enable_web_search:
+            return []
+        try:
+            tool = _old_genai.protos.Tool(
+                google_search_retrieval=_old_genai.protos.GoogleSearchRetrieval()
+            )
+            return [tool]
+        except (AttributeError, Exception):
+            return []
+
     # ── Inicialização ──────────────────────────────────────────────────────
 
     def _init_new_sdk(self) -> None:
         """Inicializa usando google-genai (novo SDK)."""
         try:
             client = _new_genai.Client(api_key=self._api_key)
+            tools = self._new_sdk_tools()
             config = _genai_types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT_BASE,
+                tools=tools or None,
             )
             for candidate in _CANDIDATES_NEW_SDK:
                 try:
-                    # Teste rápido: lista modelos disponíveis
                     client.models.generate_content(
                         model=candidate,
                         contents="ping",
@@ -158,6 +187,7 @@ class GeminiAgent:
                     self._config = config
                     self.MODEL = candidate
                     self._sdk_used = "new"
+                    self._web_search_active = bool(tools)
                     self._new_chat()
                     break
                 except Exception:
@@ -169,16 +199,19 @@ class GeminiAgent:
         """Inicializa usando google-generativeai (SDK legado)."""
         try:
             _old_genai.configure(api_key=self._api_key)
+            tools = self._old_sdk_tools()
             for candidate in _CANDIDATES_OLD_SDK:
                 try:
                     m = _old_genai.GenerativeModel(
                         model_name=candidate,
                         system_instruction=SYSTEM_PROMPT_BASE,
+                        tools=tools or None,
                     )
                     m.count_tokens("ping")
                     self._old_model = m
                     self.MODEL = candidate
                     self._sdk_used = "old"
+                    self._web_search_active = bool(tools)
                     break
                 except Exception:
                     continue
@@ -210,7 +243,16 @@ class GeminiAgent:
             "old": "google-generativeai (legado)",
             "none": "não inicializado",
         }
-        return labels.get(self._sdk_used, "desconhecido")
+        label = labels.get(self._sdk_used, "desconhecido")
+        if self._web_search_active:
+            label += " · 🌐 web"
+        return label
+
+    def web_search_status(self) -> str:
+        """Retorna status da busca na web como string legível."""
+        if not self.enable_web_search:
+            return "desativada"
+        return "ativa" if self._web_search_active else "não suportada pelo modelo"
 
     # ── Contexto do portfólio ─────────────────────────────────────────────
 
@@ -238,9 +280,12 @@ class GeminiAgent:
         full_system = "\n\n---\n\n".join(ctx_parts)
 
         if self._sdk_used == "new":
+            tools = self._new_sdk_tools()
             self._config = _genai_types.GenerateContentConfig(
                 system_instruction=full_system,
+                tools=tools or None,
             )
+            self._web_search_active = bool(tools)
             # Reconstrói histórico no formato do SDK
             history = None
             if chat_history:
@@ -256,10 +301,13 @@ class GeminiAgent:
 
         elif self._sdk_used == "old":
             try:
+                tools = self._old_sdk_tools()
                 self._old_model = _old_genai.GenerativeModel(
                     model_name=self.MODEL,
                     system_instruction=full_system,
+                    tools=tools or None,
                 )
+                self._web_search_active = bool(tools)
                 # Reconstrói histórico no formato legado
                 if chat_history:
                     self._history = [
