@@ -258,23 +258,83 @@ with st.sidebar:
 # ── Helpers para carregar contexto (lazy) ──────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rv():
+    """
+    Carrega posições de renda variável com preços atuais e P&L.
+    Retorna DataFrame com colunas que build_portfolio_context() espera.
+    """
     try:
-        df = load_assets()
-        if df.empty:
+        df_assets = load_assets()
+        if df_assets.empty:
             return pd.DataFrame()
-        prices = fetch_market_data(df["ticker"].dropna().unique().tolist())
-        result = calcular_carteira_fechada(df, prices)
-        return result[0] if isinstance(result, tuple) else (result if isinstance(result, pd.DataFrame) else pd.DataFrame())
+
+        # Passo 1: calcula posições abertas via FIFO (só aceita df, sem preços)
+        result = calcular_carteira_fechada(df_assets)
+        positions = result[0] if isinstance(result, tuple) else result
+        if positions.empty:
+            return pd.DataFrame()
+
+        # Passo 2: busca preços atuais via Yahoo Finance
+        tickers = positions["Ticker"].dropna().tolist()
+        price_result = fetch_market_data(tickers)
+        prices, changes = (price_result if isinstance(price_result, tuple) else (price_result, {}))
+
+        # Passo 3: enriquece com preço atual e P&L
+        rows = []
+        for _, row in positions.iterrows():
+            tkr    = row["Ticker"]
+            qtd    = float(row.get("Qtd", 0))
+            pm     = float(row.get("PM_Origem", 0))
+            moeda  = str(row.get("Moeda", "BRL"))
+            setor  = str(row.get("Setor", "—"))
+
+            preco_atual  = float(prices.get(tkr, pm))   # fallback: PM quando sem cotação
+            valor_atual  = qtd * preco_atual
+            custo        = qtd * pm
+            resultado    = valor_atual - custo
+            resultado_pct = (resultado / custo * 100) if custo else 0.0
+            variacao_dia  = float(changes.get(tkr, 0.0))
+
+            rows.append({
+                "ticker":        tkr,
+                "setor":         setor,
+                "moeda":         moeda,
+                "quantidade":    qtd,
+                "preco_medio":   pm,
+                "preco_atual":   preco_atual,
+                "valor_atual":   valor_atual,
+                "resultado":     resultado,
+                "resultado_pct": resultado_pct,
+                "variacao_dia":  variacao_dia,
+            })
+
+        return pd.DataFrame(rows)
     except Exception:
         return pd.DataFrame()
 
+
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_rf():
+    """
+    Carrega renda fixa resumida e renomeia colunas para o context_builder.
+    """
     try:
-        df = load_fixed_income()
-        return df if not df.empty else pd.DataFrame()
+        df_raw = load_fixed_income()
+        if df_raw.empty:
+            return pd.DataFrame()
+        df_rf = summarize_fixed_income(df_raw)
+        if df_rf.empty:
+            return pd.DataFrame()
+        # Renomeia para o formato esperado pelo build_portfolio_context()
+        df_rf = df_rf.rename(columns={
+            "Ticker": "ticker",
+            "Atual":  "valor_atual",
+            "Rent. %": "taxa",
+            "Data":   "vencimento",
+        })
+        return df_rf
     except Exception:
         return pd.DataFrame()
+
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_proventos():
