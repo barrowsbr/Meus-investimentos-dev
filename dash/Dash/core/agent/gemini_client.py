@@ -373,6 +373,74 @@ class GeminiAgent:
             self._history.append({"role": "model", "parts": [text]})
             yield text
 
+    # ── Fallback em cascata ────────────────────────────────────────────────
+
+    def _is_quota_error(self, e: Exception) -> bool:
+        """Retorna True para erros de rate-limit / quota que justificam fallback."""
+        s = str(e).lower()
+        return (
+            "429" in str(e)
+            or "quota" in s
+            or "rate" in s
+            or "resource_exhausted" in s
+            or "too many requests" in s
+            or "503" in str(e)        # overloaded — vale tentar modelo menor
+        )
+
+    def _fallback_to_next(self) -> bool:
+        """
+        Muda para o próximo modelo mais leve na cascata.
+        Preserva o histórico de conversa.
+        Retorna True se o fallback foi bem-sucedido.
+        """
+        candidates = _CANDIDATES_NEW_SDK if self._sdk_used == "new" else _CANDIDATES_OLD_SDK
+        try:
+            current_idx = candidates.index(self.MODEL)
+        except ValueError:
+            current_idx = -1
+
+        for candidate in candidates[current_idx + 1 :]:
+            try:
+                if self._sdk_used == "new":
+                    # Testa se o modelo está disponível
+                    self._client.models.generate_content(
+                        model=candidate,
+                        contents="ping",
+                        config=_genai_types.GenerateContentConfig(max_output_tokens=1),
+                    )
+                    # Preserva system instruction atual
+                    prev_system = getattr(self._config, "system_instruction", SYSTEM_PROMPT_BASE)
+                    self.MODEL = candidate
+                    tools = self._new_sdk_tools()
+                    self._config = _genai_types.GenerateContentConfig(
+                        system_instruction=prev_system,
+                        tools=tools or None,
+                    )
+                    # Preserva histórico da sessão atual (turns anteriores ao erro)
+                    history = getattr(self._chat, "history", None)
+                    self._new_chat(history=history if history else None)
+                    self._web_search_active = bool(tools)
+                    return True
+
+                elif self._sdk_used == "old":
+                    tools = self._old_sdk_tools()
+                    prev_system = getattr(self._old_model, "_system_instruction", SYSTEM_PROMPT_BASE)
+                    m = _old_genai.GenerativeModel(
+                        model_name=candidate,
+                        system_instruction=prev_system,
+                        tools=tools or None,
+                    )
+                    m.count_tokens("ping")
+                    self._old_model = m
+                    self.MODEL = candidate
+                    self._web_search_active = bool(tools)
+                    return True
+
+            except Exception:
+                continue  # esse candidato também falhou — tenta o próximo
+
+        return False  # esgotou a cascata
+
     def _format_error(self, e: Exception) -> str:
         err = str(e)
         if "404" in err or "not found" in err.lower():
@@ -383,7 +451,7 @@ class GeminiAgent:
         if "403" in err or "permission" in err.lower() or "api_key" in err.lower():
             return "⚠️ Chave de API inválida ou sem permissão. Verifique em [Google AI Studio](https://aistudio.google.com/apikey)."
         if "429" in err or "quota" in err.lower():
-            return "⚠️ Limite de requisições atingido. Aguarde alguns instantes e tente novamente."
+            return "⚠️ Todos os modelos disponíveis atingiram o limite de quota. Aguarde alguns instantes e tente novamente."
         return f"⚠️ Erro ao chamar Gemini: {e}"
 
     # ── Controles ─────────────────────────────────────────────────────────
