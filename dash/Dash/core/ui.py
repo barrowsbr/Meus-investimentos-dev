@@ -5,8 +5,17 @@ from pathlib import Path
 def get_logo_base64():
     """Load logo image as base64."""
     try:
-        # Resolve path relative to this file: core/ui.py -> ../../pictures/Logo.png
-        logo_path = Path(__file__).parent.parent / "pictures" / "Logo carregamento.PNG"
+        # Resolve path relative to this file: core/ui.py -> ../../assets/logos/carregamento.png
+        logo_path = Path(__file__).parent.parent / "assets" / "logos" / "carregamento.png"
+        with open(logo_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+def _get_grimmi_logo_b64():
+    """Load Grimmi AI agent logo as base64."""
+    try:
+        logo_path = Path(__file__).parent.parent / "assets" / "logos" / "grimmi.png"
         with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except:
@@ -18,6 +27,9 @@ def render_fab():
     """
     logo_b64 = get_logo_base64()
     logo_icon_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 22px; height: auto;" />' if logo_b64 else '🎈'
+
+    grimmi_b64 = _get_grimmi_logo_b64()
+    grimmi_icon_html = f'<img src="data:image/png;base64,{grimmi_b64}" style="width: 24px; height: auto; border-radius: 50%;" />' if grimmi_b64 else '🤖'
 
     # CSS for FAB
     st.markdown("""
@@ -94,7 +106,7 @@ def render_fab():
         <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">↻</a>
         <a href="./" target="_self" class="tools-fab" title="Home">🏠</a>
         <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
-        <a href="Agente_IA" target="_self" class="tools-fab tools-fab-ai" title="Agente IA – Grimmi">🤖</a>
+        <a href="Agente_IA" target="_self" class="tools-fab tools-fab-ai" title="Agente IA – Grimmi">{grimmi_icon_html}</a>
     </div>
     """, unsafe_allow_html=True)
 

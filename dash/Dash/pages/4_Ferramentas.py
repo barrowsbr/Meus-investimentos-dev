@@ -161,6 +161,11 @@ with c1:
         st.session_state.import_file_data = None
     if 'import_file_name' not in st.session_state:
         st.session_state.import_file_name = None
+    # Persistir df_faltantes entre reruns (para B3/IBKR)
+    if 'b3_prov_faltantes' not in st.session_state:
+        st.session_state.b3_prov_faltantes = None
+    if 'b3_trades_faltantes' not in st.session_state:
+        st.session_state.b3_trades_faltantes = None
 
     source = st.session_state.import_source
     import_type = st.session_state.import_type
@@ -168,33 +173,51 @@ with c1:
 
     # Panel is now part of the glass card visual — no extra wrapper needed
 
-    # ROW 1: Source
+    # ROW 1: Source (com logos)
     st.markdown('<div class="import-section-label">Instituição</div>', unsafe_allow_html=True)
     src_col1, src_col2, src_col3 = st.columns(3)
     with src_col1:
-        if st.button("🏦 IBKR", key="src_ibkr", use_container_width=True,
+        # Logo IBKR centralizada
+        col_img = st.columns([1, 2, 1])[1]
+        with col_img:
+            st.image("assets/logos/ibkr.jpg", width=50)
+        if st.button("IBKR", key="src_ibkr", use_container_width=True,
                      type="primary" if source == "IBKR" else "secondary"):
-            if source != "IBKR":  # Limpar arquivo ao trocar instituição
+            if source != "IBKR":  # Limpar arquivo e dados ao trocar instituição
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
+                st.session_state.b3_prov_faltantes = None
+                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "IBKR"
             st.session_state.import_type = None
             st.rerun()
     with src_col2:
-        if st.button("🇧🇷 B3", key="src_b3", use_container_width=True,
+        # Logo B3 centralizada
+        col_img = st.columns([1, 2, 1])[1]
+        with col_img:
+            st.image("assets/logos/b3.png", width=50)
+        if st.button("B3", key="src_b3", use_container_width=True,
                      type="primary" if source == "B3" else "secondary"):
-            if source != "B3":  # Limpar arquivo ao trocar instituição
+            if source != "B3":  # Limpar arquivo e dados ao trocar instituição
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
+                st.session_state.b3_prov_faltantes = None
+                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "B3"
             st.session_state.import_type = None
             st.rerun()
     with src_col3:
-        if st.button("💳 Nu", key="src_nu", use_container_width=True,
+        # Logo Nubank centralizada
+        col_img = st.columns([1, 2, 1])[1]
+        with col_img:
+            st.image("assets/logos/nubank.png", width=50)
+        if st.button("Nubank", key="src_nu", use_container_width=True,
                      type="primary" if source == "Nu" else "secondary"):
-            if source != "Nu":  # Limpar arquivo ao trocar instituição
+            if source != "Nu":  # Limpar arquivo e dados ao trocar instituição
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
+                st.session_state.b3_prov_faltantes = None
+                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "Nu"
             st.session_state.import_type = None
             st.rerun()
@@ -208,11 +231,17 @@ with c1:
         with tc1:
             if st.button("📊 Proventos", key=f"type_prov_{source}", use_container_width=True,
                         type="primary" if import_type == "proventos" else "secondary"):
+                if import_type != "proventos":  # Limpar dados ao trocar tipo
+                    st.session_state.b3_prov_faltantes = None
+                    st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "proventos"
                 st.rerun()
         with tc2:
             if st.button("📈 Ativos", key=f"type_ativos_{source}", use_container_width=True,
                         type="primary" if import_type == "ativos" else "secondary"):
+                if import_type != "ativos":  # Limpar dados ao trocar tipo
+                    st.session_state.b3_prov_faltantes = None
+                    st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "ativos"
                 st.rerun()
     elif source == "Nu":
@@ -270,6 +299,8 @@ with c1:
             if st.button("🗑️ Limpar arquivo", key="clear_file", use_container_width=True):
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
+                st.session_state.b3_prov_faltantes = None
+                st.session_state.b3_trades_faltantes = None
                 st.rerun()
     else:
         st.caption("Complete as seleções acima para fazer upload")
@@ -293,7 +324,7 @@ with c1:
         if source == "IBKR":
             if import_type == "proventos":
                 import tempfile, os as os_sync
-                from core.ibkr_sync import IBKRSyncManager
+                from core.sync.ibkr_sync import IBKRSyncManager
                 from core.data.loader import load_proventos
 
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
@@ -368,7 +399,7 @@ with c1:
 
             elif import_type == "ativos":
                 import tempfile, os as os_sync
-                from core.ibkr_sync import IBKRTradesManager
+                from core.sync.ibkr_sync import IBKRTradesManager
                 from core.data.provider import DataProvider
 
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
@@ -451,15 +482,18 @@ with c1:
             if file_ext not in ['xlsx', 'xls']:
                 st.error("❌ Use arquivo Excel (.xlsx)")
             elif import_type == "proventos":
-                import importlib, core.b3_sync
+                import importlib, core.sync.b3_sync
                 from io import BytesIO
-                importlib.reload(core.b3_sync)
-                from core.b3_sync import B3SyncManager
+                importlib.reload(core.sync.b3_sync)
+                from core.sync.b3_sync import B3SyncManager
 
                 with st.spinner("Processando B3..."):
                     b3_mgr = B3SyncManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_mgr.process_file(file_obj)
+                    # Persistir df_faltantes no session_state para usar ao clicar em Produção
+                    if not df_prev.empty:
+                        st.session_state.b3_prov_faltantes = df_prev.copy()
 
                 if not df_prev.empty:
                     st.markdown(f'''
@@ -481,12 +515,19 @@ with c1:
                             st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
                     with col2:
                         if st.button("🚀 Produção", key="btn_b3_prod", type="primary", use_container_width=True):
-                            with st.spinner("Aplicando..."):
-                                ok, ms, _ = b3_mgr.apply_to_production()
-                            if ok:
-                                st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            # Recuperar dados do session_state (persiste entre reruns)
+                            df_faltantes = st.session_state.get('b3_prov_faltantes')
+                            if df_faltantes is not None and not df_faltantes.empty:
+                                b3_mgr.df_faltantes = df_faltantes
+                                with st.spinner("Aplicando..."):
+                                    ok, ms, _ = b3_mgr.apply_to_production()
+                                if ok:
+                                    st.session_state.b3_prov_faltantes = None  # Limpar após sucesso
+                                    st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else:
+                                    st.error(f"❌ {ms}")
                             else:
-                                st.error(f"❌ {ms}")
+                                st.error("❌ Nenhum dado faltante encontrado. Recarregue o arquivo.")
                 elif msg:
                     st.warning(msg)
                 else:
@@ -499,15 +540,18 @@ with c1:
                     </div>''', unsafe_allow_html=True)
 
             elif import_type == "ativos":
-                import importlib, core.b3_sync
+                import importlib, core.sync.b3_sync
                 from io import BytesIO
-                importlib.reload(core.b3_sync)
-                from core.b3_sync import B3TradesManager
+                importlib.reload(core.sync.b3_sync)
+                from core.sync.b3_sync import B3TradesManager
 
                 with st.spinner("Processando B3..."):
                     b3_t = B3TradesManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_t.process_trades(file_obj)
+                    # Persistir df_faltantes no session_state para usar ao clicar em Produção
+                    if not df_prev.empty:
+                        st.session_state.b3_trades_faltantes = df_prev.copy()
 
                 if not df_prev.empty:
                     st.markdown(f'''
@@ -529,12 +573,19 @@ with c1:
                             st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
                     with col2:
                         if st.button("🚀 Produção", key="btn_b3_trades_prod", type="primary", use_container_width=True):
-                            with st.spinner("Aplicando..."):
-                                ok, ms, _ = b3_t.apply_to_production()
-                            if ok:
-                                st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            # Recuperar dados do session_state (persiste entre reruns)
+                            df_faltantes = st.session_state.get('b3_trades_faltantes')
+                            if df_faltantes is not None and not df_faltantes.empty:
+                                b3_t.df_faltantes = df_faltantes
+                                with st.spinner("Aplicando..."):
+                                    ok, ms, _ = b3_t.apply_to_production()
+                                if ok:
+                                    st.session_state.b3_trades_faltantes = None  # Limpar após sucesso
+                                    st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else:
+                                    st.error(f"❌ {ms}")
                             else:
-                                st.error(f"❌ {ms}")
+                                st.error("❌ Nenhum dado faltante encontrado. Recarregue o arquivo.")
                 elif msg:
                     st.warning(msg)
                 else:
@@ -551,10 +602,10 @@ with c1:
             if file_ext not in ['ofx', 'txt']:
                 st.error("❌ Use arquivo OFX")
             else:
-                import importlib, core.finance_sync
+                import importlib, core.sync.finance_sync
                 from io import BytesIO
-                importlib.reload(core.finance_sync)
-                from core.finance_sync import FinanceSyncManager
+                importlib.reload(core.sync.finance_sync)
+                from core.sync.finance_sync import FinanceSyncManager
 
                 tipo_bd = "Cartão" if import_type == "cartao" else "Conta"
 

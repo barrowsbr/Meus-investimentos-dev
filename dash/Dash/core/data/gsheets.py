@@ -84,17 +84,27 @@ def get_worksheet(spreadsheet_name, tab_name):
                 sleep_time = DELAY_BASE * (1.5 ** attempt) 
                 time.sleep(sleep_time)
                 
-                # Handling SSL/Connection Errors
+                # Handling errors
                 err_str = str(e)
-                if "SSL" in err_str or "Connection" in err_str or "socket" in err_str or "Max retries" in err_str:
-                    st.warning(f"Connection lost. Re-authenticating... (Attempt {attempt+1}/{MAX_RETRIES})")
-                    # FORCE REFRESH CLIENT
-                    # We bypass the cache using the internal function
-                    client = _authenticate_no_cache()
-                    if not client: 
-                        st.error("Re-authentication failed.")
-                        return None
+                if hasattr(e, 'response'):
+                    try:
+                        err_str += f" | Response Text: {e.response.text}"
+                    except:
+                        pass
+                
+                # Semper tenta re-autenticar se houver erro não mapeado no gspread
+                st.warning(f"Erro na conexão com Sheets (Tentativa {attempt+1}/{MAX_RETRIES}). Tentando reconectar...")
+                client = _authenticate_no_cache()
+                if not client: 
+                    st.error("Re-authentication failed.")
+                    return None
             else:
-                st.error(f"Error accessing sheet '{tab_name}' after {MAX_RETRIES} attempts. Last error: {e}")
+                err_str = str(e)
+                if hasattr(e, 'response'):
+                    try:
+                        err_str += f" | Desc: {e.response.text}"
+                    except:
+                        pass
+                st.error(f"Error accessing sheet '{tab_name}' after {MAX_RETRIES} attempts. Last error: {err_str} | repr: {repr(e)}")
                 return None
     return None

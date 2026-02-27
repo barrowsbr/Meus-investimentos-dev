@@ -95,17 +95,17 @@ _CANDIDATES_NEW_SDK = [
     "gemini-3-flash-preview",
     "gemini-3-pro",
     "gemini-2.5-flash",
-    "gemini-2.5-pro",
     "gemini-2.0-flash",
+    "gemini-2.5-pro",
     "gemini-2.0-flash-exp",
     "gemini-1.5-flash-latest",
 ]
 
-# SDK legado (google-generativeai) — 2.5 > 2.0 > 1.5
+# SDK legado (google-generativeai) — prioridade para Gemini 2.5/2.0
 _CANDIDATES_OLD_SDK = [
     "gemini-2.5-flash",
-    "gemini-2.5-pro",
     "gemini-2.0-flash",
+    "gemini-2.5-pro",
     "gemini-2.0-flash-exp",
     "gemini-1.5-flash-latest",
     "gemini-1.5-pro-latest",

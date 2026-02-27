@@ -301,7 +301,7 @@ st.markdown(get_card_css(), unsafe_allow_html=True)
 render_fab()
 st.markdown("""
 <div class="hero-container">
-    <div class="hero-title">Patrimônio & Alocação</div>
+    <div class="hero-title">Composição & Alocação</div>
     <div class="hero-subtitle">Gestão Estratégica de Ativos e Acompanhamento de Carteira</div>
 </div>
 """, unsafe_allow_html=True)
@@ -409,7 +409,7 @@ with st.sidebar:
 # 4: Proventos | 5: Cripto | 6: Câmbio | 7: Imposto | 8: Legado (redirect)
 
 tab1, tab_perf, tab2, tab3, tab4, tab5, tab6, tab7, tab_legado = st.tabs([
-    "💎 Composição",
+    "💎 Resumo",
     "🚀 Performance",
     "📊 Renda Variável",
     "🏦 Renda Fixa",

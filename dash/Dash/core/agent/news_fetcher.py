@@ -21,6 +21,18 @@ _GOOGLE_NEWS_RSS = (
     "&hl=pt-BR&gl=BR&ceid=BR:pt"
 )
 
+# Adicionando portais de alta qualidade para filtrar o ruído
+_PREMIUM_SOURCES = (
+    "site:infomoney.com.br OR "
+    "site:valor.globo.com OR "
+    "site:exame.com OR "
+    "site:cnnbrasil.com.br OR "
+    "site:bloomberglinea.com.br OR "
+    "site:neofeed.com.br OR "
+    "site:investnews.com.br OR "
+    "site:moneytimes.com.br"
+)
+
 _INFOMONEY_RSS = "https://www.infomoney.com.br/feed/"
 
 _USER_AGENT = (
@@ -208,9 +220,17 @@ def fetch_news_combined(ticker: str, max_items: int = 6) -> list[dict]:
     Combina Google News RSS + Yahoo Finance para um ticker.
     Deduplica por título e retorna até max_items resultados.
     """
-    query = f"{_clean_ticker_query(ticker)} ação bolsa brasil"
-    url = _GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+"))
+    query = f"{_clean_ticker_query(ticker)} ação ({_PREMIUM_SOURCES})"
+    url = _GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+").replace(":", "%3A"))
+    
     root = _fetch_rss(url)
+    
+    # Se a busca estrita falhar, tenta uma busca mais branda apenas com nome da ação
+    if root is None or len(root.findall(".//item")) == 0:
+        query_fallback = f"{_clean_ticker_query(ticker)} mercado financeiro"
+        url_fallback = _GOOGLE_NEWS_RSS.format(query=query_fallback.replace(" ", "+"))
+        root = _fetch_rss(url_fallback)
+        
     google = _parse_items(root, max_items) if root else []
 
     yahoo = fetch_yahoo_news(ticker, max_items=max_items // 2 + 1)
@@ -250,9 +270,14 @@ def fetch_news_for_tickers(
     selected = tickers[:max_tickers]
 
     for ticker in selected:
-        query = f"{_clean_ticker_query(ticker)} ação bolsa brasil"
-        url = _GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+"))
+        query = f"{_clean_ticker_query(ticker)} ação ({_PREMIUM_SOURCES})"
+        url = _GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+").replace(":", "%3A"))
         root = _fetch_rss(url)
+        if root is None or len(root.findall(".//item")) == 0:
+            query_fallback = f"{_clean_ticker_query(ticker)} mercado"
+            url_fallback = _GOOGLE_NEWS_RSS.format(query=query_fallback.replace(" ", "+"))
+            root = _fetch_rss(url_fallback)
+            
         if root is not None:
             results[ticker] = _parse_items(root, max_per_ticker)
         else:
@@ -260,9 +285,14 @@ def fetch_news_for_tickers(
         time.sleep(0.3)
 
     if include_market:
-        url = _GOOGLE_NEWS_RSS.format(query="bolsa+brasil+ibovespa+mercado")
-        root = _fetch_rss(url)
-        results["📈 Mercado Geral"] = _parse_items(root, 5) if root else []
+        # Busca direta do InfoMoney para não poluir com blogs aleatórios
+        root = _fetch_rss(_INFOMONEY_RSS)
+        if root:
+             results["📈 InfoMoney (Mercado)"] = _parse_items(root, 6)
+        else:
+             url = _GOOGLE_NEWS_RSS.format(query=f"bolsa+brasil+ibovespa+({_PREMIUM_SOURCES})".replace(" ", "+").replace(":", "%3A"))
+             root = _fetch_rss(url)
+             results["📈 Mercado Geral"] = _parse_items(root, 5) if root else []
 
     return results
 

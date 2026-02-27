@@ -2,6 +2,8 @@ import hashlib
 from datetime import datetime
 
 import streamlit as st
+import base64
+from pathlib import Path
 from core.auth import require_auth
 
 # --- AUTH CHECK ---
@@ -25,6 +27,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     page_icon="🤖",
 )
+
+# ── Load Grimmi Logo ───────────────────────────────────────────────────────
+def _load_grimmi_b64():
+    try:
+        p = Path(__file__).parent.parent / "assets" / "logos" / "grimmi.png"
+        with open(p, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+_GRIMMI_B64 = _load_grimmi_b64()
 
 # ── CSS ───────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -58,10 +71,12 @@ st.markdown("""
         text-align: center;
     }
     .hero-icon {
-        font-size: 3.5rem;
+        width: 80px;
+        height: 80px;
         margin-bottom: 14px;
         filter: drop-shadow(0 0 24px rgba(99,102,241,0.6));
         animation: pulse 3s ease-in-out infinite;
+        border-radius: 50%;
     }
     @keyframes pulse {
         0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 24px rgba(99,102,241,0.5)); }
@@ -378,9 +393,10 @@ SUGESTOES = [
 
 # ── Tela inicial (sem histórico) ───────────────────────────────────────────
 if not st.session_state.chat_history:
-    st.markdown("""
+    _grimmi_hero = f'<img src="data:image/png;base64,{_GRIMMI_B64}" class="hero-icon" />' if _GRIMMI_B64 else '<div class="hero-icon">🤖</div>'
+    st.markdown(f"""
     <div class="hero-wrap">
-        <div class="hero-icon">🤖</div>
+        {_grimmi_hero}
         <div class="hero-title">Olá, vamos analisar sua carteira?</div>
         <div class="hero-sub">Pergunte qualquer coisa sobre seu portfólio. Eu leio seus dados automaticamente antes de responder.</div>
     </div>

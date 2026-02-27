@@ -16,9 +16,11 @@ import pandas as pd
 
 from core.auth import require_auth
 
+from core.auth import require_auth
+
 require_auth()
 
-from core.data.loader import load_assets
+from core.computed import get_portfolio_snapshot
 from core.data.market import fetch_market_data
 from core.agent.news_fetcher import (
     fetch_news_combined,
@@ -387,17 +389,37 @@ if "noticias_include_market" not in st.session_state:
 # ── Funções cacheadas ──────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False, ttl=300)
-def _load_portfolio_tickers() -> list[str]:
+def _load_portfolio_snapshot():
+    # Retorna o snapshot com as posições e o top gainers/losers já processados
     try:
-        df = load_assets()
-        if df.empty:
-            return []
-        tickers = df["ticker"].dropna().unique().tolist()
-        return sorted([t for t in tickers if isinstance(t, str) and len(t) >= 4])
+        return get_portfolio_snapshot()
     except Exception:
+        return {}
+
+
+def _get_active_tickers(snapshot: dict) -> list[str]:
+    # Retorna lista de tickers da carteira atual com Qtd > 0
+    if not snapshot or "positions" not in snapshot:
         return []
-
-
+    
+    positions = snapshot["positions"]
+    active = []
+    
+    # Vamos ordenar pelo fator "maior movimentação absoluta" para que as notícias
+    # padrão puxem as ações que mais mexeram (pra cima ou pra baixo)
+    sorted_pos = sorted(
+        positions, 
+        key=lambda x: abs(x.get("day_pnl_pct", 0.0) or 0.0), 
+        reverse=True
+    )
+    
+    for p in sorted_pos:
+        # Se tem quantidade > 0 na carteira
+        if p.get("qty", 0) > 0:
+            if p.get("ticker"):
+                active.append(p["ticker"])
+                
+    return active
 @st.cache_data(show_spinner=False, ttl=180)
 def _get_performers(tickers: tuple) -> list[dict]:
     """Retorna lista ordenada de desempenho do dia."""
@@ -433,7 +455,8 @@ def _get_news(tickers: tuple, include_market: bool) -> dict[str, list[dict]]:
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
-all_tickers = _load_portfolio_tickers()
+snapshot = _load_portfolio_snapshot()
+all_tickers = _get_active_tickers(snapshot)
 
 with st.sidebar:
     st.markdown("### 📰 Notícias")
@@ -643,14 +666,88 @@ else:
     # ── Tab Por ticker ──────────────────────────────────────────────────────
     with tab_group:
         has_any = False
+        
+        # Destacar os Top Movers primeiro (se a notícia existir)
+        st.markdown("<h3 style='margin-bottom:10px; color:#f1f5f9;'>🏆 Destaques do Dia</h3>", unsafe_allow_html=True)
+        movers_col1, movers_col2 = st.columns(2)
+        
+        shown_movers = set()
+        
+        # Maior Alta
+        with movers_col1:
+            if 'perf_data' in locals() and len(perf_data) > 0 and perf_data[0]['pct'] > 0:
+                top_gainer = perf_data[0]
+                ticker_gainer = top_gainer['ticker']
+                if ticker_gainer in news_data and len(news_data[ticker_gainer]) > 0:
+                    shown_movers.add(ticker_gainer)
+                    has_any = True
+                    n = news_data[ticker_gainer][0]
+                    t_clean = ticker_gainer.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
+                    
+                    st.markdown(f"""
+                    <a class="news-card" href="{n['link']}" target="_blank" rel="noopener noreferrer" style="border-left-color: #34d399; background: rgba(52, 211, 153, 0.05); min-height: 200px;">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: #34d399; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🚀 Maior Alta do Dia: {t_clean} (+{top_gainer['pct']:.2f}%)</div>
+                        <div class="news-meta">
+                            <span class="news-source">{n['fonte']}</span>
+                            <span class="news-time">{time_ago(n['data'])}</span>
+                        </div>
+                        <div class="news-headline" style="font-size: 1.1rem; line-height: 1.4;">{n['titulo']}</div>
+                        <div class="news-footer">
+                            <span class="news-ticker-tag">{t_clean}</span>
+                            <span class="news-read-more">Ler notícia →</span>
+                        </div>
+                    </a>
+                    """, unsafe_allow_html=True)
+                    
+        # Maior Baixa
+        with movers_col2:
+            if 'perf_data' in locals() and len(perf_data) > 0 and perf_data[-1]['pct'] < 0:
+                top_loser = perf_data[-1]
+                ticker_loser = top_loser['ticker']
+                if ticker_loser in news_data and len(news_data[ticker_loser]) > 0 and ticker_loser not in shown_movers:
+                    shown_movers.add(ticker_loser)
+                    has_any = True
+                    n = news_data[ticker_loser][0]
+                    t_clean = ticker_loser.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
+                    
+                    st.markdown(f"""
+                    <a class="news-card" href="{n['link']}" target="_blank" rel="noopener noreferrer" style="border-left-color: #f87171; background: rgba(248, 113, 113, 0.05); min-height: 200px;">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🔻 Maior Queda do Dia: {t_clean} ({top_loser['pct']:.2f}%)</div>
+                        <div class="news-meta">
+                            <span class="news-source">{n['fonte']}</span>
+                            <span class="news-time">{time_ago(n['data'])}</span>
+                        </div>
+                        <div class="news-headline" style="font-size: 1.1rem; line-height: 1.4;">{n['titulo']}</div>
+                        <div class="news-footer">
+                            <span class="news-ticker-tag">{t_clean}</span>
+                            <span class="news-read-more">Ler notícia →</span>
+                        </div>
+                    </a>
+                    """, unsafe_allow_html=True)
+        
+        if shown_movers:
+            st.markdown("<br><hr class='ticker-divider'><br>", unsafe_allow_html=True)
+            
+        # O resto do grid
         for ticker, items in news_data.items():
-            if not items:
+            if not items or ticker in shown_movers:
                 continue
             has_any = True
             ticker_clean = ticker.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
+            
+            # Pega rendimento se existir
+            pct_str = ""
+            if 'perf_data' in locals():
+                matches = [p["pct"] for p in perf_data if p["ticker"] == ticker]
+                if matches:
+                    val = matches[0]
+                    color = "#34d399" if val >= 0 else "#f87171"
+                    sign = "+" if val >= 0 else ""
+                    pct_str = f" <span style='color:{color}; font-size: 0.8rem;'>{sign}{val:.2f}%</span>"
+            
             st.markdown(f"""
             <div class="ticker-section-head">
-                <span class="ticker-section-name">{ticker_clean}</span>
+                <span class="ticker-section-name">{ticker_clean}{pct_str}</span>
                 <span class="ticker-section-count">{len(items)} notícias</span>
                 <div class="ticker-divider"></div>
             </div>
@@ -658,7 +755,17 @@ else:
 
             cards_html = '<div class="news-grid">'
             for item in sorted(items, key=_sort_key, reverse=True):
+                # Não exibe notícias muito antigas (mais de 7 dias)
+                dt = _parse_rss_date(item.get("data", ""))
+                if dt:
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    delta = datetime.now(timezone.utc) - dt
+                    if delta.days > 7:
+                        continue
+                        
                 cards_html += _news_card(item, ticker)
+                
             cards_html += "</div>"
             st.markdown(cards_html, unsafe_allow_html=True)
 

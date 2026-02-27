@@ -26,13 +26,14 @@ if st.query_params.get("refresh") == "1":
 def get_logo_base64():
     """Load logo image as base64 for preloader."""
     try:
-        logo_path = Path(__file__).parent / "pictures" / "Logo carregamento.PNG"
+        logo_path = Path(__file__).parent / "assets" / "logos" / "carregamento.png"
         with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except:
         return None
 
 logo_b64 = get_logo_base64()
+
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
@@ -247,7 +248,7 @@ def get_base64_image(image_path):
         return None
 
 # Build background images CSS
-fundo_path = Path(__file__).parent / "pictures" / "Fundo.png"
+fundo_path = Path(__file__).parent / "assets" / "backgrounds" / "fundo.png"
 bg_base64 = get_base64_image(fundo_path)
 global_bg_css = f"""
     background-image: url('data:image/png;base64,{bg_base64}');
@@ -1080,7 +1081,7 @@ st.markdown('''
     <input type="checkbox" id="patrimonio-toggle" class="expand-toggle">
     <div class="expandable-card">
         <label for="patrimonio-toggle" class="expandable-header">
-            <div class="card-title"><i class="card-icon">◈</i> Patrimônio</div>
+            <div class="card-title"><i class="card-icon">◈</i> Composição</div>
             <div class="card-desc">Dashboard de alocação e carteira</div>
             <span class="expand-icon">▼</span>
         </label>
@@ -1089,7 +1090,7 @@ st.markdown('''
             <div class="sub-items">
                 <a href="Investimentos?tab=0" target="_self" class="sub-item">
                     <span class="sub-item-icon">❖</span>
-                    <span class="sub-item-text">Composição</span>
+                    <span class="sub-item-text">Resumo</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Performance_Advanced" target="_self" class="sub-item">

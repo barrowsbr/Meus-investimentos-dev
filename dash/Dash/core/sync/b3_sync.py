@@ -203,14 +203,14 @@ class B3SyncManager:
 
     def sync_to_test(self) -> tuple:
         """Envia faltantes para aba de teste (meus_proventos_test)."""
-        from core.ibkr_sync import sync_to_test_tab
+        from core.sync.ibkr_sync import sync_to_test_tab
         if self.df_faltantes is None or self.df_faltantes.empty:
             return True, "Nenhum provento faltante"
         return sync_to_test_tab(self.df_faltantes)
 
     def apply_to_production(self) -> tuple:
         """Aplica faltantes diretamente em produção."""
-        from core.ibkr_sync import merge_test_to_production
+        from core.sync.ibkr_sync import merge_test_to_production
         if self.df_faltantes is not None and not self.df_faltantes.empty:
             return self._sync_direct(self.df_faltantes)
         return merge_test_to_production(backup_dir=self.backup_dir)
@@ -218,7 +218,7 @@ class B3SyncManager:
     def _sync_direct(self, df_new: pd.DataFrame) -> tuple:
         """Sincroniza direto para produção com backup."""
         try:
-            from core.ibkr_sync import _get_gsheets_client, create_backup
+            from core.sync.ibkr_sync import _get_gsheets_client, create_backup
             import os
             
             client = _get_gsheets_client()
@@ -423,7 +423,7 @@ class B3TradesManager:
 
     def sync_to_test(self) -> tuple:
         """Envia faltantes para aba de teste (meus_ativos_test)."""
-        from core.ibkr_sync import _sync_trades_to_tab
+        from core.sync.ibkr_sync import _sync_trades_to_tab
         if self.df_faltantes is None or self.df_faltantes.empty:
             return True, "Nenhum trade faltante"
         return _sync_trades_to_tab(self.df_faltantes, 'meus_ativos_test')
@@ -434,7 +434,7 @@ class B3TradesManager:
             return True, "Nenhum trade faltante", ""
         
         try:
-            from core.ibkr_sync import _get_gsheets_client, create_backup, COLS_ATIVOS as IBKR_COLS
+            from core.sync.ibkr_sync import _get_gsheets_client, create_backup, COLS_ATIVOS as IBKR_COLS
             import os
             
             client = _get_gsheets_client()
