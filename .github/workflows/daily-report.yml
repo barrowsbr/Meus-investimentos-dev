@@ -32,4 +32,4 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: |
-          python scripts/daily_report.py
+          python dash/Dash/scripts/daily_report.py
