@@ -1,0 +1,35 @@
+name: Daily Portfolio Report
+
+on:
+  # Agendamento diário às 18:30 BRT (21:30 UTC)
+  # Após o fechamento do mercado brasileiro
+  schedule:
+    - cron: '30 21 * * 1-5'  # Segunda a Sexta
+
+  # Permite executar manualmente pelo GitHub
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install yfinance pandas
+
+      - name: Send daily report
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          python scripts/daily_report.py
