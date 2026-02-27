@@ -93,78 +93,175 @@ html, body, [class*="css"] {
     letter-spacing: 0.5px;
 }
 
-/* ── Performers bar ── */
-.perf-label {
+/* ── Market Board ── */
+.market-board {
+    background: rgba(8, 12, 22, 0.80);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 20px;
+    padding: 18px 22px 16px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+}
+.market-board::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(6,182,212,0.3), transparent);
+}
+.market-board-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+.market-board-title {
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 2.5px;
     color: #334155;
     text-transform: uppercase;
-    margin-bottom: 10px;
 }
-.perf-row {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    scrollbar-width: none;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
+.market-board-ts {
+    font-size: 0.65rem;
+    color: #1e293b;
+    letter-spacing: 0.8px;
+    font-variant-numeric: tabular-nums;
 }
-.perf-row::-webkit-scrollbar { display: none; }
-
-.perf-chip {
+.market-board-live {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 24px;
-    white-space: nowrap;
-    font-size: 0.82rem;
-    font-family: 'Outfit', sans-serif;
-    cursor: default;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    flex-shrink: 0;
-}
-.perf-chip:hover {
-    transform: translateY(-2px);
-}
-.perf-chip.up {
-    background: rgba(52, 211, 153, 0.1);
-    border: 1px solid rgba(52, 211, 153, 0.3);
-}
-.perf-chip.down {
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.3);
-}
-.perf-chip.neutral {
-    background: rgba(100, 116, 139, 0.1);
-    border: 1px solid rgba(100, 116, 139, 0.2);
-}
-.perf-ticker {
+    gap: 5px;
+    font-size: 0.62rem;
+    color: #22c55e;
+    letter-spacing: 1px;
     font-weight: 700;
+}
+.market-board-live::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: livePulse 1.5s ease-in-out infinite;
+}
+@keyframes livePulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    50%       { opacity: 0.6; box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+}
+.market-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 8px;
+}
+.market-card {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 11px 13px 10px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    cursor: default;
+}
+.market-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4);
+    z-index: 2;
+}
+.market-card.up {
+    border-left: 3px solid rgba(34, 197, 94, 0.7);
+    background: rgba(15, 23, 42, 0.55);
+}
+.market-card.up::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(34,197,94,0.05) 0%, transparent 55%);
+    pointer-events: none;
+    border-radius: 12px;
+}
+.market-card.down {
+    border-left: 3px solid rgba(239, 68, 68, 0.7);
+}
+.market-card.down::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(239,68,68,0.05) 0%, transparent 55%);
+    pointer-events: none;
+    border-radius: 12px;
+}
+.market-card.neutral {
+    border-left: 3px solid rgba(71, 85, 105, 0.5);
+}
+.mc-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+.mc-ticker {
+    font-size: 0.88rem;
+    font-weight: 800;
     color: #f1f5f9;
-    font-size: 0.83rem;
+    letter-spacing: 0.3px;
+    line-height: 1;
 }
-.perf-pct { font-weight: 600; font-size: 0.82rem; }
-.perf-pct.up   { color: #34d399; }
-.perf-pct.down { color: #f87171; }
-.perf-sep {
-    width: 1px;
-    min-height: 30px;
-    background: rgba(255,255,255,0.1);
-    flex-shrink: 0;
-    align-self: center;
-    margin: 0 2px;
+.mc-arrow {
+    font-size: 0.7rem;
+    line-height: 1;
+    margin-top: 1px;
 }
-.perf-section {
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 18px;
-    padding: 16px 20px 12px;
-    margin-bottom: 20px;
+.mc-arrow.up   { color: rgba(34, 197, 94, 0.7); }
+.mc-arrow.down { color: rgba(239, 68, 68, 0.7); }
+.mc-arrow.neutral { color: rgba(71, 85, 105, 0.6); }
+.mc-price {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    margin-bottom: 5px;
+}
+.mc-price span {
+    font-size: 0.65rem;
+    color: #475569;
+    font-weight: 400;
+    margin-right: 1px;
+}
+.mc-change {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.mc-change-pct {
+    display: inline-block;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 7px;
+    border-radius: 6px;
+    width: fit-content;
+}
+.mc-change-pct.up   { color: #22c55e; background: rgba(34,197,94,0.12); }
+.mc-change-pct.down { color: #ef4444; background: rgba(239,68,68,0.12); }
+.mc-change-pct.neutral { color: #64748b; background: rgba(71,85,105,0.12); }
+.mc-change-abs {
+    font-size: 0.70rem;
+    font-variant-numeric: tabular-nums;
+}
+.mc-change-abs.up      { color: #4ade80; }
+.mc-change-abs.down    { color: #f87171; }
+.mc-change-abs.neutral { color: #475569; }
+.market-no-data {
+    color: #1e293b;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 16px 0;
 }
 
 /* ── Ticker pills filter ── */
@@ -518,41 +615,66 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── Seção de Desempenho do Dia ─────────────────────────────────────────────
-def _render_performers(perf: list[dict]) -> None:
-    tops = [p for p in perf if p["pct"] > 0]
-    bots = [p for p in perf if p["pct"] < 0]
+# ── Painel de Ações — Desempenho do Dia ────────────────────────────────────
+def _ticker_clean(t: str) -> str:
+    return t.replace(".SA", "").replace("-USD", "").replace("-BRL", "").replace("=X", "")
 
-    if not tops and not bots:
+
+def _fmt_price(price: float, moeda: str = "R$") -> str:
+    if price >= 1_000:
+        return f"{price:,.2f}"
+    if price >= 1:
+        return f"{price:.2f}"
+    return f"{price:.4f}"
+
+
+def _render_performers(perf: list[dict]) -> None:
+    if not perf:
         return
 
-    chips = ""
+    now_str = datetime.now().strftime("%H:%M:%S")
 
-    for p in tops[:5]:
-        t = p["ticker"].replace(".SA", "").replace("-USD", "").replace("-BRL", "")
-        chips += (
-            f'<div class="perf-chip up">'
-            f'<span class="perf-ticker">{t}</span>'
-            f'<span class="perf-pct up">+{p["pct"]:.2f}%</span>'
-            f'</div>'
-        )
+    cards_html = ""
+    for p in perf:
+        t   = _ticker_clean(p["ticker"])
+        pct = p["pct"]
+        chg = p["change"]   # variação absoluta do preço no dia
+        price = p["price"]
 
-    if tops and bots:
-        chips += '<div class="perf-sep"></div>'
+        if pct > 0:
+            cls, arr, sign = "up", "▲", "+"
+        elif pct < 0:
+            cls, arr, sign = "down", "▼", ""
+        else:
+            cls, arr, sign = "neutral", "▬", ""
 
-    for p in reversed(bots[-5:]):
-        t = p["ticker"].replace(".SA", "").replace("-USD", "").replace("-BRL", "")
-        chips += (
-            f'<div class="perf-chip down">'
-            f'<span class="perf-ticker">{t}</span>'
-            f'<span class="perf-pct down">{p["pct"]:.2f}%</span>'
-            f'</div>'
-        )
+        pct_str = f"{sign}{pct:.2f}%"
+        chg_str = f"{sign}R$ {abs(chg):.2f}" if abs(chg) >= 0.01 else f"{sign}R$ {abs(chg):.4f}"
+        price_str = _fmt_price(price)
+
+        cards_html += f"""
+        <div class="market-card {cls}">
+            <div class="mc-top">
+                <span class="mc-ticker">{t}</span>
+                <span class="mc-arrow {cls}">{arr}</span>
+            </div>
+            <div class="mc-price"><span>R$</span>{price_str}</div>
+            <div class="mc-change">
+                <span class="mc-change-pct {cls}">{pct_str}</span>
+                <span class="mc-change-abs {cls}">{chg_str}</span>
+            </div>
+        </div>"""
 
     st.markdown(f"""
-    <div class="perf-section">
-        <div class="perf-label">📊 Desempenho hoje</div>
-        <div class="perf-row">{chips}</div>
+    <div class="market-board">
+        <div class="market-board-header">
+            <span class="market-board-title">📊 Desempenho hoje</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span class="market-board-live">AO VIVO</span>
+                <span class="market-board-ts">{now_str}</span>
+            </div>
+        </div>
+        <div class="market-grid">{cards_html}</div>
     </div>
     """, unsafe_allow_html=True)
 
