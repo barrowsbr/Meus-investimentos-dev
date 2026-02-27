@@ -47,34 +47,65 @@ def fetch_market_data(tickers: List[str]) -> Tuple[Dict[str, float], Dict[str, f
     map_changes: Dict[str, float] = {}
 
     unique_tickers = list(set([t.strip().upper() for t in tickers if t.strip()]))
+    print(f"   📡 Buscando {len(unique_tickers)} tickers: {unique_tickers}")
 
+    # ── Tentativa 1: Batch download ──────────────────────────────────────
     try:
-        data = yf.download(unique_tickers, period="5d", progress=False)["Close"]
+        raw = yf.download(unique_tickers, period="5d", progress=False, group_by="ticker")
+        print(f"   📦 Shape retornado: {raw.shape}, Columns type: {type(raw.columns)}")
 
-        if isinstance(data, pd.Series):
-            data = data.to_frame(name=unique_tickers[0])
+        if not raw.empty:
+            for t in unique_tickers:
+                try:
+                    # yfinance >= 0.2.40 retorna MultiIndex: (Ticker, Price)
+                    if isinstance(raw.columns, pd.MultiIndex):
+                        if t in raw.columns.get_level_values(0):
+                            close = raw[t]["Close"].dropna()
+                        else:
+                            continue
+                    else:
+                        # Single ticker → colunas simples
+                        close = raw["Close"].dropna()
 
-        if data.empty:
-            return {}, {}
+                    if len(close) < 2:
+                        continue
 
-        data_filled = data.ffill()
-        last_row = data_filled.iloc[-1]
-        prev_row = data_filled.iloc[-2] if len(data_filled) >= 2 else last_row
+                    price_now = float(close.iloc[-1])
+                    price_prev = float(close.iloc[-2])
 
-        for t in unique_tickers:
-            try:
-                if t in last_row:
-                    price_now = float(last_row[t])
-                    price_prev = float(prev_row[t])
-                    if pd.notna(price_now):
+                    if pd.notna(price_now) and price_now > 0:
                         map_prices[t] = price_now
                         map_changes[t] = price_now - price_prev
-            except Exception:
-                continue
+
+                except Exception as ex:
+                    print(f"   ⚠️ Erro processando {t} no batch: {ex}")
+                    continue
 
     except Exception as e:
-        print(f"Erro ao buscar dados do Yahoo: {e}")
+        print(f"   ❌ Batch download falhou: {e}")
 
+    # ── Tentativa 2: Fallback individual para tickers que faltaram ────────
+    missing = [t for t in unique_tickers if t not in map_prices]
+    if missing:
+        print(f"   🔄 Fallback individual para {len(missing)} tickers: {missing}")
+        for t in missing:
+            try:
+                tk = yf.Ticker(t)
+                hist = tk.history(period="5d")
+                if hist.empty or len(hist) < 2:
+                    continue
+                close = hist["Close"].dropna()
+                if len(close) < 2:
+                    continue
+                price_now = float(close.iloc[-1])
+                price_prev = float(close.iloc[-2])
+                if pd.notna(price_now) and price_now > 0:
+                    map_prices[t] = price_now
+                    map_changes[t] = price_now - price_prev
+            except Exception as ex:
+                print(f"   ⚠️ Fallback falhou para {t}: {ex}")
+
+    print(f"   ✅ Dados obtidos para {len(map_prices)}/{len(unique_tickers)} tickers")
     return map_prices, map_changes
 
 
