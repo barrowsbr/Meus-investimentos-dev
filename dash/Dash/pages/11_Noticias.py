@@ -12,9 +12,6 @@ import time
 from datetime import datetime, timezone
 
 import streamlit as st
-import pandas as pd
-
-from core.auth import require_auth
 
 from core.auth import require_auth
 
@@ -36,7 +33,7 @@ from core.ui import render_fab
 st.set_page_config(
     page_title="Notícias – Meus Investimentos",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="📰",
 )
 
@@ -61,14 +58,24 @@ html, body, [class*="css"] {
     100% { background-position: 0% 50%; }
 }
 
+/* Oculta sidebar completamente */
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+
 /* ── Page header ── */
 .news-page-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 14px;
     padding: 20px 0 4px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     margin-bottom: 20px;
+}
+.news-page-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 .news-page-icon {
     font-size: 2rem;
@@ -93,188 +100,113 @@ html, body, [class*="css"] {
     letter-spacing: 0.5px;
 }
 
-/* ── Market Board ── */
-.market-board {
-    background: rgba(8, 12, 22, 0.80);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+/* ── Ticker Tape ── */
+.ticker-tape-wrap {
+    display: flex;
+    align-items: stretch;
+    background: rgba(6, 10, 20, 0.92);
     border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 20px;
-    padding: 18px 22px 16px;
-    margin-bottom: 24px;
-    position: relative;
+    border-radius: 14px;
+    margin-bottom: 26px;
     overflow: hidden;
+    height: 46px;
+    box-shadow: 0 4px 24px -4px rgba(0,0,0,0.5);
+    position: relative;
 }
-.market-board::before {
+.ticker-tape-wrap::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(6,182,212,0.3), transparent);
+    background: linear-gradient(90deg, transparent, rgba(6,182,212,0.25), transparent);
 }
-.market-board-header {
+.tt-badge {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-}
-.market-board-title {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 2.5px;
-    color: #334155;
-    text-transform: uppercase;
-}
-.market-board-ts {
-    font-size: 0.65rem;
-    color: #1e293b;
-    letter-spacing: 0.8px;
-    font-variant-numeric: tabular-nums;
-}
-.market-board-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.62rem;
+    gap: 7px;
+    padding: 0 16px;
+    background: rgba(34,197,94,0.08);
+    border-right: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 2px;
     color: #22c55e;
-    letter-spacing: 1px;
-    font-weight: 700;
+    white-space: nowrap;
 }
-.market-board-live::before {
+.tt-badge::before {
     content: '';
     width: 6px; height: 6px;
     background: #22c55e;
     border-radius: 50%;
     animation: livePulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
 }
 @keyframes livePulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
-    50%       { opacity: 0.6; box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+    50%       { opacity: 0.5; box-shadow: 0 0 0 5px rgba(34,197,94,0); }
 }
-.market-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-    gap: 8px;
-}
-.market-card {
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 11px 13px 10px;
-    position: relative;
+.ticker-viewport {
+    flex: 1;
     overflow: hidden;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-    cursor: default;
-}
-.market-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4);
-    z-index: 2;
-}
-.market-card.up {
-    border-left: 3px solid rgba(34, 197, 94, 0.7);
-    background: rgba(15, 23, 42, 0.55);
-}
-.market-card.up::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(34,197,94,0.05) 0%, transparent 55%);
-    pointer-events: none;
-    border-radius: 12px;
-}
-.market-card.down {
-    border-left: 3px solid rgba(239, 68, 68, 0.7);
-}
-.market-card.down::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(239,68,68,0.05) 0%, transparent 55%);
-    pointer-events: none;
-    border-radius: 12px;
-}
-.market-card.neutral {
-    border-left: 3px solid rgba(71, 85, 105, 0.5);
-}
-.mc-top {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 5px;
+    align-items: center;
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        black 4%,
+        black 96%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        black 4%,
+        black 96%,
+        transparent 100%
+    );
 }
-.mc-ticker {
-    font-size: 0.88rem;
+.ticker-track {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    animation: tickerScroll linear infinite;
+    will-change: transform;
+}
+@keyframes tickerScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+.tt-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 22px;
+}
+.tt-symbol {
+    font-size: 0.8rem;
     font-weight: 800;
     color: #f1f5f9;
-    letter-spacing: 0.3px;
-    line-height: 1;
+    letter-spacing: 0.8px;
 }
-.mc-arrow {
-    font-size: 0.7rem;
-    line-height: 1;
-    margin-top: 1px;
-}
-.mc-arrow.up   { color: rgba(34, 197, 94, 0.7); }
-.mc-arrow.down { color: rgba(239, 68, 68, 0.7); }
-.mc-arrow.neutral { color: rgba(71, 85, 105, 0.6); }
-.mc-price {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    letter-spacing: -0.5px;
+.tt-price {
+    font-size: 0.78rem;
+    color: #94a3b8;
     font-variant-numeric: tabular-nums;
-    line-height: 1.1;
-    margin-bottom: 5px;
 }
-.mc-price span {
-    font-size: 0.65rem;
-    color: #475569;
-    font-weight: 400;
-    margin-right: 1px;
-}
-.mc-change {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.mc-change-pct {
-    display: inline-block;
-    font-size: 0.82rem;
+.tt-change {
+    font-size: 0.78rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    padding: 1px 7px;
-    border-radius: 6px;
-    width: fit-content;
 }
-.mc-change-pct.up   { color: #22c55e; background: rgba(34,197,94,0.12); }
-.mc-change-pct.down { color: #ef4444; background: rgba(239,68,68,0.12); }
-.mc-change-pct.neutral { color: #64748b; background: rgba(71,85,105,0.12); }
-.mc-change-abs {
-    font-size: 0.70rem;
-    font-variant-numeric: tabular-nums;
-}
-.mc-change-abs.up      { color: #4ade80; }
-.mc-change-abs.down    { color: #f87171; }
-.mc-change-abs.neutral { color: #475569; }
-.market-no-data {
-    color: #1e293b;
-    font-size: 0.8rem;
-    text-align: center;
-    padding: 16px 0;
-}
-
-/* ── Ticker pills filter ── */
-.filter-section {
-    margin-bottom: 20px;
-}
-.filter-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #334155;
-    text-transform: uppercase;
-    margin-bottom: 10px;
+.tt-change.up      { color: #22c55e; }
+.tt-change.down    { color: #ef4444; }
+.tt-change.neutral { color: #64748b; }
+.tt-sep {
+    color: rgba(255,255,255,0.10);
+    font-size: 1.1rem;
+    padding: 0 2px;
+    user-select: none;
 }
 
 /* ── News grid ── */
@@ -447,28 +379,12 @@ html, body, [class*="css"] {
     50%       { opacity: 0.8; }
 }
 
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: rgba(10,14,22,0.88) !important;
-    backdrop-filter: blur(16px);
-    border-right: 1px solid rgba(255,255,255,0.06);
-}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-    color: #94a3b8;
-    font-size: 0.85rem;
-}
-
 /* ── Mobile ── */
 @media (max-width: 768px) {
-    .news-grid {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
+    .news-grid { grid-template-columns: 1fr; gap: 10px; }
     .news-page-title { font-size: 1.3rem; }
     .news-page-icon  { font-size: 1.6rem; }
-    .perf-chip { padding: 7px 13px; }
-    .perf-section { padding: 12px 14px 10px; }
-    .news-card { padding: 14px; }
+    .tt-item { padding: 0 14px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -476,18 +392,10 @@ html, body, [class*="css"] {
 render_fab()
 
 
-# ── Session State ──────────────────────────────────────────────────────────
-if "noticias_selected" not in st.session_state:
-    st.session_state.noticias_selected = []
-if "noticias_include_market" not in st.session_state:
-    st.session_state.noticias_include_market = True
-
-
 # ── Funções cacheadas ──────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _load_portfolio_snapshot():
-    # Retorna o snapshot com as posições e o top gainers/losers já processados
     try:
         return get_portfolio_snapshot()
     except Exception:
@@ -495,31 +403,20 @@ def _load_portfolio_snapshot():
 
 
 def _get_active_tickers(snapshot: dict) -> list[str]:
-    # Retorna lista de tickers da carteira atual com Qtd > 0
+    """Tickers com posição aberta, ordenados por maior movimentação absoluta."""
     if not snapshot or "positions" not in snapshot:
         return []
-    
-    positions = snapshot["positions"]
-    active = []
-    
-    # Vamos ordenar pelo fator "maior movimentação absoluta" para que as notícias
-    # padrão puxem as ações que mais mexeram (pra cima ou pra baixo)
     sorted_pos = sorted(
-        positions, 
-        key=lambda x: abs(x.get("day_pnl_pct", 0.0) or 0.0), 
-        reverse=True
+        snapshot["positions"],
+        key=lambda x: abs(x.get("day_pnl_pct", 0.0) or 0.0),
+        reverse=True,
     )
-    
-    for p in sorted_pos:
-        # Se tem quantidade > 0 na carteira
-        if p.get("qty", 0) > 0:
-            if p.get("ticker"):
-                active.append(p["ticker"])
-                
-    return active
+    return [p["ticker"] for p in sorted_pos if p.get("qty", 0) > 0 and p.get("ticker")]
+
+
 @st.cache_data(show_spinner=False, ttl=180)
 def _get_performers(tickers: tuple) -> list[dict]:
-    """Retorna lista ordenada de desempenho do dia."""
+    """Retorna lista ordenada de desempenho do dia para todos os tickers."""
     if not tickers:
         return []
     try:
@@ -539,11 +436,11 @@ def _get_performers(tickers: tuple) -> list[dict]:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _get_news(tickers: tuple, include_market: bool) -> dict[str, list[dict]]:
-    """Busca notícias (Google News + Yahoo Finance) para os tickers."""
+    """Busca notícias para TODOS os tickers da carteira."""
     news: dict[str, list[dict]] = {}
-    for t in tickers[:8]:
+    for t in tickers:
         news[t] = fetch_news_combined(t, max_items=6)
-        time.sleep(0.25)
+        time.sleep(0.2)
     if include_market:
         url = _GOOGLE_NEWS_RSS.format(query="bolsa+brasil+ibovespa+mercado")
         root = _fetch_rss(url)
@@ -551,76 +448,13 @@ def _get_news(tickers: tuple, include_market: bool) -> dict[str, list[dict]]:
     return news
 
 
-# ── Sidebar ────────────────────────────────────────────────────────────────
-snapshot = _load_portfolio_snapshot()
-all_tickers = _get_active_tickers(snapshot)
+# ── Helpers ────────────────────────────────────────────────────────────────
 
-with st.sidebar:
-    st.markdown("### 📰 Notícias")
-    st.divider()
-
-    # Seleção de tickers
-    selected = st.multiselect(
-        "Filtrar por ticker",
-        options=all_tickers,
-        default=st.session_state.noticias_selected or (all_tickers[:6] if all_tickers else []),
-        placeholder="Selecione os tickers...",
-        label_visibility="collapsed",
-    )
-    st.session_state.noticias_selected = selected
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if st.button("Todos", use_container_width=True):
-            st.session_state.noticias_selected = all_tickers
-            st.rerun()
-    with col_b:
-        if st.button("Limpar", use_container_width=True):
-            st.session_state.noticias_selected = []
-            st.rerun()
-
-    st.divider()
-    include_market = st.toggle(
-        "Incluir mercado geral",
-        value=st.session_state.noticias_include_market,
-    )
-    st.session_state.noticias_include_market = include_market
-
-    st.divider()
-    if st.button("🔄 Atualizar", use_container_width=True):
-        _get_news.clear()
-        _get_performers.clear()
-        st.rerun()
-
-    st.divider()
-    if all_tickers:
-        st.caption(f"{len(all_tickers)} tickers no portfólio")
-    else:
-        st.caption("Nenhum ticker carregado")
-    st.caption(f"Atualizado às {datetime.now().strftime('%H:%M:%S')}")
-
-
-# ── Tickers efetivos ───────────────────────────────────────────────────────
-tickers_eff = selected if selected else (all_tickers[:6] if all_tickers else [])
-
-# ── Cabeçalho ─────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="news-page-header">
-    <div class="news-page-icon">📰</div>
-    <div>
-        <div class="news-page-title">Notícias do Mercado</div>
-        <div class="news-page-sub">Google News · Yahoo Finance · Atualização automática</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ── Painel de Ações — Desempenho do Dia ────────────────────────────────────
 def _ticker_clean(t: str) -> str:
     return t.replace(".SA", "").replace("-USD", "").replace("-BRL", "").replace("=X", "")
 
 
-def _fmt_price(price: float, moeda: str = "R$") -> str:
+def _fmt_price(price: float) -> str:
     if price >= 1_000:
         return f"{price:,.2f}"
     if price >= 1:
@@ -628,17 +462,17 @@ def _fmt_price(price: float, moeda: str = "R$") -> str:
     return f"{price:.4f}"
 
 
-def _render_performers(perf: list[dict]) -> None:
+# ── Ticker Tape ────────────────────────────────────────────────────────────
+
+def _render_ticker_tape(perf: list[dict]) -> None:
+    """Faixa horizontal rolante estilo bolsa de valores."""
     if not perf:
         return
 
-    now_str = datetime.now().strftime("%H:%M:%S")
-
-    cards_html = ""
+    items_html = ""
     for p in perf:
-        t   = _ticker_clean(p["ticker"])
-        pct = p["pct"]
-        chg = p["change"]   # variação absoluta do preço no dia
+        t     = _ticker_clean(p["ticker"])
+        pct   = p["pct"]
         price = p["price"]
 
         if pct > 0:
@@ -648,38 +482,32 @@ def _render_performers(perf: list[dict]) -> None:
         else:
             cls, arr, sign = "neutral", "▬", ""
 
-        pct_str = f"{sign}{pct:.2f}%"
-        chg_str = f"{sign}R$ {abs(chg):.2f}" if abs(chg) >= 0.01 else f"{sign}R$ {abs(chg):.4f}"
         price_str = _fmt_price(price)
+        pct_str   = f"{sign}{pct:.2f}%"
 
-        cards_html += f"""
-        <div class="market-card {cls}">
-            <div class="mc-top">
-                <span class="mc-ticker">{t}</span>
-                <span class="mc-arrow {cls}">{arr}</span>
-            </div>
-            <div class="mc-price"><span>R$</span>{price_str}</div>
-            <div class="mc-change">
-                <span class="mc-change-pct {cls}">{pct_str}</span>
-                <span class="mc-change-abs {cls}">{chg_str}</span>
-            </div>
-        </div>"""
+        items_html += f"""
+        <span class="tt-item">
+            <span class="tt-symbol">{t}</span>
+            <span class="tt-price">R$ {price_str}</span>
+            <span class="tt-change {cls}">{arr} {pct_str}</span>
+        </span><span class="tt-sep">|</span>"""
+
+    track = items_html * 2
+    duration = max(20, len(perf) * 5)
 
     st.markdown(f"""
-    <div class="market-board">
-        <div class="market-board-header">
-            <span class="market-board-title">📊 Desempenho hoje</span>
-            <div style="display:flex;align-items:center;gap:12px;">
-                <span class="market-board-live">AO VIVO</span>
-                <span class="market-board-ts">{now_str}</span>
+    <div class="ticker-tape-wrap">
+        <div class="tt-badge">AO VIVO</div>
+        <div class="ticker-viewport">
+            <div class="ticker-track" style="animation-duration:{duration}s;">
+                {track}
             </div>
         </div>
-        <div class="market-grid">{cards_html}</div>
     </div>
     """, unsafe_allow_html=True)
 
 
-# ── Funções de render de cards ─────────────────────────────────────────────
+# ── News card ──────────────────────────────────────────────────────────────
 
 def _news_card(item: dict, ticker: str) -> str:
     titulo = html.escape(item.get("titulo", "Sem título")[:140])
@@ -687,7 +515,7 @@ def _news_card(item: dict, ticker: str) -> str:
     data   = item.get("data", "")
     fonte  = html.escape(item.get("fonte", "Notícias")[:35])
     ago    = time_ago(data)
-    ticker_clean = ticker.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
+    ticker_clean = _ticker_clean(ticker)
 
     return f"""
     <a class="news-card" href="{link}" target="_blank" rel="noopener noreferrer">
@@ -728,30 +556,57 @@ def _sort_key(item: dict) -> float:
     return 0.0
 
 
-# ── Render principal ───────────────────────────────────────────────────────
+# ── Carrega portfólio ───────────────────────────────────────────────────────
+snapshot    = _load_portfolio_snapshot()
+all_tickers = _get_active_tickers(snapshot)
 
-# Performers
-if tickers_eff:
-    perf_data = _get_performers(tuple(tickers_eff))
-    _render_performers(perf_data)
+# ── Cabeçalho ──────────────────────────────────────────────────────────────
+col_title, col_ctrl = st.columns([4, 1])
 
-# Spinner + busca de notícias
+with col_title:
+    st.markdown("""
+    <div class="news-page-header" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+        <div class="news-page-left">
+            <div class="news-page-icon">📰</div>
+            <div>
+                <div class="news-page-title">Notícias do Mercado</div>
+                <div class="news-page-sub">Google News · Yahoo Finance · Todos os ativos da carteira</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_ctrl:
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+    include_market = st.toggle("Mercado geral", value=True)
+    if st.button("🔄 Atualizar", use_container_width=True):
+        _get_news.clear()
+        _get_performers.clear()
+        st.rerun()
+
+st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
+
+# ── Ticker Tape — todos os ativos ──────────────────────────────────────────
+perf_data: list[dict] = []
+if all_tickers:
+    perf_data = _get_performers(tuple(all_tickers))
+    _render_ticker_tape(perf_data)
+
+# ── Notícias ───────────────────────────────────────────────────────────────
 news_placeholder = st.empty()
 
-if not tickers_eff and not include_market:
+if not all_tickers and not include_market:
     st.markdown("""
     <div class="news-empty">
         <div class="news-empty-icon">🔍</div>
-        <div class="news-empty-text">Selecione ao menos um ticker na barra lateral<br>ou ative "Incluir mercado geral".</div>
+        <div class="news-empty-text">Nenhum ticker encontrado na carteira.<br>Adicione ativos para ver as notícias.</div>
     </div>
     """, unsafe_allow_html=True)
 else:
-    # Skeleton enquanto carrega
     news_placeholder.markdown(_skeleton_grid(6), unsafe_allow_html=True)
 
-    news_data = _get_news(tuple(tickers_eff), include_market)
+    news_data = _get_news(tuple(all_tickers), include_market)
 
-    # Monta feed cronológico + por ticker
     tab_feed, tab_group = st.tabs(["📅 Cronológico", "🏷️ Por ticker"])
 
     news_placeholder.empty()
@@ -771,12 +626,12 @@ else:
             <div class="news-empty">
                 <div class="news-empty-icon">📭</div>
                 <div class="news-empty-text">Nenhuma notícia encontrada.<br>
-                Tente outros tickers ou clique em Atualizar.</div>
+                Clique em Atualizar para tentar novamente.</div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(
-                f'<div class="news-count-label">{total} notícias encontradas</div>',
+                f'<div class="news-count-label">{total} notícias · {len(news_data)} fontes</div>',
                 unsafe_allow_html=True,
             )
             cards_html = '<div class="news-grid">'
@@ -788,85 +643,85 @@ else:
     # ── Tab Por ticker ──────────────────────────────────────────────────────
     with tab_group:
         has_any = False
-        
-        # Destacar os Top Movers primeiro (se a notícia existir)
+
+        # Destaques: maior alta e maior baixa do dia
         st.markdown("<h3 style='margin-bottom:10px; color:#f1f5f9;'>🏆 Destaques do Dia</h3>", unsafe_allow_html=True)
         movers_col1, movers_col2 = st.columns(2)
-        
-        shown_movers = set()
-        
-        # Maior Alta
+        shown_movers: set[str] = set()
+
         with movers_col1:
-            if 'perf_data' in locals() and len(perf_data) > 0 and perf_data[0]['pct'] > 0:
+            if perf_data and perf_data[0]["pct"] > 0:
                 top_gainer = perf_data[0]
-                ticker_gainer = top_gainer['ticker']
-                if ticker_gainer in news_data and len(news_data[ticker_gainer]) > 0:
-                    shown_movers.add(ticker_gainer)
+                t_g = top_gainer["ticker"]
+                if t_g in news_data and news_data[t_g]:
+                    shown_movers.add(t_g)
                     has_any = True
-                    n = news_data[ticker_gainer][0]
-                    t_clean = ticker_gainer.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
-                    
+                    n = news_data[t_g][0]
+                    t_clean = _ticker_clean(t_g)
                     st.markdown(f"""
-                    <a class="news-card" href="{n['link']}" target="_blank" rel="noopener noreferrer" style="border-left-color: #34d399; background: rgba(52, 211, 153, 0.05); min-height: 200px;">
-                        <div style="font-size: 0.75rem; font-weight: 800; color: #34d399; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🚀 Maior Alta do Dia: {t_clean} (+{top_gainer['pct']:.2f}%)</div>
+                    <a class="news-card" href="{html.escape(n['link'])}" target="_blank" rel="noopener noreferrer"
+                       style="border-left-color:#34d399;background:rgba(52,211,153,0.05);min-height:200px;">
+                        <div style="font-size:0.75rem;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                            🚀 Maior Alta: {t_clean} (+{top_gainer['pct']:.2f}%)
+                        </div>
                         <div class="news-meta">
-                            <span class="news-source">{n['fonte']}</span>
+                            <span class="news-source">{html.escape(n['fonte'])}</span>
                             <span class="news-time">{time_ago(n['data'])}</span>
                         </div>
-                        <div class="news-headline" style="font-size: 1.1rem; line-height: 1.4;">{n['titulo']}</div>
+                        <div class="news-headline" style="font-size:1.1rem;line-height:1.4;">{html.escape(n['titulo'][:140])}</div>
                         <div class="news-footer">
                             <span class="news-ticker-tag">{t_clean}</span>
                             <span class="news-read-more">Ler notícia →</span>
                         </div>
                     </a>
                     """, unsafe_allow_html=True)
-                    
-        # Maior Baixa
+
         with movers_col2:
-            if 'perf_data' in locals() and len(perf_data) > 0 and perf_data[-1]['pct'] < 0:
+            if perf_data and perf_data[-1]["pct"] < 0:
                 top_loser = perf_data[-1]
-                ticker_loser = top_loser['ticker']
-                if ticker_loser in news_data and len(news_data[ticker_loser]) > 0 and ticker_loser not in shown_movers:
-                    shown_movers.add(ticker_loser)
+                t_l = top_loser["ticker"]
+                if t_l in news_data and news_data[t_l] and t_l not in shown_movers:
+                    shown_movers.add(t_l)
                     has_any = True
-                    n = news_data[ticker_loser][0]
-                    t_clean = ticker_loser.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
-                    
+                    n = news_data[t_l][0]
+                    t_clean = _ticker_clean(t_l)
                     st.markdown(f"""
-                    <a class="news-card" href="{n['link']}" target="_blank" rel="noopener noreferrer" style="border-left-color: #f87171; background: rgba(248, 113, 113, 0.05); min-height: 200px;">
-                        <div style="font-size: 0.75rem; font-weight: 800; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🔻 Maior Queda do Dia: {t_clean} ({top_loser['pct']:.2f}%)</div>
+                    <a class="news-card" href="{html.escape(n['link'])}" target="_blank" rel="noopener noreferrer"
+                       style="border-left-color:#f87171;background:rgba(248,113,113,0.05);min-height:200px;">
+                        <div style="font-size:0.75rem;font-weight:800;color:#f87171;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                            🔻 Maior Queda: {t_clean} ({top_loser['pct']:.2f}%)
+                        </div>
                         <div class="news-meta">
-                            <span class="news-source">{n['fonte']}</span>
+                            <span class="news-source">{html.escape(n['fonte'])}</span>
                             <span class="news-time">{time_ago(n['data'])}</span>
                         </div>
-                        <div class="news-headline" style="font-size: 1.1rem; line-height: 1.4;">{n['titulo']}</div>
+                        <div class="news-headline" style="font-size:1.1rem;line-height:1.4;">{html.escape(n['titulo'][:140])}</div>
                         <div class="news-footer">
                             <span class="news-ticker-tag">{t_clean}</span>
                             <span class="news-read-more">Ler notícia →</span>
                         </div>
                     </a>
                     """, unsafe_allow_html=True)
-        
+
         if shown_movers:
-            st.markdown("<br><hr class='ticker-divider'><br>", unsafe_allow_html=True)
-            
-        # O resto do grid
+            st.markdown("<br>", unsafe_allow_html=True)
+
+        # Demais tickers
         for ticker, items in news_data.items():
             if not items or ticker in shown_movers:
                 continue
             has_any = True
-            ticker_clean = ticker.replace(".SA", "").replace("-USD", "").replace("-BRL", "")
-            
-            # Pega rendimento se existir
+            ticker_clean = _ticker_clean(ticker)
+
+            # Variação do dia ao lado do nome
             pct_str = ""
-            if 'perf_data' in locals():
-                matches = [p["pct"] for p in perf_data if p["ticker"] == ticker]
-                if matches:
-                    val = matches[0]
-                    color = "#34d399" if val >= 0 else "#f87171"
-                    sign = "+" if val >= 0 else ""
-                    pct_str = f" <span style='color:{color}; font-size: 0.8rem;'>{sign}{val:.2f}%</span>"
-            
+            matches = [p["pct"] for p in perf_data if p["ticker"] == ticker]
+            if matches:
+                val = matches[0]
+                color = "#34d399" if val >= 0 else "#f87171"
+                sign  = "+" if val >= 0 else ""
+                pct_str = f" <span style='color:{color};font-size:0.8rem;'>{sign}{val:.2f}%</span>"
+
             st.markdown(f"""
             <div class="ticker-section-head">
                 <span class="ticker-section-name">{ticker_clean}{pct_str}</span>
@@ -877,17 +732,14 @@ else:
 
             cards_html = '<div class="news-grid">'
             for item in sorted(items, key=_sort_key, reverse=True):
-                # Não exibe notícias muito antigas (mais de 7 dias)
+                # Filtra notícias com mais de 7 dias
                 dt = _parse_rss_date(item.get("data", ""))
                 if dt:
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
-                    delta = datetime.now(timezone.utc) - dt
-                    if delta.days > 7:
+                    if (datetime.now(timezone.utc) - dt).days > 7:
                         continue
-                        
                 cards_html += _news_card(item, ticker)
-                
             cards_html += "</div>"
             st.markdown(cards_html, unsafe_allow_html=True)
 
