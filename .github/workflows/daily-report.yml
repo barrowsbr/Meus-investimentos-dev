@@ -1,10 +1,10 @@
 name: Daily Portfolio Report
 
 on:
-  # Agendamento diário às 18:30 BRT (21:30 UTC)
-  # Após o fechamento do mercado brasileiro
+  # Agendamento diário (Segunda a Sexta)
   schedule:
-    - cron: '30 21 * * 1-5'  # Segunda a Sexta
+    - cron: '0 15 * * 1-5'  # 12:00 BRT
+    - cron: '0 21 * * 1-5'  # 18:00 BRT
 
   # Permite executar manualmente pelo GitHub
   workflow_dispatch:
