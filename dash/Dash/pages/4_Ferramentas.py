@@ -1,9 +1,12 @@
 import streamlit as st
 import time
 import pandas as pd
+from pathlib import Path
 from core.auth import require_auth, get_password, update_password, is_auth_enabled, set_auth_enabled
 from core.theme import inject_global_theme, render_page_header, render_back_button
 from core.ui import render_fab
+
+_LOGOS = Path(__file__).parent.parent / "assets" / "logos"
 
 # --- AUTH CHECK ---
 require_auth()
@@ -180,7 +183,7 @@ with c1:
         # Logo IBKR centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
-            st.image("assets/logos/ibkr.jpg", width=50)
+            st.image(str(_LOGOS / "ibkr.jpg"), width=50)
         if st.button("IBKR", key="src_ibkr", use_container_width=True,
                      type="primary" if source == "IBKR" else "secondary"):
             if source != "IBKR":  # Limpar arquivo e dados ao trocar instituição
@@ -195,7 +198,7 @@ with c1:
         # Logo B3 centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
-            st.image("assets/logos/b3.png", width=50)
+            st.image(str(_LOGOS / "b3.png"), width=50)
         if st.button("B3", key="src_b3", use_container_width=True,
                      type="primary" if source == "B3" else "secondary"):
             if source != "B3":  # Limpar arquivo e dados ao trocar instituição
@@ -210,7 +213,7 @@ with c1:
         # Logo Nubank centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
-            st.image("assets/logos/nubank.png", width=50)
+            st.image(str(_LOGOS / "nubank.png"), width=50)
         if st.button("Nubank", key="src_nu", use_container_width=True,
                      type="primary" if source == "Nu" else "secondary"):
             if source != "Nu":  # Limpar arquivo e dados ao trocar instituição
