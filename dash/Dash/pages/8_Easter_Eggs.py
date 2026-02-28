@@ -1359,15 +1359,33 @@ def render_solar_system():
             'Commodities': 0x84cc16
         }
 
+        import math
         for i, row in grouped.iterrows():
             classe = row['Class']
             val = row['Value']
             if total_market_val > 0:
                 pct = (val / total_market_val)
-                import math
                 size = 0.6 + (math.sqrt(pct) * 2.5)
                 distance = 12 + (i * 6.0)
                 speed = 0.003 + (0.015 * (1.0 - pct))
+
+                # Luas = ativos individuais dentro da classe
+                moons = []
+                class_df = df_portfolio[df_portfolio['Class'] == classe].copy()
+                class_df = class_df.sort_values('Value', ascending=False).head(5)
+                name_col = next(
+                    (c for c in ['Ticker', 'ticker', 'Asset', 'Name', 'name', 'Ativo']
+                     if c in class_df.columns), None
+                )
+                for _, arow in class_df.iterrows():
+                    if arow['Value'] > 0 and val > 0:
+                        moon_name = str(arow[name_col])[:10] if name_col else 'Ativo'
+                        moon_name = moon_name.replace('.SA', '').replace('-USD', '')
+                        moons.append({
+                            'name': moon_name,
+                            'value': float(arow['Value']),
+                            'pct': float(arow['Value'] / val * 100),
+                        })
 
                 solar_data.append({
                     'name': classe,
@@ -1376,7 +1394,8 @@ def render_solar_system():
                     'distance': float(distance),
                     'speed': float(speed),
                     'value': float(val),
-                    'pct': float(pct * 100)
+                    'pct': float(pct * 100),
+                    'moons': moons,
                 })
 
     solar_json = json.dumps(solar_data)
@@ -1573,6 +1592,74 @@ def render_solar_system():
                 from {{ transform: translateX(-100px) translateY(-100px) rotate(-45deg); opacity: 1; }}
                 to {{ transform: translateX(300px) translateY(300px) rotate(-45deg); opacity: 0; }}
             }}
+
+            /* ── Moon list in detail panel ── */
+            .moon-list {{ margin-top: 14px; }}
+            .moon-list-title {{
+                font-size: 0.55rem; color: #555; letter-spacing: 2px;
+                text-transform: uppercase; margin-bottom: 8px;
+            }}
+            .moon-item {{
+                display: flex; align-items: center; gap: 8px;
+                padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+            }}
+            .moon-dot {{
+                width: 8px; height: 8px; border-radius: 50%;
+                flex-shrink: 0; opacity: 0.8;
+            }}
+            .moon-name {{ color: #aaa; font-size: 0.72rem; flex: 1; }}
+            .moon-val  {{ color: #fff; font-size: 0.7rem; font-variant-numeric: tabular-nums; }}
+            .moon-pct  {{
+                font-size: 0.62rem; color: #555;
+                width: 36px; text-align: right;
+            }}
+
+            /* ── Cinematic overlay ── */
+            #cinematic-title {{
+                position: absolute; top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                text-align: center; pointer-events: none;
+                opacity: 0; transition: opacity 0.8s ease;
+                z-index: 50;
+            }}
+            #cinematic-title.visible {{ opacity: 1; }}
+            #cinematic-title .cine-name {{
+                font-size: 2.5rem; font-weight: 900; letter-spacing: 4px;
+                text-shadow: 0 0 30px currentColor;
+            }}
+            #cinematic-title .cine-val {{
+                font-size: 1rem; color: #fff; opacity: 0.7;
+                margin-top: 8px; letter-spacing: 2px;
+            }}
+            #cinematic-title .cine-pct {{
+                font-size: 0.75rem; margin-top: 4px;
+                opacity: 0.5; letter-spacing: 3px;
+            }}
+
+            /* ── Warp overlay ── */
+            #warp-overlay {{
+                position: absolute; inset: 0;
+                background: radial-gradient(ellipse at center, rgba(200,220,255,0.15) 0%, transparent 70%);
+                pointer-events: none; opacity: 1;
+                transition: opacity 2s ease; z-index: 30;
+            }}
+            #warp-overlay.hidden {{ opacity: 0; }}
+
+            /* ── Keyboard hint ── */
+            #kbd-hints {{
+                position: absolute; bottom: 80px; right: 15px;
+                color: #2a2a3a; font-size: 0.58rem;
+                text-align: right; line-height: 2;
+            }}
+            .kbd {{ display: inline-block; padding: 1px 5px;
+                border: 1px solid #2a2a3a; border-radius: 3px;
+                font-size: 0.55rem; margin: 0 2px;
+            }}
+
+            /* ── Active state for new buttons ── */
+            .control-btn.cine {{ border-color: rgba(255,180,0,0.4); }}
+            .control-btn.cine.active {{ background: rgba(255,180,0,0.2); border-color: #ffb400; color: #ffb400; }}
+            .control-btn.sound.active {{ background: rgba(100,200,255,0.2); border-color: #64c8ff; color: #64c8ff; }}
         </style>
     </head>
     <body>
@@ -1582,19 +1669,31 @@ def render_solar_system():
             <div class="subtitle">PORTFOLIO TOTAL VALUE</div>
         </div>
 
+        <div id="warp-overlay"></div>
+        <div id="cinematic-title">
+            <div class="cine-name" id="cine-name-text">PLANET</div>
+            <div class="cine-val"  id="cine-val-text">R$ 0,00</div>
+            <div class="cine-pct"  id="cine-pct-text">0.0% DO PORTFÓLIO</div>
+        </div>
+
         <div id="planet-detail">
             <h3 id="detail-name">Planet</h3>
             <div class="detail-row">
-                <span class="detail-label">VALUE</span>
+                <span class="detail-label">VALOR</span>
                 <span class="detail-value" id="detail-value">R$ 0,00</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">ALLOCATION</span>
+                <span class="detail-label">ALOCAÇÃO</span>
                 <span class="detail-value" id="detail-pct">0%</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">RANKING</span>
+                <span class="detail-value" id="detail-rank">#1</span>
             </div>
             <div class="pct-bar">
                 <div class="pct-fill" id="detail-bar"></div>
             </div>
+            <div class="moon-list" id="moon-list"></div>
         </div>
 
         <div id="legend"></div>
@@ -1611,13 +1710,17 @@ def render_solar_system():
             </div>
             <div class="control-group">
                 <button class="control-btn active" id="auto-rotate" title="Auto Rotate">↻</button>
-                <button class="control-btn" id="top-view" title="Top View">⊙</button>
+                <button class="control-btn" id="top-view" title="Vista de cima">⊙</button>
+                <button class="control-btn cine" id="cinematic" title="Modo Cinemático">🎬</button>
+                <button class="control-btn sound" id="audio-toggle" title="Som ambiente">🔇</button>
             </div>
         </div>
 
-        <div id="instructions">
-            DRAG to rotate • SCROLL to zoom<br>
-            CLICK planet for details
+        <div id="kbd-hints">
+            <span class="kbd">←</span><span class="kbd">→</span> navegar
+            &nbsp; <span class="kbd">Space</span> pausar
+            &nbsp; <span class="kbd">C</span> cinemático
+            &nbsp; <span class="kbd">Esc</span> soltar
         </div>
 
         <div id="planet-label">
@@ -1930,9 +2033,42 @@ def render_solar_system():
                     pct: p.pct,
                     color: p.color,
                     distance: p.distance,
-                    baseEmissive: 0.15
+                    baseEmissive: 0.15,
+                    moonsData: p.moons || [],
+                    moonPivots: [],
+                    rank: index + 1,
                 }};
                 planets.push(planetObj);
+
+                // === MOONS (ativos individuais orbitando o planeta) ===
+                (p.moons || []).slice(0, 4).forEach((moon, mi) => {{
+                    const moonPivot = new THREE.Object3D();
+                    // Inclinação variada por lua
+                    moonPivot.rotation.x = (mi * 0.35 + 0.2) * (mi % 2 === 0 ? 1 : -1);
+                    moonPivot.rotation.y = Math.random() * Math.PI * 2;
+                    planetGroup.add(moonPivot);
+
+                    const moonDist = p.size * 1.9 + mi * (p.size * 0.55);
+                    const moonR    = Math.max(0.08, p.size * 0.12 * (1 - mi * 0.15));
+                    const moonGeo  = new THREE.SphereGeometry(moonR, 12, 12);
+                    const moonMat  = new THREE.MeshStandardMaterial({{
+                        color: p.color,
+                        roughness: 0.8,
+                        metalness: 0.1,
+                        emissive: p.color,
+                        emissiveIntensity: 0.04,
+                    }});
+                    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+                    moonMesh.position.set(moonDist, 0, 0);
+                    moonPivot.add(moonMesh);
+
+                    planetObj.moonPivots.push({{
+                        pivot: moonPivot,
+                        mesh: moonMesh,
+                        speed: 0.025 + mi * 0.012,
+                        name: moon.name,
+                    }});
+                }});
 
                 // Legend item
                 const colorHex = '#' + p.color.toString(16).padStart(6, '0');
@@ -2024,35 +2160,62 @@ def render_solar_system():
             const label = document.getElementById('planet-label');
             const detailPanel = document.getElementById('planet-detail');
 
+            let selectedPlanetIndex = -1;
+
             function selectPlanet(planet) {{
                 selectedPlanet = planet;
+                selectedPlanetIndex = planets.indexOf(planet);
+                playTone(220 + planet.rank * 80, 0.12, 0.25);
 
                 const colorHex = '#' + planet.color.toString(16).padStart(6, '0');
 
                 document.getElementById('detail-name').textContent = planet.name;
                 document.getElementById('detail-name').style.color = colorHex;
-                document.getElementById('detail-value').textContent = 'R$ ' + planet.value.toLocaleString('pt-BR', {{minimumFractionDigits: 2}});
+                document.getElementById('detail-value').textContent =
+                    'R$ ' + planet.value.toLocaleString('pt-BR', {{minimumFractionDigits: 2}});
                 document.getElementById('detail-pct').textContent = planet.pct.toFixed(1) + '%';
+                document.getElementById('detail-rank').textContent = '#' + planet.rank;
                 document.getElementById('detail-bar').style.width = planet.pct + '%';
                 document.getElementById('detail-bar').style.background = colorHex;
 
+                // Moon list
+                const moonList = document.getElementById('moon-list');
+                if (planet.moonsData.length > 0) {{
+                    moonList.innerHTML = `<div class="moon-list-title">🌙 ATIVOS</div>` +
+                        planet.moonsData.map(m => `
+                        <div class="moon-item">
+                            <div class="moon-dot" style="background:${{colorHex}}"></div>
+                            <span class="moon-name">${{m.name}}</span>
+                            <span class="moon-val">R$ ${{m.value.toLocaleString('pt-BR',{{minimumFractionDigits:2}})}}</span>
+                            <span class="moon-pct">${{m.pct.toFixed(1)}}%</span>
+                        </div>`).join('');
+                }} else {{
+                    moonList.innerHTML = '';
+                }}
+
                 detailPanel.classList.add('visible');
 
-                // Highlight planet
+                // Órbita do planeta selecionado acende na sua cor
                 planets.forEach(p => {{
-                    p.mesh.material.emissiveIntensity = p === planet ? 0.5 : 0.1;
-                    p.orbit.material.opacity = p === planet ? 0.7 : 0.2;
+                    p.mesh.material.emissiveIntensity = p === planet ? 0.55 : 0.08;
+                    p.orbit.material.color.setHex(p === planet ? p.color : 0x334455);
+                    p.orbit.material.opacity = p === planet ? 0.75 : 0.25;
                 }});
 
-                // Move camera to focus
-                targetCameraDistance = planet.distance + 20;
+                // Câmera avança em direção ao planeta
+                targetCameraDistance = Math.max(25, planet.distance + 18);
+                autoRotate = false;
+                document.getElementById('auto-rotate').classList.remove('active');
             }}
 
             function deselectPlanet() {{
                 selectedPlanet = null;
+                selectedPlanetIndex = -1;
                 detailPanel.classList.remove('visible');
+                document.getElementById('moon-list').innerHTML = '';
                 planets.forEach(p => {{
                     p.mesh.material.emissiveIntensity = p.baseEmissive;
+                    p.orbit.material.color.setHex(0x334455);
                     p.orbit.material.opacity = 0.4;
                 }});
             }}
@@ -2209,18 +2372,242 @@ def render_solar_system():
                 e.target.classList.toggle('active', autoRotate);
             }};
             document.getElementById('top-view').onclick = () => {{
-                targetCameraHeight = 80;
-                targetCameraDistance = 80;
+                targetCameraHeight = 75;
+                targetCameraDistance = 90;
+                targetCameraAngle = 0;
             }};
+            document.getElementById('cinematic').onclick = (e) => {{
+                cinematicMode = !cinematicMode;
+                e.target.classList.toggle('active', cinematicMode);
+                if (cinematicMode) {{
+                    cinematicIndex = 0;
+                    cinematicTimer = 0;
+                    autoRotate = true;
+                    if (planets.length > 0) showCinematicTitle(planets[0]);
+                }} else {{
+                    hideCinematicTitle();
+                }}
+            }};
+            document.getElementById('audio-toggle').onclick = (e) => {{
+                if (!audioCtx) {{
+                    initAudio();
+                    e.target.classList.add('active');
+                    e.target.textContent = '🔊';
+                }} else {{
+                    const g = audioCtx.createGain();
+                    ambientGain.gain.setTargetAtTime(
+                        ambientGain.gain.value > 0.001 ? 0 : 0.03,
+                        audioCtx.currentTime, 0.5
+                    );
+                    const muted = ambientGain.gain.value < 0.001;
+                    e.target.textContent = muted ? '🔇' : '🔊';
+                    e.target.classList.toggle('active', !muted);
+                }}
+            }};
+
+            // === WEB AUDIO ===
+            let audioCtx = null;
+            let ambientGain = null;
+
+            function initAudio() {{
+                try {{
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    // Drone ambientes: dois osciladores levemente desafinados
+                    ambientGain = audioCtx.createGain();
+                    ambientGain.gain.value = 0.03;
+                    [55, 58.3].forEach(freq => {{
+                        const osc = audioCtx.createOscillator();
+                        osc.type = 'sine';
+                        osc.frequency.value = freq;
+                        osc.connect(ambientGain);
+                        osc.start();
+                    }});
+                    // Shimmer alto
+                    const shimOsc = audioCtx.createOscillator();
+                    const shimGain = audioCtx.createGain();
+                    shimOsc.type = 'triangle';
+                    shimOsc.frequency.value = 880;
+                    shimGain.gain.value = 0.004;
+                    shimOsc.connect(shimGain);
+                    shimGain.connect(audioCtx.destination);
+                    shimOsc.start();
+                    ambientGain.connect(audioCtx.destination);
+                    playWarpSound();
+                }} catch(e) {{ console.log('Audio init failed', e); }}
+            }}
+
+            function playTone(freq, vol, dur) {{
+                if (!audioCtx) return;
+                try {{
+                    const osc  = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + dur);
+                }} catch(e) {{}}
+            }}
+
+            function playWarpSound() {{
+                if (!audioCtx) return;
+                try {{
+                    const osc  = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(1800, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 2);
+                    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 2);
+                }} catch(e) {{}}
+            }}
+
+            // === CINEMATIC MODE HELPERS ===
+            const cineEl  = document.getElementById('cinematic-title');
+            let cineHideTimeout = null;
+
+            function showCinematicTitle(planet) {{
+                const colorHex = '#' + planet.color.toString(16).padStart(6, '0');
+                document.getElementById('cine-name-text').textContent = planet.name.toUpperCase();
+                document.getElementById('cine-name-text').style.color = colorHex;
+                document.getElementById('cine-val-text').textContent  =
+                    'R$ ' + planet.value.toLocaleString('pt-BR', {{minimumFractionDigits: 2}});
+                document.getElementById('cine-pct-text').textContent  =
+                    planet.pct.toFixed(1) + '% DO PORTFÓLIO';
+                cineEl.classList.add('visible');
+                clearTimeout(cineHideTimeout);
+                cineHideTimeout = setTimeout(() => cineEl.classList.remove('visible'), 3500);
+                playTone(330 + planet.rank * 55, 0.06, 1.5);
+            }}
+
+            function hideCinematicTitle() {{
+                clearTimeout(cineHideTimeout);
+                cineEl.classList.remove('visible');
+            }}
+
+            // === SOLAR FLARE ===
+            function triggerSolarFlare() {{
+                const count = 300;
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                const mat = new THREE.PointsMaterial({{
+                    size: 0.35, color: 0xff8800,
+                    transparent: true, opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                }});
+                const flare = new THREE.Points(geo, mat);
+                scene.add(flare);
+
+                // velocities em burst esférico
+                const vels = Array.from({{length: count}}, () => {{
+                    const a = Math.random() * Math.PI * 2;
+                    const e = (Math.random() - 0.5) * Math.PI;
+                    const spd = 0.4 + Math.random() * 0.6;
+                    return new THREE.Vector3(
+                        Math.cos(a) * Math.cos(e) * spd,
+                        Math.sin(e) * spd * 0.5,
+                        Math.sin(a) * Math.cos(e) * spd
+                    );
+                }});
+
+                let life = 80;
+                const tick = () => {{
+                    if (life-- <= 0) {{ scene.remove(flare); return; }}
+                    const arr = flare.geometry.attributes.position.array;
+                    for (let i = 0; i < count; i++) {{
+                        arr[i*3]   += vels[i].x;
+                        arr[i*3+1] += vels[i].y;
+                        arr[i*3+2] += vels[i].z;
+                        vels[i].multiplyScalar(0.97); // desaceleração
+                    }}
+                    flare.geometry.attributes.position.needsUpdate = true;
+                    mat.opacity = (life / 80) * 0.9;
+                    requestAnimationFrame(tick);
+                }};
+                tick();
+                playTone(60, 0.05, 1.2);
+            }}
+
+            // === KEYBOARD NAVIGATION ===
+            window.addEventListener('keydown', (e) => {{
+                if (e.key === 'ArrowRight' || e.key === 'l') {{
+                    if (planets.length === 0) return;
+                    selectedPlanetIndex = (selectedPlanetIndex + 1) % planets.length;
+                    selectPlanet(planets[selectedPlanetIndex]);
+                }} else if (e.key === 'ArrowLeft' || e.key === 'h') {{
+                    if (planets.length === 0) return;
+                    selectedPlanetIndex = (selectedPlanetIndex - 1 + planets.length) % planets.length;
+                    selectPlanet(planets[selectedPlanetIndex]);
+                }} else if (e.key === 'Escape') {{
+                    deselectPlanet();
+                    hideCinematicTitle();
+                }} else if (e.key === ' ') {{
+                    e.preventDefault();
+                    timeScale = timeScale > 0.01 ? 0 : (document.getElementById('speed-slider').value / 100);
+                }} else if (e.key === 'c' || e.key === 'C') {{
+                    document.getElementById('cinematic').click();
+                }} else if (e.key === 'f' || e.key === 'F') {{
+                    triggerSolarFlare();
+                }}
+            }});
+
+            // === WARP STATE ===
+            let warpProgress = 0;
+            const WARP_DURATION = 120; // frames
+            camera.position.set(0, 200, 500);
+
+            // === CINEMATIC STATE ===
+            let cinematicMode = false;
+            let cinematicIndex = 0;
+            let cinematicTimer = 0;
+            const CINEMATIC_HOLD = 200; // frames per planet
+
+            // === SOLAR FLARE STATE ===
+            let flareTimer = Math.random() * 300 + 200;
 
             // === ANIMATION ===
             let time = 0;
+            let frame = 0;
 
             function animate() {{
                 requestAnimationFrame(animate);
                 time += 0.016 * timeScale;
+                frame++;
 
-                // Sun animation
+                // ── Warp-in animation ──
+                if (warpProgress < WARP_DURATION) {{
+                    warpProgress++;
+                    const t = warpProgress / WARP_DURATION;
+                    const ease = 1 - Math.pow(1 - t, 3);
+                    camera.position.set(
+                        Math.sin(cameraAngle) * (500 - ease * (500 - targetCameraDistance)),
+                        200 - ease * (200 - targetCameraHeight),
+                        Math.cos(cameraAngle) * (500 - ease * (500 - targetCameraDistance))
+                    );
+                    camera.lookAt(0, 0, 0);
+                    if (warpProgress === WARP_DURATION) {{
+                        document.getElementById('warp-overlay').classList.add('hidden');
+                    }}
+                    renderer.render(scene, camera);
+                    return;
+                }}
+
+                // ── Solar flare ──
+                flareTimer--;
+                if (flareTimer <= 0) {{
+                    triggerSolarFlare();
+                    flareTimer = Math.random() * 400 + 300;
+                }}
+
+                // ── Sun animation ──
                 sun.rotation.y += 0.002 * timeScale;
                 const corona = sun.getObjectByName('corona');
                 if (corona) {{
@@ -2228,24 +2615,23 @@ def render_solar_system():
                     corona.rotation.x += 0.001 * timeScale;
                 }}
 
-                // Planet orbits
+                // ── Planet orbits + moons ──
                 planets.forEach(p => {{
                     p.pivot.rotation.y += p.speed * timeScale;
                     p.mesh.rotation.y += 0.01 * timeScale;
+                    p.moonPivots.forEach(m => {{
+                        m.pivot.rotation.y += m.speed * timeScale;
+                    }});
                 }});
 
-                // Asteroid belt rotation
+                // ── Asteroid belt ──
                 const asteroidBelt = scene.getObjectByName('asteroidBelt');
-                if (asteroidBelt) {{
-                    asteroidBelt.rotation.y += 0.0005 * timeScale;
-                }}
+                if (asteroidBelt) asteroidBelt.rotation.y += 0.0005 * timeScale;
 
-                // Comets
+                // ── Comets ──
                 comets.forEach((comet, i) => {{
                     comet.position.add(comet.userData.velocity.clone().multiplyScalar(timeScale));
                     comet.userData.life -= timeScale;
-
-                    // Reset comet when out of bounds or dead
                     if (comet.userData.life <= 0 || comet.position.length() < 10) {{
                         scene.remove(comet);
                         comets[i] = createComet();
@@ -2253,16 +2639,34 @@ def render_solar_system():
                     }}
                 }});
 
-                // Starfield subtle rotation
+                // ── Starfield ──
                 starfield.rotation.y += 0.0001 * timeScale;
 
-                // Camera
-                if (autoRotate) {{
+                // ── Cinematic mode ──
+                if (cinematicMode && planets.length > 0) {{
+                    cinematicTimer++;
+                    if (cinematicTimer >= CINEMATIC_HOLD) {{
+                        cinematicTimer = 0;
+                        cinematicIndex = (cinematicIndex + 1) % planets.length;
+                        const cp = planets[cinematicIndex];
+                        showCinematicTitle(cp);
+                    }}
+                    const cp = planets[cinematicIndex];
+                    // Orbit at planet's distance + little offset
+                    const worldPos = new THREE.Vector3();
+                    cp.group.getWorldPosition(worldPos);
+                    targetCameraDistance = cp.distance + 22;
+                    targetCameraHeight   = 15 + Math.sin(time * 0.3) * 10;
+                    if (!autoRotate) targetCameraAngle += 0.004 * timeScale;
+                }}
+
+                // ── Camera ──
+                if (autoRotate && !cinematicMode) {{
                     targetCameraAngle += 0.002 * timeScale;
                 }}
 
-                cameraAngle += (targetCameraAngle - cameraAngle) * 0.05;
-                cameraHeight += (targetCameraHeight - cameraHeight) * 0.05;
+                cameraAngle    += (targetCameraAngle    - cameraAngle)    * 0.05;
+                cameraHeight   += (targetCameraHeight   - cameraHeight)   * 0.05;
                 cameraDistance += (targetCameraDistance - cameraDistance) * 0.05;
 
                 camera.position.x = Math.sin(cameraAngle) * cameraDistance;
