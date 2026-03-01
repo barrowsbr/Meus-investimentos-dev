@@ -20,7 +20,11 @@ def identificar_setor_ativo(ticker: str) -> str:
     # 4. Commodities (US)
     lista_commodities = {'IAU', 'SIVR', 'SLV', 'GLD', 'DBC', 'USO'}
     if t_clean in lista_commodities: return 'Commodities'
-    
+
+    # 4.5. Fixed Income USD ETFs (T-Bills, Bonds)
+    renda_fixa_usd = {'SHV', 'BIL'}
+    if t_clean in renda_fixa_usd: return 'Renda Fixa USD'
+
     # 5. International ETFs (US/Global)
     etfs_usa = {'SPY', 'QQQ', 'VWRA', 'VOO', 'VNQ', 'SCHD', 'VT'}
     if t_clean in etfs_usa: return 'ETF USA'
