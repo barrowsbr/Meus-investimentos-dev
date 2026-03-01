@@ -759,17 +759,21 @@ if not df_bruto.empty:
                     
                     def classificar_camadas(row):
                         macro = 'Renda Variável'
-                        if row['Setor'] in ['Renda Fixa', 'Caixa/Liquidez']:
+                        if row['Setor'] in ['Renda Fixa', 'Renda Fixa USD', 'Caixa/Liquidez']:
                             macro = 'Renda Fixa'
-                        
+
                         sub = row['Setor']
                         tkr = str(row['Ticker']).upper()
-                        
-                        # 0. Reclassificação Prioritária de ETFs
+
+                        # 0a. Renda Fixa USD (T-Bills e ETFs de renda fixa em dólar)
+                        renda_fixa_usd_list = ['SHV', 'BIL']
+                        if any(x == tkr or tkr.startswith(x) for x in renda_fixa_usd_list) or sub == 'Renda Fixa USD':
+                            macro = 'Renda Fixa'
+                            sub = 'Renda Fixa USD'
+
+                        # 0b. Reclassificação Prioritária de ETFs de Renda Variável
                         # Lista explícita de ETFs que devem ser agrupados, independente do setor original
-                        etfs_list = ['VWRA', 'WRLD', 'ACWI', 'VT', 'URTH', 'SPY', 'QQQ', 'IVV', 'VOO', 'VNQ', 'BND', 'AGG', 'BIL', 'SHV']
-                        
-                        if any(x in tkr for x in etfs_list) or sub in ['ETF USA', 'ETF']:
+                        elif any(x in tkr for x in ['VWRA', 'WRLD', 'ACWI', 'VT', 'URTH', 'SPY', 'QQQ', 'IVV', 'VOO', 'VNQ', 'BND', 'AGG']) or sub in ['ETF USA', 'ETF']:
                              sub = 'ETFs'
 
                         elif macro == 'Renda Fixa':
@@ -806,13 +810,14 @@ if not df_bruto.empty:
                     # 1. Definição do Mapa de Cores Base (Nível 2)
                     color_map_base = {
                         # --- RENDA FIXA (Theme: Ocean & Stability) ---
-                        'Renda Fixa': '#0f766e',     # Teal-700 (Root)
-                        'Tesouro Direto': '#10b981', # Emerald-500
-                        'CDBs': '#0ea5e9',           # Sky-500
-                        'LCI/LCA': '#06b6d4',        # Cyan-500
-                        'Debêntures': '#3b82f6',     # Blue-500
-                        'Caixa': '#64748b',          # Slate-500
-                        'Caixa/Liquidez': '#94a3b8', # Slate-400
+                        'Renda Fixa': '#0f766e',       # Teal-700 (Root)
+                        'Tesouro Direto': '#10b981',   # Emerald-500
+                        'CDBs': '#0ea5e9',             # Sky-500
+                        'LCI/LCA': '#06b6d4',          # Cyan-500
+                        'Debêntures': '#3b82f6',       # Blue-500
+                        'Renda Fixa USD': '#1d4ed8',   # Blue-700 (USD Fixed Income)
+                        'Caixa': '#64748b',            # Slate-500
+                        'Caixa/Liquidez': '#94a3b8',   # Slate-400
                         
                         # --- RENDA VARIÁVEL (Theme: Galaxy & Future) ---
                         'Renda Variável': '#6d28d9', # Violet-700 (Root)
