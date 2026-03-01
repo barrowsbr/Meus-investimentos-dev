@@ -485,26 +485,25 @@ def _render_ticker_tape(perf: list[dict]) -> None:
         price_str = _fmt_price(price)
         pct_str   = f"{sign}{pct:.2f}%"
 
-        items_html += f"""
-        <span class="tt-item">
-            <span class="tt-symbol">{t}</span>
-            <span class="tt-price">R$ {price_str}</span>
-            <span class="tt-change {cls}">{arr} {pct_str}</span>
-        </span><span class="tt-sep">|</span>"""
+        items_html += (
+            f'<span class="tt-item">'
+            f'<span class="tt-symbol">{html.escape(t)}</span>'
+            f'<span class="tt-price">R$ {price_str}</span>'
+            f'<span class="tt-change {cls}">{arr} {pct_str}</span>'
+            f'</span><span class="tt-sep">|</span>'
+        )
 
     track = items_html * 2
     duration = max(20, len(perf) * 5)
 
-    st.markdown(f"""
-    <div class="ticker-tape-wrap">
-        <div class="tt-badge">AO VIVO</div>
-        <div class="ticker-viewport">
-            <div class="ticker-track" style="animation-duration:{duration}s;">
-                {track}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="ticker-tape-wrap">'
+        f'<div class="tt-badge">AO VIVO</div>'
+        f'<div class="ticker-viewport">'
+        f'<div class="ticker-track" style="animation-duration:{duration}s;">{track}</div>'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ── News card ──────────────────────────────────────────────────────────────
@@ -653,55 +652,55 @@ else:
             if perf_data and perf_data[0]["pct"] > 0:
                 top_gainer = perf_data[0]
                 t_g = top_gainer["ticker"]
-                if t_g in news_data and news_data[t_g]:
+                n = (news_data.get(t_g) or [None])[0]
+                if n and n.get("titulo"):
                     shown_movers.add(t_g)
                     has_any = True
-                    n = news_data[t_g][0]
                     t_clean = _ticker_clean(t_g)
-                    st.markdown(f"""
-                    <a class="news-card" href="{html.escape(n['link'])}" target="_blank" rel="noopener noreferrer"
-                       style="border-left-color:#34d399;background:rgba(52,211,153,0.05);min-height:200px;">
-                        <div style="font-size:0.75rem;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
-                            🚀 Maior Alta: {t_clean} (+{top_gainer['pct']:.2f}%)
-                        </div>
-                        <div class="news-meta">
-                            <span class="news-source">{html.escape(n['fonte'])}</span>
-                            <span class="news-time">{time_ago(n['data'])}</span>
-                        </div>
-                        <div class="news-headline" style="font-size:1.1rem;line-height:1.4;">{html.escape(n['titulo'][:140])}</div>
-                        <div class="news-footer">
-                            <span class="news-ticker-tag">{t_clean}</span>
-                            <span class="news-read-more">Ler notícia →</span>
-                        </div>
-                    </a>
-                    """, unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div>'
+                        f'<a class="news-card" href="{html.escape(n["link"])}" target="_blank" rel="noopener noreferrer"'
+                        f' style="border-left-color:#34d399;background:rgba(52,211,153,0.05);min-height:180px;">'
+                        f'<div style="font-size:0.75rem;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🚀 Maior Alta: {html.escape(t_clean)} (+{top_gainer["pct"]:.2f}%)</div>'
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">'
+                        f'<span style="padding:2px 10px;border-radius:12px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.22);color:#22d3ee;font-size:0.7rem;font-weight:600;">{html.escape(n["fonte"])}</span>'
+                        f'<span style="color:#64748b;font-size:0.72rem;">{time_ago(n["data"])}</span>'
+                        f'</div>'
+                        f'<div style="font-size:1rem;font-weight:600;color:#e2e8f0;line-height:1.45;">{html.escape(n["titulo"][:140])}</div>'
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;">'
+                        f'<span style="padding:2px 8px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:#64748b;font-size:0.68rem;font-weight:700;letter-spacing:1px;">{html.escape(t_clean)}</span>'
+                        f'<span style="color:#22d3ee;font-size:0.72rem;font-weight:600;">Ler notícia →</span>'
+                        f'</div>'
+                        f'</a></div>',
+                        unsafe_allow_html=True,
+                    )
 
         with movers_col2:
             if perf_data and perf_data[-1]["pct"] < 0:
                 top_loser = perf_data[-1]
                 t_l = top_loser["ticker"]
-                if t_l in news_data and news_data[t_l] and t_l not in shown_movers:
+                n = (news_data.get(t_l) or [None])[0] if t_l not in shown_movers else None
+                if n and n.get("titulo"):
                     shown_movers.add(t_l)
                     has_any = True
-                    n = news_data[t_l][0]
                     t_clean = _ticker_clean(t_l)
-                    st.markdown(f"""
-                    <a class="news-card" href="{html.escape(n['link'])}" target="_blank" rel="noopener noreferrer"
-                       style="border-left-color:#f87171;background:rgba(248,113,113,0.05);min-height:200px;">
-                        <div style="font-size:0.75rem;font-weight:800;color:#f87171;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
-                            🔻 Maior Queda: {t_clean} ({top_loser['pct']:.2f}%)
-                        </div>
-                        <div class="news-meta">
-                            <span class="news-source">{html.escape(n['fonte'])}</span>
-                            <span class="news-time">{time_ago(n['data'])}</span>
-                        </div>
-                        <div class="news-headline" style="font-size:1.1rem;line-height:1.4;">{html.escape(n['titulo'][:140])}</div>
-                        <div class="news-footer">
-                            <span class="news-ticker-tag">{t_clean}</span>
-                            <span class="news-read-more">Ler notícia →</span>
-                        </div>
-                    </a>
-                    """, unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div>'
+                        f'<a class="news-card" href="{html.escape(n["link"])}" target="_blank" rel="noopener noreferrer"'
+                        f' style="border-left-color:#f87171;background:rgba(248,113,113,0.05);min-height:180px;">'
+                        f'<div style="font-size:0.75rem;font-weight:800;color:#f87171;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔻 Maior Queda: {html.escape(t_clean)} ({top_loser["pct"]:.2f}%)</div>'
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">'
+                        f'<span style="padding:2px 10px;border-radius:12px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.22);color:#22d3ee;font-size:0.7rem;font-weight:600;">{html.escape(n["fonte"])}</span>'
+                        f'<span style="color:#64748b;font-size:0.72rem;">{time_ago(n["data"])}</span>'
+                        f'</div>'
+                        f'<div style="font-size:1rem;font-weight:600;color:#e2e8f0;line-height:1.45;">{html.escape(n["titulo"][:140])}</div>'
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;">'
+                        f'<span style="padding:2px 8px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:#64748b;font-size:0.68rem;font-weight:700;letter-spacing:1px;">{html.escape(t_clean)}</span>'
+                        f'<span style="color:#22d3ee;font-size:0.72rem;font-weight:600;">Ler notícia →</span>'
+                        f'</div>'
+                        f'</a></div>',
+                        unsafe_allow_html=True,
+                    )
 
         if shown_movers:
             st.markdown("<br>", unsafe_allow_html=True)
