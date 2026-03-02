@@ -23,91 +23,155 @@ def _get_grimmi_logo_b64():
 
 def render_fab():
     """
-    Renderiza o Container de FABs (Floating Action Buttons) lateral.
+    Renderiza a barra de navegação inferior no estilo bottom-nav de apps nativos.
     """
     logo_b64 = get_logo_base64()
-    logo_icon_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 22px; height: auto;" />' if logo_b64 else '🎈'
+    logo_icon_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" '
+        'style="width:20px;height:20px;object-fit:contain;display:block;" />'
+        if logo_b64 else '🌿'
+    )
 
     grimmi_b64 = _get_grimmi_logo_b64()
-    grimmi_icon_html = f'<img src="data:image/png;base64,{grimmi_b64}" style="width: 24px; height: auto; border-radius: 50%;" />' if grimmi_b64 else '🤖'
+    grimmi_icon_html = (
+        f'<img src="data:image/png;base64,{grimmi_b64}" '
+        'style="width:22px;height:22px;border-radius:50%;object-fit:cover;display:block;" />'
+        if grimmi_b64 else '🤖'
+    )
 
-    # CSS for FAB
-    st.markdown("""
+    st.markdown(f"""
     <style>
-    .fab-container {
+    /* Espaço para conteúdo não ficar atrás da nav bar */
+    .block-container {{
+        padding-bottom: 84px !important;
+    }}
+
+    /* BOTTOM NAV BAR */
+    .bottom-nav {{
         position: fixed;
-        bottom: 20px;
-        left: 20px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 68px;
         display: flex;
         flex-direction: row;
-        gap: 10px;
+        align-items: stretch;
+        justify-content: space-around;
+        background: rgba(8, 14, 28, 0.94);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
         z-index: 99999;
-        flex-wrap: nowrap;
-    }
+        padding: 0 4px;
+        box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.55);
+    }}
 
-    .tools-fab {
-        width: 42px;
-        height: 42px;
+    .nav-item {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        flex: 1;
+        padding: 6px 2px;
+        text-decoration: none !important;
+        color: rgba(100, 116, 139, 0.85) !important;
+        transition: color 0.2s ease, background 0.2s ease;
+        border-radius: 14px;
+        margin: 8px 3px;
+        -webkit-tap-highlight-color: transparent;
+        cursor: pointer;
+    }}
+
+    .nav-item:hover {{
+        color: rgba(203, 213, 225, 1) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        text-decoration: none !important;
+    }}
+
+    .nav-icon {{
+        font-size: 1.3rem;
+        line-height: 1;
+        height: 26px;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(30, 41, 59, 0.8);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 50%;
-        font-size: 1.25rem;
-        text-decoration: none;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        color: white !important;
-        flex-shrink: 0;
-    }
+    }}
 
-    .tools-fab:hover {
-        background: rgba(99, 102, 241, 0.3);
-        border-color: rgba(99, 102, 241, 0.5);
-        transform: scale(1.1) translateY(-2px);
-        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
-    }
+    .nav-label {{
+        font-size: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.2px;
+        font-family: 'Outfit', sans-serif;
+        white-space: nowrap;
+        line-height: 1;
+        color: inherit;
+    }}
 
-    .tools-fab-ai {
-        background: rgba(99, 102, 241, 0.18);
-        border-color: rgba(99, 102, 241, 0.4);
-        box-shadow: 0 4px 15px rgba(99,102,241,0.25);
-    }
+    /* Item IA: destaque roxo */
+    .nav-item-ai {{
+        color: rgba(139, 92, 246, 0.85) !important;
+        background: rgba(99, 102, 241, 0.1) !important;
+        border: 1px solid rgba(99, 102, 241, 0.18) !important;
+    }}
 
-    .tools-fab-ai:hover {
-        background: rgba(99, 102, 241, 0.45) !important;
-        border-color: rgba(99, 102, 241, 0.8) !important;
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5) !important;
-    }
+    .nav-item-ai:hover {{
+        color: rgba(167, 139, 250, 1) !important;
+        background: rgba(99, 102, 241, 0.22) !important;
+        border-color: rgba(99, 102, 241, 0.38) !important;
+    }}
 
-    @media (max-width: 768px) {
-        .tools-fab {
-            width: 36px;
-            height: 36px;
-            font-size: 1rem;
-        }
-        .fab-container {
-            bottom: 14px;
-            left: 14px;
-            gap: 8px;
-        }
-    }
+    @media (max-width: 768px) {{
+        .bottom-nav {{
+            height: 62px;
+        }}
+        .nav-item {{
+            margin: 6px 2px;
+            border-radius: 12px;
+        }}
+        .nav-icon {{
+            font-size: 1.15rem;
+            height: 22px;
+        }}
+        .nav-label {{
+            font-size: 0.55rem;
+        }}
+    }}
+
+    /* iPhone X+ safe area */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {{
+        .bottom-nav {{
+            padding-bottom: env(safe-area-inset-bottom);
+            height: calc(68px + env(safe-area-inset-bottom));
+        }}
+        .block-container {{
+            padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+        }}
+    }}
     </style>
-    """, unsafe_allow_html=True)
 
-    # FAB HTML
-    # Note: refresh parameter works best if we point to current page
-    st.markdown(f"""
-    <div class="fab-container">
-        <a href="Ferramentas" target="_self" class="tools-fab" title="Configurações">⚙️</a>
-        <a href="./?refresh=1" target="_self" class="tools-fab" title="Recarregar Dados">↻</a>
-        <a href="./" target="_self" class="tools-fab" title="Home">🏠</a>
-        <a href="Easter_Eggs" target="_self" class="tools-fab" title="Easter Eggs">{logo_icon_html}</a>
-        <a href="Agente_IA" target="_self" class="tools-fab tools-fab-ai" title="Agente IA – Grimmi">{grimmi_icon_html}</a>
-    </div>
+    <nav class="bottom-nav">
+        <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Config</span>
+        </a>
+        <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
+            <span class="nav-icon">↻</span>
+            <span class="nav-label">Reload</span>
+        </a>
+        <a href="./" target="_self" class="nav-item" title="Home">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Home</span>
+        </a>
+        <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
+            <span class="nav-icon">{logo_icon_html}</span>
+            <span class="nav-label">Extras</span>
+        </a>
+        <a href="Agente_IA" target="_self" class="nav-item nav-item-ai" title="Agente IA – Grimmi">
+            <span class="nav-icon">{grimmi_icon_html}</span>
+            <span class="nav-label">Grimmi</span>
+        </a>
+    </nav>
     """, unsafe_allow_html=True)
 
 
