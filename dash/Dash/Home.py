@@ -106,30 +106,101 @@ components.html("""
         injectMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
         injectMeta("apple-mobile-web-app-capable", "yes");
 
-        // 2. Remove Streamlit Toolbar (Aggressive)
+        // 2. Remove Streamlit Toolbar – preserva o Manage App Button estilizado como FAB
         const removeToolbar = () => {
             try {
-                const selectors = [
-                    '[data-testid="stToolbar"]',
+                // Esconde seletores simples (nunca o manage app button)
+                const simpleHide = [
                     '[data-testid="stHeader"]',
                     '[data-testid="stAppDeployButton"]',
-                    '[data-testid="stStatusWidget"]',
                     'div[class*="viewerBadge"]',
-                    '[data-testid="stManageAppButton"]'
                 ];
                 const docs = [document];
                 try { docs.push(window.parent.document); } catch(e){}
 
                 docs.forEach(doc => {
-                    selectors.forEach(selector => {
-                        const elements = doc.querySelectorAll(selector);
-                        elements.forEach(el => {
+                    simpleHide.forEach(selector => {
+                        doc.querySelectorAll(selector).forEach(el => {
                             el.style.display = 'none';
                             el.style.visibility = 'hidden';
                         });
                     });
                     const header = doc.querySelector('header');
                     if (header) header.style.display = 'none';
+
+                    // Limpeza cirúrgica do toolbar: esconde tudo EXCETO o manage app button
+                    const toolbar = doc.querySelector('[data-testid="stToolbar"]');
+                    if (toolbar) {
+                        toolbar.style.background = 'transparent';
+                        toolbar.style.boxShadow = 'none';
+                        toolbar.style.border = 'none';
+                        Array.from(toolbar.children).forEach(child => {
+                            const isManageApp =
+                                child.getAttribute('data-testid') === 'stManageAppButton' ||
+                                !!child.querySelector('[data-testid="stManageAppButton"]');
+                            if (!isManageApp) child.style.display = 'none';
+                        });
+                    }
+
+                    // Injeta CSS de FAB no documento pai (uma única vez)
+                    if (!doc.getElementById('fab-manage-style')) {
+                        const s = doc.createElement('style');
+                        s.id = 'fab-manage-style';
+                        s.textContent = `
+                            [data-testid="stManageAppButton"],
+                            [data-testid="stManageAppButton"] > button,
+                            [data-testid="stManageAppButton"] > a {
+                                width: 42px !important;
+                                height: 42px !important;
+                                min-width: 42px !important;
+                                min-height: 42px !important;
+                                border-radius: 50% !important;
+                                background: rgba(30,41,59,0.8) !important;
+                                backdrop-filter: blur(8px) !important;
+                                -webkit-backdrop-filter: blur(8px) !important;
+                                border: 1px solid rgba(255,255,255,0.1) !important;
+                                box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+                                color: rgba(0,0,0,0) !important;
+                                padding: 0 !important;
+                                display: flex !important;
+                                align-items: center !important;
+                                justify-content: center !important;
+                                cursor: pointer !important;
+                                overflow: hidden !important;
+                                transition: all 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+                                font-size: 0 !important;
+                                line-height: 42px !important;
+                            }
+                            [data-testid="stManageAppButton"] svg,
+                            [data-testid="stManageAppButton"] > button svg,
+                            [data-testid="stManageAppButton"] > a svg {
+                                width: 18px !important;
+                                height: 18px !important;
+                                fill: white !important;
+                                color: white !important;
+                                display: block !important;
+                                flex-shrink: 0 !important;
+                            }
+                            [data-testid="stManageAppButton"] > button:hover,
+                            [data-testid="stManageAppButton"] > a:hover {
+                                background: rgba(99,102,241,0.3) !important;
+                                border-color: rgba(99,102,241,0.5) !important;
+                                transform: scale(1.1) translateY(-2px) !important;
+                                box-shadow: 0 8px 20px rgba(99,102,241,0.3) !important;
+                            }
+                            @media (max-width: 768px) {
+                                [data-testid="stManageAppButton"],
+                                [data-testid="stManageAppButton"] > button,
+                                [data-testid="stManageAppButton"] > a {
+                                    width: 36px !important;
+                                    height: 36px !important;
+                                    min-width: 36px !important;
+                                    min-height: 36px !important;
+                                }
+                            }
+                        `;
+                        try { doc.head.appendChild(s); } catch(e) {}
+                    }
                 });
             } catch (e) {
                 console.log("Toolbar removal error:", e);
@@ -182,7 +253,7 @@ components.html("""
 st.markdown("""
 <style>
 /* HIDE DEFAULT ELEMENTS - Sempre esconder */
-#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, [data-testid="stManageAppButton"], button[title="Manage app"], div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"], [data-testid="stSidebar"], [data-testid="collapsedControl"], section[data-testid="stSidebar"], div[data-testid="stSidebarNav"] {
+#MainMenu, footer, header, .stAppDeployButton, [data-testid="stToolbar"], [data-testid="stHeader"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, div[data-testid="stDecoration"], [data-testid="stAppToolbar"], div[class*="stAppToolbar"], div[class*="viewerBadge"], [data-testid="stSidebar"], [data-testid="collapsedControl"], section[data-testid="stSidebar"], div[data-testid="stSidebarNav"] {
     display: none !important;
 }
 
