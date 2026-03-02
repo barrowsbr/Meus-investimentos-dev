@@ -41,6 +41,13 @@ def render_fab():
 
     st.markdown(f"""
     <style>
+    /* Ocultar toolbar nativa do Streamlit (Manage app) */
+    [data-testid="stToolbar"],
+    [data-testid="stStatusWidget"],
+    .stDeployButton {{
+        display: none !important;
+    }}
+
     /* Espaço para conteúdo não ficar atrás da nav bar */
     .block-container {{
         padding-bottom: 84px !important;
