@@ -304,6 +304,25 @@ a, a:visited, a:hover, a:active {
     }
     html, body, .stApp {
         overflow-x: hidden !important;
+        overscroll-behavior: none !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Impede bounce/wobble no mobile */
+    html {
+        overflow-y: auto !important;
+        overscroll-behavior-y: none !important;
+    }
+    body {
+        overflow-y: auto !important;
+        overscroll-behavior-y: none !important;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+    }
+    .stApp {
+        overflow-y: auto !important;
+        height: 100vh !important;
+        -webkit-overflow-scrolling: touch;
     }
 }
 </style>
@@ -1417,7 +1436,7 @@ st.markdown('''
 
 # --- FOOTER ---
 st.markdown('''
-<div class="neon-footer" style="text-align: center; padding-top: 14px; padding-bottom: 10px; font-size: 0.85rem; position: relative; z-index: 15;">
+<div class="neon-footer" style="text-align: center; padding-top: 8px; padding-bottom: 4px; font-size: 0.8rem; position: relative; z-index: 15;">
     Lucas Barroso Fouraux - 2026
 </div>
 ''', unsafe_allow_html=True)

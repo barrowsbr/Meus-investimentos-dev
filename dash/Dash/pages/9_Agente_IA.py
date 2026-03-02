@@ -248,6 +248,33 @@ with st.sidebar:
     st.markdown("### ⚙️ Agente IA")
     st.divider()
 
+    # ── Seletor de modelo ──────────────────────────────────────────────────
+    available_models = agent.get_available_models()
+    if available_models and agent.is_ready():
+        current_idx = 0
+        if agent.MODEL in available_models:
+            current_idx = available_models.index(agent.MODEL)
+
+        selected_model = st.selectbox(
+            "🧠 Modelo",
+            options=available_models,
+            index=current_idx,
+            help="Escolha o modelo Gemini. Modelos menores (flash) consomem menos cota.",
+        )
+
+        if selected_model != agent.MODEL:
+            with st.spinner(f"Trocando para {selected_model}..."):
+                success = agent.switch_model(selected_model)
+            if success:
+                st.session_state.chat_history = []
+                st.session_state.ctx_hash = ""  # Força re-sync do contexto
+                st.toast(f"✅ Modelo trocado para **{selected_model}**")
+                st.rerun()
+            else:
+                st.toast(f"❌ Falha ao trocar para {selected_model}", icon="⚠️")
+
+    st.divider()
+
     # ── Toggle: Busca na internet ──────────────────────────────────────────
     web_search_on = st.toggle(
         "🌐 Busca na internet",
@@ -288,7 +315,10 @@ with st.sidebar:
 
     if st.session_state.portfolio_context:
         with st.expander("🔍 Ver contexto enviado ao Gemini", expanded=False):
-            st.code(st.session_state.portfolio_context, language="markdown")
+            ctx_text = st.session_state.portfolio_context
+            ctx_chars = len(ctx_text)
+            st.caption(f"📏 Tamanho: ~{ctx_chars:,} caracteres (~{ctx_chars // 4:,} tokens)")
+            st.code(ctx_text, language="markdown")
     if st.session_state.load_errors:
         with st.expander("⚠️ Avisos de carregamento", expanded=False):
             for err in st.session_state.load_errors:

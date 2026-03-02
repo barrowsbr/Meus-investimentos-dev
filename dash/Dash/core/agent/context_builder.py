@@ -28,6 +28,10 @@ def _df_to_table(df: pd.DataFrame) -> str:
         return df.to_csv(index=False, sep=",")
 
 
+_MAX_RV_ROWS = 20        # últimas N transações de RV enviadas ao agente
+_MAX_PROVENTOS_ROWS = 15  # últimos N proventos enviados ao agente
+
+
 def build_portfolio_context(
     df_rv: Optional[pd.DataFrame] = None,
     df_rf_atual: Optional[pd.DataFrame] = None,
@@ -38,11 +42,14 @@ def build_portfolio_context(
     extra_metrics: Optional[dict] = None,
 ) -> str:
     """
-    Retorna string com todos os dados brutos do portfólio para injeção no
+    Retorna string **resumida** com os dados do portfólio para injeção no
     system_instruction do Gemini.
 
-    Nenhum cálculo é realizado — os dados são exatamente como estão no Google Sheets.
-    O Gemini receberá os dados crus e fará suas próprias análises.
+    Para reduzir o uso de tokens:
+      - RV: envia apenas as últimas N transações + resumo estatístico
+      - RF atual: mantém completa (geralmente pequena)
+      - RF histórico: apenas resumo quantitativo (sem tabela)
+      - Proventos: últimos N registros + total acumulado
 
     Fontes (abas do Google Sheets):
       df_rv        — 'meus_ativos'    → transações de renda variável
@@ -57,53 +64,80 @@ def build_portfolio_context(
     today = date.today().strftime("%d/%m/%Y")
 
     lines: list[str] = [
-        f"# Carteira do Investidor — dados brutos extraídos em {today}",
+        f"# Carteira do Investidor — resumo extraído em {today}",
         "",
-        "> Dados importados diretamente do Google Sheets, sem nenhum cálculo ou interpretação prévia.",
-        "> Use estes dados para responder perguntas sobre o portfólio.",
+        "> Dados importados do Google Sheets. Tabelas grandes foram resumidas para economizar contexto.",
         "",
     ]
 
-    # ── Renda Variável — aba meus_ativos ──────────────────────────────────
+    # ── Renda Variável — aba meus_ativos (resumida) ───────────────────────
     if df_rv is not None and not df_rv.empty:
+        total_ops = len(df_rv)
+        tickers_unicos = df_rv['ticker'].nunique() if 'ticker' in df_rv.columns else '?'
         lines.append("## Renda Variável — aba `meus_ativos`")
         lines.append(
-            "Registro de todas as transações de ativos de renda variável "
-            "(ações, FIIs, ETFs, BDRs etc.). Cada linha é uma operação."
+            f"Total de operações: **{total_ops}** · Tickers únicos: **{tickers_unicos}**"
         )
-        lines.append("")
-        lines.append(_df_to_table(df_rv))
+        if total_ops > _MAX_RV_ROWS:
+            lines.append(f"*(Mostrando as {_MAX_RV_ROWS} transações mais recentes)*")
+            lines.append("")
+            lines.append(_df_to_table(df_rv.tail(_MAX_RV_ROWS)))
+        else:
+            lines.append("")
+            lines.append(_df_to_table(df_rv))
         lines.append("")
 
-    # ── Renda Fixa Atual — aba fixa_aberta ───────────────────────────────
+    # ── Renda Fixa Atual — aba fixa_aberta (completa — geralmente pequena)
     if df_rf_atual is not None and not df_rf_atual.empty:
         lines.append("## Renda Fixa — aba `fixa_aberta`")
         lines.append(
             "Posições de renda fixa que o investidor POSSUI ATUALMENTE "
-            "(CDBs, LCIs, LCAs, Tesouro Direto etc.). "
-            "Esta é a fonte de verdade para o que está em carteira hoje."
+            "(CDBs, LCIs, LCAs, Tesouro Direto etc.)."
         )
         lines.append("")
         lines.append(_df_to_table(df_rf_atual))
         lines.append("")
 
-    # ── Renda Fixa Histórico — aba renda_fixa ────────────────────────────
+    # ── Renda Fixa Histórico — aba renda_fixa (apenas resumo) ────────────
     if df_rf_hist is not None and not df_rf_hist.empty:
-        lines.append("## Renda Fixa — aba `renda_fixa`")
+        n_ops = len(df_rf_hist)
+        lines.append("## Renda Fixa Histórico — aba `renda_fixa` (resumo)")
         lines.append(
-            "Histórico de operações de renda fixa (compras, resgates, vencimentos). "
-            "Inclui ativos já encerrados. Use para entender o histórico de movimentações."
+            f"Total de operações registradas: **{n_ops}** "
+            "(compras, resgates, vencimentos — inclui ativos encerrados)."
         )
-        lines.append("")
-        lines.append(_df_to_table(df_rf_hist))
+        # Resumo por tipo se a coluna existir
+        for col in ('tipo', 'Tipo', 'operacao', 'Operacao'):
+            if col in df_rf_hist.columns:
+                resumo = df_rf_hist[col].value_counts().to_dict()
+                parts = [f"{k}: {v}" for k, v in resumo.items()]
+                lines.append(f"Distribuição: {' · '.join(parts)}")
+                break
         lines.append("")
 
-    # ── Proventos — aba meus_proventos ────────────────────────────────────
+    # ── Proventos — aba meus_proventos (resumidos) ────────────────────────
     if df_proventos is not None and not df_proventos.empty:
+        total_prov = len(df_proventos)
         lines.append("## Proventos — aba `meus_proventos`")
-        lines.append("Dividendos, JCP e outros rendimentos recebidos.")
-        lines.append("")
-        lines.append(_df_to_table(df_proventos))
+        # Total em R$ se tiver coluna de valor
+        for col in ('valor', 'Valor', 'value', 'liquido', 'Liquido'):
+            if col in df_proventos.columns:
+                try:
+                    soma = df_proventos[col].sum()
+                    lines.append(f"Total recebido: **R$ {soma:,.2f}** em **{total_prov}** eventos.")
+                except Exception:
+                    lines.append(f"Total de eventos: **{total_prov}**.")
+                break
+        else:
+            lines.append(f"Total de eventos: **{total_prov}**.")
+
+        if total_prov > _MAX_PROVENTOS_ROWS:
+            lines.append(f"*(Mostrando os {_MAX_PROVENTOS_ROWS} mais recentes)*")
+            lines.append("")
+            lines.append(_df_to_table(df_proventos.tail(_MAX_PROVENTOS_ROWS)))
+        else:
+            lines.append("")
+            lines.append(_df_to_table(df_proventos))
         lines.append("")
 
     return "\n".join(lines)

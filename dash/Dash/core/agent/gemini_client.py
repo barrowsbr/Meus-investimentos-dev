@@ -248,6 +248,62 @@ class GeminiAgent:
             label += " · 🌐 web"
         return label
 
+    def get_available_models(self) -> list[str]:
+        """Retorna lista de modelos candidatos para o SDK em uso."""
+        if self._sdk_used == "new":
+            return list(_CANDIDATES_NEW_SDK)
+        elif self._sdk_used == "old":
+            return list(_CANDIDATES_OLD_SDK)
+        return []
+
+    def switch_model(self, model_name: str) -> bool:
+        """
+        Troca manualmente para o modelo especificado.
+        Preserva o system instruction (contexto), mas limpa o histórico de chat.
+        Retorna True se a troca foi bem-sucedida.
+        """
+        candidates = self.get_available_models()
+        if model_name not in candidates:
+            return False
+
+        try:
+            if self._sdk_used == "new":
+                # Testa se o modelo aceita requests
+                self._client.models.generate_content(
+                    model=model_name,
+                    contents="ping",
+                    config=_genai_types.GenerateContentConfig(max_output_tokens=1),
+                )
+                # Preserva system instruction atual
+                prev_system = getattr(self._config, "system_instruction", SYSTEM_PROMPT_BASE)
+                self.MODEL = model_name
+                tools = self._new_sdk_tools()
+                self._config = _genai_types.GenerateContentConfig(
+                    system_instruction=prev_system,
+                    tools=tools or None,
+                )
+                self._web_search_active = bool(tools)
+                self._new_chat()  # Nova sessão, sem histórico
+                return True
+
+            elif self._sdk_used == "old":
+                prev_system = getattr(self._old_model, "_system_instruction", SYSTEM_PROMPT_BASE)
+                tools = self._old_sdk_tools()
+                m = _old_genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=prev_system,
+                    tools=tools or None,
+                )
+                m.count_tokens("ping")
+                self._old_model = m
+                self.MODEL = model_name
+                self._web_search_active = bool(tools)
+                self._history = []
+                return True
+
+        except Exception:
+            return False
+
     def web_search_status(self) -> str:
         """Retorna status da busca na web como string legível."""
         if not self.enable_web_search:
@@ -330,6 +386,7 @@ class GeminiAgent:
         """
         Envia uma mensagem e retorna chunks de texto via generator.
         O contexto do portfólio já deve ter sido injetado via set_context().
+        Em caso de erro de quota, tenta fallback automático para modelo mais leve.
         """
         if not self.is_ready():
             yield "⚠️ Agente não inicializado. Verifique a chave de API."
@@ -341,7 +398,18 @@ class GeminiAgent:
             else:
                 yield from self._chat_old(user_message, stream)
         except Exception as e:
-            yield self._format_error(e)
+            # Tenta fallback automático se for erro de quota
+            if self._is_quota_error(e) and self._fallback_to_next():
+                yield f"⚠️ Modelo anterior esgotou a cota. Usando **{self.MODEL}** agora.\n\n"
+                try:
+                    if self._sdk_used == "new":
+                        yield from self._chat_new(user_message, stream)
+                    else:
+                        yield from self._chat_old(user_message, stream)
+                except Exception as e2:
+                    yield self._format_error(e2)
+            else:
+                yield self._format_error(e)
 
     def _chat_new(self, message: str, stream: bool) -> Generator[str, None, None]:
         """Envia mensagem via novo SDK."""
