@@ -22,9 +22,9 @@ if st.query_params.get("refresh") == "1":
     st.query_params.clear()
     st.rerun()
 
-# --- LOAD LOGO FOR PRELOADER ---
+# --- LOAD LOGO FOR PRELOADER (fallback) ---
 def get_logo_base64():
-    """Load logo image as base64 for preloader."""
+    """Load logo image as base64 for preloader fallback."""
     try:
         logo_path = Path(__file__).parent / "assets" / "logos" / "carregamento.png"
         with open(logo_path, "rb") as f:
@@ -32,9 +32,38 @@ def get_logo_base64():
     except:
         return None
 
-logo_b64 = get_logo_base64()
+# --- LOAD INTRO VIDEO ---
+def get_intro_video_base64():
+    """Load intro video as base64."""
+    try:
+        video_path = Path(__file__).parent / "assets" / "videos" / "Video 1.mp4"
+        with open(video_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
 
-logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
+logo_b64 = get_logo_base64()
+video_b64 = get_intro_video_base64()
+
+# Build preloader content: video if available, logo fallback
+if video_b64:
+    preloader_content = (
+        f'<video id="intro-video" class="preloader-video" autoplay muted playsinline '
+        f'webkit-playsinline preload="auto">'
+        f'<source src="data:video/mp4;base64,{video_b64}" type="video/mp4">'
+        f'</video>'
+    )
+    # Video-based fade: JS will handle fade-out when video ends
+    preloader_anim = "/* Video fade handled by JS */"
+    preloader_fade_delay = "8s"  # safety fallback if JS doesn't fire
+elif logo_b64:
+    preloader_content = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />'
+    preloader_anim = ""
+    preloader_fade_delay = "3s"
+else:
+    preloader_content = '<div class="preloader-spinner"></div>'
+    preloader_anim = ""
+    preloader_fade_delay = "2s"
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
 st.markdown(f"""
@@ -55,7 +84,22 @@ st.markdown(f"""
     justify-content: center;
     flex-direction: column;
     pointer-events: none;
-    animation: fadeOutPreloader 0.5s ease-out 3s forwards;
+    opacity: 1;
+    transition: opacity 0.6s ease-out;
+}}
+.preloader-overlay.fade-out {{
+    opacity: 0;
+    visibility: hidden;
+}}
+/* Fallback: se o JS não disparar, esconde após {preloader_fade_delay} */
+.preloader-overlay {{
+    animation: fadeOutPreloader 0.6s ease-out {preloader_fade_delay} forwards;
+}}
+.preloader-video {{
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    background: #0b1120;
 }}
 .preloader-logo {{
     width: 190px;
@@ -82,8 +126,25 @@ st.markdown(f"""
 @keyframes fadeOutPreloader {{
     to {{ opacity: 0; visibility: hidden; }}
 }}
+{preloader_anim}
 </style>
-<div class="preloader-overlay">{logo_html}</div>
+<div class="preloader-overlay" id="preloader">{preloader_content}</div>
+<script>
+// Fade out preloader when video ends (or after timeout)
+(function() {{
+    var vid = document.getElementById('intro-video');
+    var overlay = document.getElementById('preloader');
+    if (vid && overlay) {{
+        vid.addEventListener('ended', function() {{
+            overlay.classList.add('fade-out');
+        }});
+        // Safety: if video stalls, fade out after 8s
+        setTimeout(function() {{
+            overlay.classList.add('fade-out');
+        }}, 8000);
+    }}
+}})();
+</script>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
