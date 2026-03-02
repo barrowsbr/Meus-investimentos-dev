@@ -189,7 +189,6 @@ def render_fab():
                 <span class="nav-icon">{logo_icon_html}</span>
                 <span class="nav-label">Extras</span>
             </a>
-            <span class="nav-sep"></span>
             <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
                 <span class="nav-icon">↻</span>
                 <span class="nav-label">Reload</span>
