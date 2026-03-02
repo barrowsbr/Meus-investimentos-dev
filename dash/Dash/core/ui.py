@@ -70,8 +70,8 @@ def render_fab():
         border-top: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 0;
         z-index: 99999;
-        /* 130px à direita = espaço para o Manage App não sobrepor */
-        padding: 0 130px 0 0;
+        /* 130px à esquerda = espaço reservado para o Manage App */
+        padding: 0 0 0 130px;
         box-shadow:
             0 -4px 24px rgba(0, 0, 0, 0.55),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -131,19 +131,22 @@ def render_fab():
         align-self: center;
     }}
 
-    /* Manage App: opacidade total — parte integrante da barra */
+    /* Manage App: mover para a esquerda e integrar à barra */
     [data-testid="stToolbar"],
     [data-testid="stStatusWidget"],
     [data-testid="stAppToolbar"],
     [data-testid="stToolbarActions"] {{
         opacity: 1 !important;
         transform: none !important;
+        right: auto !important;
+        left: 0 !important;
     }}
 
     @media (max-width: 600px) {{
         .bottom-nav {{
             height: 44px;
-            padding-right: 110px;
+            padding-left: 110px;
+            padding-right: 0;
         }}
         .nav-item {{
             padding: 4px 4px;
