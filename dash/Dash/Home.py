@@ -32,30 +32,22 @@ def get_logo_base64():
     except:
         return None
 
-# --- LOAD INTRO VIDEO ---
-def get_intro_video_base64():
-    """Load intro video as base64."""
-    try:
-        video_path = Path(__file__).parent / "assets" / "videos" / "Video 1.mp4"
-        with open(video_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except:
-        return None
+# --- CHECK INTRO VIDEO (served via static files, not base64) ---
+_intro_video_exists = (Path(__file__).parent / "static" / "intro.mp4").exists()
 
 logo_b64 = get_logo_base64()
-video_b64 = get_intro_video_base64()
 
-# Build preloader content: video if available, logo fallback
-if video_b64:
+# Build preloader content: video via static URL if available, logo fallback
+if _intro_video_exists:
     preloader_content = (
-        f'<video id="intro-video" class="preloader-video" autoplay muted playsinline '
-        f'webkit-playsinline preload="auto">'
-        f'<source src="data:video/mp4;base64,{video_b64}" type="video/mp4">'
-        f'</video>'
+        '<video id="intro-video" class="preloader-video" autoplay muted playsinline '
+        'webkit-playsinline preload="auto">'
+        '<source src="./app/static/intro.mp4" type="video/mp4">'
+        '</video>'
     )
     # Video-based fade: JS will handle fade-out when video ends
     preloader_anim = "/* Video fade handled by JS */"
-    preloader_fade_delay = "8s"  # safety fallback if JS doesn't fire
+    preloader_fade_delay = "10s"  # safety fallback if JS doesn't fire
 elif logo_b64:
     preloader_content = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />'
     preloader_anim = ""
@@ -284,13 +276,15 @@ components.html("""
              }
         };
 
-        // 4. Video preloader: fade out when video ends
+        // 4. Video preloader: force autoplay on mobile + fade out when ends
         const setupVideoPreloader = () => {
             try {
                 const doc = window.parent.document;
                 const vid = doc.getElementById('intro-video');
                 const overlay = doc.getElementById('preloader');
-                if (vid && overlay && !vid.dataset.listenerAttached) {
+                if (!vid || !overlay) return;
+
+                if (!vid.dataset.listenerAttached) {
                     vid.dataset.listenerAttached = 'true';
                     vid.addEventListener('ended', () => {
                         overlay.classList.add('fade-out');
@@ -298,7 +292,18 @@ components.html("""
                     // Safety fallback if video stalls
                     setTimeout(() => {
                         overlay.classList.add('fade-out');
-                    }, 8000);
+                    }, 10000);
+                }
+
+                // Force play on mobile (bypasses autoplay restrictions)
+                if (vid.paused) {
+                    vid.muted = true;
+                    var playPromise = vid.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(function() {
+                            // Autoplay blocked — retry on next interval
+                        });
+                    }
                 }
             } catch (e) {
                 console.log('Video preloader error:', e);
@@ -308,6 +313,7 @@ components.html("""
         // Run repeatedly to catch late rendering
         setInterval(removeToolbar, 500);
         setInterval(setupEasterEgg, 1000);
+        setInterval(setupVideoPreloader, 500);  // retry play until it works
         
         removeToolbar();
         setupEasterEgg();
@@ -364,48 +370,32 @@ a, a:visited, a:hover, a:active {
     width: 100% !important;
 }
 
-/* MOBILE — página 100% rígida, sem bounce nem wobble */
+/* MOBILE — sem bounce horizontal, scroll vertical livre */
 @media (max-width: 768px) {
     .block-container {
         margin-top: -100px !important;
     }
 
-    /* Trava overscroll/bounce em TODOS os elementos */
+    /* Bloqueia bounce/overscroll mas permite scroll vertical */
     html, body, .stApp,
     [data-testid="stAppViewContainer"],
     [data-testid="stAppViewContainer"] > .main,
-    [data-testid="stVerticalBlock"],
     .main {
         overflow-x: hidden !important;
-        overscroll-behavior: none !important;
         overscroll-behavior-x: none !important;
-        overscroll-behavior-y: none !important;
-        -webkit-overflow-scrolling: auto !important;
     }
 
-    /* Scroll vertical só no .stApp, todo o resto bloqueado */
-    html {
-        overflow: hidden !important;
-        position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
+    html, body {
+        overscroll-behavior-y: none !important;
     }
-    body {
-        overflow: hidden !important;
-        position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
-    }
+
     .stApp {
-        overflow-x: hidden !important;
         overflow-y: auto !important;
-        height: 100vh !important;
-        width: 100vw !important;
         overscroll-behavior-y: none !important;
         touch-action: pan-y !important;
     }
 
-    /* Desabilita TODOS os transforms de hover nos cards — impede que "balancem" */
+    /* Desabilita transforms de hover nos cards no mobile */
     .nav-card:hover,
     .expandable-card:hover,
     .metrics-card-single:hover,
