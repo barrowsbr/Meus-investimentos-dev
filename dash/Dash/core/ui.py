@@ -58,16 +58,18 @@ def render_fab():
         display: flex;
         flex-direction: row;
         align-items: stretch;
-        background: rgba(14, 17, 23, 0.97);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-top: 1px solid rgba(255, 255, 255, 0.10);
+        background: rgba(14, 17, 23, 0.95);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-top: 1px solid rgba(99, 102, 241, 0.15);
         border-radius: 0;
         z-index: 99999;
         padding: 0;
         box-shadow:
-            0 -4px 24px rgba(0, 0, 0, 0.55),
-            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            0 -6px 30px rgba(0, 0, 0, 0.5),
+            0 -2px 15px rgba(99, 102, 241, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            inset 0 1px 20px rgba(99, 102, 241, 0.03);
     }}
 
     /* Área dos botões: ocupa tudo menos o espaço do Manage App */
