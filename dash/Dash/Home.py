@@ -32,30 +32,16 @@ def get_logo_base64():
     except:
         return None
 
-# --- CHECK INTRO VIDEO (served via static files, not base64) ---
+# --- CHECK INTRO VIDEO (served via static files) ---
 _intro_video_exists = (Path(__file__).parent / "static" / "intro.mp4").exists()
 
 logo_b64 = get_logo_base64()
 
-# Build preloader content: video via static URL if available, logo fallback
-if _intro_video_exists:
-    preloader_content = (
-        '<video id="intro-video" class="preloader-video" autoplay muted playsinline '
-        'webkit-playsinline preload="auto">'
-        '<source src="./app/static/intro.mp4" type="video/mp4">'
-        '</video>'
-    )
-    # Video-based fade: JS will handle fade-out when video ends
-    preloader_anim = "/* Video fade handled by JS */"
-    preloader_fade_delay = "10s"  # safety fallback if JS doesn't fire
-elif logo_b64:
-    preloader_content = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />'
-    preloader_anim = ""
-    preloader_fade_delay = "3s"
+# Preloader shows logo initially; JS will swap in video if available
+if logo_b64:
+    preloader_content = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" id="preloader-logo" />'
 else:
     preloader_content = '<div class="preloader-spinner"></div>'
-    preloader_anim = ""
-    preloader_fade_delay = "2s"
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
 st.markdown(f"""
@@ -82,14 +68,21 @@ st.markdown(f"""
 .preloader-overlay.fade-out {{
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
 }}
-/* Fallback: se o JS não disparar, esconde após {preloader_fade_delay} */
+/* Fallback: se o vídeo/JS não disparar, esconde após 5s */
 .preloader-overlay {{
-    animation: fadeOutPreloader 0.6s ease-out {preloader_fade_delay} forwards;
+    animation: fadeOutPreloader 0.6s ease-out 5s forwards;
+}}
+.preloader-overlay.has-video {{
+    animation: none !important;
 }}
 .preloader-video {{
-    width: 100vw;
-    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     background: #0b1120;
 }}
@@ -118,9 +111,8 @@ st.markdown(f"""
 @keyframes fadeOutPreloader {{
     to {{ opacity: 0; visibility: hidden; }}
 }}
-{preloader_anim}
 </style>
-<div class="preloader-overlay" id="preloader">{preloader_content}</div>
+<div class="preloader-overlay" id="preloader" data-has-video="{'true' if _intro_video_exists else 'false'}">{preloader_content}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -276,35 +268,65 @@ components.html("""
              }
         };
 
-        // 4. Video preloader: force autoplay on mobile + fade out when ends
+        // 4. Video preloader: create video element via JS and force autoplay
         const setupVideoPreloader = () => {
             try {
                 const doc = window.parent.document;
-                const vid = doc.getElementById('intro-video');
                 const overlay = doc.getElementById('preloader');
-                if (!vid || !overlay) return;
+                if (!overlay) return;
 
-                if (!vid.dataset.listenerAttached) {
-                    vid.dataset.listenerAttached = 'true';
-                    vid.addEventListener('ended', () => {
-                        overlay.classList.add('fade-out');
-                    });
-                    // Safety fallback if video stalls
-                    setTimeout(() => {
-                        overlay.classList.add('fade-out');
-                    }, 10000);
-                }
+                // Only inject video if data attribute says so and not done yet
+                if (overlay.dataset.hasVideo !== 'true') return;
+                if (overlay.dataset.videoInjected === 'true') return;
+                overlay.dataset.videoInjected = 'true';
 
-                // Force play on mobile (bypasses autoplay restrictions)
-                if (vid.paused) {
-                    vid.muted = true;
-                    var playPromise = vid.play();
-                    if (playPromise !== undefined) {
-                        playPromise.catch(function() {
-                            // Autoplay blocked — retry on next interval
-                        });
+                // Cancel the CSS fallback animation
+                overlay.classList.add('has-video');
+
+                // Create video element via JS (bypasses Streamlit sanitization)
+                const vid = doc.createElement('video');
+                vid.id = 'intro-video';
+                vid.className = 'preloader-video';
+                vid.muted = true;
+                vid.playsInline = true;
+                vid.setAttribute('playsinline', '');
+                vid.setAttribute('webkit-playsinline', '');
+                vid.setAttribute('preload', 'auto');
+                vid.src = './app/static/intro.mp4';
+
+                // Hide logo, show video
+                const logo = overlay.querySelector('#preloader-logo, .preloader-logo, .preloader-spinner');
+                if (logo) logo.style.display = 'none';
+                overlay.appendChild(vid);
+
+                // When video ends, fade out
+                vid.addEventListener('ended', () => {
+                    overlay.classList.add('fade-out');
+                });
+
+                // Force play
+                const playVid = () => {
+                    if (vid.paused) {
+                        vid.muted = true;
+                        vid.play().catch(() => {});
                     }
-                }
+                };
+                playVid();
+                // Retry every 300ms for up to 5 seconds
+                const retryInterval = setInterval(() => {
+                    if (!vid.paused) {
+                        clearInterval(retryInterval);
+                        return;
+                    }
+                    playVid();
+                }, 300);
+                setTimeout(() => clearInterval(retryInterval), 5000);
+
+                // Safety: fade out after 12s no matter what
+                setTimeout(() => {
+                    overlay.classList.add('fade-out');
+                }, 12000);
+
             } catch (e) {
                 console.log('Video preloader error:', e);
             }
@@ -313,7 +335,6 @@ components.html("""
         // Run repeatedly to catch late rendering
         setInterval(removeToolbar, 500);
         setInterval(setupEasterEgg, 1000);
-        setInterval(setupVideoPreloader, 500);  // retry play until it works
         
         removeToolbar();
         setupEasterEgg();
