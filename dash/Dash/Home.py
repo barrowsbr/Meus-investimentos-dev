@@ -358,7 +358,7 @@ html, body, [class*="css"] {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 50px 20px 60px;
+    padding: 50px 20px 40px;
     margin: 0;
     width: 100%;
     background-color: transparent;
@@ -392,7 +392,7 @@ CSS_PART2 = """
 .hero-logo {
     width: 84px;
     height: auto;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -442,7 +442,7 @@ CSS_PART2 = """
     color: #ffffff;
     letter-spacing: 3px;
     margin-right: -3px; /* Compensate for letter-spacing to center perfectly */
-    margin-bottom: 40px;
+    margin-bottom: 25px;
     text-shadow: 
         0 0 10px rgba(255,255,255,0.6),
         0 0 20px rgba(255,255,255,0.3);
@@ -850,20 +850,21 @@ div[data-testid="column"] {
 }
 
 @media (max-width: 768px) {
-    .hero-title { font-size: 2.8rem; letter-spacing: 2px; }
-    .hero-subtitle { font-size: 1rem; letter-spacing: 1px; }
+    .hero-title { font-size: 2.5rem; letter-spacing: 2px; margin-bottom: 8px; }
+    .hero-subtitle { font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 15px; }
+    .hero-logo { width: 60px; margin-bottom: 8px; }
     .hero-section {
-        min-height: 300px;
-        padding: 60px 15px 50px;
+        min-height: auto;
+        padding: 35px 15px 30px;
         margin: 0;
         width: 100%;
     }
     .nav-card {
-        padding: 15px 20px;
+        padding: 12px 20px;
         max-width: 100%;
     }
-    .card-title { font-size: 1.2rem; }
-    .card-desc { font-size: 0.75rem; }
+    .card-title { font-size: 1.15rem; }
+    .card-desc { font-size: 0.72rem; }
     .card-icon { font-size: 0.85rem; }
     .card-arrow { right: 15px; font-size: 1rem; }
     .tools-fab {
@@ -877,10 +878,10 @@ div[data-testid="column"] {
         gap: 8px;
     }
     .expandable-wrapper { max-width: 100%; }
-    .expandable-header { padding: 15px 20px; }
+    .expandable-header { padding: 12px 20px; }
     .expand-icon { right: 15px; }
-    .sub-items { padding: 0 12px 12px 12px; }
-    .sub-item { padding: 10px 14px; }
+    .sub-items { padding: 0 12px 10px 12px; }
+    .sub-item { padding: 8px 14px; }
     .sub-item-icon {
         width: 24px;
         height: 24px;
@@ -888,7 +889,7 @@ div[data-testid="column"] {
         margin-right: 10px;
     }
     .sub-item-text { font-size: 0.82rem; }
-    .divider-line { margin: 5px 20px 8px 20px; }
+    .divider-line { margin: 4px 20px 6px 20px; }
 }
 </style>
 """
@@ -1058,11 +1059,11 @@ st.markdown("""
 }
 
 @media (max-width: 768px) {
-    .metrics-container { margin-top: -60px; }
+    .metrics-container { margin-top: -40px; }
     .metrics-box {
         flex-direction: column;
-        gap: 15px;
-        padding: 25px 40px;
+        gap: 10px;
+        padding: 15px 30px;
         width: 100%;
         max-width: 500px;
     }
@@ -1071,14 +1072,15 @@ st.markdown("""
         height: 1px;
     }
     .metric-item-value {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         white-space: nowrap;
     }
     .metric-item-change {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
     }
     .metric-item-label {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        margin-bottom: 4px;
     }
 }
 
@@ -1287,11 +1289,11 @@ metrics_placeholder.markdown("""
 """, unsafe_allow_html=True)
 
 # --- SPACER ---
-st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
 st.markdown('''
-<div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 20px;">
 
 <!-- Patrimônio Expandable Card -->
 <div class="expandable-wrapper">
@@ -1373,7 +1375,7 @@ st.markdown('''
 # --- NOTÍCIAS EXPANDABLE CARD (dynamic — populated after data load) ---
 noticias_placeholder = st.empty()
 noticias_placeholder.markdown('''
-<div style="padding:0 20px;margin-top:30px;">
+<div style="padding:0 20px;margin-top:14px;">
 <div class="expandable-wrapper">
     <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
     <div class="expandable-card card-noticias-exp">
@@ -1395,20 +1397,20 @@ noticias_placeholder.markdown('''
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
-<div class="arch-link" style="position: relative; z-index: 15; margin-top: 20px;">
+<div class="arch-link" style="position: relative; z-index: 15; margin-top: 10px;">
     <a href="Arquitetura" target="_self">Ver Arquitetura do Sistema</a>
 </div>
 ''', unsafe_allow_html=True)
 
 # --- FOOTER ---
 st.markdown('''
-<div class="neon-footer" style="text-align: center; padding-top: 40px; padding-bottom: 20px; font-size: 0.85rem; position: relative; z-index: 15;">
+<div class="neon-footer" style="text-align: center; padding-top: 14px; padding-bottom: 10px; font-size: 0.85rem; position: relative; z-index: 15;">
     Lucas Barroso Fouraux - 2026
 </div>
 ''', unsafe_allow_html=True)
 
 # --- SPACER BOTTOM ---
-st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
 
 # === STEP 2: NOW LOAD DATA (after visual structure is rendered) ===
 df_assets = load_assets()
@@ -1591,7 +1593,7 @@ else:
     )
 
 noticias_card_html = (
-    '<div style="padding:0 20px;margin-top:30px;">'
+    '<div style="padding:0 20px;margin-top:14px;">'
     '<div class="expandable-wrapper">'
     '<input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">'
     '<div class="expandable-card card-noticias-exp">'
