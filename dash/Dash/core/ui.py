@@ -70,8 +70,8 @@ def render_fab():
         border-top: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 0;
         z-index: 99999;
-        /* 130px à esquerda = espaço reservado para o Manage App */
-        padding: 0 0 0 130px;
+        /* 130px à direita = espaço real do botão Manage App */
+        padding: 0 130px 0 0;
         box-shadow:
             0 -4px 24px rgba(0, 0, 0, 0.55),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -131,22 +131,20 @@ def render_fab():
         align-self: center;
     }}
 
-    /* Manage App: mover para a esquerda e integrar à barra */
+    /* Manage App: integrar visualmente à barra */
     [data-testid="stToolbar"],
     [data-testid="stStatusWidget"],
     [data-testid="stAppToolbar"],
     [data-testid="stToolbarActions"] {{
         opacity: 1 !important;
         transform: none !important;
-        right: auto !important;
-        left: 0 !important;
     }}
 
     @media (max-width: 600px) {{
         .bottom-nav {{
             height: 44px;
-            padding-left: 110px;
-            padding-right: 0;
+            padding-left: 0;
+            padding-right: 110px;
         }}
         .nav-item {{
             padding: 4px 4px;
@@ -175,29 +173,28 @@ def render_fab():
     }}
     </style>
 
-    <!-- Barra unificada: Config | Reload | sep | Grimmi | sep | Home | Extras -->
+    <!-- Barra unificada: Home | Gemini | Extras | Reload | Config -->
     <nav class="bottom-nav">
-        <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-label">Config</span>
-        </a>
-        <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
-            <span class="nav-icon">↻</span>
-            <span class="nav-label">Reload</span>
-        </a>
-        <span class="nav-sep"></span>
-        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
-            <span class="nav-icon">{grimmi_icon_html}</span>
-            <span class="nav-label">Gemini</span>
-        </a>
-        <span class="nav-sep"></span>
         <a href="./" target="_self" class="nav-item" title="Home">
             <span class="nav-icon">🏠</span>
             <span class="nav-label">Home</span>
         </a>
+        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
+            <span class="nav-icon">{grimmi_icon_html}</span>
+            <span class="nav-label">Gemini</span>
+        </a>
         <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
             <span class="nav-icon">{logo_icon_html}</span>
             <span class="nav-label">Extras</span>
+        </a>
+        <span class="nav-sep"></span>
+        <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
+            <span class="nav-icon">↻</span>
+            <span class="nav-label">Reload</span>
+        </a>
+        <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Config</span>
         </a>
     </nav>
     """, unsafe_allow_html=True)
