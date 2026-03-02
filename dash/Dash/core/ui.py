@@ -42,29 +42,36 @@ def render_fab():
 
     st.markdown(f"""
     <style>
-    /* Espaço para conteúdo não ficar atrás da nav bar */
+    /* Espaço para conteúdo não ficar atrás do pill */
     .block-container {{
-        padding-bottom: 84px !important;
+        padding-bottom: 96px !important;
     }}
 
-    /* BOTTOM NAV BAR */
+    /* ===== FLOATING PILL NAV ===== */
     .bottom-nav {{
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 68px;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: max-content;
+        min-width: 260px;
+        max-width: calc(100vw - 140px); /* margem p/ Manage App não colidir */
+        height: 60px;
         display: flex;
         flex-direction: row;
-        align-items: stretch;
-        justify-content: space-around;
-        background: rgba(8, 14, 28, 0.94);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: rgba(8, 14, 28, 0.88);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 30px;
         z-index: 99999;
-        padding: 0 4px;
-        box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.55);
+        padding: 0 10px;
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.55),
+            0 0 0 0.5px rgba(255, 255, 255, 0.04) inset;
     }}
 
     .nav-item {{
@@ -72,41 +79,49 @@ def render_fab():
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 4px;
-        flex: 1;
-        padding: 6px 2px;
+        gap: 3px;
+        padding: 6px 13px;
         text-decoration: none !important;
         color: rgba(100, 116, 139, 0.85) !important;
         transition: color 0.2s ease, background 0.2s ease;
-        border-radius: 14px;
-        margin: 8px 3px;
+        border-radius: 22px;
         -webkit-tap-highlight-color: transparent;
         cursor: pointer;
+        white-space: nowrap;
     }}
 
     .nav-item:hover {{
-        color: rgba(203, 213, 225, 1) !important;
-        background: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(226, 232, 240, 1) !important;
+        background: rgba(255, 255, 255, 0.07) !important;
         text-decoration: none !important;
     }}
 
     .nav-icon {{
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         line-height: 1;
-        height: 26px;
+        height: 24px;
         display: flex;
         align-items: center;
         justify-content: center;
     }}
 
     .nav-label {{
-        font-size: 0.6rem;
+        font-size: 0.58rem;
         font-weight: 500;
         letter-spacing: 0.2px;
         font-family: 'Outfit', sans-serif;
         white-space: nowrap;
         line-height: 1;
         color: inherit;
+    }}
+
+    /* Separador vertical entre grupos */
+    .nav-sep {{
+        width: 1px;
+        height: 28px;
+        background: rgba(255, 255, 255, 0.08);
+        margin: 0 4px;
+        flex-shrink: 0;
     }}
 
     /* Item IA: destaque roxo */
@@ -118,35 +133,59 @@ def render_fab():
 
     .nav-item-ai:hover {{
         color: rgba(167, 139, 250, 1) !important;
-        background: rgba(99, 102, 241, 0.22) !important;
-        border-color: rgba(99, 102, 241, 0.38) !important;
+        background: rgba(99, 102, 241, 0.25) !important;
+        border-color: rgba(99, 102, 241, 0.4) !important;
     }}
 
-    @media (max-width: 768px) {{
+    /* Tentar reduzir visualmente o Manage App (sem saber selector exato) */
+    [data-testid="stToolbar"],
+    [data-testid="stStatusWidget"],
+    [data-testid="stAppToolbar"],
+    [data-testid="stToolbarActions"] {{
+        opacity: 0.45 !important;
+        transform: scale(0.78) !important;
+        transform-origin: bottom right !important;
+        transition: opacity 0.25s, transform 0.25s !important;
+    }}
+    [data-testid="stToolbar"]:hover,
+    [data-testid="stStatusWidget"]:hover,
+    [data-testid="stAppToolbar"]:hover,
+    [data-testid="stToolbarActions"]:hover {{
+        opacity: 1 !important;
+        transform: scale(1) !important;
+    }}
+
+    @media (max-width: 600px) {{
         .bottom-nav {{
-            height: 62px;
+            height: 56px;
+            bottom: 12px;
+            max-width: calc(100vw - 110px);
+            padding: 0 6px;
+            gap: 0;
         }}
         .nav-item {{
-            margin: 6px 2px;
-            border-radius: 12px;
+            padding: 5px 9px;
         }}
         .nav-icon {{
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             height: 22px;
         }}
         .nav-label {{
-            font-size: 0.55rem;
+            font-size: 0.53rem;
+        }}
+        .nav-sep {{
+            height: 22px;
+            margin: 0 2px;
         }}
     }}
 
     /* iPhone X+ safe area */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {{
         .bottom-nav {{
-            padding-bottom: env(safe-area-inset-bottom);
-            height: calc(68px + env(safe-area-inset-bottom));
+            bottom: calc(16px + env(safe-area-inset-bottom));
         }}
         .block-container {{
-            padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+            padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
         }}
     }}
     </style>
@@ -160,6 +199,7 @@ def render_fab():
             <span class="nav-icon">↻</span>
             <span class="nav-label">Reload</span>
         </a>
+        <span class="nav-sep"></span>
         <a href="./" target="_self" class="nav-item" title="Home">
             <span class="nav-icon">🏠</span>
             <span class="nav-label">Home</span>
@@ -168,141 +208,13 @@ def render_fab():
             <span class="nav-icon">{logo_icon_html}</span>
             <span class="nav-label">Extras</span>
         </a>
+        <span class="nav-sep"></span>
         <a href="Agente_IA" target="_self" class="nav-item nav-item-ai" title="Agente IA – Grimmi">
             <span class="nav-icon">{grimmi_icon_html}</span>
             <span class="nav-label">Grimmi</span>
         </a>
     </nav>
     """, unsafe_allow_html=True)
-
-    # JS: integra o botão "Manage app" do Streamlit à bottom nav como item "⚡ Dev"
-    components.html("""
-    <script>
-    (function () {
-        function integrate() {
-            try {
-                var doc = window.parent.document;
-
-                // Injeta CSS do novo item (uma vez só)
-                if (!doc.getElementById('_nav_mgr_css')) {
-                    var s = doc.createElement('style');
-                    s.id = '_nav_mgr_css';
-                    s.textContent = [
-                        '.nav-mgr-wrap{',
-                        '  position:fixed!important;bottom:0!important;right:0!important;',
-                        '  top:auto!important;left:auto!important;height:68px!important;',
-                        '  background:transparent!important;border:none!important;',
-                        '  box-shadow:none!important;z-index:100001!important;',
-                        '  display:flex!important;align-items:center!important;padding:0 8px!important;',
-                        '}',
-                        '.nav-mgr-btn{',
-                        '  display:flex!important;flex-direction:column!important;',
-                        '  align-items:center!important;justify-content:center!important;',
-                        '  gap:3px!important;background:rgba(6,182,212,0.08)!important;',
-                        '  border:1px solid rgba(6,182,212,0.2)!important;',
-                        '  border-radius:14px!important;padding:6px 14px!important;',
-                        '  margin:8px 4px!important;color:rgba(6,182,212,0.85)!important;',
-                        '  cursor:pointer!important;min-width:52px!important;height:auto!important;',
-                        '  font-family:Outfit,sans-serif!important;',
-                        '  transition:background .2s,border-color .2s,color .2s!important;',
-                        '  box-shadow:none!important;outline:none!important;',
-                        '}',
-                        '.nav-mgr-btn:hover{',
-                        '  background:rgba(6,182,212,0.18)!important;',
-                        '  border-color:rgba(6,182,212,0.42)!important;',
-                        '  color:rgba(6,182,212,1)!important;',
-                        '}',
-                        '.nav-mgr-icon{font-size:1.25rem;line-height:1;display:block;pointer-events:none}',
-                        '.nav-mgr-label{font-size:.6rem;font-weight:500;letter-spacing:.2px;',
-                        '  line-height:1;display:block;pointer-events:none}',
-                    ].join('');
-                    doc.head.appendChild(s);
-                }
-
-                // Encontra o wrapper do toolbar por múltiplos seletores
-                var wrap = (
-                    doc.querySelector('[data-testid="stToolbar"]') ||
-                    doc.querySelector('[data-testid="stStatusWidget"]') ||
-                    doc.querySelector('[data-testid="stAppToolbar"]')
-                );
-
-                // Fallback: acha pelo texto "Manage app"
-                if (!wrap) {
-                    var btns = doc.querySelectorAll('button');
-                    for (var i = 0; i < btns.length; i++) {
-                        if (btns[i].innerText && btns[i].innerText.indexOf('Manage app') !== -1) {
-                            wrap = btns[i].parentElement;
-                            break;
-                        }
-                    }
-                }
-
-                if (!wrap || wrap.dataset.mgrDone) return !!wrap;
-                wrap.dataset.mgrDone = '1';
-                wrap.classList.add('nav-mgr-wrap');
-
-                // Encontra o botão "Manage app" dentro do wrapper
-                var btn = wrap.tagName === 'BUTTON' ? wrap : wrap.querySelector('button');
-
-                if (btn) {
-                    // Esconde filhos originais (seta ←, texto nativo)
-                    var children = btn.children;
-                    for (var j = 0; j < children.length; j++) {
-                        children[j].style.cssText = 'display:none!important';
-                    }
-
-                    // Injeta ícone + label estilizados
-                    if (!btn.querySelector('.nav-mgr-icon')) {
-                        var icon = doc.createElement('span');
-                        icon.className = 'nav-mgr-icon';
-                        icon.textContent = '⚡';
-
-                        var label = doc.createElement('span');
-                        label.className = 'nav-mgr-label';
-                        label.textContent = 'Dev';
-
-                        btn.appendChild(icon);
-                        btn.appendChild(label);
-                    }
-
-                    btn.classList.add('nav-mgr-btn');
-                    // Remove inline styles do Streamlit para a classe entrar
-                    btn.removeAttribute('style');
-                }
-
-                // Esconde elementos não-botão dentro do wrapper (dots de status, etc.)
-                var wrapChildren = wrap.children;
-                for (var k = 0; k < wrapChildren.length; k++) {
-                    var child = wrapChildren[k];
-                    if (child !== btn && !child.contains(btn)) {
-                        child.style.cssText = 'display:none!important';
-                    }
-                }
-
-                return true;
-            } catch (e) { return false; }
-        }
-
-        // Roda imediatamente e com retries progressivos
-        if (!integrate()) {
-            [250, 600, 1200, 2500, 4000].forEach(function(d) {
-                setTimeout(integrate, d);
-            });
-        }
-
-        // MutationObserver: reaplicar se o Streamlit re-renderizar o toolbar
-        try {
-            var observer = new MutationObserver(function () {
-                var el = window.parent.document.querySelector(
-                    '[data-testid="stToolbar"],[data-testid="stStatusWidget"]'
-                );
-                if (el && !el.dataset.mgrDone) integrate();
-            });
-            observer.observe(window.parent.document.body, {childList: true, subtree: true});
-        } catch (e) {}
-    })();
-    </script>
-    """, height=0)
 
 
 def get_view_mode_css() -> str:
