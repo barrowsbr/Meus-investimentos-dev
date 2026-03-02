@@ -1002,51 +1002,66 @@ st.markdown("""
 .metrics-container {
     display: flex;
     justify-content: center;
-    margin-top: -80px;
+    margin-top: -60px;
     position: relative;
     z-index: 100;
     padding: 0 20px;
+    gap: 12px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
 }
-.metrics-box {
+.metrics-card-single {
+    flex: 1;
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 20px;
-    padding: 25px 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 40px;
-    box-shadow: 0 15px 50px rgba(0,0,0,0.4), inset 0 0 30px rgba(255,255,255,0.02);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 18px 16px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 0 20px rgba(255,255,255,0.02);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
-.metrics-box:hover {
-    transform: translateY(-5px) scale(1.02);
+.metrics-card-single::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.08) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+.metrics-card-single:hover {
+    transform: translateY(-3px);
     background: rgba(15, 23, 42, 0.8);
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25), inset 0 0 30px rgba(255,255,255,0.05);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 18px 45px -8px rgba(99, 102, 241, 0.2), inset 0 0 25px rgba(255,255,255,0.04);
 }
 .metric-item { text-align: center; }
 .metric-item-label {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #64748b;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
 }
 .metric-item-value {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: #f1f5f9;
+    line-height: 1.3;
 }
 .metric-item-change {
-    font-size: 0.95rem;
-    font-weight: 400;
-    margin-left: 6px;
-}
-.metric-divider {
-    width: 1px;
-    height: 50px;
-    background: rgba(255,255,255,0.1);
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-top: 2px;
 }
 .color-positive { color: #34d399 !important; }
 .color-negative { color: #f87171 !important; }
@@ -1059,27 +1074,24 @@ st.markdown("""
 }
 
 @media (max-width: 768px) {
-    .metrics-container { margin-top: -40px; }
-    .metrics-box {
-        flex-direction: column;
-        gap: 10px;
-        padding: 15px 30px;
-        width: 100%;
-        max-width: 500px;
+    .metrics-container {
+        margin-top: -35px;
+        gap: 8px;
+        padding: 0 15px;
     }
-    .metric-divider {
-        width: 60%;
-        height: 1px;
+    .metrics-card-single {
+        padding: 14px 10px;
+        border-radius: 14px;
     }
     .metric-item-value {
-        font-size: 1.2rem;
+        font-size: 1.15rem;
         white-space: nowrap;
     }
     .metric-item-change {
-        font-size: 0.82rem;
+        font-size: 0.72rem;
     }
     .metric-item-label {
-        font-size: 0.75rem;
+        font-size: 0.68rem;
         margin-bottom: 4px;
     }
 }
@@ -1274,12 +1286,13 @@ ticker_placeholder.markdown(
 
 metrics_placeholder.markdown("""
 <div class="metrics-container">
-    <div class="metrics-box">
+    <div class="metrics-card-single">
         <div class="metric-item">
             <div class="metric-item-label">Renda Variável (Hoje)</div>
             <div class="metric-item-value skeleton-pulse">R$ ---.--</div>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-card-single">
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
             <div class="metric-item-value skeleton-pulse">R$ --.---</div>
@@ -1469,21 +1482,18 @@ dolar_sign = "+" if dolar_change >= 0 else ""
 # Update the placeholder with real data
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
-    <div class="metrics-box">
+    <div class="metrics-card-single">
         <div class="metric-item">
             <div class="metric-item-label">Renda Variável (Hoje)</div>
-            <div class="metric-item-value color-{rv_class}">
-                R$ {rv_value}
-                <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
-            </div>
+            <div class="metric-item-value color-{rv_class}">R$ {rv_value}</div>
+            <span class="metric-item-change color-{rv_class}">({rv_sign}{rv_pct}%)</span>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-card-single">
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
-            <div class="metric-item-value">
-                R$ {dolar_value}
-                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
-            </div>
+            <div class="metric-item-value">R$ {dolar_value}</div>
+            <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
         </div>
     </div>
 </div>
