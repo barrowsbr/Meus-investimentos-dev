@@ -47,10 +47,9 @@ def render_fab():
         padding-bottom: 64px !important;
     }}
 
-    /* ===== BARRA UNIFICADA – mesma cor do "Manage App" ===== */
-    /* Streamlit dark: secondaryBackgroundColor ≈ #262730            */
-    /* A barra cobre toda a largura e senta no bottom:0, fundindo-se */
-    /* visualmente com o botão "Manage App" que fica à direita.      */
+    /* ===== BARRA UNIFICADA – cor exata do botão "Manage App" ===== */
+    /* Streamlit dark mainBackgroundColor = #0e1117                  */
+    /* padding-right reserva ~130px para o botão Manage App          */
     .bottom-nav {{
         position: fixed;
         bottom: 0;
@@ -63,24 +62,30 @@ def render_fab():
         align-items: center;
         justify-content: flex-start;
         gap: 0;
-        /* Mesma cor de fundo que o botão Manage App do Streamlit */
-        background: rgba(38, 39, 48, 0.92);
-        backdrop-filter: blur(14px) saturate(130%);
-        -webkit-backdrop-filter: blur(14px) saturate(130%);
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        /* Cor idêntica ao fundo do Manage App (mainBg Streamlit dark) */
+        background: rgba(14, 17, 23, 0.97);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        /* Efeito de contorno: linha superior + brilho interno */
+        border-top: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 0;
         z-index: 99999;
-        padding: 0 4px;
-        box-shadow: none;
+        /* 130px à direita = espaço para o Manage App não sobrepor */
+        padding: 0 130px 0 0;
+        box-shadow:
+            0 -4px 24px rgba(0, 0, 0, 0.55),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }}
 
+    /* Cada item cresce igualmente, distribuição uniforme */
     .nav-item {{
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: 2px;
-        padding: 4px 12px;
+        padding: 4px 6px;
         text-decoration: none !important;
         color: rgba(148, 163, 184, 0.8) !important;
         transition: color 0.18s ease, background 0.18s ease;
@@ -116,17 +121,17 @@ def render_fab():
         color: inherit;
     }}
 
-    /* Separador vertical sutil */
+    /* Separador vertical sutil — não cresce junto com flex */
     .nav-sep {{
+        flex-shrink: 0;
         width: 1px;
         height: 24px;
-        background: rgba(255, 255, 255, 0.07);
+        background: rgba(255, 255, 255, 0.08);
         margin: 0 2px;
-        flex-shrink: 0;
         align-self: center;
     }}
 
-    /* Manage App: restaurar opacidade para parecer parte da barra */
+    /* Manage App: opacidade total — parte integrante da barra */
     [data-testid="stToolbar"],
     [data-testid="stStatusWidget"],
     [data-testid="stAppToolbar"],
@@ -138,10 +143,10 @@ def render_fab():
     @media (max-width: 600px) {{
         .bottom-nav {{
             height: 44px;
-            padding: 0 2px;
+            padding-right: 110px;
         }}
         .nav-item {{
-            padding: 4px 8px;
+            padding: 4px 4px;
         }}
         .nav-icon {{
             font-size: 0.95rem;
@@ -152,7 +157,6 @@ def render_fab():
         }}
         .nav-sep {{
             height: 20px;
-            margin: 0 1px;
         }}
     }}
 
