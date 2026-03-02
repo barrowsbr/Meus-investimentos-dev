@@ -48,8 +48,6 @@ def render_fab():
     }}
 
     /* ===== BARRA UNIFICADA – cor exata do botão "Manage App" ===== */
-    /* Streamlit dark mainBackgroundColor = #0e1117                  */
-    /* padding-right reserva ~130px para o botão Manage App          */
     .bottom-nav {{
         position: fixed;
         bottom: 0;
@@ -59,27 +57,31 @@ def render_fab():
         height: 48px;
         display: flex;
         flex-direction: row;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 0;
-        /* Cor idêntica ao fundo do Manage App (mainBg Streamlit dark) */
+        align-items: stretch;
         background: rgba(14, 17, 23, 0.97);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        /* Efeito de contorno: linha superior + brilho interno */
         border-top: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 0;
         z-index: 99999;
-        /* 130px à direita = espaço real do botão Manage App */
-        padding: 0 130px 0 0;
+        padding: 0;
         box-shadow:
             0 -4px 24px rgba(0, 0, 0, 0.55),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }}
 
-    /* Cada item cresce igualmente, distribuição uniforme */
+    /* Área dos botões: ocupa tudo menos os ~130px do Manage App */
+    .nav-items {{
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-around;
+        width: calc(100% - 130px);
+        height: 100%;
+        flex-shrink: 0;
+    }}
+
     .nav-item {{
-        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -121,13 +123,11 @@ def render_fab():
         color: inherit;
     }}
 
-    /* Separador vertical sutil — não cresce junto com flex */
     .nav-sep {{
         flex-shrink: 0;
         width: 1px;
         height: 24px;
         background: rgba(255, 255, 255, 0.08);
-        margin: 0 2px;
         align-self: center;
     }}
 
@@ -143,11 +143,12 @@ def render_fab():
     @media (max-width: 600px) {{
         .bottom-nav {{
             height: 44px;
-            padding-left: 0;
-            padding-right: 110px;
+        }}
+        .nav-items {{
+            width: calc(100% - 110px);
         }}
         .nav-item {{
-            padding: 4px 4px;
+            padding: 4px 2px;
         }}
         .nav-icon {{
             font-size: 0.95rem;
@@ -173,29 +174,31 @@ def render_fab():
     }}
     </style>
 
-    <!-- Barra unificada: Home | Gemini | Extras | Reload | Config -->
+    <!-- Barra unificada: Home | Gemini | Extras | sep | Reload | Config -->
     <nav class="bottom-nav">
-        <a href="./" target="_self" class="nav-item" title="Home">
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Home</span>
-        </a>
-        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
-            <span class="nav-icon">{grimmi_icon_html}</span>
-            <span class="nav-label">Gemini</span>
-        </a>
-        <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
-            <span class="nav-icon">{logo_icon_html}</span>
-            <span class="nav-label">Extras</span>
-        </a>
-        <span class="nav-sep"></span>
-        <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
-            <span class="nav-icon">↻</span>
-            <span class="nav-label">Reload</span>
-        </a>
-        <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-label">Config</span>
-        </a>
+        <div class="nav-items">
+            <a href="./" target="_self" class="nav-item" title="Home">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </a>
+            <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
+                <span class="nav-icon">{grimmi_icon_html}</span>
+                <span class="nav-label">Gemini</span>
+            </a>
+            <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
+                <span class="nav-icon">{logo_icon_html}</span>
+                <span class="nav-label">Extras</span>
+            </a>
+            <span class="nav-sep"></span>
+            <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
+                <span class="nav-icon">↻</span>
+                <span class="nav-label">Reload</span>
+            </a>
+            <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Config</span>
+            </a>
+        </div>
     </nav>
     """, unsafe_allow_html=True)
 
