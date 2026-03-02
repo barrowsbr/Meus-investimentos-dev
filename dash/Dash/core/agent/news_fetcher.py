@@ -312,3 +312,129 @@ def format_news_for_prompt(news: dict[str, list[dict]]) -> str:
             if n.get("resumo"):
                 lines.append(f"  _{n['resumo']}_")
     return "\n".join(lines)
+
+
+# ── Reddit (público, sem autenticação) ──────────────────────────────────────
+
+_REDDIT_SEARCH_URL = "https://www.reddit.com/search.json"
+
+_FINANCE_SUBREDDITS = [
+    "investimentos", "farialimabets", "bolsa",
+    "stocks", "wallstreetbets", "investing",
+    "dividends", "stockmarket",
+]
+
+import json
+
+
+def fetch_reddit_posts(
+    ticker: str,
+    max_items: int = 8,
+    subreddits: list[str] | None = None,
+) -> list[dict]:
+    """
+    Busca posts do Reddit sobre um ticker usando a API pública JSON.
+
+    Parâmetros
+    ----------
+    ticker      : ticker a pesquisar (ex.: 'PETR4', 'VALE3', 'AAPL')
+    max_items   : máximo de posts a retornar
+    subreddits  : lista de subreddits para filtrar (None = busca geral)
+
+    Retorna lista de dicts no formato padrão:
+        {titulo, link, data, resumo, fonte, score, num_comments, subreddit}
+    """
+    clean = _clean_ticker_query(ticker)
+    
+    # Monta query: ticker + nome de subreddits financeiros
+    if subreddits:
+        sr_filter = " OR ".join(f"subreddit:{s}" for s in subreddits)
+        query = f"{clean} ({sr_filter})"
+    else:
+        query = f"{clean} stocks OR investing OR ação OR bolsa"
+
+    import urllib.parse
+    params = urllib.parse.urlencode({
+        "q": query,
+        "sort": "relevance",
+        "t": "week",
+        "limit": str(min(max_items * 2, 25)),
+        "type": "link",
+    })
+    url = f"{_REDDIT_SEARCH_URL}?{params}"
+
+    try:
+        req = Request(url, headers={
+            "User-Agent": _USER_AGENT,
+            "Accept": "application/json",
+        })
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+    except Exception:
+        return []
+
+    posts: list[dict] = []
+    children = data.get("data", {}).get("children", [])
+
+    for child in children:
+        d = child.get("data", {})
+        if not d:
+            continue
+
+        title = d.get("title", "")
+        if not title:
+            continue
+
+        # Timestamp Unix → formato RSS para compatibilidade com time_ago()
+        created_utc = d.get("created_utc", 0)
+        if created_utc:
+            dt = datetime.utcfromtimestamp(created_utc)
+            pub_date = dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        else:
+            pub_date = ""
+
+        permalink = d.get("permalink", "")
+        link = f"https://www.reddit.com{permalink}" if permalink else d.get("url", "")
+
+        selftext = d.get("selftext", "") or ""
+        subreddit = d.get("subreddit", "reddit")
+        score = d.get("score", 0)
+        num_comments = d.get("num_comments", 0)
+
+        posts.append({
+            "titulo": title[:140],
+            "link": link,
+            "data": pub_date,
+            "resumo": selftext[:200] if selftext else "",
+            "fonte": f"r/{subreddit}",
+            "score": score,
+            "num_comments": num_comments,
+            "subreddit": subreddit,
+        })
+
+        if len(posts) >= max_items:
+            break
+
+    # Ordena por score (mais upvotados primeiro)
+    posts.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return posts
+
+
+def fetch_reddit_for_tickers(
+    tickers: list[str],
+    max_per_ticker: int = 5,
+    max_tickers: int = 8,
+) -> dict[str, list[dict]]:
+    """
+    Busca posts do Reddit para múltiplos tickers.
+    Retorna dict {ticker: [lista de posts]}.
+    """
+    results: dict[str, list[dict]] = {}
+    for ticker in tickers[:max_tickers]:
+        results[ticker] = fetch_reddit_posts(
+            ticker,
+            max_items=max_per_ticker,
+            subreddits=_FINANCE_SUBREDDITS,
+        )
+        time.sleep(0.5)  # Rate limit gentil
+    return results

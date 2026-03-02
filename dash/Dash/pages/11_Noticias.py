@@ -21,6 +21,7 @@ from core.computed import get_portfolio_snapshot
 from core.data.market import fetch_market_data
 from core.agent.news_fetcher import (
     fetch_news_combined,
+    fetch_reddit_for_tickers,
     _GOOGLE_NEWS_RSS,
     _fetch_rss,
     _parse_items,
@@ -379,6 +380,41 @@ html, body, [class*="css"] {
     50%       { opacity: 0.8; }
 }
 
+/* ── Reddit card extras ── */
+.reddit-card {
+    border-left-color: rgba(255, 69, 0, 0.45) !important;
+}
+.reddit-card:hover {
+    border-left-color: #ff4500 !important;
+    box-shadow: 0 12px 32px -8px rgba(255, 69, 0, 0.2) !important;
+}
+.reddit-card::before {
+    background: linear-gradient(135deg, rgba(255,69,0,0.04) 0%, transparent 60%) !important;
+}
+.reddit-meta-badges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+}
+.reddit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+.reddit-source {
+    background: rgba(255, 69, 0, 0.1) !important;
+    border-color: rgba(255, 69, 0, 0.22) !important;
+    color: #ff6b35 !important;
+}
+
 /* ── Mobile ── */
 @media (max-width: 768px) {
     .news-grid { grid-template-columns: 1fr; gap: 10px; }
@@ -446,6 +482,12 @@ def _get_news(tickers: tuple, include_market: bool) -> dict[str, list[dict]]:
         root = _fetch_rss(url)
         news["📈 Mercado"] = _parse_items(root, 6) if root else []
     return news
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_reddit_news(tickers: tuple) -> dict[str, list[dict]]:
+    """Busca posts do Reddit para os tickers da carteira."""
+    return fetch_reddit_for_tickers(list(tickers), max_per_ticker=6, max_tickers=10)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -581,6 +623,7 @@ with col_ctrl:
     if st.button("🔄 Atualizar", use_container_width=True):
         _get_news.clear()
         _get_performers.clear()
+        _get_reddit_news.clear()
         st.rerun()
 
 st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
@@ -606,7 +649,7 @@ else:
 
     news_data = _get_news(tuple(all_tickers), include_market)
 
-    tab_feed, tab_group = st.tabs(["📅 Cronológico", "🏷️ Por ticker"])
+    tab_feed, tab_group, tab_reddit = st.tabs(["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit"])
 
     news_placeholder.empty()
 
@@ -750,9 +793,72 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
+    # ── Tab Reddit ──────────────────────────────────────────────────────────
+    with tab_reddit:
+        reddit_data = _get_reddit_news(tuple(all_tickers))
+
+        # Flatten todos os posts
+        all_reddit: list[dict] = []
+        for ticker, posts in reddit_data.items():
+            for post in posts:
+                all_reddit.append({"_ticker": ticker, **post})
+
+        # Ordena por score
+        all_reddit.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        total_reddit = len(all_reddit)
+        if total_reddit == 0:
+            st.markdown("""
+            <div class="news-empty">
+                <div class="news-empty-icon">🤖</div>
+                <div class="news-empty-text">Nenhum post encontrado no Reddit.<br>
+                Seus ativos podem não ter discussões recentes.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            tickers_com_posts = sum(1 for v in reddit_data.values() if v)
+            st.markdown(
+                f'<div class="news-count-label">{total_reddit} posts · {tickers_com_posts} ativos com discussões</div>',
+                unsafe_allow_html=True,
+            )
+
+            cards_html = '<div class="news-grid">'
+            for post in all_reddit:
+                titulo = html.escape(post.get("titulo", "Sem título")[:140])
+                link = html.escape(post.get("link", "#"))
+                data = post.get("data", "")
+                fonte = html.escape(post.get("fonte", "Reddit")[:35])
+                ago = time_ago(data)
+                ticker_clean = _ticker_clean(post["_ticker"])
+                score = post.get("score", 0)
+                num_comments = post.get("num_comments", 0)
+                resumo = html.escape(post.get("resumo", "")[:120])
+
+                resumo_html = f'<div style="font-size:0.78rem;color:#64748b;line-height:1.4;margin-top:4px;">{resumo}...</div>' if resumo else ''
+
+                cards_html += f"""
+                <a class="news-card reddit-card" href="{link}" target="_blank" rel="noopener noreferrer">
+                    <div class="news-meta">
+                        <span class="news-source reddit-source">{fonte}</span>
+                        <span class="news-time">{ago}</span>
+                    </div>
+                    <div class="news-headline">{titulo}</div>
+                    {resumo_html}
+                    <div class="news-footer">
+                        <div class="reddit-meta-badges">
+                            <span class="news-ticker-tag">{ticker_clean}</span>
+                            <span class="reddit-badge">⬆ {score}</span>
+                            <span class="reddit-badge">💬 {num_comments}</span>
+                        </div>
+                        <span class="news-read-more">Abrir →</span>
+                    </div>
+                </a>"""
+            cards_html += '</div>'
+            st.markdown(cards_html, unsafe_allow_html=True)
+
 # ── Rodapé ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;padding:32px 0 16px;color:#1e293b;font-size:0.75rem;letter-spacing:1px;">
-    Google News RSS · Yahoo Finance · Dados apenas informativos
+    Google News RSS · Yahoo Finance · Reddit · Dados apenas informativos
 </div>
 """, unsafe_allow_html=True)
