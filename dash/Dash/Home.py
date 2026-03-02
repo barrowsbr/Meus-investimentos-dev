@@ -1142,6 +1142,86 @@ st.markdown("""
     border: 1px solid rgba(255, 255, 255, 0.07);
     animation: skeletonPulse 1.5s ease-in-out infinite;
 }
+
+/* ── Notícias Expandable — performers grid ── */
+.noticias-perfs { padding: 0 15px 15px 15px; }
+.noticias-perfs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.noticias-perfs-col {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.noticias-perfs-hdr {
+    padding: 8px 12px;
+    font-size: 0.57rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.noticias-perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
+.noticias-perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
+.noticias-perf-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background 0.2s ease;
+}
+.noticias-perf-row:last-child { border-bottom: none; }
+.noticias-perf-row:hover { background: rgba(255,255,255,0.03); }
+.noticias-perf-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
+.noticias-perf-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
+.noticias-perf-down { font-size:0.72rem; font-weight:700; color:#f87171; }
+.noticias-view-row  { display:flex; justify-content:center; }
+.noticias-view-btn  {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 24px;
+    background: rgba(6,182,212,0.07);
+    border: 1px solid rgba(6,182,212,0.2);
+    border-radius: 100px;
+    color: #22d3ee !important;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-decoration: none !important;
+    transition: all 0.25s ease;
+}
+.noticias-view-btn:hover {
+    background: rgba(6,182,212,0.14);
+    border-color: rgba(6,182,212,0.4);
+    gap: 11px;
+}
+/* Noticias expandable — cyan theme overrides */
+.expandable-card.card-noticias-exp:hover {
+    box-shadow: 0 20px 50px -10px rgba(6,182,212,0.2) !important;
+}
+.expandable-card.card-noticias-exp:hover::before {
+    background: linear-gradient(135deg,rgba(6,182,212,0.4) 0%,rgba(8,145,178,0.2) 100%) !important;
+}
+.noticias-toggle:checked ~ .expandable-card.card-noticias-exp {
+    box-shadow: 0 20px 50px -10px rgba(6,182,212,0.2) !important;
+}
+.noticias-toggle:checked ~ .expandable-card.card-noticias-exp::before {
+    background: linear-gradient(135deg,rgba(6,182,212,0.4) 0%,rgba(8,145,178,0.2) 100%) !important;
+}
+.noticias-toggle:checked ~ .expandable-card.card-noticias-exp .expandable-content {
+    max-height: 700px !important;
+}
+@media (max-width: 768px) {
+    .noticias-perfs-grid { grid-template-columns: 1fr; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1252,11 +1332,29 @@ st.markdown('''
     <span class="card-arrow">→</span>
 </a>
 
-<a href="Noticias" target="_self" class="nav-card card-noticias">
-    <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
-    <div class="card-desc">Mercado, portfólio e tendências do dia</div>
-    <span class="card-arrow">→</span>
-</a>
+</div>
+''', unsafe_allow_html=True)
+
+# --- NOTÍCIAS EXPANDABLE CARD (dynamic — populated after data load) ---
+noticias_placeholder = st.empty()
+noticias_placeholder.markdown('''
+<div style="padding:0 20px;">
+<div class="expandable-wrapper">
+    <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
+    <div class="expandable-card card-noticias-exp">
+        <label for="noticias-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+            <div class="card-desc">Mercado, portfólio e tendências do dia</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div style="padding:20px;text-align:center;color:#334155;font-size:0.8rem;animation:skeletonPulse 1.5s ease-in-out infinite;">
+                Carregando dados do mercado...
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 ''', unsafe_allow_html=True)
 
@@ -1411,5 +1509,75 @@ if perf_home:
     )
 else:
     ticker_placeholder.empty()
+
+# === STEP 5: RENDER NOTICIAS EXPANDABLE CARD ===
+def _clean_ticker(t):
+    for s in ('.SA', '-USD', '-BRL', '=X'):
+        t = t.replace(s, '')
+    return t
+
+best_3  = perf_home[:3]
+worst_3 = list(reversed(perf_home[-3:])) if len(perf_home) >= 3 else list(reversed(perf_home))
+
+def _perf_rows(items, cls):
+    rows = ""
+    for p in items:
+        label = _clean_ticker(p["ticker"])
+        pct = p["pct"]
+        sign = "+" if pct >= 0 else ""
+        arr  = "▲" if pct >= 0 else "▼"
+        rows += (
+            f'<div class="noticias-perf-row">'
+            f'<span class="noticias-perf-ticker">{label}</span>'
+            f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
+            f'</div>'
+        )
+    return rows
+
+if perf_home:
+    best_rows  = _perf_rows(best_3,  "noticias-perf-up")
+    worst_rows = _perf_rows(worst_3, "noticias-perf-down")
+    performers_html = (
+        f'<div class="noticias-perfs-grid">'
+        f'<div class="noticias-perfs-col">'
+        f'<div class="noticias-perfs-hdr best">▲ MELHORES</div>'
+        f'{best_rows}'
+        f'</div>'
+        f'<div class="noticias-perfs-col">'
+        f'<div class="noticias-perfs-hdr worst">▼ PIORES</div>'
+        f'{worst_rows}'
+        f'</div>'
+        f'</div>'
+    )
+else:
+    performers_html = (
+        '<div style="padding:16px 0 8px;text-align:center;color:#475569;font-size:0.8rem;">'
+        'Sem dados de mercado disponíveis hoje.</div>'
+    )
+
+noticias_card_html = (
+    '<div style="padding:0 20px;">'
+    '<div class="expandable-wrapper">'
+    '<input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">'
+    '<div class="expandable-card card-noticias-exp">'
+    '<label for="noticias-toggle" class="expandable-header">'
+    '<div class="card-title"><i class="card-icon">◉</i> Notícias</div>'
+    '<div class="card-desc">Mercado, portfólio e tendências do dia</div>'
+    '<span class="expand-icon">▼</span>'
+    '</label>'
+    '<div class="expandable-content">'
+    '<div class="divider-line"></div>'
+    '<div class="noticias-perfs">'
+    f'{performers_html}'
+    '<div class="noticias-view-row">'
+    '<a href="Noticias" target="_self" class="noticias-view-btn">Ver todas as notícias →</a>'
+    '</div>'
+    '</div>'
+    '</div>'
+    '</div>'
+    '</div>'
+    '</div>'
+)
+noticias_placeholder.markdown(noticias_card_html, unsafe_allow_html=True)
 
 # --- FOOTER SECTION REMOVED FROM HERE ---
