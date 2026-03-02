@@ -1046,13 +1046,115 @@ st.markdown("""
         font-size: 0.8rem;
     }
 }
+
+/* ── Home Ticker Tape ── */
+@keyframes homeTickerScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+@keyframes homeTickerPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
+}
+.home-ticker-container {
+    display: flex;
+    justify-content: center;
+    padding: 0 20px;
+    margin-top: 12px;
+}
+.home-ticker-wrap {
+    display: flex;
+    align-items: stretch;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    overflow: hidden;
+    height: 44px;
+    width: 100%;
+    max-width: 580px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+.home-ticker-wrap:hover {
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
+}
+.home-tt-badge {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 13px;
+    background: rgba(99, 102, 241, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 0.52rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #818cf8;
+    white-space: nowrap;
+}
+.home-tt-dot {
+    width: 5px;
+    height: 5px;
+    background: #818cf8;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: homeTickerPulse 1.5s ease-in-out infinite;
+}
+.home-ticker-viewport {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+}
+.home-ticker-track {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    will-change: transform;
+}
+.home-tt-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 16px;
+}
+.home-tt-symbol {
+    font-size: 0.73rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    letter-spacing: 0.5px;
+}
+.home-tt-up   { font-size: 0.7rem; font-weight: 700; color: #34d399; }
+.home-tt-down { font-size: 0.7rem; font-weight: 700; color: #f87171; }
+.home-tt-flat { font-size: 0.7rem; font-weight: 700; color: #64748b; }
+.home-tt-sep  { color: rgba(255,255,255,0.07); font-size: 0.85rem; padding: 0 1px; }
+.home-ticker-skeleton {
+    height: 44px;
+    max-width: 580px;
+    margin: 12px auto 0;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # --- METRICS PLACEHOLDER (will be updated with data) ---
 metrics_placeholder = st.empty()
+ticker_placeholder = st.empty()
 
 # Show skeleton/loading state initially
+ticker_placeholder.markdown(
+    '<div class="home-ticker-skeleton"></div>',
+    unsafe_allow_html=True,
+)
+
 metrics_placeholder.markdown("""
 <div class="metrics-container">
     <div class="metrics-box">
@@ -1251,5 +1353,63 @@ metrics_placeholder.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# === STEP 4: RENDER HOME TICKER TAPE ===
+perf_home = []
+if not df_pos.empty:
+    termos_excluir = ['TESOURO', 'CDB', 'LCI', 'LCA', 'CAIXA', 'SALDO', 'CDI', 'NTN']
+    for _, row in df_pos.iterrows():
+        t = row['Ticker']
+        q = row.get('Qtd', 0)
+        if q <= 0:
+            continue
+        if t == 'BRL=X' or any(x in t.upper() for x in termos_excluir):
+            continue
+        price = map_prices.get(t, 0.0)
+        change = map_changes.get(t, 0.0)
+        prev = price - change
+        if prev > 0 and price > 0:
+            pct = (change / prev) * 100
+            perf_home.append({"ticker": t, "pct": pct})
+
+perf_home.sort(key=lambda x: x["pct"], reverse=True)
+
+if perf_home:
+    def _clean(t):
+        for s in ('.SA', '-USD', '-BRL', '=X'):
+            t = t.replace(s, '')
+        return t
+
+    items_html = ""
+    for p in perf_home:
+        t_label = _clean(p["ticker"])
+        pct = p["pct"]
+        if pct > 0:
+            cls, arr, sign = "home-tt-up", "▲", "+"
+        elif pct < 0:
+            cls, arr, sign = "home-tt-down", "▼", ""
+        else:
+            cls, arr, sign = "home-tt-flat", "▬", ""
+        pct_str = f"{sign}{pct:.2f}%"
+        items_html += (
+            f'<span class="home-tt-item">'
+            f'<span class="home-tt-symbol">{t_label}</span>'
+            f'<span class="{cls}">{arr} {pct_str}</span>'
+            f'</span><span class="home-tt-sep">|</span>'
+        )
+
+    track = items_html * 2
+    duration = max(18, len(perf_home) * 4)
+    ticker_placeholder.markdown(
+        f'<div class="home-ticker-container">'
+        f'<div class="home-ticker-wrap">'
+        f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
+        f'<div class="home-ticker-viewport">'
+        f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
+        f'</div></div></div>',
+        unsafe_allow_html=True,
+    )
+else:
+    ticker_placeholder.empty()
 
 # --- FOOTER SECTION REMOVED FROM HERE ---
