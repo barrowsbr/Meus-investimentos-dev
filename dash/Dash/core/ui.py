@@ -42,52 +42,36 @@ def render_fab():
 
     st.markdown(f"""
     <style>
-    /* Espaço para conteúdo não ficar atrás do pill */
+    /* Espaço para conteúdo não ficar atrás da barra inferior */
     .block-container {{
-        padding-bottom: 96px !important;
+        padding-bottom: 64px !important;
     }}
 
-    /* ===== 1. GRADIENTE DE CAMUFLAGEM – funde o "Manage App" ao fundo ===== */
-    .bottom-fade-overlay {{
+    /* ===== BARRA UNIFICADA – mesma cor do "Manage App" ===== */
+    /* Streamlit dark: secondaryBackgroundColor ≈ #262730            */
+    /* A barra cobre toda a largura e senta no bottom:0, fundindo-se */
+    /* visualmente com o botão "Manage App" que fica à direita.      */
+    .bottom-nav {{
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
-        height: 88px;
-        background: linear-gradient(
-            to bottom,
-            transparent 0%,
-            rgba(14, 17, 23, 0.72) 55%,
-            rgba(14, 17, 23, 0.97) 100%
-        );
-        pointer-events: none;
-        z-index: 99998; /* abaixo do pill, acima do conteúdo */
-    }}
-
-    /* ===== 2. FLOATING PILL NAV – glassmorphism dock ===== */
-    .bottom-nav {{
-        position: fixed;
-        bottom: 8px;
-        left: 16px;
-        width: max-content;
-        min-width: 260px;
-        max-width: calc(100vw - 140px); /* libera espaço para Manage App à direita */
-        height: 60px;
+        width: 100%;
+        height: 48px;
         display: flex;
         flex-direction: row;
         align-items: center;
-        justify-content: center;
-        gap: 2px;
-        background: rgba(8, 14, 28, 0.78);
-        backdrop-filter: blur(28px) saturate(160%);
-        -webkit-backdrop-filter: blur(28px) saturate(160%);
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 30px;
+        justify-content: flex-start;
+        gap: 0;
+        /* Mesma cor de fundo que o botão Manage App do Streamlit */
+        background: rgba(38, 39, 48, 0.92);
+        backdrop-filter: blur(14px) saturate(130%);
+        -webkit-backdrop-filter: blur(14px) saturate(130%);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 0;
         z-index: 99999;
-        padding: 0 10px;
-        box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.55),
-            0 0 0 0.5px rgba(255, 255, 255, 0.04) inset;
+        padding: 0 4px;
+        box-shadow: none;
     }}
 
     .nav-item {{
@@ -95,15 +79,16 @@ def render_fab():
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 3px;
-        padding: 6px 13px;
+        gap: 2px;
+        padding: 4px 12px;
         text-decoration: none !important;
-        color: rgba(100, 116, 139, 0.85) !important;
-        transition: color 0.2s ease, background 0.2s ease;
-        border-radius: 22px;
+        color: rgba(148, 163, 184, 0.8) !important;
+        transition: color 0.18s ease, background 0.18s ease;
+        border-radius: 6px;
         -webkit-tap-highlight-color: transparent;
         cursor: pointer;
         white-space: nowrap;
+        height: 100%;
     }}
 
     .nav-item:hover {{
@@ -113,16 +98,16 @@ def render_fab():
     }}
 
     .nav-icon {{
-        font-size: 1.2rem;
+        font-size: 1.05rem;
         line-height: 1;
-        height: 24px;
+        height: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
     }}
 
     .nav-label {{
-        font-size: 0.58rem;
+        font-size: 0.54rem;
         font-weight: 500;
         letter-spacing: 0.2px;
         font-family: 'Outfit', sans-serif;
@@ -131,92 +116,60 @@ def render_fab():
         color: inherit;
     }}
 
-    /* Separador vertical entre grupos */
+    /* Separador vertical sutil */
     .nav-sep {{
         width: 1px;
-        height: 28px;
-        background: rgba(255, 255, 255, 0.08);
-        margin: 0 4px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.07);
+        margin: 0 2px;
         flex-shrink: 0;
+        align-self: center;
     }}
 
-    /* Item IA: destaque roxo */
-    .nav-item-ai {{
-        color: rgba(139, 92, 246, 0.85) !important;
-        background: rgba(99, 102, 241, 0.1) !important;
-        border: 1px solid rgba(99, 102, 241, 0.18) !important;
-    }}
-
-    .nav-item-ai:hover {{
-        color: rgba(167, 139, 250, 1) !important;
-        background: rgba(99, 102, 241, 0.25) !important;
-        border-color: rgba(99, 102, 241, 0.4) !important;
-    }}
-
-    /* Tentar reduzir visualmente o Manage App (sem saber selector exato) */
+    /* Manage App: restaurar opacidade para parecer parte da barra */
     [data-testid="stToolbar"],
     [data-testid="stStatusWidget"],
     [data-testid="stAppToolbar"],
     [data-testid="stToolbarActions"] {{
-        opacity: 0.45 !important;
-        transform: scale(0.78) !important;
-        transform-origin: bottom right !important;
-        transition: opacity 0.25s, transform 0.25s !important;
-    }}
-    [data-testid="stToolbar"]:hover,
-    [data-testid="stStatusWidget"]:hover,
-    [data-testid="stAppToolbar"]:hover,
-    [data-testid="stToolbarActions"]:hover {{
         opacity: 1 !important;
-        transform: scale(1) !important;
+        transform: none !important;
     }}
 
     @media (max-width: 600px) {{
-        .bottom-fade-overlay {{
-            height: 72px;
-        }}
         .bottom-nav {{
-            height: 56px;
-            bottom: 6px;
-            left: 12px;
-            max-width: calc(100vw - 110px);
-            padding: 0 6px;
-            gap: 0;
+            height: 44px;
+            padding: 0 2px;
         }}
         .nav-item {{
-            padding: 5px 9px;
+            padding: 4px 8px;
         }}
         .nav-icon {{
-            font-size: 1.1rem;
-            height: 22px;
+            font-size: 0.95rem;
+            height: 18px;
         }}
         .nav-label {{
-            font-size: 0.53rem;
+            font-size: 0.5rem;
         }}
         .nav-sep {{
-            height: 22px;
-            margin: 0 2px;
+            height: 20px;
+            margin: 0 1px;
         }}
     }}
 
     /* iPhone X+ safe area */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {{
         .bottom-nav {{
-            bottom: calc(8px + env(safe-area-inset-bottom));
-            left: calc(16px + env(safe-area-inset-left));
+            height: calc(48px + env(safe-area-inset-bottom));
+            padding-bottom: env(safe-area-inset-bottom);
         }}
         .block-container {{
-            padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+            padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
         }}
     }}
     </style>
 
-    <!-- 1. Overlay de camuflagem atrás do Manage App -->
-    <div class="bottom-fade-overlay"></div>
-
-    <!-- 2. Dock glassmorphism — ordem: Config | Reload | [sep] | Grimmi | [sep] | Home | Extras -->
+    <!-- Barra unificada: Config | Reload | sep | Grimmi | sep | Home | Extras -->
     <nav class="bottom-nav">
-        <!-- Esquerda -->
         <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
             <span class="nav-icon">⚙️</span>
             <span class="nav-label">Config</span>
@@ -226,13 +179,11 @@ def render_fab():
             <span class="nav-label">Reload</span>
         </a>
         <span class="nav-sep"></span>
-        <!-- 3. Centro — Grimmi com maior peso visual -->
-        <a href="Agente_IA" target="_self" class="nav-item nav-item-ai" title="Agente IA – Grimmi">
+        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Grimmi">
             <span class="nav-icon">{grimmi_icon_html}</span>
             <span class="nav-label">Grimmi</span>
         </a>
         <span class="nav-sep"></span>
-        <!-- Direita -->
         <a href="./" target="_self" class="nav-item" title="Home">
             <span class="nav-icon">🏠</span>
             <span class="nav-label">Home</span>
