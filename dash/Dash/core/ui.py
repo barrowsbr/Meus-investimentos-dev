@@ -70,13 +70,13 @@ def render_fab():
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }}
 
-    /* Área dos botões: ocupa tudo menos os ~130px do Manage App */
+    /* Área dos botões: ocupa tudo menos os ~150px do Manage App */
     .nav-items {{
         display: flex;
         flex-direction: row;
         align-items: center;
         justify-content: space-around;
-        width: calc(100% - 130px);
+        width: calc(100% - 150px);
         height: 100%;
         flex-shrink: 0;
     }}
@@ -145,7 +145,7 @@ def render_fab():
             height: 44px;
         }}
         .nav-items {{
-            width: calc(100% - 110px);
+            width: calc(100% - 120px);
         }}
         .nav-item {{
             padding: 4px 2px;
