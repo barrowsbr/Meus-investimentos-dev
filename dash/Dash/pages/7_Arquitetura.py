@@ -461,12 +461,12 @@ body {
 
 <!-- ══════════════════════════════════ HERO -->
 <section class="hero">
-    <p class="hero-eyebrow">BARROOTS · Sistema de Gestão Patrimonial · v2.0</p>
+    <p class="hero-eyebrow">BARROOTS · Sistema de Gestão Patrimonial · v3.0</p>
     <h1>Inteligência financeira<br>em tempo real</h1>
-    <p class="hero-sub">Uma plataforma completa que conecta sua carteira ao mercado, analisa seu portfólio com IA generativa, entrega notícias filtradas e calcula métricas de nível institucional — do aporte ao imposto.</p>
+    <p class="hero-sub">Uma plataforma completa que conecta sua carteira ao mercado, analisa seu portfólio com IA generativa, agrega notícias de 3 fontes e calcula métricas de nível institucional — do aporte ao imposto.</p>
     <div class="hero-stats">
         <div class="hero-stat">
-            <span class="hero-stat-val">4</span>
+            <span class="hero-stat-val">5</span>
             <div class="hero-stat-lbl">APIs externas</div>
         </div>
         <div class="hero-stat">
@@ -474,7 +474,7 @@ body {
             <div class="hero-stat-lbl">Moedas suportadas</div>
         </div>
         <div class="hero-stat">
-            <span class="hero-stat-val">11</span>
+            <span class="hero-stat-val">12</span>
             <div class="hero-stat-lbl">Módulos de análise</div>
         </div>
     </div>
@@ -514,7 +514,16 @@ body {
         <div class="pipe-icon">🤖</div>
         <div>
             <div class="pipe-title">Gemini AI</div>
-            <div class="pipe-desc">Análise contextual</div>
+            <div class="pipe-desc">Análise contextual + multi-model</div>
+        </div>
+    </div>
+    <div class="pipe-arrow"></div>
+
+    <div class="pipe-node c-cyan">
+        <div class="pipe-icon">📰</div>
+        <div>
+            <div class="pipe-title">News + Reddit</div>
+            <div class="pipe-desc">3 fontes agregadas</div>
         </div>
     </div>
     <div class="pipe-arrow"></div>
@@ -523,7 +532,7 @@ body {
         <div class="pipe-icon">📊</div>
         <div>
             <div class="pipe-title">Dashboard</div>
-            <div class="pipe-desc">11 módulos interativos</div>
+            <div class="pipe-desc">12 módulos interativos</div>
         </div>
     </div>
 </div>
@@ -535,13 +544,14 @@ body {
     <div class="layer-card l-ai">
         <div class="layer-icon">🤖</div>
         <div>
-            <div class="layer-title">Agente IA <span class="new-badge">NEW</span></div>
-            <div class="layer-desc">Chat conversacional com o Gemini 2.5 Flash. O contexto completo do portfólio é enviado automaticamente a cada pergunta — sem colar dados manualmente.</div>
+            <div class="layer-title">Agente IA <span class="new-badge">v3</span></div>
+            <div class="layer-desc">Chat conversacional com Gemini. Seletor manual de modelos, contexto otimizado (~60-80% menos tokens), fallback automático de quota e busca web integrada.</div>
             <div class="layer-pills">
                 <span class="layer-pill hi-purple">google-genai</span>
-                <span class="layer-pill hi-purple">Gemini 2.5 Flash</span>
+                <span class="layer-pill hi-purple">Multi-model</span>
                 <span class="layer-pill">Streaming</span>
-                <span class="layer-pill">Context auto</span>
+                <span class="layer-pill">Auto-fallback</span>
+                <span class="layer-pill">Web Search</span>
             </div>
         </div>
     </div>
@@ -549,13 +559,13 @@ body {
     <div class="layer-card l-news">
         <div class="layer-icon">📰</div>
         <div>
-            <div class="layer-title">Feed de Notícias <span class="new-badge">NEW</span></div>
-            <div class="layer-desc">Notícias do portfólio em tempo real. Combina Google News RSS e Yahoo Finance News com deduplicação automática. Filtra por ticker e exibe top/bottom do dia.</div>
+            <div class="layer-title">Feed de Notícias <span class="new-badge">v2</span></div>
+            <div class="layer-desc">Notícias em tempo real de 3 fontes: Google News RSS, Yahoo Finance e Reddit API. Deduplicação automática, ranking por upvotes e filtragem por ticker.</div>
             <div class="layer-pills">
                 <span class="layer-pill hi-cyan">Google News RSS</span>
                 <span class="layer-pill hi-cyan">Yahoo Finance</span>
+                <span class="layer-pill" style="background:rgba(255,69,0,0.1);border-color:rgba(255,69,0,0.3);color:#ff6b35;">Reddit API</span>
                 <span class="layer-pill">Cache 5min</span>
-                <span class="layer-pill">Dedup por título</span>
             </div>
         </div>
     </div>
@@ -606,14 +616,14 @@ body {
             <div class="api-logo gemini">🤖</div>
             <div>
                 <div class="api-name">Gemini API</div>
-                <div class="api-role">IA generativa para análise de portfólio</div>
+                <div class="api-role">IA generativa com seletor de modelos</div>
             </div>
         </div>
-        <p class="api-desc">O Agente IA envia todo o contexto do portfólio ao Gemini antes de cada resposta. Suporte automático a SDK novo (<code>google-genai</code>) e legado (<code>google-generativeai</code>).</p>
+        <p class="api-desc">O Agente IA envia contexto otimizado ao Gemini antes de cada resposta. Seleção manual de modelo, fallback automático de quota e busca web integrada.</p>
         <ul class="api-items">
-            <li>Gemini 2.5 Flash (preferencial)</li>
-            <li>Fallback automático de modelo</li>
-            <li>Streaming de resposta em tempo real</li>
+            <li>Multi-model: Flash, Pro, Preview</li>
+            <li>Fallback automático em erro 429</li>
+            <li>Streaming + Web Search</li>
             <li>Contexto: posições, RF, proventos</li>
         </ul>
     </div>
@@ -632,6 +642,23 @@ body {
             <li>Sem chave de API necessária</li>
             <li>Fusão com Yahoo Finance News</li>
             <li>Deduplicação automática</li>
+        </ul>
+    </div>
+
+    <div class="api-card">
+        <div class="api-header">
+            <div class="api-logo" style="background:linear-gradient(135deg, #ff4500, #ff6b35);">🤖</div>
+            <div>
+                <div class="api-name">Reddit API <span class="new-badge">NEW</span></div>
+                <div class="api-role">Discussões da comunidade financeira</div>
+            </div>
+        </div>
+        <p class="api-desc">Busca posts e discussões sobre seus ativos em 8 subreddits financeiros. Sem autenticação — usa a API JSON pública do Reddit com ranking por upvotes.</p>
+        <ul class="api-items">
+            <li>r/investimentos · r/farialimabets</li>
+            <li>r/stocks · r/wallstreetbets</li>
+            <li>Ranking por score e comentários</li>
+            <li>API pública — sem API key</li>
         </ul>
     </div>
 
@@ -665,7 +692,7 @@ body {
             <li>Python 3.13 + Pandas + NumPy</li>
             <li>Plotly para visualizações</li>
             <li>yfinance · gspread · google-genai</li>
-            <li>lxml para parsing de RSS</li>
+            <li>GitHub Actions para relatórios</li>
         </ul>
     </div>
 
@@ -733,18 +760,36 @@ body {
     <div class="cap-card">
         <div class="cap-icon">🤖</div>
         <div>
-            <div class="cap-title">Agente IA Conversacional <span class="new-badge">NEW</span></div>
-            <div class="cap-desc">Chat com Gemini que recebe todo o portfólio como contexto. Responde sobre riscos, alocação, rebalanceamento e performance com dados reais.</div>
-            <span class="cap-tag t-purple">Gemini 2.5 Flash · streaming</span>
+            <div class="cap-title">Agente IA Multi-Model</div>
+            <div class="cap-desc">Chat com Gemini que recebe todo o portfólio como contexto. Seletor manual de modelo, fallback automático de quota, Web Search integrada.</div>
+            <span class="cap-tag t-purple">Multi-model · auto-fallback · web search</span>
         </div>
     </div>
 
     <div class="cap-card">
         <div class="cap-icon">📰</div>
         <div>
-            <div class="cap-title">Feed de Notícias do Portfólio <span class="new-badge">NEW</span></div>
-            <div class="cap-desc">Notícias por ticker filtradas em tempo real, combinando Google News e Yahoo Finance. Exibe top altas e quedas do dia automaticamente.</div>
-            <span class="cap-tag t-cyan">Google News · Yahoo Finance · dedup</span>
+            <div class="cap-title">Feed de Notícias Multi-Fonte</div>
+            <div class="cap-desc">Notícias por ticker de 3 fontes: Google News, Yahoo Finance e Reddit. Upvotes, comentários e deduplicação automática.</div>
+            <span class="cap-tag t-cyan">Google News · Yahoo · Reddit · dedup</span>
+        </div>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-icon">📧</div>
+        <div>
+            <div class="cap-title">Daily Report Automático <span class="new-badge">NEW</span></div>
+            <div class="cap-desc">Relatório diário enviado por e-mail via GitHub Actions. P&L do dia, top gainers/losers, proventos recentes e composição por classe.</div>
+            <span class="cap-tag">GitHub Actions · SMTP · cron diário</span>
+        </div>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-icon">📥</div>
+        <div>
+            <div class="cap-title">Import IBKR <span class="new-badge">NEW</span></div>
+            <div class="cap-desc">Importa trades da Interactive Brokers (CSV) para o Google Sheets. Detecção automática de trades duplicados e inserção idempotente.</div>
+            <span class="cap-tag">CSV parser · dedup · auto-sync</span>
         </div>
     </div>
 
@@ -768,9 +813,10 @@ body {
         <div class="stack-group-label">IA &amp; Notícias</div>
         <div class="stack-row">
             <span class="stack-badge hi-purple">google-genai</span>
-            <span class="stack-badge hi-purple">Gemini 2.5 Flash</span>
+            <span class="stack-badge hi-purple">Multi-model selector</span>
             <span class="stack-badge hi-cyan">Google News RSS</span>
             <span class="stack-badge hi-cyan">Yahoo Finance News</span>
+            <span class="stack-badge" style="background:rgba(255,69,0,.1);border-color:rgba(255,69,0,.28);color:#ff6b35;">Reddit API</span>
         </div>
     </div>
     <div class="stack-group">
@@ -783,12 +829,13 @@ body {
         </div>
     </div>
     <div class="stack-group">
-        <div class="stack-group-label">Infra &amp; Auth</div>
+        <div class="stack-group-label">Infra &amp; CI/CD</div>
         <div class="stack-row">
             <span class="stack-badge">Streamlit Cloud</span>
-            <span class="stack-badge">GitHub CI/CD</span>
+            <span class="stack-badge">GitHub Actions</span>
             <span class="stack-badge">HTTPS / TLS</span>
             <span class="stack-badge">Service Account</span>
+            <span class="stack-badge">Daily Report (cron)</span>
         </div>
     </div>
 </div>
@@ -796,15 +843,15 @@ body {
 <!-- ══════════════════════════════════ STATS FOOTER -->
 <div class="stats-grid">
     <div class="stat-box">
-        <span class="stat-val">5</span>
+        <span class="stat-val">6</span>
         <div class="stat-lbl">camadas de sistema</div>
     </div>
     <div class="stat-box">
-        <span class="stat-val">4</span>
+        <span class="stat-val">5</span>
         <div class="stat-lbl">APIs externas</div>
     </div>
     <div class="stat-box">
-        <span class="stat-val">11</span>
+        <span class="stat-val">12</span>
         <div class="stat-lbl">módulos de análise</div>
     </div>
     <div class="stat-box">
@@ -812,7 +859,7 @@ body {
         <div class="stat-lbl">moedas suportadas</div>
     </div>
     <div class="stat-box">
-        <span class="stat-val">2</span>
+        <span class="stat-val">3</span>
         <div class="stat-lbl">fontes de notícias</div>
     </div>
     <div class="stat-box">
@@ -831,4 +878,4 @@ with col1:
     if st.button("◀ VOLTAR", use_container_width=True):
         st.switch_page("Home.py")
 
-components.html(arch_html, height=4200, scrolling=True)
+components.html(arch_html, height=4800, scrolling=True)
