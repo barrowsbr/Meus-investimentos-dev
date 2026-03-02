@@ -144,6 +144,117 @@ def exibir_editor_dados():
     </div>
     """, unsafe_allow_html=True)
 
+    # === CAIXA QUICK EDITOR ===
+    st.markdown("""
+    <style>
+    .caixa-card {
+        background: rgba(30, 41, 59, 0.5);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(52, 211, 153, 0.15);
+        border-radius: 16px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        transition: all 0.3s ease;
+    }
+    .caixa-card:hover {
+        border-color: rgba(52, 211, 153, 0.35);
+        box-shadow: 0 12px 32px -8px rgba(52, 211, 153, 0.15);
+    }
+    .caixa-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #34d399;
+        margin-bottom: 4px;
+        letter-spacing: -0.5px;
+    }
+    .caixa-subtitle {
+        font-size: 0.78rem;
+        color: #64748b;
+        margin-bottom: 12px;
+    }
+    .caixa-current {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin-top: 4px;
+    }
+    .caixa-current span {
+        color: #34d399;
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.expander("💰 Caixa Rápido — Atualizar Saldo", expanded=False):
+        try:
+            from core.data.provider import DataProvider
+            from core.data.gsheets import get_worksheet
+            from core.utils import format_decimal_br, parse_decimal_br
+
+            df_rf = DataProvider.get_fixed_income()
+
+            if not df_rf.empty and 'Ticker' in df_rf.columns and 'Valor' in df_rf.columns:
+                # Find all CAIXA rows
+                mask = df_rf['Ticker'].astype(str).str.upper().str.contains('CAIXA', na=False)
+                caixa_rows = df_rf[mask]
+
+                if caixa_rows.empty:
+                    st.info("Nenhuma linha 'CAIXA' encontrada na aba renda_fixa.")
+                else:
+                    for idx, row in caixa_rows.iterrows():
+                        ticker_name = str(row['Ticker'])
+                        current_val = row.get('Valor', 0)
+                        try:
+                            current_float = float(current_val) if current_val else 0.0
+                        except (ValueError, TypeError):
+                            current_float = parse_decimal_br(str(current_val)) if current_val else 0.0
+
+                        moeda = str(row.get('Moeda', 'BRL'))
+                        prefix = "R$" if moeda == "BRL" else "$"
+
+                        st.markdown(
+                            f'<div class="caixa-current">{ticker_name} — Saldo atual: '
+                            f'<span>{prefix} {current_float:,.2f}</span></div>',
+                            unsafe_allow_html=True,
+                        )
+
+                        col_input, col_btn = st.columns([3, 1])
+                        with col_input:
+                            new_val = st.number_input(
+                                f"Novo saldo — {ticker_name}",
+                                value=current_float,
+                                min_value=0.0,
+                                step=100.0,
+                                format="%.2f",
+                                key=f"caixa_input_{idx}",
+                                label_visibility="collapsed",
+                            )
+                        with col_btn:
+                            if st.button("💾 Salvar", key=f"caixa_save_{idx}", type="primary", use_container_width=True):
+                                try:
+                                    ws = get_worksheet('gdados', 'renda_fixa')
+                                    if ws:
+                                        # idx is 0-based DataFrame index, sheet is 1-based + header
+                                        sheet_row = int(idx) + 2  # +1 for header, +1 for 1-based
+
+                                        # Find "Valor" column index
+                                        headers = ws.row_values(1)
+                                        col_idx = headers.index('Valor') + 1  # 1-based
+
+                                        ws.update_cell(sheet_row, col_idx, new_val)
+                                        st.cache_data.clear()
+                                        st.toast(f"✅ {ticker_name} atualizado para {prefix} {new_val:,.2f}", icon="💰")
+                                        st.rerun()
+                                    else:
+                                        st.error("Não foi possível acessar a planilha.")
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
+            else:
+                st.warning("Aba renda_fixa não encontrada ou sem colunas esperadas (Ticker, Valor).")
+        except Exception as e:
+            st.error(f"Erro ao carregar dados do caixa: {e}")
+
     tabs_config = get_editor_config()
 
     col_sel, col_stats = st.columns([1, 2])

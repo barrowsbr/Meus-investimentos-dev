@@ -132,3 +132,8 @@ class DataProvider:
     def get_financas(cls) -> pd.DataFrame:
         """Returns Personal Finance Data (financas) - Cartões, Contas e Gastos"""
         return cls.fetch_data('financas')
+
+    @classmethod
+    def get_financas_pessoal(cls) -> pd.DataFrame:
+        """Returns Personal Finance Control (financas_pessoal) - Entradas, Saídas, Cartão"""
+        return cls.fetch_data('financas_pessoal')
