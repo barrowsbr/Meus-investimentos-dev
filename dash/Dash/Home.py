@@ -22,9 +22,9 @@ if st.query_params.get("refresh") == "1":
     st.query_params.clear()
     st.rerun()
 
-# --- LOAD LOGO FOR PRELOADER (fallback) ---
+# --- LOAD LOGO FOR PRELOADER ---
 def get_logo_base64():
-    """Load logo image as base64 for preloader fallback."""
+    """Load logo image as base64 for preloader."""
     try:
         logo_path = Path(__file__).parent / "assets" / "logos" / "carregamento.png"
         with open(logo_path, "rb") as f:
@@ -32,7 +32,6 @@ def get_logo_base64():
     except:
         return None
 
-# --- LOAD LOGO FOR PRELOADER ---
 logo_b64 = get_logo_base64()
 
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
@@ -82,16 +81,6 @@ st.markdown(f"""
 }}
 @keyframes fadeOutPreloader {{
     to {{ opacity: 0; visibility: hidden; }}
-}}
-
-/* Cards start hidden — revealed after preloader */
-@keyframes cardReveal {{
-    from {{ opacity: 0; transform: translateY(20px); }}
-    to {{ opacity: 1; transform: translateY(0); }}
-}}
-.page-content {{
-    opacity: 0;
-    animation: cardReveal 0.6s ease-out 3.1s forwards;
 }}
 </style>
 <div class="preloader-overlay">{logo_html}</div>
@@ -308,46 +297,13 @@ a, a:visited, a:hover, a:active {
     width: 100% !important;
 }
 
-/* MOBILE — sem bounce horizontal, scroll vertical livre */
+/* MOBILE */
 @media (max-width: 768px) {
     .block-container {
         margin-top: -100px !important;
     }
-
-    /* Bloqueia bounce/overscroll mas permite scroll vertical */
-    html, body, .stApp,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stAppViewContainer"] > .main,
-    .main {
+    html, body, .stApp {
         overflow-x: hidden !important;
-        overscroll-behavior-x: none !important;
-    }
-
-    html, body {
-        overscroll-behavior-y: none !important;
-    }
-
-    .stApp {
-        overflow-y: auto !important;
-        overscroll-behavior-y: none !important;
-        touch-action: pan-y !important;
-    }
-
-    /* Desabilita transforms de hover nos cards no mobile */
-    .nav-card:hover,
-    .expandable-card:hover,
-    .metrics-card-single:hover,
-    .metrics-box:hover {
-        transform: none !important;
-    }
-
-    /* Touch: só permite scroll vertical */
-    .hero-section,
-    .nav-card,
-    .expandable-card,
-    .expandable-wrapper,
-    .metrics-card-single {
-        touch-action: pan-y !important;
     }
 }
 </style>
@@ -402,7 +358,7 @@ html, body, [class*="css"] {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 50px 20px 40px;
+    padding: 50px 20px 60px;
     margin: 0;
     width: 100%;
     background-color: transparent;
@@ -436,7 +392,7 @@ CSS_PART2 = """
 .hero-logo {
     width: 84px;
     height: auto;
-    margin-bottom: 12px;
+    margin-bottom: 20px;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -486,7 +442,7 @@ CSS_PART2 = """
     color: #ffffff;
     letter-spacing: 3px;
     margin-right: -3px; /* Compensate for letter-spacing to center perfectly */
-    margin-bottom: 25px;
+    margin-bottom: 40px;
     text-shadow: 
         0 0 10px rgba(255,255,255,0.6),
         0 0 20px rgba(255,255,255,0.3);
@@ -568,16 +524,6 @@ CSS_PART2 = """
     cursor: pointer;
     position: relative;
     z-index: 10;
-    opacity: 0;
-    transform: translateY(15px);
-    animation: cardReveal 0.5s ease-out forwards;
-}
-.nav-card:nth-child(1) { animation-delay: 3.2s; }
-.nav-card:nth-child(2) { animation-delay: 3.35s; }
-.nav-card:nth-child(3) { animation-delay: 3.5s; }
-.nav-card:nth-child(4) { animation-delay: 3.65s; }
-.nav-card:nth-child(5) { animation-delay: 3.8s; }
-.nav-card:nth-child(6) { animation-delay: 3.95s; }
 }
 
 .neon-footer {
@@ -703,16 +649,7 @@ CSS_PART2 = """
     width: 100%;
     max-width: 580px;
     margin: 0 auto;
-    opacity: 0;
-    transform: translateY(15px);
-    animation: cardReveal 0.5s ease-out forwards;
 }
-.expandable-wrapper:nth-child(1) { animation-delay: 3.2s; }
-.expandable-wrapper:nth-child(2) { animation-delay: 3.35s; }
-.expandable-wrapper:nth-child(3) { animation-delay: 3.5s; }
-.expandable-wrapper:nth-child(4) { animation-delay: 3.65s; }
-.expandable-wrapper:nth-child(5) { animation-delay: 3.8s; }
-.expandable-wrapper:nth-child(6) { animation-delay: 3.95s; }
 
 .expandable-card {
     background: rgba(15, 23, 42, 0.6);
@@ -913,21 +850,20 @@ div[data-testid="column"] {
 }
 
 @media (max-width: 768px) {
-    .hero-title { font-size: 2.5rem; letter-spacing: 2px; margin-bottom: 8px; }
-    .hero-subtitle { font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 15px; }
-    .hero-logo { width: 60px; margin-bottom: 8px; }
+    .hero-title { font-size: 2.8rem; letter-spacing: 2px; }
+    .hero-subtitle { font-size: 1rem; letter-spacing: 1px; }
     .hero-section {
-        min-height: auto;
-        padding: 35px 15px 30px;
+        min-height: 300px;
+        padding: 60px 15px 50px;
         margin: 0;
         width: 100%;
     }
     .nav-card {
-        padding: 12px 20px;
+        padding: 15px 20px;
         max-width: 100%;
     }
-    .card-title { font-size: 1.15rem; }
-    .card-desc { font-size: 0.72rem; }
+    .card-title { font-size: 1.2rem; }
+    .card-desc { font-size: 0.75rem; }
     .card-icon { font-size: 0.85rem; }
     .card-arrow { right: 15px; font-size: 1rem; }
     .tools-fab {
@@ -941,10 +877,10 @@ div[data-testid="column"] {
         gap: 8px;
     }
     .expandable-wrapper { max-width: 100%; }
-    .expandable-header { padding: 12px 20px; }
+    .expandable-header { padding: 15px 20px; }
     .expand-icon { right: 15px; }
-    .sub-items { padding: 0 12px 10px 12px; }
-    .sub-item { padding: 8px 14px; }
+    .sub-items { padding: 0 12px 12px 12px; }
+    .sub-item { padding: 10px 14px; }
     .sub-item-icon {
         width: 24px;
         height: 24px;
@@ -952,7 +888,7 @@ div[data-testid="column"] {
         margin-right: 10px;
     }
     .sub-item-text { font-size: 0.82rem; }
-    .divider-line { margin: 4px 20px 6px 20px; }
+    .divider-line { margin: 5px 20px 8px 20px; }
 }
 </style>
 """
@@ -1065,66 +1001,51 @@ st.markdown("""
 .metrics-container {
     display: flex;
     justify-content: center;
-    margin-top: -60px;
+    margin-top: -80px;
     position: relative;
     z-index: 100;
     padding: 0 20px;
-    gap: 12px;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
 }
-.metrics-card-single {
-    flex: 1;
+.metrics-box {
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
-    padding: 18px 16px;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 0 20px rgba(255,255,255,0.02);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    padding: 25px 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.4), inset 0 0 30px rgba(255,255,255,0.02);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
 }
-.metrics-card-single::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 16px;
-    padding: 1px;
-    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.08) 100%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-}
-.metrics-card-single:hover {
-    transform: translateY(-3px);
+.metrics-box:hover {
+    transform: translateY(-5px) scale(1.02);
     background: rgba(15, 23, 42, 0.8);
-    border-color: rgba(99, 102, 241, 0.35);
-    box-shadow: 0 18px 45px -8px rgba(99, 102, 241, 0.2), inset 0 0 25px rgba(255,255,255,0.04);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25), inset 0 0 30px rgba(255,255,255,0.05);
 }
 .metric-item { text-align: center; }
 .metric-item-label {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     color: #64748b;
-    margin-bottom: 6px;
-    letter-spacing: 0.3px;
+    margin-bottom: 8px;
 }
 .metric-item-value {
-    font-size: 1.35rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #f1f5f9;
-    line-height: 1.3;
 }
 .metric-item-change {
-    display: block;
-    font-size: 0.82rem;
-    font-weight: 500;
-    margin-top: 2px;
+    font-size: 0.95rem;
+    font-weight: 400;
+    margin-left: 6px;
+}
+.metric-divider {
+    width: 1px;
+    height: 50px;
+    background: rgba(255,255,255,0.1);
 }
 .color-positive { color: #34d399 !important; }
 .color-negative { color: #f87171 !important; }
@@ -1137,25 +1058,27 @@ st.markdown("""
 }
 
 @media (max-width: 768px) {
-    .metrics-container {
-        margin-top: -35px;
-        gap: 8px;
-        padding: 0 15px;
+    .metrics-container { margin-top: -60px; }
+    .metrics-box {
+        flex-direction: column;
+        gap: 15px;
+        padding: 25px 40px;
+        width: 100%;
+        max-width: 500px;
     }
-    .metrics-card-single {
-        padding: 14px 10px;
-        border-radius: 14px;
+    .metric-divider {
+        width: 60%;
+        height: 1px;
     }
     .metric-item-value {
-        font-size: 1.15rem;
+        font-size: 1.3rem;
         white-space: nowrap;
     }
     .metric-item-change {
-        font-size: 0.72rem;
+        font-size: 0.85rem;
     }
     .metric-item-label {
-        font-size: 0.68rem;
-        margin-bottom: 4px;
+        font-size: 0.8rem;
     }
 }
 
@@ -1192,6 +1115,40 @@ st.markdown("""
 .home-ticker-wrap:hover {
     border-color: rgba(99, 102, 241, 0.35);
     box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
+}
+/* Ticker como label clicável */
+label.home-ticker-wrap { cursor: pointer; }
+.home-tt-toggle-hint {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    color: rgba(129,140,248,0.55);
+    font-size: 0.65rem;
+    transition: transform 0.3s ease, color 0.3s ease;
+    border-left: 1px solid rgba(255,255,255,0.06);
+}
+/* Performers panel — expandável abaixo do ticker */
+.performers-toggle { display: none; }
+.performers-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1);
+    padding: 0 20px;
+    max-width: 580px;
+    margin: 0 auto;
+}
+.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap {
+    border-color: rgba(99,102,241,0.4);
+    box-shadow: 0 12px 40px -8px rgba(99,102,241,0.25);
+}
+.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap .home-tt-toggle-hint {
+    transform: rotate(180deg);
+    color: rgba(129,140,248,0.9);
+}
+.performers-toggle:checked ~ .performers-panel {
+    max-height: 500px;
 }
 .home-tt-badge {
     flex-shrink: 0;
@@ -1255,70 +1212,21 @@ st.markdown("""
     animation: skeletonPulse 1.5s ease-in-out infinite;
 }
 
-/* ── Ticker Tape Expandable ── */
-.ticker-expand-wrapper {
-    max-width: 580px;
-    margin: 12px auto 0;
-    padding: 0 20px;
-}
-.ticker-expand-toggle {
-    display: none;
-}
-.ticker-expand-card {
-    border-radius: 16px;
-    overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.ticker-expand-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-top: none;
-    border-radius: 0 0 16px 16px;
-}
-.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
-    max-height: 500px;
-}
-.ticker-expand-toggle:checked ~ .ticker-expand-card .home-ticker-wrap {
-    border-radius: 16px 16px 0 0;
-    border-color: rgba(99, 102, 241, 0.35);
-    box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
-}
-.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
-    border-color: rgba(99, 102, 241, 0.15);
-}
-.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-hint {
-    transform: rotate(180deg);
-}
-.ticker-expand-hint {
-    font-size: 0.55rem;
-    color: rgba(255,255,255,0.25);
-    transition: transform 0.3s ease;
-    padding-right: 4px;
-}
-.home-ticker-wrap {
-    cursor: pointer;
-}
-
-/* Performers grid (used under ticker tape) */
-.perfs-grid-container { padding: 12px 15px 15px 15px; }
-.perfs-grid {
+/* ── Notícias Expandable — performers grid ── */
+.noticias-perfs { padding: 0 15px 15px 15px; }
+.noticias-perfs-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
 }
-.perfs-col {
+.noticias-perfs-col {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.05);
     border-radius: 10px;
     overflow: hidden;
 }
-.perfs-hdr {
+.noticias-perfs-hdr {
     padding: 8px 12px;
     font-size: 0.57rem;
     font-weight: 800;
@@ -1328,9 +1236,9 @@ st.markdown("""
     gap: 5px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
-.perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
-.perfs-row {
+.noticias-perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
+.noticias-perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
+.noticias-perf-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1338,40 +1246,32 @@ st.markdown("""
     border-bottom: 1px solid rgba(255,255,255,0.03);
     transition: background 0.2s ease;
 }
-.perfs-row:last-child { border-bottom: none; }
-.perfs-row:hover { background: rgba(255,255,255,0.03); }
-.perfs-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
-.perfs-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
-.perfs-down { font-size:0.72rem; font-weight:700; color:#f87171; }
-
-/* Tab links inside expandable */
-.perfs-tabs {
-    display: flex;
-    gap: 8px;
-    padding: 4px 0 0;
-}
-.perfs-tab-link {
-    flex: 1;
-    display: flex;
+.noticias-perf-row:last-child { border-bottom: none; }
+.noticias-perf-row:hover { background: rgba(255,255,255,0.03); }
+.noticias-perf-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
+.noticias-perf-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
+.noticias-perf-down { font-size:0.72rem; font-weight:700; color:#f87171; }
+.noticias-view-row  { display:flex; justify-content:center; }
+.noticias-view-btn  {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 9px 0;
-    background: rgba(6,182,212,0.05);
-    border: 1px solid rgba(6,182,212,0.15);
-    border-radius: 10px;
+    gap: 7px;
+    padding: 8px 24px;
+    background: rgba(6,182,212,0.07);
+    border: 1px solid rgba(6,182,212,0.2);
+    border-radius: 100px;
     color: #22d3ee !important;
-    text-decoration: none !important;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    letter-spacing: 0.3px;
-    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+    text-decoration: none !important;
+    transition: all 0.25s ease;
 }
-.perfs-tab-link:hover {
-    background: rgba(6,182,212,0.12);
-    border-color: rgba(6,182,212,0.35);
+.noticias-view-btn:hover {
+    background: rgba(6,182,212,0.14);
+    border-color: rgba(6,182,212,0.4);
+    gap: 11px;
 }
-
 /* Noticias expandable — cyan theme overrides */
 .expandable-card.card-noticias-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(6,182,212,0.2) !important;
@@ -1386,38 +1286,10 @@ st.markdown("""
     background: linear-gradient(135deg,rgba(6,182,212,0.4) 0%,rgba(8,145,178,0.2) 100%) !important;
 }
 .noticias-toggle:checked ~ .expandable-card.card-noticias-exp .expandable-content {
-    max-height: 400px !important;
-}
-.noticias-tabs-grid {
-    display: flex;
-    gap: 8px;
-    padding: 12px 20px 16px;
-}
-.noticias-tab-link {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 11px 0;
-    background: rgba(6,182,212,0.05);
-    border: 1px solid rgba(6,182,212,0.15);
-    border-radius: 12px;
-    color: #22d3ee !important;
-    text-decoration: none !important;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-    transition: all 0.2s ease;
-}
-.noticias-tab-link:hover {
-    background: rgba(6,182,212,0.12);
-    border-color: rgba(6,182,212,0.35);
-    transform: translateY(-1px);
+    max-height: 700px !important;
 }
 @media (max-width: 768px) {
-    .perfs-grid { grid-template-columns: 1fr; }
-    .ticker-expand-wrapper { padding: 0 15px; }
+    .noticias-perfs-grid { grid-template-columns: 1fr; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1434,13 +1306,12 @@ ticker_placeholder.markdown(
 
 metrics_placeholder.markdown("""
 <div class="metrics-container">
-    <div class="metrics-card-single">
+    <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Renda Variável (Hoje)</div>
             <div class="metric-item-value skeleton-pulse">R$ ---.--</div>
         </div>
-    </div>
-    <div class="metrics-card-single">
+        <div class="metric-divider"></div>
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
             <div class="metric-item-value skeleton-pulse">R$ --.---</div>
@@ -1450,11 +1321,11 @@ metrics_placeholder.markdown("""
 """, unsafe_allow_html=True)
 
 # --- SPACER ---
-st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
 st.markdown('''
-<div style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 20px;">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
 
 <!-- Patrimônio Expandable Card -->
 <div class="expandable-wrapper">
@@ -1530,61 +1401,32 @@ st.markdown('''
     <span class="card-arrow">→</span>
 </a>
 
+<a href="Noticias" target="_self" class="nav-card card-noticias">
+    <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+    <div class="card-desc">Mercado, portfólio e tendências do dia</div>
+    <span class="card-arrow">→</span>
+</a>
+
 </div>
 ''', unsafe_allow_html=True)
 
-# --- NOTÍCIAS EXPANDABLE CARD (with tab links) ---
-st.markdown('''
-<div style="padding:0 20px;margin-top:14px;">
-<div class="expandable-wrapper">
-    <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
-    <div class="expandable-card card-noticias-exp">
-        <label for="noticias-toggle" class="expandable-header">
-            <div class="card-title"><i class="card-icon" style="color:#22d3ee;">◉</i> Notícias</div>
-            <div class="card-desc">Mercado, portfólio e tendências do dia</div>
-            <span class="expand-icon">▼</span>
-        </label>
-        <div class="expandable-content">
-            <div class="divider-line"></div>
-            <div class="sub-items">
-                <a href="Noticias?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📰</span>
-                    <span class="sub-item-text">Cronológico</span>
-                    <span class="sub-item-arrow">→</span>
-                </a>
-                <a href="Noticias?tab=1" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📊</span>
-                    <span class="sub-item-text">Por Ticker</span>
-                    <span class="sub-item-arrow">→</span>
-                </a>
-                <a href="Noticias?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🤖</span>
-                    <span class="sub-item-text">Reddit</span>
-                    <span class="sub-item-arrow">→</span>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-''', unsafe_allow_html=True)
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
-<div class="arch-link" style="position: relative; z-index: 15; margin-top: 10px;">
+<div class="arch-link" style="position: relative; z-index: 15; margin-top: 20px;">
     <a href="Arquitetura" target="_self">Ver Arquitetura do Sistema</a>
 </div>
 ''', unsafe_allow_html=True)
 
 # --- FOOTER ---
 st.markdown('''
-<div class="neon-footer" style="text-align: center; padding-top: 8px; padding-bottom: 4px; font-size: 0.8rem; position: relative; z-index: 15;">
+<div class="neon-footer" style="text-align: center; padding-top: 40px; padding-bottom: 20px; font-size: 0.85rem; position: relative; z-index: 15;">
     Lucas Barroso Fouraux - 2026
 </div>
 ''', unsafe_allow_html=True)
 
 # --- SPACER BOTTOM ---
-st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
 
 # === STEP 2: NOW LOAD DATA (after visual structure is rendered) ===
 df_assets = load_assets()
@@ -1643,18 +1485,21 @@ dolar_sign = "+" if dolar_change >= 0 else ""
 # Update the placeholder with real data
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
-    <div class="metrics-card-single">
+    <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Renda Variável (Hoje)</div>
-            <div class="metric-item-value color-{rv_class}">R$ {rv_value}</div>
-            <span class="metric-item-change color-{rv_class}">({rv_sign}{rv_pct}%)</span>
+            <div class="metric-item-value color-{rv_class}">
+                R$ {rv_value}
+                <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
+            </div>
         </div>
-    </div>
-    <div class="metrics-card-single">
+        <div class="metric-divider"></div>
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
-            <div class="metric-item-value">R$ {dolar_value}</div>
-            <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
+            <div class="metric-item-value">
+                R$ {dolar_value}
+                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
+            </div>
         </div>
     </div>
 </div>
@@ -1680,12 +1525,30 @@ if not df_pos.empty:
 
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
-if perf_home:
-    def _clean(t):
-        for s in ('.SA', '-USD', '-BRL', '=X'):
-            t = t.replace(s, '')
-        return t
+def _clean(t):
+    for s in ('.SA', '-USD', '-BRL', '=X'):
+        t = t.replace(s, '')
+    return t
 
+best_3  = perf_home[:3]
+worst_3 = list(reversed(perf_home[-3:])) if len(perf_home) >= 3 else list(reversed(perf_home))
+
+def _perf_rows(items, cls):
+    rows = ""
+    for p in items:
+        label = _clean(p["ticker"])
+        pct = p["pct"]
+        sign = "+" if pct >= 0 else ""
+        arr  = "▲" if pct >= 0 else "▼"
+        rows += (
+            f'<div class="noticias-perf-row">'
+            f'<span class="noticias-perf-ticker">{label}</span>'
+            f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
+            f'</div>'
+        )
+    return rows
+
+if perf_home:
     items_html = ""
     for p in perf_home:
         t_label = _clean(p["ticker"])
@@ -1707,58 +1570,33 @@ if perf_home:
     track = items_html * 2
     duration = max(18, len(perf_home) * 4)
 
-    # Build performers grid
-    best_5  = perf_home[:5]
-    worst_5 = list(reversed(perf_home[-5:])) if len(perf_home) >= 5 else list(reversed(perf_home))
-
-    def _perf_rows(items, cls):
-        rows = ""
-        for p in items:
-            label = _clean(p["ticker"])
-            pct = p["pct"]
-            sign = "+" if pct >= 0 else ""
-            arr  = "▲" if pct >= 0 else "▼"
-            rows += (
-                f'<div class="perfs-row">'
-                f'<span class="perfs-ticker">{label}</span>'
-                f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
-                f'</div>'
-            )
-        return rows
-
-    best_rows  = _perf_rows(best_5,  "perfs-up")
-    worst_rows = _perf_rows(worst_5, "perfs-down")
-
+    best_rows  = _perf_rows(best_3,  "noticias-perf-up")
+    worst_rows = _perf_rows(worst_3, "noticias-perf-down")
     performers_html = (
-        f'<div class="perfs-grid">'
-        f'<div class="perfs-col">'
-        f'<div class="perfs-hdr best">▲ MELHORES</div>'
+        f'<div class="noticias-perfs-grid">'
+        f'<div class="noticias-perfs-col">'
+        f'<div class="noticias-perfs-hdr best">▲ MELHORES</div>'
         f'{best_rows}'
         f'</div>'
-        f'<div class="perfs-col">'
-        f'<div class="perfs-hdr worst">▼ PIORES</div>'
+        f'<div class="noticias-perfs-col">'
+        f'<div class="noticias-perfs-hdr worst">▼ PIORES</div>'
         f'{worst_rows}'
         f'</div>'
         f'</div>'
     )
 
     ticker_placeholder.markdown(
-        f'<div class="ticker-expand-wrapper">'
-        f'<input type="checkbox" id="ticker-expand-toggle" class="ticker-expand-toggle">'
-        f'<div class="ticker-expand-card">'
-        f'<label for="ticker-expand-toggle">'
-        f'<div class="home-ticker-wrap" style="max-width:none;">'
+        f'<input type="checkbox" id="performers-toggle" class="performers-toggle">'
+        f'<div class="home-ticker-container">'
+        f'<label for="performers-toggle" class="home-ticker-wrap">'
         f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
         f'<div class="home-ticker-viewport">'
         f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
         f'</div>'
-        f'<span class="ticker-expand-hint">▼</span>'
-        f'</div>'
-        f'</label>'
-        f'<div class="ticker-expand-content">'
-        f'<div class="perfs-grid-container">{performers_html}</div>'
-        f'</div>'
-        f'</div>'
+        f'<span class="home-tt-toggle-hint">▼</span>'
+        f'</label></div>'
+        f'<div class="performers-panel">'
+        f'<div class="noticias-perfs" style="padding-top:12px;">{performers_html}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
