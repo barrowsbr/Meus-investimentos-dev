@@ -649,7 +649,42 @@ else:
 
     news_data = _get_news(tuple(all_tickers), include_market)
 
-    tab_feed, tab_group, tab_reddit = st.tabs(["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit"])
+    # Read tab query param to auto-select tab
+    _tab_param = st.query_params.get('tab', '0')
+    _tab_names = ["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit"]
+    tab_feed, tab_group, tab_reddit = st.tabs(_tab_names)
+
+    # Auto-click the right tab via JS if tab param is set
+    if _tab_param in ('1', '2'):
+        import streamlit.components.v1 as components
+        components.html(f"""
+        <script>
+        (function() {{
+            const idx = {_tab_param};
+            const tryClick = () => {{
+                try {{
+                    const doc = window.parent.document;
+                    // Find the tab list within stTabs
+                    const tabList = doc.querySelector('[data-testid="stTabs"] [role="tablist"]');
+                    if (!tabList) return false;
+                    const tabs = tabList.querySelectorAll('[role="tab"]');
+                    if (tabs.length > idx) {{
+                        if (tabs[idx].getAttribute('aria-selected') !== 'true') {{
+                            tabs[idx].click();
+                        }}
+                        return true;
+                    }}
+                }} catch(e) {{}}
+                return false;
+            }};
+            // Retry until success
+            let attempts = 0;
+            const interval = setInterval(() => {{
+                if (tryClick() || attempts++ > 10) clearInterval(interval);
+            }}, 200);
+        }})();
+        </script>
+        """, height=0)
 
     news_placeholder.empty()
 
@@ -752,6 +787,21 @@ else:
         for ticker, items in news_data.items():
             if not items or ticker in shown_movers:
                 continue
+
+            # Pre-filter: only keep items from last 7 days
+            filtered_items = []
+            for item in sorted(items, key=_sort_key, reverse=True):
+                dt = _parse_rss_date(item.get("data", ""))
+                if dt:
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    if (datetime.now(timezone.utc) - dt).days > 7:
+                        continue
+                filtered_items.append(item)
+
+            if not filtered_items:
+                continue
+
             has_any = True
             ticker_clean = _ticker_clean(ticker)
 
@@ -767,20 +817,13 @@ else:
             st.markdown(f"""
             <div class="ticker-section-head">
                 <span class="ticker-section-name">{ticker_clean}{pct_str}</span>
-                <span class="ticker-section-count">{len(items)} notícias</span>
+                <span class="ticker-section-count">{len(filtered_items)} notícias</span>
                 <div class="ticker-divider"></div>
             </div>
             """, unsafe_allow_html=True)
 
             cards_html = '<div class="news-grid">'
-            for item in sorted(items, key=_sort_key, reverse=True):
-                # Filtra notícias com mais de 7 dias
-                dt = _parse_rss_date(item.get("data", ""))
-                if dt:
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    if (datetime.now(timezone.utc) - dt).days > 7:
-                        continue
+            for item in filtered_items:
                 cards_html += _news_card(item, ticker)
             cards_html += "</div>"
             st.markdown(cards_html, unsafe_allow_html=True)
@@ -832,9 +875,17 @@ else:
                 ticker_clean = _ticker_clean(post["_ticker"])
                 score = post.get("score", 0)
                 num_comments = post.get("num_comments", 0)
-                resumo = html.escape(post.get("resumo", "")[:120])
+                # Strip markdown formatting from resumo before rendering
+                raw_resumo = post.get("resumo", "")
+                if raw_resumo:
+                    import re as _re
+                    raw_resumo = _re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', raw_resumo)  # [text](url) → text
+                    raw_resumo = _re.sub(r'[*#>\-•|`~]', '', raw_resumo)  # remove markdown chars
+                    raw_resumo = _re.sub(r'\n+', ' ', raw_resumo)  # newlines → space
+                    raw_resumo = _re.sub(r'\s+', ' ', raw_resumo).strip()  # collapse whitespace
+                resumo = html.escape(raw_resumo[:90]) if raw_resumo else ""
 
-                resumo_html = f'<div style="font-size:0.78rem;color:#64748b;line-height:1.4;margin-top:4px;">{resumo}...</div>' if resumo else ''
+                resumo_html = f'<div style="font-size:0.78rem;color:#64748b;line-height:1.4;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{resumo}...</div>' if resumo else ''
 
                 cards_html += f"""
                 <a class="news-card reddit-card" href="{link}" target="_blank" rel="noopener noreferrer">
@@ -843,7 +894,6 @@ else:
                         <span class="news-time">{ago}</span>
                     </div>
                     <div class="news-headline">{titulo}</div>
-                    {resumo_html}
                     <div class="news-footer">
                         <div class="reddit-meta-badges">
                             <span class="news-ticker-tag">{ticker_clean}</span>

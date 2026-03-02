@@ -1226,21 +1226,70 @@ st.markdown("""
     animation: skeletonPulse 1.5s ease-in-out infinite;
 }
 
-/* ── Notícias Expandable — performers grid ── */
-.noticias-perfs { padding: 0 15px 15px 15px; }
-.noticias-perfs-grid {
+/* ── Ticker Tape Expandable ── */
+.ticker-expand-wrapper {
+    max-width: 580px;
+    margin: 12px auto 0;
+    padding: 0 20px;
+}
+.ticker-expand-toggle {
+    display: none;
+}
+.ticker-expand-card {
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ticker-expand-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    max-height: 500px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .home-ticker-wrap {
+    border-radius: 16px 16px 0 0;
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    border-color: rgba(99, 102, 241, 0.15);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-hint {
+    transform: rotate(180deg);
+}
+.ticker-expand-hint {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.25);
+    transition: transform 0.3s ease;
+    padding-right: 4px;
+}
+.home-ticker-wrap {
+    cursor: pointer;
+}
+
+/* Performers grid (used under ticker tape) */
+.perfs-grid-container { padding: 12px 15px 15px 15px; }
+.perfs-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
-.noticias-perfs-col {
+.perfs-col {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.05);
     border-radius: 10px;
     overflow: hidden;
 }
-.noticias-perfs-hdr {
+.perfs-hdr {
     padding: 8px 12px;
     font-size: 0.57rem;
     font-weight: 800;
@@ -1250,9 +1299,9 @@ st.markdown("""
     gap: 5px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.noticias-perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
-.noticias-perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
-.noticias-perf-row {
+.perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
+.perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
+.perfs-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1260,32 +1309,40 @@ st.markdown("""
     border-bottom: 1px solid rgba(255,255,255,0.03);
     transition: background 0.2s ease;
 }
-.noticias-perf-row:last-child { border-bottom: none; }
-.noticias-perf-row:hover { background: rgba(255,255,255,0.03); }
-.noticias-perf-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
-.noticias-perf-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
-.noticias-perf-down { font-size:0.72rem; font-weight:700; color:#f87171; }
-.noticias-view-row  { display:flex; justify-content:center; }
-.noticias-view-btn  {
-    display: inline-flex;
+.perfs-row:last-child { border-bottom: none; }
+.perfs-row:hover { background: rgba(255,255,255,0.03); }
+.perfs-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
+.perfs-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
+.perfs-down { font-size:0.72rem; font-weight:700; color:#f87171; }
+
+/* Tab links inside expandable */
+.perfs-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 4px 0 0;
+}
+.perfs-tab-link {
+    flex: 1;
+    display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 8px 24px;
-    background: rgba(6,182,212,0.07);
-    border: 1px solid rgba(6,182,212,0.2);
-    border-radius: 100px;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px 0;
+    background: rgba(6,182,212,0.05);
+    border: 1px solid rgba(6,182,212,0.15);
+    border-radius: 10px;
     color: #22d3ee !important;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
     text-decoration: none !important;
-    transition: all 0.25s ease;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
 }
-.noticias-view-btn:hover {
-    background: rgba(6,182,212,0.14);
-    border-color: rgba(6,182,212,0.4);
-    gap: 11px;
+.perfs-tab-link:hover {
+    background: rgba(6,182,212,0.12);
+    border-color: rgba(6,182,212,0.35);
 }
+
 /* Noticias expandable — cyan theme overrides */
 .expandable-card.card-noticias-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(6,182,212,0.2) !important;
@@ -1300,10 +1357,38 @@ st.markdown("""
     background: linear-gradient(135deg,rgba(6,182,212,0.4) 0%,rgba(8,145,178,0.2) 100%) !important;
 }
 .noticias-toggle:checked ~ .expandable-card.card-noticias-exp .expandable-content {
-    max-height: 700px !important;
+    max-height: 400px !important;
+}
+.noticias-tabs-grid {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 16px;
+}
+.noticias-tab-link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 11px 0;
+    background: rgba(6,182,212,0.05);
+    border: 1px solid rgba(6,182,212,0.15);
+    border-radius: 12px;
+    color: #22d3ee !important;
+    text-decoration: none !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+.noticias-tab-link:hover {
+    background: rgba(6,182,212,0.12);
+    border-color: rgba(6,182,212,0.35);
+    transform: translateY(-1px);
 }
 @media (max-width: 768px) {
-    .noticias-perfs-grid { grid-template-columns: 1fr; }
+    .perfs-grid { grid-template-columns: 1fr; }
+    .ticker-expand-wrapper { padding: 0 15px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1419,22 +1504,35 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
-# --- NOTÍCIAS EXPANDABLE CARD (dynamic — populated after data load) ---
-noticias_placeholder = st.empty()
-noticias_placeholder.markdown('''
+# --- NOTÍCIAS EXPANDABLE CARD (with tab links) ---
+st.markdown('''
 <div style="padding:0 20px;margin-top:14px;">
 <div class="expandable-wrapper">
     <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
     <div class="expandable-card card-noticias-exp">
         <label for="noticias-toggle" class="expandable-header">
-            <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+            <div class="card-title"><i class="card-icon" style="color:#22d3ee;">◉</i> Notícias</div>
             <div class="card-desc">Mercado, portfólio e tendências do dia</div>
             <span class="expand-icon">▼</span>
         </label>
         <div class="expandable-content">
             <div class="divider-line"></div>
-            <div style="padding:20px;text-align:center;color:#334155;font-size:0.8rem;animation:skeletonPulse 1.5s ease-in-out infinite;">
-                Carregando dados do mercado...
+            <div class="sub-items">
+                <a href="Noticias?tab=0" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📰</span>
+                    <span class="sub-item-text">Cronológico</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=1" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📊</span>
+                    <span class="sub-item-text">Por Ticker</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=2" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🤖</span>
+                    <span class="sub-item-text">Reddit</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
             </div>
         </div>
     </div>
@@ -1579,86 +1677,63 @@ if perf_home:
 
     track = items_html * 2
     duration = max(18, len(perf_home) * 4)
-    ticker_placeholder.markdown(
-        f'<div class="home-ticker-container">'
-        f'<div class="home-ticker-wrap">'
-        f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
-        f'<div class="home-ticker-viewport">'
-        f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
-        f'</div></div></div>',
-        unsafe_allow_html=True,
-    )
-else:
-    ticker_placeholder.empty()
 
-# === STEP 5: RENDER NOTICIAS EXPANDABLE CARD ===
-def _clean_ticker(t):
-    for s in ('.SA', '-USD', '-BRL', '=X'):
-        t = t.replace(s, '')
-    return t
+    # Build performers grid
+    best_5  = perf_home[:5]
+    worst_5 = list(reversed(perf_home[-5:])) if len(perf_home) >= 5 else list(reversed(perf_home))
 
-best_3  = perf_home[:3]
-worst_3 = list(reversed(perf_home[-3:])) if len(perf_home) >= 3 else list(reversed(perf_home))
+    def _perf_rows(items, cls):
+        rows = ""
+        for p in items:
+            label = _clean(p["ticker"])
+            pct = p["pct"]
+            sign = "+" if pct >= 0 else ""
+            arr  = "▲" if pct >= 0 else "▼"
+            rows += (
+                f'<div class="perfs-row">'
+                f'<span class="perfs-ticker">{label}</span>'
+                f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
+                f'</div>'
+            )
+        return rows
 
-def _perf_rows(items, cls):
-    rows = ""
-    for p in items:
-        label = _clean_ticker(p["ticker"])
-        pct = p["pct"]
-        sign = "+" if pct >= 0 else ""
-        arr  = "▲" if pct >= 0 else "▼"
-        rows += (
-            f'<div class="noticias-perf-row">'
-            f'<span class="noticias-perf-ticker">{label}</span>'
-            f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
-            f'</div>'
-        )
-    return rows
+    best_rows  = _perf_rows(best_5,  "perfs-up")
+    worst_rows = _perf_rows(worst_5, "perfs-down")
 
-if perf_home:
-    best_rows  = _perf_rows(best_3,  "noticias-perf-up")
-    worst_rows = _perf_rows(worst_3, "noticias-perf-down")
     performers_html = (
-        f'<div class="noticias-perfs-grid">'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr best">▲ MELHORES</div>'
+        f'<div class="perfs-grid">'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr best">▲ MELHORES</div>'
         f'{best_rows}'
         f'</div>'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr worst">▼ PIORES</div>'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr worst">▼ PIORES</div>'
         f'{worst_rows}'
         f'</div>'
         f'</div>'
     )
-else:
-    performers_html = (
-        '<div style="padding:16px 0 8px;text-align:center;color:#475569;font-size:0.8rem;">'
-        'Sem dados de mercado disponíveis hoje.</div>'
-    )
 
-noticias_card_html = (
-    '<div style="padding:0 20px;margin-top:14px;">'
-    '<div class="expandable-wrapper">'
-    '<input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">'
-    '<div class="expandable-card card-noticias-exp">'
-    '<label for="noticias-toggle" class="expandable-header">'
-    '<div class="card-title"><i class="card-icon">◉</i> Notícias</div>'
-    '<div class="card-desc">Mercado, portfólio e tendências do dia</div>'
-    '<span class="expand-icon">▼</span>'
-    '</label>'
-    '<div class="expandable-content">'
-    '<div class="divider-line"></div>'
-    '<div class="noticias-perfs">'
-    f'{performers_html}'
-    '<div class="noticias-view-row">'
-    '<a href="Noticias" target="_self" class="noticias-view-btn">Ver todas as notícias →</a>'
-    '</div>'
-    '</div>'
-    '</div>'
-    '</div>'
-    '</div>'
-    '</div>'
-)
-noticias_placeholder.markdown(noticias_card_html, unsafe_allow_html=True)
+    ticker_placeholder.markdown(
+        f'<div class="ticker-expand-wrapper">'
+        f'<input type="checkbox" id="ticker-expand-toggle" class="ticker-expand-toggle">'
+        f'<div class="ticker-expand-card">'
+        f'<label for="ticker-expand-toggle">'
+        f'<div class="home-ticker-wrap" style="max-width:none;">'
+        f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
+        f'<div class="home-ticker-viewport">'
+        f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
+        f'</div>'
+        f'<span class="ticker-expand-hint">▼</span>'
+        f'</div>'
+        f'</label>'
+        f'<div class="ticker-expand-content">'
+        f'<div class="perfs-grid-container">{performers_html}</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    ticker_placeholder.empty()
 
 # --- FOOTER SECTION REMOVED FROM HERE ---

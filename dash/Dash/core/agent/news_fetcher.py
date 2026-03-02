@@ -346,19 +346,24 @@ def fetch_reddit_posts(
     """
     clean = _clean_ticker_query(ticker)
     
-    # Monta query: ticker + nome de subreddits financeiros
-    if subreddits:
-        sr_filter = " OR ".join(f"subreddit:{s}" for s in subreddits)
+    # Detect if Brazilian ticker (.SA suffix or ends in 3/4/11)
+    is_br = ticker.upper().endswith('.SA') or clean.endswith('3') or clean.endswith('4') or clean.endswith('11')
+    
+    # Build query — broader for BR tickers, use subreddit filter for US/global
+    if is_br:
+        query = f'"{clean}" (investimento OR ação OR bolsa OR dividendo OR cotação)'
+    elif subreddits:
+        sr_filter = " OR ".join(f"subreddit:{s}" for s in subreddits[:4])
         query = f"{clean} ({sr_filter})"
     else:
-        query = f"{clean} stocks OR investing OR ação OR bolsa"
+        query = f"{clean} stocks OR investing"
 
     import urllib.parse
     params = urllib.parse.urlencode({
         "q": query,
         "sort": "relevance",
-        "t": "week",
-        "limit": str(min(max_items * 2, 25)),
+        "t": "month",
+        "limit": str(min(max_items * 3, 50)),
         "type": "link",
     })
     url = f"{_REDDIT_SEARCH_URL}?{params}"
