@@ -183,9 +183,9 @@ def render_fab():
             <span class="nav-label">Reload</span>
         </a>
         <span class="nav-sep"></span>
-        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Grimmi">
+        <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
             <span class="nav-icon">{grimmi_icon_html}</span>
-            <span class="nav-label">Grimmi</span>
+            <span class="nav-label">Gemini</span>
         </a>
         <span class="nav-sep"></span>
         <a href="./" target="_self" class="nav-item" title="Home">
