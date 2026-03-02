@@ -129,22 +129,6 @@ st.markdown(f"""
 {preloader_anim}
 </style>
 <div class="preloader-overlay" id="preloader">{preloader_content}</div>
-<script>
-// Fade out preloader when video ends (or after timeout)
-(function() {{
-    var vid = document.getElementById('intro-video');
-    var overlay = document.getElementById('preloader');
-    if (vid && overlay) {{
-        vid.addEventListener('ended', function() {{
-            overlay.classList.add('fade-out');
-        }});
-        // Safety: if video stalls, fade out after 8s
-        setTimeout(function() {{
-            overlay.classList.add('fade-out');
-        }}, 8000);
-    }}
-}})();
-</script>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -300,12 +284,34 @@ components.html("""
              }
         };
 
+        // 4. Video preloader: fade out when video ends
+        const setupVideoPreloader = () => {
+            try {
+                const doc = window.parent.document;
+                const vid = doc.getElementById('intro-video');
+                const overlay = doc.getElementById('preloader');
+                if (vid && overlay && !vid.dataset.listenerAttached) {
+                    vid.dataset.listenerAttached = 'true';
+                    vid.addEventListener('ended', () => {
+                        overlay.classList.add('fade-out');
+                    });
+                    // Safety fallback if video stalls
+                    setTimeout(() => {
+                        overlay.classList.add('fade-out');
+                    }, 8000);
+                }
+            } catch (e) {
+                console.log('Video preloader error:', e);
+            }
+        };
+
         // Run repeatedly to catch late rendering
         setInterval(removeToolbar, 500);
         setInterval(setupEasterEgg, 1000);
         
         removeToolbar();
         setupEasterEgg();
+        setupVideoPreloader();
     };
 </script>
 """, height=0)
@@ -358,32 +364,62 @@ a, a:visited, a:hover, a:active {
     width: 100% !important;
 }
 
-/* MOBILE */
+/* MOBILE — página 100% rígida, sem bounce nem wobble */
 @media (max-width: 768px) {
     .block-container {
         margin-top: -100px !important;
     }
-    html, body, .stApp {
+
+    /* Trava overscroll/bounce em TODOS os elementos */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewContainer"] > .main,
+    [data-testid="stVerticalBlock"],
+    .main {
         overflow-x: hidden !important;
         overscroll-behavior: none !important;
-        -webkit-overflow-scrolling: touch;
-    }
-    /* Impede bounce/wobble no mobile */
-    html {
-        overflow-y: auto !important;
+        overscroll-behavior-x: none !important;
         overscroll-behavior-y: none !important;
+        -webkit-overflow-scrolling: auto !important;
+    }
+
+    /* Scroll vertical só no .stApp, todo o resto bloqueado */
+    html {
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
     }
     body {
-        overflow-y: auto !important;
-        overscroll-behavior-y: none !important;
-        position: fixed;
-        width: 100%;
-        height: 100%;
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
     }
     .stApp {
+        overflow-x: hidden !important;
         overflow-y: auto !important;
         height: 100vh !important;
-        -webkit-overflow-scrolling: touch;
+        width: 100vw !important;
+        overscroll-behavior-y: none !important;
+        touch-action: pan-y !important;
+    }
+
+    /* Desabilita TODOS os transforms de hover nos cards — impede que "balancem" */
+    .nav-card:hover,
+    .expandable-card:hover,
+    .metrics-card-single:hover,
+    .metrics-box:hover {
+        transform: none !important;
+    }
+
+    /* Touch: só permite scroll vertical */
+    .hero-section,
+    .nav-card,
+    .expandable-card,
+    .expandable-wrapper,
+    .metrics-card-single {
+        touch-action: pan-y !important;
     }
 }
 </style>
