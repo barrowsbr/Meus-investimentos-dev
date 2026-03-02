@@ -47,23 +47,40 @@ def render_fab():
         padding-bottom: 96px !important;
     }}
 
-    /* ===== FLOATING PILL NAV ===== */
+    /* ===== 1. GRADIENTE DE CAMUFLAGEM – funde o "Manage App" ao fundo ===== */
+    .bottom-fade-overlay {{
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 88px;
+        background: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(14, 17, 23, 0.72) 55%,
+            rgba(14, 17, 23, 0.97) 100%
+        );
+        pointer-events: none;
+        z-index: 99998; /* abaixo do pill, acima do conteúdo */
+    }}
+
+    /* ===== 2. FLOATING PILL NAV – glassmorphism dock ===== */
     .bottom-nav {{
         position: fixed;
         bottom: 8px;
         left: 16px;
         width: max-content;
         min-width: 260px;
-        max-width: calc(100vw - 140px); /* margem p/ Manage App não colidir */
+        max-width: calc(100vw - 140px); /* libera espaço para Manage App à direita */
         height: 60px;
         display: flex;
         flex-direction: row;
         align-items: center;
         justify-content: center;
         gap: 2px;
-        background: rgba(8, 14, 28, 0.88);
-        backdrop-filter: blur(28px);
-        -webkit-backdrop-filter: blur(28px);
+        background: rgba(8, 14, 28, 0.78);
+        backdrop-filter: blur(28px) saturate(160%);
+        -webkit-backdrop-filter: blur(28px) saturate(160%);
         border: 1px solid rgba(255, 255, 255, 0.09);
         border-radius: 30px;
         z-index: 99999;
@@ -155,6 +172,9 @@ def render_fab():
     }}
 
     @media (max-width: 600px) {{
+        .bottom-fade-overlay {{
+            height: 72px;
+        }}
         .bottom-nav {{
             height: 56px;
             bottom: 6px;
@@ -191,7 +211,12 @@ def render_fab():
     }}
     </style>
 
+    <!-- 1. Overlay de camuflagem atrás do Manage App -->
+    <div class="bottom-fade-overlay"></div>
+
+    <!-- 2. Dock glassmorphism — ordem: Config | Reload | [sep] | Grimmi | [sep] | Home | Extras -->
     <nav class="bottom-nav">
+        <!-- Esquerda -->
         <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
             <span class="nav-icon">⚙️</span>
             <span class="nav-label">Config</span>
@@ -201,6 +226,13 @@ def render_fab():
             <span class="nav-label">Reload</span>
         </a>
         <span class="nav-sep"></span>
+        <!-- 3. Centro — Grimmi com maior peso visual -->
+        <a href="Agente_IA" target="_self" class="nav-item nav-item-ai" title="Agente IA – Grimmi">
+            <span class="nav-icon">{grimmi_icon_html}</span>
+            <span class="nav-label">Grimmi</span>
+        </a>
+        <span class="nav-sep"></span>
+        <!-- Direita -->
         <a href="./" target="_self" class="nav-item" title="Home">
             <span class="nav-icon">🏠</span>
             <span class="nav-label">Home</span>
@@ -208,11 +240,6 @@ def render_fab():
         <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
             <span class="nav-icon">{logo_icon_html}</span>
             <span class="nav-label">Extras</span>
-        </a>
-        <span class="nav-sep"></span>
-        <a href="Agente_IA" target="_self" class="nav-item nav-item-ai" title="Agente IA – Grimmi">
-            <span class="nav-icon">{grimmi_icon_html}</span>
-            <span class="nav-label">Grimmi</span>
         </a>
     </nav>
     """, unsafe_allow_html=True)
