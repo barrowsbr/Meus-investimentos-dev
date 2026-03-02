@@ -50,7 +50,7 @@ def render_fab():
     /* ===== FLOATING PILL NAV ===== */
     .bottom-nav {{
         position: fixed;
-        bottom: 16px;
+        bottom: 8px;
         left: 16px;
         width: max-content;
         min-width: 260px;
@@ -157,7 +157,7 @@ def render_fab():
     @media (max-width: 600px) {{
         .bottom-nav {{
             height: 56px;
-            bottom: 12px;
+            bottom: 6px;
             left: 12px;
             max-width: calc(100vw - 110px);
             padding: 0 6px;
@@ -182,7 +182,7 @@ def render_fab():
     /* iPhone X+ safe area */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {{
         .bottom-nav {{
-            bottom: calc(16px + env(safe-area-inset-bottom));
+            bottom: calc(8px + env(safe-area-inset-bottom));
             left: calc(16px + env(safe-area-inset-left));
         }}
         .block-container {{
