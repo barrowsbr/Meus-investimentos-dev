@@ -56,7 +56,20 @@ st.markdown(f"""
     justify-content: center;
     flex-direction: column;
     pointer-events: none;
-    animation: fadeOutPreloader 0.5s ease-out 3s forwards;
+    opacity: 1;
+    transition: opacity 0.8s ease-out;
+}}
+.preloader-overlay.fade-out {{
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}}
+/* CSS-only fallback: se o JS não disparar, esconde após 6s */
+.preloader-overlay {{
+    animation: fadeOutPreloaderFallback 0.8s ease-out 6s forwards;
+}}
+.preloader-overlay.js-controlled {{
+    animation: none !important;
 }}
 .preloader-logo {{
     width: 190px;
@@ -80,11 +93,11 @@ st.markdown(f"""
     0%, 100% {{ opacity: 0.7; transform: scale(1); }}
     50% {{ opacity: 1; transform: scale(1.05); }}
 }}
-@keyframes fadeOutPreloader {{
+@keyframes fadeOutPreloaderFallback {{
     to {{ opacity: 0; visibility: hidden; }}
 }}
 </style>
-<div class="preloader-overlay">{logo_html}</div>
+<div class="preloader-overlay" id="preloader">{logo_html}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -240,12 +253,51 @@ components.html("""
              }
         };
 
+        // 4. Smooth preloader: fade out when Streamlit content is ready
+        const smoothPreloader = () => {
+            try {
+                const doc = window.parent.document;
+                const overlay = doc.getElementById('preloader');
+                if (!overlay || overlay.dataset.dismissed === 'true') return;
+
+                // Take over from CSS fallback
+                overlay.classList.add('js-controlled');
+
+                // Detect if Streamlit has rendered real content
+                const hasContent = doc.querySelector('.block-container') ||
+                                   doc.querySelector('[data-testid="stMarkdown"]') ||
+                                   doc.querySelector('.nav-card');
+
+                if (hasContent) {
+                    // Minimum display: 1.5s for the pulse to feel smooth
+                    const elapsed = performance.now();
+                    const minDisplay = 1500;
+                    const delay = Math.max(0, minDisplay - elapsed);
+
+                    setTimeout(() => {
+                        overlay.classList.add('fade-out');
+                        overlay.dataset.dismissed = 'true';
+                    }, delay);
+                }
+            } catch(e) {}
+        };
+
         // Run repeatedly to catch late rendering
         setInterval(removeToolbar, 500);
         setInterval(setupEasterEgg, 1000);
         
         removeToolbar();
         setupEasterEgg();
+
+        // Check for content readiness every 200ms
+        const preloaderCheck = setInterval(() => {
+            smoothPreloader();
+            try {
+                const ov = window.parent.document.getElementById('preloader');
+                if (ov && ov.dataset.dismissed === 'true') clearInterval(preloaderCheck);
+            } catch(e) {}
+        }, 200);
+        smoothPreloader();
     };
 </script>
 """, height=0)
