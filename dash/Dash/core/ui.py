@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import base64
 from pathlib import Path
 
@@ -41,13 +42,6 @@ def render_fab():
 
     st.markdown(f"""
     <style>
-    /* Ocultar toolbar nativa do Streamlit (Manage app) */
-    [data-testid="stToolbar"],
-    [data-testid="stStatusWidget"],
-    .stDeployButton {{
-        display: none !important;
-    }}
-
     /* Espaço para conteúdo não ficar atrás da nav bar */
     .block-container {{
         padding-bottom: 84px !important;
@@ -180,6 +174,135 @@ def render_fab():
         </a>
     </nav>
     """, unsafe_allow_html=True)
+
+    # JS: integra o botão "Manage app" do Streamlit à bottom nav como item "⚡ Dev"
+    components.html("""
+    <script>
+    (function () {
+        function integrate() {
+            try {
+                var doc = window.parent.document;
+
+                // Injeta CSS do novo item (uma vez só)
+                if (!doc.getElementById('_nav_mgr_css')) {
+                    var s = doc.createElement('style');
+                    s.id = '_nav_mgr_css';
+                    s.textContent = [
+                        '.nav-mgr-wrap{',
+                        '  position:fixed!important;bottom:0!important;right:0!important;',
+                        '  top:auto!important;left:auto!important;height:68px!important;',
+                        '  background:transparent!important;border:none!important;',
+                        '  box-shadow:none!important;z-index:100001!important;',
+                        '  display:flex!important;align-items:center!important;padding:0 8px!important;',
+                        '}',
+                        '.nav-mgr-btn{',
+                        '  display:flex!important;flex-direction:column!important;',
+                        '  align-items:center!important;justify-content:center!important;',
+                        '  gap:3px!important;background:rgba(6,182,212,0.08)!important;',
+                        '  border:1px solid rgba(6,182,212,0.2)!important;',
+                        '  border-radius:14px!important;padding:6px 14px!important;',
+                        '  margin:8px 4px!important;color:rgba(6,182,212,0.85)!important;',
+                        '  cursor:pointer!important;min-width:52px!important;height:auto!important;',
+                        '  font-family:Outfit,sans-serif!important;',
+                        '  transition:background .2s,border-color .2s,color .2s!important;',
+                        '  box-shadow:none!important;outline:none!important;',
+                        '}',
+                        '.nav-mgr-btn:hover{',
+                        '  background:rgba(6,182,212,0.18)!important;',
+                        '  border-color:rgba(6,182,212,0.42)!important;',
+                        '  color:rgba(6,182,212,1)!important;',
+                        '}',
+                        '.nav-mgr-icon{font-size:1.25rem;line-height:1;display:block;pointer-events:none}',
+                        '.nav-mgr-label{font-size:.6rem;font-weight:500;letter-spacing:.2px;',
+                        '  line-height:1;display:block;pointer-events:none}',
+                    ].join('');
+                    doc.head.appendChild(s);
+                }
+
+                // Encontra o wrapper do toolbar por múltiplos seletores
+                var wrap = (
+                    doc.querySelector('[data-testid="stToolbar"]') ||
+                    doc.querySelector('[data-testid="stStatusWidget"]') ||
+                    doc.querySelector('[data-testid="stAppToolbar"]')
+                );
+
+                // Fallback: acha pelo texto "Manage app"
+                if (!wrap) {
+                    var btns = doc.querySelectorAll('button');
+                    for (var i = 0; i < btns.length; i++) {
+                        if (btns[i].innerText && btns[i].innerText.indexOf('Manage app') !== -1) {
+                            wrap = btns[i].parentElement;
+                            break;
+                        }
+                    }
+                }
+
+                if (!wrap || wrap.dataset.mgrDone) return !!wrap;
+                wrap.dataset.mgrDone = '1';
+                wrap.classList.add('nav-mgr-wrap');
+
+                // Encontra o botão "Manage app" dentro do wrapper
+                var btn = wrap.tagName === 'BUTTON' ? wrap : wrap.querySelector('button');
+
+                if (btn) {
+                    // Esconde filhos originais (seta ←, texto nativo)
+                    var children = btn.children;
+                    for (var j = 0; j < children.length; j++) {
+                        children[j].style.cssText = 'display:none!important';
+                    }
+
+                    // Injeta ícone + label estilizados
+                    if (!btn.querySelector('.nav-mgr-icon')) {
+                        var icon = doc.createElement('span');
+                        icon.className = 'nav-mgr-icon';
+                        icon.textContent = '⚡';
+
+                        var label = doc.createElement('span');
+                        label.className = 'nav-mgr-label';
+                        label.textContent = 'Dev';
+
+                        btn.appendChild(icon);
+                        btn.appendChild(label);
+                    }
+
+                    btn.classList.add('nav-mgr-btn');
+                    // Remove inline styles do Streamlit para a classe entrar
+                    btn.removeAttribute('style');
+                }
+
+                // Esconde elementos não-botão dentro do wrapper (dots de status, etc.)
+                var wrapChildren = wrap.children;
+                for (var k = 0; k < wrapChildren.length; k++) {
+                    var child = wrapChildren[k];
+                    if (child !== btn && !child.contains(btn)) {
+                        child.style.cssText = 'display:none!important';
+                    }
+                }
+
+                return true;
+            } catch (e) { return false; }
+        }
+
+        // Roda imediatamente e com retries progressivos
+        if (!integrate()) {
+            [250, 600, 1200, 2500, 4000].forEach(function(d) {
+                setTimeout(integrate, d);
+            });
+        }
+
+        // MutationObserver: reaplicar se o Streamlit re-renderizar o toolbar
+        try {
+            var observer = new MutationObserver(function () {
+                var el = window.parent.document.querySelector(
+                    '[data-testid="stToolbar"],[data-testid="stStatusWidget"]'
+                );
+                if (el && !el.dataset.mgrDone) integrate();
+            });
+            observer.observe(window.parent.document.body, {childList: true, subtree: true});
+        } catch (e) {}
+    })();
+    </script>
+    """, height=0)
 
 
 def get_view_mode_css() -> str:
