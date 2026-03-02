@@ -1338,7 +1338,7 @@ st.markdown('''
 # --- NOTÍCIAS EXPANDABLE CARD (dynamic — populated after data load) ---
 noticias_placeholder = st.empty()
 noticias_placeholder.markdown('''
-<div style="padding:0 20px;">
+<div style="padding:0 20px;margin-top:30px;">
 <div class="expandable-wrapper">
     <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
     <div class="expandable-card card-noticias-exp">
@@ -1556,7 +1556,7 @@ else:
     )
 
 noticias_card_html = (
-    '<div style="padding:0 20px;">'
+    '<div style="padding:0 20px;margin-top:30px;">'
     '<div class="expandable-wrapper">'
     '<input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">'
     '<div class="expandable-card card-noticias-exp">'
