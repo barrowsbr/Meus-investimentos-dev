@@ -385,19 +385,23 @@ with c2:
     to_rm = None
     for i, r in enumerate(saidas_list):
         row_idx = rows.index(r)
-        a, b, d = st.columns([4, 4, 1])
+        a, b = st.columns([5, 4])
         with a:
-            rows[row_idx]['nome'] = st.text_input(
-                f"n{i}", value=r['nome'], key=f"sn{i}", label_visibility="collapsed"
-            )
+            na, nb = st.columns([6, 1])
+            with na:
+                rows[row_idx]['nome'] = st.text_input(
+                    f"n{i}", value=r['nome'], key=f"sn{i}", label_visibility="collapsed"
+                )
+            with nb:
+                st.markdown('<div style="padding-top:2px;">', unsafe_allow_html=True)
+                if st.button("×", key=f"sr{i}", help="Remover"):
+                    to_rm = row_idx
+                st.markdown('</div>', unsafe_allow_html=True)
         with b:
             rows[row_idx]['valor'] = st.number_input(
                 f"v{i}", value=r['valor'], min_value=0.0, step=50.0, format="%.2f",
                 key=f"sv{i}", label_visibility="collapsed"
             )
-        with d:
-            if st.button("✕", key=f"sr{i}"):
-                to_rm = row_idx
 
     if to_rm is not None:
         rows.pop(to_rm)
