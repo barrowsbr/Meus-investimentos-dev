@@ -40,7 +40,10 @@ DEFAULT_ROWS = [
     ['saida', 'Gás', 0],
     ['saida', 'Condomínio', 0],
     ['saida', 'Aluguel', 0],
-    ['cartao', 'Fatura', 0],
+    ['cartao', 'XP', 0],
+    ['cartao', 'Nubank Lucas', 0],
+    ['cartao', 'Nubank Maria', 0],
+    ['cartao', 'AMEX', 0],
     ['poupanca', 'Poupança Esperada', 0],
 ]
 
@@ -327,6 +330,17 @@ rows = st.session_state.fin_rows
 if not any(r['categoria'] == 'poupanca' for r in rows):
     rows.append({'categoria': 'poupanca', 'nome': 'Poupança Esperada', 'valor': 0.0})
 
+# Migrate old single "Fatura" cartão to individual cards
+cartao_rows = [r for r in rows if r['categoria'] == 'cartao']
+card_names = {'XP', 'Nubank Lucas', 'Nubank Maria', 'AMEX'}
+if len(cartao_rows) == 1 and cartao_rows[0]['nome'] == 'Fatura':
+    rows.remove(cartao_rows[0])
+    for nome in ['XP', 'Nubank Lucas', 'Nubank Maria', 'AMEX']:
+        rows.append({'categoria': 'cartao', 'nome': nome, 'valor': 0.0})
+elif not cartao_rows:
+    for nome in ['XP', 'Nubank Lucas', 'Nubank Maria', 'AMEX']:
+        rows.append({'categoria': 'cartao', 'nome': nome, 'valor': 0.0})
+
 # ── Dashboard placeholder (rendered at end with final values) ────────────────
 dash_ph = st.empty()
 
@@ -402,20 +416,42 @@ cc, cp = st.columns(2, gap="small")
 
 with cc:
     st.markdown("""
-    <div class="sec-head"><span class="sec-icon">💳</span><span class="sec-title">Cartão de Crédito</span></div>
+    <div class="sec-head"><span class="sec-icon">💳</span><span class="sec-title">Cartões de Crédito</span></div>
     """, unsafe_allow_html=True)
 
-    if not cartao_list:
-        rows.append({"categoria": "cartao", "nome": "Fatura", "valor": 0.0})
-        cartao_list = [rows[-1]]
+    # Brand icons/colors for each card
+    CARD_BRANDS = {
+        'xp': ('🟡', '#f5a623', 'XP'),
+        'nubank': ('🟣', '#8a05be', 'Nu'),
+        'amex': ('🔵', '#006fcf', 'Amex'),
+    }
 
-    ci = rows.index(cartao_list[0])
-    rows[ci]['valor'] = st.number_input(
-        "Fatura", value=cartao_list[0]['valor'], min_value=0.0,
-        step=100.0, format="%.2f", key="cv", label_visibility="collapsed"
-    )
+    def card_chip(nome):
+        key = nome.lower()
+        for brand_key, (dot, color, short) in CARD_BRANDS.items():
+            if brand_key in key:
+                return (f'<span style="display:inline-flex;align-items:center;gap:5px;">'
+                        f'<span style="background:{color};color:#fff;padding:1px 7px;'
+                        f'border-radius:6px;font-size:0.62rem;font-weight:700;'
+                        f'letter-spacing:0.3px;">{short}</span>'
+                        f'<span style="color:#94a3b8;font-size:0.72rem;font-weight:500;">{nome}</span>'
+                        f'</span>')
+        return f'<span class="f-label">{nome}</span>'
+
+    if not cartao_list:
+        for nome in ['XP', 'Nubank Lucas', 'Nubank Maria', 'AMEX']:
+            rows.append({"categoria": "cartao", "nome": nome, "valor": 0.0})
+        cartao_list = [r for r in rows if r['categoria'] == 'cartao']
+
+    for i, cr in enumerate(cartao_list):
+        ci = rows.index(cr)
+        st.markdown(card_chip(cr['nome']), unsafe_allow_html=True)
+        rows[ci]['valor'] = st.number_input(
+            cr['nome'], value=cr['valor'], min_value=0.0,
+            step=100.0, format="%.2f", key=f"cv{i}", label_visibility="collapsed"
+        )
     t_car = calc_total(rows, 'cartao')
-    st.markdown(f'<div class="tot"><span class="tot-label">Total Cartão</span><span class="tot-val a">{fmt(t_car)}</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tot"><span class="tot-label">Total Cartões</span><span class="tot-val a">{fmt(t_car)}</span></div>', unsafe_allow_html=True)
 
 with cp:
     st.markdown("""
