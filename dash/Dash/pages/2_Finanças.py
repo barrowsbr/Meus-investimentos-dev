@@ -226,9 +226,30 @@ section[data-testid="stSidebar"],
     min-height: 32px !important;
 }
 
-/* Force saida columns to never stack */
-.saida-row [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 4px !important; }
-.saida-row [data-testid="stHorizontalBlock"] [data-testid="stColumn"] { min-width: 0 !important; }
+/* Force saida columns to never wrap on any screen */
+.saida-row [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    align-items: center !important;
+}
+.saida-row [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+}
+.saida-row [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
+    flex: 0 0 32px !important;
+    max-width: 32px !important;
+}
+
+@media (max-width: 640px) {
+    .saida-row [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+    }
+    .saida-row [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+}
 
 /* ── Glassmorphism Expanders (Collapsible Cards) ── */
 .stExpander {
