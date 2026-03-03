@@ -233,20 +233,25 @@ section[data-testid="stSidebar"],
 
 /* ── Dashboard card (top) ── */
 .dash {
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(10, 18, 35, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.12);
     border-radius: 18px;
     padding: 20px 22px;
     margin-bottom: 20px;
     position: relative;
     overflow: hidden;
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.06), 0 0 60px rgba(99, 102, 241, 0.03), 0 8px 32px rgba(0,0,0,0.3);
+    transition: box-shadow 0.4s ease;
+}
+.dash:hover {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.1), 0 0 80px rgba(99, 102, 241, 0.05), 0 8px 32px rgba(0,0,0,0.3);
 }
 .dash::before {
     content: ''; position: absolute; inset: 0;
     border-radius: 18px; padding: 1px;
-    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 50%, rgba(255,255,255,0.08) 100%);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, transparent 40%, rgba(99, 102, 241, 0.08) 100%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor; mask-composite: exclude;

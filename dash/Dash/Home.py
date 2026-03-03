@@ -83,6 +83,16 @@ st.markdown(f"""
 @keyframes fadeOutPreloader {{
     to {{ opacity: 0; visibility: hidden; }}
 }}
+
+/* Cards start hidden — revealed after preloader */
+@keyframes cardReveal {{
+    from {{ opacity: 0; transform: translateY(20px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+.page-content {{
+    opacity: 0;
+    animation: cardReveal 0.6s ease-out 3.1s forwards;
+}}
 </style>
 <div class="preloader-overlay">{logo_html}</div>
 """, unsafe_allow_html=True)
@@ -558,6 +568,16 @@ CSS_PART2 = """
     cursor: pointer;
     position: relative;
     z-index: 10;
+    opacity: 0;
+    transform: translateY(15px);
+    animation: cardReveal 0.5s ease-out forwards;
+}
+.nav-card:nth-child(1) { animation-delay: 3.2s; }
+.nav-card:nth-child(2) { animation-delay: 3.35s; }
+.nav-card:nth-child(3) { animation-delay: 3.5s; }
+.nav-card:nth-child(4) { animation-delay: 3.65s; }
+.nav-card:nth-child(5) { animation-delay: 3.8s; }
+.nav-card:nth-child(6) { animation-delay: 3.95s; }
 }
 
 .neon-footer {
@@ -683,7 +703,16 @@ CSS_PART2 = """
     width: 100%;
     max-width: 580px;
     margin: 0 auto;
+    opacity: 0;
+    transform: translateY(15px);
+    animation: cardReveal 0.5s ease-out forwards;
 }
+.expandable-wrapper:nth-child(1) { animation-delay: 3.2s; }
+.expandable-wrapper:nth-child(2) { animation-delay: 3.35s; }
+.expandable-wrapper:nth-child(3) { animation-delay: 3.5s; }
+.expandable-wrapper:nth-child(4) { animation-delay: 3.65s; }
+.expandable-wrapper:nth-child(5) { animation-delay: 3.8s; }
+.expandable-wrapper:nth-child(6) { animation-delay: 3.95s; }
 
 .expandable-card {
     background: rgba(15, 23, 42, 0.6);
