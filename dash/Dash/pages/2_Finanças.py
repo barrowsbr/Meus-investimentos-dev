@@ -566,6 +566,36 @@ section[data-testid="stSidebar"],
     padding-top: 12px;
 }
 
+/* ── Tabela de projeção ── */
+.par-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+}
+.par-table th {
+    padding: 6px 10px;
+    text-align: right;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    white-space: nowrap;
+}
+.par-table th:first-child { text-align: left; }
+.par-table td {
+    padding: 6px 10px;
+    text-align: right;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    white-space: nowrap;
+}
+.par-table td:first-child { text-align: left; color: #64748b; }
+.par-table tr:last-child td { border-bottom: none; }
+.par-table tr:hover td { background: rgba(255,255,255,0.02); }
+
 /* ── Header ── */
 .fh { text-align: center; padding: 14px 0 18px; animation: fadeIn 0.6s ease-out; }
 .fh-t {
@@ -976,6 +1006,125 @@ with tab_par:
             if to_rm_quit is not None:
                 par_rows.pop(to_rm_quit)
                 st.rerun()
+
+    # ── Projeção mês a mês
+    par_ativos_calc = [par_calc[i] for i in ativos_idx]
+    if par_ativos_calc:
+        import plotly.graph_objects as go
+
+        MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+        CHART_COLORS = ['#6366f1','#f87171','#fbbf24','#34d399','#22d3ee','#a78bfa','#fb923c','#f472b6','#64748b']
+
+        def _month_lbl(d):
+            return f"{MESES_PT[d.month - 1]}/{str(d.year)[2:]}"
+
+        def _add_months(d, n):
+            m = d.month + n
+            return date(d.year + (m - 1) // 12, (m - 1) % 12 + 1, 1)
+
+        today_d  = date.today()
+        cur_month = date(today_d.year, today_d.month, 1)
+
+        # Último mês com alguma parcela ativa
+        end_months = []
+        for p in par_ativos_calc:
+            try:
+                dt = datetime.strptime(p['data_compra'], '%d/%m/%Y').date()
+            except Exception:
+                dt = today_d
+            end_months.append(_add_months(date(dt.year, dt.month, 1), p['parcelas'] - 1))
+        end_month = max(end_months)
+
+        # Lista de meses da timeline
+        month_list = []
+        m = cur_month
+        while m <= end_month:
+            month_list.append(m)
+            m = _add_months(m, 1)
+
+        labels = [_month_lbl(m) for m in month_list]
+
+        # Valor por parcela por mês
+        inst_data = {}
+        for p in par_ativos_calc:
+            try:
+                dt = datetime.strptime(p['data_compra'], '%d/%m/%Y').date()
+            except Exception:
+                dt = today_d
+            start = date(dt.year, dt.month, 1)
+            vals = []
+            for m in month_list:
+                ms = (m.year - start.year) * 12 + (m.month - start.month)
+                vals.append(p['valor_parcela'] if 1 <= ms + 1 <= p['parcelas'] else 0.0)
+            # Nomes únicos
+            key = p['nome']
+            suf = 1
+            while key in inst_data:
+                key = f"{p['nome']} ({suf})"
+                suf += 1
+            inst_data[key] = vals
+
+        totals = [sum(inst_data[k][i] for k in inst_data) for i in range(len(month_list))]
+        end_lbl = _month_lbl(end_month)
+
+        with st.expander(f"📊  Projeção de Dívida  ·  até {end_lbl}", expanded=False):
+            # ── Gráfico
+            fig = go.Figure()
+            for ci, (nome, vals) in enumerate(inst_data.items()):
+                fig.add_trace(go.Bar(
+                    name=nome, x=labels, y=vals,
+                    marker_color=CHART_COLORS[ci % len(CHART_COLORS)],
+                    marker_line_width=0,
+                    hovertemplate=f'<b>{nome}</b><br>%{{x}}<br>R$ %{{y:,.2f}}<extra></extra>',
+                ))
+            fig.update_layout(
+                barmode='stack',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=0, r=0, t=6, b=0),
+                height=200,
+                font=dict(family='Outfit', color='#94a3b8', size=11),
+                legend=dict(
+                    orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0,
+                    font=dict(size=10, color='#94a3b8'), bgcolor='rgba(0,0,0,0)', borderwidth=0,
+                ),
+                xaxis=dict(showgrid=False, showline=False, tickfont=dict(size=10, color='#64748b'), tickangle=-30),
+                yaxis=dict(
+                    showgrid=True, gridcolor='rgba(255,255,255,0.04)', gridwidth=1,
+                    showline=False, zeroline=False,
+                    tickfont=dict(size=10, color='#64748b'), tickprefix='R$ ', tickformat=',.0f',
+                ),
+                hoverlabel=dict(
+                    bgcolor='rgba(15,23,42,0.95)',
+                    bordercolor='rgba(99,102,241,0.3)',
+                    font=dict(family='Outfit', size=12, color='#e2e8f0'),
+                ),
+            )
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+            # ── Tabela
+            names = list(inst_data.keys())
+            thead = '<tr><th>Mês</th>' + ''.join(f'<th>{n}</th>' for n in names) + '<th>Total</th></tr>'
+            tbody = ''
+            for i, m in enumerate(month_list):
+                is_cur = (m == cur_month)
+                row_bg = ' style="background:rgba(99,102,241,0.07);"' if is_cur else ''
+                lbl = _month_lbl(m)
+                mes_cell = f'<td><span style="color:#a5b4fc;font-weight:700;">{lbl} ◀</span></td>' if is_cur else f'<td>{lbl}</td>'
+                cells = ''
+                for name in names:
+                    v = inst_data[name][i]
+                    cells += f'<td style="color:#fbbf24;">{fmt(v)}</td>' if v > 0 else '<td style="color:#374151;">–</td>'
+                tbody += f'<tr{row_bg}>{mes_cell}{cells}<td style="color:#f87171;font-weight:700;">{fmt(totals[i])}</td></tr>'
+
+            st.markdown(f"""
+            <div style="overflow-x:auto;margin-top:4px;">
+              <table class="par-table">
+                <thead>{thead}</thead>
+                <tbody>{tbody}</tbody>
+              </table>
+            </div>
+            """, unsafe_allow_html=True)
 
     # ── Dashboard Parcelamentos
     par_calc_fresh = [calc_parcelamento(p) for p in par_rows]
