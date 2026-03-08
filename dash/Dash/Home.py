@@ -1507,9 +1507,10 @@ st.markdown("""
     border-radius: 7px; z-index: 0;
     transition: width 0.55s cubic-bezier(0.4,0,0.2,1);
 }
-.radar-bar-fill.yes   { background: rgba(52,211,153,0.16); }
-.radar-bar-fill.no    { background: rgba(248,113,113,0.13); }
-.radar-bar-fill.other { background: rgba(167,139,250,0.13); }
+/* rank 0 = leader (teal), 1 = 2nd (orange), 2 = 3rd (purple) */
+.radar-bar-fill.yes   { background: rgba(34,211,238,0.16); border-right: 2px solid rgba(34,211,238,0.4); }
+.radar-bar-fill.no    { background: rgba(251,146,60,0.14);  border-right: 2px solid rgba(251,146,60,0.35); }
+.radar-bar-fill.other { background: rgba(167,139,250,0.13); border-right: 2px solid rgba(167,139,250,0.3); }
 .radar-bar-name {
     position:relative; z-index:1;
     font-size:0.75rem; color:#cbd5e1; flex:1;
@@ -1519,8 +1520,8 @@ st.markdown("""
     position:relative; z-index:1;
     font-size:0.77rem; font-weight:700; flex-shrink:0;
 }
-.radar-bar-pct.yes   { color:#34d399; }
-.radar-bar-pct.no    { color:#f87171; }
+.radar-bar-pct.yes   { color:#22d3ee; }
+.radar-bar-pct.no    { color:#fb923c; }
 .radar-bar-pct.other { color:#a78bfa; }
 .radar-poly-meta {
     display:flex; justify-content:space-between;
@@ -2115,7 +2116,7 @@ if perf_home:
             return "", ""
 
         n       = len(pool)
-        cls_map = {0: "yes", 1: "no"}
+        _rank_css = ("yes", "no", "other")  # rank 0 = leader (teal), 1 = 2nd (red), 2 = 3rd (purple)
 
         # ── CSS rules (generated per pool size) ──────────────────────────────
         base_css = (
@@ -2158,14 +2159,17 @@ if perf_home:
             elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
             else:              resolve = f" · resolve em {days}d"
 
-            bars = "".join(
-                f'<div class="radar-bar-row">'
-                f'<div class="radar-bar-fill {cls_map.get(j,"other")}" style="width:{o["percent"]}%;"></div>'
-                f'<div class="radar-bar-name">{_h.escape(o["outcome"][:35])}</div>'
-                f'<div class="radar-bar-pct {cls_map.get(j,"other")}">{o["percent"]:.0f}%</div>'
-                f'</div>'
-                for j, o in enumerate(odds[:3])
-            )
+            def _bar(j, o):
+                rc       = _rank_css[j] if j < len(_rank_css) else "other"
+                nm_sty   = ' style="font-weight:700;"' if j == 0 else ""
+                return (
+                    f'<div class="radar-bar-row">'
+                    f'<div class="radar-bar-fill {rc}" style="width:{o["percent"]}%;"></div>'
+                    f'<div class="radar-bar-name"{nm_sty}>{_h.escape(o["outcome"][:35])}</div>'
+                    f'<div class="radar-bar-pct {rc}">{o["percent"]:.0f}%</div>'
+                    f'</div>'
+                )
+            bars = "".join(_bar(j, o) for j, o in enumerate(odds[:3]))
             slides.append(
                 f'<div class="pc-slide">'
                 f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'

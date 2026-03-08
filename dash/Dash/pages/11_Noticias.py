@@ -560,46 +560,15 @@ html, body, [class*="css"] {
 .poly-card.geo    { border-left: 3px solid #f59e0b; }
 .poly-card.tech   { border-left: 3px solid #a78bfa; }
 .poly-card.destaque { border-left: 3px solid #34d399; }
-/* Binary pill layout */
-.poly-binary-row {
-    display: flex;
-    gap: 8px;
-    margin-top: auto;
-}
-.poly-pill {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 10px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border: 1px solid transparent;
-}
-.poly-pill.yes {
-    background: rgba(52,211,153,0.1);
-    border-color: rgba(52,211,153,0.25);
-    color: #34d399;
-}
-.poly-pill.no {
-    background: rgba(248,113,113,0.1);
-    border-color: rgba(248,113,113,0.22);
-    color: #f87171;
-}
-.poly-pill-pct {
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-}
-.poly-pill-label {
-    font-size: 0.65rem;
-    opacity: 0.75;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+/* rank-0 bar: teal (leading outcome) */
+.poly-odd-row .poly-odd-bar          { background: rgba(34,211,238,0.14); border-right: 2px solid rgba(34,211,238,0.35); }
+.poly-odd-row .poly-odd-value        { color: #22d3ee; }
+/* rank-1 bar: orange/amber (2nd outcome) */
+.poly-odd-row.secondary .poly-odd-bar { background: rgba(251,146,60,0.13); border-right: 2px solid rgba(251,146,60,0.3); }
+.poly-odd-row.secondary .poly-odd-value { color: #fb923c; }
+/* rank-2 bar: purple (3rd outcome) */
+.poly-odd-row.multi .poly-odd-bar    { background: rgba(167,139,250,0.13); border-right: 2px solid rgba(167,139,250,0.3); }
+.poly-odd-row.multi .poly-odd-value  { color: #a78bfa; }
 
 /* ── Mobile adjustments ── */
 @media (max-width: 768px) {
@@ -1174,44 +1143,23 @@ else:
                     else:
                         resolve_html = ""
 
-                    # Odds display
-                    if is_bin and len(odds) == 2:
-                        # Binary market → two pill buttons (Sim / Não or Yes / No)
-                        yes_o, no_o = odds[0], odds[1]
-                        yes_label = html.escape(yes_o["outcome"])
-                        no_label  = html.escape(no_o["outcome"])
-                        odds_html = (
-                            f'<div class="poly-binary-row">'
-                            f'<div class="poly-pill yes">'
-                            f'<span class="poly-pill-pct">{yes_o["percent"]:.0f}%</span>'
-                            f'<span class="poly-pill-label">{yes_label}</span>'
-                            f'</div>'
-                            f'<div class="poly-pill no">'
-                            f'<span class="poly-pill-pct">{no_o["percent"]:.0f}%</span>'
-                            f'<span class="poly-pill-label">{no_label}</span>'
-                            f'</div>'
+                    # Odds display — top 3 ranked bars (binary or multi-choice)
+                    _rank_cls = ("", "secondary", "multi")
+                    odds_html = '<div class="poly-odds-container">'
+                    for i, odd in enumerate(odds[:3]):
+                        name    = html.escape(odd["outcome"][:45])
+                        pct     = odd["percent"]
+                        rc      = _rank_cls[i]
+                        # Highlight leader with bold name
+                        nm_sty  = ' style="font-weight:700;color:#f1f5f9;"' if i == 0 else ""
+                        odds_html += (
+                            f'<div class="poly-odd-row {rc}">'
+                            f'<div class="poly-odd-bar" style="width:{pct}%;"></div>'
+                            f'<div class="poly-odd-name"{nm_sty}>{name}</div>'
+                            f'<div class="poly-odd-value">{pct:.1f}%</div>'
                             f'</div>'
                         )
-                    else:
-                        # Multi-choice → horizontal bar chart
-                        odds_html = '<div class="poly-odds-container">'
-                        for i, odd in enumerate(odds[:4]):
-                            name = html.escape(odd["outcome"][:40])
-                            pct  = odd["percent"]
-                            if i == 0:
-                                row_cls = ""
-                            elif i == 1 and len(odds) == 2:
-                                row_cls = "secondary"
-                            else:
-                                row_cls = "multi"
-                            odds_html += (
-                                f'<div class="poly-odd-row {row_cls}">'
-                                f'<div class="poly-odd-bar" style="width:{pct}%;"></div>'
-                                f'<div class="poly-odd-name">{name}</div>'
-                                f'<div class="poly-odd-value">{pct:.1f}%</div>'
-                                f'</div>'
-                            )
-                        odds_html += '</div>'
+                    odds_html += '</div>'
 
                     cards_html += (
                         f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card {cat_class}">'
