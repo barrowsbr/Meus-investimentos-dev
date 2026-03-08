@@ -17,11 +17,14 @@ _USER_AGENT = "Mozilla/5.0 (compatible; InvestimentosBot/1.0; +https://github.co
 # ── Keyword lists for category classification ──────────────────────────────
 
 _CRYPTO_KW = [
-    "bitcoin", "btc", "eth", "ethereum", "crypto", "solana", "sol ",
-    "binance", "kraken", "coinbase", "dogecoin", "doge", "xrp", "ripple",
+    "bitcoin", "btc", " eth ", "ethereum", "crypto", "solana", "sol ",
+    "binance", "kraken", "coinbase", "dogecoin", "xrp", "ripple",
     "stablecoin", "defi", "nft", "blockchain", "altcoin", "memecoin",
-    "bnb", "polygon", "matic", "avalanche", "avax", "litecoin", "ltc",
+    " bnb ", "polygon", "avalanche", "avax", "litecoin",
 ]
+# Removed false-positive tokens: "matic" (hits "diplomatic","automatic"),
+# "eth" alone (hits "method","ethical"), "doge"/"ltc" (covered by full names),
+# "bnb" unspaced (hits "airbnb") → replaced with " bnb "
 
 _MACRO_KW = [
     "fed ", "federal reserve", "interest rate", "rate cut", "rate hike",
@@ -256,7 +259,7 @@ def get_curated_crypto_politics_markets() -> dict[str, list[dict]]:
     Fetches and categorises markets for the investment dashboard.
     Excludes crypto. Focuses on Macro/Finance, Geopolitics and Tech/AI.
     """
-    events = fetch_polymarket_events(limit=80)
+    events = fetch_polymarket_events(limit=200)
 
     categories: dict[str, list[dict]] = {
         "🏦 Macro & Finanças": [],
@@ -283,7 +286,7 @@ def get_curated_crypto_politics_markets() -> dict[str, list[dict]]:
 
     # Top 5 per category sorted by volume (already sorted globally)
     for cat in categories:
-        categories[cat] = categories[cat][:5]
+        categories[cat] = categories[cat][:10]
 
     return {k: v for k, v in categories.items() if v}
 
