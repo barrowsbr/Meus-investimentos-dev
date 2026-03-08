@@ -246,12 +246,14 @@ def calc_parcelamento(p: dict) -> dict:
         dt = today
 
     months_elapsed = (today.year - dt.year) * 12 + (today.month - dt.month)
-    parcela_atual = max(min(months_elapsed + 1, p['parcelas']), 1)
-    restantes = max(p['parcelas'] - parcela_atual, 0)
     n = max(p['parcelas'], 1)
+    # Quitado apenas quando já passou o mês da última parcela (fatura fechada)
+    quitado = months_elapsed >= n
+    parcela_atual = max(min(months_elapsed + 1, n), 1)
+    restantes = max(n - parcela_atual, 0)
     valor_parcela = p['valor_total'] / n
-    valor_restante = valor_parcela * restantes
-    quitado = parcela_atual >= p['parcelas']
+    # Inclui a parcela atual pois ainda está na fatura em aberto
+    valor_restante = valor_parcela * (restantes + 1) if not quitado else 0.0
 
     return {
         **p,
@@ -894,7 +896,7 @@ with tab_par:
         for orig_idx in ativos_idx:
             p = par_calc[orig_idx]
             prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
-            rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 1 else ("última parcela" if p['restantes'] == 1 else "quitando")
+            rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
 
             st.markdown(f"""
             <div class="par-row">
