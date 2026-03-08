@@ -392,7 +392,7 @@ CSS_PART2 = """
 .hero-logo {
     width: 84px;
     height: auto;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -442,7 +442,7 @@ CSS_PART2 = """
     color: #ffffff;
     letter-spacing: 3px;
     margin-right: -3px; /* Compensate for letter-spacing to center perfectly */
-    margin-bottom: 40px;
+    margin-bottom: 25px;
     text-shadow: 
         0 0 10px rgba(255,255,255,0.6),
         0 0 20px rgba(255,255,255,0.3);
@@ -1116,40 +1116,6 @@ st.markdown("""
     border-color: rgba(99, 102, 241, 0.35);
     box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
 }
-/* Ticker como label clicável */
-label.home-ticker-wrap { cursor: pointer; }
-.home-tt-toggle-hint {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    color: rgba(129,140,248,0.55);
-    font-size: 0.65rem;
-    transition: transform 0.3s ease, color 0.3s ease;
-    border-left: 1px solid rgba(255,255,255,0.06);
-}
-/* Performers panel — expandável abaixo do ticker */
-.performers-toggle { display: none; }
-.performers-panel {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1);
-    padding: 0 20px;
-    max-width: 580px;
-    margin: 0 auto;
-}
-.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap {
-    border-color: rgba(99,102,241,0.4);
-    box-shadow: 0 12px 40px -8px rgba(99,102,241,0.25);
-}
-.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap .home-tt-toggle-hint {
-    transform: rotate(180deg);
-    color: rgba(129,140,248,0.9);
-}
-.performers-toggle:checked ~ .performers-panel {
-    max-height: 500px;
-}
 .home-tt-badge {
     flex-shrink: 0;
     display: flex;
@@ -1212,21 +1178,70 @@ label.home-ticker-wrap { cursor: pointer; }
     animation: skeletonPulse 1.5s ease-in-out infinite;
 }
 
-/* ── Notícias Expandable — performers grid ── */
-.noticias-perfs { padding: 0 15px 15px 15px; }
-.noticias-perfs-grid {
+/* ── Ticker Tape Expandable ── */
+.ticker-expand-wrapper {
+    max-width: 580px;
+    margin: 12px auto 0;
+    padding: 0 20px;
+}
+.ticker-expand-toggle {
+    display: none;
+}
+.ticker-expand-card {
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ticker-expand-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    max-height: 500px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .home-ticker-wrap {
+    border-radius: 16px 16px 0 0;
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    border-color: rgba(99, 102, 241, 0.15);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-hint {
+    transform: rotate(180deg);
+}
+.ticker-expand-hint {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.25);
+    transition: transform 0.3s ease;
+    padding-right: 4px;
+}
+.home-ticker-wrap {
+    cursor: pointer;
+}
+
+/* Performers grid (used under ticker tape) */
+.perfs-grid-container { padding: 12px 15px 15px 15px; }
+.perfs-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
-.noticias-perfs-col {
+.perfs-col {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.05);
     border-radius: 10px;
     overflow: hidden;
 }
-.noticias-perfs-hdr {
+.perfs-hdr {
     padding: 8px 12px;
     font-size: 0.57rem;
     font-weight: 800;
@@ -1236,9 +1251,9 @@ label.home-ticker-wrap { cursor: pointer; }
     gap: 5px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.noticias-perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
-.noticias-perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
-.noticias-perf-row {
+.perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
+.perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
+.perfs-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1246,32 +1261,12 @@ label.home-ticker-wrap { cursor: pointer; }
     border-bottom: 1px solid rgba(255,255,255,0.03);
     transition: background 0.2s ease;
 }
-.noticias-perf-row:last-child { border-bottom: none; }
-.noticias-perf-row:hover { background: rgba(255,255,255,0.03); }
-.noticias-perf-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
-.noticias-perf-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
-.noticias-perf-down { font-size:0.72rem; font-weight:700; color:#f87171; }
-.noticias-view-row  { display:flex; justify-content:center; }
-.noticias-view-btn  {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 24px;
-    background: rgba(6,182,212,0.07);
-    border: 1px solid rgba(6,182,212,0.2);
-    border-radius: 100px;
-    color: #22d3ee !important;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-decoration: none !important;
-    transition: all 0.25s ease;
-}
-.noticias-view-btn:hover {
-    background: rgba(6,182,212,0.14);
-    border-color: rgba(6,182,212,0.4);
-    gap: 11px;
-}
+.perfs-row:last-child { border-bottom: none; }
+.perfs-row:hover { background: rgba(255,255,255,0.03); }
+.perfs-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
+.perfs-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
+.perfs-down { font-size:0.72rem; font-weight:700; color:#f87171; }
+
 /* Financas expandable — gold theme overrides */
 .expandable-card.card-financas-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(222,184,135,0.2) !important;
@@ -1306,7 +1301,8 @@ label.home-ticker-wrap { cursor: pointer; }
     max-height: 700px !important;
 }
 @media (max-width: 768px) {
-    .noticias-perfs-grid { grid-template-columns: 1fr; }
+    .perfs-grid { grid-template-columns: 1fr; }
+    .ticker-expand-wrapper { padding: 0 15px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1338,11 +1334,11 @@ metrics_placeholder.markdown("""
 """, unsafe_allow_html=True)
 
 # --- SPACER ---
-st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
 st.markdown('''
-<div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 20px;">
 
 <!-- Patrimônio Expandable Card -->
 <div class="expandable-wrapper">
@@ -1568,30 +1564,12 @@ if not df_pos.empty:
 
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
-def _clean(t):
-    for s in ('.SA', '-USD', '-BRL', '=X'):
-        t = t.replace(s, '')
-    return t
-
-best_3  = perf_home[:3]
-worst_3 = list(reversed(perf_home[-3:])) if len(perf_home) >= 3 else list(reversed(perf_home))
-
-def _perf_rows(items, cls):
-    rows = ""
-    for p in items:
-        label = _clean(p["ticker"])
-        pct = p["pct"]
-        sign = "+" if pct >= 0 else ""
-        arr  = "▲" if pct >= 0 else "▼"
-        rows += (
-            f'<div class="noticias-perf-row">'
-            f'<span class="noticias-perf-ticker">{label}</span>'
-            f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
-            f'</div>'
-        )
-    return rows
-
 if perf_home:
+    def _clean(t):
+        for s in ('.SA', '-USD', '-BRL', '=X'):
+            t = t.replace(s, '')
+        return t
+
     items_html = ""
     for p in perf_home:
         t_label = _clean(p["ticker"])
@@ -1613,33 +1591,58 @@ if perf_home:
     track = items_html * 2
     duration = max(18, len(perf_home) * 4)
 
-    best_rows  = _perf_rows(best_3,  "noticias-perf-up")
-    worst_rows = _perf_rows(worst_3, "noticias-perf-down")
+    # Build performers grid
+    best_5  = perf_home[:5]
+    worst_5 = list(reversed(perf_home[-5:])) if len(perf_home) >= 5 else list(reversed(perf_home))
+
+    def _perf_rows(items, cls):
+        rows = ""
+        for p in items:
+            label = _clean(p["ticker"])
+            pct = p["pct"]
+            sign = "+" if pct >= 0 else ""
+            arr  = "▲" if pct >= 0 else "▼"
+            rows += (
+                f'<div class="perfs-row">'
+                f'<span class="perfs-ticker">{label}</span>'
+                f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
+                f'</div>'
+            )
+        return rows
+
+    best_rows  = _perf_rows(best_5,  "perfs-up")
+    worst_rows = _perf_rows(worst_5, "perfs-down")
+
     performers_html = (
-        f'<div class="noticias-perfs-grid">'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr best">▲ MELHORES</div>'
+        f'<div class="perfs-grid">'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr best">▲ MELHORES</div>'
         f'{best_rows}'
         f'</div>'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr worst">▼ PIORES</div>'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr worst">▼ PIORES</div>'
         f'{worst_rows}'
         f'</div>'
         f'</div>'
     )
 
     ticker_placeholder.markdown(
-        f'<input type="checkbox" id="performers-toggle" class="performers-toggle">'
-        f'<div class="home-ticker-container">'
-        f'<label for="performers-toggle" class="home-ticker-wrap">'
+        f'<div class="ticker-expand-wrapper">'
+        f'<input type="checkbox" id="ticker-expand-toggle" class="ticker-expand-toggle">'
+        f'<div class="ticker-expand-card">'
+        f'<label for="ticker-expand-toggle">'
+        f'<div class="home-ticker-wrap" style="max-width:none;">'
         f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
         f'<div class="home-ticker-viewport">'
         f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
         f'</div>'
-        f'<span class="home-tt-toggle-hint">▼</span>'
-        f'</label></div>'
-        f'<div class="performers-panel">'
-        f'<div class="noticias-perfs" style="padding-top:12px;">{performers_html}</div>'
+        f'<span class="ticker-expand-hint">▼</span>'
+        f'</div>'
+        f'</label>'
+        f'<div class="ticker-expand-content">'
+        f'<div class="perfs-grid-container">{performers_html}</div>'
+        f'</div>'
+        f'</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
