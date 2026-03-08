@@ -28,7 +28,7 @@ from core.agent.news_fetcher import (
     time_ago,
     _parse_rss_date,
 )
-from core.agent.polymarket import get_curated_crypto_politics_markets
+from core.agent.polymarket import get_curated_crypto_politics_markets, CATEGORY_META
 from core.ui import render_fab
 
 # ── Configuração ───────────────────────────────────────────────────────────
@@ -486,7 +486,119 @@ html, body, [class*="css"] {
 .poly-odds-container {
     display: flex;
     flex-direction: column;
+    gap: 7px;
+    margin-top: auto;
+}
+/* Odds bar rows */
+.poly-odd-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+}
+.poly-odd-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: rgba(34,211,238,0.14);
+    border-radius: 8px;
+    transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    z-index: 0;
+}
+.poly-odd-row.secondary .poly-odd-bar {
+    background: rgba(248,113,113,0.13);
+}
+.poly-odd-name {
+    position: relative;
+    z-index: 1;
+    font-size: 0.79rem;
+    color: #e2e8f0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.poly-odd-value {
+    position: relative;
+    z-index: 1;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #22d3ee;
+    flex-shrink: 0;
+    letter-spacing: 0.3px;
+}
+.poly-odd-row.secondary .poly-odd-value {
+    color: #f87171;
+}
+/* Multi-choice rows (beyond first two) */
+.poly-odd-row.multi .poly-odd-bar {
+    background: rgba(167,139,250,0.13);
+}
+.poly-odd-row.multi .poly-odd-value {
+    color: #a78bfa;
+}
+/* Resolution countdown */
+.poly-resolve {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    color: #64748b;
+    margin-top: 10px;
+}
+.poly-resolve-urgent {
+    color: #f59e0b;
+}
+/* Category accent border */
+.poly-card.macro  { border-left: 3px solid #38bdf8; }
+.poly-card.geo    { border-left: 3px solid #f59e0b; }
+.poly-card.tech   { border-left: 3px solid #a78bfa; }
+.poly-card.destaque { border-left: 3px solid #34d399; }
+/* Binary pill layout */
+.poly-binary-row {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+}
+.poly-pill {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.poly-pill.yes {
+    background: rgba(52,211,153,0.1);
+    border-color: rgba(52,211,153,0.25);
+    color: #34d399;
+}
+.poly-pill.no {
+    background: rgba(248,113,113,0.1);
+    border-color: rgba(248,113,113,0.22);
+    color: #f87171;
+}
+.poly-pill-pct {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+.poly-pill-label {
+    font-size: 0.65rem;
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* ── Mobile adjustments ── */
@@ -569,13 +681,13 @@ def _get_reddit_news(tickers: tuple) -> dict[str, list[dict]]:
     """Busca posts do Reddit para os tickers da carteira."""
     return fetch_reddit_for_tickers(list(tickers), max_per_ticker=6, max_tickers=10)
 
-@st.cache_data(show_spinner=False, ttl=300)
-def _get_polymarket_markets() -> list[dict]:
-    """Busca mercados do Polymarket."""
+@st.cache_data(show_spinner=False, ttl=3600)
+def _get_polymarket_markets() -> dict:
+    """Busca e categoriza mercados do Polymarket (cache 1h)."""
     try:
-        return fetch_polymarket_markets()
+        return get_curated_crypto_politics_markets()
     except Exception:
-        return []
+        return {}
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -997,70 +1109,124 @@ else:
     # ── Tab Polymarket ──────────────────────────────────────────────────────
     with tab_poly:
         st.markdown("""
-        <div style="margin-bottom:24px;">
-            <h3 style="color:#f1f5f9;margin:0 0 8px 0;">🌐 Previsões (Polymarket)</h3>
-            <p style="color:#64748b;font-size:0.85rem;margin:0;">Mercados preditivos em tempo real sobre cripto, macroeconomia e tecnologia. <br>Reflete a probabilidade implícita de eventos globais segundo apostas descentralizadas.</p>
+        <div style="margin-bottom:20px;">
+            <h3 style="color:#f1f5f9;margin:0 0 6px 0;">📊 Mercados Preditivos</h3>
+            <p style="color:#64748b;font-size:0.83rem;margin:0;">
+                Probabilidades implícitas de eventos globais — macroeconomia, geopolítica e tecnologia.<br>
+                Dados de apostas descentralizadas via <b style="color:#94a3b8;">Polymarket</b>. Atualizado a cada hora.
+            </p>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Cache the Polymarket fetch for 1 hour to avoid spamming the API
-        @st.cache_data(ttl=3600, show_spinner="Analisando mercados preditivos...")
-        def _get_poly_markets():
-            return get_curated_crypto_politics_markets()
-            
-        poly_data = _get_poly_markets()
-        
+
+        poly_data = _get_polymarket_markets()
+
         if not poly_data:
             st.markdown("""
             <div class="news-empty">
                 <div class="news-empty-icon">🔌</div>
-                <div class="news-empty-text">Não foi possível carregar os dados do Polymarket no momento.<br>A API pode estar instável.</div>
+                <div class="news-empty-text">Não foi possível carregar os dados do Polymarket.<br>A API pode estar instável — tente novamente em alguns minutos.</div>
             </div>
             """, unsafe_allow_html=True)
         else:
             for category, events in poly_data.items():
-                st.markdown(f"""
-                <div class="ticker-section-head" style="margin-top: 20px;">
-                    <span class="ticker-section-name" style="color:#38bdf8;">{category}</span>
-                    <div class="ticker-divider"></div>
-                </div>
-                <div class="news-grid">
-                """, unsafe_allow_html=True)
-                
+                meta = CATEGORY_META.get(category, {})
+                cat_color = meta.get("color", "#38bdf8")
+                cat_class = meta.get("css_class", "destaque")
+                cat_desc  = meta.get("desc", "")
+
+                _desc_html = (
+                    f'<span style="font-size:0.73rem;color:#475569;margin-left:10px;">{cat_desc}</span>'
+                    if cat_desc else ""
+                )
+                st.markdown(
+                    f'<div class="ticker-section-head" style="margin-top:24px;">'
+                    f'<span class="ticker-section-name" style="color:{cat_color};">{category}</span>'
+                    f'{_desc_html}'
+                    f'<div class="ticker-divider"></div></div>',
+                    unsafe_allow_html=True,
+                )
+
                 cards_html = ""
                 for ev in events:
-                    title = html.escape(ev["title"])
-                    url = html.escape(ev["url"])
-                    
-                    try:
-                        vol = float(ev.get("volume", 0) or 0)
-                    except ValueError:
-                        vol = 0
-                        
+                    title  = html.escape(ev["title"])
+                    url    = html.escape(ev["url"])
+                    vol    = ev.get("volume", 0.0) or 0.0
+                    is_bin = ev.get("is_binary", False)
+                    days   = ev.get("days_left")
+                    odds   = ev.get("odds", [])
+
+                    # Volume string
                     if vol >= 1_000_000:
                         vol_str = f"${vol/1_000_000:.1f}M"
                     elif vol >= 1_000:
-                        vol_str = f"${vol/1_000:.1f}k"
+                        vol_str = f"${vol/1_000:.0f}k"
                     else:
                         vol_str = f"${vol:.0f}"
-                        
-                    odds_html = ""
-                    for i, odd in enumerate(ev["odds"][:3]): # Show top 3 max
-                        name = html.escape(odd["outcome"])
-                        pct = odd["percent"]
-                        # Make first green/cyan, second red/orange
-                        row_class = "secondary" if i == 1 and len(ev["odds"]) == 2 else ""
-                        odds_html += f'<div class="poly-odd-row {row_class}"><div class="poly-odd-bar" style="width: {pct}%;"></div><div class="poly-odd-name">{name}</div><div class="poly-odd-value">{pct:.1f}%</div></div>'
-                        
+
+                    # Resolution date badge
+                    if days is not None:
+                        if days == 0:
+                            resolve_html = '<span class="poly-resolve poly-resolve-urgent">⏰ Resolve hoje</span>'
+                        elif days <= 7:
+                            resolve_html = f'<span class="poly-resolve poly-resolve-urgent">⏳ {days}d restantes</span>'
+                        else:
+                            resolve_html = f'<span class="poly-resolve">📅 Resolve em {days}d</span>'
+                    else:
+                        resolve_html = ""
+
+                    # Odds display
+                    if is_bin and len(odds) == 2:
+                        # Binary market → two pill buttons (Sim / Não or Yes / No)
+                        yes_o, no_o = odds[0], odds[1]
+                        yes_label = html.escape(yes_o["outcome"])
+                        no_label  = html.escape(no_o["outcome"])
+                        odds_html = (
+                            f'<div class="poly-binary-row">'
+                            f'<div class="poly-pill yes">'
+                            f'<span class="poly-pill-pct">{yes_o["percent"]:.0f}%</span>'
+                            f'<span class="poly-pill-label">{yes_label}</span>'
+                            f'</div>'
+                            f'<div class="poly-pill no">'
+                            f'<span class="poly-pill-pct">{no_o["percent"]:.0f}%</span>'
+                            f'<span class="poly-pill-label">{no_label}</span>'
+                            f'</div>'
+                            f'</div>'
+                        )
+                    else:
+                        # Multi-choice → horizontal bar chart
+                        odds_html = '<div class="poly-odds-container">'
+                        for i, odd in enumerate(odds[:4]):
+                            name = html.escape(odd["outcome"][:40])
+                            pct  = odd["percent"]
+                            if i == 0:
+                                row_cls = ""
+                            elif i == 1 and len(odds) == 2:
+                                row_cls = "secondary"
+                            else:
+                                row_cls = "multi"
+                            odds_html += (
+                                f'<div class="poly-odd-row {row_cls}">'
+                                f'<div class="poly-odd-bar" style="width:{pct}%;"></div>'
+                                f'<div class="poly-odd-name">{name}</div>'
+                                f'<div class="poly-odd-value">{pct:.1f}%</div>'
+                                f'</div>'
+                            )
+                        odds_html += '</div>'
+
                     cards_html += (
-                        f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card">'
-                        f'<div class="poly-header"><div style="flex: 1;"><div class="poly-title">{title}</div>'
-                        f'<div class="poly-volume">Volume apostado: <b>{vol_str}</b></div></div>'
-                        f'<span class="poly-badge">Live</span></div>'
-                        f'<div class="poly-odds-container">{odds_html}</div></a>'
+                        f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card {cat_class}">'
+                        f'<div class="poly-header">'
+                        f'<div style="flex:1;">'
+                        f'<div class="poly-title">{title}</div>'
+                        f'<div class="poly-volume">Vol apostado: <b>{vol_str}</b></div>'
+                        f'</div>'
+                        f'<span class="poly-badge">● Live</span>'
+                        f'</div>'
+                        f'{odds_html}'
+                        f'{resolve_html}'
+                        f'</a>'
                     )
-                
-                # Single markdown injection using raw HTML inline wrapper without newlines
+
                 st.markdown(f'<div class="news-grid">{cards_html}</div>', unsafe_allow_html=True)
 
 # ── Rodapé ─────────────────────────────────────────────────────────────────
