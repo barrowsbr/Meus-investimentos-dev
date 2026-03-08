@@ -1959,19 +1959,21 @@ perf_home.sort(key=lambda x: x["pct"], reverse=True)
 # --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
 @st.cache_data(ttl=900, show_spinner=False)
 def _get_poly_insight_pool(_bucket: int) -> list[dict]:
-    """Pool de eventos do Polymarket sem crypto, filtrada por volume mínimo (cache 15 min)."""
+    """Pool de eventos do Polymarket sem crypto (cache 15 min). Retorna até 20 eventos."""
     try:
-        events = fetch_polymarket_events(limit=60)
+        events = fetch_polymarket_events(limit=150)
         filtered = []
         for ev in events:
             text = (ev["title"] + " " + ev["description"]).lower()
             if any(kw in text for kw in _CRYPTO_KW):
                 continue
-            if (ev.get("volume") or 0) < 10_000:
+            if (ev.get("volume") or 0) < 1_000:
                 continue
             if not ev.get("odds"):
                 continue
             filtered.append(ev)
+            if len(filtered) >= 20:
+                break
         return filtered
     except Exception:
         return []
