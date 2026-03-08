@@ -13,6 +13,7 @@ require_auth()
 
 from datetime import date, datetime
 import calendar
+import streamlit.components.v1 as components
 from core.ui import render_fab
 from core.theme import inject_global_theme, COLORS
 
@@ -721,7 +722,28 @@ elif not cartao_rows:
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
 
+_tab_param = st.query_params.get("tab", "0")
+try:
+    _tab_index = int(_tab_param)
+except Exception:
+    _tab_index = 0
+
 tab_mensal, tab_ass, tab_par = st.tabs(["💰  Mensal", "🔄  Assinaturas", "📦  Parcelamentos"])
+
+if _tab_index > 0:
+    components.html(f"""
+    <script>
+        function selectTab() {{
+            const tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+            if (tabs && tabs.length > {_tab_index}) {{
+                tabs[{_tab_index}].click();
+            }} else {{
+                setTimeout(selectTab, 100);
+            }}
+        }}
+        setTimeout(selectTab, 300);
+    </script>
+    """, height=0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MENSAL
