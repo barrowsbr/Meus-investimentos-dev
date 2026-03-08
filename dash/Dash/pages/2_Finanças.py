@@ -574,10 +574,15 @@ section[data-testid="stSidebar"],
 .st-action-row {
     flex-wrap: nowrap !important;
     align-items: center !important;
+    overflow: hidden !important;
+}
+.st-action-row > [data-testid="stColumn"] {
+    min-width: 0 !important;
 }
 [data-testid="stColumn"].st-action-col {
-    padding-left: 0 !important;
+    padding-left: 2px !important;
     padding-right: 0 !important;
+    flex-shrink: 0 !important;
 }
 [data-testid="stColumn"].st-action-col > div {
     padding: 0 !important;
