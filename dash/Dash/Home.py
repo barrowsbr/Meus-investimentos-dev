@@ -69,12 +69,25 @@ st.markdown(f"""
     pointer-events: none;
     animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
 }}
+.preloader-overlay::after {{
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(11, 17, 32, 0.45);
+    z-index: 2;
+}}
 .preloader-video {{
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100vw;
     height: 100vh;
     object-fit: cover;
-    background: transparent;
-    border: none;
+    opacity: 0.5;
+    z-index: 1;
 }}
 .preloader-spinner {{
     width: 40px;
