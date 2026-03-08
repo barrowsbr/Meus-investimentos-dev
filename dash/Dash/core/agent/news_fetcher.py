@@ -66,7 +66,19 @@ def _parse_items(root: ET.Element, max_items: int = 5) -> list[dict]:
         title = _clean_html(item.findtext("title", ""))
         link = item.findtext("link", "")
         pub = item.findtext("pubDate", "")
-        desc = _clean_html(item.findtext("description", ""))
+        desc_html = item.findtext("description", "")
+        
+        # Tentativa de extrair imagem do HTML da descrição (Google News costuma embutir <img> lá)
+        img_match = re.search(r'<img[^>]+src="([^">]+)"', desc_html)
+        image_url = img_match.group(1) if img_match else ""
+        
+        # Fallback para namespace media (para outros RSS)
+        if not image_url:
+            media = item.find("{http://search.yahoo.com/mrss/}content")
+            if media is not None:
+                image_url = media.get("url", "")
+                
+        desc = _clean_html(desc_html)
         if title:
             items.append({
                 "titulo": title,
@@ -74,6 +86,7 @@ def _parse_items(root: ET.Element, max_items: int = 5) -> list[dict]:
                 "data": pub,
                 "resumo": desc[:200],
                 "fonte": "Google Notícias",
+                "imagem": image_url,
             })
     return items
 
@@ -197,12 +210,21 @@ def fetch_yahoo_news(ticker: str, max_items: int = 5) -> list[dict]:
 
             summary = content.get("summary", "") or content.get("description", "") or ""
 
+            # Imagem (geralmente em thumbnail -> resolutions)
+            image_url = ""
+            thumbnail = content.get("thumbnail", {})
+            if isinstance(thumbnail, dict):
+                resolutions = thumbnail.get("resolutions", [])
+                if isinstance(resolutions, list) and len(resolutions) > 0:
+                    image_url = resolutions[0].get("url", "")
+
             items.append({
                 "titulo": title[:140],
                 "link": link,
                 "data": pub,
                 "resumo": summary[:200],
                 "fonte": source or "Yahoo Finance",
+                "imagem": image_url,
             })
 
             if len(items) >= max_items:

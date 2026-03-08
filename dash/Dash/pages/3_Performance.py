@@ -387,8 +387,8 @@ def main():
     col_mode1, col_mode2, col_mode_info = st.columns([2, 2, 4])
     with col_mode1:
         view_mode = st.radio(
-            "Modo",
-            options=["📈 Visão Mercado", "💰 Meu Dinheiro"],
+            "Visão",
+            options=["📈 Visão Mercado", "💰 Meu Custo"],
             label_visibility="collapsed",
             index=1,  # Default to "My Money"
             horizontal=True,
@@ -489,7 +489,7 @@ def main():
         # This is stored in session_state and recalculated when period changes
 
         fx_cost_basis = None
-        if view_mode == "💰 Meu Dinheiro":
+        if view_mode == "💰 Meu Custo":
             from core.fx_cost_basis import build_fx_cost_series, build_period_fx_series, get_latest_cost_basis
 
             # Build date index from all buckets
@@ -672,13 +672,13 @@ def main():
     res_period = run_performance_engine_compat(df_slice)
 
     # =====================================================================
-    # PERIOD-SPECIFIC PM CALCULATION (Meu Dinheiro mode with period filter)
+    # PERIOD-SPECIFIC PM CALCULATION (Meu Custo mode with period filter)
     # When not MAX, use RESET logic: initial position at market rate of 1st day
     # =====================================================================
     is_period_filtered = sel_periodo != "MAX" or sel_ano != "Todos"
     pm_periodo_info = {}
 
-    if view_mode == "💰 Meu Dinheiro" and is_period_filtered:
+    if view_mode == "💰 Meu Custo" and is_period_filtered:
         from core.fx_cost_basis import calculate_period_pm_with_reset
 
         # Get market FX rate for first day of period
@@ -1009,7 +1009,7 @@ def main():
     # ANÁLISE DE CÂMBIO (Debug Discreto)
     # ═══════════════════════════════════════════════════════════════════════════════
 
-    if view_mode == "💰 Meu Dinheiro":
+    if view_mode == "💰 Meu Custo":
         from core.fx_cost_basis import get_latest_cost_basis
 
         with st.expander("💱 Detalhes do Câmbio", expanded=False):

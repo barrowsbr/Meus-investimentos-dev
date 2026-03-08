@@ -87,6 +87,10 @@ class ConsolidatedResult:
     force_zero_series: pd.Series
     flow_timing_series: pd.Series
     breakdown_by_currency: Dict[str, float]  # {'USD': 150000, 'BRL': 200000}
+    # v8.0: Capital tracking for reconciliation
+    capital_invested_brl: float = 0.0       # Total BRL spent (remittance cost)
+    capital_market_brl: float = 0.0         # Total BRL at market rate (spot)
+    fx_pnl_brl: float = 0.0                # FX P&L = market - invested (cambial)
     
     def to_engine_input(self) -> pd.DataFrame:
         """Converte para formato de entrada do TWR engine."""
@@ -103,31 +107,39 @@ def consolidate_to_brl(
     buckets: Dict[str, CurrencyBucket],
     fx_rates: Dict[str, pd.Series],
     df_cambio: 'pd.DataFrame' = None,  # v6.1: For effective rate on flows
-    fx_cost_basis: Dict[str, pd.Series] = None,  # v7.0: For "My Money" view
+    fx_cost_basis: Dict[str, pd.Series] = None,  # v8.0: For "Meu Custo" view (flows only)
     fx_cost_basis_excluded_tickers: List[str] = None  # v7.1: Tickers that skip cost basis (e.g. BTC)
 ) -> ConsolidatedResult:
     """
     Consolida todos os buckets de moeda para uma visão unificada em BRL.
     
-    Esta função é usada APENAS na visão "Todos os ativos".
-    Para filtros de moeda única, use o bucket diretamente.
+    v8.0 — CORREÇÃO FUNDAMENTAL:
+    ============================
+    NAV SEMPRE usa taxa de MERCADO (spot) — valor real de liquidação.
+    Em modo "Meu Custo" (fx_cost_basis fornecido):
+        - FLOWS usam taxa da REMESSA (custo real em BRL)
+        - NAV usa SPOT (valor de mercado real)
+    Em modo normal (fx_cost_basis = None):
+        - Tudo usa SPOT
+    
+    Isso separa corretamente "quanto vale" de "quanto custou".
     
     Args:
         buckets: Dicionário de CurrencyBucket por moeda
-        fx_rates: Séries de câmbio (USD -> BRL, EUR -> BRL, etc.) para NAV
+        fx_rates: Séries de câmbio (USD -> BRL, EUR -> BRL, etc.) — SPOT rates
         df_cambio: DataFrame de remessas para taxa efetiva em flows (opcional)
-        fx_cost_basis: Séries de custo médio FX (para "My Money" view).
-                       Quando fornecido, usa custo pessoal ao invés de mercado.
-        fx_cost_basis_excluded_tickers: Tickers que usam mercado mesmo em "My Money"
+        fx_cost_basis: Séries de custo médio FX (para "Meu Custo" view).
+                       Quando fornecido, FLOWS usam custo pessoal, NAV usa SPOT.
+        fx_cost_basis_excluded_tickers: Tickers que usam mercado mesmo em "Meu Custo"
                        (ex: ['BTC-USD'] - comprados direto em BRL)
     
     Returns:
         ConsolidatedResult com tudo convertido para BRL
         
     Notas:
-        - NAV usa taxa de MERCADO (fx_rates) ou CUSTO PESSOAL (fx_cost_basis)
-        - Tickers em fx_cost_basis_excluded_tickers sempre usam mercado
-        - Flows usam taxa EFETIVA das remessas (para custo real)
+        - NAV SEMPRE usa taxa de MERCADO (fx_rates) — padrão institucional
+        - Flows usam taxa da REMESSA (fx_cost_basis) em modo "Meu Custo"
+        - Tickers em fx_cost_basis_excluded_tickers sempre usam mercado para tudo
         - RF (Renda Fixa) já vem em BRL, não precisa conversão
     """
     # Default excluded tickers (bought directly in BRL)
@@ -209,7 +221,7 @@ def consolidate_to_brl(
                     flow_cur.loc[first_valid_bucket] = flow_cur.loc[first_valid_bucket] + initial_nav
 
         # =========================================================================
-        # FX RATE SELECTION: Market vs Cost Basis ("My Money" mode)
+        # FX RATE SELECTION v8.0: NAV=SPOT always, Flows=cost basis in "Meu Custo"
         # =========================================================================
         
         # Check if this bucket has tickers that should skip cost basis (e.g., BTC)
@@ -218,47 +230,37 @@ def consolidate_to_brl(
             for ticker in bucket.tickers
         )
         
+        # ── NAV: ALWAYS uses SPOT rate (market value) ──
         if currency == 'BRL':
             fx_for_nav = pd.Series(1.0, index=idx)
-        elif fx_cost_basis is not None and currency in fx_cost_basis and not bucket_has_excluded_ticker:
-            # "My Money" mode: Use personal cost basis for NAV conversion
-            # (Only if bucket doesn't contain excluded tickers like BTC)
-            cost_series = fx_cost_basis[currency]
-            if not cost_series.empty and not cost_series.isna().all():
-                fx_for_nav = cost_series.reindex(idx).ffill().bfill()
-                # Fill remaining NaN with market rate as fallback
-                if currency in fx_rates and not fx_rates[currency].empty:
-                    fx_fallback = fx_rates[currency].reindex(idx).ffill().bfill()
-                    fx_for_nav = fx_for_nav.fillna(fx_fallback)
-                fx_for_nav = fx_for_nav.fillna(5.5 if currency == 'USD' else 6.0 if currency == 'EUR' else 4.0)
-            else:
-                # Cost basis empty, fall back to market rates
-                if currency in fx_rates and not fx_rates[currency].empty:
-                    fx_for_nav = fx_rates[currency].reindex(idx).ffill().bfill()
-                    fx_for_nav = fx_for_nav.fillna(5.5)
-                else:
-                    fx_for_nav = pd.Series(5.5 if currency == 'USD' else 6.0 if currency == 'EUR' else 4.0, index=idx)
         elif currency in fx_rates and not fx_rates[currency].empty:
-            # Standard market rate mode
-            fx_for_nav = fx_rates[currency].reindex(idx).ffill().fillna(method='bfill')
+            fx_for_nav = fx_rates[currency].reindex(idx).ffill().bfill()
             fx_for_nav = fx_for_nav.fillna(fx_for_nav.dropna().iloc[-1] if not fx_for_nav.dropna().empty else 5.5)
         else:
             # Fallback rates
-            if currency == 'USD':
-                fx_for_nav = pd.Series(5.5, index=idx)
-            elif currency == 'EUR':
-                fx_for_nav = pd.Series(6.0, index=idx)
-            else:
-                fx_for_nav = pd.Series(1.0, index=idx)
+            fallback = {'USD': 5.5, 'EUR': 6.0, 'CAD': 4.0}
+            fx_for_nav = pd.Series(fallback.get(currency, 1.0), index=idx)
         
-        # Keep fx_market reference for flow conversion
-        fx_market = fx_for_nav
-        fx_effective = fx_market  # Flows use same rate as NAV
+        # ── FLOWS: Uses cost basis (remittance rate) in "Meu Custo" mode ──
+        if currency == 'BRL':
+            fx_for_flow = pd.Series(1.0, index=idx)
+        elif fx_cost_basis is not None and currency in fx_cost_basis and not bucket_has_excluded_ticker:
+            # "Meu Custo" mode: Flows use personal remittance cost
+            cost_series = fx_cost_basis[currency]
+            if not cost_series.empty and not cost_series.isna().all():
+                fx_for_flow = cost_series.reindex(idx).ffill().bfill()
+                # Fill remaining NaN with spot as fallback
+                fx_for_flow = fx_for_flow.fillna(fx_for_nav)
+            else:
+                fx_for_flow = fx_for_nav.copy()  # Fallback to spot
+        else:
+            # Standard mode: Flows also use spot
+            fx_for_flow = fx_for_nav.copy()
 
         # Converter para BRL
-        nav_brl = nav_cur * fx_market
-        flow_brl = flow_cur * fx_effective
-        income_brl = income_cur * fx_market  # Proventos usam taxa de mercado do dia
+        nav_brl = nav_cur * fx_for_nav           # Market value (always spot)
+        flow_brl = flow_cur * fx_for_flow         # Cost basis in "Meu Custo", spot otherwise
+        income_brl = income_cur * fx_for_nav      # Proventos usam spot do dia
         
         # Acumular
         nav_total += nav_brl
@@ -288,13 +290,24 @@ def consolidate_to_brl(
         force_zero_combined = force_zero_combined.reindex(nav_total.index).fillna(False)
         flow_timing_combined = flow_timing_combined.reindex(nav_total.index).fillna(0)
 
+    # =========================================================================
+    # v8.0: Capital tracking for reconciliation
+    # =========================================================================
+    total_flow_brl = flow_total.sum() if not flow_total.empty else 0.0
+    nav_start = nav_total.iloc[0] if not nav_total.empty else 0.0
+    nav_end = nav_total.iloc[-1] if not nav_total.empty else 0.0
+    capital_invested = nav_start + total_flow_brl  # Initial + net flows
+    fx_pnl = 0.0  # Will be calculated by decomposition engine
+
     return ConsolidatedResult(
         nav_brl=nav_total,
         flow_brl=flow_total,
         income_brl=income_total,
         force_zero_series=force_zero_combined,
         flow_timing_series=flow_timing_combined,
-        breakdown_by_currency=breakdown
+        breakdown_by_currency=breakdown,
+        capital_invested_brl=capital_invested,
+        capital_market_brl=nav_end,
     )
 
 

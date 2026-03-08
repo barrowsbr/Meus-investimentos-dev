@@ -209,33 +209,48 @@ def render_fab():
     }}
     </style>
 
-    <!-- Barra: ghost | Home | Gemini | Extras | Reload | Config | ghost -->
-    <nav class="bottom-nav">
-        <div class="nav-items">
-            <span class="nav-ghost" aria-hidden="true"></span>
-            <a href="./" target="_self" class="nav-item" title="Home">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-label">Home</span>
-            </a>
-            <a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
-                <span class="nav-icon">{grimmi_icon_html}</span>
-                <span class="nav-label">Gemini</span>
-            </a>
-            <a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
-                <span class="nav-icon">{logo_icon_html}</span>
-                <span class="nav-label">Extras</span>
-            </a>
-            <a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
-                <span class="nav-icon">↻</span>
-                <span class="nav-label">Reload</span>
-            </a>
-            <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
-                <span class="nav-icon">⚙️</span>
-                <span class="nav-label">Config</span>
-            </a>
-            <span class="nav-ghost" aria-hidden="true"></span>
-        </div>
-    </nav>
+<!-- Barra: ghost | Home | Gemini | Extras | Reload | Config | ghost -->
+<nav class="bottom-nav">
+<div class="nav-items">
+<span class="nav-ghost" aria-hidden="true"></span>
+<a href="./" target="_self" class="nav-item" title="Home">
+<span class="nav-icon">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+<polyline points="9 22 9 12 15 12 15 22"></polyline>
+</svg>
+</span>
+<span class="nav-label">Home</span>
+</a>
+<a href="Agente_IA" target="_self" class="nav-item" title="Agente IA – Gemini">
+<span class="nav-icon">{grimmi_icon_html}</span>
+<span class="nav-label">Gemini</span>
+</a>
+<a href="Easter_Eggs" target="_self" class="nav-item" title="Easter Eggs">
+<span class="nav-icon">{logo_icon_html}</span>
+<span class="nav-label">Extras</span>
+</a>
+<a href="./?refresh=1" target="_self" class="nav-item" title="Atualizar dados">
+<span class="nav-icon">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<polyline points="23 4 23 10 17 10"></polyline>
+<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+</svg>
+</span>
+<span class="nav-label">Reload</span>
+</a>
+<a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
+<span class="nav-icon">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="3"></circle>
+<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+</svg>
+</span>
+<span class="nav-label">Config</span>
+</a>
+<span class="nav-ghost" aria-hidden="true"></span>
+</div>
+</nav>
     """, unsafe_allow_html=True)
 
 
@@ -520,7 +535,7 @@ def render_view_mode_selector(current_mode: str) -> str:
     " id="card-money">
         <div class="view-mode-check">✓</div>
         <div class="view-mode-icon">💰</div>
-        <div class="view-mode-title">Meu Dinheiro</div>
+        <div class="view-mode-title">Meu Custo</div>
         <p class="view-mode-desc">Seu preço médio de remessas — retorno real do capital em BRL</p>
     </div>
 </div>

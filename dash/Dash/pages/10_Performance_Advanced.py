@@ -574,8 +574,9 @@ def main():
 
     with col_mode:
         view_mode = st.radio(
-            "Visão", ["Mercado", "Meu Dinheiro"],
-            horizontal=True, index=1, label_visibility="collapsed"
+            "Visão", ["Mercado", "Meu Custo"],
+            horizontal=True, index=1, label_visibility="collapsed",
+            help="**Mercado**: tudo a câmbio spot. **Meu Custo**: NAV a spot, fluxos ao câmbio da remessa (custo real em BRL)."
         )
 
     # Calculate dates
@@ -615,16 +616,16 @@ def main():
 
     # ── CONSOLIDATE ───────────────────────────────────────────────────
     with st.spinner("Consolidando..."):
-        # FX cost basis for "Meu Dinheiro"
+        # FX cost basis for "Meu Custo" — used for FLOWS only (NAV always spot)
         fx_cost_basis = None
-        if view_mode == "Meu Dinheiro":
+        if view_mode == "Meu Custo":
             fx_cost_basis = build_fx_cost_series(df_cambio, idx_dates)
 
         consolidated = consolidate_to_brl(
             multi_result.buckets,
             multi_result.fx_rates,
             df_cambio=df_cambio,
-            fx_cost_basis=fx_cost_basis,
+            fx_cost_basis=fx_cost_basis,  # v8.0: flows use remittance cost, NAV uses spot
         )
         df_engine = consolidated.to_engine_input()
 
@@ -695,7 +696,7 @@ def main():
             multi_result.fx_rates,
             consolidated_result=twr_result,
             premises=DEFAULT_PREMISES,
-            fx_cost_basis=fx_cost_basis,  # Pass cost basis for "Meu Dinheiro" mode
+            fx_cost_basis=fx_cost_basis,  # Pass cost basis for "Meu Custo" mode
         )
 
         # 4. Atribuição por ativo
@@ -805,6 +806,74 @@ def main():
             delta_positive=True,
             subtitle="NAV inicial + aportes líquidos",
         ), unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════
+    # FX RECONCILIATION PANEL (only in "Meu Custo" mode)
+    # ═══════════════════════════════════════════════════════════════════
+    if view_mode == "Meu Custo":
+        from core.fx_cost_basis import get_cost_basis_summary, get_latest_cost_basis
+
+        st.markdown("""
+        <div style="
+            background: rgba(125, 211, 252, 0.06);
+            border: 1px solid rgba(125, 211, 252, 0.15);
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin: 16px 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        ">
+            <span style="font-size: 1.1rem;">💱</span>
+            <div>
+                <div style="font-size: 0.82rem; font-weight: 500; color: #7dd3fc;">
+                    Modo Meu Custo Ativo
+                </div>
+                <div style="font-size: 0.72rem; color: #64748b;">
+                    NAV valorizado a câmbio spot (mercado) · Fluxos ao câmbio da remessa (custo real em BRL)
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Get cost basis summary
+        cost_basis = get_latest_cost_basis(df_cambio)
+        
+        # Get latest spot rates
+        spot_rates = {}
+        for curr, fx_s in multi_result.fx_rates.items():
+            if not fx_s.empty:
+                spot_rates[curr] = fx_s.iloc[-1]
+
+        # Show reconciliation per currency
+        fx_currencies = [c for c in multi_result.buckets.keys() if c != 'BRL' and not c.endswith('_DIRECT')]
+        
+        if fx_currencies:
+            fx_cols = st.columns(len(fx_currencies))
+            for i, curr in enumerate(fx_currencies):
+                with fx_cols[i]:
+                    pm = cost_basis.get(curr, 0)
+                    spot = spot_rates.get(curr, 0)
+                    
+                    if pm > 0 and spot > 0:
+                        fx_gain_pct = (spot / pm - 1)
+                        fx_label = f"{'▲' if fx_gain_pct >= 0 else '▼'} {fx_gain_pct:+.2%}"
+                        
+                        st.markdown(render_metric_card(
+                            label=f"FX {curr}",
+                            value=f"R$ {spot:.4f}",
+                            delta=f"PM: R$ {pm:.4f} → {fx_label}",
+                            delta_positive=fx_gain_pct >= 0,
+                            subtitle=f"Spot vs Custo Remessa",
+                        ), unsafe_allow_html=True)
+                    else:
+                        st.markdown(render_metric_card(
+                            label=f"FX {curr}",
+                            value=f"R$ {spot:.4f}" if spot > 0 else "—",
+                            delta="Sem remessas registradas",
+                            delta_positive=True,
+                            subtitle="Spot atual",
+                        ), unsafe_allow_html=True)
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 

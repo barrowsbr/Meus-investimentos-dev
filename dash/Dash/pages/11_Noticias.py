@@ -28,6 +28,7 @@ from core.agent.news_fetcher import (
     time_ago,
     _parse_rss_date,
 )
+from core.agent.polymarket import get_curated_crypto_politics_markets
 from core.ui import render_fab
 
 # ── Configuração ───────────────────────────────────────────────────────────
@@ -410,13 +411,87 @@ html, body, [class*="css"] {
     font-weight: 600;
 }
 .reddit-source {
-    background: rgba(255, 69, 0, 0.1) !important;
-    border-color: rgba(255, 69, 0, 0.22) !important;
-    color: #ff6b35 !important;
+}
+.poly-odd-value {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #22d3ee;
+    z-index: 1;
+    font-variant-numeric: tabular-nums;
+}
+.poly-odd-row.secondary .poly-odd-bar {
+    background: rgba(248, 113, 113, 0.15);
+    border-right-color: #f87171;
+}
+.poly-odd-row.secondary .poly-odd-value {
+    color: #f87171;
 }
 
-/* ── Mobile ── */
+/* ── Polymarket Cards (Neon/Glass) ── */
+.poly-card {
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    text-decoration: none !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.3);
+    overflow: hidden;
+    position: relative;
+    color: #f8fafc;
+}
+.poly-card:hover {
+    transform: translateY(-4px);
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(34, 211, 238, 0.4);
+    box-shadow: 0 16px 40px -12px rgba(34, 211, 238, 0.25);
+}
+.poly-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+.poly-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #f1f5f9;
+}
+.poly-volume {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 6px;
+}
+.poly-volume b {
+    color: #38bdf8;
+}
+.poly-badge {
+    background: rgba(34, 211, 238, 0.1);
+    color: #22d3ee;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+.poly-odds-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── Mobile adjustments ── */
 @media (max-width: 768px) {
+
     .news-grid { grid-template-columns: 1fr; gap: 10px; }
     .news-page-title { font-size: 1.3rem; }
     .news-page-icon  { font-size: 1.6rem; }
@@ -425,8 +500,13 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-render_fab()
+import html
+import time
+from datetime import datetime, timezone
 
+import streamlit as st
+
+render_fab()
 
 # ── Funções cacheadas ──────────────────────────────────────────────────────
 
@@ -489,6 +569,13 @@ def _get_reddit_news(tickers: tuple) -> dict[str, list[dict]]:
     """Busca posts do Reddit para os tickers da carteira."""
     return fetch_reddit_for_tickers(list(tickers), max_per_ticker=6, max_tickers=10)
 
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_polymarket_markets() -> list[dict]:
+    """Busca mercados do Polymarket."""
+    try:
+        return fetch_polymarket_markets()
+    except Exception:
+        return []
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -624,6 +711,7 @@ with col_ctrl:
         _get_news.clear()
         _get_performers.clear()
         _get_reddit_news.clear()
+        _get_polymarket_markets.clear() # Clear Polymarket cache
         st.rerun()
 
 st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
@@ -651,11 +739,11 @@ else:
 
     # Read tab query param to auto-select tab
     _tab_param = st.query_params.get('tab', '0')
-    _tab_names = ["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit"]
-    tab_feed, tab_group, tab_reddit = st.tabs(_tab_names)
+    _tab_names = ["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit", "📊 Polymarket"]
+    tab_feed, tab_group, tab_reddit, tab_poly = st.tabs(_tab_names)
 
     # Auto-click the right tab via JS if tab param is set
-    if _tab_param in ('1', '2'):
+    if _tab_param in ('1', '2', '3'):
         import streamlit.components.v1 as components
         components.html(f"""
         <script>
@@ -905,6 +993,75 @@ else:
                 </a>"""
             cards_html += '</div>'
             st.markdown(cards_html, unsafe_allow_html=True)
+
+    # ── Tab Polymarket ──────────────────────────────────────────────────────
+    with tab_poly:
+        st.markdown("""
+        <div style="margin-bottom:24px;">
+            <h3 style="color:#f1f5f9;margin:0 0 8px 0;">🌐 Previsões (Polymarket)</h3>
+            <p style="color:#64748b;font-size:0.85rem;margin:0;">Mercados preditivos em tempo real sobre cripto, macroeconomia e tecnologia. <br>Reflete a probabilidade implícita de eventos globais segundo apostas descentralizadas.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Cache the Polymarket fetch for 1 hour to avoid spamming the API
+        @st.cache_data(ttl=3600, show_spinner="Analisando mercados preditivos...")
+        def _get_poly_markets():
+            return get_curated_crypto_politics_markets()
+            
+        poly_data = _get_poly_markets()
+        
+        if not poly_data:
+            st.markdown("""
+            <div class="news-empty">
+                <div class="news-empty-icon">🔌</div>
+                <div class="news-empty-text">Não foi possível carregar os dados do Polymarket no momento.<br>A API pode estar instável.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for category, events in poly_data.items():
+                st.markdown(f"""
+                <div class="ticker-section-head" style="margin-top: 20px;">
+                    <span class="ticker-section-name" style="color:#38bdf8;">{category}</span>
+                    <div class="ticker-divider"></div>
+                </div>
+                <div class="news-grid">
+                """, unsafe_allow_html=True)
+                
+                cards_html = ""
+                for ev in events:
+                    title = html.escape(ev["title"])
+                    url = html.escape(ev["url"])
+                    
+                    try:
+                        vol = float(ev.get("volume", 0) or 0)
+                    except ValueError:
+                        vol = 0
+                        
+                    if vol >= 1_000_000:
+                        vol_str = f"${vol/1_000_000:.1f}M"
+                    elif vol >= 1_000:
+                        vol_str = f"${vol/1_000:.1f}k"
+                    else:
+                        vol_str = f"${vol:.0f}"
+                        
+                    odds_html = ""
+                    for i, odd in enumerate(ev["odds"][:3]): # Show top 3 max
+                        name = html.escape(odd["outcome"])
+                        pct = odd["percent"]
+                        # Make first green/cyan, second red/orange
+                        row_class = "secondary" if i == 1 and len(ev["odds"]) == 2 else ""
+                        odds_html += f'<div class="poly-odd-row {row_class}"><div class="poly-odd-bar" style="width: {pct}%;"></div><div class="poly-odd-name">{name}</div><div class="poly-odd-value">{pct:.1f}%</div></div>'
+                        
+                    cards_html += (
+                        f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card">'
+                        f'<div class="poly-header"><div style="flex: 1;"><div class="poly-title">{title}</div>'
+                        f'<div class="poly-volume">Volume apostado: <b>{vol_str}</b></div></div>'
+                        f'<span class="poly-badge">Live</span></div>'
+                        f'<div class="poly-odds-container">{odds_html}</div></a>'
+                    )
+                
+                # Single markdown injection using raw HTML inline wrapper without newlines
+                st.markdown(f'<div class="news-grid">{cards_html}</div>', unsafe_allow_html=True)
 
 # ── Rodapé ─────────────────────────────────────────────────────────────────
 st.markdown("""

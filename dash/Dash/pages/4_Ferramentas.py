@@ -1,10 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import time
 import pandas as pd
 from pathlib import Path
 from core.auth import require_auth, get_password, update_password, is_auth_enabled, set_auth_enabled
-from core.theme import inject_global_theme, render_page_header, render_back_button
+from core.theme import inject_global_theme, render_back_button
 from core.ui import render_fab
+import base64
 
 _LOGOS = Path(__file__).parent.parent / "assets" / "logos"
 
@@ -22,35 +24,90 @@ st.set_page_config(
 # --- APPLY GLOBAL THEME ---
 inject_global_theme()
 
-# Custom styles for this page
+# ── BACKGROUND VIDEO ─────────────────────────────────────────────────────────
+
+def get_video_base64():
+    try:
+        vpath = Path(__file__).parent.parent / "assets" / "videos" / "Video 1.mp4"
+        with open(vpath, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return None
+
+video_b64 = get_video_base64()
+
+if video_b64:
+    st.markdown(f"""
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;overflow:hidden;pointer-events:none;">
+        <video id="bgvid" autoplay muted playsinline style="width:100vw;height:100vh;object-fit:cover;opacity:0.15;">
+            <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+        </video>
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(10,14,20,0.7);"></div>
+    </div>
+    <script>
+        var v = document.getElementById('bgvid');
+        if (v) {{
+            v.addEventListener('ended', function() {{
+                setTimeout(function() {{ v.currentTime = 0; v.play(); }}, 5000);
+            }});
+        }}
+    </script>
+    """, unsafe_allow_html=True)
+
+# ── CSS ──────────────────────────────────────────────────────────────────────
+
 st.markdown("""
 <style>
-/* ═══════════════════════════════════════════════════════
-   FUNDO SÓLIDO — Remove imagem, mantém azul escuro
-   ═══════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════
-   FUNDO SÓLIDO — Remove imagem, mantém azul escuro
-   ═══════════════════════════════════════════════════════ */
-html, body, [data-testid="stAppViewContainer"], .stApp {
-    background: linear-gradient(180deg, #0b1120 0%, #0f172a 50%, #1e293b 100%) !important;
-    background-color: #0b1120 !important;
-    background-image: none !important;
-    background-attachment: fixed !important;
-    color: #f1f5f9 !important;
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] { font-family: 'Outfit', sans-serif; }
+
+.stApp {
+    background: #0a0e14;
 }
 
-/* Force text color in all standard containers to avoid white-on-white */
+section[data-testid="stSidebar"],
+[data-testid="collapsedControl"] { display: none !important; }
+
+/* Force text color */
 p, h1, h2, h3, h4, h5, h6, span, div, label, li {
     color: #f1f5f9 !important;
 }
 
-/* More opaque cards for settings page */
-/* hide any leftover glass-card usage */
-.glass-card { display: none; }
+/* ── Glassmorphism Expanders ── */
+.stExpander {
+    background: rgba(10, 18, 35, 0.4) !important;
+    backdrop-filter: blur(18px) !important;
+    -webkit-backdrop-filter: blur(18px) !important;
+    border: 1px solid rgba(99, 102, 241, 0.08) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.04), 0 6px 24px rgba(0,0,0,0.25) !important;
+    margin-bottom: 10px !important;
+    transition: all 0.35s ease !important;
+}
+.stExpander:hover {
+    border-color: rgba(99, 102, 241, 0.15) !important;
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.08), 0 8px 32px rgba(0,0,0,0.3) !important;
+}
+.stExpander > details > summary {
+    padding: 14px 20px !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+    color: #e2e8f0 !important;
+    letter-spacing: -0.2px !important;
+    border: none !important;
+    background: transparent !important;
+}
+.stExpander > details > summary:hover { color: #fff !important; }
+.stExpander > details > summary svg { color: rgba(99, 102, 241, 0.5) !important; }
+.stExpander > details > div[data-testid="stExpanderDetails"] {
+    padding: 4px 20px 16px !important;
+    border-top: 1px solid rgba(255,255,255,0.04) !important;
+}
 
-/* ═══════════════════════════════════════════════════════
-   STATUS CARDS
-   ═══════════════════════════════════════════════════════ */
+/* ── Status Cards ── */
 .status-card {
     background: rgba(15, 23, 42, 0.95);
     border-radius: 12px;
@@ -72,51 +129,7 @@ p, h1, h2, h3, h4, h5, h6, span, div, label, li {
 .status-card-title { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; }
 .status-card-body  { font-size: 0.85rem; color: #cbd5e1; line-height: 1.5; }
 
-/* ═══════════════════════════════════════════════════════
-   GLASS CARD — targets ALL st.container(border=True)
-   ═══════════════════════════════════════════════════════ */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.97)) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(212, 160, 23, 0.15) !important;
-    border-radius: 20px !important;
-    padding: 22px 20px !important;
-    box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
-    transition: all 0.35s ease !important;
-}
-[data-testid="stVerticalBlockBorderWrapper"]:hover {
-    border-color: rgba(251, 191, 36, 0.35) !important;
-    box-shadow:
-        0 12px 40px rgba(0, 0, 0, 0.4),
-        0 0 20px rgba(251, 191, 36, 0.08),
-        0 0 40px rgba(212, 160, 23, 0.04),
-        inset 0 1px 0 rgba(251, 191, 36, 0.06) !important;
-}
-.import-glass-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 4px;
-}
-.import-glass-icon {
-    font-size: 1.5rem;
-    filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.35));
-}
-.import-glass-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #f1f5f9;
-    letter-spacing: 0.3px;
-}
-.import-glass-desc {
-    font-size: 0.78rem;
-    color: #e2e8f0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-}
+/* ── Section Labels ── */
 .import-section-label {
     font-size: 0.68rem;
     font-weight: 700;
@@ -130,30 +143,73 @@ p, h1, h2, h3, h4, h5, h6, span, div, label, li {
     border-top: 1px solid rgba(148, 163, 184, 0.08);
     margin: 14px 0;
 }
+
+/* ── Header ── */
+.fh { text-align: center; padding: 14px 0 18px; animation: fadeIn 0.6s ease-out; }
+.fh-t {
+    font-size: 2rem; font-weight: 800;
+    background: linear-gradient(to right, #f1f5f9, #a5b4fc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -1.2px;
+}
+.fh-s { color: #475569; font-size: 0.82rem; font-weight: 300; margin-top: 2px; }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Compact Input overrides ── */
+.stNumberInput > div > div > input,
+.stTextInput > div > div > input {
+    padding: 6px 10px !important;
+    font-size: 0.82rem !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    background: rgba(15, 23, 42, 0.5) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    color: #e2e8f0 !important;
+}
+.stNumberInput > div > div > input:focus,
+.stTextInput > div > div > input:focus {
+    border-color: rgba(99,102,241,0.4) !important;
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.1) !important;
+}
+.stNumberInput button { display: none !important; }
+.stButton > button {
+    padding: 4px 14px !important;
+    font-size: 0.78rem !important;
+    border-radius: 10px !important;
+    min-height: 34px !important;
+}
+
+/* ── Security Toggle ── */
+.stToggle label span {
+    color: #e2e8f0 !important;
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+    .fh-t { font-size: 1.6rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
+# ── HEADER ───────────────────────────────────────────────────────────────────
+
 render_fab()
-render_back_button()
-render_page_header("Configurações", "Ferramentas de administração e controle do sistema", "⚙️")
 
-# --- TOOLS GRID ---
-c1, c2, c3 = st.columns(3)
+st.markdown("""
+<div class="fh">
+    <div class="fh-t">Configurações</div>
+    <div class="fh-s">Ferramentas de administração e controle do sistema</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════
-# 1. DATA INGESTION
+# 1. DATA INGESTION — Expandable Card
 # ════════════════════════════════════════════════════════
-with c1:
-  with st.container(border=True):
-    # Glass card header
-    st.markdown('''
-    <div class="import-glass-header">
-        <span class="import-glass-icon">📥</span>
-        <span class="import-glass-title">Importar Dados</span>
-    </div>
-    <div class="import-glass-desc">Upload de arquivos externos para a base de dados</div>
-    ''', unsafe_allow_html=True)
+
+with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expanded=False):
 
     # ── Session state ──
     if 'import_source' not in st.session_state:
@@ -164,7 +220,6 @@ with c1:
         st.session_state.import_file_data = None
     if 'import_file_name' not in st.session_state:
         st.session_state.import_file_name = None
-    # Persistir df_faltantes entre reruns (para B3/IBKR)
     if 'b3_prov_faltantes' not in st.session_state:
         st.session_state.b3_prov_faltantes = None
     if 'b3_trades_faltantes' not in st.session_state:
@@ -174,19 +229,16 @@ with c1:
     import_type = st.session_state.import_type
     needs_subtype = source in ["IBKR", "B3"]
 
-    # Panel is now part of the glass card visual — no extra wrapper needed
-
     # ROW 1: Source (com logos)
     st.markdown('<div class="import-section-label">Instituição</div>', unsafe_allow_html=True)
     src_col1, src_col2, src_col3 = st.columns(3)
     with src_col1:
-        # Logo IBKR centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
             st.image(str(_LOGOS / "ibkr.jpg"), width=50)
         if st.button("IBKR", key="src_ibkr", use_container_width=True,
                      type="primary" if source == "IBKR" else "secondary"):
-            if source != "IBKR":  # Limpar arquivo e dados ao trocar instituição
+            if source != "IBKR":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
                 st.session_state.b3_prov_faltantes = None
@@ -195,13 +247,12 @@ with c1:
             st.session_state.import_type = None
             st.rerun()
     with src_col2:
-        # Logo B3 centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
             st.image(str(_LOGOS / "b3.png"), width=50)
         if st.button("B3", key="src_b3", use_container_width=True,
                      type="primary" if source == "B3" else "secondary"):
-            if source != "B3":  # Limpar arquivo e dados ao trocar instituição
+            if source != "B3":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
                 st.session_state.b3_prov_faltantes = None
@@ -210,13 +261,12 @@ with c1:
             st.session_state.import_type = None
             st.rerun()
     with src_col3:
-        # Logo Nubank centralizada
         col_img = st.columns([1, 2, 1])[1]
         with col_img:
             st.image(str(_LOGOS / "nubank.png"), width=50)
         if st.button("Nubank", key="src_nu", use_container_width=True,
                      type="primary" if source == "Nu" else "secondary"):
-            if source != "Nu":  # Limpar arquivo e dados ao trocar instituição
+            if source != "Nu":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
                 st.session_state.b3_prov_faltantes = None
@@ -234,7 +284,7 @@ with c1:
         with tc1:
             if st.button("📊 Proventos", key=f"type_prov_{source}", use_container_width=True,
                         type="primary" if import_type == "proventos" else "secondary"):
-                if import_type != "proventos":  # Limpar dados ao trocar tipo
+                if import_type != "proventos":
                     st.session_state.b3_prov_faltantes = None
                     st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "proventos"
@@ -242,7 +292,7 @@ with c1:
         with tc2:
             if st.button("📈 Ativos", key=f"type_ativos_{source}", use_container_width=True,
                         type="primary" if import_type == "ativos" else "secondary"):
-                if import_type != "ativos":  # Limpar dados ao trocar tipo
+                if import_type != "ativos":
                     st.session_state.b3_prov_faltantes = None
                     st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "ativos"
@@ -279,7 +329,6 @@ with c1:
         }
         file_types, file_hint = file_cfg.get(source, (['csv'], "Arquivo"))
 
-        # Key só depende do source para preservar arquivo ao trocar tipo
         new_upload = st.file_uploader(
             f"📁 {file_hint}",
             type=file_types,
@@ -287,18 +336,14 @@ with c1:
             label_visibility="collapsed"
         )
 
-        # Salvar arquivo no session_state quando novo upload
         if new_upload is not None:
             st.session_state.import_file_data = new_upload.getvalue()
             st.session_state.import_file_name = new_upload.name
 
-        # Usar arquivo do session_state (persiste entre trocas de tipo)
         uploaded_file = new_upload
 
-        # Mostrar nome do arquivo carregado se houver
         if st.session_state.import_file_name and not new_upload:
             st.caption(f"📄 Arquivo: {st.session_state.import_file_name}")
-            # Botão para limpar arquivo
             if st.button("🗑️ Limpar arquivo", key="clear_file", use_container_width=True):
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
@@ -309,13 +354,9 @@ with c1:
         st.caption("Complete as seleções acima para fazer upload")
         uploaded_file = None
 
-    # end of selectors section
-
     # ── PROCESSING ──
-    # Usar dados do session_state se arquivo foi carregado anteriormente
     has_file = uploaded_file is not None or st.session_state.import_file_data is not None
     if has_file:
-        # Obter dados e extensão do arquivo (do upload ou session_state)
         if uploaded_file is not None:
             file_data = uploaded_file.getvalue()
             file_ext = uploaded_file.name.split('.')[-1].lower()
@@ -494,7 +535,6 @@ with c1:
                     b3_mgr = B3SyncManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_mgr.process_file(file_obj)
-                    # Persistir df_faltantes no session_state para usar ao clicar em Produção
                     if not df_prev.empty:
                         st.session_state.b3_prov_faltantes = df_prev.copy()
 
@@ -518,14 +558,13 @@ with c1:
                             st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
                     with col2:
                         if st.button("🚀 Produção", key="btn_b3_prod", type="primary", use_container_width=True):
-                            # Recuperar dados do session_state (persiste entre reruns)
                             df_faltantes = st.session_state.get('b3_prov_faltantes')
                             if df_faltantes is not None and not df_faltantes.empty:
                                 b3_mgr.df_faltantes = df_faltantes
                                 with st.spinner("Aplicando..."):
                                     ok, ms, _ = b3_mgr.apply_to_production()
                                 if ok:
-                                    st.session_state.b3_prov_faltantes = None  # Limpar após sucesso
+                                    st.session_state.b3_prov_faltantes = None
                                     st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
                                 else:
                                     st.error(f"❌ {ms}")
@@ -552,7 +591,6 @@ with c1:
                     b3_t = B3TradesManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_t.process_trades(file_obj)
-                    # Persistir df_faltantes no session_state para usar ao clicar em Produção
                     if not df_prev.empty:
                         st.session_state.b3_trades_faltantes = df_prev.copy()
 
@@ -576,14 +614,13 @@ with c1:
                             st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
                     with col2:
                         if st.button("🚀 Produção", key="btn_b3_trades_prod", type="primary", use_container_width=True):
-                            # Recuperar dados do session_state (persiste entre reruns)
                             df_faltantes = st.session_state.get('b3_trades_faltantes')
                             if df_faltantes is not None and not df_faltantes.empty:
                                 b3_t.df_faltantes = df_faltantes
                                 with st.spinner("Aplicando..."):
                                     ok, ms, _ = b3_t.apply_to_production()
                                 if ok:
-                                    st.session_state.b3_trades_faltantes = None  # Limpar após sucesso
+                                    st.session_state.b3_trades_faltantes = None
                                     st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
                                 else:
                                     st.error(f"❌ {ms}")
@@ -641,17 +678,10 @@ with c1:
                     st.info("Nenhuma transação nova.")
 
 # ════════════════════════════════════════════════════════
-# 2. SYSTEM SYNC
+# 2. SYSTEM SYNC — Expandable Card
 # ════════════════════════════════════════════════════════
-with c2:
-  with st.container(border=True):
-    st.markdown('''
-    <div class="import-glass-header">
-        <span class="import-glass-icon">🔄</span>
-        <span class="import-glass-title">Sincronização</span>
-    </div>
-    <div class="import-glass-desc">Atualizar cotações de câmbio oficiais (PTAX)</div>
-    ''', unsafe_allow_html=True)
+
+with st.expander("🔄  Sincronização  ·  Atualizar cotações de câmbio (PTAX)", expanded=False):
 
     st.markdown("""
     <div class="status-card info">
@@ -670,17 +700,10 @@ with c2:
         st.success(f"✅ {msg}") if success else st.error(f"❌ {msg}")
 
 # ════════════════════════════════════════════════════════
-# 3. SECURITY
+# 3. SECURITY — Expandable Card
 # ════════════════════════════════════════════════════════
-with c3:
-  with st.container(border=True):
-    st.markdown('''
-    <div class="import-glass-header">
-        <span class="import-glass-icon">🔐</span>
-        <span class="import-glass-title">Segurança</span>
-    </div>
-    <div class="import-glass-desc">Gerenciar autenticação e credenciais de acesso</div>
-    ''', unsafe_allow_html=True)
+
+with st.expander("🔐  Segurança  ·  Autenticação e credenciais de acesso", expanded=False):
 
     current_auth_state = is_auth_enabled()
     new_auth_state = st.toggle("🔒 Exigir senha", value=current_auth_state)
@@ -693,7 +716,7 @@ with c3:
         else:
             st.error("Erro ao atualizar")
 
-    st.markdown("---")
+    st.markdown('<hr class="import-divider">', unsafe_allow_html=True)
 
     with st.form("update_password_form", clear_on_submit=True):
         old_pwd = st.text_input("Senha atual", type="password")

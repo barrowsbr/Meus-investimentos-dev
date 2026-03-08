@@ -16,15 +16,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+@st.cache_resource
+def get_intro_state():
+    return {"played": False}
+
+intro_state = get_intro_state()
+
 # --- CACHE REFRESH LOGIC ---
 if st.query_params.get("refresh") == "1":
+    intro_state["played"] = False
     st.cache_data.clear()
     st.query_params.clear()
     st.rerun()
 
-# --- LOAD LOGO FOR PRELOADER ---
+# --- LOAD LOGO FOR HERO SECTION ---
 def get_logo_base64():
-    """Load logo image as base64 for preloader."""
+    """Load logo image as base64 for the main hero section."""
     try:
         logo_path = Path(__file__).parent / "assets" / "logos" / "carregamento.png"
         with open(logo_path, "rb") as f:
@@ -34,56 +41,89 @@ def get_logo_base64():
 
 logo_b64 = get_logo_base64()
 
-logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
+# --- PRELOADER LOGIC (Play only once per app load) ---
+if not intro_state["played"]:
+    intro_state["played"] = True
+    
+    def get_video_base64():
+        """Load video as base64 for preloader."""
+        try:
+            video_path = Path(__file__).parent / "assets" / "videos" / "Abertura de logo.mp4"
+            with open(video_path, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+        except:
+            return None
+
+    video_b64 = get_video_base64()
+    video_html = f'<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>' if video_b64 else '<div class="preloader-spinner"></div>'
+
+    st.markdown(f"""
+    <style>
+    /* PRELOADER - Cobre tudo durante carregamento */
+    .preloader-overlay {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #0b1120;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        pointer-events: none;
+        animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
+    }}
+    .preloader-overlay::after {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(11, 17, 32, 0.45);
+        z-index: 2;
+    }}
+    .preloader-video {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        opacity: 0.5;
+        z-index: 1;
+    }}
+    .preloader-spinner {{
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255,255,255,0.1);
+        border-top-color: #a5b4fc;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }}
+    @keyframes spin {{
+        to {{ transform: rotate(360deg); }}
+    }}
+    @keyframes fadeOutPreloader {{
+        to {{ opacity: 0; visibility: hidden; }}
+    }}
+    </style>
+    <div class="preloader-overlay" id="preloader-overlay">{video_html}</div>
+    """, unsafe_allow_html=True)
+else:
+    # Minimal empty preloader styles if already played to avoid breaking anything
+    st.markdown("""
+    <style>
+    .preloader-overlay, .preloader-video { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
-st.markdown(f"""
+st.markdown("""
 <meta name="theme-color" content="#0b1120" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<style>
-/* PRELOADER - Cobre tudo durante carregamento */
-.preloader-overlay {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #0b1120;
-    z-index: 999999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    pointer-events: none;
-    animation: fadeOutPreloader 0.5s ease-out 3s forwards;
-}}
-.preloader-logo {{
-    width: 190px;
-    height: auto;
-    background: transparent;
-    border: none;
-    animation: pulseLogo 1.5s ease-in-out infinite;
-}}
-.preloader-spinner {{
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: #a5b4fc;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}}
-@keyframes spin {{
-    to {{ transform: rotate(360deg); }}
-}}
-@keyframes pulseLogo {{
-    0%, 100% {{ opacity: 0.7; transform: scale(1); }}
-    50% {{ opacity: 1; transform: scale(1.05); }}
-}}
-@keyframes fadeOutPreloader {{
-    to {{ opacity: 0; visibility: hidden; }}
-}}
-</style>
-<div class="preloader-overlay">{logo_html}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -392,7 +432,7 @@ CSS_PART2 = """
 .hero-logo {
     width: 84px;
     height: auto;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -442,7 +482,7 @@ CSS_PART2 = """
     color: #ffffff;
     letter-spacing: 3px;
     margin-right: -3px; /* Compensate for letter-spacing to center perfectly */
-    margin-bottom: 40px;
+    margin-bottom: 25px;
     text-shadow: 
         0 0 10px rgba(255,255,255,0.6),
         0 0 20px rgba(255,255,255,0.3);
@@ -1001,6 +1041,7 @@ st.markdown("""
 .metrics-container {
     display: flex;
     justify-content: center;
+    gap: 20px;
     margin-top: -80px;
     position: relative;
     z-index: 100;
@@ -1012,11 +1053,12 @@ st.markdown("""
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 20px;
-    padding: 25px 40px;
+    padding: 20px 30px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 40px;
+    flex: 1;
+    max-width: 280px;
     box-shadow: 0 15px 50px rgba(0,0,0,0.4), inset 0 0 30px rgba(255,255,255,0.02);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1058,27 +1100,30 @@ st.markdown("""
 }
 
 @media (max-width: 768px) {
-    .metrics-container { margin-top: -60px; }
+    .metrics-container { 
+        margin-top: -60px; 
+        gap: 12px;
+        flex-direction: row;
+        padding: 0 15px;
+    }
     .metrics-box {
-        flex-direction: column;
-        gap: 15px;
-        padding: 25px 40px;
+        padding: 15px 12px;
         width: 100%;
-        max-width: 500px;
+        max-width: 50%;
     }
     .metric-divider {
-        width: 60%;
-        height: 1px;
+        display: none;
     }
     .metric-item-value {
-        font-size: 1.3rem;
+        font-size: 1.15rem;
         white-space: nowrap;
     }
     .metric-item-change {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
     .metric-item-label {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        margin-bottom: 4px;
     }
 }
 
@@ -1115,40 +1160,6 @@ st.markdown("""
 .home-ticker-wrap:hover {
     border-color: rgba(99, 102, 241, 0.35);
     box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
-}
-/* Ticker como label clicável */
-label.home-ticker-wrap { cursor: pointer; }
-.home-tt-toggle-hint {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    color: rgba(129,140,248,0.55);
-    font-size: 0.65rem;
-    transition: transform 0.3s ease, color 0.3s ease;
-    border-left: 1px solid rgba(255,255,255,0.06);
-}
-/* Performers panel — expandável abaixo do ticker */
-.performers-toggle { display: none; }
-.performers-panel {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1);
-    padding: 0 20px;
-    max-width: 580px;
-    margin: 0 auto;
-}
-.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap {
-    border-color: rgba(99,102,241,0.4);
-    box-shadow: 0 12px 40px -8px rgba(99,102,241,0.25);
-}
-.performers-toggle:checked ~ .home-ticker-container label.home-ticker-wrap .home-tt-toggle-hint {
-    transform: rotate(180deg);
-    color: rgba(129,140,248,0.9);
-}
-.performers-toggle:checked ~ .performers-panel {
-    max-height: 500px;
 }
 .home-tt-badge {
     flex-shrink: 0;
@@ -1212,21 +1223,70 @@ label.home-ticker-wrap { cursor: pointer; }
     animation: skeletonPulse 1.5s ease-in-out infinite;
 }
 
-/* ── Notícias Expandable — performers grid ── */
-.noticias-perfs { padding: 0 15px 15px 15px; }
-.noticias-perfs-grid {
+/* ── Ticker Tape Expandable ── */
+.ticker-expand-wrapper {
+    max-width: 580px;
+    margin: 12px auto 0;
+    padding: 0 20px;
+}
+.ticker-expand-toggle {
+    display: none;
+}
+.ticker-expand-card {
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ticker-expand-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    max-height: 500px;
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .home-ticker-wrap {
+    border-radius: 16px 16px 0 0;
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 12px 40px -8px rgba(99, 102, 241, 0.2);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-content {
+    border-color: rgba(99, 102, 241, 0.15);
+}
+.ticker-expand-toggle:checked ~ .ticker-expand-card .ticker-expand-hint {
+    transform: rotate(180deg);
+}
+.ticker-expand-hint {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.25);
+    transition: transform 0.3s ease;
+    padding-right: 4px;
+}
+.home-ticker-wrap {
+    cursor: pointer;
+}
+
+/* Performers grid (used under ticker tape) */
+.perfs-grid-container { padding: 12px 15px 15px 15px; }
+.perfs-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
-.noticias-perfs-col {
+.perfs-col {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.05);
     border-radius: 10px;
     overflow: hidden;
 }
-.noticias-perfs-hdr {
+.perfs-hdr {
     padding: 8px 12px;
     font-size: 0.57rem;
     font-weight: 800;
@@ -1236,9 +1296,9 @@ label.home-ticker-wrap { cursor: pointer; }
     gap: 5px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.noticias-perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
-.noticias-perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
-.noticias-perf-row {
+.perfs-hdr.best  { color:#34d399; background:rgba(52,211,153,0.05); border-bottom-color:rgba(52,211,153,0.1); }
+.perfs-hdr.worst { color:#f87171; background:rgba(248,113,113,0.05); border-bottom-color:rgba(248,113,113,0.1); }
+.perfs-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1246,32 +1306,11 @@ label.home-ticker-wrap { cursor: pointer; }
     border-bottom: 1px solid rgba(255,255,255,0.03);
     transition: background 0.2s ease;
 }
-.noticias-perf-row:last-child { border-bottom: none; }
-.noticias-perf-row:hover { background: rgba(255,255,255,0.03); }
-.noticias-perf-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
-.noticias-perf-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
-.noticias-perf-down { font-size:0.72rem; font-weight:700; color:#f87171; }
-.noticias-view-row  { display:flex; justify-content:center; }
-.noticias-view-btn  {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 24px;
-    background: rgba(6,182,212,0.07);
-    border: 1px solid rgba(6,182,212,0.2);
-    border-radius: 100px;
-    color: #22d3ee !important;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-decoration: none !important;
-    transition: all 0.25s ease;
-}
-.noticias-view-btn:hover {
-    background: rgba(6,182,212,0.14);
-    border-color: rgba(6,182,212,0.4);
-    gap: 11px;
-}
+.perfs-row:last-child { border-bottom: none; }
+.perfs-row:hover { background: rgba(255,255,255,0.03); }
+.perfs-ticker { font-size:0.77rem; font-weight:700; color:#e2e8f0; letter-spacing:0.3px; }
+.perfs-up   { font-size:0.72rem; font-weight:700; color:#34d399; }
+.perfs-down { font-size:0.72rem; font-weight:700; color:#f87171; }
 /* Editor expandable — slate theme overrides */
 .expandable-card.card-editor-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(240,230,220,0.15) !important;
@@ -1323,7 +1362,8 @@ label.home-ticker-wrap { cursor: pointer; }
     max-height: 700px !important;
 }
 @media (max-width: 768px) {
-    .noticias-perfs-grid { grid-template-columns: 1fr; }
+    .perfs-grid { grid-template-columns: 1fr; }
+    .ticker-expand-wrapper { padding: 0 15px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1345,7 +1385,8 @@ metrics_placeholder.markdown("""
             <div class="metric-item-label">Renda Variável (Hoje)</div>
             <div class="metric-item-value skeleton-pulse">R$ ---.--</div>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
             <div class="metric-item-value skeleton-pulse">R$ --.---</div>
@@ -1354,12 +1395,14 @@ metrics_placeholder.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- SPACER ---
-st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
+# --- SPACER & DYNAMIC HIGHLIGHTS PLACEHOLDER ---
+st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
+highlights_placeholder = st.empty()
+st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
 st.markdown('''
-<div style="display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 20px;">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 20px;">
 
 <!-- Patrimônio Expandable Card -->
 <div class="expandable-wrapper">
@@ -1374,47 +1417,96 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Investimentos?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">❖</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Resumo</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Performance_Advanced" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▲</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▤</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 3v18h18"></path>
+                            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Renda Variável</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=3" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▦</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Renda Fixa</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=4" target="_self" class="sub-item">
-                    <span class="sub-item-icon">◐</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Proventos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=5" target="_self" class="sub-item">
-                    <span class="sub-item-icon">❂</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Cripto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=6" target="_self" class="sub-item">
-                    <span class="sub-item-icon">⬡</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Câmbio</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=7" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▼</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                            <path d="M9 14h6"></path>
+                            <path d="M9 18h6"></path>
+                            <path d="M9 10h6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Imposto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=8" target="_self" class="sub-item">
-                    <span class="sub-item-icon">∞</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                            <path d="M8 4v16"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Legado</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -1436,17 +1528,33 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Finanças?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">💰</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                            <circle cx="12" cy="12" r="2"></circle>
+                            <path d="M6 12h.01M18 12h.01"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Mensal</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Finanças?tab=1" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🔄</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.46-2.18"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Assinaturas</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Finanças?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📦</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Parcelamentos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -1495,18 +1603,45 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Noticias?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📅</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Cronológico</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Noticias?tab=1" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🏷️</span>
-                    <span class="sub-item-text">Por Ticker</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                        </svg>
+                    </span>
+                    <span class="sub-item-text">Por ticker</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Noticias?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🤖</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Reddit</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=3" target="_self" class="sub-item">
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                    </span>
+                    <span class="sub-item-text">Polymarket</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
             </div>
@@ -1546,6 +1681,7 @@ dolar_change = 0.0
 if not df_assets.empty:
     df_rv = df_assets[df_assets['ticker'].notna()]
     tickers = df_rv['ticker'].unique().tolist()
+    
     if 'BRL=X' not in tickers:
         tickers.append('BRL=X')
 
@@ -1581,15 +1717,13 @@ if not df_assets.empty:
 
 # === STEP 3: UPDATE METRICS WITH ACTUAL DATA ===
 rv_class = "positive" if rv_day_gain >= 0 else "negative"
-dolar_class = "positive" if dolar_change >= 0 else "negative"
 rv_value = format_decimal_br(rv_day_gain, 2)
 rv_pct = format_decimal_br(rv_day_pct, 2)
-dolar_value = format_decimal_br(dolar_val, 3)
-dolar_pct = format_decimal_br(dolar_var, 2)
 rv_sign = "+" if rv_day_gain >= 0 else ""
+
+dolar_class = "positive" if dolar_change >= 0 else "negative"
 dolar_sign = "+" if dolar_change >= 0 else ""
 
-# Update the placeholder with real data
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
     <div class="metrics-box">
@@ -1600,12 +1734,13 @@ metrics_placeholder.markdown(f"""
                 <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
             </div>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-box">
         <div class="metric-item">
-            <div class="metric-item-label">Dólar (USD)</div>
+            <div class="metric-item-label">Dólar Dia</div>
             <div class="metric-item-value">
-                R$ {dolar_value}
-                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
+                R$ {format_decimal_br(dolar_val, 2)}
+                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{format_decimal_br(dolar_var, 2)}%)</span>
             </div>
         </div>
     </div>
@@ -1632,30 +1767,12 @@ if not df_pos.empty:
 
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
-def _clean(t):
-    for s in ('.SA', '-USD', '-BRL', '=X'):
-        t = t.replace(s, '')
-    return t
-
-best_3  = perf_home[:3]
-worst_3 = list(reversed(perf_home[-3:])) if len(perf_home) >= 3 else list(reversed(perf_home))
-
-def _perf_rows(items, cls):
-    rows = ""
-    for p in items:
-        label = _clean(p["ticker"])
-        pct = p["pct"]
-        sign = "+" if pct >= 0 else ""
-        arr  = "▲" if pct >= 0 else "▼"
-        rows += (
-            f'<div class="noticias-perf-row">'
-            f'<span class="noticias-perf-ticker">{label}</span>'
-            f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
-            f'</div>'
-        )
-    return rows
-
 if perf_home:
+    def _clean(t):
+        for s in ('.SA', '-USD', '-BRL', '=X'):
+            t = t.replace(s, '')
+        return t
+
     items_html = ""
     for p in perf_home:
         t_label = _clean(p["ticker"])
@@ -1677,36 +1794,200 @@ if perf_home:
     track = items_html * 2
     duration = max(18, len(perf_home) * 4)
 
-    best_rows  = _perf_rows(best_3,  "noticias-perf-up")
-    worst_rows = _perf_rows(worst_3, "noticias-perf-down")
+    # Build performers grid
+    best_5  = perf_home[:5]
+    worst_5 = list(reversed(perf_home[-5:])) if len(perf_home) >= 5 else list(reversed(perf_home))
+
+    def _perf_rows(items, cls):
+        rows = ""
+        for p in items:
+            label = _clean(p["ticker"])
+            pct = p["pct"]
+            sign = "+" if pct >= 0 else ""
+            arr  = "▲" if pct >= 0 else "▼"
+            rows += (
+                f'<div class="perfs-row">'
+                f'<span class="perfs-ticker">{label}</span>'
+                f'<span class="{cls}">{arr} {sign}{pct:.2f}%</span>'
+                f'</div>'
+            )
+        return rows
+
+    best_rows  = _perf_rows(best_5,  "perfs-up")
+    worst_rows = _perf_rows(worst_5, "perfs-down")
+
     performers_html = (
-        f'<div class="noticias-perfs-grid">'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr best">▲ MELHORES</div>'
+        f'<div class="perfs-grid">'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr best">▲ MELHORES</div>'
         f'{best_rows}'
         f'</div>'
-        f'<div class="noticias-perfs-col">'
-        f'<div class="noticias-perfs-hdr worst">▼ PIORES</div>'
+        f'<div class="perfs-col">'
+        f'<div class="perfs-hdr worst">▼ PIORES</div>'
         f'{worst_rows}'
         f'</div>'
         f'</div>'
     )
 
     ticker_placeholder.markdown(
-        f'<input type="checkbox" id="performers-toggle" class="performers-toggle">'
-        f'<div class="home-ticker-container">'
-        f'<label for="performers-toggle" class="home-ticker-wrap">'
+        f'<div class="ticker-expand-wrapper">'
+        f'<input type="checkbox" id="ticker-expand-toggle" class="ticker-expand-toggle">'
+        f'<div class="ticker-expand-card">'
+        f'<label for="ticker-expand-toggle">'
+        f'<div class="home-ticker-wrap" style="max-width:none;">'
         f'<div class="home-tt-badge"><span class="home-tt-dot"></span>AO VIVO</div>'
         f'<div class="home-ticker-viewport">'
         f'<div class="home-ticker-track" style="animation:homeTickerScroll {duration}s linear infinite;">{track}</div>'
         f'</div>'
-        f'<span class="home-tt-toggle-hint">▼</span>'
-        f'</label></div>'
-        f'<div class="performers-panel">'
-        f'<div class="noticias-perfs" style="padding-top:12px;">{performers_html}</div>'
+        f'<span class="ticker-expand-hint">▼</span>'
+        f'</div>'
+        f'</label>'
+        f'<div class="ticker-expand-content">'
+        f'<div class="perfs-grid-container">{performers_html}</div>'
+        f'</div>'
+        f'</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
+
+    # --- NOVIDADE: CARDS DE DESTAQUE (Melhor / Pior) ---
+    from core.agent.news_fetcher import fetch_news_combined
+    
+    best_t = best_5[0]["ticker"] if best_5 else None
+    worst_t = worst_5[0]["ticker"] if worst_5 else None
+    
+    # We fetch a slightly higher maximum limit to try to hit one with an image if possible, but keep the first
+    best_news = fetch_news_combined(best_t, max_items=2) if best_t else []
+    worst_news = fetch_news_combined(worst_t, max_items=2) if worst_t else []
+    
+    # Prefererably pick the one with an image
+    best_n = next((n for n in best_news if n.get("imagem")), best_news[0] if best_news else None)
+    worst_n = next((n for n in worst_news if n.get("imagem")), worst_news[0] if worst_news else None)
+    
+    highlights_html = ""
+    
+    if best_n or worst_n:
+        import html
+        def _build_highlight_card(news_item, ticker, label, is_best):
+            if not news_item:
+                return "<div></div>"
+            img_url = news_item.get("imagem", "")
+            title = html.escape(news_item.get("titulo", "Sem título")[:100]) + "..."
+            link = html.escape(news_item.get("link", "#"))
+            fonte = html.escape(news_item.get("fonte", "Notícia"))
+            
+            border_col = "rgba(52, 211, 153, 0.8)" if is_best else "rgba(248, 113, 113, 0.8)"
+            shadow_col = "rgba(52, 211, 153, 0.35)" if is_best else "rgba(248, 113, 113, 0.35)"
+            bg_grad = f"linear-gradient(to top, rgba(15, 23, 42, 0.95) 10%, rgba(15, 23, 42, 0.6) 60%, rgba(15, 23, 42, 0.3) 100%)"
+            
+            bg_style = f"background-image: {bg_grad}, url('{img_url}'); background-size: cover; background-position: center;" if img_url else f"background: rgba(30, 41, 59, 0.5);"
+            
+            return f'''
+<a href="{link}" target="_blank" rel="noopener noreferrer" class="highlight-news-card" style="border-left: 4px solid {border_col}; --hover-shadow: {shadow_col};">
+    <div class="highlight-bg" style="{bg_style}"></div>
+    <div class="highlight-content">
+        <div class="highlight-label" style="color: {border_col};">{label} - {ticker}</div>
+        <div class="highlight-title">{title}</div>
+        <div class="highlight-footer">
+            <span class="highlight-source">{fonte}</span>
+            <span class="highlight-read">Ler →</span>
+        </div>
+    </div>
+</a>
+'''
+
+        st.markdown("""
+        <style>
+        .highlights-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            max-width: 580px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .highlight-news-card {
+            position: relative;
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 140px;
+            text-decoration: none !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 16px -4px rgba(0,0,0,0.4);
+        }
+        .highlight-bg {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1;
+            transition: transform 0.5s ease;
+        }
+        .highlight-content {
+            position: relative;
+            z-index: 2;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .highlight-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .highlight-title {
+            color: #f8fafc;
+            font-size: 0.85rem;
+            font-weight: 700;
+            line-height: 1.4;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .highlight-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            opacity: 0.8;
+            color: #cbd5e1;
+        }
+        .highlight-news-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px -5px var(--hover-shadow);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .highlight-news-card:hover .highlight-bg {
+            transform: scale(1.05);
+        }
+        .highlight-news-card:hover .highlight-footer {
+            opacity: 1;
+        }
+        .highlight-read { color: #38bdf8; }
+        @media (max-width: 768px) {
+            .highlights-container { grid-template-columns: 1fr; gap: 12px; padding: 0 15px; }
+            .highlight-news-card { min-height: 120px; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        c1 = _build_highlight_card(best_n, _clean(best_t) if best_t else "", "Maior Alta", True) if best_n else ""
+        c2 = _build_highlight_card(worst_n, _clean(worst_t) if worst_t else "", "Maior Queda", False) if worst_n else ""
+        
+        highlights_placeholder.markdown(f'<div class="highlights-container">{c1}{c2}</div>', unsafe_allow_html=True)
+
 else:
     ticker_placeholder.empty()
 
