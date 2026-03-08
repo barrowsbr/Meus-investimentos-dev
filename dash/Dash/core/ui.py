@@ -70,15 +70,20 @@ def render_fab():
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }}
 
-    /* Área dos botões — desktop: Manage App ~160px */
+    /* Área dos botões — desktop: Manage App ~110px */
     .nav-items {{
         display: flex;
         flex-direction: row;
         align-items: center;
-        justify-content: space-around;
-        width: calc(100% - 160px);
+        justify-content: space-between;
+        width: calc(100% - 110px);
         height: 100%;
         flex-shrink: 0;
+        padding: 0 12px;
+    }}
+
+    .nav-ghost {{
+        display: none;
     }}
 
     .nav-item {{
@@ -140,7 +145,7 @@ def render_fab():
         right: 0 !important;
         top: auto !important;
         height: 48px !important;
-        width: 160px !important;
+        width: 110px !important;
         z-index: 100000 !important;
         display: flex !important;
         align-items: center !important;
@@ -160,7 +165,7 @@ def render_fab():
             height: 44px;
         }}
         .nav-items {{
-            width: calc(100% - 120px);
+            width: calc(100% - 85px);
         }}
         .nav-item {{
             padding: 4px 2px;
@@ -179,7 +184,7 @@ def render_fab():
         [data-testid="stAppToolbar"],
         [data-testid="stToolbarActions"] {{
             height: 44px !important;
-            width: 120px !important;
+            width: 85px !important;
         }}
     }}
 
@@ -201,7 +206,7 @@ def render_fab():
     }}
     </style>
 
-    <!-- Barra unificada: Home | Gemini | Extras | sep | Reload | Config -->
+    <!-- Barra unificada: Home | Gemini | Extras | Reload | ghost | ghost -->
     <nav class="bottom-nav">
         <div class="nav-items">
             <a href="./" target="_self" class="nav-item" title="Home">
@@ -220,10 +225,8 @@ def render_fab():
                 <span class="nav-icon">↻</span>
                 <span class="nav-label">Reload</span>
             </a>
-            <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
-                <span class="nav-icon">⚙️</span>
-                <span class="nav-label">Config</span>
-            </a>
+            <span class="nav-ghost" aria-hidden="true"></span>
+            <span class="nav-ghost" aria-hidden="true"></span>
         </div>
     </nav>
     """, unsafe_allow_html=True)
