@@ -70,9 +70,11 @@ st.markdown(f"""
     animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
 }}
 .preloader-video {{
-    width: 100vw;
-    height: 100vh;
-    object-fit: cover;
+    width: 600px;
+    max-width: 85vw;
+    height: auto;
+    max-height: 80vh;
+    object-fit: contain;
     background: transparent;
     border: none;
 }}
