@@ -573,34 +573,28 @@ section[data-testid="stSidebar"],
 /* ── Tiny ghost action buttons (class injetada via JS) ── */
 .st-action-row {
     flex-wrap: nowrap !important;
-    align-items: flex-start !important;
-    gap: 0 !important;
+    align-items: center !important;
 }
 [data-testid="stColumn"].st-action-col {
-    flex: 0 0 16px !important;
-    max-width: 16px !important;
-    min-width: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
-[data-testid="stColumn"].st-action-col > div,
-[data-testid="stColumn"].st-action-col .element-container,
-[data-testid="stColumn"].st-action-col .stButton {
+[data-testid="stColumn"].st-action-col > div {
     padding: 0 !important;
+}
+[data-testid="stColumn"].st-action-col .element-container {
     margin: 0 !important;
-    width: 16px !important;
-    min-width: 0 !important;
 }
 [data-testid="stColumn"].st-action-col .stButton > button {
     all: unset !important;
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 16px !important;
-    height: 22px !important;
-    font-size: 0.6rem !important;
+    width: 100% !important;
+    height: 36px !important;
+    font-size: 0.75rem !important;
     line-height: 1 !important;
-    color: rgba(71,85,105,0.28) !important;
+    color: rgba(71,85,105,0.35) !important;
     cursor: pointer !important;
     font-family: 'Outfit', sans-serif !important;
     transition: color 0.15s ease !important;
