@@ -2077,8 +2077,6 @@ if perf_home:
     # Fetch Polymarket pool (cached 15 min) and pick market by query param
     _poly_bucket = int(time.time() // 900)
     _poly_pool   = _get_poly_insight_pool(_poly_bucket)
-    _pidx        = int(st.query_params.get("pidx", "0"))
-
     import html as _h
     from datetime import datetime as _dt
 
@@ -2111,58 +2109,101 @@ if perf_home:
             f'</div></a>'
         )
 
-    def _radar_poly_section(pool, pidx):
-        """HTML for the Polymarket prediction section."""
+    def _radar_poly_section(pool):
+        """Pure-CSS carousel for Polymarket events — no page reload on 'Próximo'."""
         if not pool:
-            return ""
-        ev    = pool[pidx % len(pool)]
-        title = _h.escape(ev["title"])
-        url   = _h.escape(ev["url"])
-        odds  = ev.get("odds", [])
-        vol   = ev.get("volume") or 0.0
-        days  = ev.get("days_left")
-        vol_str = (
-            f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
-            else f"${vol/1_000:.0f}k" if vol >= 1_000
-            else f"${vol:.0f}"
-        )
-        if   days is None: resolve = ""
-        elif days == 0:    resolve = " · resolve hoje"
-        elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
-        else:              resolve = f" · resolve em {days}d"
+            return "", ""
 
+        n       = len(pool)
         cls_map = {0: "yes", 1: "no"}
-        bars = "".join(
-            f'<div class="radar-bar-row">'
-            f'<div class="radar-bar-fill {cls_map.get(i,"other")}" style="width:{o["percent"]}%;"></div>'
-            f'<div class="radar-bar-name">{_h.escape(o["outcome"][:35])}</div>'
-            f'<div class="radar-bar-pct {cls_map.get(i,"other")}">{o["percent"]:.0f}%</div>'
-            f'</div>'
-            for i, o in enumerate(odds[:3])
+
+        # ── CSS rules (generated per pool size) ──────────────────────────────
+        base_css = (
+            ".pc-radio{display:none!important;}"
+            ".pc-slide{display:none;}"
+            "label.pc-next{display:none!important;cursor:pointer;}"
         )
-        total   = len(pool)
-        counter = f"{(pidx % total) + 1} / {total}"
-        nxt     = pidx + 1
-        return (
+        per_item = []
+        for i in range(n):
+            nxt_i = (i + 1) % n
+            per_item.append(
+                f"#pc{i}:checked~.pc-slides .pc-slide:nth-child({i+1}){{display:block;}}"
+                f"#pc{i}:checked~.radar-nav label.n{i}{{display:inline-flex!important;}}"
+                f"#pc{i}:checked~.radar-nav .pc-count::before{{content:\"{i+1} / {n}\";}}"
+            )
+        css = base_css + "".join(per_item)
+
+        # ── Radio inputs ──────────────────────────────────────────────────────
+        radios = "".join(
+            f'<input type="radio" name="poly-car" id="pc{i}" class="pc-radio"'
+            f'{" checked" if i == 0 else ""}>'
+            for i in range(n)
+        )
+
+        # ── Slides ────────────────────────────────────────────────────────────
+        slides = []
+        for ev in pool:
+            title   = _h.escape(ev["title"])
+            url     = _h.escape(ev["url"])
+            odds    = ev.get("odds", [])
+            vol     = ev.get("volume") or 0.0
+            days    = ev.get("days_left")
+            vol_str = (
+                f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
+                else f"${vol/1_000:.0f}k" if vol >= 1_000
+                else f"${vol:.0f}"
+            )
+            if   days is None: resolve = ""
+            elif days == 0:    resolve = " · resolve hoje"
+            elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
+            else:              resolve = f" · resolve em {days}d"
+
+            bars = "".join(
+                f'<div class="radar-bar-row">'
+                f'<div class="radar-bar-fill {cls_map.get(j,"other")}" style="width:{o["percent"]}%;"></div>'
+                f'<div class="radar-bar-name">{_h.escape(o["outcome"][:35])}</div>'
+                f'<div class="radar-bar-pct {cls_map.get(j,"other")}">{o["percent"]:.0f}%</div>'
+                f'</div>'
+                for j, o in enumerate(odds[:3])
+            )
+            slides.append(
+                f'<div class="pc-slide">'
+                f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'
+                f'<div class="radar-poly-question">{title}</div>'
+                f'<div class="radar-poly-bars">{bars}</div>'
+                f'<div class="radar-poly-meta">'
+                f'<span>Vol <b style="color:#64748b;">{vol_str}</b>{_h.escape(resolve)}</span>'
+                f'<span class="radar-poly-meta-cta">Ver no Polymarket →</span>'
+                f'</div></a></div>'
+            )
+        slides_html = "".join(slides)
+
+        # ── Nav labels (one per item, each points to next radio) ─────────────
+        svg_arrow = (
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" '
+            'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
+            'stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
+        )
+        nav_labels = "".join(
+            f'<label class="radar-next-btn pc-next n{i}" for="pc{(i+1)%n}">'
+            f'{svg_arrow}Próximo</label>'
+            for i in range(n)
+        )
+
+        html = (
             f'<div class="radar-divider">'
             f'<div class="radar-divider-line"></div>'
             f'<span class="radar-divider-label">📊 Mercado Preditivo</span>'
             f'<div class="radar-divider-line"></div>'
             f'</div>'
-            f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'
-            f'<div class="radar-poly-question">{title}</div>'
-            f'<div class="radar-poly-bars">{bars}</div>'
-            f'<div class="radar-poly-meta">'
-            f'<span>Vol <b style="color:#64748b;">{vol_str}</b>{_h.escape(resolve)}</span>'
-            f'<span class="radar-poly-meta-cta">Ver no Polymarket →</span>'
-            f'</div></a>'
+            f'{radios}'
+            f'<div class="pc-slides">{slides_html}</div>'
             f'<div class="radar-nav">'
-            f'<span class="radar-counter">{counter}</span>'
-            f'<a href="?pidx={nxt}" class="radar-next-btn">'
-            f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
-            f'Próximo</a>'
+            f'<span class="radar-counter pc-count"></span>'
+            f'{nav_labels}'
             f'</div>'
         )
+        return css, html
 
     best_pct  = best_5[0]["pct"]  if best_5  else 0.0
     worst_pct = worst_5[0]["pct"] if worst_5 else 0.0
@@ -2171,10 +2212,11 @@ if perf_home:
     n1 = _radar_news_card(best_n,  best_t,  best_pct,  True)
     n2 = _radar_news_card(worst_n, worst_t, worst_pct, False)
     news_row  = f'<div class="radar-news">{n1}{n2}</div>' if (n1 or n2) else ""
-    poly_html = _radar_poly_section(_poly_pool, _pidx)
+    poly_css, poly_html = _radar_poly_section(_poly_pool)
 
     unified = (
-        f'<div class="radar-wrap"><div class="radar-card">'
+        (f'<style>{poly_css}</style>' if poly_css else "")
+        + f'<div class="radar-wrap"><div class="radar-card">'
         f'<div class="radar-header">'
         f'<div class="radar-header-left"><span class="radar-live-dot"></span>'
         f'<span class="radar-title">Radar do Dia</span></div>'
