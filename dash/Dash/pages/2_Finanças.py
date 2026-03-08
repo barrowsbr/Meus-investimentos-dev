@@ -570,40 +570,54 @@ section[data-testid="stSidebar"],
 .ic-meta  { font-size: 0.62rem; color: #64748b; margin-top: 1px; }
 .ic-val   { font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
-/* ── Tiny action buttons — × e ✎ em 2 micro-colunas lado a lado ── */
+/* ── Tiny ghost action buttons — sem borda, sem fundo, só o ícone ── */
 [data-testid="stHorizontalBlock"]:has(.par-row) {
     flex-wrap: nowrap !important;
     align-items: flex-start !important;
-    gap: 2px !important;
+    gap: 0px !important;
 }
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"] {
     min-width: 0 !important;
 }
 /* Últimas 2 colunas = micro-colunas de ação */
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) {
-    flex: 0 0 20px !important;
-    max-width: 20px !important;
+    flex: 0 0 16px !important;
+    max-width: 16px !important;
     min-width: 0 !important;
     padding: 0 !important;
+    margin: 0 !important;
 }
-/* Base dos botões de ação: invisíveis e minúsculos */
+/* Remove padding de todos os wrappers internos do Streamlit */
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) > div,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .element-container,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .stButton {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 16px !important;
+    min-width: 0 !important;
+}
+/* Reset nuclear no próprio botão — sem caixa, sem borda, só o ícone */
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .stButton > button {
-    width: 18px !important; height: 18px !important; min-height: 0 !important;
-    max-height: 18px !important; padding: 0 !important; margin: 0 !important;
-    font-size: 0.62rem !important; line-height: 1 !important;
-    background: transparent !important; border: none !important; box-shadow: none !important;
-    color: #2d3748 !important; border-radius: 3px !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
+    all: unset !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 16px !important;
+    height: 22px !important;
+    font-size: 0.62rem !important;
+    line-height: 1 !important;
+    color: rgba(71,85,105,0.35) !important;
+    cursor: pointer !important;
+    font-family: 'Outfit', sans-serif !important;
+    transition: color 0.15s ease !important;
 }
-/* × delete — fica na 2ª coluna a partir do fim */
+/* × delete hover — vermelho */
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(2) .stButton > button:hover {
     color: #f87171 !important;
-    background: rgba(248,113,113,0.10) !important;
 }
-/* ✎ edit — fica na última coluna */
+/* ✎ edit hover — índigo */
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button:hover {
-    color: #a5b4fc !important;
-    background: rgba(99,102,241,0.10) !important;
+    color: #818cf8 !important;
 }
 
 /* ── Add-form divider ── */
