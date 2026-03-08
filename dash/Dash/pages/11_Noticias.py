@@ -427,6 +427,68 @@ html, body, [class*="css"] {
     color: #f87171;
 }
 
+/* ── Polymarket Cards (Neon/Glass) ── */
+.poly-card {
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    text-decoration: none !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.3);
+    overflow: hidden;
+    position: relative;
+    color: #f8fafc;
+}
+.poly-card:hover {
+    transform: translateY(-4px);
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(34, 211, 238, 0.4);
+    box-shadow: 0 16px 40px -12px rgba(34, 211, 238, 0.25);
+}
+.poly-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+.poly-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #f1f5f9;
+}
+.poly-volume {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 6px;
+}
+.poly-volume b {
+    color: #38bdf8;
+}
+.poly-badge {
+    background: rgba(34, 211, 238, 0.1);
+    color: #22d3ee;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+.poly-odds-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 /* ── Mobile adjustments ── */
 @media (max-width: 768px) {
 
@@ -443,6 +505,8 @@ import time
 from datetime import datetime, timezone
 
 import streamlit as st
+
+render_fab()
 
 # ── Funções cacheadas ──────────────────────────────────────────────────────
 
@@ -594,44 +658,6 @@ def _news_card(item: dict, ticker: str) -> str:
         </div>
     </a>"""
 
-def _polymarket_card(market: dict) -> str:
-    title = html.escape(market.get("question", "Mercado sem título"))
-    url = html.escape(market.get("url", "#"))
-    category = html.escape(market.get("category", "Geral"))
-    volume_usd = market.get("volume_usd", 0)
-    outcomes = market.get("outcomes", [])
-
-    volume_str = f"${volume_usd:,.0f}" if volume_usd else "N/A"
-
-    odds_html = ""
-    for i, outcome in enumerate(outcomes):
-        name = html.escape(outcome.get("name", "N/A"))
-        price = outcome.get("price", 0)
-        probability = price * 100
-        bar_width = f"{probability:.1f}%"
-        odd_class = "secondary" if i > 0 else "" # Highlight the first outcome
-
-        odds_html += f"""
-        <div class="poly-odd-row {odd_class}">
-            <div class="poly-odd-bar" style="width: {bar_width};"></div>
-            <span class="poly-odd-name">{name}</span>
-            <span class="poly-odd-value">{probability:.1f}%</span>
-        </div>
-        """
-
-    return f"""
-    <a class="poly-card" href="{url}" target="_blank" rel="noopener noreferrer">
-        <div class="poly-header">
-            <div class="poly-title">{title}</div>
-            <span class="poly-badge">{category}</span>
-        </div>
-        <div class="poly-volume">Volume: {volume_str}</div>
-        <div class="poly-odds-container">
-            {odds_html}
-        </div>
-    </a>
-    """
-
 
 def _skeleton_grid(n: int = 6) -> str:
     cards = ""
@@ -713,11 +739,11 @@ else:
 
     # Read tab query param to auto-select tab
     _tab_param = st.query_params.get('tab', '0')
-    _tab_names = ["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit"]
-    tab_feed, tab_group, tab_reddit = st.tabs(_tab_names)
+    _tab_names = ["📅 Cronológico", "🏷️ Por ticker", "🤖 Reddit", "📊 Polymarket"]
+    tab_feed, tab_group, tab_reddit, tab_poly = st.tabs(_tab_names)
 
     # Auto-click the right tab via JS if tab param is set
-    if _tab_param in ('1', '2'):
+    if _tab_param in ('1', '2', '3'):
         import streamlit.components.v1 as components
         components.html(f"""
         <script>
@@ -1005,8 +1031,12 @@ else:
                 for ev in events:
                     title = html.escape(ev["title"])
                     url = html.escape(ev["url"])
-                    vol = ev["volume"]
                     
+                    try:
+                        vol = float(ev.get("volume", 0) or 0)
+                    except ValueError:
+                        vol = 0
+                        
                     if vol >= 1_000_000:
                         vol_str = f"${vol/1_000_000:.1f}M"
                     elif vol >= 1_000:
@@ -1020,31 +1050,18 @@ else:
                         pct = odd["percent"]
                         # Make first green/cyan, second red/orange
                         row_class = "secondary" if i == 1 and len(ev["odds"]) == 2 else ""
+                        odds_html += f'<div class="poly-odd-row {row_class}"><div class="poly-odd-bar" style="width: {pct}%;"></div><div class="poly-odd-name">{name}</div><div class="poly-odd-value">{pct:.1f}%</div></div>'
                         
-                        odds_html += f"""
-                        <div class="poly-odd-row {row_class}">
-                            <div class="poly-odd-bar" style="width: {pct}%;"></div>
-                            <div class="poly-odd-name">{name}</div>
-                            <div class="poly-odd-value">{pct:.1f}%</div>
-                        </div>
-                        """
-                        
-                    cards_html += f"""
-                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card">
-                        <div class="poly-header">
-                            <div>
-                                <div class="poly-title">{title}</div>
-                                <div class="poly-volume">Volume apostado: <b>{vol_str}</b></div>
-                            </div>
-                            <span class="poly-badge">Live</span>
-                        </div>
-                        <div class="poly-odds-container">
-                            {odds_html}
-                        </div>
-                    </a>
-                    """
+                    cards_html += (
+                        f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card">'
+                        f'<div class="poly-header"><div style="flex: 1;"><div class="poly-title">{title}</div>'
+                        f'<div class="poly-volume">Volume apostado: <b>{vol_str}</b></div></div>'
+                        f'<span class="poly-badge">Live</span></div>'
+                        f'<div class="poly-odds-container">{odds_html}</div></a>'
+                    )
                 
-                st.markdown(cards_html + "</div>", unsafe_allow_html=True)
+                # Single markdown injection using raw HTML inline wrapper without newlines
+                st.markdown(f'<div class="news-grid">{cards_html}</div>', unsafe_allow_html=True)
 
 # ── Rodapé ─────────────────────────────────────────────────────────────────
 st.markdown("""

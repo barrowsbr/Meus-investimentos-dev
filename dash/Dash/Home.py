@@ -16,8 +16,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+@st.cache_resource
+def get_intro_state():
+    return {"played": False}
+
+intro_state = get_intro_state()
+
 # --- CACHE REFRESH LOGIC ---
 if st.query_params.get("refresh") == "1":
+    intro_state["played"] = False
     st.cache_data.clear()
     st.query_params.clear()
     st.rerun()
@@ -34,77 +41,89 @@ def get_logo_base64():
 
 logo_b64 = get_logo_base64()
 
-# --- LOAD VIDEO FOR PRELOADER ---
-def get_video_base64():
-    """Load video as base64 for preloader."""
-    try:
-        video_path = Path(__file__).parent / "assets" / "videos" / "Abertura de logo.mp4"
-        with open(video_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except:
-        return None
+# --- PRELOADER LOGIC (Play only once per app load) ---
+if not intro_state["played"]:
+    intro_state["played"] = True
+    
+    def get_video_base64():
+        """Load video as base64 for preloader."""
+        try:
+            video_path = Path(__file__).parent / "assets" / "videos" / "Abertura de logo.mp4"
+            with open(video_path, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+        except:
+            return None
 
-video_b64 = get_video_base64()
+    video_b64 = get_video_base64()
+    video_html = f'<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>' if video_b64 else '<div class="preloader-spinner"></div>'
 
-video_html = f'<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>' if video_b64 else '<div class="preloader-spinner"></div>'
+    st.markdown(f"""
+    <style>
+    /* PRELOADER - Cobre tudo durante carregamento */
+    .preloader-overlay {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #0b1120;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        pointer-events: none;
+        animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
+    }}
+    .preloader-overlay::after {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(11, 17, 32, 0.45);
+        z-index: 2;
+    }}
+    .preloader-video {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        opacity: 0.5;
+        z-index: 1;
+    }}
+    .preloader-spinner {{
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255,255,255,0.1);
+        border-top-color: #a5b4fc;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }}
+    @keyframes spin {{
+        to {{ transform: rotate(360deg); }}
+    }}
+    @keyframes fadeOutPreloader {{
+        to {{ opacity: 0; visibility: hidden; }}
+    }}
+    </style>
+    <div class="preloader-overlay" id="preloader-overlay">{video_html}</div>
+    """, unsafe_allow_html=True)
+else:
+    # Minimal empty preloader styles if already played to avoid breaking anything
+    st.markdown("""
+    <style>
+    .preloader-overlay, .preloader-video { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
-st.markdown(f"""
+st.markdown("""
 <meta name="theme-color" content="#0b1120" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<style>
-/* PRELOADER - Cobre tudo durante carregamento */
-.preloader-overlay {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #0b1120;
-    z-index: 999999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    pointer-events: none;
-    animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
-}}
-.preloader-overlay::after {{
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(11, 17, 32, 0.45);
-    z-index: 2;
-}}
-.preloader-video {{
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    object-fit: cover;
-    opacity: 0.5;
-    z-index: 1;
-}}
-.preloader-spinner {{
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: #a5b4fc;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}}
-@keyframes spin {{
-    to {{ transform: rotate(360deg); }}
-}}
-@keyframes fadeOutPreloader {{
-    to {{ opacity: 0; visibility: hidden; }}
-}}
-</style>
-<div class="preloader-overlay" id="preloader-overlay">{video_html}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -1625,6 +1644,7 @@ dolar_change = 0.0
 if not df_assets.empty:
     df_rv = df_assets[df_assets['ticker'].notna()]
     tickers = df_rv['ticker'].unique().tolist()
+    
     if 'BRL=X' not in tickers:
         tickers.append('BRL=X')
 
@@ -1660,15 +1680,13 @@ if not df_assets.empty:
 
 # === STEP 3: UPDATE METRICS WITH ACTUAL DATA ===
 rv_class = "positive" if rv_day_gain >= 0 else "negative"
-dolar_class = "positive" if dolar_change >= 0 else "negative"
 rv_value = format_decimal_br(rv_day_gain, 2)
 rv_pct = format_decimal_br(rv_day_pct, 2)
-dolar_value = format_decimal_br(dolar_val, 3)
-dolar_pct = format_decimal_br(dolar_var, 2)
 rv_sign = "+" if rv_day_gain >= 0 else ""
+
+dolar_class = "positive" if dolar_change >= 0 else "negative"
 dolar_sign = "+" if dolar_change >= 0 else ""
 
-# Update the placeholder with real data
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
     <div class="metrics-box">
@@ -1682,10 +1700,10 @@ metrics_placeholder.markdown(f"""
     </div>
     <div class="metrics-box">
         <div class="metric-item">
-            <div class="metric-item-label">Dólar (USD)</div>
+            <div class="metric-item-label">Dólar Dia</div>
             <div class="metric-item-value">
-                R$ {dolar_value}
-                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{dolar_pct}%)</span>
+                R$ {format_decimal_br(dolar_val, 2)}
+                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{format_decimal_br(dolar_var, 2)}%)</span>
             </div>
         </div>
     </div>
