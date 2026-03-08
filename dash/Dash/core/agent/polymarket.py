@@ -95,9 +95,76 @@ def _days_remaining(end_date_str: str) -> Optional[int]:
         return None
 
 
+_BINARY_LABELS = {"yes", "no", "sim", "não", "nao"}
+
+
+def _parse_json_field(raw: str) -> list:
+    """Safely parse a JSON-encoded list field from the API."""
+    try:
+        return json.loads(raw) if raw else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _label_from_market(m: dict) -> str:
+    """
+    Best short label for one sub-market inside a categorical event.
+    Priority: groupItemTitle → first non-binary outcome name → question (trimmed).
+    """
+    label = (m.get("groupItemTitle") or "").strip()
+    if label:
+        return label
+
+    outcomes = _parse_json_field(m.get("outcomes", "[]"))
+    for o in outcomes:
+        if o.strip().lower() not in _BINARY_LABELS:
+            return o.strip()
+
+    q = (m.get("question") or "").strip().rstrip("?")
+    for prefix in ("Will ", "Does ", "Is ", "Can ", "Has ", "Did ", "Do "):
+        if q.startswith(prefix):
+            q = q[len(prefix):]
+            break
+    return q[:50] if q else ""
+
+
+def _yes_price(m: dict) -> Optional[float]:
+    """
+    Return the 'Yes' implied probability (0-1) for a binary sub-market.
+    Prefers the outcome explicitly labelled Yes/Sim; falls back to index 0.
+    """
+    outcomes = _parse_json_field(m.get("outcomes", "[]"))
+    prices   = _parse_json_field(m.get("outcomePrices", "[]"))
+    if not outcomes or not prices:
+        return None
+
+    # Find the index of the "Yes" / "Sim" outcome
+    yes_idx = next(
+        (i for i, o in enumerate(outcomes) if o.strip().lower() in ("yes", "sim")),
+        0,
+    )
+    try:
+        pv = float(prices[yes_idx])
+        return pv if 0.0 < pv < 1.0 else None
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
 def fetch_polymarket_events(limit: int = 60) -> list[dict]:
     """
     Fetches active, non-closed market prediction events from Polymarket.
+
+    Handles two event shapes from the Gamma API:
+
+    1. **Single-market** (binary or scalar): the market itself carries
+       `outcomes` + `outcomePrices` with all answer options — read them directly.
+
+    2. **Multi-market categorical**: the event has N sub-markets, each
+       representing ONE possible outcome (e.g. each presidential candidate).
+       Every sub-market is internally binary (Yes/No).  We extract the
+       "Yes" price from each sub-market and use `groupItemTitle` as the
+       outcome label.  This is the case that previously showed only "Yes/No".
+
     Returns cleaned list sorted by volume descending.
     """
     url = f"{_POLYMARKET_GAMMA_API}?limit={limit}&active=true&closed=false"
@@ -115,54 +182,69 @@ def fetch_polymarket_events(limit: int = 60) -> list[dict]:
         if not markets:
             continue
 
-        # Aggregate volume across all markets in the event
-        total_volume = 0.0
-        for m in markets:
-            try:
-                total_volume += float(m.get("volume") or 0)
-            except (ValueError, TypeError):
-                pass
-
-        # Use the market with the highest volume as primary
-        primary_market = max(
-            markets,
-            key=lambda m: float(m.get("volume") or 0),
-            default=markets[0],
+        # Total volume across all sub-markets
+        total_volume = sum(
+            float(m.get("volume") or 0) for m in markets
+            if m.get("volume") is not None
         )
 
-        try:
-            outcomes = json.loads(primary_market.get("outcomes", "[]"))
-            prices = json.loads(primary_market.get("outcomePrices", "[]"))
-        except (json.JSONDecodeError, TypeError):
-            outcomes, prices = [], []
+        odds: list[dict] = []
 
-        odds = []
-        for out, price_str in zip(outcomes, prices):
-            try:
-                pv = float(price_str)
-                if 0.0 < pv < 1.0:  # skip resolved/degenerate edges
-                    odds.append({"outcome": out, "price": pv, "percent": round(pv * 100, 1)})
-            except (ValueError, TypeError):
-                continue
+        if len(markets) == 1:
+            # ── Single-market event ────────────────────────────────────────
+            # The market may have 2+ outcomes listed directly (e.g. Yes/No,
+            # or a range of scalar outcomes).
+            m        = markets[0]
+            outcomes = _parse_json_field(m.get("outcomes", "[]"))
+            prices   = _parse_json_field(m.get("outcomePrices", "[]"))
+            for out, price_str in zip(outcomes, prices):
+                try:
+                    pv = float(price_str)
+                    if 0.0 < pv < 1.0:
+                        odds.append({
+                            "outcome": out,
+                            "price":   pv,
+                            "percent": round(pv * 100, 1),
+                        })
+                except (ValueError, TypeError):
+                    continue
+
+        else:
+            # ── Multi-market categorical event ─────────────────────────────
+            # Each sub-market = one possible outcome; its "Yes" probability
+            # is that outcome's implied probability.
+            for m in markets:
+                label = _label_from_market(m)
+                if not label:
+                    continue
+                pv = _yes_price(m)
+                if pv is None:
+                    continue
+                odds.append({
+                    "outcome": label,
+                    "price":   pv,
+                    "percent": round(pv * 100, 1),
+                })
 
         odds.sort(key=lambda x: x["percent"], reverse=True)
         if not odds:
             continue
 
         end_date_str = event.get("endDate", "")
-        days_left = _days_remaining(end_date_str)
+        days_left    = _days_remaining(end_date_str)
 
         processed.append({
-            "id": event.get("id"),
-            "title": event.get("title", "Unknown Event"),
+            "id":          event.get("id"),
+            "title":       event.get("title", "Unknown Event"),
             "description": event.get("description", ""),
-            "slug": event.get("slug", ""),
-            "url": f"https://polymarket.com/event/{event.get('slug', '')}",
-            "volume": total_volume,
-            "end_date": end_date_str,
-            "days_left": days_left,
-            "odds": odds,
-            "is_binary": len(odds) == 2,
+            "slug":        event.get("slug", ""),
+            "url":         f"https://polymarket.com/event/{event.get('slug', '')}",
+            "volume":      total_volume,
+            "end_date":    end_date_str,
+            "days_left":   days_left,
+            "odds":        odds,
+            # is_binary kept for backward compat; True only when exactly 2 options
+            "is_binary":   len(odds) == 2,
         })
 
     processed.sort(key=lambda x: x["volume"], reverse=True)
