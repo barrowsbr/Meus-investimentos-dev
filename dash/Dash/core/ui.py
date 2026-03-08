@@ -83,7 +83,10 @@ def render_fab():
     }}
 
     .nav-ghost {{
-        display: none;
+        visibility: hidden;
+        pointer-events: none;
+        width: 44px;
+        flex-shrink: 0;
     }}
 
     .nav-item {{
@@ -206,9 +209,10 @@ def render_fab():
     }}
     </style>
 
-    <!-- Barra unificada: Home | Gemini | Extras | Reload | ghost | ghost -->
+    <!-- Barra: ghost | Home | Gemini | Extras | Reload | Config | ghost -->
     <nav class="bottom-nav">
         <div class="nav-items">
+            <span class="nav-ghost" aria-hidden="true"></span>
             <a href="./" target="_self" class="nav-item" title="Home">
                 <span class="nav-icon">🏠</span>
                 <span class="nav-label">Home</span>
@@ -225,7 +229,10 @@ def render_fab():
                 <span class="nav-icon">↻</span>
                 <span class="nav-label">Reload</span>
             </a>
-            <span class="nav-ghost" aria-hidden="true"></span>
+            <a href="Ferramentas" target="_self" class="nav-item" title="Configurações">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Config</span>
+            </a>
             <span class="nav-ghost" aria-hidden="true"></span>
         </div>
     </nav>
