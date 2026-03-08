@@ -570,45 +570,51 @@ section[data-testid="stSidebar"],
 .ic-meta  { font-size: 0.62rem; color: #64748b; margin-top: 1px; }
 .ic-val   { font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
-/* ── Tiny ghost action buttons (class injetada via JS) ── */
-.st-action-row {
+/* ── Força todas as colunas a ficarem na mesma linha ── */
+[data-testid="stHorizontalBlock"] {
     flex-wrap: nowrap !important;
     align-items: center !important;
-    overflow: hidden !important;
 }
-.st-action-row > [data-testid="stColumn"] {
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
     min-width: 0 !important;
 }
-[data-testid="stColumn"].st-action-col {
+
+/* ── Ghost buttons nas últimas 2 colunas de blocos com 3+ colunas ── */
+[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) {
+    flex-shrink: 0 !important;
     padding-left: 2px !important;
     padding-right: 0 !important;
-    flex-shrink: 0 !important;
 }
-[data-testid="stColumn"].st-action-col > div {
+[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton,
+[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .element-container {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 0 !important;
-}
-[data-testid="stColumn"].st-action-col .element-container {
     margin: 0 !important;
 }
-[data-testid="stColumn"].st-action-col .stButton > button {
-    all: unset !important;
+[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton > button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: rgba(100,116,139,0.4) !important;
+    font-size: 0.78rem !important;
+    padding: 0 4px !important;
+    cursor: pointer !important;
+    font-family: 'Outfit', sans-serif !important;
+    transition: color 0.15s !important;
+    width: 100% !important;
+    height: 36px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 100% !important;
-    height: 36px !important;
-    font-size: 0.75rem !important;
-    line-height: 1 !important;
-    color: rgba(71,85,105,0.35) !important;
-    cursor: pointer !important;
-    font-family: 'Outfit', sans-serif !important;
-    transition: color 0.15s ease !important;
-    -webkit-font-smoothing: antialiased !important;
+    border-radius: 0 !important;
+    outline: none !important;
 }
-[data-testid="stColumn"].st-del-col .stButton > button:hover {
+[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton > button:hover {
     color: #f87171 !important;
 }
-[data-testid="stColumn"].st-edit-col .stButton > button:hover {
+[data-testid="stColumn"]:nth-last-child(-n+1):nth-child(n+2) .stButton > button:hover {
     color: #818cf8 !important;
 }
 
@@ -671,27 +677,6 @@ section[data-testid="stSidebar"],
     .fh-t        { font-size: 1.6rem; }
 }
 </style>
-<script>
-(function() {
-    function tagActionCols() {
-        document.querySelectorAll('[data-testid="stHorizontalBlock"]').forEach(function(block) {
-            if (block.querySelector('.par-row')) {
-                block.classList.add('st-action-row');
-                var cols = block.querySelectorAll(':scope > [data-testid="stColumn"]');
-                var n = cols.length;
-                if (n >= 2) {
-                    cols[n-2].classList.add('st-action-col', 'st-del-col');
-                    cols[n-1].classList.add('st-action-col', 'st-edit-col');
-                }
-            }
-        });
-    }
-    tagActionCols();
-    new MutationObserver(tagActionCols).observe(
-        document.documentElement, {childList: true, subtree: true}
-    );
-})();
-</script>
 """, unsafe_allow_html=True)
 
 # ── HEADER ───────────────────────────────────────────────────────────────────
