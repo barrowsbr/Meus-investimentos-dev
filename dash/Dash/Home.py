@@ -1272,6 +1272,23 @@ label.home-ticker-wrap { cursor: pointer; }
     border-color: rgba(6,182,212,0.4);
     gap: 11px;
 }
+/* Financas expandable — gold theme overrides */
+.expandable-card.card-financas-exp:hover {
+    box-shadow: 0 20px 50px -10px rgba(222,184,135,0.2) !important;
+}
+.expandable-card.card-financas-exp:hover::before {
+    background: linear-gradient(135deg,rgba(222,184,135,0.4) 0%,rgba(188,143,95,0.2) 100%) !important;
+}
+.financas-toggle:checked ~ .expandable-card.card-financas-exp {
+    box-shadow: 0 20px 50px -10px rgba(222,184,135,0.2) !important;
+}
+.financas-toggle:checked ~ .expandable-card.card-financas-exp::before {
+    background: linear-gradient(135deg,rgba(222,184,135,0.4) 0%,rgba(188,143,95,0.2) 100%) !important;
+}
+.financas-toggle:checked ~ .expandable-card.card-financas-exp .expandable-content {
+    max-height: 400px !important;
+}
+
 /* Noticias expandable — cyan theme overrides */
 .expandable-card.card-noticias-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(6,182,212,0.2) !important;
@@ -1389,11 +1406,37 @@ st.markdown('''
     </div>
 </div>
 
-<a href="Finanças" target="_self" class="nav-card card-financas">
-    <div class="card-title"><i class="card-icon">◆</i> Finanças</div>
-    <div class="card-desc">Controle financeiro pessoal</div>
-    <span class="card-arrow">→</span>
-</a>
+<!-- Finanças Expandable Card -->
+<div class="expandable-wrapper">
+    <input type="checkbox" id="financas-toggle" class="expand-toggle financas-toggle">
+    <div class="expandable-card card-financas-exp">
+        <label for="financas-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">◆</i> Finanças</div>
+            <div class="card-desc">Controle financeiro pessoal</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div class="sub-items">
+                <a href="Finanças?tab=0" target="_self" class="sub-item">
+                    <span class="sub-item-icon">💰</span>
+                    <span class="sub-item-text">Mensal</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Finanças?tab=1" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🔄</span>
+                    <span class="sub-item-text">Assinaturas</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Finanças?tab=2" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📦</span>
+                    <span class="sub-item-text">Parcelamentos</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <a href="Editor" target="_self" class="nav-card card-editor">
     <div class="card-title"><i class="card-icon">▣</i> Editor</div>

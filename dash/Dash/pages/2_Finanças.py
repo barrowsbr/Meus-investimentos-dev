@@ -13,6 +13,7 @@ require_auth()
 
 from datetime import date, datetime
 import calendar
+import streamlit.components.v1 as components
 from core.ui import render_fab
 from core.theme import inject_global_theme, COLORS
 
@@ -579,25 +580,25 @@ section[data-testid="stSidebar"],
     min-width: 0 !important;
 }
 
-/* ── Ghost buttons nas últimas 2 colunas de blocos com 3+ colunas ── */
-[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) {
+/* ── Ghost button na última coluna (botão ×) ── */
+[data-testid="stColumn"]:last-child:not(:first-child) {
     flex-shrink: 0 !important;
     padding-left: 2px !important;
     padding-right: 0 !important;
 }
-[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton,
-[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .element-container {
+[data-testid="stColumn"]:last-child:not(:first-child) .stButton,
+[data-testid="stColumn"]:last-child:not(:first-child) .element-container {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
 }
-[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton > button {
+[data-testid="stColumn"]:last-child:not(:first-child) .stButton > button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    color: rgba(100,116,139,0.4) !important;
+    color: rgba(100,116,139,0.35) !important;
     font-size: 0.78rem !important;
     padding: 0 4px !important;
     cursor: pointer !important;
@@ -611,11 +612,8 @@ section[data-testid="stSidebar"],
     border-radius: 0 !important;
     outline: none !important;
 }
-[data-testid="stColumn"]:nth-last-child(-n+2):nth-child(n+2) .stButton > button:hover {
+[data-testid="stColumn"]:last-child:not(:first-child) .stButton > button:hover {
     color: #f87171 !important;
-}
-[data-testid="stColumn"]:nth-last-child(-n+1):nth-child(n+2) .stButton > button:hover {
-    color: #818cf8 !important;
 }
 
 /* ── Add-form divider ── */
@@ -704,16 +702,6 @@ if 'par_rows' not in st.session_state:
     st.session_state.par_rows = load_parcelamentos()
     st.session_state.par_snapshot = str(st.session_state.par_rows)
 
-if 'par_edit_idx' not in st.session_state:
-    st.session_state.par_edit_idx = None
-if 'ent_edit_idx' not in st.session_state:
-    st.session_state.ent_edit_idx = None
-if 'sai_edit_idx' not in st.session_state:
-    st.session_state.sai_edit_idx = None
-if 'car_edit_idx' not in st.session_state:
-    st.session_state.car_edit_idx = None
-if 'ass_edit_idx' not in st.session_state:
-    st.session_state.ass_edit_idx = None
 
 rows     = st.session_state.fin_rows
 ass_rows = st.session_state.ass_rows
@@ -734,7 +722,28 @@ elif not cartao_rows:
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
 
+_tab_param = st.query_params.get("tab", "0")
+try:
+    _tab_index = int(_tab_param)
+except Exception:
+    _tab_index = 0
+
 tab_mensal, tab_ass, tab_par = st.tabs(["💰  Mensal", "🔄  Assinaturas", "📦  Parcelamentos"])
+
+if _tab_index > 0:
+    components.html(f"""
+    <script>
+        function selectTab() {{
+            const tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+            if (tabs && tabs.length > {_tab_index}) {{
+                tabs[{_tab_index}].click();
+            }} else {{
+                setTimeout(selectTab, 100);
+            }}
+        }}
+        setTimeout(selectTab, 300);
+    </script>
+    """, height=0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MENSAL
@@ -754,44 +763,19 @@ with tab_mensal:
         to_rm_ent = None
         for i, r in enumerate(entradas_list):
             row_idx = rows.index(r)
-            if st.session_state.ent_edit_idx == row_idx:
-                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
-                ee1, ee2 = st.columns([5, 4])
-                with ee1:
-                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
-                    new_en = st.text_input("Nome", value=r['nome'], key=f"een{i}", label_visibility="collapsed")
-                with ee2:
-                    st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
-                    new_ev = st.number_input("Valor", value=r['valor'], min_value=0.0, step=100.0, format="%.2f", key=f"eev{i}", label_visibility="collapsed")
-                ec1, ec2 = st.columns(2)
-                with ec1:
-                    if st.button("✓ Salvar", key=f"eesv{i}"):
-                        rows[row_idx]['nome'] = new_en
-                        rows[row_idx]['valor'] = float(new_ev)
-                        st.session_state.ent_edit_idx = None
-                        st.rerun()
-                with ec2:
-                    if st.button("✕ Cancelar", key=f"eeca{i}"):
-                        st.session_state.ent_edit_idx = None
-                        st.rerun()
-            else:
-                ci, cdel, cedit = st.columns([20, 1, 1])
-                with ci:
-                    st.markdown(f'''<div class="par-row">
-                        <div class="par-nome">{r["nome"]}</div>
-                        <div class="par-info">
-                            <div class="par-prog ativa" style="color:#34d399;">{fmt(r["valor"])}</div>
-                            <div class="par-sub">entrada mensal</div>
-                        </div>
-                        <span class="par-badge ativa" style="background:rgba(52,211,153,0.10);color:#34d399;">receita</span>
-                    </div>''', unsafe_allow_html=True)
-                with cdel:
-                    if st.button("×", key=f"erm{i}", help="Remover"):
-                        to_rm_ent = row_idx
-                with cedit:
-                    if st.button("✎", key=f"eed{i}", help="Editar"):
-                        st.session_state.ent_edit_idx = row_idx
-                        st.rerun()
+            ci, cdel = st.columns([20, 1])
+            with ci:
+                st.markdown(f'''<div class="par-row">
+                    <div class="par-nome">{r["nome"]}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa" style="color:#34d399;">{fmt(r["valor"])}</div>
+                        <div class="par-sub">entrada mensal</div>
+                    </div>
+                    <span class="par-badge ativa" style="background:rgba(52,211,153,0.10);color:#34d399;">receita</span>
+                </div>''', unsafe_allow_html=True)
+            with cdel:
+                if st.button("×", key=f"erm{i}", help="Remover"):
+                    to_rm_ent = row_idx
 
         if to_rm_ent is not None:
             rows.pop(to_rm_ent)
@@ -821,44 +805,19 @@ with tab_mensal:
         to_rm = None
         for i, r in enumerate(saidas_list):
             row_idx = rows.index(r)
-            if st.session_state.sai_edit_idx == row_idx:
-                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
-                se1, se2 = st.columns([5, 4])
-                with se1:
-                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
-                    new_sn = st.text_input("Nome", value=r['nome'], key=f"sen{i}", label_visibility="collapsed")
-                with se2:
-                    st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
-                    new_sv = st.number_input("Valor", value=r['valor'], min_value=0.0, step=50.0, format="%.2f", key=f"sev{i}", label_visibility="collapsed")
-                sc1, sc2 = st.columns(2)
-                with sc1:
-                    if st.button("✓ Salvar", key=f"sesv{i}"):
-                        rows[row_idx]['nome'] = new_sn
-                        rows[row_idx]['valor'] = float(new_sv)
-                        st.session_state.sai_edit_idx = None
-                        st.rerun()
-                with sc2:
-                    if st.button("✕ Cancelar", key=f"seca{i}"):
-                        st.session_state.sai_edit_idx = None
-                        st.rerun()
-            else:
-                si, sdel, sedit = st.columns([20, 1, 1])
-                with si:
-                    st.markdown(f'''<div class="par-row">
-                        <div class="par-nome">{r["nome"]}</div>
-                        <div class="par-info">
-                            <div class="par-prog ativa" style="color:#f87171;">{fmt(r["valor"])}</div>
-                            <div class="par-sub">conta fixa</div>
-                        </div>
-                        <span class="par-badge" style="background:rgba(248,113,113,0.10);color:#f87171;">fixo</span>
-                    </div>''', unsafe_allow_html=True)
-                with sdel:
-                    if st.button("×", key=f"sr{i}", help="Remover"):
-                        to_rm = row_idx
-                with sedit:
-                    if st.button("✎", key=f"sed{i}", help="Editar"):
-                        st.session_state.sai_edit_idx = row_idx
-                        st.rerun()
+            si, sdel = st.columns([20, 1])
+            with si:
+                st.markdown(f'''<div class="par-row">
+                    <div class="par-nome">{r["nome"]}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa" style="color:#f87171;">{fmt(r["valor"])}</div>
+                        <div class="par-sub">conta fixa</div>
+                    </div>
+                    <span class="par-badge" style="background:rgba(248,113,113,0.10);color:#f87171;">fixo</span>
+                </div>''', unsafe_allow_html=True)
+            with sdel:
+                if st.button("×", key=f"sr{i}", help="Remover"):
+                    to_rm = row_idx
 
         if to_rm is not None:
             rows.pop(to_rm)
@@ -888,44 +847,19 @@ with tab_mensal:
         to_rm_car = None
         for i, cr in enumerate(cartao_list):
             ci_idx = rows.index(cr)
-            if st.session_state.car_edit_idx == ci_idx:
-                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{cr["nome"]}</strong></div></div>', unsafe_allow_html=True)
-                ce1, ce2 = st.columns([5, 4])
-                with ce1:
-                    st.markdown('<div class="f-label">Nome do cartão</div>', unsafe_allow_html=True)
-                    new_cn = st.text_input("Nome", value=cr['nome'], key=f"cen{i}", label_visibility="collapsed")
-                with ce2:
-                    st.markdown('<div class="f-label">Fatura (R$)</div>', unsafe_allow_html=True)
-                    new_cv = st.number_input("Fatura", value=cr['valor'], min_value=0.0, step=100.0, format="%.2f", key=f"cev{i}", label_visibility="collapsed")
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    if st.button("✓ Salvar", key=f"cesv{i}"):
-                        rows[ci_idx]['nome'] = new_cn
-                        rows[ci_idx]['valor'] = float(new_cv)
-                        st.session_state.car_edit_idx = None
-                        st.rerun()
-                with cc2:
-                    if st.button("✕ Cancelar", key=f"ceca{i}"):
-                        st.session_state.car_edit_idx = None
-                        st.rerun()
-            else:
-                col_ci, col_cdel, col_cedit = st.columns([20, 1, 1])
-                with col_ci:
-                    st.markdown(f'''<div class="par-row">
-                        <div class="par-nome">{card_chip(cr["nome"])}</div>
-                        <div class="par-info">
-                            <div class="par-prog ativa" style="color:#fbbf24;">{fmt(cr["valor"])}</div>
-                            <div class="par-sub">fatura mensal</div>
-                        </div>
-                        <span class="par-badge" style="background:rgba(251,191,36,0.10);color:#fbbf24;">cartão</span>
-                    </div>''', unsafe_allow_html=True)
-                with col_cdel:
-                    if st.button("×", key=f"crm{i}", help="Remover cartão"):
-                        to_rm_car = ci_idx
-                with col_cedit:
-                    if st.button("✎", key=f"ced{i}", help="Editar"):
-                        st.session_state.car_edit_idx = ci_idx
-                        st.rerun()
+            col_ci, col_cdel = st.columns([20, 1])
+            with col_ci:
+                st.markdown(f'''<div class="par-row">
+                    <div class="par-nome">{card_chip(cr["nome"])}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa" style="color:#fbbf24;">{fmt(cr["valor"])}</div>
+                        <div class="par-sub">fatura mensal</div>
+                    </div>
+                    <span class="par-badge" style="background:rgba(251,191,36,0.10);color:#fbbf24;">cartão</span>
+                </div>''', unsafe_allow_html=True)
+            with col_cdel:
+                if st.button("×", key=f"crm{i}", help="Remover cartão"):
+                    to_rm_car = ci_idx
 
         if to_rm_car is not None:
             rows.pop(to_rm_car)
@@ -1029,49 +963,20 @@ with tab_ass:
         to_rm_ass = None
         for ii, idx in enumerate(ass_ativas_idx):
             r = ass_rows[idx]
-            if st.session_state.ass_edit_idx == idx:
-                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
-                ae1, ae2, ae3 = st.columns([5, 3, 2])
-                with ae1:
-                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
-                    new_an = st.text_input("Nome", value=r['nome'], key=f"aen{ii}", label_visibility="collapsed")
-                with ae2:
-                    st.markdown('<div class="f-label">Valor/mês (R$)</div>', unsafe_allow_html=True)
-                    new_av = st.number_input("Valor", value=float(r['valor']), min_value=0.0, step=10.0, format="%.2f", key=f"aev{ii}", label_visibility="collapsed")
-                with ae3:
-                    st.markdown('<div class="f-label">Dia venc.</div>', unsafe_allow_html=True)
-                    new_ad = st.number_input("Dia", value=int(r.get('dia', 0) or 0), min_value=0, max_value=31, step=1, key=f"aed{ii}", label_visibility="collapsed")
-                ac1, ac2 = st.columns(2)
-                with ac1:
-                    if st.button("✓ Salvar", key=f"aesv{ii}"):
-                        ass_rows[idx]['nome'] = new_an
-                        ass_rows[idx]['valor'] = float(new_av)
-                        ass_rows[idx]['dia'] = int(new_ad)
-                        st.session_state.ass_edit_idx = None
-                        st.rerun()
-                with ac2:
-                    if st.button("✕ Cancelar", key=f"aeca{ii}"):
-                        st.session_state.ass_edit_idx = None
-                        st.rerun()
-            else:
-                dia_str = f" · vence dia {r['dia']}" if r.get('dia', 0) else ""
-                col_ai, col_adel, col_aedit = st.columns([20, 1, 1])
-                with col_ai:
-                    st.markdown(f'''<div class="par-row">
-                        <div class="par-nome">{r["nome"]}</div>
-                        <div class="par-info">
-                            <div class="par-prog ativa" style="color:#22d3ee;">{fmt(r["valor"])}/mês</div>
-                            <div class="par-sub">assinatura{dia_str}</div>
-                        </div>
-                        <span class="par-badge ativa" style="background:rgba(34,211,238,0.10);color:#22d3ee;">ativa</span>
-                    </div>''', unsafe_allow_html=True)
-                with col_adel:
-                    if st.button("×", key=f"asr{ii}", help="Remover"):
-                        to_rm_ass = idx
-                with col_aedit:
-                    if st.button("✎", key=f"aed_btn{ii}", help="Editar"):
-                        st.session_state.ass_edit_idx = idx
-                        st.rerun()
+            dia_str = f" · vence dia {r['dia']}" if r.get('dia', 0) else ""
+            col_ai, col_adel = st.columns([20, 1])
+            with col_ai:
+                st.markdown(f'''<div class="par-row">
+                    <div class="par-nome">{r["nome"]}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa" style="color:#22d3ee;">{fmt(r["valor"])}/mês</div>
+                        <div class="par-sub">assinatura{dia_str}</div>
+                    </div>
+                    <span class="par-badge ativa" style="background:rgba(34,211,238,0.10);color:#22d3ee;">ativa</span>
+                </div>''', unsafe_allow_html=True)
+            with col_adel:
+                if st.button("×", key=f"asr{ii}", help="Remover"):
+                    to_rm_ass = idx
 
         if to_rm_ass is not None:
             ass_rows.pop(to_rm_ass)
@@ -1104,7 +1009,7 @@ with tab_ass:
             to_rm_inativa = None
             for ii, idx in enumerate(ass_inativas_idx):
                 r = ass_rows[idx]
-                col_iai, col_idel, _ = st.columns([20, 1, 1])
+                col_iai, col_idel = st.columns([20, 1])
                 with col_iai:
                     st.markdown(f'''<div class="par-row">
                         <div class="par-nome" style="color:#374151;">{r["nome"]}</div>
@@ -1163,62 +1068,24 @@ with tab_par:
         for orig_idx in ativos_idx:
             p = par_calc[orig_idx]
 
-            if st.session_state.par_edit_idx == orig_idx:
-                # ── inline edit form
-                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">✏️ Editando: <strong style="color:#e2e8f0;">{p["nome"]}</strong></div></div>', unsafe_allow_html=True)
-                ec1, ec2, ec3, ec4 = st.columns([4, 3, 2, 2])
-                with ec1:
-                    st.markdown('<div class="f-label">Nome da compra</div>', unsafe_allow_html=True)
-                    edit_nome = st.text_input("Nome", value=p['nome'], key=f"en_{orig_idx}", label_visibility="collapsed")
-                with ec2:
-                    st.markdown('<div class="f-label">Data da compra</div>', unsafe_allow_html=True)
-                    try:
-                        edit_dt_val = datetime.strptime(p['data_compra'], '%d/%m/%Y').date()
-                    except Exception:
-                        edit_dt_val = date.today()
-                    edit_data = st.date_input("Data", value=edit_dt_val, key=f"ed_{orig_idx}", label_visibility="collapsed", format="DD/MM/YYYY")
-                with ec3:
-                    st.markdown('<div class="f-label">Valor total (R$)</div>', unsafe_allow_html=True)
-                    edit_total = st.number_input("Total", value=float(p['valor_total']), min_value=0.0, step=100.0, format="%.2f", key=f"et_{orig_idx}", label_visibility="collapsed")
-                with ec4:
-                    st.markdown('<div class="f-label">Nº parcelas</div>', unsafe_allow_html=True)
-                    edit_parc = st.number_input("Parcelas", value=int(p['parcelas']), min_value=1, max_value=60, step=1, key=f"ep_{orig_idx}", label_visibility="collapsed")
-                sv_col, ca_col = st.columns(2)
-                with sv_col:
-                    if st.button("✓ Salvar", key=f"esv_{orig_idx}"):
-                        par_rows[orig_idx]['nome'] = edit_nome
-                        par_rows[orig_idx]['valor_total'] = float(edit_total)
-                        par_rows[orig_idx]['parcelas'] = int(edit_parc)
-                        par_rows[orig_idx]['data_compra'] = edit_data.strftime('%d/%m/%Y')
-                        st.session_state.par_edit_idx = None
-                        st.rerun()
-                with ca_col:
-                    if st.button("✕ Cancelar", key=f"eca_{orig_idx}"):
-                        st.session_state.par_edit_idx = None
-                        st.rerun()
-            else:
-                prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
-                rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
-                col_pcard, col_pdel, col_pedit = st.columns([20, 1, 1])
-                with col_pcard:
-                    st.markdown(f"""
-                    <div class="par-row">
-                        <div class="par-nome">{p['nome']}</div>
-                        <div class="par-info">
-                            <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
-                            <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
-                            <div class="par-date">compra em {p['data_compra']}</div>
-                        </div>
-                        <span class="par-badge ativa">ativa</span>
+            prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
+            rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
+            col_pcard, col_pdel = st.columns([20, 1])
+            with col_pcard:
+                st.markdown(f"""
+                <div class="par-row">
+                    <div class="par-nome">{p['nome']}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
+                        <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
+                        <div class="par-date">compra em {p['data_compra']}</div>
                     </div>
-                    """, unsafe_allow_html=True)
-                with col_pdel:
-                    if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
-                        to_rm_par = orig_idx
-                with col_pedit:
-                    if st.button("✎", key=f"ped_{orig_idx}", help=f"Editar {p['nome']}"):
-                        st.session_state.par_edit_idx = orig_idx
-                        st.rerun()
+                    <span class="par-badge ativa">ativa</span>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_pdel:
+                if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
+                    to_rm_par = orig_idx
 
         if to_rm_par is not None:
             par_rows.pop(to_rm_par)
