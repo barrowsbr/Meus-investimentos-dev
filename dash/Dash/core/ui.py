@@ -44,7 +44,7 @@ def render_fab():
     <style>
     /* Espaço para conteúdo não ficar atrás da barra inferior */
     .block-container {{
-        padding-bottom: 56px !important;
+        padding-bottom: 64px !important;
     }}
 
     /* ===== BARRA UNIFICADA – cor exata do botão "Manage App" ===== */
@@ -58,40 +58,27 @@ def render_fab():
         display: flex;
         flex-direction: row;
         align-items: stretch;
-        background: rgba(14, 17, 23, 0.95);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-top: 1px solid rgba(99, 102, 241, 0.15);
+        background: rgba(14, 17, 23, 0.97);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-top: 1px solid rgba(255, 255, 255, 0.10);
         border-radius: 0;
         z-index: 99999;
         padding: 0;
         box-shadow:
-            0 -6px 30px rgba(0, 0, 0, 0.5),
-            0 -2px 15px rgba(99, 102, 241, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            inset 0 1px 20px rgba(99, 102, 241, 0.03);
+            0 -4px 24px rgba(0, 0, 0, 0.55),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }}
 
-    /* Área dos botões: ocupa tudo menos o espaço do Manage App */
+    /* Área dos botões — desktop: Manage App ~160px */
     .nav-items {{
         display: flex;
         flex-direction: row;
         align-items: center;
         justify-content: space-around;
-        width: calc(100% - 150px);
+        width: calc(100% - 160px);
         height: 100%;
         flex-shrink: 0;
-    }}
-
-    /* Separador visual entre nossos botões e o Manage App */
-    .nav-items::after {{
-        content: '';
-        position: absolute;
-        right: 150px;
-        top: 25%;
-        height: 50%;
-        width: 1px;
-        background: rgba(255, 255, 255, 0.08);
     }}
 
     .nav-item {{
@@ -153,46 +140,25 @@ def render_fab():
         transform: none !important;
     }}
 
-    @media (max-width: 768px) {{
+    @media (max-width: 600px) {{
         .bottom-nav {{
             height: 44px;
         }}
         .nav-items {{
-            width: calc(100% - 145px);
-        }}
-        .nav-items::after {{
-            right: 145px;
+            width: calc(100% - 120px);
         }}
         .nav-item {{
-            padding: 3px 1px;
-            gap: 1px;
+            padding: 4px 2px;
         }}
         .nav-icon {{
-            font-size: 0.9rem;
-            height: 16px;
-        }}
-        .nav-label {{
-            font-size: 0.46rem;
-            letter-spacing: 0;
-        }}
-        .nav-sep {{
+            font-size: 0.95rem;
             height: 18px;
         }}
-    }}
-
-    @media (max-width: 400px) {{
-        .nav-items {{
-            width: calc(100% - 135px);
-        }}
-        .nav-items::after {{
-            right: 135px;
-        }}
-        .nav-icon {{
-            font-size: 0.85rem;
-            height: 15px;
-        }}
         .nav-label {{
-            font-size: 0.42rem;
+            font-size: 0.5rem;
+        }}
+        .nav-sep {{
+            height: 20px;
         }}
     }}
 
@@ -203,12 +169,12 @@ def render_fab():
             padding-bottom: env(safe-area-inset-bottom);
         }}
         .block-container {{
-            padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+            padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
         }}
     }}
     </style>
 
-    <!-- Barra unificada: Home | Gemini | Extras | Reload | Config  |  Manage App -->
+    <!-- Barra unificada: Home | Gemini | Extras | sep | Reload | Config -->
     <nav class="bottom-nav">
         <div class="nav-items">
             <a href="./" target="_self" class="nav-item" title="Home">
