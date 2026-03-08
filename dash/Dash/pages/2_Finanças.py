@@ -570,53 +570,46 @@ section[data-testid="stSidebar"],
 .ic-meta  { font-size: 0.62rem; color: #64748b; margin-top: 1px; }
 .ic-val   { font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
-/* ── Tiny ghost action buttons — sem borda, sem fundo, só o ícone ── */
-[data-testid="stHorizontalBlock"]:has(.par-row) {
+/* ── Tiny ghost action buttons (class injetada via JS) ── */
+.st-action-row {
     flex-wrap: nowrap !important;
     align-items: flex-start !important;
-    gap: 0px !important;
+    gap: 0 !important;
 }
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"] {
-    min-width: 0 !important;
-}
-/* Últimas 2 colunas = micro-colunas de ação */
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) {
+[data-testid="stColumn"].st-action-col {
     flex: 0 0 16px !important;
     max-width: 16px !important;
     min-width: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
 }
-/* Remove padding de todos os wrappers internos do Streamlit */
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) > div,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .element-container,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .stButton {
+[data-testid="stColumn"].st-action-col > div,
+[data-testid="stColumn"].st-action-col .element-container,
+[data-testid="stColumn"].st-action-col .stButton {
     padding: 0 !important;
     margin: 0 !important;
     width: 16px !important;
     min-width: 0 !important;
 }
-/* Reset nuclear no próprio botão — sem caixa, sem borda, só o ícone */
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .stButton > button {
+[data-testid="stColumn"].st-action-col .stButton > button {
     all: unset !important;
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     width: 16px !important;
     height: 22px !important;
-    font-size: 0.62rem !important;
+    font-size: 0.6rem !important;
     line-height: 1 !important;
-    color: rgba(71,85,105,0.35) !important;
+    color: rgba(71,85,105,0.28) !important;
     cursor: pointer !important;
     font-family: 'Outfit', sans-serif !important;
     transition: color 0.15s ease !important;
+    -webkit-font-smoothing: antialiased !important;
 }
-/* × delete hover — vermelho */
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(2) .stButton > button:hover {
+[data-testid="stColumn"].st-del-col .stButton > button:hover {
     color: #f87171 !important;
 }
-/* ✎ edit hover — índigo */
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button:hover {
+[data-testid="stColumn"].st-edit-col .stButton > button:hover {
     color: #818cf8 !important;
 }
 
@@ -679,6 +672,27 @@ section[data-testid="stSidebar"],
     .fh-t        { font-size: 1.6rem; }
 }
 </style>
+<script>
+(function() {
+    function tagActionCols() {
+        document.querySelectorAll('[data-testid="stHorizontalBlock"]').forEach(function(block) {
+            if (block.querySelector('.par-row')) {
+                block.classList.add('st-action-row');
+                var cols = block.querySelectorAll(':scope > [data-testid="stColumn"]');
+                var n = cols.length;
+                if (n >= 2) {
+                    cols[n-2].classList.add('st-action-col', 'st-del-col');
+                    cols[n-1].classList.add('st-action-col', 'st-edit-col');
+                }
+            }
+        });
+    }
+    tagActionCols();
+    new MutationObserver(tagActionCols).observe(
+        document.documentElement, {childList: true, subtree: true}
+    );
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ── HEADER ───────────────────────────────────────────────────────────────────
