@@ -1492,6 +1492,38 @@ st.markdown("""
     color: #38bdf8;
     letter-spacing: 0.3px;
 }
+/* Navigation row below card */
+.poly-insight-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 4px 2px;
+}
+.poly-insight-counter {
+    font-size: 0.66rem;
+    color: #334155;
+    letter-spacing: 0.5px;
+}
+.poly-next-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #475569 !important;
+    text-decoration: none !important;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.03);
+    transition: all 0.2s ease;
+    letter-spacing: 0.3px;
+}
+.poly-next-btn:hover {
+    color: #38bdf8 !important;
+    border-color: rgba(56,189,248,0.25);
+    background: rgba(56,189,248,0.06);
+}
 @media (max-width: 768px) {
     .poly-insight-wrap { padding: 0 12px; }
 }
@@ -1528,6 +1560,7 @@ metrics_placeholder.markdown("""
 # --- SPACER & DYNAMIC HIGHLIGHTS PLACEHOLDER ---
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 highlights_placeholder = st.empty()
+poly_insight_placeholder = st.empty()   # filled after data loads
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
@@ -1782,87 +1815,6 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
-
-# --- POLYMARKET INSIGHT CARD ---
-@st.cache_data(ttl=900, show_spinner=False)
-def _get_poly_insight_pool(_bucket: int) -> list[dict]:
-    """Busca pool de eventos do Polymarket (cache 15 min)."""
-    try:
-        events = fetch_polymarket_events(limit=60)
-        filtered = []
-        for ev in events:
-            text = (ev["title"] + " " + ev["description"]).lower()
-            if any(kw in text for kw in _CRYPTO_KW):
-                continue
-            if ev.get("volume", 0) < 10_000:
-                continue
-            if not ev.get("odds"):
-                continue
-            filtered.append(ev)
-        return filtered
-    except Exception:
-        return []
-
-_poly_bucket = int(time.time() // 900)
-_poly_pool = _get_poly_insight_pool(_poly_bucket)
-
-if _poly_pool:
-    _rng = random.Random(_poly_bucket)
-    _ev = _rng.choice(_poly_pool)
-
-    _title = _ev["title"]
-    _url   = _ev["url"]
-    _odds  = _ev.get("odds", [])
-    _vol   = _ev.get("volume", 0.0) or 0.0
-    _days  = _ev.get("days_left")
-
-    if _vol >= 1_000_000:
-        _vol_str = f"${_vol/1_000_000:.1f}M"
-    elif _vol >= 1_000:
-        _vol_str = f"${_vol/1_000:.0f}k"
-    else:
-        _vol_str = f"${_vol:.0f}"
-
-    _resolve_str = ""
-    if _days is not None:
-        if _days == 0:
-            _resolve_str = " · resolve hoje"
-        elif _days <= 7:
-            _resolve_str = f" · {_days}d restantes"
-        else:
-            _resolve_str = f" · resolve em {_days}d"
-
-    _bars_html = ""
-    for i, odd in enumerate(_odds[:3]):
-        _cls = "leader" if i == 0 else "trailer"
-        import html as _html
-        _name = _html.escape(odd["outcome"][:38])
-        _pct  = odd["percent"]
-        _bars_html += (
-            f'<div class="poly-insight-bar-row">'
-            f'<div class="poly-insight-bar-fill {_cls}" style="width:{_pct}%;"></div>'
-            f'<div class="poly-insight-bar-name">{_name}</div>'
-            f'<div class="poly-insight-bar-pct {_cls}">{_pct:.0f}%</div>'
-            f'</div>'
-        )
-
-    import html as _html
-    st.markdown(f'''
-<div class="poly-insight-wrap">
-<a href="{_html.escape(_url)}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
-    <div class="poly-insight-header">
-        <span class="poly-insight-label">📊 Mercado Preditivo</span>
-        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
-    </div>
-    <div class="poly-insight-question">{_html.escape(_title)}</div>
-    <div class="poly-insight-bars">{_bars_html}</div>
-    <div class="poly-insight-footer">
-        <span class="poly-insight-meta">Vol <b>{_vol_str}</b>{_html.escape(_resolve_str)}</span>
-        <span class="poly-insight-cta">Ver mercado →</span>
-    </div>
-</a>
-</div>
-''', unsafe_allow_html=True)
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
@@ -2201,5 +2153,101 @@ if perf_home:
 
 else:
     ticker_placeholder.empty()
+
+# --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_poly_insight_pool(_bucket: int) -> list[dict]:
+    """Pool de eventos do Polymarket sem crypto, filtrada por volume mínimo (cache 15 min)."""
+    try:
+        events = fetch_polymarket_events(limit=60)
+        filtered = []
+        for ev in events:
+            text = (ev["title"] + " " + ev["description"]).lower()
+            if any(kw in text for kw in _CRYPTO_KW):
+                continue
+            if (ev.get("volume") or 0) < 10_000:
+                continue
+            if not ev.get("odds"):
+                continue
+            filtered.append(ev)
+        return filtered
+    except Exception:
+        return []
+
+def _render_poly_insight(pool: list[dict], pidx: int) -> str:
+    """Monta o HTML do card com base no índice atual."""
+    import html as _h
+    ev    = pool[pidx % len(pool)]
+    title = _h.escape(ev["title"])
+    url   = _h.escape(ev["url"])
+    odds  = ev.get("odds", [])
+    vol   = ev.get("volume") or 0.0
+    days  = ev.get("days_left")
+
+    vol_str = (
+        f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
+        else f"${vol/1_000:.0f}k" if vol >= 1_000
+        else f"${vol:.0f}"
+    )
+
+    if days is None:
+        resolve_str = ""
+    elif days == 0:
+        resolve_str = " · resolve hoje"
+    elif days <= 7:
+        resolve_str = f" · ⏳ {days}d restantes"
+    else:
+        resolve_str = f" · resolve em {days}d"
+
+    bars_html = ""
+    for i, odd in enumerate(odds[:3]):
+        cls  = "leader" if i == 0 else "trailer"
+        name = _h.escape(odd["outcome"][:38])
+        pct  = odd["percent"]
+        bars_html += (
+            f'<div class="poly-insight-bar-row">'
+            f'<div class="poly-insight-bar-fill {cls}" style="width:{pct}%;"></div>'
+            f'<div class="poly-insight-bar-name">{name}</div>'
+            f'<div class="poly-insight-bar-pct {cls}">{pct:.0f}%</div>'
+            f'</div>'
+        )
+
+    next_pidx = pidx + 1
+    total     = len(pool)
+    counter   = f"{(pidx % total) + 1}/{total}"
+
+    return f'''<div class="poly-insight-wrap">
+<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
+    <div class="poly-insight-header">
+        <span class="poly-insight-label">📊 Mercado Preditivo</span>
+        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
+    </div>
+    <div class="poly-insight-question">{title}</div>
+    <div class="poly-insight-bars">{bars_html}</div>
+    <div class="poly-insight-footer">
+        <span class="poly-insight-meta">Vol <b>{vol_str}</b>{_h.escape(resolve_str)}</span>
+        <span class="poly-insight-cta">Ver mercado →</span>
+    </div>
+</a>
+<div class="poly-insight-nav">
+    <span class="poly-insight-counter">{counter}</span>
+    <a href="?pidx={next_pidx}" class="poly-next-btn" title="Ver próximo mercado">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        Próximo
+    </a>
+</div>
+</div>'''
+
+_poly_bucket = int(time.time() // 900)
+_poly_pool   = _get_poly_insight_pool(_poly_bucket)
+
+if _poly_pool:
+    _pidx = int(st.query_params.get("pidx", "0"))
+    poly_insight_placeholder.markdown(
+        _render_poly_insight(_poly_pool, _pidx),
+        unsafe_allow_html=True,
+    )
 
 # --- FOOTER SECTION REMOVED FROM HERE ---
