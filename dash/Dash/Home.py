@@ -22,9 +22,9 @@ if st.query_params.get("refresh") == "1":
     st.query_params.clear()
     st.rerun()
 
-# --- LOAD LOGO FOR PRELOADER ---
+# --- LOAD LOGO FOR HERO SECTION ---
 def get_logo_base64():
-    """Load logo image as base64 for preloader."""
+    """Load logo image as base64 for the main hero section."""
     try:
         logo_path = Path(__file__).parent / "assets" / "logos" / "carregamento.png"
         with open(logo_path, "rb") as f:
@@ -34,7 +34,19 @@ def get_logo_base64():
 
 logo_b64 = get_logo_base64()
 
-logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="preloader-logo" />' if logo_b64 else '<div class="preloader-spinner"></div>'
+# --- LOAD VIDEO FOR PRELOADER ---
+def get_video_base64():
+    """Load video as base64 for preloader."""
+    try:
+        video_path = Path(__file__).parent / "assets" / "videos" / "Abertura de logo.mp4"
+        with open(video_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+video_b64 = get_video_base64()
+
+video_html = f'<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>' if video_b64 else '<div class="preloader-spinner"></div>'
 
 # --- META TAGS FOR MOBILE (Theme Color) ---
 st.markdown(f"""
@@ -55,14 +67,14 @@ st.markdown(f"""
     justify-content: center;
     flex-direction: column;
     pointer-events: none;
-    animation: fadeOutPreloader 0.5s ease-out 3s forwards;
+    animation: fadeOutPreloader 1.2s ease-in-out 7s forwards;
 }}
-.preloader-logo {{
-    width: 190px;
-    height: auto;
+.preloader-video {{
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
     background: transparent;
     border: none;
-    animation: pulseLogo 1.5s ease-in-out infinite;
 }}
 .preloader-spinner {{
     width: 40px;
@@ -75,15 +87,11 @@ st.markdown(f"""
 @keyframes spin {{
     to {{ transform: rotate(360deg); }}
 }}
-@keyframes pulseLogo {{
-    0%, 100% {{ opacity: 0.7; transform: scale(1); }}
-    50% {{ opacity: 1; transform: scale(1.05); }}
-}}
 @keyframes fadeOutPreloader {{
     to {{ opacity: 0; visibility: hidden; }}
 }}
 </style>
-<div class="preloader-overlay">{logo_html}</div>
+<div class="preloader-overlay" id="preloader-overlay">{video_html}</div>
 """, unsafe_allow_html=True)
 
 # --- JS INJECTION TO REMOVE TOOLBAR (Aggressive) ---
@@ -1001,6 +1009,7 @@ st.markdown("""
 .metrics-container {
     display: flex;
     justify-content: center;
+    gap: 20px;
     margin-top: -80px;
     position: relative;
     z-index: 100;
@@ -1012,11 +1021,12 @@ st.markdown("""
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 20px;
-    padding: 25px 40px;
+    padding: 20px 30px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 40px;
+    flex: 1;
+    max-width: 280px;
     box-shadow: 0 15px 50px rgba(0,0,0,0.4), inset 0 0 30px rgba(255,255,255,0.02);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1058,27 +1068,30 @@ st.markdown("""
 }
 
 @media (max-width: 768px) {
-    .metrics-container { margin-top: -60px; }
+    .metrics-container { 
+        margin-top: -60px; 
+        gap: 12px;
+        flex-direction: row;
+        padding: 0 15px;
+    }
     .metrics-box {
-        flex-direction: column;
-        gap: 15px;
-        padding: 25px 40px;
+        padding: 15px 12px;
         width: 100%;
-        max-width: 500px;
+        max-width: 50%;
     }
     .metric-divider {
-        width: 60%;
-        height: 1px;
+        display: none;
     }
     .metric-item-value {
-        font-size: 1.3rem;
+        font-size: 1.15rem;
         white-space: nowrap;
     }
     .metric-item-change {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
     .metric-item-label {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        margin-bottom: 4px;
     }
 }
 
@@ -1324,7 +1337,8 @@ metrics_placeholder.markdown("""
             <div class="metric-item-label">Renda Variável (Hoje)</div>
             <div class="metric-item-value skeleton-pulse">R$ ---.--</div>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
             <div class="metric-item-value skeleton-pulse">R$ --.---</div>
@@ -1532,7 +1546,8 @@ metrics_placeholder.markdown(f"""
                 <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
             </div>
         </div>
-        <div class="metric-divider"></div>
+    </div>
+    <div class="metrics-box">
         <div class="metric-item">
             <div class="metric-item-label">Dólar (USD)</div>
             <div class="metric-item-value">

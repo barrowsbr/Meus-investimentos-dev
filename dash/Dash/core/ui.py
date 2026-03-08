@@ -520,7 +520,7 @@ def render_view_mode_selector(current_mode: str) -> str:
     " id="card-money">
         <div class="view-mode-check">✓</div>
         <div class="view-mode-icon">💰</div>
-        <div class="view-mode-title">Meu Dinheiro</div>
+        <div class="view-mode-title">Meu Custo</div>
         <p class="view-mode-desc">Seu preço médio de remessas — retorno real do capital em BRL</p>
     </div>
 </div>
