@@ -1360,7 +1360,9 @@ metrics_placeholder.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- SPACER ---
+# --- SPACER & DYNAMIC HIGHLIGHTS PLACEHOLDER ---
+st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
+highlights_placeholder = st.empty()
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
@@ -1467,11 +1469,37 @@ st.markdown('''
     <span class="card-arrow">→</span>
 </a>
 
-<a href="Noticias" target="_self" class="nav-card card-noticias">
-    <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
-    <div class="card-desc">Mercado, portfólio e tendências do dia</div>
-    <span class="card-arrow">→</span>
-</a>
+<!-- Notícias Expandable Card -->
+<div class="expandable-wrapper">
+    <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
+    <div class="expandable-card card-noticias-exp">
+        <label for="noticias-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+            <div class="card-desc">Mercado, portfólio e tendências do dia</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div class="sub-items">
+                <a href="Noticias?tab=0" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📅</span>
+                    <span class="sub-item-text">Cronológico</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=1" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🏷️</span>
+                    <span class="sub-item-text">Por ticker</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=2" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🤖</span>
+                    <span class="sub-item-text">Reddit</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 </div>
 ''', unsafe_allow_html=True)
@@ -1674,6 +1702,145 @@ if perf_home:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+    # --- NOVIDADE: CARDS DE DESTAQUE (Melhor / Pior) ---
+    from core.agent.news_fetcher import fetch_news_combined
+    
+    best_t = best_5[0]["ticker"] if best_5 else None
+    worst_t = worst_5[0]["ticker"] if worst_5 else None
+    
+    # We fetch a slightly higher maximum limit to try to hit one with an image if possible, but keep the first
+    best_news = fetch_news_combined(best_t, max_items=2) if best_t else []
+    worst_news = fetch_news_combined(worst_t, max_items=2) if worst_t else []
+    
+    # Prefererably pick the one with an image
+    best_n = next((n for n in best_news if n.get("imagem")), best_news[0] if best_news else None)
+    worst_n = next((n for n in worst_news if n.get("imagem")), worst_news[0] if worst_news else None)
+    
+    highlights_html = ""
+    
+    if best_n or worst_n:
+        import html
+        def _build_highlight_card(news_item, ticker, label, is_best):
+            if not news_item:
+                return "<div></div>"
+            img_url = news_item.get("imagem", "")
+            title = html.escape(news_item.get("titulo", "Sem título")[:100]) + "..."
+            link = html.escape(news_item.get("link", "#"))
+            fonte = html.escape(news_item.get("fonte", "Notícia"))
+            
+            border_col = "rgba(52, 211, 153, 0.8)" if is_best else "rgba(248, 113, 113, 0.8)"
+            shadow_col = "rgba(52, 211, 153, 0.35)" if is_best else "rgba(248, 113, 113, 0.35)"
+            bg_grad = f"linear-gradient(to top, rgba(15, 23, 42, 0.95) 10%, rgba(15, 23, 42, 0.6) 60%, rgba(15, 23, 42, 0.3) 100%)"
+            
+            bg_style = f"background-image: {bg_grad}, url('{img_url}'); background-size: cover; background-position: center;" if img_url else f"background: rgba(30, 41, 59, 0.5);"
+            
+            return f'''
+<a href="{link}" target="_blank" rel="noopener noreferrer" class="highlight-news-card" style="border-left: 4px solid {border_col}; --hover-shadow: {shadow_col};">
+    <div class="highlight-bg" style="{bg_style}"></div>
+    <div class="highlight-content">
+        <div class="highlight-label" style="color: {border_col};">{label} - {ticker}</div>
+        <div class="highlight-title">{title}</div>
+        <div class="highlight-footer">
+            <span class="highlight-source">{fonte}</span>
+            <span class="highlight-read">Ler →</span>
+        </div>
+    </div>
+</a>
+'''
+
+        st.markdown("""
+        <style>
+        .highlights-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            max-width: 580px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .highlight-news-card {
+            position: relative;
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 140px;
+            text-decoration: none !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 16px -4px rgba(0,0,0,0.4);
+        }
+        .highlight-bg {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1;
+            transition: transform 0.5s ease;
+        }
+        .highlight-content {
+            position: relative;
+            z-index: 2;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .highlight-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .highlight-title {
+            color: #f8fafc;
+            font-size: 0.85rem;
+            font-weight: 700;
+            line-height: 1.4;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .highlight-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            opacity: 0.8;
+            color: #cbd5e1;
+        }
+        .highlight-news-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px -5px var(--hover-shadow);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .highlight-news-card:hover .highlight-bg {
+            transform: scale(1.05);
+        }
+        .highlight-news-card:hover .highlight-footer {
+            opacity: 1;
+        }
+        .highlight-read { color: #38bdf8; }
+        @media (max-width: 768px) {
+            .highlights-container { grid-template-columns: 1fr; gap: 12px; padding: 0 15px; }
+            .highlight-news-card { min-height: 120px; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        c1 = _build_highlight_card(best_n, _clean(best_t) if best_t else "", "Maior Alta", True) if best_n else ""
+        c2 = _build_highlight_card(worst_n, _clean(worst_t) if worst_t else "", "Maior Queda", False) if worst_n else ""
+        
+        highlights_placeholder.markdown(f'<div class="highlights-container">{c1}{c2}</div>', unsafe_allow_html=True)
+
 else:
     ticker_placeholder.empty()
 
