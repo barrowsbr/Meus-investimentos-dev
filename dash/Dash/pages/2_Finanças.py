@@ -570,46 +570,40 @@ section[data-testid="stSidebar"],
 .ic-meta  { font-size: 0.62rem; color: #64748b; margin-top: 1px; }
 .ic-val   { font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
-/* ── Tiny action buttons — columns that contain .ic or .par-row ── */
-[data-testid="stHorizontalBlock"]:has(.ic),
+/* ── Tiny action buttons — × e ✎ em 2 micro-colunas lado a lado ── */
 [data-testid="stHorizontalBlock"]:has(.par-row) {
     flex-wrap: nowrap !important;
     align-items: flex-start !important;
-    gap: 6px !important;
+    gap: 2px !important;
 }
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"],
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"] {
     min-width: 0 !important;
 }
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child {
-    flex: 0 0 26px !important;
-    max-width: 26px !important;
+/* Últimas 2 colunas = micro-colunas de ação */
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) {
+    flex: 0 0 20px !important;
+    max-width: 20px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
 }
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton > button,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button {
-    width: 22px !important; height: 22px !important; min-height: 22px !important;
-    padding: 0 !important; font-size: 0.65rem !important;
-    background: rgba(255,255,255,0.04) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    color: #4b5563 !important; border-radius: 5px !important;
-    display: block !important; line-height: 20px !important;
-    text-align: center !important; margin-bottom: 3px !important;
+/* Base dos botões de ação: invisíveis e minúsculos */
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(-n+2) .stButton > button {
+    width: 18px !important; height: 18px !important; min-height: 0 !important;
+    max-height: 18px !important; padding: 0 !important; margin: 0 !important;
+    font-size: 0.62rem !important; line-height: 1 !important;
+    background: transparent !important; border: none !important; box-shadow: none !important;
+    color: #2d3748 !important; border-radius: 3px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
 }
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton > button:hover,
+/* × delete — fica na 2ª coluna a partir do fim */
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:nth-last-child(2) .stButton > button:hover {
+    color: #f87171 !important;
+    background: rgba(248,113,113,0.10) !important;
+}
+/* ✎ edit — fica na última coluna */
 [data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button:hover {
-    background: rgba(248,113,113,0.1) !important;
-    border-color: rgba(248,113,113,0.25) !important; color: #f87171 !important;
-}
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button {
-    background: rgba(99,102,241,0.06) !important;
-    border-color: rgba(99,102,241,0.12) !important; color: #6366f1 !important;
-}
-[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button:hover,
-[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button:hover {
-    background: rgba(99,102,241,0.14) !important;
-    border-color: rgba(99,102,241,0.3) !important; color: #a5b4fc !important;
+    color: #a5b4fc !important;
+    background: rgba(99,102,241,0.10) !important;
 }
 
 /* ── Add-form divider ── */
@@ -769,12 +763,20 @@ with tab_mensal:
                         st.session_state.ent_edit_idx = None
                         st.rerun()
             else:
-                ci, cb = st.columns([20, 1])
+                ci, cdel, cedit = st.columns([20, 1, 1])
                 with ci:
-                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span></div><span class="ic-val" style="color:#34d399">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
-                with cb:
+                    st.markdown(f'''<div class="par-row">
+                        <div class="par-nome">{r["nome"]}</div>
+                        <div class="par-info">
+                            <div class="par-prog ativa" style="color:#34d399;">{fmt(r["valor"])}</div>
+                            <div class="par-sub">entrada mensal</div>
+                        </div>
+                        <span class="par-badge ativa" style="background:rgba(52,211,153,0.10);color:#34d399;">receita</span>
+                    </div>''', unsafe_allow_html=True)
+                with cdel:
                     if st.button("×", key=f"erm{i}", help="Remover"):
                         to_rm_ent = row_idx
+                with cedit:
                     if st.button("✎", key=f"eed{i}", help="Editar"):
                         st.session_state.ent_edit_idx = row_idx
                         st.rerun()
@@ -828,12 +830,20 @@ with tab_mensal:
                         st.session_state.sai_edit_idx = None
                         st.rerun()
             else:
-                si, sb = st.columns([20, 1])
+                si, sdel, sedit = st.columns([20, 1, 1])
                 with si:
-                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span></div><span class="ic-val" style="color:#f87171">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
-                with sb:
+                    st.markdown(f'''<div class="par-row">
+                        <div class="par-nome">{r["nome"]}</div>
+                        <div class="par-info">
+                            <div class="par-prog ativa" style="color:#f87171;">{fmt(r["valor"])}</div>
+                            <div class="par-sub">conta fixa</div>
+                        </div>
+                        <span class="par-badge" style="background:rgba(248,113,113,0.10);color:#f87171;">fixo</span>
+                    </div>''', unsafe_allow_html=True)
+                with sdel:
                     if st.button("×", key=f"sr{i}", help="Remover"):
                         to_rm = row_idx
+                with sedit:
                     if st.button("✎", key=f"sed{i}", help="Editar"):
                         st.session_state.sai_edit_idx = row_idx
                         st.rerun()
@@ -887,12 +897,20 @@ with tab_mensal:
                         st.session_state.car_edit_idx = None
                         st.rerun()
             else:
-                col_ci, col_cb = st.columns([20, 1])
+                col_ci, col_cdel, col_cedit = st.columns([20, 1, 1])
                 with col_ci:
-                    st.markdown(f'<div class="ic"><div class="ic-left">{card_chip(cr["nome"])}</div><span class="ic-val" style="color:#fbbf24">{fmt(cr["valor"])}</span></div>', unsafe_allow_html=True)
-                with col_cb:
+                    st.markdown(f'''<div class="par-row">
+                        <div class="par-nome">{card_chip(cr["nome"])}</div>
+                        <div class="par-info">
+                            <div class="par-prog ativa" style="color:#fbbf24;">{fmt(cr["valor"])}</div>
+                            <div class="par-sub">fatura mensal</div>
+                        </div>
+                        <span class="par-badge" style="background:rgba(251,191,36,0.10);color:#fbbf24;">cartão</span>
+                    </div>''', unsafe_allow_html=True)
+                with col_cdel:
                     if st.button("×", key=f"crm{i}", help="Remover cartão"):
                         to_rm_car = ci_idx
+                with col_cedit:
                     if st.button("✎", key=f"ced{i}", help="Editar"):
                         st.session_state.car_edit_idx = ci_idx
                         st.rerun()
@@ -1024,13 +1042,21 @@ with tab_ass:
                         st.session_state.ass_edit_idx = None
                         st.rerun()
             else:
-                dia_str = f" · dia {r['dia']}" if r.get('dia', 0) else ""
-                col_ai, col_ab = st.columns([20, 1])
+                dia_str = f" · vence dia {r['dia']}" if r.get('dia', 0) else ""
+                col_ai, col_adel, col_aedit = st.columns([20, 1, 1])
                 with col_ai:
-                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span><span class="ic-meta">{fmt(r["valor"])}/mês{dia_str}</span></div><span class="ic-val" style="color:#22d3ee">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
-                with col_ab:
+                    st.markdown(f'''<div class="par-row">
+                        <div class="par-nome">{r["nome"]}</div>
+                        <div class="par-info">
+                            <div class="par-prog ativa" style="color:#22d3ee;">{fmt(r["valor"])}/mês</div>
+                            <div class="par-sub">assinatura{dia_str}</div>
+                        </div>
+                        <span class="par-badge ativa" style="background:rgba(34,211,238,0.10);color:#22d3ee;">ativa</span>
+                    </div>''', unsafe_allow_html=True)
+                with col_adel:
                     if st.button("×", key=f"asr{ii}", help="Remover"):
                         to_rm_ass = idx
+                with col_aedit:
                     if st.button("✎", key=f"aed_btn{ii}", help="Editar"):
                         st.session_state.ass_edit_idx = idx
                         st.rerun()
@@ -1066,10 +1092,17 @@ with tab_ass:
             to_rm_inativa = None
             for ii, idx in enumerate(ass_inativas_idx):
                 r = ass_rows[idx]
-                col_iai, col_iab = st.columns([20, 1])
+                col_iai, col_idel, _ = st.columns([20, 1, 1])
                 with col_iai:
-                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name" style="color:#475569;">{r["nome"]}</span><span class="ic-meta">{fmt(r["valor"])}/mês</span></div><span class="ic-val" style="color:#374151;">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
-                with col_iab:
+                    st.markdown(f'''<div class="par-row">
+                        <div class="par-nome" style="color:#374151;">{r["nome"]}</div>
+                        <div class="par-info">
+                            <div class="par-prog" style="color:#374151;">{fmt(r["valor"])}/mês</div>
+                            <div class="par-sub">pausada</div>
+                        </div>
+                        <span class="par-badge" style="background:rgba(71,85,105,0.10);color:#475569;">inativa</span>
+                    </div>''', unsafe_allow_html=True)
+                with col_idel:
                     if st.button("×", key=f"iasr{ii}", help="Remover"):
                         to_rm_inativa = idx
 
@@ -1154,7 +1187,7 @@ with tab_par:
             else:
                 prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
                 rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
-                col_pcard, col_pbtns = st.columns([20, 1])
+                col_pcard, col_pdel, col_pedit = st.columns([20, 1, 1])
                 with col_pcard:
                     st.markdown(f"""
                     <div class="par-row">
@@ -1167,10 +1200,11 @@ with tab_par:
                         <span class="par-badge ativa">ativa</span>
                     </div>
                     """, unsafe_allow_html=True)
-                with col_pbtns:
+                with col_pdel:
                     if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
                         to_rm_par = orig_idx
-                    if st.button("✏", key=f"ped_{orig_idx}", help=f"Editar {p['nome']}"):
+                with col_pedit:
+                    if st.button("✎", key=f"ped_{orig_idx}", help=f"Editar {p['nome']}"):
                         st.session_state.par_edit_idx = orig_idx
                         st.rerun()
 
