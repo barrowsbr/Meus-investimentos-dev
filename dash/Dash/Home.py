@@ -1369,163 +1369,188 @@ st.markdown("""
     .ticker-expand-wrapper { padding: 0 15px; }
 }
 
-/* ── Polymarket Insight Card ── */
-.poly-insight-wrap {
+/* ── Unified Radar do Dia Card ── */
+.radar-wrap {
     max-width: 580px;
-    margin: 22px auto 0;
+    margin: 14px auto 0;
     padding: 0 20px;
     position: relative;
     z-index: 10;
 }
-.poly-insight-card {
-    display: block;
-    background: rgba(10, 15, 30, 0.72);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+.radar-card {
+    background: rgba(8,13,26,0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255,255,255,0.07);
-    border-left: 3px solid #38bdf8;
-    border-radius: 16px;
-    padding: 18px 20px 14px;
-    text-decoration: none !important;
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.35);
-    color: #f1f5f9;
-    cursor: pointer;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 14px 48px -10px rgba(0,0,0,0.55);
 }
-.poly-insight-card:hover {
-    border-left-color: #7dd3fc;
-    background: rgba(10,15,30,0.88);
-    box-shadow: 0 16px 44px -10px rgba(56,189,248,0.18);
-    transform: translateY(-2px);
-}
-.poly-insight-header {
+.radar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    padding: 11px 16px 9px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.poly-insight-label {
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: #38bdf8;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-}
-.poly-insight-live {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-}
-.poly-insight-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #22d3ee;
-    animation: pulseDot 2s ease-in-out infinite;
-}
-@keyframes pulseDot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.7); }
-}
-.poly-insight-question {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    line-height: 1.45;
-    margin-bottom: 12px;
-}
-.poly-insight-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-.poly-insight-bar-row {
-    position: relative;
+.radar-header-left {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.04);
-    overflow: hidden;
 }
-.poly-insight-bar-fill {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    border-radius: 8px;
-    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+.radar-live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #22d3ee;
+    animation: pulseDot 2s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes pulseDot {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.35; transform:scale(0.65); }
+}
+.radar-title {
+    font-size: 0.68rem; font-weight: 800;
+    letter-spacing: 1.6px; text-transform: uppercase;
+    color: #64748b;
+}
+.radar-date {
+    font-size: 0.63rem; color: #1e293b; letter-spacing: 0.3px;
+}
+/* News row */
+.radar-news {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 148px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.radar-news-card {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+}
+.radar-news-card:first-child {
+    border-right: 1px solid rgba(255,255,255,0.05);
+}
+.radar-news-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    filter: brightness(0.38) saturate(0.6);
+    transition: transform 0.5s ease, filter 0.3s ease;
     z-index: 0;
 }
-.poly-insight-bar-fill.leader { background: rgba(34,211,238,0.16); }
-.poly-insight-bar-fill.trailer { background: rgba(248,113,113,0.12); }
-.poly-insight-bar-name {
-    position: relative; z-index: 1;
-    font-size: 0.78rem; color: #cbd5e1; flex: 1;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.radar-news-card:hover .radar-news-bg {
+    transform: scale(1.06); filter: brightness(0.5) saturate(0.75);
 }
-.poly-insight-bar-pct {
-    position: relative; z-index: 1;
-    font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+.radar-news-overlay {
+    position: absolute; inset: 0; z-index: 1;
 }
-.poly-insight-bar-pct.leader { color: #22d3ee; }
-.poly-insight-bar-pct.trailer { color: #f87171; }
-.poly-insight-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
+.radar-news-content {
+    position: relative; z-index: 2;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 4px;
 }
-.poly-insight-meta {
-    font-size: 0.68rem;
-    color: #475569;
+.radar-news-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 0.6rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 2px 6px; border-radius: 5px; align-self: flex-start;
 }
-.poly-insight-meta b { color: #64748b; }
-.poly-insight-cta {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #38bdf8;
-    letter-spacing: 0.3px;
+.radar-badge-up   { background:rgba(52,211,153,0.18); color:#34d399; border:1px solid rgba(52,211,153,0.28); }
+.radar-badge-down { background:rgba(248,113,113,0.18); color:#f87171; border:1px solid rgba(248,113,113,0.28); }
+.radar-news-headline {
+    font-size: 0.76rem; font-weight: 600; color: #f1f5f9;
+    line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
-/* Navigation row below card */
-.poly-insight-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 4px 2px;
+.radar-news-source {
+    font-size: 0.6rem; color: #475569; font-weight: 500;
 }
-.poly-insight-counter {
-    font-size: 0.66rem;
-    color: #334155;
-    letter-spacing: 0.5px;
+/* Divider */
+.radar-divider {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.poly-next-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #475569 !important;
+.radar-divider-line { flex:1; height:1px; background:rgba(255,255,255,0.05); }
+.radar-divider-label {
+    font-size: 0.6rem; font-weight: 800; color: #38bdf8;
+    letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap;
+}
+/* Polymarket section (clickable) */
+.radar-poly {
+    display: block;
+    padding: 12px 16px 10px;
     text-decoration: none !important;
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.06);
-    background: rgba(255,255,255,0.03);
-    transition: all 0.2s ease;
-    letter-spacing: 0.3px;
+    color: inherit;
+    transition: background 0.2s ease;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.poly-next-btn:hover {
-    color: #38bdf8 !important;
-    border-color: rgba(56,189,248,0.25);
-    background: rgba(56,189,248,0.06);
+.radar-poly:hover { background: rgba(56,189,248,0.04); }
+.radar-poly-question {
+    font-size: 0.87rem; font-weight: 600; color: #e2e8f0;
+    line-height: 1.42; margin-bottom: 10px;
+}
+.radar-poly-bars {
+    display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;
+}
+.radar-bar-row {
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 9px; border-radius: 7px;
+    background: rgba(255,255,255,0.04); overflow: hidden;
+}
+.radar-bar-fill {
+    position: absolute; left:0; top:0; bottom:0;
+    border-radius: 7px; z-index: 0;
+    transition: width 0.55s cubic-bezier(0.4,0,0.2,1);
+}
+.radar-bar-fill.yes   { background: rgba(52,211,153,0.16); }
+.radar-bar-fill.no    { background: rgba(248,113,113,0.13); }
+.radar-bar-fill.other { background: rgba(167,139,250,0.13); }
+.radar-bar-name {
+    position:relative; z-index:1;
+    font-size:0.75rem; color:#cbd5e1; flex:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.radar-bar-pct {
+    position:relative; z-index:1;
+    font-size:0.77rem; font-weight:700; flex-shrink:0;
+}
+.radar-bar-pct.yes   { color:#34d399; }
+.radar-bar-pct.no    { color:#f87171; }
+.radar-bar-pct.other { color:#a78bfa; }
+.radar-poly-meta {
+    display:flex; justify-content:space-between;
+    font-size:0.67rem; color:#475569;
+}
+.radar-poly-meta-cta { color:#38bdf8; font-weight:600; }
+/* Nav row */
+.radar-nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 7px 16px;
+}
+.radar-counter { font-size:0.63rem; color:#1e293b; }
+.radar-next-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:0.68rem; font-weight:600;
+    color:#334155 !important; text-decoration:none !important;
+    padding:4px 12px; border-radius:20px;
+    border:1px solid rgba(255,255,255,0.05);
+    background:rgba(255,255,255,0.02);
+    transition: all 0.2s ease;
+}
+.radar-next-btn:hover {
+    color:#38bdf8 !important;
+    border-color:rgba(56,189,248,0.2);
+    background:rgba(56,189,248,0.05);
 }
 @media (max-width: 768px) {
-    .poly-insight-wrap { padding: 0 12px; }
+    .radar-wrap { padding: 0 12px; }
+    .radar-news { height: 128px; }
+    .radar-news-headline { font-size: 0.72rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1930,6 +1955,26 @@ if not df_pos.empty:
 
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
+# --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_poly_insight_pool(_bucket: int) -> list[dict]:
+    """Pool de eventos do Polymarket sem crypto, filtrada por volume mínimo (cache 15 min)."""
+    try:
+        events = fetch_polymarket_events(limit=60)
+        filtered = []
+        for ev in events:
+            text = (ev["title"] + " " + ev["description"]).lower()
+            if any(kw in text for kw in _CRYPTO_KW):
+                continue
+            if (ev.get("volume") or 0) < 10_000:
+                continue
+            if not ev.get("odds"):
+                continue
+            filtered.append(ev)
+        return filtered
+    except Exception:
+        return []
+
 if perf_home:
     def _clean(t):
         for s in ('.SA', '-USD', '-BRL', '=X'):
@@ -2153,26 +2198,6 @@ if perf_home:
 
 else:
     ticker_placeholder.empty()
-
-# --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
-@st.cache_data(ttl=900, show_spinner=False)
-def _get_poly_insight_pool(_bucket: int) -> list[dict]:
-    """Pool de eventos do Polymarket sem crypto, filtrada por volume mínimo (cache 15 min)."""
-    try:
-        events = fetch_polymarket_events(limit=60)
-        filtered = []
-        for ev in events:
-            text = (ev["title"] + " " + ev["description"]).lower()
-            if any(kw in text for kw in _CRYPTO_KW):
-                continue
-            if (ev.get("volume") or 0) < 10_000:
-                continue
-            if not ev.get("odds"):
-                continue
-            filtered.append(ev)
-        return filtered
-    except Exception:
-        return []
 
 def _render_poly_insight(pool: list[dict], pidx: int) -> str:
     """Monta o HTML do card com base no índice atual."""
