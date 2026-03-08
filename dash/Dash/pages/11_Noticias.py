@@ -28,6 +28,7 @@ from core.agent.news_fetcher import (
     time_ago,
     _parse_rss_date,
 )
+from core.agent.polymarket import get_curated_crypto_politics_markets
 from core.ui import render_fab
 
 # ── Configuração ───────────────────────────────────────────────────────────
@@ -410,13 +411,25 @@ html, body, [class*="css"] {
     font-weight: 600;
 }
 .reddit-source {
-    background: rgba(255, 69, 0, 0.1) !important;
-    border-color: rgba(255, 69, 0, 0.22) !important;
-    color: #ff6b35 !important;
+}
+.poly-odd-value {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #22d3ee;
+    z-index: 1;
+    font-variant-numeric: tabular-nums;
+}
+.poly-odd-row.secondary .poly-odd-bar {
+    background: rgba(248, 113, 113, 0.15);
+    border-right-color: #f87171;
+}
+.poly-odd-row.secondary .poly-odd-value {
+    color: #f87171;
 }
 
-/* ── Mobile ── */
+/* ── Mobile adjustments ── */
 @media (max-width: 768px) {
+
     .news-grid { grid-template-columns: 1fr; gap: 10px; }
     .news-page-title { font-size: 1.3rem; }
     .news-page-icon  { font-size: 1.6rem; }
@@ -425,8 +438,11 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-render_fab()
+import html
+import time
+from datetime import datetime, timezone
 
+import streamlit as st
 
 # ── Funções cacheadas ──────────────────────────────────────────────────────
 
@@ -489,6 +505,13 @@ def _get_reddit_news(tickers: tuple) -> dict[str, list[dict]]:
     """Busca posts do Reddit para os tickers da carteira."""
     return fetch_reddit_for_tickers(list(tickers), max_per_ticker=6, max_tickers=10)
 
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_polymarket_markets() -> list[dict]:
+    """Busca mercados do Polymarket."""
+    try:
+        return fetch_polymarket_markets()
+    except Exception:
+        return []
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -571,6 +594,44 @@ def _news_card(item: dict, ticker: str) -> str:
         </div>
     </a>"""
 
+def _polymarket_card(market: dict) -> str:
+    title = html.escape(market.get("question", "Mercado sem título"))
+    url = html.escape(market.get("url", "#"))
+    category = html.escape(market.get("category", "Geral"))
+    volume_usd = market.get("volume_usd", 0)
+    outcomes = market.get("outcomes", [])
+
+    volume_str = f"${volume_usd:,.0f}" if volume_usd else "N/A"
+
+    odds_html = ""
+    for i, outcome in enumerate(outcomes):
+        name = html.escape(outcome.get("name", "N/A"))
+        price = outcome.get("price", 0)
+        probability = price * 100
+        bar_width = f"{probability:.1f}%"
+        odd_class = "secondary" if i > 0 else "" # Highlight the first outcome
+
+        odds_html += f"""
+        <div class="poly-odd-row {odd_class}">
+            <div class="poly-odd-bar" style="width: {bar_width};"></div>
+            <span class="poly-odd-name">{name}</span>
+            <span class="poly-odd-value">{probability:.1f}%</span>
+        </div>
+        """
+
+    return f"""
+    <a class="poly-card" href="{url}" target="_blank" rel="noopener noreferrer">
+        <div class="poly-header">
+            <div class="poly-title">{title}</div>
+            <span class="poly-badge">{category}</span>
+        </div>
+        <div class="poly-volume">Volume: {volume_str}</div>
+        <div class="poly-odds-container">
+            {odds_html}
+        </div>
+    </a>
+    """
+
 
 def _skeleton_grid(n: int = 6) -> str:
     cards = ""
@@ -624,6 +685,7 @@ with col_ctrl:
         _get_news.clear()
         _get_performers.clear()
         _get_reddit_news.clear()
+        _get_polymarket_markets.clear() # Clear Polymarket cache
         st.rerun()
 
 st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
@@ -905,6 +967,84 @@ else:
                 </a>"""
             cards_html += '</div>'
             st.markdown(cards_html, unsafe_allow_html=True)
+
+    # ── Tab Polymarket ──────────────────────────────────────────────────────
+    with tab_poly:
+        st.markdown("""
+        <div style="margin-bottom:24px;">
+            <h3 style="color:#f1f5f9;margin:0 0 8px 0;">🌐 Previsões (Polymarket)</h3>
+            <p style="color:#64748b;font-size:0.85rem;margin:0;">Mercados preditivos em tempo real sobre cripto, macroeconomia e tecnologia. <br>Reflete a probabilidade implícita de eventos globais segundo apostas descentralizadas.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Cache the Polymarket fetch for 1 hour to avoid spamming the API
+        @st.cache_data(ttl=3600, show_spinner="Analisando mercados preditivos...")
+        def _get_poly_markets():
+            return get_curated_crypto_politics_markets()
+            
+        poly_data = _get_poly_markets()
+        
+        if not poly_data:
+            st.markdown("""
+            <div class="news-empty">
+                <div class="news-empty-icon">🔌</div>
+                <div class="news-empty-text">Não foi possível carregar os dados do Polymarket no momento.<br>A API pode estar instável.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for category, events in poly_data.items():
+                st.markdown(f"""
+                <div class="ticker-section-head" style="margin-top: 20px;">
+                    <span class="ticker-section-name" style="color:#38bdf8;">{category}</span>
+                    <div class="ticker-divider"></div>
+                </div>
+                <div class="news-grid">
+                """, unsafe_allow_html=True)
+                
+                cards_html = ""
+                for ev in events:
+                    title = html.escape(ev["title"])
+                    url = html.escape(ev["url"])
+                    vol = ev["volume"]
+                    
+                    if vol >= 1_000_000:
+                        vol_str = f"${vol/1_000_000:.1f}M"
+                    elif vol >= 1_000:
+                        vol_str = f"${vol/1_000:.1f}k"
+                    else:
+                        vol_str = f"${vol:.0f}"
+                        
+                    odds_html = ""
+                    for i, odd in enumerate(ev["odds"][:3]): # Show top 3 max
+                        name = html.escape(odd["outcome"])
+                        pct = odd["percent"]
+                        # Make first green/cyan, second red/orange
+                        row_class = "secondary" if i == 1 and len(ev["odds"]) == 2 else ""
+                        
+                        odds_html += f"""
+                        <div class="poly-odd-row {row_class}">
+                            <div class="poly-odd-bar" style="width: {pct}%;"></div>
+                            <div class="poly-odd-name">{name}</div>
+                            <div class="poly-odd-value">{pct:.1f}%</div>
+                        </div>
+                        """
+                        
+                    cards_html += f"""
+                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-card">
+                        <div class="poly-header">
+                            <div>
+                                <div class="poly-title">{title}</div>
+                                <div class="poly-volume">Volume apostado: <b>{vol_str}</b></div>
+                            </div>
+                            <span class="poly-badge">Live</span>
+                        </div>
+                        <div class="poly-odds-container">
+                            {odds_html}
+                        </div>
+                    </a>
+                    """
+                
+                st.markdown(cards_html + "</div>", unsafe_allow_html=True)
 
 # ── Rodapé ─────────────────────────────────────────────────────────────────
 st.markdown("""
