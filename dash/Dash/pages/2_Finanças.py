@@ -559,6 +559,59 @@ section[data-testid="stSidebar"],
 .par-badge.ativa   { background: rgba(251,191,36,0.12);  color: #fbbf24; }
 .par-badge.quitada { background: rgba(52,211,153,0.12);  color: #34d399; }
 
+/* ── Item card (compact read-only display) ── */
+.ic {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,0.03); gap: 8px;
+}
+.ic:last-of-type { border-bottom: none; }
+.ic-left  { flex: 1; min-width: 0; }
+.ic-name  { font-size: 0.82rem; font-weight: 500; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ic-meta  { font-size: 0.62rem; color: #64748b; margin-top: 1px; }
+.ic-val   { font-size: 0.85rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+
+/* ── Tiny action buttons — columns that contain .ic or .par-row ── */
+[data-testid="stHorizontalBlock"]:has(.ic),
+[data-testid="stHorizontalBlock"]:has(.par-row) {
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"],
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"] {
+    min-width: 0 !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child {
+    flex: 0 0 26px !important;
+    max-width: 26px !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton > button,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button {
+    width: 22px !important; height: 22px !important; min-height: 22px !important;
+    padding: 0 !important; font-size: 0.65rem !important;
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    color: #4b5563 !important; border-radius: 5px !important;
+    display: block !important; line-height: 20px !important;
+    text-align: center !important; margin-bottom: 3px !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton > button:hover,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton > button:hover {
+    background: rgba(248,113,113,0.1) !important;
+    border-color: rgba(248,113,113,0.25) !important; color: #f87171 !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button {
+    background: rgba(99,102,241,0.06) !important;
+    border-color: rgba(99,102,241,0.12) !important; color: #6366f1 !important;
+}
+[data-testid="stHorizontalBlock"]:has(.ic) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button:hover,
+[data-testid="stHorizontalBlock"]:has(.par-row) > [data-testid="stColumn"]:last-child .stButton:last-of-type > button:hover {
+    background: rgba(99,102,241,0.14) !important;
+    border-color: rgba(99,102,241,0.3) !important; color: #a5b4fc !important;
+}
+
 /* ── Add-form divider ── */
 .add-divider {
     margin: 14px 0 10px;
@@ -647,6 +700,14 @@ if 'par_rows' not in st.session_state:
 
 if 'par_edit_idx' not in st.session_state:
     st.session_state.par_edit_idx = None
+if 'ent_edit_idx' not in st.session_state:
+    st.session_state.ent_edit_idx = None
+if 'sai_edit_idx' not in st.session_state:
+    st.session_state.sai_edit_idx = None
+if 'car_edit_idx' not in st.session_state:
+    st.session_state.car_edit_idx = None
+if 'ass_edit_idx' not in st.session_state:
+    st.session_state.ass_edit_idx = None
 
 rows     = st.session_state.fin_rows
 ass_rows = st.session_state.ass_rows
@@ -687,21 +748,36 @@ with tab_mensal:
         to_rm_ent = None
         for i, r in enumerate(entradas_list):
             row_idx = rows.index(r)
-            ea, eb, ed = st.columns([5, 4, 1])
-            with ea:
-                st.markdown(f'<div class="f-label">{r["nome"]}</div>', unsafe_allow_html=True)
-                rows[row_idx]['valor'] = st.number_input(
-                    r["nome"], value=r["valor"], min_value=0.0,
-                    step=100.0, format="%.2f",
-                    key=f"e{i}", label_visibility="collapsed"
-                )
-            with eb:
-                rows[row_idx]['nome'] = st.text_input(
-                    f"en{i}", value=r['nome'], key=f"enm{i}", label_visibility="collapsed"
-                )
-            with ed:
-                if st.button("×", key=f"erm{i}", help="Remover"):
-                    to_rm_ent = row_idx
+            if st.session_state.ent_edit_idx == row_idx:
+                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
+                ee1, ee2 = st.columns([5, 4])
+                with ee1:
+                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+                    new_en = st.text_input("Nome", value=r['nome'], key=f"een{i}", label_visibility="collapsed")
+                with ee2:
+                    st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
+                    new_ev = st.number_input("Valor", value=r['valor'], min_value=0.0, step=100.0, format="%.2f", key=f"eev{i}", label_visibility="collapsed")
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    if st.button("✓ Salvar", key=f"eesv{i}"):
+                        rows[row_idx]['nome'] = new_en
+                        rows[row_idx]['valor'] = float(new_ev)
+                        st.session_state.ent_edit_idx = None
+                        st.rerun()
+                with ec2:
+                    if st.button("✕ Cancelar", key=f"eeca{i}"):
+                        st.session_state.ent_edit_idx = None
+                        st.rerun()
+            else:
+                ci, cb = st.columns([20, 1])
+                with ci:
+                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span></div><span class="ic-val" style="color:#34d399">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
+                with cb:
+                    if st.button("×", key=f"erm{i}", help="Remover"):
+                        to_rm_ent = row_idx
+                    if st.button("✎", key=f"eed{i}", help="Editar"):
+                        st.session_state.ent_edit_idx = row_idx
+                        st.rerun()
 
         if to_rm_ent is not None:
             rows.pop(to_rm_ent)
@@ -731,21 +807,36 @@ with tab_mensal:
         to_rm = None
         for i, r in enumerate(saidas_list):
             row_idx = rows.index(r)
-            st.markdown('<div class="saida-row">', unsafe_allow_html=True)
-            a, b, d = st.columns([5, 4, 1])
-            with a:
-                rows[row_idx]['nome'] = st.text_input(
-                    f"n{i}", value=r['nome'], key=f"sn{i}", label_visibility="collapsed"
-                )
-            with b:
-                rows[row_idx]['valor'] = st.number_input(
-                    f"v{i}", value=r['valor'], min_value=0.0, step=50.0, format="%.2f",
-                    key=f"sv{i}", label_visibility="collapsed"
-                )
-            with d:
-                if st.button("×", key=f"sr{i}", help="Remover"):
-                    to_rm = row_idx
-            st.markdown('</div>', unsafe_allow_html=True)
+            if st.session_state.sai_edit_idx == row_idx:
+                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
+                se1, se2 = st.columns([5, 4])
+                with se1:
+                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+                    new_sn = st.text_input("Nome", value=r['nome'], key=f"sen{i}", label_visibility="collapsed")
+                with se2:
+                    st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
+                    new_sv = st.number_input("Valor", value=r['valor'], min_value=0.0, step=50.0, format="%.2f", key=f"sev{i}", label_visibility="collapsed")
+                sc1, sc2 = st.columns(2)
+                with sc1:
+                    if st.button("✓ Salvar", key=f"sesv{i}"):
+                        rows[row_idx]['nome'] = new_sn
+                        rows[row_idx]['valor'] = float(new_sv)
+                        st.session_state.sai_edit_idx = None
+                        st.rerun()
+                with sc2:
+                    if st.button("✕ Cancelar", key=f"seca{i}"):
+                        st.session_state.sai_edit_idx = None
+                        st.rerun()
+            else:
+                si, sb = st.columns([20, 1])
+                with si:
+                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span></div><span class="ic-val" style="color:#f87171">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
+                with sb:
+                    if st.button("×", key=f"sr{i}", help="Remover"):
+                        to_rm = row_idx
+                    if st.button("✎", key=f"sed{i}", help="Editar"):
+                        st.session_state.sai_edit_idx = row_idx
+                        st.rerun()
 
         if to_rm is not None:
             rows.pop(to_rm)
@@ -774,21 +865,37 @@ with tab_mensal:
     with st.expander(f"💳  Cartões  ·  {fmt(t_car)}", expanded=False):
         to_rm_car = None
         for i, cr in enumerate(cartao_list):
-            ci = rows.index(cr)
-            ca, cb, cd = st.columns([5, 4, 1])
-            with ca:
-                st.markdown(card_chip(cr['nome']), unsafe_allow_html=True)
-                rows[ci]['valor'] = st.number_input(
-                    cr['nome'], value=cr['valor'], min_value=0.0,
-                    step=100.0, format="%.2f", key=f"cv{i}", label_visibility="collapsed"
-                )
-            with cb:
-                rows[ci]['nome'] = st.text_input(
-                    f"cn{i}", value=cr['nome'], key=f"cnm{i}", label_visibility="collapsed"
-                )
-            with cd:
-                if st.button("×", key=f"crm{i}", help="Remover cartão"):
-                    to_rm_car = ci
+            ci_idx = rows.index(cr)
+            if st.session_state.car_edit_idx == ci_idx:
+                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{cr["nome"]}</strong></div></div>', unsafe_allow_html=True)
+                ce1, ce2 = st.columns([5, 4])
+                with ce1:
+                    st.markdown('<div class="f-label">Nome do cartão</div>', unsafe_allow_html=True)
+                    new_cn = st.text_input("Nome", value=cr['nome'], key=f"cen{i}", label_visibility="collapsed")
+                with ce2:
+                    st.markdown('<div class="f-label">Fatura (R$)</div>', unsafe_allow_html=True)
+                    new_cv = st.number_input("Fatura", value=cr['valor'], min_value=0.0, step=100.0, format="%.2f", key=f"cev{i}", label_visibility="collapsed")
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    if st.button("✓ Salvar", key=f"cesv{i}"):
+                        rows[ci_idx]['nome'] = new_cn
+                        rows[ci_idx]['valor'] = float(new_cv)
+                        st.session_state.car_edit_idx = None
+                        st.rerun()
+                with cc2:
+                    if st.button("✕ Cancelar", key=f"ceca{i}"):
+                        st.session_state.car_edit_idx = None
+                        st.rerun()
+            else:
+                col_ci, col_cb = st.columns([20, 1])
+                with col_ci:
+                    st.markdown(f'<div class="ic"><div class="ic-left">{card_chip(cr["nome"])}</div><span class="ic-val" style="color:#fbbf24">{fmt(cr["valor"])}</span></div>', unsafe_allow_html=True)
+                with col_cb:
+                    if st.button("×", key=f"crm{i}", help="Remover cartão"):
+                        to_rm_car = ci_idx
+                    if st.button("✎", key=f"ced{i}", help="Editar"):
+                        st.session_state.car_edit_idx = ci_idx
+                        st.rerun()
 
         if to_rm_car is not None:
             rows.pop(to_rm_car)
@@ -889,38 +996,44 @@ with tab_ass:
     total_ass_mensal = sum(ass_rows[i]['valor'] for i in ass_ativas_idx)
 
     with st.expander(f"🔄  Assinaturas Ativas  ·  {fmt(total_ass_mensal)}/mês", expanded=False):
-        # Column headers
-        if ass_ativas_idx:
-            hc1, hc2, hc3, _ = st.columns([5, 3, 2, 1])
-            hc1.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
-            hc2.markdown('<div class="f-label">Valor/mês</div>', unsafe_allow_html=True)
-            hc3.markdown('<div class="f-label">Dia venc.</div>', unsafe_allow_html=True)
-
         to_rm_ass = None
         for ii, idx in enumerate(ass_ativas_idx):
             r = ass_rows[idx]
-            st.markdown('<div class="ass-row">', unsafe_allow_html=True)
-            a, b, c, d = st.columns([5, 3, 2, 1])
-            with a:
-                ass_rows[idx]['nome'] = st.text_input(
-                    f"an{ii}", value=r['nome'], key=f"assn{ii}",
-                    label_visibility="collapsed", placeholder="Nome da assinatura"
-                )
-            with b:
-                ass_rows[idx]['valor'] = st.number_input(
-                    f"av{ii}", value=float(r['valor']), min_value=0.0, step=10.0, format="%.2f",
-                    key=f"assv{ii}", label_visibility="collapsed"
-                )
-            with c:
-                ass_rows[idx]['dia'] = st.number_input(
-                    f"ad{ii}", value=int(r.get('dia', 0) or 0),
-                    min_value=0, max_value=31, step=1,
-                    key=f"assd{ii}", label_visibility="collapsed", help="0 = sem data fixa"
-                )
-            with d:
-                if st.button("×", key=f"asr{ii}", help="Remover"):
-                    to_rm_ass = idx
-            st.markdown('</div>', unsafe_allow_html=True)
+            if st.session_state.ass_edit_idx == idx:
+                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:6px;">✏️ Editando: <strong style="color:#e2e8f0;">{r["nome"]}</strong></div></div>', unsafe_allow_html=True)
+                ae1, ae2, ae3 = st.columns([5, 3, 2])
+                with ae1:
+                    st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+                    new_an = st.text_input("Nome", value=r['nome'], key=f"aen{ii}", label_visibility="collapsed")
+                with ae2:
+                    st.markdown('<div class="f-label">Valor/mês (R$)</div>', unsafe_allow_html=True)
+                    new_av = st.number_input("Valor", value=float(r['valor']), min_value=0.0, step=10.0, format="%.2f", key=f"aev{ii}", label_visibility="collapsed")
+                with ae3:
+                    st.markdown('<div class="f-label">Dia venc.</div>', unsafe_allow_html=True)
+                    new_ad = st.number_input("Dia", value=int(r.get('dia', 0) or 0), min_value=0, max_value=31, step=1, key=f"aed{ii}", label_visibility="collapsed")
+                ac1, ac2 = st.columns(2)
+                with ac1:
+                    if st.button("✓ Salvar", key=f"aesv{ii}"):
+                        ass_rows[idx]['nome'] = new_an
+                        ass_rows[idx]['valor'] = float(new_av)
+                        ass_rows[idx]['dia'] = int(new_ad)
+                        st.session_state.ass_edit_idx = None
+                        st.rerun()
+                with ac2:
+                    if st.button("✕ Cancelar", key=f"aeca{ii}"):
+                        st.session_state.ass_edit_idx = None
+                        st.rerun()
+            else:
+                dia_str = f" · dia {r['dia']}" if r.get('dia', 0) else ""
+                col_ai, col_ab = st.columns([20, 1])
+                with col_ai:
+                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name">{r["nome"]}</span><span class="ic-meta">{fmt(r["valor"])}/mês{dia_str}</span></div><span class="ic-val" style="color:#22d3ee">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
+                with col_ab:
+                    if st.button("×", key=f"asr{ii}", help="Remover"):
+                        to_rm_ass = idx
+                    if st.button("✎", key=f"aed_btn{ii}", help="Editar"):
+                        st.session_state.ass_edit_idx = idx
+                        st.rerun()
 
         if to_rm_ass is not None:
             ass_rows.pop(to_rm_ass)
@@ -936,7 +1049,7 @@ with tab_ass:
             new_ass_val = st.number_input("Valor ass", value=0.0, min_value=0.0, step=10.0, format="%.2f", key="new_ass_val", label_visibility="collapsed")
         with asf3:
             st.markdown('<div class="f-label">Dia venc.</div>', unsafe_allow_html=True)
-            new_ass_dia = st.number_input("Dia ass", value=0, min_value=0, max_value=31, step=1, key="new_ass_dia", label_visibility="collapsed", help="0 = sem data fixa")
+            new_ass_dia = st.number_input("Dia ass", value=0, min_value=0, max_value=31, step=1, key="new_ass_dia", label_visibility="collapsed")
         if st.button("Adicionar assinatura", key="ass_add_btn"):
             if new_ass_nome:
                 ass_rows.append({'nome': new_ass_nome, 'valor': float(new_ass_val), 'dia': int(new_ass_dia), 'ativa': True})
@@ -953,21 +1066,12 @@ with tab_ass:
             to_rm_inativa = None
             for ii, idx in enumerate(ass_inativas_idx):
                 r = ass_rows[idx]
-                st.markdown('<div class="ass-row">', unsafe_allow_html=True)
-                a, b, c = st.columns([5, 3, 1])
-                with a:
-                    ass_rows[idx]['nome'] = st.text_input(
-                        f"ian{ii}", value=r['nome'], key=f"iassn{ii}", label_visibility="collapsed"
-                    )
-                with b:
-                    ass_rows[idx]['valor'] = st.number_input(
-                        f"iav{ii}", value=float(r['valor']), min_value=0.0, step=10.0, format="%.2f",
-                        key=f"iassv{ii}", label_visibility="collapsed"
-                    )
-                with c:
+                col_iai, col_iab = st.columns([20, 1])
+                with col_iai:
+                    st.markdown(f'<div class="ic"><div class="ic-left"><span class="ic-name" style="color:#475569;">{r["nome"]}</span><span class="ic-meta">{fmt(r["valor"])}/mês</span></div><span class="ic-val" style="color:#374151;">{fmt(r["valor"])}</span></div>', unsafe_allow_html=True)
+                with col_iab:
                     if st.button("×", key=f"iasr{ii}", help="Remover"):
                         to_rm_inativa = idx
-                st.markdown('</div>', unsafe_allow_html=True)
 
             if to_rm_inativa is not None:
                 ass_rows.pop(to_rm_inativa)
@@ -1050,22 +1154,22 @@ with tab_par:
             else:
                 prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
                 rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
-                st.markdown(f"""
-                <div class="par-row">
-                    <div class="par-nome">{p['nome']}</div>
-                    <div class="par-info">
-                        <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
-                        <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
-                        <div class="par-date">compra em {p['data_compra']}</div>
+                col_pcard, col_pbtns = st.columns([20, 1])
+                with col_pcard:
+                    st.markdown(f"""
+                    <div class="par-row">
+                        <div class="par-nome">{p['nome']}</div>
+                        <div class="par-info">
+                            <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
+                            <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
+                            <div class="par-date">compra em {p['data_compra']}</div>
+                        </div>
+                        <span class="par-badge ativa">ativa</span>
                     </div>
-                    <span class="par-badge ativa">ativa</span>
-                </div>
-                """, unsafe_allow_html=True)
-                pb1, pb2, _ = st.columns([1, 1, 8])
-                with pb1:
+                    """, unsafe_allow_html=True)
+                with col_pbtns:
                     if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
                         to_rm_par = orig_idx
-                with pb2:
                     if st.button("✏", key=f"ped_{orig_idx}", help=f"Editar {p['nome']}"):
                         st.session_state.par_edit_idx = orig_idx
                         st.rerun()
