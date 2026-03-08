@@ -1382,47 +1382,96 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Investimentos?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">❖</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Resumo</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Performance_Advanced" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▲</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Performance</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▤</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 3v18h18"></path>
+                            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Renda Variável</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=3" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▦</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Renda Fixa</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=4" target="_self" class="sub-item">
-                    <span class="sub-item-icon">◐</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Proventos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=5" target="_self" class="sub-item">
-                    <span class="sub-item-icon">❂</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Cripto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=6" target="_self" class="sub-item">
-                    <span class="sub-item-icon">⬡</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Câmbio</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=7" target="_self" class="sub-item">
-                    <span class="sub-item-icon">▼</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                            <path d="M9 14h6"></path>
+                            <path d="M9 18h6"></path>
+                            <path d="M9 10h6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Imposto</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Investimentos?tab=8" target="_self" class="sub-item">
-                    <span class="sub-item-icon">∞</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                            <path d="M8 4v16"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Legado</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -1444,17 +1493,33 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Finanças?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">💰</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                            <circle cx="12" cy="12" r="2"></circle>
+                            <path d="M6 12h.01M18 12h.01"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Mensal</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Finanças?tab=1" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🔄</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.46-2.18"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Assinaturas</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Finanças?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📦</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Parcelamentos</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
@@ -1482,17 +1547,33 @@ st.markdown('''
             <div class="divider-line"></div>
             <div class="sub-items">
                 <a href="Noticias?tab=0" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📅</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Cronológico</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Noticias?tab=1" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🏷️</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Por ticker</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
                 <a href="Noticias?tab=2" target="_self" class="sub-item">
-                    <span class="sub-item-icon">🤖</span>
+                    <span class="sub-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
                     <span class="sub-item-text">Reddit</span>
                     <span class="sub-item-arrow">→</span>
                 </a>
