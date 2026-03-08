@@ -1272,6 +1272,23 @@ label.home-ticker-wrap { cursor: pointer; }
     border-color: rgba(6,182,212,0.4);
     gap: 11px;
 }
+/* Editor expandable — slate theme overrides */
+.expandable-card.card-editor-exp:hover {
+    box-shadow: 0 20px 50px -10px rgba(240,230,220,0.15) !important;
+}
+.expandable-card.card-editor-exp:hover::before {
+    background: linear-gradient(135deg,rgba(240,230,220,0.35) 0%,rgba(200,190,180,0.2) 100%) !important;
+}
+.editor-toggle:checked ~ .expandable-card.card-editor-exp {
+    box-shadow: 0 20px 50px -10px rgba(240,230,220,0.15) !important;
+}
+.editor-toggle:checked ~ .expandable-card.card-editor-exp::before {
+    background: linear-gradient(135deg,rgba(240,230,220,0.35) 0%,rgba(200,190,180,0.2) 100%) !important;
+}
+.editor-toggle:checked ~ .expandable-card.card-editor-exp .expandable-content {
+    max-height: 300px !important;
+}
+
 /* Financas expandable — gold theme overrides */
 .expandable-card.card-financas-exp:hover {
     box-shadow: 0 20px 50px -10px rgba(222,184,135,0.2) !important;
@@ -1438,17 +1455,64 @@ st.markdown('''
     </div>
 </div>
 
-<a href="Editor" target="_self" class="nav-card card-editor">
-    <div class="card-title"><i class="card-icon">▣</i> Editor</div>
-    <div class="card-desc">Edição de registros e transações</div>
-    <span class="card-arrow">→</span>
-</a>
+<!-- Editor Expandable Card -->
+<div class="expandable-wrapper">
+    <input type="checkbox" id="editor-toggle" class="expand-toggle editor-toggle">
+    <div class="expandable-card card-editor-exp">
+        <label for="editor-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">▣</i> Editor</div>
+            <div class="card-desc">Edição de registros e transações</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div class="sub-items">
+                <a href="Editor" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📋</span>
+                    <span class="sub-item-text">Lançamentos</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Editor" target="_self" class="sub-item">
+                    <span class="sub-item-icon">💵</span>
+                    <span class="sub-item-text">Caixa Rápido</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
-<a href="Noticias" target="_self" class="nav-card card-noticias">
-    <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
-    <div class="card-desc">Mercado, portfólio e tendências do dia</div>
-    <span class="card-arrow">→</span>
-</a>
+<!-- Notícias Expandable Card -->
+<div class="expandable-wrapper">
+    <input type="checkbox" id="noticias-toggle" class="expand-toggle noticias-toggle">
+    <div class="expandable-card card-noticias-exp">
+        <label for="noticias-toggle" class="expandable-header">
+            <div class="card-title"><i class="card-icon">◉</i> Notícias</div>
+            <div class="card-desc">Mercado, portfólio e tendências do dia</div>
+            <span class="expand-icon">▼</span>
+        </label>
+        <div class="expandable-content">
+            <div class="divider-line"></div>
+            <div class="sub-items">
+                <a href="Noticias?tab=0" target="_self" class="sub-item">
+                    <span class="sub-item-icon">📅</span>
+                    <span class="sub-item-text">Cronológico</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=1" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🏷️</span>
+                    <span class="sub-item-text">Por Ticker</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+                <a href="Noticias?tab=2" target="_self" class="sub-item">
+                    <span class="sub-item-icon">🤖</span>
+                    <span class="sub-item-text">Reddit</span>
+                    <span class="sub-item-arrow">→</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 </div>
 ''', unsafe_allow_html=True)
