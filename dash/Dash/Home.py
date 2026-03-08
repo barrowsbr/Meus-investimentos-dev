@@ -2074,205 +2074,121 @@ if perf_home:
     
     highlights_html = ""
     
-    if best_n or worst_n:
-        import html
-        def _build_highlight_card(news_item, ticker, label, is_best):
-            if not news_item:
-                return "<div></div>"
-            img_url = news_item.get("imagem", "")
-            title = html.escape(news_item.get("titulo", "Sem título")[:100]) + "..."
-            link = html.escape(news_item.get("link", "#"))
-            fonte = html.escape(news_item.get("fonte", "Notícia"))
-            
-            border_col = "rgba(52, 211, 153, 0.8)" if is_best else "rgba(248, 113, 113, 0.8)"
-            shadow_col = "rgba(52, 211, 153, 0.35)" if is_best else "rgba(248, 113, 113, 0.35)"
-            bg_grad = f"linear-gradient(to top, rgba(15, 23, 42, 0.95) 10%, rgba(15, 23, 42, 0.6) 60%, rgba(15, 23, 42, 0.3) 100%)"
-            
-            bg_style = f"background-image: {bg_grad}, url('{img_url}'); background-size: cover; background-position: center;" if img_url else f"background: rgba(30, 41, 59, 0.5);"
-            
-            return f'''
-<a href="{link}" target="_blank" rel="noopener noreferrer" class="highlight-news-card" style="border-left: 4px solid {border_col}; --hover-shadow: {shadow_col};">
-    <div class="highlight-bg" style="{bg_style}"></div>
-    <div class="highlight-content">
-        <div class="highlight-label" style="color: {border_col};">{label} - {ticker}</div>
-        <div class="highlight-title">{title}</div>
-        <div class="highlight-footer">
-            <span class="highlight-source">{fonte}</span>
-            <span class="highlight-read">Ler →</span>
-        </div>
-    </div>
-</a>
-'''
+    # Fetch Polymarket pool (cached 15 min) and pick market by query param
+    _poly_bucket = int(time.time() // 900)
+    _poly_pool   = _get_poly_insight_pool(_poly_bucket)
+    _pidx        = int(st.query_params.get("pidx", "0"))
 
-        st.markdown("""
-        <style>
-        .highlights-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            max-width: 580px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-        .highlight-news-card {
-            position: relative;
-            border-radius: 14px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            min-height: 140px;
-            text-decoration: none !important;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            background: rgba(15, 23, 42, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 16px -4px rgba(0,0,0,0.4);
-        }
-        .highlight-bg {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 1;
-            transition: transform 0.5s ease;
-        }
-        .highlight-content {
-            position: relative;
-            z-index: 2;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            justify-content: flex-end;
-        }
-        .highlight-label {
-            font-size: 0.65rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-        .highlight-title {
-            color: #f8fafc;
-            font-size: 0.85rem;
-            font-weight: 700;
-            line-height: 1.4;
-            margin-bottom: 12px;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-        .highlight-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.7rem;
-            font-weight: 600;
-            opacity: 0.8;
-            color: #cbd5e1;
-        }
-        .highlight-news-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 30px -5px var(--hover-shadow);
-            border-color: rgba(255,255,255,0.15);
-        }
-        .highlight-news-card:hover .highlight-bg {
-            transform: scale(1.05);
-        }
-        .highlight-news-card:hover .highlight-footer {
-            opacity: 1;
-        }
-        .highlight-read { color: #38bdf8; }
-        @media (max-width: 768px) {
-            .highlights-container { grid-template-columns: 1fr; gap: 12px; padding: 0 15px; }
-            .highlight-news-card { min-height: 120px; }
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        c1 = _build_highlight_card(best_n, _clean(best_t) if best_t else "", "Maior Alta", True) if best_n else ""
-        c2 = _build_highlight_card(worst_n, _clean(worst_t) if worst_t else "", "Maior Queda", False) if worst_n else ""
-        
-        highlights_placeholder.markdown(f'<div class="highlights-container">{c1}{c2}</div>', unsafe_allow_html=True)
+    import html as _h
+    from datetime import datetime as _dt
+
+    def _radar_news_card(news, ticker, pct, is_best):
+        """HTML for one half of the news row."""
+        if not ticker:
+            return ""
+        label = ticker.replace(".SA","").replace("-USD","").replace("-BRL","").replace("=X","")
+        sign  = "+" if pct >= 0 else ""
+        badge = "radar-badge-up" if is_best else "radar-badge-down"
+        arr   = "▲" if is_best else "▼"
+        link     = _h.escape(news.get("link", "#"))       if news else "#"
+        headline = _h.escape(news.get("titulo","")[:88])  if news else ""
+        fonte    = _h.escape(news.get("fonte","")[:28])   if news else ""
+        img      = news.get("imagem","")                   if news else ""
+        bg_img   = f'background-image:url("{img}");'       if img else "background:rgba(15,23,42,0.6);"
+        overlay  = (
+            "linear-gradient(to top,rgba(4,14,8,0.96) 0%,rgba(4,14,8,0.55) 55%,rgba(4,14,8,0.15) 100%)"
+            if is_best else
+            "linear-gradient(to top,rgba(20,4,4,0.96) 0%,rgba(20,4,4,0.55) 55%,rgba(20,4,4,0.15) 100%)"
+        )
+        return (
+            f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="radar-news-card">'
+            f'<div class="radar-news-bg" style="{bg_img}"></div>'
+            f'<div class="radar-news-overlay" style="background:{overlay};"></div>'
+            f'<div class="radar-news-content">'
+            f'<span class="radar-news-badge {badge}">{arr} {label} {sign}{pct:.1f}%</span>'
+            f'<div class="radar-news-headline">{headline}</div>'
+            f'<div class="radar-news-source">{fonte}</div>'
+            f'</div></a>'
+        )
+
+    def _radar_poly_section(pool, pidx):
+        """HTML for the Polymarket prediction section."""
+        if not pool:
+            return ""
+        ev    = pool[pidx % len(pool)]
+        title = _h.escape(ev["title"])
+        url   = _h.escape(ev["url"])
+        odds  = ev.get("odds", [])
+        vol   = ev.get("volume") or 0.0
+        days  = ev.get("days_left")
+        vol_str = (
+            f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
+            else f"${vol/1_000:.0f}k" if vol >= 1_000
+            else f"${vol:.0f}"
+        )
+        if   days is None: resolve = ""
+        elif days == 0:    resolve = " · resolve hoje"
+        elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
+        else:              resolve = f" · resolve em {days}d"
+
+        cls_map = {0: "yes", 1: "no"}
+        bars = "".join(
+            f'<div class="radar-bar-row">'
+            f'<div class="radar-bar-fill {cls_map.get(i,"other")}" style="width:{o["percent"]}%;"></div>'
+            f'<div class="radar-bar-name">{_h.escape(o["outcome"][:35])}</div>'
+            f'<div class="radar-bar-pct {cls_map.get(i,"other")}">{o["percent"]:.0f}%</div>'
+            f'</div>'
+            for i, o in enumerate(odds[:3])
+        )
+        total   = len(pool)
+        counter = f"{(pidx % total) + 1} / {total}"
+        nxt     = pidx + 1
+        return (
+            f'<div class="radar-divider">'
+            f'<div class="radar-divider-line"></div>'
+            f'<span class="radar-divider-label">📊 Mercado Preditivo</span>'
+            f'<div class="radar-divider-line"></div>'
+            f'</div>'
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'
+            f'<div class="radar-poly-question">{title}</div>'
+            f'<div class="radar-poly-bars">{bars}</div>'
+            f'<div class="radar-poly-meta">'
+            f'<span>Vol <b style="color:#64748b;">{vol_str}</b>{_h.escape(resolve)}</span>'
+            f'<span class="radar-poly-meta-cta">Ver no Polymarket →</span>'
+            f'</div></a>'
+            f'<div class="radar-nav">'
+            f'<span class="radar-counter">{counter}</span>'
+            f'<a href="?pidx={nxt}" class="radar-next-btn">'
+            f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
+            f'Próximo</a>'
+            f'</div>'
+        )
+
+    best_pct  = best_5[0]["pct"]  if best_5  else 0.0
+    worst_pct = worst_5[0]["pct"] if worst_5 else 0.0
+    today_str = _dt.now().strftime("%d %b %Y").upper()
+
+    n1 = _radar_news_card(best_n,  best_t,  best_pct,  True)
+    n2 = _radar_news_card(worst_n, worst_t, worst_pct, False)
+    news_row  = f'<div class="radar-news">{n1}{n2}</div>' if (n1 or n2) else ""
+    poly_html = _radar_poly_section(_poly_pool, _pidx)
+
+    unified = (
+        f'<div class="radar-wrap"><div class="radar-card">'
+        f'<div class="radar-header">'
+        f'<div class="radar-header-left"><span class="radar-live-dot"></span>'
+        f'<span class="radar-title">Radar do Dia</span></div>'
+        f'<span class="radar-date">{today_str}</span>'
+        f'</div>'
+        f'{news_row}'
+        f'{poly_html}'
+        f'</div></div>'
+    )
+    highlights_placeholder.markdown(unified, unsafe_allow_html=True)
 
 else:
     ticker_placeholder.empty()
 
-def _render_poly_insight(pool: list[dict], pidx: int) -> str:
-    """Monta o HTML do card com base no índice atual."""
-    import html as _h
-    ev    = pool[pidx % len(pool)]
-    title = _h.escape(ev["title"])
-    url   = _h.escape(ev["url"])
-    odds  = ev.get("odds", [])
-    vol   = ev.get("volume") or 0.0
-    days  = ev.get("days_left")
-
-    vol_str = (
-        f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
-        else f"${vol/1_000:.0f}k" if vol >= 1_000
-        else f"${vol:.0f}"
-    )
-
-    if days is None:
-        resolve_str = ""
-    elif days == 0:
-        resolve_str = " · resolve hoje"
-    elif days <= 7:
-        resolve_str = f" · ⏳ {days}d restantes"
-    else:
-        resolve_str = f" · resolve em {days}d"
-
-    bars_html = ""
-    for i, odd in enumerate(odds[:3]):
-        cls  = "leader" if i == 0 else "trailer"
-        name = _h.escape(odd["outcome"][:38])
-        pct  = odd["percent"]
-        bars_html += (
-            f'<div class="poly-insight-bar-row">'
-            f'<div class="poly-insight-bar-fill {cls}" style="width:{pct}%;"></div>'
-            f'<div class="poly-insight-bar-name">{name}</div>'
-            f'<div class="poly-insight-bar-pct {cls}">{pct:.0f}%</div>'
-            f'</div>'
-        )
-
-    next_pidx = pidx + 1
-    total     = len(pool)
-    counter   = f"{(pidx % total) + 1}/{total}"
-
-    return f'''<div class="poly-insight-wrap">
-<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
-    <div class="poly-insight-header">
-        <span class="poly-insight-label">📊 Mercado Preditivo</span>
-        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
-    </div>
-    <div class="poly-insight-question">{title}</div>
-    <div class="poly-insight-bars">{bars_html}</div>
-    <div class="poly-insight-footer">
-        <span class="poly-insight-meta">Vol <b>{vol_str}</b>{_h.escape(resolve_str)}</span>
-        <span class="poly-insight-cta">Ver mercado →</span>
-    </div>
-</a>
-<div class="poly-insight-nav">
-    <span class="poly-insight-counter">{counter}</span>
-    <a href="?pidx={next_pidx}" class="poly-next-btn" title="Ver próximo mercado">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-        </svg>
-        Próximo
-    </a>
-</div>
-</div>'''
-
-_poly_bucket = int(time.time() // 900)
-_poly_pool   = _get_poly_insight_pool(_poly_bucket)
-
-if _poly_pool:
-    _pidx = int(st.query_params.get("pidx", "0"))
-    poly_insight_placeholder.markdown(
-        _render_poly_insight(_poly_pool, _pidx),
-        unsafe_allow_html=True,
-    )
+# poly_insight_placeholder intentionally left empty (merged into radar card)
 
 # --- FOOTER SECTION REMOVED FROM HERE ---
