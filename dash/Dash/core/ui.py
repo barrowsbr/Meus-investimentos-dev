@@ -131,11 +131,26 @@ def render_fab():
         align-self: center;
     }}
 
-    /* Manage App: integrar visualmente à barra */
+    /* Manage App: fixar dentro da barra inferior */
     [data-testid="stToolbar"],
-    [data-testid="stStatusWidget"],
     [data-testid="stAppToolbar"],
     [data-testid="stToolbarActions"] {{
+        position: fixed !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        height: 48px !important;
+        width: 160px !important;
+        z-index: 100000 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        background: transparent !important;
+        padding: 0 8px !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }}
+    [data-testid="stStatusWidget"] {{
         opacity: 1 !important;
         transform: none !important;
     }}
@@ -160,6 +175,12 @@ def render_fab():
         .nav-sep {{
             height: 20px;
         }}
+        [data-testid="stToolbar"],
+        [data-testid="stAppToolbar"],
+        [data-testid="stToolbarActions"] {{
+            height: 44px !important;
+            width: 120px !important;
+        }}
     }}
 
     /* iPhone X+ safe area */
@@ -170,6 +191,12 @@ def render_fab():
         }}
         .block-container {{
             padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+        }}
+        [data-testid="stToolbar"],
+        [data-testid="stAppToolbar"],
+        [data-testid="stToolbarActions"] {{
+            height: calc(48px + env(safe-area-inset-bottom)) !important;
+            padding-bottom: env(safe-area-inset-bottom) !important;
         }}
     }}
     </style>
