@@ -645,6 +645,9 @@ if 'par_rows' not in st.session_state:
     st.session_state.par_rows = load_parcelamentos()
     st.session_state.par_snapshot = str(st.session_state.par_rows)
 
+if 'par_edit_idx' not in st.session_state:
+    st.session_state.par_edit_idx = None
+
 rows     = st.session_state.fin_rows
 ass_rows = st.session_state.ass_rows
 par_rows = st.session_state.par_rows
@@ -681,14 +684,44 @@ with tab_mensal:
     # 1️⃣ ENTRADAS
     t_ent = calc_total(rows, 'entrada')
     with st.expander(f"💰  Entradas  ·  {fmt(t_ent)}", expanded=False):
+        to_rm_ent = None
         for i, r in enumerate(entradas_list):
             row_idx = rows.index(r)
-            st.markdown(f'<div class="f-label">{r["nome"]}</div>', unsafe_allow_html=True)
-            rows[row_idx]['valor'] = st.number_input(
-                r["nome"], value=r["valor"], min_value=0.0,
-                step=100.0, format="%.2f",
-                key=f"e{i}", label_visibility="collapsed"
-            )
+            ea, eb, ed = st.columns([5, 4, 1])
+            with ea:
+                st.markdown(f'<div class="f-label">{r["nome"]}</div>', unsafe_allow_html=True)
+                rows[row_idx]['valor'] = st.number_input(
+                    r["nome"], value=r["valor"], min_value=0.0,
+                    step=100.0, format="%.2f",
+                    key=f"e{i}", label_visibility="collapsed"
+                )
+            with eb:
+                rows[row_idx]['nome'] = st.text_input(
+                    f"en{i}", value=r['nome'], key=f"enm{i}", label_visibility="collapsed"
+                )
+            with ed:
+                if st.button("×", key=f"erm{i}", help="Remover"):
+                    to_rm_ent = row_idx
+
+        if to_rm_ent is not None:
+            rows.pop(to_rm_ent)
+            st.rerun()
+
+        st.markdown('<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">➕ Nova entrada</div></div>', unsafe_allow_html=True)
+        enf1, enf2 = st.columns([5, 4])
+        with enf1:
+            st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+            new_ent_nome = st.text_input("Nome entrada", key="new_ent_nome", label_visibility="collapsed", placeholder="Ex: Freelance, Renda extra...")
+        with enf2:
+            st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
+            new_ent_val = st.number_input("Valor entrada", value=0.0, min_value=0.0, step=100.0, format="%.2f", key="new_ent_val", label_visibility="collapsed")
+        if st.button("Adicionar entrada", key="ent_add_btn"):
+            if new_ent_nome:
+                rows.append({"categoria": "entrada", "nome": new_ent_nome, "valor": float(new_ent_val)})
+                st.rerun()
+            else:
+                st.warning("Preencha o nome da entrada.", icon="⚠️")
+
         t_ent = calc_total(rows, 'entrada')
         st.markdown(f'<div class="tot"><span class="tot-label">Total Entradas</span><span class="tot-val g">{fmt(t_ent)}</span></div>', unsafe_allow_html=True)
 
@@ -718,9 +751,20 @@ with tab_mensal:
             rows.pop(to_rm)
             st.rerun()
 
-        if st.button("＋ Conta", key="ac"):
-            rows.append({"categoria": "saida", "nome": "", "valor": 0.0})
-            st.rerun()
+        st.markdown('<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">➕ Nova conta fixa</div></div>', unsafe_allow_html=True)
+        sf1, sf2 = st.columns([5, 4])
+        with sf1:
+            st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+            new_sai_nome = st.text_input("Nome conta", key="new_sai_nome", label_visibility="collapsed", placeholder="Ex: Internet, Água...")
+        with sf2:
+            st.markdown('<div class="f-label">Valor (R$)</div>', unsafe_allow_html=True)
+            new_sai_val = st.number_input("Valor conta", value=0.0, min_value=0.0, step=50.0, format="%.2f", key="new_sai_val", label_visibility="collapsed")
+        if st.button("Adicionar conta", key="sai_add_btn"):
+            if new_sai_nome:
+                rows.append({"categoria": "saida", "nome": new_sai_nome, "valor": float(new_sai_val)})
+                st.rerun()
+            else:
+                st.warning("Preencha o nome da conta.", icon="⚠️")
 
         t_sai = calc_total(rows, 'saida')
         st.markdown(f'<div class="tot"><span class="tot-label">Total Fixas</span><span class="tot-val r">{fmt(t_sai)}</span></div>', unsafe_allow_html=True)
@@ -728,13 +772,43 @@ with tab_mensal:
     # 3️⃣ CARTÕES
     t_car = calc_total(rows, 'cartao')
     with st.expander(f"💳  Cartões  ·  {fmt(t_car)}", expanded=False):
+        to_rm_car = None
         for i, cr in enumerate(cartao_list):
             ci = rows.index(cr)
-            st.markdown(card_chip(cr['nome']), unsafe_allow_html=True)
-            rows[ci]['valor'] = st.number_input(
-                cr['nome'], value=cr['valor'], min_value=0.0,
-                step=100.0, format="%.2f", key=f"cv{i}", label_visibility="collapsed"
-            )
+            ca, cb, cd = st.columns([5, 4, 1])
+            with ca:
+                st.markdown(card_chip(cr['nome']), unsafe_allow_html=True)
+                rows[ci]['valor'] = st.number_input(
+                    cr['nome'], value=cr['valor'], min_value=0.0,
+                    step=100.0, format="%.2f", key=f"cv{i}", label_visibility="collapsed"
+                )
+            with cb:
+                rows[ci]['nome'] = st.text_input(
+                    f"cn{i}", value=cr['nome'], key=f"cnm{i}", label_visibility="collapsed"
+                )
+            with cd:
+                if st.button("×", key=f"crm{i}", help="Remover cartão"):
+                    to_rm_car = ci
+
+        if to_rm_car is not None:
+            rows.pop(to_rm_car)
+            st.rerun()
+
+        st.markdown('<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">➕ Novo cartão</div></div>', unsafe_allow_html=True)
+        crf1, crf2 = st.columns([5, 4])
+        with crf1:
+            st.markdown('<div class="f-label">Nome do cartão</div>', unsafe_allow_html=True)
+            new_car_nome = st.text_input("Nome cartão", key="new_car_nome", label_visibility="collapsed", placeholder="Ex: C6, Bradesco...")
+        with crf2:
+            st.markdown('<div class="f-label">Fatura (R$)</div>', unsafe_allow_html=True)
+            new_car_val = st.number_input("Fatura", value=0.0, min_value=0.0, step=100.0, format="%.2f", key="new_car_val", label_visibility="collapsed")
+        if st.button("Adicionar cartão", key="car_add_btn"):
+            if new_car_nome:
+                rows.append({"categoria": "cartao", "nome": new_car_nome, "valor": float(new_car_val)})
+                st.rerun()
+            else:
+                st.warning("Preencha o nome do cartão.", icon="⚠️")
+
         t_car = calc_total(rows, 'cartao')
         st.markdown(f'<div class="tot"><span class="tot-label">Total Cartões</span><span class="tot-val a">{fmt(t_car)}</span></div>', unsafe_allow_html=True)
 
@@ -852,9 +926,23 @@ with tab_ass:
             ass_rows.pop(to_rm_ass)
             st.rerun()
 
-        if st.button("＋ Assinatura", key="add_ass"):
-            ass_rows.append({'nome': '', 'valor': 0.0, 'dia': 0, 'ativa': True})
-            st.rerun()
+        st.markdown('<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">➕ Nova assinatura</div></div>', unsafe_allow_html=True)
+        asf1, asf2, asf3 = st.columns([5, 3, 2])
+        with asf1:
+            st.markdown('<div class="f-label">Nome</div>', unsafe_allow_html=True)
+            new_ass_nome = st.text_input("Nome ass", key="new_ass_nome", label_visibility="collapsed", placeholder="Ex: Netflix, Spotify...")
+        with asf2:
+            st.markdown('<div class="f-label">Valor/mês (R$)</div>', unsafe_allow_html=True)
+            new_ass_val = st.number_input("Valor ass", value=0.0, min_value=0.0, step=10.0, format="%.2f", key="new_ass_val", label_visibility="collapsed")
+        with asf3:
+            st.markdown('<div class="f-label">Dia venc.</div>', unsafe_allow_html=True)
+            new_ass_dia = st.number_input("Dia ass", value=0, min_value=0, max_value=31, step=1, key="new_ass_dia", label_visibility="collapsed", help="0 = sem data fixa")
+        if st.button("Adicionar assinatura", key="ass_add_btn"):
+            if new_ass_nome:
+                ass_rows.append({'nome': new_ass_nome, 'valor': float(new_ass_val), 'dia': int(new_ass_dia), 'ativa': True})
+                st.rerun()
+            else:
+                st.warning("Preencha o nome da assinatura.", icon="⚠️")
 
         total_ass_mensal = sum(ass_rows[i]['valor'] for i in range(len(ass_rows)) if ass_rows[i].get('ativa', True))
         st.markdown(f'<div class="tot"><span class="tot-label">Total Mensal</span><span class="tot-val c">{fmt(total_ass_mensal)}</span></div>', unsafe_allow_html=True)
@@ -925,23 +1013,62 @@ with tab_par:
 
         for orig_idx in ativos_idx:
             p = par_calc[orig_idx]
-            prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
-            rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
 
-            st.markdown(f"""
-            <div class="par-row">
-                <div class="par-nome">{p['nome']}</div>
-                <div class="par-info">
-                    <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
-                    <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
-                    <div class="par-date">compra em {p['data_compra']}</div>
+            if st.session_state.par_edit_idx == orig_idx:
+                # ── inline edit form
+                st.markdown(f'<div class="add-divider"><div class="f-label" style="margin-bottom:8px;">✏️ Editando: <strong style="color:#e2e8f0;">{p["nome"]}</strong></div></div>', unsafe_allow_html=True)
+                ec1, ec2, ec3, ec4 = st.columns([4, 3, 2, 2])
+                with ec1:
+                    st.markdown('<div class="f-label">Nome da compra</div>', unsafe_allow_html=True)
+                    edit_nome = st.text_input("Nome", value=p['nome'], key=f"en_{orig_idx}", label_visibility="collapsed")
+                with ec2:
+                    st.markdown('<div class="f-label">Data da compra</div>', unsafe_allow_html=True)
+                    try:
+                        edit_dt_val = datetime.strptime(p['data_compra'], '%d/%m/%Y').date()
+                    except Exception:
+                        edit_dt_val = date.today()
+                    edit_data = st.date_input("Data", value=edit_dt_val, key=f"ed_{orig_idx}", label_visibility="collapsed", format="DD/MM/YYYY")
+                with ec3:
+                    st.markdown('<div class="f-label">Valor total (R$)</div>', unsafe_allow_html=True)
+                    edit_total = st.number_input("Total", value=float(p['valor_total']), min_value=0.0, step=100.0, format="%.2f", key=f"et_{orig_idx}", label_visibility="collapsed")
+                with ec4:
+                    st.markdown('<div class="f-label">Nº parcelas</div>', unsafe_allow_html=True)
+                    edit_parc = st.number_input("Parcelas", value=int(p['parcelas']), min_value=1, max_value=60, step=1, key=f"ep_{orig_idx}", label_visibility="collapsed")
+                sv_col, ca_col = st.columns(2)
+                with sv_col:
+                    if st.button("✓ Salvar", key=f"esv_{orig_idx}"):
+                        par_rows[orig_idx]['nome'] = edit_nome
+                        par_rows[orig_idx]['valor_total'] = float(edit_total)
+                        par_rows[orig_idx]['parcelas'] = int(edit_parc)
+                        par_rows[orig_idx]['data_compra'] = edit_data.strftime('%d/%m/%Y')
+                        st.session_state.par_edit_idx = None
+                        st.rerun()
+                with ca_col:
+                    if st.button("✕ Cancelar", key=f"eca_{orig_idx}"):
+                        st.session_state.par_edit_idx = None
+                        st.rerun()
+            else:
+                prog_txt = f"parcela {p['parcela_atual']}/{p['parcelas']}"
+                rest_txt = f"faltam {p['restantes']}" if p['restantes'] > 0 else "na fatura"
+                st.markdown(f"""
+                <div class="par-row">
+                    <div class="par-nome">{p['nome']}</div>
+                    <div class="par-info">
+                        <div class="par-prog ativa">{prog_txt} · {rest_txt}</div>
+                        <div class="par-sub">{fmt(p['valor_parcela'])}/mês · restante {fmt(p['valor_restante'])}</div>
+                        <div class="par-date">compra em {p['data_compra']}</div>
+                    </div>
+                    <span class="par-badge ativa">ativa</span>
                 </div>
-                <span class="par-badge ativa">ativa</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
-                to_rm_par = orig_idx
+                """, unsafe_allow_html=True)
+                pb1, pb2, _ = st.columns([1, 1, 8])
+                with pb1:
+                    if st.button("×", key=f"prm_{orig_idx}", help=f"Remover {p['nome']}"):
+                        to_rm_par = orig_idx
+                with pb2:
+                    if st.button("✏", key=f"ped_{orig_idx}", help=f"Editar {p['nome']}"):
+                        st.session_state.par_edit_idx = orig_idx
+                        st.rerun()
 
         if to_rm_par is not None:
             par_rows.pop(to_rm_par)
