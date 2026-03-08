@@ -1,9 +1,12 @@
+import random
+import time
 import streamlit as st
 import streamlit.components.v1 as components
 import base64
 from pathlib import Path
 from core.auth import init_auth_state
 from core.ui import render_fab
+from core.agent.polymarket import fetch_polymarket_events, _CRYPTO_KW
 
 # --- INIT SESSION STATE ---
 init_auth_state()
@@ -1365,6 +1368,133 @@ st.markdown("""
     .perfs-grid { grid-template-columns: 1fr; }
     .ticker-expand-wrapper { padding: 0 15px; }
 }
+
+/* ── Polymarket Insight Card ── */
+.poly-insight-wrap {
+    max-width: 580px;
+    margin: 22px auto 0;
+    padding: 0 20px;
+    position: relative;
+    z-index: 10;
+}
+.poly-insight-card {
+    display: block;
+    background: rgba(10, 15, 30, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-left: 3px solid #38bdf8;
+    border-radius: 16px;
+    padding: 18px 20px 14px;
+    text-decoration: none !important;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.35);
+    color: #f1f5f9;
+    cursor: pointer;
+}
+.poly-insight-card:hover {
+    border-left-color: #7dd3fc;
+    background: rgba(10,15,30,0.88);
+    box-shadow: 0 16px 44px -10px rgba(56,189,248,0.18);
+    transform: translateY(-2px);
+}
+.poly-insight-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.poly-insight-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+}
+.poly-insight-live {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.poly-insight-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22d3ee;
+    animation: pulseDot 2s ease-in-out infinite;
+}
+@keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+}
+.poly-insight-question {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.45;
+    margin-bottom: 12px;
+}
+.poly-insight-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.poly-insight-bar-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+}
+.poly-insight-bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: 8px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    z-index: 0;
+}
+.poly-insight-bar-fill.leader { background: rgba(34,211,238,0.16); }
+.poly-insight-bar-fill.trailer { background: rgba(248,113,113,0.12); }
+.poly-insight-bar-name {
+    position: relative; z-index: 1;
+    font-size: 0.78rem; color: #cbd5e1; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.poly-insight-bar-pct {
+    position: relative; z-index: 1;
+    font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+}
+.poly-insight-bar-pct.leader { color: #22d3ee; }
+.poly-insight-bar-pct.trailer { color: #f87171; }
+.poly-insight-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+}
+.poly-insight-meta {
+    font-size: 0.68rem;
+    color: #475569;
+}
+.poly-insight-meta b { color: #64748b; }
+.poly-insight-cta {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #38bdf8;
+    letter-spacing: 0.3px;
+}
+@media (max-width: 768px) {
+    .poly-insight-wrap { padding: 0 12px; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1652,6 +1782,87 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
+
+# --- POLYMARKET INSIGHT CARD ---
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_poly_insight_pool(_bucket: int) -> list[dict]:
+    """Busca pool de eventos do Polymarket (cache 15 min)."""
+    try:
+        events = fetch_polymarket_events(limit=60)
+        filtered = []
+        for ev in events:
+            text = (ev["title"] + " " + ev["description"]).lower()
+            if any(kw in text for kw in _CRYPTO_KW):
+                continue
+            if ev.get("volume", 0) < 10_000:
+                continue
+            if not ev.get("odds"):
+                continue
+            filtered.append(ev)
+        return filtered
+    except Exception:
+        return []
+
+_poly_bucket = int(time.time() // 900)
+_poly_pool = _get_poly_insight_pool(_poly_bucket)
+
+if _poly_pool:
+    _rng = random.Random(_poly_bucket)
+    _ev = _rng.choice(_poly_pool)
+
+    _title = _ev["title"]
+    _url   = _ev["url"]
+    _odds  = _ev.get("odds", [])
+    _vol   = _ev.get("volume", 0.0) or 0.0
+    _days  = _ev.get("days_left")
+
+    if _vol >= 1_000_000:
+        _vol_str = f"${_vol/1_000_000:.1f}M"
+    elif _vol >= 1_000:
+        _vol_str = f"${_vol/1_000:.0f}k"
+    else:
+        _vol_str = f"${_vol:.0f}"
+
+    _resolve_str = ""
+    if _days is not None:
+        if _days == 0:
+            _resolve_str = " · resolve hoje"
+        elif _days <= 7:
+            _resolve_str = f" · {_days}d restantes"
+        else:
+            _resolve_str = f" · resolve em {_days}d"
+
+    _bars_html = ""
+    for i, odd in enumerate(_odds[:3]):
+        _cls = "leader" if i == 0 else "trailer"
+        import html as _html
+        _name = _html.escape(odd["outcome"][:38])
+        _pct  = odd["percent"]
+        _bars_html += (
+            f'<div class="poly-insight-bar-row">'
+            f'<div class="poly-insight-bar-fill {_cls}" style="width:{_pct}%;"></div>'
+            f'<div class="poly-insight-bar-name">{_name}</div>'
+            f'<div class="poly-insight-bar-pct {_cls}">{_pct:.0f}%</div>'
+            f'</div>'
+        )
+
+    import html as _html
+    st.markdown(f'''
+<div class="poly-insight-wrap">
+<a href="{_html.escape(_url)}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
+    <div class="poly-insight-header">
+        <span class="poly-insight-label">📊 Mercado Preditivo</span>
+        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
+    </div>
+    <div class="poly-insight-question">{_html.escape(_title)}</div>
+    <div class="poly-insight-bars">{_bars_html}</div>
+    <div class="poly-insight-footer">
+        <span class="poly-insight-meta">Vol <b>{_vol_str}</b>{_html.escape(_resolve_str)}</span>
+        <span class="poly-insight-cta">Ver mercado →</span>
+    </div>
+</a>
+</div>
+''', unsafe_allow_html=True)
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
