@@ -1369,131 +1369,188 @@ st.markdown("""
     .ticker-expand-wrapper { padding: 0 15px; }
 }
 
-/* ── Polymarket Insight Card ── */
-.poly-insight-wrap {
+/* ── Unified Radar do Dia Card ── */
+.radar-wrap {
     max-width: 580px;
-    margin: 22px auto 0;
+    margin: 14px auto 0;
     padding: 0 20px;
     position: relative;
     z-index: 10;
 }
-.poly-insight-card {
-    display: block;
-    background: rgba(10, 15, 30, 0.72);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+.radar-card {
+    background: rgba(8,13,26,0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255,255,255,0.07);
-    border-left: 3px solid #38bdf8;
-    border-radius: 16px;
-    padding: 18px 20px 14px;
-    text-decoration: none !important;
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.35);
-    color: #f1f5f9;
-    cursor: pointer;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 14px 48px -10px rgba(0,0,0,0.55);
 }
-.poly-insight-card:hover {
-    border-left-color: #7dd3fc;
-    background: rgba(10,15,30,0.88);
-    box-shadow: 0 16px 44px -10px rgba(56,189,248,0.18);
-    transform: translateY(-2px);
-}
-.poly-insight-header {
+.radar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    padding: 11px 16px 9px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.poly-insight-label {
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: #38bdf8;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-}
-.poly-insight-live {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-}
-.poly-insight-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #22d3ee;
-    animation: pulseDot 2s ease-in-out infinite;
-}
-@keyframes pulseDot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.7); }
-}
-.poly-insight-question {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    line-height: 1.45;
-    margin-bottom: 12px;
-}
-.poly-insight-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-.poly-insight-bar-row {
-    position: relative;
+.radar-header-left {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.04);
-    overflow: hidden;
 }
-.poly-insight-bar-fill {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    border-radius: 8px;
-    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+.radar-live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #22d3ee;
+    animation: pulseDot 2s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes pulseDot {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.35; transform:scale(0.65); }
+}
+.radar-title {
+    font-size: 0.68rem; font-weight: 800;
+    letter-spacing: 1.6px; text-transform: uppercase;
+    color: #64748b;
+}
+.radar-date {
+    font-size: 0.63rem; color: #1e293b; letter-spacing: 0.3px;
+}
+/* News row */
+.radar-news {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 148px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.radar-news-card {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+}
+.radar-news-card:first-child {
+    border-right: 1px solid rgba(255,255,255,0.05);
+}
+.radar-news-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    filter: brightness(0.38) saturate(0.6);
+    transition: transform 0.5s ease, filter 0.3s ease;
     z-index: 0;
 }
-.poly-insight-bar-fill.leader { background: rgba(34,211,238,0.16); }
-.poly-insight-bar-fill.trailer { background: rgba(248,113,113,0.12); }
-.poly-insight-bar-name {
-    position: relative; z-index: 1;
-    font-size: 0.78rem; color: #cbd5e1; flex: 1;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.radar-news-card:hover .radar-news-bg {
+    transform: scale(1.06); filter: brightness(0.5) saturate(0.75);
 }
-.poly-insight-bar-pct {
-    position: relative; z-index: 1;
-    font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+.radar-news-overlay {
+    position: absolute; inset: 0; z-index: 1;
 }
-.poly-insight-bar-pct.leader { color: #22d3ee; }
-.poly-insight-bar-pct.trailer { color: #f87171; }
-.poly-insight-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
+.radar-news-content {
+    position: relative; z-index: 2;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 4px;
 }
-.poly-insight-meta {
-    font-size: 0.68rem;
-    color: #475569;
+.radar-news-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 0.6rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 2px 6px; border-radius: 5px; align-self: flex-start;
 }
-.poly-insight-meta b { color: #64748b; }
-.poly-insight-cta {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #38bdf8;
-    letter-spacing: 0.3px;
+.radar-badge-up   { background:rgba(52,211,153,0.18); color:#34d399; border:1px solid rgba(52,211,153,0.28); }
+.radar-badge-down { background:rgba(248,113,113,0.18); color:#f87171; border:1px solid rgba(248,113,113,0.28); }
+.radar-news-headline {
+    font-size: 0.76rem; font-weight: 600; color: #f1f5f9;
+    line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+}
+.radar-news-source {
+    font-size: 0.6rem; color: #475569; font-weight: 500;
+}
+/* Divider */
+.radar-divider {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.radar-divider-line { flex:1; height:1px; background:rgba(255,255,255,0.05); }
+.radar-divider-label {
+    font-size: 0.6rem; font-weight: 800; color: #38bdf8;
+    letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap;
+}
+/* Polymarket section (clickable) */
+.radar-poly {
+    display: block;
+    padding: 12px 16px 10px;
+    text-decoration: none !important;
+    color: inherit;
+    transition: background 0.2s ease;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.radar-poly:hover { background: rgba(56,189,248,0.04); }
+.radar-poly-question {
+    font-size: 0.87rem; font-weight: 600; color: #e2e8f0;
+    line-height: 1.42; margin-bottom: 10px;
+}
+.radar-poly-bars {
+    display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;
+}
+.radar-bar-row {
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 9px; border-radius: 7px;
+    background: rgba(255,255,255,0.04); overflow: hidden;
+}
+.radar-bar-fill {
+    position: absolute; left:0; top:0; bottom:0;
+    border-radius: 7px; z-index: 0;
+    transition: width 0.55s cubic-bezier(0.4,0,0.2,1);
+}
+.radar-bar-fill.yes   { background: rgba(52,211,153,0.16); }
+.radar-bar-fill.no    { background: rgba(248,113,113,0.13); }
+.radar-bar-fill.other { background: rgba(167,139,250,0.13); }
+.radar-bar-name {
+    position:relative; z-index:1;
+    font-size:0.75rem; color:#cbd5e1; flex:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.radar-bar-pct {
+    position:relative; z-index:1;
+    font-size:0.77rem; font-weight:700; flex-shrink:0;
+}
+.radar-bar-pct.yes   { color:#34d399; }
+.radar-bar-pct.no    { color:#f87171; }
+.radar-bar-pct.other { color:#a78bfa; }
+.radar-poly-meta {
+    display:flex; justify-content:space-between;
+    font-size:0.67rem; color:#475569;
+}
+.radar-poly-meta-cta { color:#38bdf8; font-weight:600; }
+/* Nav row */
+.radar-nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 7px 16px;
+}
+.radar-counter { font-size:0.63rem; color:#1e293b; }
+.radar-next-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:0.68rem; font-weight:600;
+    color:#334155 !important; text-decoration:none !important;
+    padding:4px 12px; border-radius:20px;
+    border:1px solid rgba(255,255,255,0.05);
+    background:rgba(255,255,255,0.02);
+    transition: all 0.2s ease;
+}
+.radar-next-btn:hover {
+    color:#38bdf8 !important;
+    border-color:rgba(56,189,248,0.2);
+    background:rgba(56,189,248,0.05);
 }
 @media (max-width: 768px) {
-    .poly-insight-wrap { padding: 0 12px; }
+    .radar-wrap { padding: 0 12px; }
+    .radar-news { height: 128px; }
+    .radar-news-headline { font-size: 0.72rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1528,6 +1585,7 @@ metrics_placeholder.markdown("""
 # --- SPACER & DYNAMIC HIGHLIGHTS PLACEHOLDER ---
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 highlights_placeholder = st.empty()
+poly_insight_placeholder = st.empty()   # filled after data loads
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
 # --- NAVIGATION CARDS (static - no data needed) ---
@@ -1783,87 +1841,6 @@ st.markdown('''
 ''', unsafe_allow_html=True)
 
 
-# --- POLYMARKET INSIGHT CARD ---
-@st.cache_data(ttl=900, show_spinner=False)
-def _get_poly_insight_pool(_bucket: int) -> list[dict]:
-    """Busca pool de eventos do Polymarket (cache 15 min)."""
-    try:
-        events = fetch_polymarket_events(limit=60)
-        filtered = []
-        for ev in events:
-            text = (ev["title"] + " " + ev["description"]).lower()
-            if any(kw in text for kw in _CRYPTO_KW):
-                continue
-            if ev.get("volume", 0) < 10_000:
-                continue
-            if not ev.get("odds"):
-                continue
-            filtered.append(ev)
-        return filtered
-    except Exception:
-        return []
-
-_poly_bucket = int(time.time() // 900)
-_poly_pool = _get_poly_insight_pool(_poly_bucket)
-
-if _poly_pool:
-    _rng = random.Random(_poly_bucket)
-    _ev = _rng.choice(_poly_pool)
-
-    _title = _ev["title"]
-    _url   = _ev["url"]
-    _odds  = _ev.get("odds", [])
-    _vol   = _ev.get("volume", 0.0) or 0.0
-    _days  = _ev.get("days_left")
-
-    if _vol >= 1_000_000:
-        _vol_str = f"${_vol/1_000_000:.1f}M"
-    elif _vol >= 1_000:
-        _vol_str = f"${_vol/1_000:.0f}k"
-    else:
-        _vol_str = f"${_vol:.0f}"
-
-    _resolve_str = ""
-    if _days is not None:
-        if _days == 0:
-            _resolve_str = " · resolve hoje"
-        elif _days <= 7:
-            _resolve_str = f" · {_days}d restantes"
-        else:
-            _resolve_str = f" · resolve em {_days}d"
-
-    _bars_html = ""
-    for i, odd in enumerate(_odds[:3]):
-        _cls = "leader" if i == 0 else "trailer"
-        import html as _html
-        _name = _html.escape(odd["outcome"][:38])
-        _pct  = odd["percent"]
-        _bars_html += (
-            f'<div class="poly-insight-bar-row">'
-            f'<div class="poly-insight-bar-fill {_cls}" style="width:{_pct}%;"></div>'
-            f'<div class="poly-insight-bar-name">{_name}</div>'
-            f'<div class="poly-insight-bar-pct {_cls}">{_pct:.0f}%</div>'
-            f'</div>'
-        )
-
-    import html as _html
-    st.markdown(f'''
-<div class="poly-insight-wrap">
-<a href="{_html.escape(_url)}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
-    <div class="poly-insight-header">
-        <span class="poly-insight-label">📊 Mercado Preditivo</span>
-        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
-    </div>
-    <div class="poly-insight-question">{_html.escape(_title)}</div>
-    <div class="poly-insight-bars">{_bars_html}</div>
-    <div class="poly-insight-footer">
-        <span class="poly-insight-meta">Vol <b>{_vol_str}</b>{_html.escape(_resolve_str)}</span>
-        <span class="poly-insight-cta">Ver mercado →</span>
-    </div>
-</a>
-</div>
-''', unsafe_allow_html=True)
-
 # --- ARCHITECTURE LINK ---
 st.markdown('''
 <div class="arch-link" style="position: relative; z-index: 15; margin-top: 20px;">
@@ -1977,6 +1954,26 @@ if not df_pos.empty:
             perf_home.append({"ticker": t, "pct": pct})
 
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
+
+# --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_poly_insight_pool(_bucket: int) -> list[dict]:
+    """Pool de eventos do Polymarket sem crypto, filtrada por volume mínimo (cache 15 min)."""
+    try:
+        events = fetch_polymarket_events(limit=60)
+        filtered = []
+        for ev in events:
+            text = (ev["title"] + " " + ev["description"]).lower()
+            if any(kw in text for kw in _CRYPTO_KW):
+                continue
+            if (ev.get("volume") or 0) < 10_000:
+                continue
+            if not ev.get("odds"):
+                continue
+            filtered.append(ev)
+        return filtered
+    except Exception:
+        return []
 
 if perf_home:
     def _clean(t):
@@ -2201,5 +2198,81 @@ if perf_home:
 
 else:
     ticker_placeholder.empty()
+
+def _render_poly_insight(pool: list[dict], pidx: int) -> str:
+    """Monta o HTML do card com base no índice atual."""
+    import html as _h
+    ev    = pool[pidx % len(pool)]
+    title = _h.escape(ev["title"])
+    url   = _h.escape(ev["url"])
+    odds  = ev.get("odds", [])
+    vol   = ev.get("volume") or 0.0
+    days  = ev.get("days_left")
+
+    vol_str = (
+        f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
+        else f"${vol/1_000:.0f}k" if vol >= 1_000
+        else f"${vol:.0f}"
+    )
+
+    if days is None:
+        resolve_str = ""
+    elif days == 0:
+        resolve_str = " · resolve hoje"
+    elif days <= 7:
+        resolve_str = f" · ⏳ {days}d restantes"
+    else:
+        resolve_str = f" · resolve em {days}d"
+
+    bars_html = ""
+    for i, odd in enumerate(odds[:3]):
+        cls  = "leader" if i == 0 else "trailer"
+        name = _h.escape(odd["outcome"][:38])
+        pct  = odd["percent"]
+        bars_html += (
+            f'<div class="poly-insight-bar-row">'
+            f'<div class="poly-insight-bar-fill {cls}" style="width:{pct}%;"></div>'
+            f'<div class="poly-insight-bar-name">{name}</div>'
+            f'<div class="poly-insight-bar-pct {cls}">{pct:.0f}%</div>'
+            f'</div>'
+        )
+
+    next_pidx = pidx + 1
+    total     = len(pool)
+    counter   = f"{(pidx % total) + 1}/{total}"
+
+    return f'''<div class="poly-insight-wrap">
+<a href="{url}" target="_blank" rel="noopener noreferrer" class="poly-insight-card">
+    <div class="poly-insight-header">
+        <span class="poly-insight-label">📊 Mercado Preditivo</span>
+        <span class="poly-insight-live"><span class="poly-insight-dot"></span>Polymarket</span>
+    </div>
+    <div class="poly-insight-question">{title}</div>
+    <div class="poly-insight-bars">{bars_html}</div>
+    <div class="poly-insight-footer">
+        <span class="poly-insight-meta">Vol <b>{vol_str}</b>{_h.escape(resolve_str)}</span>
+        <span class="poly-insight-cta">Ver mercado →</span>
+    </div>
+</a>
+<div class="poly-insight-nav">
+    <span class="poly-insight-counter">{counter}</span>
+    <a href="?pidx={next_pidx}" class="poly-next-btn" title="Ver próximo mercado">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        Próximo
+    </a>
+</div>
+</div>'''
+
+_poly_bucket = int(time.time() // 900)
+_poly_pool   = _get_poly_insight_pool(_poly_bucket)
+
+if _poly_pool:
+    _pidx = int(st.query_params.get("pidx", "0"))
+    poly_insight_placeholder.markdown(
+        _render_poly_insight(_poly_pool, _pidx),
+        unsafe_allow_html=True,
+    )
 
 # --- FOOTER SECTION REMOVED FROM HERE ---
