@@ -2206,7 +2206,7 @@ if perf_home:
     # ── Self-contained card rendered inside a real iframe (JS works natively) ──
     _css = (
         "*{box-sizing:border-box}"
-        "body{margin:0;padding:0;background:#0e1117;"
+        "body{margin:0;padding:0;background:transparent;"
         "font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"
         "color:#e2e8f0;overflow:hidden}"
         "a{text-decoration:none!important;color:inherit}"
@@ -2300,10 +2300,15 @@ if perf_home:
         "<span class='ld'></span><span class='rt'>Radar do Dia</span>"
         f"</div><span class='rd'>{today_str}</span></div>"
         f"{news_row}{poly_body}"
-        f"</div></div><script>{poly_js}</script></body></html>"
+        f"</div></div><script>{poly_js};"
+        "function _fit(){{var h=document.body.scrollHeight;"
+        "window.parent.postMessage({{type:'streamlit:setFrameHeight',"
+        "args:{{height:h}}}},\"*\");}}"
+        "_fit();"
+        "</script></body></html>"
     )
     with highlights_placeholder:
-        components.html(_full_html, height=460, scrolling=False)
+        components.html(_full_html, height=420, scrolling=False)
     poly_nav_placeholder.empty()
 
 else:
