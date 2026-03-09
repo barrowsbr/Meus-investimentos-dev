@@ -6,7 +6,7 @@ import base64
 from pathlib import Path
 from core.auth import init_auth_state
 from core.ui import render_fab
-from core.agent.polymarket import fetch_polymarket_events, _CRYPTO_KW
+from core.agent.polymarket import fetch_polymarket_events, _CRYPTO_KW, _MACRO_KW, _GEO_KW, _TECH_AI_KW
 
 # --- INIT SESSION STATE ---
 init_auth_state()
@@ -1957,13 +1957,14 @@ if not df_pos.empty:
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
 # --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
-_POOL_V = 3  # bump to bust stale cache after keyword/limit changes
+_POOL_V = 4  # bump to bust stale cache after keyword/limit changes
+_HOME_ALLOW_KW = _MACRO_KW + _GEO_KW + _TECH_AI_KW
 
 @st.cache_data(ttl=900, show_spinner=False)
 def _get_poly_insight_pool(_bucket: int, _v: int = _POOL_V) -> list[dict]:
-    """Pool de eventos do Polymarket sem crypto (cache 15 min). Retorna até 20 eventos."""
+    """Pool de eventos do Polymarket: apenas Macro, Geopolítica e Tech (cache 15 min). Retorna até 20 eventos."""
     try:
-        events = fetch_polymarket_events(limit=200)
+        events = fetch_polymarket_events(limit=400)
         filtered = []
         for ev in events:
             text = (ev["title"] + " " + ev["description"]).lower()
@@ -1972,6 +1973,9 @@ def _get_poly_insight_pool(_bucket: int, _v: int = _POOL_V) -> list[dict]:
             if (ev.get("volume") or 0) < 1_000:
                 continue
             if not ev.get("odds"):
+                continue
+            # Only show macro, geopolitics or tech/AI — exclude sports, entertainment, etc.
+            if not any(kw in text for kw in _HOME_ALLOW_KW):
                 continue
             filtered.append(ev)
             if len(filtered) >= 20:
