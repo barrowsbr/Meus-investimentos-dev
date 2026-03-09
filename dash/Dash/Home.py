@@ -2223,7 +2223,7 @@ if perf_home:
         "text-transform:uppercase;color:#64748b}"
         ".rd{font-size:.63rem;color:#1e293b;letter-spacing:.3px}"
         ".radar-news{display:grid;grid-template-columns:1fr 1fr;"
-        "height:148px;border-bottom:1px solid rgba(255,255,255,.05)}"
+        "height:104px;border-bottom:1px solid rgba(255,255,255,.05)}"
         ".radar-news-card{position:relative;overflow:hidden;display:flex;"
         "flex-direction:column;justify-content:flex-end;"
         "text-decoration:none!important;transition:all .3s ease}"
@@ -2300,14 +2300,10 @@ if perf_home:
         "<span class='ld'></span><span class='rt'>Radar do Dia</span>"
         f"</div><span class='rd'>{today_str}</span></div>"
         f"{news_row}{poly_body}"
-        "</div></div>"
-        f"<script>{poly_js};"
-        "var _h=document.body.scrollHeight;"
-        "window.parent.postMessage({type:'streamlit:setFrameHeight',args:{height:_h}},\"*\");"
-        "</script></body></html>"
+        f"</div></div><script>{poly_js}</script></body></html>"
     )
     with highlights_placeholder:
-        components.html(_full_html, height=420, scrolling=False)
+        components.html(_full_html, height=382, scrolling=False)
     poly_nav_placeholder.empty()
 
 else:
