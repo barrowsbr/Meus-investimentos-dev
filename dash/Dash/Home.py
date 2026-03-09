@@ -1533,7 +1533,7 @@ st.markdown("""
     display:flex; align-items:center; justify-content:space-between;
     padding: 7px 16px;
 }
-.radar-counter { font-size:0.63rem; color:#1e293b; }
+.radar-counter { font-size:0.63rem; color:#64748b; }
 .radar-next-btn {
     display:inline-flex; align-items:center; gap:5px;
     font-size:0.68rem; font-weight:600;
@@ -2083,9 +2083,13 @@ if perf_home:
     
     highlights_html = ""
     
-    # Fetch Polymarket pool (cached 15 min) and pick market by query param
+    # Fetch Polymarket pool (cached 15 min) — session_state drives current slide
+    if "poly_idx" not in st.session_state:
+        st.session_state["poly_idx"] = 0
     _poly_bucket = int(time.time() // 900)
     _poly_pool   = _get_poly_insight_pool(_poly_bucket, _POOL_V)
+    _poly_n      = len(_poly_pool)
+    _poly_idx    = st.session_state["poly_idx"] % _poly_n if _poly_n else 0
     import html as _h
     from datetime import datetime as _dt
 
@@ -2118,89 +2122,42 @@ if perf_home:
             f'</div></a>'
         )
 
-    def _radar_poly_section(pool):
-        """Pure-CSS carousel for Polymarket events — no page reload on 'Próximo'."""
+    def _radar_poly_section(pool, idx=0):
+        """Single-slide view of a Polymarket event, driven by session_state index."""
         if not pool:
             return "", ""
 
-        n       = len(pool)
-        _rank_css = ("yes", "no", "other")  # rank 0 = leader (teal), 1 = 2nd (red), 2 = 3rd (purple)
+        n         = len(pool)
+        idx       = idx % n
+        ev        = pool[idx]
+        _rank_css = ("yes", "no", "other")
 
-        # ── CSS rules (generated per pool size) ──────────────────────────────
-        base_css = (
-            ".pc-radio{display:none!important;}"
-            ".pc-slide{display:none;}"
-            "label.pc-next{display:none!important;cursor:pointer;}"
+        title   = _h.escape(ev["title"])
+        url     = _h.escape(ev["url"])
+        odds    = ev.get("odds", [])
+        vol     = ev.get("volume") or 0.0
+        days    = ev.get("days_left")
+        vol_str = (
+            f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
+            else f"${vol/1_000:.0f}k" if vol >= 1_000
+            else f"${vol:.0f}"
         )
-        per_item = []
-        for i in range(n):
-            nxt_i = (i + 1) % n
-            per_item.append(
-                f"#pc{i}:checked~.pc-slides .pc-slide:nth-child({i+1}){{display:block;}}"
-                f"#pc{i}:checked~.radar-nav label.n{i}{{display:inline-flex!important;}}"
-                f"#pc{i}:checked~.radar-nav .pc-count::before{{content:\"{i+1} / {n}\";}}"
+        if   days is None: resolve = ""
+        elif days == 0:    resolve = " · resolve hoje"
+        elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
+        else:              resolve = f" · resolve em {days}d"
+
+        def _bar(j, o):
+            rc     = _rank_css[j] if j < len(_rank_css) else "other"
+            nm_sty = ' style="font-weight:700;"' if j == 0 else ""
+            return (
+                f'<div class="radar-bar-row">'
+                f'<div class="radar-bar-fill {rc}" style="width:{o["percent"]}%;"></div>'
+                f'<div class="radar-bar-name"{nm_sty}>{_h.escape(o["outcome"][:35])}</div>'
+                f'<div class="radar-bar-pct {rc}">{o["percent"]:.0f}%</div>'
+                f'</div>'
             )
-        css = base_css + "".join(per_item)
-
-        # ── Radio inputs ──────────────────────────────────────────────────────
-        radios = "".join(
-            f'<input type="radio" name="poly-car" id="pc{i}" class="pc-radio"'
-            f'{" checked" if i == 0 else ""}>'
-            for i in range(n)
-        )
-
-        # ── Slides ────────────────────────────────────────────────────────────
-        slides = []
-        for ev in pool:
-            title   = _h.escape(ev["title"])
-            url     = _h.escape(ev["url"])
-            odds    = ev.get("odds", [])
-            vol     = ev.get("volume") or 0.0
-            days    = ev.get("days_left")
-            vol_str = (
-                f"${vol/1_000_000:.1f}M" if vol >= 1_000_000
-                else f"${vol/1_000:.0f}k" if vol >= 1_000
-                else f"${vol:.0f}"
-            )
-            if   days is None: resolve = ""
-            elif days == 0:    resolve = " · resolve hoje"
-            elif days <= 7:    resolve = f" · ⏳ {days}d restantes"
-            else:              resolve = f" · resolve em {days}d"
-
-            def _bar(j, o):
-                rc       = _rank_css[j] if j < len(_rank_css) else "other"
-                nm_sty   = ' style="font-weight:700;"' if j == 0 else ""
-                return (
-                    f'<div class="radar-bar-row">'
-                    f'<div class="radar-bar-fill {rc}" style="width:{o["percent"]}%;"></div>'
-                    f'<div class="radar-bar-name"{nm_sty}>{_h.escape(o["outcome"][:35])}</div>'
-                    f'<div class="radar-bar-pct {rc}">{o["percent"]:.0f}%</div>'
-                    f'</div>'
-                )
-            bars = "".join(_bar(j, o) for j, o in enumerate(odds[:3]))
-            slides.append(
-                f'<div class="pc-slide">'
-                f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'
-                f'<div class="radar-poly-question">{title}</div>'
-                f'<div class="radar-poly-bars">{bars}</div>'
-                f'<div class="radar-poly-meta">'
-                f'<span>Vol <b style="color:#64748b;">{vol_str}</b>{_h.escape(resolve)}</span>'
-                f'<span class="radar-poly-meta-cta">Ver no Polymarket →</span>'
-                f'</div></a></div>'
-            )
-        slides_html = "".join(slides)
-
-        # ── Nav labels (one per item, each points to next radio) ─────────────
-        svg_arrow = (
-            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" '
-            'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
-            'stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
-        )
-        nav_labels = "".join(
-            f'<label class="radar-next-btn pc-next n{i}" for="pc{(i+1)%n}">'
-            f'{svg_arrow}Próximo</label>'
-            for i in range(n)
-        )
+        bars = "".join(_bar(j, o) for j, o in enumerate(odds[:3]))
 
         html = (
             f'<div class="radar-divider">'
@@ -2208,14 +2165,19 @@ if perf_home:
             f'<span class="radar-divider-label">📊 Mercado Preditivo</span>'
             f'<div class="radar-divider-line"></div>'
             f'</div>'
-            f'{radios}'
-            f'<div class="pc-slides">{slides_html}</div>'
+            f'<div class="pc-slide" style="display:block;">'
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="radar-poly">'
+            f'<div class="radar-poly-question">{title}</div>'
+            f'<div class="radar-poly-bars">{bars}</div>'
+            f'<div class="radar-poly-meta">'
+            f'<span>Vol <b style="color:#64748b;">{vol_str}</b>{_h.escape(resolve)}</span>'
+            f'<span class="radar-poly-meta-cta">Ver no Polymarket →</span>'
+            f'</div></a></div>'
             f'<div class="radar-nav">'
-            f'<span class="radar-counter pc-count"></span>'
-            f'{nav_labels}'
+            f'<span class="radar-counter pc-count" style="visibility:visible;">{idx+1} / {n}</span>'
             f'</div>'
         )
-        return css, html
+        return "", html
 
     best_pct  = best_5[0]["pct"]  if best_5  else 0.0
     worst_pct = worst_5[0]["pct"] if worst_5 else 0.0
@@ -2224,11 +2186,10 @@ if perf_home:
     n1 = _radar_news_card(best_n,  best_t,  best_pct,  True)
     n2 = _radar_news_card(worst_n, worst_t, worst_pct, False)
     news_row  = f'<div class="radar-news">{n1}{n2}</div>' if (n1 or n2) else ""
-    poly_css, poly_html = _radar_poly_section(_poly_pool)
+    _poly_css, poly_html = _radar_poly_section(_poly_pool, _poly_idx)
 
     unified = (
-        (f'<style>{poly_css}</style>' if poly_css else "")
-        + f'<div class="radar-wrap"><div class="radar-card">'
+        f'<div class="radar-wrap"><div class="radar-card">'
         f'<div class="radar-header">'
         f'<div class="radar-header-left"><span class="radar-live-dot"></span>'
         f'<span class="radar-title">Radar do Dia</span></div>'
@@ -2239,6 +2200,27 @@ if perf_home:
         f'</div></div>'
     )
     highlights_placeholder.markdown(unified, unsafe_allow_html=True)
+
+    # Navigation button — real Streamlit widget so state survives re-renders
+    if _poly_pool:
+        st.markdown(
+            '<style>'
+            '.poly-nav-row{display:flex;justify-content:flex-end;'
+            'margin-top:-10px;padding:0 4px 6px;}'
+            '.poly-nav-row .stButton button{'
+            'background:transparent;border:1px solid #334155;color:#38bdf8;'
+            'font-size:12px;padding:3px 10px;border-radius:6px;'
+            'cursor:pointer;display:inline-flex;align-items:center;gap:4px;}'
+            '.poly-nav-row .stButton button:hover{border-color:#38bdf8;}'
+            '</style>',
+            unsafe_allow_html=True,
+        )
+        with st.container():
+            st.markdown('<div class="poly-nav-row">', unsafe_allow_html=True)
+            if st.button("► Próximo", key="poly_next_btn"):
+                st.session_state["poly_idx"] = (_poly_idx + 1) % _poly_n
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     ticker_placeholder.empty()
