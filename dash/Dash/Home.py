@@ -1586,6 +1586,7 @@ metrics_placeholder.markdown("""
 # --- SPACER & DYNAMIC HIGHLIGHTS PLACEHOLDER ---
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 highlights_placeholder = st.empty()
+poly_nav_placeholder = st.empty()       # Polymarket "Próximo" button, filled below
 poly_insight_placeholder = st.empty()   # filled after data loads
 st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
 
@@ -2201,22 +2202,21 @@ if perf_home:
     )
     highlights_placeholder.markdown(unified, unsafe_allow_html=True)
 
-    # Navigation button — real Streamlit widget so state survives re-renders
+    # Navigation button — uses placeholder created right below the card
     if _poly_pool:
-        st.markdown(
-            '<style>'
-            '.poly-nav-row{display:flex;justify-content:flex-end;'
-            'margin-top:-10px;padding:0 4px 6px;}'
-            '.poly-nav-row .stButton button{'
-            'background:transparent;border:1px solid #334155;color:#38bdf8;'
-            'font-size:12px;padding:3px 10px;border-radius:6px;'
-            'cursor:pointer;display:inline-flex;align-items:center;gap:4px;}'
-            '.poly-nav-row .stButton button:hover{border-color:#38bdf8;}'
-            '</style>',
-            unsafe_allow_html=True,
-        )
-        with st.container():
-            st.markdown('<div class="poly-nav-row">', unsafe_allow_html=True)
+        with poly_nav_placeholder.container():
+            st.markdown(
+                '<style>'
+                '.poly-nav-row{display:flex;justify-content:flex-end;'
+                'margin-top:-18px;padding:0 4px 4px;}'
+                '.poly-nav-row .stButton>button{'
+                'background:transparent!important;border:1px solid #334155;color:#38bdf8;'
+                'font-size:12px;padding:3px 10px;border-radius:6px;}'
+                '.poly-nav-row .stButton>button:hover{border-color:#38bdf8!important;}'
+                '</style>'
+                '<div class="poly-nav-row">',
+                unsafe_allow_html=True,
+            )
             if st.button("► Próximo", key="poly_next_btn"):
                 st.session_state["poly_idx"] = (_poly_idx + 1) % _poly_n
                 st.rerun()
