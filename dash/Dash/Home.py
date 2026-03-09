@@ -1553,11 +1553,6 @@ st.markdown("""
     .radar-news { height: 128px; }
     .radar-news-headline { font-size: 0.72rem; }
 }
-/* Hide the invisible injection iframe container (height=0 component) */
-iframe[height="0"] { display:block!important; margin:0!important; border:none!important; }
-.element-container:has(iframe[height="0"]) {
-    margin:0!important; padding:0!important; min-height:0!important; line-height:0!important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2125,11 +2120,9 @@ if perf_home:
         )
 
     def _radar_poly_section(pool):
-        """Poly carousel via window.parent injection: JS runs in a real iframe, button inside card."""
+        """Poly carousel: returns (html, js) to embed directly inside the full-card iframe."""
         if not pool:
             return "", ""
-
-        import json as _json
 
         n         = len(pool)
         _rank_css = ("yes", "no", "other")
@@ -2179,53 +2172,27 @@ if perf_home:
             'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
             'stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
         )
-        poly_content = (
+        poly_html = (
             '<div class="radar-divider">'
             '<div class="radar-divider-line"></div>'
             '<span class="radar-divider-label">📊 Mercado Preditivo</span>'
             '<div class="radar-divider-line"></div>'
-            '</div>'
-            f'{slides_html}'
+            f'</div>{slides_html}'
             f'<div class="radar-nav">'
             f'<span class="radar-counter" id="poly-cnt">1 / {n}</span>'
-            f'<button id="poly-btn" class="radar-next-btn">{svg_next} Próximo</button>'
+            f'<button class="radar-next-btn" onclick="polyNext()">{svg_next} Próximo</button>'
             f'</div>'
         )
-
-        # Invisible iframe that injects poly_content into window.parent's #radar-poly-host
-        inject_html = (
-            "<!DOCTYPE html><html><body style='margin:0;padding:0;overflow:hidden;'>"
-            "<script>"
-            "(function(){"
-            f"var polyI=0,polyN={n},html={_json.dumps(poly_content)};"
-            "function next(pdoc){"
-            "pdoc.getElementById('ps'+polyI).style.display='none';"
-            "polyI=(polyI+1)%polyN;"
-            "pdoc.getElementById('ps'+polyI).style.display='block';"
-            "pdoc.getElementById('poly-cnt').textContent=(polyI+1)+' / '+polyN;"
-            "}"
-            "function tryInject(){"
-            "try{"
-            "var pdoc=window.parent.document;"
-            "var host=pdoc.getElementById('radar-poly-host');"
-            "if(!host){setTimeout(tryInject,40);return;}"
-            "host.innerHTML=html;"
-            "pdoc.getElementById('poly-btn').addEventListener('click',function(){next(pdoc);});"
-            "}catch(e){}"
-            "}"
-            "tryInject();"
-            "})();"
-            "</script>"
-            "</body></html>"
+        poly_js = (
+            f'var pI=0,pN={n};'
+            'function polyNext(){'
+            'document.getElementById("ps"+pI).style.display="none";'
+            'pI=(pI+1)%pN;'
+            'document.getElementById("ps"+pI).style.display="block";'
+            'document.getElementById("poly-cnt").textContent=(pI+1)+" / "+pN;'
+            '}'
         )
-
-        # host_html: placeholder div rendered inside the card (JS will populate it)
-        host_html = (
-            '<div id="radar-poly-host">'
-            '<span style="color:#334155;font-size:0.72rem;padding:10px 16px;display:block;">...</span>'
-            '</div>'
-        )
-        return host_html, inject_html
+        return poly_html, poly_js
 
     best_pct  = best_5[0]["pct"]  if best_5  else 0.0
     worst_pct = worst_5[0]["pct"] if worst_5 else 0.0
@@ -2234,27 +2201,110 @@ if perf_home:
     n1 = _radar_news_card(best_n,  best_t,  best_pct,  True)
     n2 = _radar_news_card(worst_n, worst_t, worst_pct, False)
     news_row  = f'<div class="radar-news">{n1}{n2}</div>' if (n1 or n2) else ""
-    poly_host_html, poly_inject = _radar_poly_section(_poly_pool)
+    poly_body, poly_js = _radar_poly_section(_poly_pool)
 
-    unified = (
-        f'<div class="radar-wrap"><div class="radar-card">'
-        f'<div class="radar-header">'
-        f'<div class="radar-header-left"><span class="radar-live-dot"></span>'
-        f'<span class="radar-title">Radar do Dia</span></div>'
-        f'<span class="radar-date">{today_str}</span>'
-        f'</div>'
-        f'{news_row}'
-        f'{poly_host_html}'
-        f'</div></div>'
+    # ── Self-contained card rendered inside a real iframe (JS works natively) ──
+    _css = (
+        "*{box-sizing:border-box}"
+        "body{margin:0;padding:0;background:#0e1117;"
+        "font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"
+        "color:#e2e8f0;overflow:hidden}"
+        "a{text-decoration:none!important;color:inherit}"
+        ".rw{max-width:580px;margin:10px auto 0;padding:0 20px}"
+        ".rc{background:#090e19;border:1px solid rgba(255,255,255,.07);"
+        "border-radius:20px;overflow:hidden;box-shadow:0 14px 48px -10px rgba(0,0,0,.55)}"
+        ".rh{display:flex;align-items:center;justify-content:space-between;"
+        "padding:11px 16px 9px;border-bottom:1px solid rgba(255,255,255,.05)}"
+        ".rhl{display:flex;align-items:center;gap:8px}"
+        ".ld{width:7px;height:7px;border-radius:50%;background:#22d3ee;"
+        "animation:pd 2s ease-in-out infinite;flex-shrink:0}"
+        "@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}"
+        ".rt{font-size:.68rem;font-weight:800;letter-spacing:1.6px;"
+        "text-transform:uppercase;color:#64748b}"
+        ".rd{font-size:.63rem;color:#1e293b;letter-spacing:.3px}"
+        ".radar-news{display:grid;grid-template-columns:1fr 1fr;"
+        "height:148px;border-bottom:1px solid rgba(255,255,255,.05)}"
+        ".radar-news-card{position:relative;overflow:hidden;display:flex;"
+        "flex-direction:column;justify-content:flex-end;"
+        "text-decoration:none!important;transition:all .3s ease}"
+        ".radar-news-card:first-child{border-right:1px solid rgba(255,255,255,.05)}"
+        ".radar-news-bg{position:absolute;inset:0;background-size:cover;"
+        "background-position:center;filter:brightness(.38) saturate(.6);"
+        "transition:transform .5s ease,filter .3s ease;z-index:0}"
+        ".radar-news-card:hover .radar-news-bg{transform:scale(1.06);"
+        "filter:brightness(.5) saturate(.75)}"
+        ".radar-news-overlay{position:absolute;inset:0;z-index:1}"
+        ".radar-news-content{position:relative;z-index:2;padding:10px 12px;"
+        "display:flex;flex-direction:column;gap:4px}"
+        ".radar-news-badge{display:inline-flex;align-items:center;gap:3px;"
+        "font-size:.6rem;font-weight:800;text-transform:uppercase;"
+        "letter-spacing:.8px;padding:2px 6px;border-radius:5px;align-self:flex-start}"
+        ".radar-badge-up{background:rgba(52,211,153,.18);color:#34d399;"
+        "border:1px solid rgba(52,211,153,.28)}"
+        ".radar-badge-down{background:rgba(248,113,113,.18);color:#f87171;"
+        "border:1px solid rgba(248,113,113,.28)}"
+        ".radar-news-headline{font-size:.76rem;font-weight:600;color:#f1f5f9;"
+        "line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;"
+        "-webkit-box-orient:vertical;overflow:hidden;"
+        "text-shadow:0 1px 4px rgba(0,0,0,.9)}"
+        ".radar-news-source{font-size:.6rem;color:#475569;font-weight:500}"
+        ".radar-divider{display:flex;align-items:center;gap:10px;padding:8px 16px;"
+        "border-bottom:1px solid rgba(255,255,255,.04)}"
+        ".radar-divider-line{flex:1;height:1px;background:rgba(255,255,255,.05)}"
+        ".radar-divider-label{font-size:.6rem;font-weight:800;color:#38bdf8;"
+        "letter-spacing:1.2px;text-transform:uppercase;white-space:nowrap}"
+        ".radar-poly{display:block;padding:12px 16px 10px;"
+        "text-decoration:none!important;color:inherit;"
+        "transition:background .2s ease;border-bottom:1px solid rgba(255,255,255,.04)}"
+        ".radar-poly:hover{background:rgba(56,189,248,.04)}"
+        ".radar-poly-question{font-size:.87rem;font-weight:600;color:#e2e8f0;"
+        "line-height:1.42;margin-bottom:10px}"
+        ".radar-poly-bars{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}"
+        ".radar-bar-row{position:relative;display:flex;align-items:center;gap:8px;"
+        "padding:5px 9px;border-radius:7px;"
+        "background:rgba(255,255,255,.04);overflow:hidden}"
+        ".radar-bar-fill{position:absolute;left:0;top:0;bottom:0;border-radius:7px;"
+        "z-index:0;transition:width .55s cubic-bezier(.4,0,.2,1)}"
+        ".radar-bar-fill.yes{background:rgba(34,211,238,.16);"
+        "border-right:2px solid rgba(34,211,238,.4)}"
+        ".radar-bar-fill.no{background:rgba(251,146,60,.14);"
+        "border-right:2px solid rgba(251,146,60,.35)}"
+        ".radar-bar-fill.other{background:rgba(167,139,250,.13);"
+        "border-right:2px solid rgba(167,139,250,.3)}"
+        ".radar-bar-name{position:relative;z-index:1;font-size:.75rem;"
+        "color:#cbd5e1;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+        ".radar-bar-pct{position:relative;z-index:1;font-size:.77rem;"
+        "font-weight:700;flex-shrink:0}"
+        ".radar-bar-pct.yes{color:#22d3ee}"
+        ".radar-bar-pct.no{color:#fb923c}"
+        ".radar-bar-pct.other{color:#a78bfa}"
+        ".radar-poly-meta{display:flex;justify-content:space-between;"
+        "font-size:.67rem;color:#475569}"
+        ".radar-poly-meta-cta{color:#38bdf8;font-weight:600}"
+        ".radar-nav{display:flex;align-items:center;justify-content:space-between;"
+        "padding:7px 16px}"
+        ".radar-counter{font-size:.63rem;color:#64748b}"
+        ".radar-next-btn{display:inline-flex;align-items:center;gap:5px;"
+        "font-size:.68rem;font-weight:600;cursor:pointer;color:#94a3b8;"
+        "text-decoration:none!important;padding:4px 12px;border-radius:20px;"
+        "border:1px solid rgba(255,255,255,.08);"
+        "background:rgba(255,255,255,.03);transition:all .18s ease}"
+        ".radar-next-btn:hover{color:#38bdf8;"
+        "border-color:rgba(56,189,248,.3);background:rgba(56,189,248,.06)}"
     )
-    highlights_placeholder.markdown(unified, unsafe_allow_html=True)
-
-    # Inject JS carousel via real iframe (window.parent) — no Streamlit rerun needed
-    if poly_inject:
-        with poly_nav_placeholder:
-            components.html(poly_inject, height=0, scrolling=False)
-    else:
-        poly_nav_placeholder.empty()
+    _full_html = (
+        "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+        f"<style>{_css}</style></head><body>"
+        "<div class='rw'><div class='rc'>"
+        "<div class='rh'><div class='rhl'>"
+        "<span class='ld'></span><span class='rt'>Radar do Dia</span>"
+        f"</div><span class='rd'>{today_str}</span></div>"
+        f"{news_row}{poly_body}"
+        f"</div></div><script>{poly_js}</script></body></html>"
+    )
+    with highlights_placeholder:
+        components.html(_full_html, height=460, scrolling=False)
+    poly_nav_placeholder.empty()
 
 else:
     ticker_placeholder.empty()
