@@ -1957,11 +1957,13 @@ if not df_pos.empty:
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
 # --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
+_POOL_V = 3  # bump to bust stale cache after keyword/limit changes
+
 @st.cache_data(ttl=900, show_spinner=False)
-def _get_poly_insight_pool(_bucket: int) -> list[dict]:
+def _get_poly_insight_pool(_bucket: int, _v: int = _POOL_V) -> list[dict]:
     """Pool de eventos do Polymarket sem crypto (cache 15 min). Retorna até 20 eventos."""
     try:
-        events = fetch_polymarket_events(limit=150)
+        events = fetch_polymarket_events(limit=200)
         filtered = []
         for ev in events:
             text = (ev["title"] + " " + ev["description"]).lower()
@@ -2079,7 +2081,7 @@ if perf_home:
     
     # Fetch Polymarket pool (cached 15 min) and pick market by query param
     _poly_bucket = int(time.time() // 900)
-    _poly_pool   = _get_poly_insight_pool(_poly_bucket)
+    _poly_pool   = _get_poly_insight_pool(_poly_bucket, _POOL_V)
     import html as _h
     from datetime import datetime as _dt
 
