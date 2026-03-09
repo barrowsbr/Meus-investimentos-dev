@@ -1553,6 +1553,11 @@ st.markdown("""
     .radar-news { height: 128px; }
     .radar-news-headline { font-size: 0.72rem; }
 }
+/* Hide the invisible injection iframe container (height=0 component) */
+iframe[height="0"] { display:block!important; margin:0!important; border:none!important; }
+.element-container:has(iframe[height="0"]) {
+    margin:0!important; padding:0!important; min-height:0!important; line-height:0!important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2120,9 +2125,11 @@ if perf_home:
         )
 
     def _radar_poly_section(pool):
-        """JS-driven carousel: all slides embedded, navigation is pure client-side (no rerun)."""
+        """Poly carousel via window.parent injection: JS runs in a real iframe, button inside card."""
         if not pool:
             return "", ""
+
+        import json as _json
 
         n         = len(pool)
         _rank_css = ("yes", "no", "other")
@@ -2172,24 +2179,53 @@ if perf_home:
             'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
             'stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
         )
-        html = (
-            f'<div class="radar-divider">'
-            f'<div class="radar-divider-line"></div>'
-            f'<span class="radar-divider-label">📊 Mercado Preditivo</span>'
-            f'<div class="radar-divider-line"></div>'
-            f'</div>'
+        poly_content = (
+            '<div class="radar-divider">'
+            '<div class="radar-divider-line"></div>'
+            '<span class="radar-divider-label">📊 Mercado Preditivo</span>'
+            '<div class="radar-divider-line"></div>'
+            '</div>'
             f'{slides_html}'
             f'<div class="radar-nav">'
             f'<span class="radar-counter" id="poly-cnt">1 / {n}</span>'
-            f'<button class="radar-next-btn" onclick="(function(){{var s=document.getElementById(\'ps\'+pI);'
-            f's.style.display=\'none\';pI=(pI+1)%{n};'
-            f'document.getElementById(\'ps\'+pI).style.display=\'block\';'
-            f'document.getElementById(\'poly-cnt\').textContent=(pI+1)+\' / \'+{n};}})();">'
-            f'{svg_next} Próximo</button>'
+            f'<button id="poly-btn" class="radar-next-btn">{svg_next} Próximo</button>'
             f'</div>'
-            f'<script>var pI=0;</script>'
         )
-        return "", html
+
+        # Invisible iframe that injects poly_content into window.parent's #radar-poly-host
+        inject_html = (
+            "<!DOCTYPE html><html><body style='margin:0;padding:0;overflow:hidden;'>"
+            "<script>"
+            "(function(){"
+            f"var polyI=0,polyN={n},html={_json.dumps(poly_content)};"
+            "function next(pdoc){"
+            "pdoc.getElementById('ps'+polyI).style.display='none';"
+            "polyI=(polyI+1)%polyN;"
+            "pdoc.getElementById('ps'+polyI).style.display='block';"
+            "pdoc.getElementById('poly-cnt').textContent=(polyI+1)+' / '+polyN;"
+            "}"
+            "function tryInject(){"
+            "try{"
+            "var pdoc=window.parent.document;"
+            "var host=pdoc.getElementById('radar-poly-host');"
+            "if(!host){setTimeout(tryInject,40);return;}"
+            "host.innerHTML=html;"
+            "pdoc.getElementById('poly-btn').addEventListener('click',function(){next(pdoc);});"
+            "}catch(e){}"
+            "}"
+            "tryInject();"
+            "})();"
+            "</script>"
+            "</body></html>"
+        )
+
+        # host_html: placeholder div rendered inside the card (JS will populate it)
+        host_html = (
+            '<div id="radar-poly-host">'
+            '<span style="color:#334155;font-size:0.72rem;padding:10px 16px;display:block;">...</span>'
+            '</div>'
+        )
+        return host_html, inject_html
 
     best_pct  = best_5[0]["pct"]  if best_5  else 0.0
     worst_pct = worst_5[0]["pct"] if worst_5 else 0.0
@@ -2198,7 +2234,7 @@ if perf_home:
     n1 = _radar_news_card(best_n,  best_t,  best_pct,  True)
     n2 = _radar_news_card(worst_n, worst_t, worst_pct, False)
     news_row  = f'<div class="radar-news">{n1}{n2}</div>' if (n1 or n2) else ""
-    _poly_css, poly_html = _radar_poly_section(_poly_pool)
+    poly_host_html, poly_inject = _radar_poly_section(_poly_pool)
 
     unified = (
         f'<div class="radar-wrap"><div class="radar-card">'
@@ -2208,11 +2244,17 @@ if perf_home:
         f'<span class="radar-date">{today_str}</span>'
         f'</div>'
         f'{news_row}'
-        f'{poly_html}'
+        f'{poly_host_html}'
         f'</div></div>'
     )
     highlights_placeholder.markdown(unified, unsafe_allow_html=True)
-    poly_nav_placeholder.empty()   # cleared — navigation is now JS inside the card
+
+    # Inject JS carousel via real iframe (window.parent) — no Streamlit rerun needed
+    if poly_inject:
+        with poly_nav_placeholder:
+            components.html(poly_inject, height=0, scrolling=False)
+    else:
+        poly_nav_placeholder.empty()
 
 else:
     ticker_placeholder.empty()
