@@ -170,7 +170,7 @@ def fetch_polymarket_events(limit: int = 60) -> list[dict]:
 
     Returns cleaned list sorted by volume descending.
     """
-    url = f"{_POLYMARKET_GAMMA_API}?limit={limit}&active=true&closed=false"
+    url = f"{_POLYMARKET_GAMMA_API}?limit={limit}&active=true&closed=false&order=volume&ascending=false"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
         with urllib.request.urlopen(req, timeout=12) as response:
