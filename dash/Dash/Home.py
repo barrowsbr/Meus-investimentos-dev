@@ -2300,11 +2300,10 @@ if perf_home:
         "<span class='ld'></span><span class='rt'>Radar do Dia</span>"
         f"</div><span class='rd'>{today_str}</span></div>"
         f"{news_row}{poly_body}"
-        f"</div></div><script>{poly_js};"
-        "function _fit(){{var h=document.body.scrollHeight;"
-        "window.parent.postMessage({{type:'streamlit:setFrameHeight',"
-        "args:{{height:h}}}},\"*\");}}"
-        "_fit();"
+        "</div></div>"
+        f"<script>{poly_js};"
+        "var _h=document.body.scrollHeight;"
+        "window.parent.postMessage({type:'streamlit:setFrameHeight',args:{height:_h}},\"*\");"
         "</script></body></html>"
     )
     with highlights_placeholder:
