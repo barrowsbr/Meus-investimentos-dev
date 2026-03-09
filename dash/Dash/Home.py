@@ -1957,7 +1957,7 @@ if not df_pos.empty:
 perf_home.sort(key=lambda x: x["pct"], reverse=True)
 
 # --- POLYMARKET INSIGHT CARD (after worst-of-day) ---
-_POOL_V = 4  # bump to bust stale cache after keyword/limit changes
+_POOL_V = 5  # bump to bust stale cache after keyword/limit changes
 _HOME_ALLOW_KW = _MACRO_KW + _GEO_KW + _TECH_AI_KW
 
 @st.cache_data(ttl=900, show_spinner=False)
