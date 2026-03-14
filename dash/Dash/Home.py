@@ -1235,38 +1235,42 @@ st.markdown("""
     margin-top: 1px;
 }
 @media (max-width: 768px) {
-    .metrics-container { 
-        margin-top: -60px; 
-        gap: 12px;
+    .metrics-container {
+        margin-top: -60px;
+        gap: 10px;
         flex-direction: row;
-        padding: 0 15px;
+        padding: 0 12px;
     }
+    /* Cards: fill their flex wrapper (wrapper handles the 50/50 split) */
     .metrics-box, .rv-expand-card {
-        padding: 0;
         width: 100%;
-        max-width: 50%;
+        max-width: 100%;
+        min-width: 0;
     }
     .rv-expand-header {
-        padding: 15px 12px;
+        padding: 14px 14px;
     }
     .rv-expand-inner {
-        padding: 0 12px 12px;
-        padding-top: 10px;
+        padding: 10px 12px 12px;
     }
-    .metric-divider {
-        display: none;
-    }
+    .metric-divider { display: none; }
+    /* Value on first line, change % on second line */
     .metric-item-value, .patrimonio-value {
-        font-size: 1.15rem;
-        white-space: nowrap;
+        font-size: 1.1rem;
+        white-space: normal;
+        line-height: 1.25;
     }
     .metric-item-change {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        display: block;
+        margin-left: 0;
+        margin-top: 2px;
     }
     .metric-item-label, .patrimonio-label {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         margin-bottom: 4px;
     }
+    .rv-expand-hint { font-size: 0.45rem; right: 10px; }
 }
 
 /* ── Home Ticker Tape ── */
