@@ -1202,6 +1202,14 @@ st.markdown("""
     white-space: nowrap;
 }
 
+/* ── RV grid value: allow wrap for long amounts ── */
+.rv-grid-value {
+    white-space: normal !important;
+    word-break: break-all;
+    font-size: 0.82rem !important;
+    line-height: 1.2;
+}
+
 /* ── FX Expandable Grid (Dollar Card) ── */
 .fx-expand-grid {
     display: grid;
@@ -1253,16 +1261,6 @@ st.markdown("""
         padding: 16px 14px 14px;
         text-align: center;
     }
-    /* Empilha patrimônio/equity verticalmente — evita quebra de "R$\n215.447" */
-    .rv-expand-inner {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-        padding: 12px 14px 14px;
-    }
-    .rv-expand-col { text-align: center; }
-    /* Divisor vira horizontal na vertical stack */
-    .rv-expand-divider { width: 100%; height: 1px; }
     .metric-divider { display: none; }
     /* Valor: permite quebra natural, % na linha de baixo */
     .metric-item-value {
@@ -2039,7 +2037,7 @@ if not df_assets.empty:
     
     if 'BRL=X' not in tickers:
         tickers.append('BRL=X')
-    for _fx in ['EURBRL=X', 'CADBRL=X', 'CHFUSD=X', 'CAD=X']:
+    for _fx in ['EURBRL=X', 'CADBRL=X', 'CHFUSD=X', 'CAD=X', 'JPY=X']:
         if _fx not in tickers:
             tickers.append(_fx)
 
@@ -2164,6 +2162,10 @@ chf_usd_val = map_prices.get('CHFUSD=X', 1.10)
 chf_usd_change = map_changes.get('CHFUSD=X', 0.0)
 chf_usd_var = (chf_usd_change / (chf_usd_val - chf_usd_change)) * 100 if (chf_usd_val - chf_usd_change) != 0 else 0.0
 
+usd_jpy_val = map_prices.get('JPY=X', 149.0)
+usd_jpy_change = map_changes.get('JPY=X', 0.0)
+usd_jpy_var = (usd_jpy_change / (usd_jpy_val - usd_jpy_change)) * 100 if (usd_jpy_val - usd_jpy_change) != 0 else 0.0
+
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
     <div style="flex:1;max-width:280px;">
@@ -2180,15 +2182,22 @@ metrics_placeholder.markdown(f"""
                 <span class="rv-expand-hint">▼</span>
             </label>
             <div class="rv-expand-content">
-                <div class="rv-expand-inner">
-                    <div class="rv-expand-col">
-                        <div class="patrimonio-label">Patrimônio Individual</div>
-                        <div class="patrimonio-value">R$ {format_decimal_br(total_patrimonio, 2)}</div>
+                <div class="fx-expand-grid">
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label" style="color:#818cf8;">PATRIMÔNIO</div>
+                        <div class="fx-grid-value rv-grid-value">R$ {format_decimal_br(total_patrimonio, 2)}</div>
                     </div>
-                    <div class="rv-expand-divider"></div>
-                    <div class="rv-expand-col">
-                        <div class="equity-label">Equity Family</div>
-                        <div class="equity-value">R$ {format_decimal_br(total_patrimonio * 2, 2)}</div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label" style="color:#34d399;">EQUITY FAM.</div>
+                        <div class="fx-grid-value rv-grid-value">R$ {format_decimal_br(total_patrimonio * 2, 2)}</div>
+                    </div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">GANHO HOJE</div>
+                        <div class="fx-grid-value color-{rv_class}">R$ {rv_value}</div>
+                    </div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">VARIAÇÃO</div>
+                        <div class="fx-grid-value color-{rv_class}">{rv_sign}{rv_pct}%</div>
                     </div>
                 </div>
             </div>
@@ -2215,9 +2224,9 @@ metrics_placeholder.markdown(f"""
                         <div class="fx-grid-var {'color-positive' if eur_brl_change >= 0 else 'color-negative'}">{'+'if eur_brl_change >= 0 else ''}{format_decimal_br(eur_brl_var, 2)}%</div>
                     </div>
                     <div class="fx-grid-item">
-                        <div class="fx-grid-label">USD/BRL</div>
-                        <div class="fx-grid-value">R$ {format_decimal_br(dolar_val, 4)}</div>
-                        <div class="fx-grid-var {'color-positive' if dolar_change >= 0 else 'color-negative'}">{'+'if dolar_change >= 0 else ''}{format_decimal_br(dolar_var, 2)}%</div>
+                        <div class="fx-grid-label">USD/JPY</div>
+                        <div class="fx-grid-value">¥ {format_decimal_br(usd_jpy_val, 2)}</div>
+                        <div class="fx-grid-var {'color-positive' if usd_jpy_change >= 0 else 'color-negative'}">{'+'if usd_jpy_change >= 0 else ''}{format_decimal_br(usd_jpy_var, 2)}%</div>
                     </div>
                     <div class="fx-grid-item">
                         <div class="fx-grid-label">USD/CAD</div>
