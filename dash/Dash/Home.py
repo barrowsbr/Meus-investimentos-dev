@@ -1209,6 +1209,10 @@ st.markdown("""
     font-size: 0.82rem !important;
     line-height: 1.2;
 }
+/* ── RV patrimônio items: taller padding to match FX 4-cell height ── */
+.rv-pat-item {
+    padding: 22px 8px !important;
+}
 
 /* ── FX Expandable Grid (Dollar Card) ── */
 .fx-expand-grid {
@@ -2183,21 +2187,13 @@ metrics_placeholder.markdown(f"""
             </label>
             <div class="rv-expand-content">
                 <div class="fx-expand-grid">
-                    <div class="fx-grid-item">
+                    <div class="fx-grid-item rv-pat-item">
                         <div class="fx-grid-label" style="color:#818cf8;">PATRIMÔNIO</div>
                         <div class="fx-grid-value rv-grid-value">R$ {format_decimal_br(total_patrimonio, 2)}</div>
                     </div>
-                    <div class="fx-grid-item">
+                    <div class="fx-grid-item rv-pat-item">
                         <div class="fx-grid-label" style="color:#34d399;">EQUITY FAM.</div>
                         <div class="fx-grid-value rv-grid-value">R$ {format_decimal_br(total_patrimonio * 2, 2)}</div>
-                    </div>
-                    <div class="fx-grid-item">
-                        <div class="fx-grid-label">GANHO HOJE</div>
-                        <div class="fx-grid-value color-{rv_class}">R$ {rv_value}</div>
-                    </div>
-                    <div class="fx-grid-item">
-                        <div class="fx-grid-label">VARIAÇÃO</div>
-                        <div class="fx-grid-value color-{rv_class}">{rv_sign}{rv_pct}%</div>
                     </div>
                 </div>
             </div>
