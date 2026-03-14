@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 import pandas as pd
 import json
 from core.auth import require_auth
-from core.data.loader import load_assets, load_fixed_income, load_fixed_income_manual, load_proventos
+from core.data.loader import load_assets, load_fixed_income, load_fixed_income_manual, load_proventos, load_cambio
 from core.visuals.global_map import render_global_map
 from core.finance import calcular_carteira_fechada, summarize_fixed_income, summarize_fixed_income_hybrid
 from core.data.market import fetch_market_data
@@ -5944,6 +5944,453 @@ def render_cyber_glitch():
     """
     components.html(glitch_html, height=700)
 
+# --- ALPHA CAMBIAL LOGIC (EGG #9) ---
+def render_fx_pnl():
+    c1, c2 = st.columns([1, 10])
+    with c1:
+        if st.button("⬅ VOLTAR", use_container_width=True, key="btn_fxpnl_back"):
+            return_to_hub()
+            st.rerun()
+
+    with st.spinner("Calculando alfa cambial..."):
+        df_assets  = load_assets()
+        df_cambio  = load_cambio()
+
+    if df_assets.empty:
+        st.warning("Sem dados de portfólio disponíveis.")
+        return
+
+    df_pos, _ = calcular_carteira_fechada(df_assets)
+    if df_pos.empty:
+        st.warning("Nenhuma posição aberta encontrada.")
+        return
+
+    # ── Market data ──
+    tickers = df_pos['Ticker'].tolist()
+    for t in ['BRL=X', 'EURBRL=X', 'CADBRL=X']:
+        if t not in tickers:
+            tickers.append(t)
+    map_prices, _ = fetch_market_data(tickers)
+
+    rates = {
+        'USD': map_prices.get('BRL=X',    5.50),
+        'EUR': map_prices.get('EURBRL=X', 6.00),
+        'CAD': map_prices.get('CADBRL=X', 4.00),
+        'BRL': 1.0,
+    }
+    CURRENCY_META = {
+        'USD': {'flag': '🇺🇸', 'symbol': 'USD'},
+        'EUR': {'flag': '🇪🇺', 'symbol': 'EUR'},
+        'CAD': {'flag': '🇨🇦', 'symbol': 'CAD'},
+        'BRL': {'flag': '🇧🇷', 'symbol': 'BRL'},
+    }
+
+    # ── VET (weighted avg purchase rate) per currency ──
+    vet_map = {}
+    if not df_cambio.empty and 'moeda_origem' in df_cambio.columns:
+        for moeda in ['USD', 'EUR', 'CAD']:
+            df_m = df_cambio[df_cambio['moeda_origem'].astype(str).str.upper() == moeda]
+            if df_m.empty:
+                continue
+            if 'taxa' in df_m.columns:
+                valid = df_m[df_m['taxa'] > 0]
+                if not valid.empty:
+                    if 'valor_origem' in valid.columns and valid['valor_origem'].sum() > 0:
+                        vet_map[moeda] = (
+                            (valid['taxa'] * valid['valor_origem']).sum()
+                            / valid['valor_origem'].sum()
+                        )
+                    else:
+                        vet_map[moeda] = valid['taxa'].mean()
+            elif 'valor_origem' in df_m.columns and 'valor_destino' in df_m.columns:
+                tot = df_m['valor_origem'].sum()
+                if tot > 0:
+                    vet_map[moeda] = df_m['valor_destino'].sum() / tot
+
+    # ── Group positions by currency ──
+    cdata = {}
+    for _, row in df_pos.iterrows():
+        moeda        = str(row['Moeda']).upper()
+        ticker       = row['Ticker']
+        qtd          = float(row['Qtd'])
+        pm           = float(row['PM_Origem'])
+        price        = float(map_prices.get(ticker, pm))
+        if price <= 0:
+            price = pm
+
+        rate         = rates.get(moeda, 1.0)
+        pnl_native   = (price - pm) * qtd
+        pnl_brl      = pnl_native * rate
+        invested_n   = pm * qtd
+
+        if moeda not in cdata:
+            cdata[moeda] = {
+                'assets': [], 'pnl_native': 0.0,
+                'pnl_brl': 0.0, 'invested_native': 0.0,
+            }
+        cdata[moeda]['assets'].append({
+            'ticker':     ticker,
+            'pnl_pct':    ((price / pm) - 1) * 100 if pm > 0 else 0.0,
+            'pnl_native': pnl_native,
+        })
+        cdata[moeda]['pnl_native']     += pnl_native
+        cdata[moeda]['pnl_brl']        += pnl_brl
+        cdata[moeda]['invested_native'] += invested_n
+
+    # ── FX P&L + totals ──
+    total_asset_pnl_brl = 0.0
+    total_fx_pnl_brl    = 0.0
+    for moeda, d in cdata.items():
+        rate_now       = rates.get(moeda, 1.0)
+        d['rate_now']  = rate_now
+        if moeda == 'BRL':
+            d['vet']        = 1.0
+            d['fx_pnl_brl'] = 0.0
+        else:
+            vet_m           = vet_map.get(moeda, rate_now)
+            d['vet']        = vet_m
+            d['fx_pnl_brl'] = (rate_now - vet_m) * d['invested_native']
+        d['total_pnl_brl']   = d['pnl_brl'] + d['fx_pnl_brl']
+        total_asset_pnl_brl += d['pnl_brl']
+        total_fx_pnl_brl    += d['fx_pnl_brl']
+
+    grand_total = total_asset_pnl_brl + total_fx_pnl_brl
+
+    # ── Format helpers ──
+    def fmt_brl(v):
+        s = '+' if v >= 0 else '-'
+        return f"{s}R$ {abs(v):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def fmt_native(v, sym):
+        s = '+' if v >= 0 else '-'
+        return f"{s}{sym} {abs(v):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def pc(v):
+        return 'pos' if v >= 0 else 'neg'
+
+    # ── Build currency blocks HTML ──
+    sorted_currencies = sorted(
+        cdata.items(), key=lambda x: abs(x[1]['invested_native']), reverse=True
+    )
+
+    blocks_html = ''
+    for moeda, d in sorted_currencies:
+        meta     = CURRENCY_META.get(moeda, {'flag': '💱', 'symbol': moeda})
+        flag     = meta['flag']
+        symbol   = meta['symbol']
+        rate_now = d['rate_now']
+        vet_m    = d['vet']
+
+        # Rate badge (fx gain%)
+        if moeda == 'BRL':
+            rate_badge_html = ''
+            rate_info_html  = '<span class="rate-info">moeda base · sem câmbio</span>'
+        else:
+            diff_pct = ((rate_now - vet_m) / vet_m * 100) if vet_m > 0 else 0.0
+            sign     = '+' if diff_pct >= 0 else ''
+            rate_badge_html = (
+                f'<div class="rate-badge {pc(diff_pct)}">'
+                f'câmbio {sign}{diff_pct:.1f}%</div>'
+            )
+            vet_label = f'VET {vet_m:.4f}' if moeda in vet_map else 'VET —'
+            rate_info_html = (
+                f'<span class="rate-now">R$ {rate_now:.4f} hoje</span>'
+                f'<span class="rate-sep"> · </span>'
+                f'<span class="rate-vet">{vet_label}</span>'
+            )
+
+        # Asset P&L
+        asset_pnl_n = d['pnl_native']
+        asset_pnl_b = d['pnl_brl']
+        if moeda == 'BRL':
+            asset_str = fmt_brl(asset_pnl_n)
+        else:
+            asset_str = (
+                f'{fmt_native(asset_pnl_n, symbol)}'
+                f'<span class="sub-brl"> &nbsp;{fmt_brl(asset_pnl_b)}</span>'
+            )
+
+        # FX P&L
+        fx_pnl = d['fx_pnl_brl']
+        if moeda == 'BRL':
+            fx_row_html = ''
+        else:
+            no_vet = moeda not in vet_map
+            fx_display = 'sem dados de câmbio' if no_vet else fmt_brl(fx_pnl)
+            fx_cls     = 'neutral' if no_vet else pc(fx_pnl)
+            fx_row_html = f'''
+            <div class="pnl-row">
+                <span class="pnl-label">💱 Ganho cambial</span>
+                <span class="pnl-val {fx_cls}">{fx_display}</span>
+            </div>'''
+
+        # Total
+        total_v   = d['total_pnl_brl']
+        total_str = fmt_brl(total_v)
+
+        # Asset chips (top 5 sorted by abs pnl%)
+        top5 = sorted(d['assets'], key=lambda x: abs(x['pnl_pct']), reverse=True)[:5]
+        chips = ''.join(
+            f'<span class="chip {pc(a["pnl_pct"])}">'
+            f'{a["ticker"]} {("+" if a["pnl_pct"] >= 0 else "")}{a["pnl_pct"]:.1f}%</span>'
+            for a in top5
+        )
+
+        blocks_html += f'''
+        <div class="currency-block">
+            <div class="currency-header">
+                <div class="currency-left">
+                    <span class="currency-flag">{flag}</span>
+                    <div>
+                        <div class="currency-code">{moeda}</div>
+                        <div class="rate-info-line">{rate_info_html}</div>
+                    </div>
+                </div>
+                {rate_badge_html}
+            </div>
+            <div class="pnl-rows">
+                <div class="pnl-row">
+                    <span class="pnl-label">📈 Lucro nos ativos</span>
+                    <span class="pnl-val {pc(asset_pnl_n)}">{asset_str}</span>
+                </div>
+                {fx_row_html}
+                <div class="pnl-row total-row">
+                    <span class="pnl-label">⚡ Total em BRL</span>
+                    <span class="pnl-val {pc(total_v)}">{total_str}</span>
+                </div>
+            </div>
+            <div class="asset-chips">{chips}</div>
+        </div>'''
+
+    # ── Summary values ──
+    summary_html = f'''
+        <div class="summary-row">
+            <div class="sum-block">
+                <div class="sum-label">P&L ATIVOS</div>
+                <div class="sum-val {pc(total_asset_pnl_brl)}">{fmt_brl(total_asset_pnl_brl)}</div>
+            </div>
+            <div class="sum-block">
+                <div class="sum-label">P&L CÂMBIO</div>
+                <div class="sum-val {pc(total_fx_pnl_brl)}">{fmt_brl(total_fx_pnl_brl)}</div>
+            </div>
+            <div class="sum-block grand">
+                <div class="sum-label">TOTAL</div>
+                <div class="sum-val {pc(grand_total)}">{fmt_brl(grand_total)}</div>
+            </div>
+        </div>'''
+
+    # ── Full page HTML ──
+    st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+.fx-page {{
+    font-family: 'Share Tech Mono', monospace;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 4px 60px;
+}}
+
+/* ── Header ── */
+.fx-header {{
+    text-align: center;
+    padding: 10px 0 18px;
+}}
+.fx-title {{
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.3rem, 5.5vw, 2.2rem);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 2px 2px 0 #00ff41, -2px -2px 0 #ff00de;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+}}
+.fx-subtitle {{
+    font-size: clamp(0.55rem, 2vw, 0.7rem);
+    color: #444;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 6px;
+}}
+
+/* ── Summary row ── */
+.summary-row {{
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 22px;
+}}
+.sum-block {{
+    background: rgba(20,20,35,0.95);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px 8px;
+    text-align: center;
+}}
+.sum-block.grand {{
+    border-color: rgba(255,204,0,0.3);
+    background: rgba(28,24,4,0.95);
+}}
+.sum-label {{
+    font-size: clamp(0.48rem, 1.8vw, 0.58rem);
+    color: #555;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+}}
+.sum-val {{
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.62rem, 2.8vw, 1rem);
+    font-weight: 700;
+    line-height: 1.2;
+}}
+
+/* ── Currency block ── */
+.currency-block {{
+    background: rgba(13,13,22,0.97);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+}}
+
+/* ── Currency header ── */
+.currency-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}}
+.currency-left {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}}
+.currency-flag {{
+    font-size: clamp(1.6rem, 5vw, 2rem);
+    line-height: 1;
+}}
+.currency-code {{
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1rem, 3.5vw, 1.25rem);
+    font-weight: 700;
+    color: #fff;
+}}
+.rate-info-line {{
+    font-size: clamp(0.58rem, 2vw, 0.68rem);
+    margin-top: 3px;
+    line-height: 1.4;
+}}
+.rate-now {{ color: #999; }}
+.rate-sep {{ color: #444; }}
+.rate-vet {{ color: #555; }}
+.rate-info {{ color: #444; font-style: italic; }}
+
+/* ── Rate badge ── */
+.rate-badge {{
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.6rem, 2vw, 0.72rem);
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+}}
+
+/* ── P&L rows ── */
+.pnl-rows {{
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 12px;
+}}
+.pnl-row {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 8px;
+}}
+.total-row {{
+    border-top: 1px solid rgba(255,255,255,0.12);
+    border-bottom: none;
+    padding-top: 11px;
+    margin-top: 3px;
+}}
+.pnl-label {{
+    font-size: clamp(0.65rem, 2.2vw, 0.75rem);
+    color: #777;
+    flex-shrink: 0;
+}}
+.pnl-val {{
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.72rem, 2.5vw, 0.9rem);
+    font-weight: 700;
+    text-align: right;
+    word-break: break-all;
+}}
+.total-row .pnl-val {{
+    font-size: clamp(0.8rem, 3vw, 1rem);
+}}
+.sub-brl {{
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65em;
+    opacity: 0.55;
+}}
+
+/* ── Colors ── */
+.pos    {{ color: #00ff41; }}
+.neg    {{ color: #ff4455; }}
+.neutral{{ color: #666; font-style: italic; }}
+
+.sum-val.pos {{ color: #00ff41; text-shadow: 0 0 14px rgba(0,255,65,0.25); }}
+.sum-val.neg {{ color: #ff4455; text-shadow: 0 0 14px rgba(255,68,85,0.25); }}
+
+.rate-badge.pos {{ background: rgba(0,255,65,0.1);  color: #00ff41; border: 1px solid rgba(0,255,65,0.25); }}
+.rate-badge.neg {{ background: rgba(255,68,85,0.1); color: #ff4455; border: 1px solid rgba(255,68,85,0.25); }}
+
+/* ── Asset chips ── */
+.asset-chips {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 13px;
+}}
+.chip {{
+    font-size: clamp(0.55rem, 1.8vw, 0.65rem);
+    padding: 4px 9px;
+    border-radius: 10px;
+    white-space: nowrap;
+}}
+.chip.pos {{ background: rgba(0,255,65,0.08);  color: #00ff41; border: 1px solid rgba(0,255,65,0.18); }}
+.chip.neg {{ background: rgba(255,68,85,0.08); color: #ff4455; border: 1px solid rgba(255,68,85,0.18); }}
+
+/* ── Section divider ── */
+.section-label {{
+    font-size: clamp(0.5rem, 1.8vw, 0.58rem);
+    color: #2a2a3a;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 6px 0 16px;
+}}
+</style>
+
+<div class="fx-page">
+  <div class="fx-header">
+    <div class="fx-title">ALPHA CAMBIAL</div>
+    <div class="fx-subtitle">Lucro Real · Ativo vs Câmbio · Por Moeda</div>
+  </div>
+
+  {summary_html}
+
+  <div class="section-label">// DETALHE POR MOEDA //</div>
+
+  {blocks_html}
+</div>
+""", unsafe_allow_html=True)
+
+
 # --- MAIN HUB RENDER ---
 if st.session_state.active_egg is None:
     st.markdown('<div class="glitch-title">HUB DE PROJETOS SECRETOS</div>', unsafe_allow_html=True)
@@ -6057,26 +6504,37 @@ if st.session_state.active_egg is None:
             enter_egg(8)
             st.rerun()
 
-    # --- ROW 3: LOCKED SLOTS ---
+    # --- ROW 3: ALPHA CAMBIAL + LOCKED SLOTS ---
+    r3c1, r3c2, r3c3, r3c4 = st.columns(4)
+
+    with r3c1:
+        # SLOT 9: ALPHA CAMBIAL
+        container = st.container()
+        container.markdown("""
+        <div class="egg-card unlocked">
+            <div class="icon">💱</div>
+            <div class="label">ALPHA CAMBIAL</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("INICIAR ANÁLISE", key="btn_egg_9", use_container_width=True):
+            enter_egg(9)
+            st.rerun()
+
     locked_slots = [
-        ("CRYPTO MINER", "⛏️"),
-        ("AI CHATBOT", "🤖"),
-        ("TIME TRAVEL", "⏳"),
-        ("HOLODECK", "🧊")
+        ("AI CHATBOT",   "🤖"),
+        ("TIME TRAVEL",  "⏳"),
+        ("HOLODECK",     "🧊"),
     ]
-
-    r3 = st.columns(4)
-
     for i, (label, icon) in enumerate(locked_slots):
-        if i < len(r3):
-            with r3[i]:
-                st.markdown(f"""
-                <div class="egg-card locked">
-                    <div class="icon">{icon}</div>
-                    <div class="label">{label}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.button("BLOQUEADO", key=f"btn_lock_{i}", disabled=True, use_container_width=True)
+        col = [r3c2, r3c3, r3c4][i]
+        with col:
+            st.markdown(f"""
+            <div class="egg-card locked">
+                <div class="icon">{icon}</div>
+                <div class="label">{label}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.button("BLOQUEADO", key=f"btn_lock_{i}", disabled=True, use_container_width=True)
 
 # --- EGG ROUTER ---
 elif st.session_state.active_egg == 1:
@@ -6095,3 +6553,5 @@ elif st.session_state.active_egg == 7:
     render_confetti_party()
 elif st.session_state.active_egg == 8:
     render_cyber_glitch()
+elif st.session_state.active_egg == 9:
+    render_fx_pnl()
