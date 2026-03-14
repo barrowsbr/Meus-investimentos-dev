@@ -1720,6 +1720,8 @@ def render_solar_system():
             <span class="kbd">←</span><span class="kbd">→</span> navegar
             &nbsp; <span class="kbd">Space</span> pausar
             &nbsp; <span class="kbd">C</span> cinemático
+            &nbsp; <span class="kbd">F</span> flare
+            &nbsp; <span class="kbd">M</span> meteoros
             &nbsp; <span class="kbd">Esc</span> soltar
         </div>
 
@@ -1744,11 +1746,11 @@ def render_solar_system():
             let autoRotate = true;
             let selectedPlanet = null;
             let cameraAngle = 0;
-            let cameraHeight = 35;
-            let cameraDistance = 60;
+            let cameraHeight = 45;
+            let cameraDistance = 95;
             let targetCameraAngle = 0;
-            let targetCameraHeight = 35;
-            let targetCameraDistance = 60;
+            let targetCameraHeight = 45;
+            let targetCameraDistance = 95;
             let isDragging = false;
             let previousMousePosition = {{ x: 0, y: 0 }};
 
@@ -1763,13 +1765,13 @@ def render_solar_system():
             // === STARFIELD ===
             function createStarfield() {{
                 const starsGeo = new THREE.BufferGeometry();
-                const starsCount = 5000;
+                const starsCount = 8000;
                 const positions = new Float32Array(starsCount * 3);
                 const colors = new Float32Array(starsCount * 3);
                 const sizes = new Float32Array(starsCount);
 
                 for (let i = 0; i < starsCount; i++) {{
-                    const radius = 200 + Math.random() * 600;
+                    const radius = 300 + Math.random() * 1200;
                     const theta = Math.random() * Math.PI * 2;
                     const phi = Math.acos(2 * Math.random() - 1);
 
@@ -1843,6 +1845,32 @@ def render_solar_system():
             }}
             scene.add(createNebula());
 
+            // === DISTANT GALAXY (spiral cluster far in the background) ===
+            function createDistantGalaxy() {{
+                const N = 2800;
+                const pos = new Float32Array(N * 3);
+                const col = new Float32Array(N * 3);
+                const cx = 520, cy = 90, cz = -750;
+                for (let i = 0; i < N; i++) {{
+                    const arm = (i % 2) * Math.PI;
+                    const t = i / N;
+                    const r = t * 160;
+                    const a = t * Math.PI * 10 + arm;
+                    pos[i*3]   = cx + Math.cos(a)*r + (Math.random()-0.5)*22;
+                    pos[i*3+1] = cy + (Math.random()-0.5)*16;
+                    pos[i*3+2] = cz + Math.sin(a)*r + (Math.random()-0.5)*22;
+                    const c = new THREE.Color().setHSL(0.55 + Math.random()*0.25, 0.7, 0.12 + Math.random()*0.22);
+                    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+                }}
+                const gg = new THREE.BufferGeometry();
+                gg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                gg.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+                return new THREE.Points(gg, new THREE.PointsMaterial({{
+                    size: 2.8, vertexColors: true, transparent: true, opacity: 0.18, sizeAttenuation: true
+                }}));
+            }}
+            scene.add(createDistantGalaxy());
+
             // === SUN ===
             function createSun() {{
                 const sunGroup = new THREE.Group();
@@ -1906,6 +1934,35 @@ def render_solar_system():
             const sun = createSun();
             scene.add(sun);
 
+            // === SPACE STATION (orbiting close to the sun) ===
+            function createSpaceStation() {{
+                const sg = new THREE.Group();
+                const bMat = new THREE.MeshStandardMaterial({{ color: 0xcccccc, metalness: 0.85, roughness: 0.2 }});
+                sg.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.7, 8), bMat));
+                // Solar panels
+                [-0.65, 0.65].forEach(x => {{
+                    const p = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.28),
+                        new THREE.MeshBasicMaterial({{ color: 0x1144aa }}));
+                    p.position.x = x; sg.add(p);
+                }});
+                // Rotating ring
+                sg.add(new THREE.Mesh(
+                    new THREE.TorusGeometry(0.32, 0.04, 8, 24),
+                    new THREE.MeshBasicMaterial({{ color: 0x888888 }})
+                ));
+                // Blinking signal light
+                const blinkMat = new THREE.MeshBasicMaterial({{ color: 0xff3300, transparent: true, opacity: 1 }});
+                const blink = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), blinkMat);
+                blink.position.y = 0.42; blink.name = 'stationBlink'; sg.add(blink);
+                return sg;
+            }}
+            const stationPivot = new THREE.Object3D();
+            scene.add(stationPivot);
+            const stationMesh = createSpaceStation();
+            stationMesh.position.set(9, 0.5, 0);
+            stationMesh.scale.setScalar(0.45);
+            stationPivot.add(stationMesh);
+
             // === ASTEROID BELT ===
             function createAsteroidBelt(innerRadius, outerRadius) {{
                 const asteroidGeo = new THREE.BufferGeometry();
@@ -1957,6 +2014,12 @@ def render_solar_system():
                 const asteroidBelt = createAsteroidBelt(beltInner, beltOuter);
                 asteroidBelt.name = 'asteroidBelt';
                 scene.add(asteroidBelt);
+                // Kuiper belt – distant outer ring
+                const kuiperInner = 12 + planetsData.length * 6.0 + 20;
+                const kuiperBelt = createAsteroidBelt(kuiperInner, kuiperInner + 14);
+                kuiperBelt.material.opacity = 0.3;
+                kuiperBelt.name = 'kuiperBelt';
+                scene.add(kuiperBelt);
             }}
 
             // Build legend
@@ -1994,6 +2057,7 @@ def render_solar_system():
                     emissiveIntensity: 0.15
                 }});
                 const mesh = new THREE.Mesh(geometry, material);
+                mesh.rotation.z = (Math.random() - 0.5) * 0.45; // axis tilt per planet
 
                 // Atmosphere
                 const atmoGeo = new THREE.SphereGeometry(p.size * 1.15, 32, 32);
@@ -2149,6 +2213,77 @@ def render_solar_system():
                 scene.add(comet);
                 comets.push(comet);
             }}
+
+            // === DEEP SPACE PROBE (Voyager-style, drifting outward) ===
+            function createProbe() {{
+                const pg = new THREE.Group();
+                const bMat = new THREE.MeshStandardMaterial({{ color: 0xddddaa, metalness: 0.8, roughness: 0.3 }});
+                pg.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.28, 6), bMat));
+                const dish = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.18, 0.1, 16, 1, true),
+                    new THREE.MeshBasicMaterial({{ color: 0xaaaacc, side: THREE.DoubleSide }})
+                );
+                dish.rotation.x = -Math.PI / 2; dish.position.y = 0.2; pg.add(dish);
+                [-0.32, 0.32].forEach(x => {{
+                    const arm = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.38, 0.03, 0.1),
+                        new THREE.MeshBasicMaterial({{ color: 0x225588 }})
+                    );
+                    arm.position.x = x; pg.add(arm);
+                }});
+                // Signal pulse light
+                const sigMat = new THREE.MeshBasicMaterial({{ color: 0xff8800, transparent: true, opacity: 1 }});
+                const sig = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), sigMat);
+                sig.position.y = 0.16; sig.name = 'probeSig'; pg.add(sig);
+                return pg;
+            }}
+            const probe = createProbe();
+            const _pa = Math.random() * Math.PI * 2;
+            probe.position.set(Math.cos(_pa) * 52, 2.5, Math.sin(_pa) * 52);
+            scene.add(probe);
+            const probeVel = new THREE.Vector3(
+                Math.cos(_pa + Math.PI/2) * 0.016, 0.0007, Math.sin(_pa + Math.PI/2) * 0.016
+            );
+
+            // === METEOR SHOWER ===
+            let meteorShowerActive = false;
+            const meteors = [];
+            function createMeteor() {{
+                const mg = new THREE.Group();
+                const a = Math.random() * Math.PI * 2;
+                const d = 115 + Math.random() * 65;
+                mg.position.set(Math.cos(a)*d, (Math.random()-0.5)*45, Math.sin(a)*d);
+                mg.add(new THREE.Mesh(
+                    new THREE.SphereGeometry(0.13, 8, 8),
+                    new THREE.MeshBasicMaterial({{ color: 0xff8833 }})
+                ));
+                // Tail particles
+                const tP = new Float32Array(30*3), tC = new Float32Array(30*3);
+                for (let i=0; i<30; i++) {{
+                    const f=i/30;
+                    tP[i*3]=-f*3.5+(Math.random()-.5)*.3; tP[i*3+1]=(Math.random()-.5)*.2; tP[i*3+2]=(Math.random()-.5)*.2;
+                    tC[i*3]=1; tC[i*3+1]=.4+f*.5; tC[i*3+2]=.05;
+                }}
+                const tG = new THREE.BufferGeometry();
+                tG.setAttribute('position', new THREE.BufferAttribute(tP, 3));
+                tG.setAttribute('color',    new THREE.BufferAttribute(tC, 3));
+                mg.add(new THREE.Points(tG, new THREE.PointsMaterial({{
+                    size: 0.1, vertexColors: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending
+                }})));
+                mg.userData.vel = new THREE.Vector3(-Math.cos(a)*1.5, (Math.random()-.5)*.4, -Math.sin(a)*1.5);
+                mg.userData.life = 50 + Math.random()*35;
+                return mg;
+            }}
+            function triggerMeteorShower() {{
+                if (meteorShowerActive) return;
+                meteorShowerActive = true;
+                playTone(180, 0.05, 1.5);
+                for (let i=0; i<20; i++) setTimeout(() => {{
+                    const m = createMeteor(); scene.add(m); meteors.push(m);
+                }}, i * 85);
+                setTimeout(() => {{ meteorShowerActive = false; }}, 6000);
+            }}
+            let meteorShowerTimer = Math.random() * 1200 + 900;
 
             // === CAMERA ===
             camera.position.set(0, targetCameraHeight, targetCameraDistance);
@@ -2330,7 +2465,7 @@ def render_solar_system():
                         e.touches[0].clientY - e.touches[1].clientY
                     );
                     const delta = lastTouchDistance - distance;
-                    targetCameraDistance = Math.max(20, Math.min(150, targetCameraDistance + delta * 0.2));
+                    targetCameraDistance = Math.max(15, Math.min(280, targetCameraDistance + delta * 0.2));
                     lastTouchDistance = distance;
                 }}
             }});
@@ -2360,20 +2495,20 @@ def render_solar_system():
             // Scroll zoom
             renderer.domElement.addEventListener('wheel', (e) => {{
                 e.preventDefault();
-                targetCameraDistance = Math.max(20, Math.min(150, targetCameraDistance + e.deltaY * 0.05));
+                targetCameraDistance = Math.max(15, Math.min(280, targetCameraDistance + e.deltaY * 0.05));
             }}, {{ passive: false }});
 
             // Control buttons
-            document.getElementById('zoom-in').onclick = () => targetCameraDistance = Math.max(20, targetCameraDistance - 10);
-            document.getElementById('zoom-out').onclick = () => targetCameraDistance = Math.min(150, targetCameraDistance + 10);
+            document.getElementById('zoom-in').onclick = () => targetCameraDistance = Math.max(15, targetCameraDistance - 10);
+            document.getElementById('zoom-out').onclick = () => targetCameraDistance = Math.min(280, targetCameraDistance + 10);
             document.getElementById('speed-slider').oninput = (e) => timeScale = e.target.value / 100;
             document.getElementById('auto-rotate').onclick = (e) => {{
                 autoRotate = !autoRotate;
                 e.target.classList.toggle('active', autoRotate);
             }};
             document.getElementById('top-view').onclick = () => {{
-                targetCameraHeight = 75;
-                targetCameraDistance = 90;
+                targetCameraHeight = 110;
+                targetCameraDistance = 160;
                 targetCameraAngle = 0;
             }};
             document.getElementById('cinematic').onclick = (e) => {{
@@ -2556,13 +2691,15 @@ def render_solar_system():
                     document.getElementById('cinematic').click();
                 }} else if (e.key === 'f' || e.key === 'F') {{
                     triggerSolarFlare();
+                }} else if (e.key === 'm' || e.key === 'M') {{
+                    triggerMeteorShower();
                 }}
             }});
 
             // === WARP STATE ===
             let warpProgress = 0;
             const WARP_DURATION = 120; // frames
-            camera.position.set(0, 200, 500);
+            camera.position.set(0, 350, 700);
 
             // === CINEMATIC STATE ===
             let cinematicMode = false;
@@ -2588,9 +2725,9 @@ def render_solar_system():
                     const t = warpProgress / WARP_DURATION;
                     const ease = 1 - Math.pow(1 - t, 3);
                     camera.position.set(
-                        Math.sin(cameraAngle) * (500 - ease * (500 - targetCameraDistance)),
-                        200 - ease * (200 - targetCameraHeight),
-                        Math.cos(cameraAngle) * (500 - ease * (500 - targetCameraDistance))
+                        Math.sin(cameraAngle) * (700 - ease * (700 - targetCameraDistance)),
+                        350 - ease * (350 - targetCameraHeight),
+                        Math.cos(cameraAngle) * (700 - ease * (700 - targetCameraDistance))
                     );
                     camera.lookAt(0, 0, 0);
                     if (warpProgress === WARP_DURATION) {{
@@ -2627,6 +2764,37 @@ def render_solar_system():
                 // ── Asteroid belt ──
                 const asteroidBelt = scene.getObjectByName('asteroidBelt');
                 if (asteroidBelt) asteroidBelt.rotation.y += 0.0005 * timeScale;
+
+                // ── Kuiper belt ──
+                const kuiperBelt = scene.getObjectByName('kuiperBelt');
+                if (kuiperBelt) kuiperBelt.rotation.y += 0.0003 * timeScale;
+
+                // ── Space station ──
+                stationPivot.rotation.y += 0.013 * timeScale;
+                stationMesh.rotation.y  += 0.035 * timeScale;
+                const _blink = stationMesh.getObjectByName('stationBlink');
+                if (_blink) _blink.material.opacity = Math.sin(time * 9) > 0.2 ? 1.0 : 0.05;
+
+                // ── Deep space probe ──
+                probe.position.addScaledVector(probeVel, timeScale);
+                probe.rotation.y += 0.005 * timeScale;
+                const _pSig = probe.getObjectByName('probeSig');
+                if (_pSig) _pSig.material.opacity = 0.3 + 0.7 * Math.abs(Math.sin(time * 2.5));
+
+                // ── Meteors ──
+                for (let i = meteors.length - 1; i >= 0; i--) {{
+                    const m = meteors[i];
+                    m.position.addScaledVector(m.userData.vel, timeScale);
+                    m.userData.life -= timeScale;
+                    if (m.userData.life <= 0 || m.position.length() < 8) {{
+                        scene.remove(m); meteors.splice(i, 1);
+                    }}
+                }}
+                meteorShowerTimer -= timeScale;
+                if (meteorShowerTimer <= 0) {{
+                    triggerMeteorShower();
+                    meteorShowerTimer = Math.random() * 1500 + 1000;
+                }}
 
                 // ── Comets ──
                 comets.forEach((comet, i) => {{
