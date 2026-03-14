@@ -950,9 +950,10 @@ st.markdown(CSS_PART1 + CSS_PART2, unsafe_allow_html=True)
 
 # --- IMPORTS ---
 import pandas as pd
-from core.data.loader import load_assets
+from core.data.loader import load_assets, load_fixed_income, load_fixed_income_manual, load_proventos
 from core.data.market import fetch_market_data
 from core.utils import format_decimal_br
+from core.finance import calcular_carteira_fechada, summarize_fixed_income, summarize_fixed_income_hybrid
 
 # --- PULL-TO-REFRESH (MOBILE) ---
 # Inject custom JS to detect pull-down gesture and reload page
@@ -1102,6 +1103,137 @@ st.markdown("""
     50% { opacity: 0.8; }
 }
 
+/* ── Expandable RV Metric Card ── */
+.rv-expand-toggle { display: none; }
+.rv-expand-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    flex: 1;
+    max-width: 280px;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.4), inset 0 0 30px rgba(255,255,255,0.02);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    cursor: pointer;
+}
+.rv-expand-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25), inset 0 0 30px rgba(255,255,255,0.05);
+}
+.rv-expand-header {
+    padding: 20px 30px;
+    text-align: center;
+    position: relative;
+}
+.rv-expand-hint {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.25);
+    transition: transform 0.3s ease;
+}
+.rv-expand-toggle:checked ~ .rv-expand-card .rv-expand-hint {
+    transform: translateY(-50%) rotate(180deg);
+}
+.rv-expand-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rv-expand-toggle:checked ~ .rv-expand-card .rv-expand-content {
+    max-height: 200px;
+}
+.rv-expand-toggle:checked ~ .rv-expand-card {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25), inset 0 0 30px rgba(255,255,255,0.05);
+}
+.rv-expand-inner {
+    padding: 0 16px 14px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.rv-expand-col {
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+}
+.rv-expand-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+.patrimonio-label {
+    font-size: 0.6rem;
+    color: #818cf8;
+    margin-bottom: 3px;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.patrimonio-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+}
+.equity-label {
+    font-size: 0.6rem;
+    color: #34d399;
+    margin-bottom: 3px;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.equity-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+}
+
+/* ── FX Expandable Grid (Dollar Card) ── */
+.fx-expand-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255,255,255,0.04);
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.fx-grid-item {
+    text-align: center;
+    padding: 10px 8px;
+    background: rgba(15, 23, 42, 0.6);
+}
+.fx-grid-label {
+    font-size: 0.58rem;
+    color: #64748b;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+.fx-grid-value {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+}
+.fx-grid-var {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 1px;
+}
 @media (max-width: 768px) {
     .metrics-container { 
         margin-top: -60px; 
@@ -1109,22 +1241,29 @@ st.markdown("""
         flex-direction: row;
         padding: 0 15px;
     }
-    .metrics-box {
-        padding: 15px 12px;
+    .metrics-box, .rv-expand-card {
+        padding: 0;
         width: 100%;
         max-width: 50%;
+    }
+    .rv-expand-header {
+        padding: 15px 12px;
+    }
+    .rv-expand-inner {
+        padding: 0 12px 12px;
+        padding-top: 10px;
     }
     .metric-divider {
         display: none;
     }
-    .metric-item-value {
+    .metric-item-value, .patrimonio-value {
         font-size: 1.15rem;
         white-space: nowrap;
     }
     .metric-item-change {
         font-size: 0.8rem;
     }
-    .metric-item-label {
+    .metric-item-label, .patrimonio-label {
         font-size: 0.75rem;
         margin-bottom: 4px;
     }
@@ -1867,6 +2006,7 @@ dolar_var = 0.0
 rv_day_gain = 0.0
 rv_day_pct = 0.0
 dolar_change = 0.0
+total_patrimonio = 0.0
 
 if not df_assets.empty:
     df_rv = df_assets[df_assets['ticker'].notna()]
@@ -1874,6 +2014,9 @@ if not df_assets.empty:
     
     if 'BRL=X' not in tickers:
         tickers.append('BRL=X')
+    for _fx in ['EURBRL=X', 'CADBRL=X', 'CHFUSD=X', 'CAD=X']:
+        if _fx not in tickers:
+            tickers.append(_fx)
 
     map_prices, map_changes = fetch_market_data(tickers)
 
@@ -1881,7 +2024,6 @@ if not df_assets.empty:
     dolar_change = map_changes.get('BRL=X', 0.0)
     dolar_var = (dolar_change / (dolar_val - dolar_change)) * 100 if (dolar_val - dolar_change) != 0 else 0.0
 
-    from core.finance import calcular_carteira_fechada
     df_pos, _ = calcular_carteira_fechada(df_assets)
 
     total_mkt_val = 0.0
@@ -1905,6 +2047,76 @@ if not df_assets.empty:
         if (total_mkt_val - rv_day_gain) > 0:
             rv_day_pct = (rv_day_gain / (total_mkt_val - rv_day_gain)) * 100
 
+    # --- PATRIMÔNIO TOTAL (mesma lógica exata do Resumo em 1_Investimentos.py) ---
+    # Replicar a construção de df_view + df_grafico idêntica à tab1 de Composição
+
+    # Câmbios adicionais
+    eur_val = map_prices.get('EURBRL=X', 6.0)
+    cad_val = map_prices.get('CADBRL=X', 4.0)
+
+    # 1) Construir df_view (mesma lógica de 1_Investimentos.py, seção 8)
+    lista_view = []
+    if not df_pos.empty:
+        for _, row in df_pos.iterrows():
+            t = row['Ticker']
+            m = row['Moeda']
+            qtd = row['Qtd']
+            pm = row['PM_Origem']
+
+            preco_atual = map_prices.get(t, 0.0)
+            if preco_atual <= 0 or 'TESOURO' in t or 'CDB' in t:
+                preco_atual = pm
+
+            fator_conversao = 1.0
+            if m == 'USD': fator_conversao = dolar_val
+            elif m == 'EUR': fator_conversao = eur_val
+            elif m == 'CAD': fator_conversao = cad_val
+
+            valor_hoje_brl = qtd * preco_atual * fator_conversao
+            lista_view.append({
+                'Ticker': t,
+                'Qtd': qtd,
+                'Valor Hoje (R$)': valor_hoje_brl,
+            })
+
+    df_view_home = pd.DataFrame(lista_view) if lista_view else pd.DataFrame()
+
+    # 2) RV: filtrar ativos com Valor Hoje > 1.0 (exatamente como tab1)
+    rv_patrimonio = 0.0
+    if not df_view_home.empty:
+        df_rv_g = df_view_home[df_view_home['Valor Hoje (R$)'] > 1.0]
+        rv_patrimonio = df_rv_g['Valor Hoje (R$)'].sum()
+
+    # 3) RF: carregar e somar ativos, converter USD→BRL (exatamente como tab1)
+    rf_patrimonio = 0.0
+    try:
+        df_rf_raw = load_fixed_income()
+        df_rf_manual = load_fixed_income_manual()
+        df_proventos_bruto = load_proventos()
+
+        if not df_rf_raw.empty:
+            if df_rf_manual.empty:
+                df_rf_completo = summarize_fixed_income(df_rf_raw)
+            else:
+                df_rf_completo = summarize_fixed_income_hybrid(df_rf_manual, df_rf_raw, df_proventos_bruto)
+        else:
+            df_rf_completo = pd.DataFrame()
+
+        if not df_rf_completo.empty:
+            df_rf_ativo = df_rf_completo[df_rf_completo['Status'] == 'Ativo'].copy()
+            if not df_rf_ativo.empty and 'Atual' in df_rf_ativo.columns:
+                df_rf_ativo['Atual'] = pd.to_numeric(df_rf_ativo['Atual'], errors='coerce').fillna(0)
+                # Converte USD para BRL (mesma lógica de 1_Investimentos.py linhas 687-692)
+                if 'Moeda' in df_rf_ativo.columns:
+                    mask_usd = df_rf_ativo['Moeda'] == 'USD'
+                    if mask_usd.any():
+                        df_rf_ativo.loc[mask_usd, 'Atual'] = df_rf_ativo.loc[mask_usd, 'Atual'] * dolar_val
+                rf_patrimonio = df_rf_ativo['Atual'].sum()
+    except Exception:
+        rf_patrimonio = 0.0
+
+    total_patrimonio = rv_patrimonio + rf_patrimonio
+
 # === STEP 3: UPDATE METRICS WITH ACTUAL DATA ===
 rv_class = "positive" if rv_day_gain >= 0 else "negative"
 rv_value = format_decimal_br(rv_day_gain, 2)
@@ -1914,23 +2126,85 @@ rv_sign = "+" if rv_day_gain >= 0 else ""
 dolar_class = "positive" if dolar_change >= 0 else "negative"
 dolar_sign = "+" if dolar_change >= 0 else ""
 
+# Exchange rates for dollar expandable card
+eur_brl_val = map_prices.get('EURBRL=X', 6.0)
+eur_brl_change = map_changes.get('EURBRL=X', 0.0)
+eur_brl_var = (eur_brl_change / (eur_brl_val - eur_brl_change)) * 100 if (eur_brl_val - eur_brl_change) != 0 else 0.0
+
+usd_cad_val = map_prices.get('CAD=X', 1.35)
+usd_cad_change = map_changes.get('CAD=X', 0.0)
+usd_cad_var = (usd_cad_change / (usd_cad_val - usd_cad_change)) * 100 if (usd_cad_val - usd_cad_change) != 0 else 0.0
+
+chf_usd_val = map_prices.get('CHFUSD=X', 1.10)
+chf_usd_change = map_changes.get('CHFUSD=X', 0.0)
+chf_usd_var = (chf_usd_change / (chf_usd_val - chf_usd_change)) * 100 if (chf_usd_val - chf_usd_change) != 0 else 0.0
+
 metrics_placeholder.markdown(f"""
 <div class="metrics-container">
-    <div class="metrics-box">
-        <div class="metric-item">
-            <div class="metric-item-label">Renda Variável (Hoje)</div>
-            <div class="metric-item-value color-{rv_class}">
-                R$ {rv_value}
-                <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
+    <div style="flex:1;max-width:280px;">
+        <input type="checkbox" id="rv-metric-toggle" class="rv-expand-toggle">
+        <div class="rv-expand-card">
+            <label for="rv-metric-toggle" class="rv-expand-header">
+                <div class="metric-item">
+                    <div class="metric-item-label">Renda Variável (Hoje)</div>
+                    <div class="metric-item-value color-{rv_class}">
+                        R$ {rv_value}
+                        <span class="metric-item-change">({rv_sign}{rv_pct}%)</span>
+                    </div>
+                </div>
+                <span class="rv-expand-hint">▼</span>
+            </label>
+            <div class="rv-expand-content">
+                <div class="rv-expand-inner">
+                    <div class="rv-expand-col">
+                        <div class="patrimonio-label">Patrimônio Individual</div>
+                        <div class="patrimonio-value">R$ {format_decimal_br(total_patrimonio, 2)}</div>
+                    </div>
+                    <div class="rv-expand-divider"></div>
+                    <div class="rv-expand-col">
+                        <div class="equity-label">Equity Family</div>
+                        <div class="equity-value">R$ {format_decimal_br(total_patrimonio * 2, 2)}</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="metrics-box">
-        <div class="metric-item">
-            <div class="metric-item-label">Dólar Dia</div>
-            <div class="metric-item-value">
-                R$ {format_decimal_br(dolar_val, 2)}
-                <span class="metric-item-change color-{dolar_class}">({dolar_sign}{format_decimal_br(dolar_var, 2)}%)</span>
+    <div style="flex:1;max-width:280px;">
+        <input type="checkbox" id="fx-metric-toggle" class="rv-expand-toggle">
+        <div class="rv-expand-card">
+            <label for="fx-metric-toggle" class="rv-expand-header">
+                <div class="metric-item">
+                    <div class="metric-item-label">Dólar Dia</div>
+                    <div class="metric-item-value">
+                        R$ {format_decimal_br(dolar_val, 2)}
+                        <span class="metric-item-change color-{dolar_class}">({dolar_sign}{format_decimal_br(dolar_var, 2)}%)</span>
+                    </div>
+                </div>
+                <span class="rv-expand-hint">▼</span>
+            </label>
+            <div class="rv-expand-content">
+                <div class="fx-expand-grid">
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">EUR/BRL</div>
+                        <div class="fx-grid-value">R$ {format_decimal_br(eur_brl_val, 4)}</div>
+                        <div class="fx-grid-var {'color-positive' if eur_brl_change >= 0 else 'color-negative'}">{'+'if eur_brl_change >= 0 else ''}{format_decimal_br(eur_brl_var, 2)}%</div>
+                    </div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">USD/BRL</div>
+                        <div class="fx-grid-value">R$ {format_decimal_br(dolar_val, 4)}</div>
+                        <div class="fx-grid-var {'color-positive' if dolar_change >= 0 else 'color-negative'}">{'+'if dolar_change >= 0 else ''}{format_decimal_br(dolar_var, 2)}%</div>
+                    </div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">USD/CAD</div>
+                        <div class="fx-grid-value">C$ {format_decimal_br(usd_cad_val, 4)}</div>
+                        <div class="fx-grid-var {'color-positive' if usd_cad_change >= 0 else 'color-negative'}">{'+'if usd_cad_change >= 0 else ''}{format_decimal_br(usd_cad_var, 2)}%</div>
+                    </div>
+                    <div class="fx-grid-item">
+                        <div class="fx-grid-label">CHF/USD</div>
+                        <div class="fx-grid-value">US$ {format_decimal_br(chf_usd_val, 4)}</div>
+                        <div class="fx-grid-var {'color-positive' if chf_usd_change >= 0 else 'color-negative'}">{'+'if chf_usd_change >= 0 else ''}{format_decimal_br(chf_usd_var, 2)}%</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
