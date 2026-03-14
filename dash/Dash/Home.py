@@ -1239,38 +1239,59 @@ st.markdown("""
         margin-top: -60px;
         gap: 10px;
         flex-direction: row;
+        align-items: flex-start;   /* cards independentes em altura */
         padding: 0 12px;
     }
-    /* Cards: fill their flex wrapper (wrapper handles the 50/50 split) */
+    /* Cards: 50/50 split via flex wrappers, sem overflow */
     .metrics-box, .rv-expand-card {
         width: 100%;
         max-width: 100%;
         min-width: 0;
     }
+    /* Header centralizado com padding justo */
     .rv-expand-header {
-        padding: 14px 14px;
+        padding: 16px 14px 14px;
+        text-align: center;
     }
+    /* Empilha patrimônio/equity verticalmente — evita quebra de "R$\n215.447" */
     .rv-expand-inner {
-        padding: 10px 12px 12px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px 14px;
     }
+    .rv-expand-col { text-align: center; }
+    /* Divisor vira horizontal na vertical stack */
+    .rv-expand-divider { width: 100%; height: 1px; }
     .metric-divider { display: none; }
-    /* Value on first line, change % on second line */
-    .metric-item-value, .patrimonio-value {
-        font-size: 1.1rem;
+    /* Valor: permite quebra natural, % na linha de baixo */
+    .metric-item-value {
+        font-size: 1.15rem;
         white-space: normal;
-        line-height: 1.25;
+        line-height: 1.2;
     }
     .metric-item-change {
-        font-size: 0.75rem;
+        font-size: 0.78rem;
         display: block;
         margin-left: 0;
-        margin-top: 2px;
+        margin-top: 3px;
     }
     .metric-item-label, .patrimonio-label {
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         margin-bottom: 4px;
     }
+    /* Patrimônio/equity values sem nowrap, fonte um pouco menor */
+    .patrimonio-value, .equity-value {
+        font-size: 1.0rem;
+        white-space: normal;
+        word-break: break-all;
+    }
     .rv-expand-hint { font-size: 0.45rem; right: 10px; }
+    /* FX grid compacto */
+    .fx-grid-item { padding: 9px 6px; }
+    .fx-grid-label { font-size: 0.52rem; letter-spacing: 0.5px; }
+    .fx-grid-value { font-size: 0.85rem; }
+    .fx-grid-var   { font-size: 0.68rem; }
 }
 
 /* ── Home Ticker Tape ── */
