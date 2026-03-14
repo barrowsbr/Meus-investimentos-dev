@@ -6180,21 +6180,27 @@ def render_fx_pnl():
         </div>'''
 
     # ── Full page HTML ──
-    st.markdown(f"""
+    height = max(640, 320 + len(cdata) * 230)
+    components.html(f"""<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-
-.fx-page {{
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{
+    background: #0a0a12;
+    color: #fff;
     font-family: 'Share Tech Mono', monospace;
+    padding: 8px 10px 60px;
+}}
+.fx-page {{
     max-width: 860px;
     margin: 0 auto;
-    padding: 0 4px 60px;
 }}
-
-/* ── Header ── */
 .fx-header {{
     text-align: center;
-    padding: 10px 0 18px;
+    padding: 10px 0 20px;
 }}
 .fx-title {{
     font-family: 'Orbitron', sans-serif;
@@ -6206,14 +6212,12 @@ def render_fx_pnl():
     text-transform: uppercase;
 }}
 .fx-subtitle {{
-    font-size: clamp(0.55rem, 2vw, 0.7rem);
+    font-size: clamp(0.55rem, 2vw, 0.68rem);
     color: #444;
     letter-spacing: 3px;
     text-transform: uppercase;
-    margin-top: 6px;
+    margin-top: 7px;
 }}
-
-/* ── Summary row ── */
 .summary-row {{
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -6244,8 +6248,6 @@ def render_fx_pnl():
     font-weight: 700;
     line-height: 1.2;
 }}
-
-/* ── Currency block ── */
 .currency-block {{
     background: rgba(13,13,22,0.97);
     border: 1px solid rgba(255,255,255,0.07);
@@ -6253,8 +6255,6 @@ def render_fx_pnl():
     padding: 16px;
     margin-bottom: 12px;
 }}
-
-/* ── Currency header ── */
 .currency-header {{
     display: flex;
     align-items: center;
@@ -6279,7 +6279,7 @@ def render_fx_pnl():
     color: #fff;
 }}
 .rate-info-line {{
-    font-size: clamp(0.58rem, 2vw, 0.68rem);
+    font-size: clamp(0.55rem, 1.8vw, 0.65rem);
     margin-top: 3px;
     line-height: 1.4;
 }}
@@ -6287,18 +6287,14 @@ def render_fx_pnl():
 .rate-sep {{ color: #444; }}
 .rate-vet {{ color: #555; }}
 .rate-info {{ color: #444; font-style: italic; }}
-
-/* ── Rate badge ── */
 .rate-badge {{
     font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.6rem, 2vw, 0.72rem);
+    font-size: clamp(0.58rem, 1.8vw, 0.7rem);
     font-weight: 700;
     padding: 5px 12px;
     border-radius: 20px;
     white-space: nowrap;
 }}
-
-/* ── P&L rows ── */
 .pnl-rows {{
     border-top: 1px solid rgba(255,255,255,0.06);
     padding-top: 12px;
@@ -6324,7 +6320,7 @@ def render_fx_pnl():
 }}
 .pnl-val {{
     font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.72rem, 2.5vw, 0.9rem);
+    font-size: clamp(0.7rem, 2.5vw, 0.88rem);
     font-weight: 700;
     text-align: right;
     word-break: break-all;
@@ -6337,19 +6333,13 @@ def render_fx_pnl():
     font-size: 0.65em;
     opacity: 0.55;
 }}
-
-/* ── Colors ── */
-.pos    {{ color: #00ff41; }}
-.neg    {{ color: #ff4455; }}
-.neutral{{ color: #666; font-style: italic; }}
-
+.pos     {{ color: #00ff41; }}
+.neg     {{ color: #ff4455; }}
+.neutral {{ color: #666; font-style: italic; }}
 .sum-val.pos {{ color: #00ff41; text-shadow: 0 0 14px rgba(0,255,65,0.25); }}
 .sum-val.neg {{ color: #ff4455; text-shadow: 0 0 14px rgba(255,68,85,0.25); }}
-
 .rate-badge.pos {{ background: rgba(0,255,65,0.1);  color: #00ff41; border: 1px solid rgba(0,255,65,0.25); }}
 .rate-badge.neg {{ background: rgba(255,68,85,0.1); color: #ff4455; border: 1px solid rgba(255,68,85,0.25); }}
-
-/* ── Asset chips ── */
 .asset-chips {{
     display: flex;
     flex-wrap: wrap;
@@ -6364,8 +6354,6 @@ def render_fx_pnl():
 }}
 .chip.pos {{ background: rgba(0,255,65,0.08);  color: #00ff41; border: 1px solid rgba(0,255,65,0.18); }}
 .chip.neg {{ background: rgba(255,68,85,0.08); color: #ff4455; border: 1px solid rgba(255,68,85,0.18); }}
-
-/* ── Section divider ── */
 .section-label {{
     font-size: clamp(0.5rem, 1.8vw, 0.58rem);
     color: #2a2a3a;
@@ -6375,20 +6363,19 @@ def render_fx_pnl():
     margin: 6px 0 16px;
 }}
 </style>
-
+</head>
+<body>
 <div class="fx-page">
   <div class="fx-header">
     <div class="fx-title">ALPHA CAMBIAL</div>
-    <div class="fx-subtitle">Lucro Real · Ativo vs Câmbio · Por Moeda</div>
+    <div class="fx-subtitle">Lucro Real &middot; Ativo vs C&acirc;mbio &middot; Por Moeda</div>
   </div>
-
   {summary_html}
-
   <div class="section-label">// DETALHE POR MOEDA //</div>
-
   {blocks_html}
 </div>
-""", unsafe_allow_html=True)
+</body>
+</html>""", height=height, scrolling=True)
 
 
 # --- MAIN HUB RENDER ---
