@@ -545,16 +545,23 @@ def main():
         # Garante que o card "Patrimônio" exibe o mesmo valor.
         # =================================================================
         patrimonio_spot = 0.0
+        caixa_spot = 0.0
+        CASH_TICKERS_SPOT = {'CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'LIQUIDEZ'}
         try:
+            # FX defaults — always defined so RF loop below never NameErrors
+            usd_spot = 5.50
+            eur_spot = 6.00
+            cad_spot = 4.00
+
             # 1. RV — posições × preço spot × FX spot (idêntico a Investimentos)
             df_pos_spot, _ = calcular_carteira_fechada(df_assets)
             if not df_pos_spot.empty:
                 tickers_spot = df_pos_spot['Ticker'].unique().tolist()
                 tickers_spot += ['BRL=X', 'EURBRL=X', 'CADBRL=X']
                 mapa_precos_spot, _ = fetch_market_data(list(set(tickers_spot)))
-                usd_spot = mapa_precos_spot.get('BRL=X', 5.50)
-                eur_spot = mapa_precos_spot.get('EURBRL=X', 6.00)
-                cad_spot = mapa_precos_spot.get('CADBRL=X', 4.00)
+                usd_spot = mapa_precos_spot.get('BRL=X', usd_spot)
+                eur_spot = mapa_precos_spot.get('EURBRL=X', eur_spot)
+                cad_spot = mapa_precos_spot.get('CADBRL=X', cad_spot)
 
                 for _, row in df_pos_spot.iterrows():
                     t = row['Ticker']
@@ -572,11 +579,25 @@ def main():
                     patrimonio_spot += qtd * preco * fx
 
             # 2. RF — valores manuais (mesma fonte da Investimentos)
+            # IMPORTANT: Apply the SAME CASH_TICKERS filter used by the engine so
+            # patrimônio_spot and the engine's NAV are on the same basis (both ex-cash).
+            # Caixa is captured separately and shown in its own metric card.
             from core.data.loader import load_fixed_income_manual
             from core.finance import summarize_fixed_income_hybrid
             df_rf_manual_spot = load_fixed_income_manual()
             df_rf_raw_spot = load_fixed_income()
             df_prov_spot = load_proventos()
+
+            if not df_rf_manual_spot.empty:
+                df_rf_manual_spot['Atual'] = pd.to_numeric(
+                    df_rf_manual_spot['Atual'], errors='coerce'
+                ).fillna(0)
+                # Extract caixa BEFORE filtering
+                mask_cash = df_rf_manual_spot['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS_SPOT)
+                caixa_spot = float(df_rf_manual_spot.loc[mask_cash & (df_rf_manual_spot['Atual'] > 0), 'Atual'].sum())
+                # Filter out cash — align with engine's manual_rf_values
+                df_rf_manual_spot = df_rf_manual_spot[~mask_cash]
+
             if not df_rf_raw_spot.empty:
                 if df_rf_manual_spot.empty:
                     from core.finance import summarize_fixed_income
@@ -588,12 +609,15 @@ def main():
                 if not df_rf_spot.empty:
                     df_rf_ativos = df_rf_spot[df_rf_spot['Status'] == 'Ativo']
                     if not df_rf_ativos.empty:
-                        moeda_rf = df_rf_ativos.get('Moeda', pd.Series('BRL'))
                         for _, rf_row in df_rf_ativos.iterrows():
                             val_rf = float(rf_row['Atual'])
-                            m_rf = rf_row.get('Moeda', 'BRL')
+                            m_rf = str(rf_row.get('Moeda', 'BRL')).upper().strip()
                             if m_rf == 'USD':
-                                val_rf *= usd_spot if 'usd_spot' in dir() else 5.50
+                                val_rf *= usd_spot
+                            elif m_rf == 'EUR':
+                                val_rf *= eur_spot
+                            elif m_rf == 'CAD':
+                                val_rf *= cad_spot
                             patrimonio_spot += val_rf
         except Exception as e:
             print(f"[PATRIMÔNIO SPOT] Erro: {e}")
@@ -837,7 +861,7 @@ def main():
     """, unsafe_allow_html=True)
 
     # Render styled metric cards
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
 
     with k1:
         twr_positive = res_period.total_twr >= 0
@@ -862,22 +886,37 @@ def main():
         ), unsafe_allow_html=True)
 
     with k3:
-        # Usar patrimônio spot (= Investimentos) quando o slice inclui "hoje"
+        # Patrimônio investido (ex-caixa) — same basis as engine NAV
+        # patrimônio_spot already has caixa filtered out (aligned with engine)
         nav_display = nav_final
         if patrimonio_spot > 0 and end_date >= data_max:
             nav_display = patrimonio_spot
+        # Delta: compare against engine's first NAV (same ex-caixa basis)
         patrimonio_delta = nav_display - nav_inicial
         patrimonio_positive = patrimonio_delta >= 0
         st.markdown(render_metric_card(
-            label="Patrimônio",
+            label="Patrimônio Investido",
             value=f"R$ {nav_display:,.0f}",
             delta=f"R$ {patrimonio_delta:+,.0f}" if patrimonio_delta != 0 else None,
             delta_positive=patrimonio_positive,
-            subtitle="Valor atual do portfólio",
+            subtitle="RV + RF excluindo caixa livre",
             icon="🏦"
         ), unsafe_allow_html=True)
 
     with k4:
+        # Caixa & liquidez — shown separately from investment performance
+        aum_total = nav_display + caixa_spot
+        caixa_pct = (caixa_spot / aum_total * 100) if aum_total > 0 else 0.0
+        st.markdown(render_metric_card(
+            label="Caixa & Liquidez",
+            value=f"R$ {caixa_spot:,.0f}",
+            delta=f"{caixa_pct:.1f}% do AUM" if caixa_spot > 0 else None,
+            delta_positive=True,
+            subtitle="Saldo disponível / não alocado",
+            icon="💵"
+        ), unsafe_allow_html=True)
+
+    with k5:
         st.markdown(render_metric_card(
             label="Drawdown Máx",
             value=f"{res_period.max_drawdown:.2%}",
@@ -886,7 +925,7 @@ def main():
             icon="📉"
         ), unsafe_allow_html=True)
 
-    with k5:
+    with k6:
         vol_status = res_period.volatility < 0.20  # Less than 20% is considered moderate
         st.markdown(render_metric_card(
             label="Volatilidade",
@@ -905,29 +944,12 @@ def main():
         <div class="section-icon">📈</div>
         <div>
             <div class="section-title">Evolução Patrimonial</div>
-            <div class="section-subtitle">Patrimônio (R$) vs Rentabilidade Acumulada (%) — sem caixa</div>
+            <div class="section-subtitle">Patrimônio investido (RV + RF) em BRL — caixa exibido separadamente</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # =====================================================================
-    # CHART: Desconsiderar caixa no gráfico (apenas visual)
-    # =====================================================================
     df_slice_chart = df_slice.copy()
-
-    # Calcular valor de caixa a partir dos valores manuais de RF
-    caixa_total = 0.0
-    termos_caixa = ['CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'LIQUIDEZ']
-    if manual_rf_values:
-        for ticker, valor in manual_rf_values.items():
-            if any(termo in ticker.upper() for termo in termos_caixa):
-                caixa_total += valor
-
-    # Subtrair caixa do NAV para o gráfico
-    if caixa_total > 0 and 'nav' in df_slice_chart.columns:
-        df_slice_chart['nav'] = df_slice_chart['nav'] - caixa_total
-        # Garantir que NAV não fique negativo
-        df_slice_chart['nav'] = df_slice_chart['nav'].clip(lower=0)
 
     # 1. Evolution (Dual Axis) - VERSÃO OTIMIZADA v2.1
     fig_evol = plot_nav_vs_twr(
@@ -1004,6 +1026,167 @@ def main():
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     st.markdown('</div class="divider"></div>', unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # ATRIBUIÇÃO DE RETORNO: Ativo vs Câmbio
+    # R_total = (1 + R_ativo) × (1 + R_câmbio) − 1
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    _foreign_currencies = [
+        k for k, b in multi_result.buckets.items()
+        if k not in ('BRL',) and not k.endswith('_DIRECT')
+        and not b.nav_series.empty
+    ]
+
+    if _foreign_currencies:
+        try:
+            from core.consolidator import CurrencyBucket
+            from core.performance.decomposition import decompose_portfolio
+
+            def _slice_s(s, s_date, e_date):
+                if s is None or (hasattr(s, 'empty') and s.empty):
+                    return pd.Series(dtype=float)
+                return s[(s.index >= s_date) & (s.index <= e_date)]
+
+            _sliced_buckets = {}
+            for _curr, _bucket in multi_result.buckets.items():
+                if _bucket.nav_series.empty:
+                    continue
+                _nav_s = _slice_s(_bucket.nav_series, start_date, end_date)
+                if _nav_s.empty or _nav_s.max() <= 0:
+                    continue
+                _sliced_buckets[_curr] = CurrencyBucket(
+                    currency=_curr,
+                    nav_series=_nav_s,
+                    flow_series=_slice_s(_bucket.flow_series, start_date, end_date),
+                    income_series=_slice_s(_bucket.income_series, start_date, end_date),
+                    force_zero_series=_slice_s(_bucket.force_zero_series, start_date, end_date),
+                    flow_timing_series=_slice_s(_bucket.flow_timing_series, start_date, end_date),
+                    tickers=_bucket.tickers
+                )
+
+            if _sliced_buckets:
+                _decomp = decompose_portfolio(
+                    _sliced_buckets,
+                    multi_result.fx_rates,
+                    consolidated_result=res_period,
+                    fx_cost_basis=fx_cost_basis if view_mode == "💰 Meu Custo" else None
+                )
+
+                st.markdown("""
+                <div class="section-header">
+                    <div class="section-icon">🔬</div>
+                    <div>
+                        <div class="section-title">Atribuição de Retorno</div>
+                        <div class="section-subtitle">Quanto veio do ativo (moeda original) e quanto veio do câmbio</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                _a1, _a2, _a3 = st.columns(3)
+
+                with _a1:
+                    st.markdown(render_metric_card(
+                        label="Retorno do Ativo",
+                        value=f"{_decomp.total_twr_asset:.2%}",
+                        delta="Performance na moeda original",
+                        delta_positive=_decomp.total_twr_asset >= 0,
+                        subtitle="Seleção de ativos (ex-câmbio)",
+                        icon="📊"
+                    ), unsafe_allow_html=True)
+
+                with _a2:
+                    st.markdown(render_metric_card(
+                        label="Efeito Câmbio",
+                        value=f"{_decomp.total_twr_fx:.2%}",
+                        delta="Variação da taxa de câmbio",
+                        delta_positive=_decomp.total_twr_fx >= 0,
+                        subtitle="PM câmbio" if view_mode == "💰 Meu Custo" else "Cotação spot",
+                        icon="💱"
+                    ), unsafe_allow_html=True)
+
+                with _a3:
+                    st.markdown(render_metric_card(
+                        label="Total em BRL",
+                        value=f"{_decomp.total_twr:.2%}",
+                        delta=f"(1+{_decomp.total_twr_asset:.1%}) × (1+{_decomp.total_twr_fx:.1%}) − 1",
+                        delta_positive=_decomp.total_twr >= 0,
+                        subtitle="Produto multiplicativo dos dois efeitos",
+                        icon="🎯"
+                    ), unsafe_allow_html=True)
+
+                if not _decomp.cumret_asset_total.empty and len(_decomp.cumret_asset_total) > 1:
+                    _fig_attr = go.Figure()
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_asset_total.index,
+                        y=_decomp.cumret_asset_total * 100,
+                        name="Ativo (moeda original)",
+                        line=dict(color='#6366f1', width=2),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Ativo</extra>'
+                    ))
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_fx_total.index,
+                        y=_decomp.cumret_fx_total * 100,
+                        name="Câmbio",
+                        line=dict(color='#f59e0b', width=2, dash='dot'),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Câmbio</extra>'
+                    ))
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_total.index,
+                        y=_decomp.cumret_total * 100,
+                        name="Total BRL",
+                        line=dict(color='#10b981', width=2.5),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Total</extra>'
+                    ))
+
+                    _fig_attr.add_hline(
+                        y=0, line_dash="dash",
+                        line_color="rgba(255,255,255,0.15)",
+                        line_width=1
+                    )
+
+                    _fig_attr.update_layout(
+                        height=300,
+                        margin=dict(t=20, b=40, l=60, r=20),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom", y=1.02,
+                            xanchor="right", x=1,
+                            font=dict(color='#94a3b8', size=11),
+                            bgcolor='rgba(0,0,0,0)'
+                        ),
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='#64748b', size=10),
+                        xaxis=dict(
+                            showgrid=False, zeroline=False, showline=False,
+                            tickformat='%b/%Y'
+                        ),
+                        yaxis=dict(
+                            gridcolor='rgba(148, 163, 184, 0.1)',
+                            zeroline=False, showline=False,
+                            ticksuffix='%', tickformat='.1f'
+                        ),
+                        hoverlabel=dict(
+                            bgcolor='#1e293b', font_color='#f1f5f9', font_size=12
+                        )
+                    )
+
+                    st.plotly_chart(_fig_attr, use_container_width=True, config={'displayModeBar': False})
+
+                    _ref_label = "PM câmbio (seu VET)" if view_mode == "💰 Meu Custo" else "cotação spot de mercado"
+                    st.caption(
+                        f"Fórmula: R_total = (1 + R_ativo) × (1 + R_câmbio) − 1  |  "
+                        f"Referência cambial: {_ref_label}"
+                    )
+
+                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+        except Exception:
+            pass  # Seção de atribuição é opcional; erros não bloqueiam a página
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # ANÁLISE DE CÂMBIO (Debug Discreto)
