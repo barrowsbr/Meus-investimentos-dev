@@ -433,14 +433,245 @@ with tab_perf:
         st.switch_page("pages/3_Performance.py")
 
 with tab_legado:
+    # --- CSS ---
     st.markdown("""
-    <div style="text-align: center; padding: 60px 20px;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">🏛️</div>
-        <h2 style="color: #f1f5f9; margin-bottom: 8px;">Histórico Patrimonial</h2>
-        <p style="color: #64748b; margin-bottom: 24px;">Evolução do patrimônio ao longo do tempo</p>
-    </div>
+    <style>
+    .leg-dash {
+        background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.85) 100%);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(251,191,36,0.25);
+        border-radius: 20px;
+        padding: 28px 32px;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+    .leg-dash::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+    }
+    .leg-hero-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+    }
+    .leg-hero-val {
+        font-size: 2.6rem;
+        font-weight: 800;
+        color: #fbbf24;
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+    .leg-hero-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    .leg-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 20px;
+    }
+    .leg-gi {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 14px 18px;
+    }
+    .leg-gl { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .leg-gv { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; }
+    .leg-gv.pos { color: #34d399; }
+    .leg-gv.acc { color: #a78bfa; }
+
+    .leg-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: rgba(15,23,42,0.7);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    .leg-table thead { background: rgba(251,191,36,0.08); }
+    .leg-table th {
+        padding: 12px 16px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .leg-table th.yr { text-align: right; }
+    .leg-table td {
+        padding: 11px 16px;
+        font-size: 0.82rem;
+        color: #e2e8f0;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .leg-table tr:last-child td { border-bottom: none; }
+    .leg-table tr:hover { background: rgba(251,191,36,0.04); }
+    .leg-table td.val {
+        text-align: right;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+        color: #cbd5e1;
+    }
+    .leg-table tr.tot-row { background: rgba(251,191,36,0.07); }
+    .leg-table tr.tot-row td { font-weight: 700; color: #fbbf24; border-top: 1px solid rgba(251,191,36,0.2); }
+    .owner-badge {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-right: 6px;
+    }
+    .ob-lucas { background: rgba(129,140,248,0.2); color: #a5b4fc; }
+    .ob-maria { background: rgba(244,114,182,0.2); color: #f9a8d4; }
+    .ob-conjunto { background: rgba(45,212,191,0.2); color: #5eead4; }
+    </style>
     """, unsafe_allow_html=True)
-    if st.button("Acessar Legado Completo", key="btn_goto_legado", use_container_width=True, type="primary"):
+
+    # --- DATA ---
+    try:
+        from core.data.provider import DataProvider
+        df_leg = DataProvider.fetch_data('lb_historic')
+    except Exception:
+        df_leg = pd.DataFrame()
+
+    def _fmt_brl_leg(v):
+        if pd.isna(v) or v == 0:
+            return "—"
+        return f"R$ {v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _owner_leg(name):
+        n = str(name).lower()
+        if 'lucas' in n: return 'lucas'
+        if 'maria' in n: return 'maria'
+        return 'conjunto'
+
+    if df_leg.empty:
+        st.markdown("""
+        <div style="text-align:center;padding:60px 20px;color:#64748b;">
+            <div style="font-size:3rem;margin-bottom:16px;opacity:0.4">🏛️</div>
+            <p>Nenhum dado histórico encontrado.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        first_col = df_leg.columns[0]
+        year_cols = sorted([c for c in df_leg.columns if str(c).strip().isdigit()], key=int)
+
+        df_leg_clean = df_leg[
+            (df_leg[first_col].notna()) &
+            (df_leg[first_col].astype(str).str.strip() != '')
+        ].copy()
+        for yc in year_cols:
+            df_leg_clean[yc] = df_leg_clean[yc].apply(parse_decimal_br)
+
+        df_leg_data  = df_leg_clean[df_leg_clean[first_col].astype(str).str.lower() != 'total'].copy()
+        df_leg_total = df_leg_clean[df_leg_clean[first_col].astype(str).str.lower() == 'total']
+
+        if df_leg_total.empty:
+            tot = {first_col: 'Total'}
+            for yc in year_cols: tot[yc] = df_leg_data[yc].sum()
+            df_leg_total = pd.DataFrame([tot])
+
+        min_y = year_cols[0] if year_cols else None
+        max_y = year_cols[-1] if year_cols else None
+        total_ini = df_leg_data[min_y].sum() if min_y else 0
+        total_cur = df_leg_data[max_y].sum() if max_y else 0
+        growth_pct = ((total_cur / total_ini) - 1) * 100 if total_ini > 0 else 0
+        years_span = int(max_y) - int(min_y) if min_y and max_y else 0
+
+        # --- HERO CARD ---
+        st.markdown(f"""
+        <div class="leg-dash">
+            <div class="leg-hero-label">Patrimônio Histórico</div>
+            <div class="leg-hero-val">{_fmt_brl_leg(total_cur)}</div>
+            <div class="leg-hero-sub">Valor consolidado em {max_y}</div>
+            <div class="leg-grid">
+                <div class="leg-gi">
+                    <div class="leg-gl">Crescimento Total</div>
+                    <div class="leg-gv pos">+{growth_pct:,.0f}%</div>
+                </div>
+                <div class="leg-gi">
+                    <div class="leg-gl">Período Registrado</div>
+                    <div class="leg-gv acc">{years_span} anos</div>
+                </div>
+                <div class="leg-gi">
+                    <div class="leg-gl">Patrimônio Inicial ({min_y})</div>
+                    <div class="leg-gv">{_fmt_brl_leg(total_ini)}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # --- EVOLUTION CHART ---
+        totals_by_year = [df_leg_data[yc].sum() for yc in year_cols]
+        fig_leg = go.Figure()
+        fig_leg.add_trace(go.Scatter(
+            x=year_cols,
+            y=totals_by_year,
+            mode='lines+markers',
+            name='Patrimônio Total',
+            line=dict(color='#f59e0b', width=3),
+            marker=dict(size=8, color='#fbbf24', line=dict(color='#1e1b4b', width=2)),
+            fill='tozeroy',
+            fillcolor='rgba(245,158,11,0.08)'
+        ))
+        fig_leg.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=8, b=0),
+            height=220,
+            xaxis=dict(showgrid=False, tickfont=dict(size=11, color='#94a3b8')),
+            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)',
+                       tickformat=',.0f', tickprefix='R$ ', tickfont=dict(size=10, color='#94a3b8')),
+            showlegend=False,
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig_leg, use_container_width=True, config={'displayModeBar': False})
+
+        # --- HISTORY TABLE ---
+        with st.expander("Detalhamento por Instituição", expanded=True):
+            tbl = '<table class="leg-table"><thead><tr>'
+            tbl += '<th style="width:260px">Instituição</th>'
+            for yc in year_cols:
+                tbl += f'<th class="yr">{yc}</th>'
+            tbl += '</tr></thead><tbody>'
+
+            for _, row in df_leg_data.iterrows():
+                inst = str(row[first_col]).strip()
+                owner = _owner_leg(inst)
+                tbl += f'<tr><td><span class="owner-badge ob-{owner}">{owner}</span>{inst}</td>'
+                for yc in year_cols:
+                    tbl += f'<td class="val">{_fmt_brl_leg(row[yc])}</td>'
+                tbl += '</tr>'
+
+            if not df_leg_total.empty:
+                tr = df_leg_total.iloc[0]
+                tbl += '<tr class="tot-row"><td>TOTAL GERAL</td>'
+                for yc in year_cols:
+                    v = tr[yc] if yc in df_leg_total.columns else df_leg_data[yc].sum()
+                    tbl += f'<td class="val">{_fmt_brl_leg(v)}</td>'
+                tbl += '</tr>'
+
+            tbl += '</tbody></table>'
+            st.markdown(tbl, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    if st.button("Acessar Legado Completo", key="btn_goto_legado", use_container_width=False, type="secondary"):
         st.switch_page("pages/6_Historico_Patrimonial.py")
 
 # 5. PROCESSAMENTO DE RENDA FIXA (Corrigido: 'Data' e 'Rent. %' restaurados)
