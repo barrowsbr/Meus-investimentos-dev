@@ -545,16 +545,23 @@ def main():
         # Garante que o card "Patrimônio" exibe o mesmo valor.
         # =================================================================
         patrimonio_spot = 0.0
+        caixa_spot = 0.0
+        CASH_TICKERS_SPOT = {'CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'LIQUIDEZ'}
         try:
+            # FX defaults — always defined so RF loop below never NameErrors
+            usd_spot = 5.50
+            eur_spot = 6.00
+            cad_spot = 4.00
+
             # 1. RV — posições × preço spot × FX spot (idêntico a Investimentos)
             df_pos_spot, _ = calcular_carteira_fechada(df_assets)
             if not df_pos_spot.empty:
                 tickers_spot = df_pos_spot['Ticker'].unique().tolist()
                 tickers_spot += ['BRL=X', 'EURBRL=X', 'CADBRL=X']
                 mapa_precos_spot, _ = fetch_market_data(list(set(tickers_spot)))
-                usd_spot = mapa_precos_spot.get('BRL=X', 5.50)
-                eur_spot = mapa_precos_spot.get('EURBRL=X', 6.00)
-                cad_spot = mapa_precos_spot.get('CADBRL=X', 4.00)
+                usd_spot = mapa_precos_spot.get('BRL=X', usd_spot)
+                eur_spot = mapa_precos_spot.get('EURBRL=X', eur_spot)
+                cad_spot = mapa_precos_spot.get('CADBRL=X', cad_spot)
 
                 for _, row in df_pos_spot.iterrows():
                     t = row['Ticker']
@@ -572,11 +579,25 @@ def main():
                     patrimonio_spot += qtd * preco * fx
 
             # 2. RF — valores manuais (mesma fonte da Investimentos)
+            # IMPORTANT: Apply the SAME CASH_TICKERS filter used by the engine so
+            # patrimônio_spot and the engine's NAV are on the same basis (both ex-cash).
+            # Caixa is captured separately and shown in its own metric card.
             from core.data.loader import load_fixed_income_manual
             from core.finance import summarize_fixed_income_hybrid
             df_rf_manual_spot = load_fixed_income_manual()
             df_rf_raw_spot = load_fixed_income()
             df_prov_spot = load_proventos()
+
+            if not df_rf_manual_spot.empty:
+                df_rf_manual_spot['Atual'] = pd.to_numeric(
+                    df_rf_manual_spot['Atual'], errors='coerce'
+                ).fillna(0)
+                # Extract caixa BEFORE filtering
+                mask_cash = df_rf_manual_spot['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS_SPOT)
+                caixa_spot = float(df_rf_manual_spot.loc[mask_cash & (df_rf_manual_spot['Atual'] > 0), 'Atual'].sum())
+                # Filter out cash — align with engine's manual_rf_values
+                df_rf_manual_spot = df_rf_manual_spot[~mask_cash]
+
             if not df_rf_raw_spot.empty:
                 if df_rf_manual_spot.empty:
                     from core.finance import summarize_fixed_income
@@ -588,12 +609,15 @@ def main():
                 if not df_rf_spot.empty:
                     df_rf_ativos = df_rf_spot[df_rf_spot['Status'] == 'Ativo']
                     if not df_rf_ativos.empty:
-                        moeda_rf = df_rf_ativos.get('Moeda', pd.Series('BRL'))
                         for _, rf_row in df_rf_ativos.iterrows():
                             val_rf = float(rf_row['Atual'])
-                            m_rf = rf_row.get('Moeda', 'BRL')
+                            m_rf = str(rf_row.get('Moeda', 'BRL')).upper().strip()
                             if m_rf == 'USD':
-                                val_rf *= usd_spot if 'usd_spot' in dir() else 5.50
+                                val_rf *= usd_spot
+                            elif m_rf == 'EUR':
+                                val_rf *= eur_spot
+                            elif m_rf == 'CAD':
+                                val_rf *= cad_spot
                             patrimonio_spot += val_rf
         except Exception as e:
             print(f"[PATRIMÔNIO SPOT] Erro: {e}")
@@ -837,7 +861,7 @@ def main():
     """, unsafe_allow_html=True)
 
     # Render styled metric cards
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
 
     with k1:
         twr_positive = res_period.total_twr >= 0
@@ -862,22 +886,37 @@ def main():
         ), unsafe_allow_html=True)
 
     with k3:
-        # Usar patrimônio spot (= Investimentos) quando o slice inclui "hoje"
+        # Patrimônio investido (ex-caixa) — same basis as engine NAV
+        # patrimônio_spot already has caixa filtered out (aligned with engine)
         nav_display = nav_final
         if patrimonio_spot > 0 and end_date >= data_max:
             nav_display = patrimonio_spot
+        # Delta: compare against engine's first NAV (same ex-caixa basis)
         patrimonio_delta = nav_display - nav_inicial
         patrimonio_positive = patrimonio_delta >= 0
         st.markdown(render_metric_card(
-            label="Patrimônio",
+            label="Patrimônio Investido",
             value=f"R$ {nav_display:,.0f}",
             delta=f"R$ {patrimonio_delta:+,.0f}" if patrimonio_delta != 0 else None,
             delta_positive=patrimonio_positive,
-            subtitle="Valor atual do portfólio",
+            subtitle="RV + RF excluindo caixa livre",
             icon="🏦"
         ), unsafe_allow_html=True)
 
     with k4:
+        # Caixa & liquidez — shown separately from investment performance
+        aum_total = nav_display + caixa_spot
+        caixa_pct = (caixa_spot / aum_total * 100) if aum_total > 0 else 0.0
+        st.markdown(render_metric_card(
+            label="Caixa & Liquidez",
+            value=f"R$ {caixa_spot:,.0f}",
+            delta=f"{caixa_pct:.1f}% do AUM" if caixa_spot > 0 else None,
+            delta_positive=True,
+            subtitle="Saldo disponível / não alocado",
+            icon="💵"
+        ), unsafe_allow_html=True)
+
+    with k5:
         st.markdown(render_metric_card(
             label="Drawdown Máx",
             value=f"{res_period.max_drawdown:.2%}",
@@ -886,7 +925,7 @@ def main():
             icon="📉"
         ), unsafe_allow_html=True)
 
-    with k5:
+    with k6:
         vol_status = res_period.volatility < 0.20  # Less than 20% is considered moderate
         st.markdown(render_metric_card(
             label="Volatilidade",
@@ -905,29 +944,12 @@ def main():
         <div class="section-icon">📈</div>
         <div>
             <div class="section-title">Evolução Patrimonial</div>
-            <div class="section-subtitle">Patrimônio (R$) vs Rentabilidade Acumulada (%) — sem caixa</div>
+            <div class="section-subtitle">Patrimônio investido (RV + RF) em BRL — caixa exibido separadamente</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # =====================================================================
-    # CHART: Desconsiderar caixa no gráfico (apenas visual)
-    # =====================================================================
     df_slice_chart = df_slice.copy()
-
-    # Calcular valor de caixa a partir dos valores manuais de RF
-    caixa_total = 0.0
-    termos_caixa = ['CAIXA', 'SALDO', 'CASH', 'DISPONIVEL', 'LIQUIDEZ']
-    if manual_rf_values:
-        for ticker, valor in manual_rf_values.items():
-            if any(termo in ticker.upper() for termo in termos_caixa):
-                caixa_total += valor
-
-    # Subtrair caixa do NAV para o gráfico
-    if caixa_total > 0 and 'nav' in df_slice_chart.columns:
-        df_slice_chart['nav'] = df_slice_chart['nav'] - caixa_total
-        # Garantir que NAV não fique negativo
-        df_slice_chart['nav'] = df_slice_chart['nav'].clip(lower=0)
 
     # 1. Evolution (Dual Axis) - VERSÃO OTIMIZADA v2.1
     fig_evol = plot_nav_vs_twr(
