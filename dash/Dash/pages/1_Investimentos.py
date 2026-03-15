@@ -1499,194 +1499,366 @@ with tab2:
 
 
 with tab5:
-    col_head, col_logo = st.columns([5, 1])
+    col_head, _ = st.columns([5, 1])
     with col_head:
         st.markdown('<div class="tab-header">₿ Cripto Command Center</div>', unsafe_allow_html=True)
-        st.caption("Monitoramento de ativos digitais, volatilidade e custódia.")
-    
-    st.divider()
+        st.caption("Performance real, preços médios e histórico de acumulação.")
+
+    # ── CSS exclusivo do tab Cripto ──
+    st.markdown("""
+    <style>
+    .c-dash {
+        background: rgba(10,18,35,0.45);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(234,179,8,0.18);
+        border-radius: 20px; padding: 22px 24px;
+        margin-bottom: 20px; position: relative; overflow: hidden;
+        box-shadow: 0 0 30px rgba(234,179,8,0.06), 0 8px 32px rgba(0,0,0,0.35);
+    }
+    .c-dash::before {
+        content:''; position:absolute; inset:0; border-radius:20px; padding:1px;
+        background: linear-gradient(135deg, rgba(234,179,8,0.2) 0%, transparent 50%, rgba(234,179,8,0.06) 100%);
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor; mask-composite: exclude; pointer-events:none;
+    }
+    .c-saldo-lbl { font-size:0.62rem; color:#64748b; text-transform:uppercase; letter-spacing:1.8px; font-weight:600; text-align:center; margin-bottom:4px; }
+    .c-saldo-val { font-size:clamp(1.5rem,4vw,2.2rem); font-weight:800; letter-spacing:-1.5px; text-align:center; margin-bottom:18px; }
+    .c-saldo-val.g { color:#34d399; text-shadow:0 0 28px rgba(52,211,153,0.3); }
+    .c-saldo-val.r { color:#f87171; text-shadow:0 0 28px rgba(248,113,113,0.3); }
+    .c-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; border-top:1px solid rgba(255,255,255,0.05); padding-top:16px; }
+    .c-gi { text-align:center; padding:6px 4px; }
+    .c-gl { font-size:0.58rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; font-weight:500; margin-bottom:3px; }
+    .c-gv { font-size:0.9rem; font-weight:700; }
+    .c-gp { font-size:0.62rem; font-weight:500; margin-top:1px; }
+    .c-sep { width:1px; background:rgba(255,255,255,0.05); }
+    @media(max-width:600px) { .c-grid { grid-template-columns:repeat(2,1fr); } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    COIN_COLORS = {
+        'BTC': '#F7931A', 'ETH': '#627EEA', 'SOL': '#9945FF',
+        'HBAR': '#00BFFF', 'USDT': '#26A17B', 'USDC': '#2775CA',
+        'ADA': '#0033AD', 'DOT': '#E6007A', 'AVAX': '#E84142',
+        'BNB': '#F3BA2F', 'XRP': '#00AAE4', 'MATIC': '#8247E5',
+    }
+
+    def coin_color(ticker):
+        base = ticker.replace('-USD', '').replace('-BRL', '').upper()
+        return COIN_COLORS.get(base, '#6366f1')
 
     if not df_view.empty:
         df_cripto = df_view[df_view['Setor'] == 'Cripto'].copy()
-        
+
         if not df_cripto.empty:
             df_cripto['Custo BRL'] = df_cripto['Valor Hoje (R$)'] - df_cripto['Lucro Aberto (R$)']
 
-            total_cripto = df_cripto['Valor Hoje (R$)'].sum()
-            custo_cripto = df_cripto['Custo BRL'].sum()
-            pnl_cripto = df_cripto['Lucro Aberto (R$)'].sum()
+            total_cripto   = df_cripto['Valor Hoje (R$)'].sum()
+            custo_cripto   = df_cripto['Custo BRL'].sum()
+            pnl_cripto     = df_cripto['Lucro Aberto (R$)'].sum()
             pnl_pct_cripto = (pnl_cripto / custo_cripto) if custo_cripto > 0 else 0
-            
-            top_asset = df_cripto.loc[df_cripto['Rent. (%)'].idxmax()]
-            
-            m1, m2, m3, m4 = st.columns(4)
-            with m1:
-                st.markdown(render_metric_card("Patrimônio Cripto", f"R$ {total_cripto:,.0f}", icon="🌍"), unsafe_allow_html=True)
-            with m2:
-                st.markdown(render_metric_card("Resultado (PnL)", f"R$ {pnl_cripto:,.0f}", f"{pnl_pct_cripto:.1%}", pnl_pct_cripto >= 0, icon="📊"), unsafe_allow_html=True)
-            with m3:
-                st.markdown(render_metric_card("Custo Total", f"R$ {custo_cripto:,.0f}", icon="💰"), unsafe_allow_html=True)
-            with m4:
-                st.markdown(render_metric_card("Top Performer", top_asset['Ticker'], f"{top_asset['Rent. (%)']:.1%}", top_asset['Rent. (%)'] >= 0, icon="🚀"), unsafe_allow_html=True)
-            
+
+            top_row   = df_cripto.loc[df_cripto['Rent. (%)'].idxmax()]
+            worst_row = df_cripto.loc[df_cripto['Rent. (%)'].idxmin()]
+
+            pnl_cls  = 'g' if pnl_cripto >= 0 else 'r'
+            pnl_sign = '+' if pnl_cripto >= 0 else ''
+            pnl_color = '#34d399' if pnl_cripto >= 0 else '#f87171'
+
+            # ── 1. HERO CARD ──
+            st.markdown(f"""
+            <div class="c-dash">
+              <div class="c-saldo-lbl">₿ PATRIMÔNIO CRIPTO</div>
+              <div class="c-saldo-val {pnl_cls}">R$ {total_cripto:,.0f}</div>
+              <div class="c-grid">
+                <div class="c-gi">
+                  <div class="c-gl">Investido</div>
+                  <div class="c-gv" style="color:#94a3b8">R$ {custo_cripto:,.0f}</div>
+                </div>
+                <div class="c-gi">
+                  <div class="c-gl">P&L Total</div>
+                  <div class="c-gv" style="color:{pnl_color}">{pnl_sign}R$ {abs(pnl_cripto):,.0f}</div>
+                  <div class="c-gp" style="color:{pnl_color}">{pnl_sign}{pnl_pct_cripto:.1%}</div>
+                </div>
+                <div class="c-gi">
+                  <div class="c-gl">🏆 Melhor</div>
+                  <div class="c-gv" style="color:#34d399">{top_row['Ticker']}</div>
+                  <div class="c-gp" style="color:#34d399">{top_row['Rent. (%)']:+.1%}</div>
+                </div>
+                <div class="c-gi">
+                  <div class="c-gl">📉 Pior</div>
+                  <div class="c-gv" style="color:#f87171">{worst_row['Ticker']}</div>
+                  <div class="c-gp" style="color:#f87171">{worst_row['Rent. (%)']:+.1%}</div>
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── 2. POSITION CARDS ──
+            st.markdown('<div class="tab-header-sm">🪙 Posições Abertas</div>', unsafe_allow_html=True)
+
+            df_sorted = df_cripto.sort_values('Valor Hoje (R$)', ascending=False)
+            n      = len(df_sorted)
+            ncols  = min(n, 4)
+            pcols  = st.columns(ncols)
+
+            for i, (_, row) in enumerate(df_sorted.iterrows()):
+                ticker  = row['Ticker']
+                qtd     = row['Qtd']
+                pm      = row['PM Compra']
+                preco   = row['Preço Atual']
+                saldo   = row['Valor Hoje (R$)']
+                pnl     = row['Lucro Aberto (R$)']
+                rent    = row['Rent. (%)']
+                custo   = row['Custo BRL']
+
+                c       = coin_color(ticker)
+                vc      = '#34d399' if rent >= 0 else '#f87171'
+                sgn     = '+' if rent >= 0 else ''
+                ratio   = ((preco - pm) / pm) if pm > 0 else 0
+                fill    = min(max((ratio + 1) / 2 * 100, 1), 99)
+
+                # Number of buys for this asset
+                n_buys = 0
+                if not df_bruto.empty and 'ticker' in df_bruto.columns:
+                    tickers_match = [ticker, f"{ticker}-USD"]
+                    mask = (
+                        df_bruto['ticker'].isin(tickers_match) &
+                        df_bruto['tipo'].str.lower().str.contains('compra', na=False)
+                    )
+                    n_buys = int(mask.sum())
+
+                card = f"""
+                <div style="background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.07);
+                     border-radius:16px;padding:16px 16px 14px;border-top:3px solid {c};">
+                  <!-- Header -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                    <span style="font-size:1rem;font-weight:700;color:#f1f5f9;">{ticker}</span>
+                    <span style="font-size:0.72rem;font-weight:700;color:{vc};
+                          background:rgba(0,0,0,0.4);padding:3px 9px;border-radius:8px;">{sgn}{rent:.1%}</span>
+                  </div>
+                  <!-- Qtd + n compras -->
+                  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;">
+                    <div>
+                      <div style="font-size:0.57rem;color:#475569;text-transform:uppercase;letter-spacing:0.4px;">Quantidade</div>
+                      <div style="font-size:0.82rem;font-weight:600;color:#94a3b8;">{qtd:.6f}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:0.57rem;color:#475569;text-transform:uppercase;letter-spacing:0.4px;">Compras</div>
+                      <div style="font-size:0.82rem;font-weight:600;color:#94a3b8;">{n_buys}x</div>
+                    </div>
+                  </div>
+                  <!-- PM vs Cotação -->
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                    <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:8px 10px;">
+                      <div style="font-size:0.55rem;color:#475569;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;">PM Compra</div>
+                      <div style="font-size:0.85rem;font-weight:700;color:#94a3b8;">${pm:,.2f}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:8px 10px;border:1px solid rgba(255,255,255,0.05);">
+                      <div style="font-size:0.55rem;color:#475569;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;">Cotação</div>
+                      <div style="font-size:0.85rem;font-weight:700;color:#f1f5f9;">${preco:,.2f}</div>
+                    </div>
+                  </div>
+                  <!-- Barra PM → Preço -->
+                  <div style="margin-bottom:13px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                      <span style="font-size:0.57rem;color:#374151;">PM&nbsp;→&nbsp;Cotação</span>
+                      <span style="font-size:0.57rem;font-weight:600;color:{vc};">{sgn}{ratio*100:.1f}%</span>
+                    </div>
+                    <div style="height:5px;background:rgba(255,255,255,0.05);border-radius:3px;position:relative;overflow:hidden;">
+                      <div style="position:absolute;top:0;left:0;height:100%;width:{fill}%;background:{vc};border-radius:3px;opacity:0.85;transition:width .4s;"></div>
+                      <div style="position:absolute;top:0;left:50%;height:100%;width:1.5px;background:rgba(255,255,255,0.18);"></div>
+                    </div>
+                  </div>
+                  <!-- Saldo + PnL -->
+                  <div style="display:flex;justify-content:space-between;align-items:center;
+                       border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;">
+                    <div>
+                      <div style="font-size:0.57rem;color:#475569;text-transform:uppercase;letter-spacing:0.3px;">Saldo Atual</div>
+                      <div style="font-size:0.95rem;font-weight:700;color:#f1f5f9;">R$ {saldo:,.0f}</div>
+                      <div style="font-size:0.58rem;color:#475569;">investido R$ {custo:,.0f}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:0.57rem;color:#475569;text-transform:uppercase;letter-spacing:0.3px;">P&L</div>
+                      <div style="font-size:0.95rem;font-weight:700;color:{vc};">{sgn}R$ {abs(pnl):,.0f}</div>
+                    </div>
+                  </div>
+                </div>"""
+
+                with pcols[i % ncols]:
+                    st.markdown(card, unsafe_allow_html=True)
+
             st.divider()
 
+            # ── 3. CHART + ALLOCATION ──
             col_chart, col_dist = st.columns([2, 1])
 
             with col_chart:
-                lista_ativos = df_cripto['Ticker'].unique().tolist()
-                index_def = next((i for i, x in enumerate(lista_ativos) if 'BTC' in x), 0)
-                
-                st.markdown("##### 🔎 Análise Técnica do Ativo")
-                ativo_sel = st.selectbox("Selecione o Ativo:", lista_ativos, index=index_def, label_visibility="collapsed")
-                
-                row_ativo = df_cripto[df_cripto['Ticker'] == ativo_sel].iloc[0]
-                pm_ativo = row_ativo['PM Compra']
-                
+                lista_ativos  = df_cripto['Ticker'].unique().tolist()
+                index_def     = next((i for i, x in enumerate(lista_ativos) if 'BTC' in x), 0)
+                st.markdown("##### 🔎 Análise de Preço")
+                ativo_sel = st.selectbox(
+                    "Ativo:", lista_ativos, index=index_def,
+                    label_visibility="collapsed", key="cripto_sel_v2"
+                )
+
+                row_ativo  = df_cripto[df_cripto['Ticker'] == ativo_sel].iloc[0]
+                pm_ativo   = row_ativo['PM Compra']
+                rent_ativo = row_ativo['Rent. (%)']
+                pnl_ativo  = row_ativo['Lucro Aberto (R$)']
+
                 @st.cache_data(ttl=3600)
                 def get_crypto_chart(tkr):
                     try:
-                        if '-' not in tkr: 
-                            symbol = f"{tkr}-USD"
-                        else:
-                            symbol = tkr
-                            
+                        symbol = tkr if '-' in tkr else f"{tkr}-USD"
                         d = yf.download(symbol, period="1y", interval="1d", progress=False)
-                        if isinstance(d.columns, pd.MultiIndex): d.columns = d.columns.get_level_values(0)
+                        if isinstance(d.columns, pd.MultiIndex):
+                            d.columns = d.columns.get_level_values(0)
                         return d[['Close']]
-                    except: return pd.DataFrame()
+                    except:
+                        return pd.DataFrame()
 
                 df_chart = get_crypto_chart(ativo_sel)
 
-                # Exibir preço atual no topo
                 if not df_chart.empty:
-                    current_price = df_chart['Close'].iloc[-1]
-                    st.markdown(render_metric_card(f"Preço Atual de {ativo_sel}", f"${current_price:,.2f}", icon="💹"), unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="glass-alert glass-warn">⚠️ Não foi possível obter o preço atual.</div>', unsafe_allow_html=True)
+                    current_price = float(df_chart['Close'].iloc[-1])
+                    sgn_r = '+' if rent_ativo >= 0 else ''
 
-                if not df_chart.empty:
-                    current_price = df_chart['Close'].iloc[-1]
-                    
+                    # Mini metrics row
+                    ma1, ma2, ma3 = st.columns(3)
+                    with ma1:
+                        st.markdown(render_metric_card(f"Preço {ativo_sel}", f"${current_price:,.2f}", icon="💹"), unsafe_allow_html=True)
+                    with ma2:
+                        st.markdown(render_metric_card("PM Compra", f"${pm_ativo:,.2f}", icon="📌"), unsafe_allow_html=True)
+                    with ma3:
+                        st.markdown(render_metric_card(
+                            "Resultado", f"{sgn_r}{rent_ativo:.1%}",
+                            f"{sgn_r}R$ {abs(pnl_ativo):,.0f}",
+                            rent_ativo >= 0, icon="📊"
+                        ), unsafe_allow_html=True)
+
                     df_chart['SMA21'] = df_chart['Close'].rolling(21).mean()
-                    
-                    y_min = df_chart['Close'].min()
-                    y_max = df_chart['Close'].max()
-                    margin = (y_max - y_min) * 0.1 
-                    range_y = [y_min - margin, y_max + margin]
-                    
+                    y_min  = float(df_chart['Close'].min())
+                    y_max  = float(df_chart['Close'].max())
+                    margin = (y_max - y_min) * 0.1
+                    lc     = coin_color(ativo_sel)
+                    try:
+                        r_, g_, b_ = int(lc[1:3], 16), int(lc[3:5], 16), int(lc[5:7], 16)
+                        fill_c = f"rgba({r_},{g_},{b_},0.1)"
+                    except:
+                        fill_c = "rgba(99,102,241,0.1)"
+
                     fig_c = go.Figure()
-                    
+
+                    # Price area
                     fig_c.add_trace(go.Scatter(
-                        x=df_chart.index, y=df_chart['Close'], 
+                        x=df_chart.index, y=df_chart['Close'],
                         mode='lines', name='Preço',
                         fill='tozeroy',
-                        line=dict(color='#F7931A' if 'BTC' in ativo_sel else '#627EEA', width=2), 
-                        fillcolor='rgba(247, 147, 26, 0.1)' if 'BTC' in ativo_sel else 'rgba(98, 126, 234, 0.1)'
+                        line=dict(color=lc, width=2),
+                        fillcolor=fill_c
                     ))
-                    
-                    fig_c.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA21'], mode='lines', name='MM 21d', line=dict(color='white', width=1, dash='dot')))
-
-                    if pm_ativo > 0:
-                        ratio = abs(pm_ativo - current_price) / current_price
-                        if ratio < 50: 
-                            color_pm = "#4CAF50" if current_price >= pm_ativo else "#FF5252"
-                            fig_c.add_hline(
-                                y=pm_ativo, line_dash="dash", line_color=color_pm, line_width=2,
-                                annotation_text=f"Seu PM: {pm_ativo:,.2f}", annotation_position="top right", annotation_font_color=color_pm
-                            )
+                    # SMA21
+                    fig_c.add_trace(go.Scatter(
+                        x=df_chart.index, y=df_chart['SMA21'],
+                        mode='lines', name='MM21',
+                        line=dict(color='rgba(255,255,255,0.25)', width=1, dash='dot')
+                    ))
+                    # PM line
+                    if pm_ativo > 0 and abs(pm_ativo - current_price) / current_price < 50:
+                        pm_c = "#34d399" if current_price >= pm_ativo else "#f87171"
+                        fig_c.add_hline(
+                            y=pm_ativo, line_dash="dash", line_color=pm_c, line_width=1.5,
+                            annotation_text=f"PM ${pm_ativo:,.2f}",
+                            annotation_position="top right",
+                            annotation_font_color=pm_c, annotation_font_size=11
+                        )
+                    # Buy markers
+                    if not df_bruto.empty:
+                        tickers_match = [ativo_sel, f"{ativo_sel}-USD"]
+                        df_compras = df_bruto[
+                            df_bruto['ticker'].isin(tickers_match) &
+                            df_bruto['tipo'].str.lower().str.contains('compra', na=False)
+                        ].copy()
+                        if not df_compras.empty and 'data' in df_compras.columns:
+                            df_compras['data'] = pd.to_datetime(df_compras['data'], errors='coerce')
+                            df_compras = df_compras.dropna(subset=['data'])
+                            df_in_range = df_compras[df_compras['data'] >= df_chart.index[0]]
+                            if not df_in_range.empty:
+                                buy_y = []
+                                for bd in df_in_range['data']:
+                                    idx = min(df_chart.index.searchsorted(bd), len(df_chart) - 1)
+                                    buy_y.append(float(df_chart['Close'].iloc[idx]))
+                                fig_c.add_trace(go.Scatter(
+                                    x=df_in_range['data'].tolist(), y=buy_y,
+                                    mode='markers', name='Compras',
+                                    marker=dict(
+                                        symbol='triangle-up', size=11,
+                                        color='#34d399',
+                                        line=dict(color='rgba(255,255,255,0.4)', width=1)
+                                    ),
+                                    hovertemplate='<b>Compra</b><br>%{x|%d/%m/%Y}<br>$%{y:,.2f}<extra></extra>'
+                                ))
 
                     fig_c.update_layout(
-                        height=350, 
-                        hovermode="x unified", 
+                        height=340, hovermode="x unified",
                         margin=dict(l=0, r=0, t=10, b=0),
                         template="plotly_dark",
-                        showlegend=False,
-                        yaxis=dict(range=range_y),
+                        showlegend=True,
+                        legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
+                        yaxis=dict(range=[y_min - margin, y_max + margin]),
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)'
                     )
                     st.plotly_chart(fig_c, use_container_width=True)
-
-                    
+                else:
+                    st.markdown('<div class="glass-alert glass-warn">⚠️ Não foi possível obter dados de preço.</div>', unsafe_allow_html=True)
 
             with col_dist:
-                st.markdown("##### 🍰 Alocação")
+                st.markdown("##### 🍩 Alocação")
+                pie_colors = [coin_color(t) for t in df_cripto['Ticker'].tolist()]
                 fig_pie = px.pie(
-                    df_cripto, 
-                    values='Valor Hoje (R$)', 
-                    names='Ticker', 
-                    hole=0.6,
-                    color_discrete_sequence=px.colors.qualitative.Bold
+                    df_cripto, values='Valor Hoje (R$)', names='Ticker',
+                    hole=0.6, color_discrete_sequence=pie_colors
                 )
                 fig_pie.update_layout(
-                    showlegend=True, 
-                    legend=dict(orientation="h", y=-0.2), 
-                    margin=dict(t=0, b=0, l=0, r=0), 
-                    height=380,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
+                    showlegend=True,
+                    legend=dict(orientation="h", y=-0.15, font=dict(size=10)),
+                    margin=dict(t=10, b=10, l=0, r=0), height=420,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                 )
-                fig_pie.update_traces(textinfo='percent+label', textposition='inside')
+                fig_pie.update_traces(
+                    textinfo='percent+label', textposition='inside', textfont_size=11
+                )
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-            st.divider()
+            # ── 4. TRANSACTION HISTORY ──
+            with st.expander("📜 Histórico de Operações", expanded=False):
+                tickers_cripto = df_cripto['Ticker'].unique().tolist()
+                if not df_bruto.empty:
+                    tickers_all    = tickers_cripto + [f"{t}-USD" for t in tickers_cripto if '-' not in t]
+                    df_ops_cripto  = df_bruto[df_bruto['ticker'].isin(tickers_all)].copy()
 
-            st.markdown('<div class="tab-header-sm">📋 Detalhamento de Posições</div>', unsafe_allow_html=True)
-            
-            cols_show = ['Ticker', 'Qtd', 'PM Compra', 'Preço Atual', 'Valor Hoje (R$)', 'Lucro Aberto (R$)', 'Rent. (%)', 'Custo BRL']
-            
-            st.dataframe(
-                df_cripto[cols_show].sort_values('Valor Hoje (R$)', ascending=False),
-                column_config={
-                    "Ticker": st.column_config.TextColumn("Ativo"),
-                    "Qtd": st.column_config.NumberColumn("Qtd", format="%.6f"),
-                    "PM Compra": st.column_config.NumberColumn("PM Médio", format="%.2f"),
-                    "Preço Atual": st.column_config.NumberColumn("Cotação", format="%.2f"),
-                    "Valor Hoje (R$)": st.column_config.NumberColumn("Saldo (R$)", format="R$ %.2f"),
-                    "Lucro Aberto (R$)": st.column_config.NumberColumn("PnL (R$)", format="R$ %.2f"),
-                    "Custo BRL": st.column_config.NumberColumn("Investido (R$)", format="R$ %.2f"),
-                    "Rent. (%)": st.column_config.ProgressColumn(
-                        "Rentabilidade",
-                        format="%.1f%%",
-                        min_value=-100,
-                        max_value=100
-                    ),
-                },
-                use_container_width=True,
-                height=max(200, len(df_cripto) * 35 + 38)
-            )
-
-            # Histórico de Operações Individuais
-            st.divider()
-            st.markdown('<div class="tab-header-sm">📜 Histórico de Operações</div>', unsafe_allow_html=True)
-
-            tickers_cripto = df_cripto['Ticker'].unique().tolist()
-            if not df_bruto.empty:
-                df_ops_cripto = df_bruto[df_bruto['ticker'].isin(tickers_cripto)].copy()
-
-                if not df_ops_cripto.empty:
-                    df_ops_cripto = df_ops_cripto.sort_values('data', ascending=False)
-
-                    cols_ops = ['data', 'ticker', 'tipo', 'quantidade', 'preco', 'taxas', 'total']
-                    cols_disponveis = [c for c in cols_ops if c in df_ops_cripto.columns]
-
-                    st.dataframe(
-                        df_ops_cripto[cols_disponveis],
-                        column_config={
-                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                            "ticker": st.column_config.TextColumn("Ativo"),
-                            "tipo": st.column_config.TextColumn("Operação"),
-                            "quantidade": st.column_config.NumberColumn("Qtd", format="%.6f"),
-                            "preco": st.column_config.NumberColumn("Preço", format="$ %.2f"),
-                            "taxas": st.column_config.NumberColumn("Taxas", format="$ %.2f"),
-                            "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
-                        },
-                        use_container_width=True,
-                        height=max(200, len(df_ops_cripto) * 35 + 38)
-                    )
-                else:
-                    st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma operação encontrada para os ativos cripto.</div>', unsafe_allow_html=True)
+                    if not df_ops_cripto.empty:
+                        df_ops_cripto = df_ops_cripto.sort_values('data', ascending=False)
+                        cols_ops  = ['data', 'ticker', 'tipo', 'quantidade', 'preco', 'taxas', 'total']
+                        cols_disp = [c for c in cols_ops if c in df_ops_cripto.columns]
+                        st.dataframe(
+                            df_ops_cripto[cols_disp],
+                            column_config={
+                                "data":       st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                "ticker":     st.column_config.TextColumn("Ativo"),
+                                "tipo":       st.column_config.TextColumn("Operação"),
+                                "quantidade": st.column_config.NumberColumn("Qtd", format="%.6f"),
+                                "preco":      st.column_config.NumberColumn("Preço", format="$ %.2f"),
+                                "taxas":      st.column_config.NumberColumn("Taxas", format="$ %.4f"),
+                                "total":      st.column_config.NumberColumn("Total", format="$ %.2f"),
+                            },
+                            use_container_width=True,
+                            height=max(200, len(df_ops_cripto) * 35 + 38)
+                        )
+                    else:
+                        st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma operação encontrada para os ativos cripto.</div>', unsafe_allow_html=True)
 
         else:
             st.markdown('<div class="glass-alert glass-info">ℹ️ Nenhuma criptomoeda encontrada na sua carteira. Adicione transações com setor \'Cripto\'.</div>', unsafe_allow_html=True)
