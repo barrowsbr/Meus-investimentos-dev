@@ -1028,6 +1028,167 @@ def main():
     st.markdown('</div class="divider"></div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════════════════
+    # ATRIBUIÇÃO DE RETORNO: Ativo vs Câmbio
+    # R_total = (1 + R_ativo) × (1 + R_câmbio) − 1
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    _foreign_currencies = [
+        k for k, b in multi_result.buckets.items()
+        if k not in ('BRL',) and not k.endswith('_DIRECT')
+        and not b.nav_series.empty
+    ]
+
+    if _foreign_currencies:
+        try:
+            from core.consolidator import CurrencyBucket
+            from core.performance.decomposition import decompose_portfolio
+
+            def _slice_s(s, s_date, e_date):
+                if s is None or (hasattr(s, 'empty') and s.empty):
+                    return pd.Series(dtype=float)
+                return s[(s.index >= s_date) & (s.index <= e_date)]
+
+            _sliced_buckets = {}
+            for _curr, _bucket in multi_result.buckets.items():
+                if _bucket.nav_series.empty:
+                    continue
+                _nav_s = _slice_s(_bucket.nav_series, start_date, end_date)
+                if _nav_s.empty or _nav_s.max() <= 0:
+                    continue
+                _sliced_buckets[_curr] = CurrencyBucket(
+                    currency=_curr,
+                    nav_series=_nav_s,
+                    flow_series=_slice_s(_bucket.flow_series, start_date, end_date),
+                    income_series=_slice_s(_bucket.income_series, start_date, end_date),
+                    force_zero_series=_slice_s(_bucket.force_zero_series, start_date, end_date),
+                    flow_timing_series=_slice_s(_bucket.flow_timing_series, start_date, end_date),
+                    tickers=_bucket.tickers
+                )
+
+            if _sliced_buckets:
+                _decomp = decompose_portfolio(
+                    _sliced_buckets,
+                    multi_result.fx_rates,
+                    consolidated_result=res_period,
+                    fx_cost_basis=fx_cost_basis if view_mode == "💰 Meu Custo" else None
+                )
+
+                st.markdown("""
+                <div class="section-header">
+                    <div class="section-icon">🔬</div>
+                    <div>
+                        <div class="section-title">Atribuição de Retorno</div>
+                        <div class="section-subtitle">Quanto veio do ativo (moeda original) e quanto veio do câmbio</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                _a1, _a2, _a3 = st.columns(3)
+
+                with _a1:
+                    st.markdown(render_metric_card(
+                        label="Retorno do Ativo",
+                        value=f"{_decomp.total_twr_asset:.2%}",
+                        delta="Performance na moeda original",
+                        delta_positive=_decomp.total_twr_asset >= 0,
+                        subtitle="Seleção de ativos (ex-câmbio)",
+                        icon="📊"
+                    ), unsafe_allow_html=True)
+
+                with _a2:
+                    st.markdown(render_metric_card(
+                        label="Efeito Câmbio",
+                        value=f"{_decomp.total_twr_fx:.2%}",
+                        delta="Variação da taxa de câmbio",
+                        delta_positive=_decomp.total_twr_fx >= 0,
+                        subtitle="PM câmbio" if view_mode == "💰 Meu Custo" else "Cotação spot",
+                        icon="💱"
+                    ), unsafe_allow_html=True)
+
+                with _a3:
+                    st.markdown(render_metric_card(
+                        label="Total em BRL",
+                        value=f"{_decomp.total_twr:.2%}",
+                        delta=f"(1+{_decomp.total_twr_asset:.1%}) × (1+{_decomp.total_twr_fx:.1%}) − 1",
+                        delta_positive=_decomp.total_twr >= 0,
+                        subtitle="Produto multiplicativo dos dois efeitos",
+                        icon="🎯"
+                    ), unsafe_allow_html=True)
+
+                if not _decomp.cumret_asset_total.empty and len(_decomp.cumret_asset_total) > 1:
+                    _fig_attr = go.Figure()
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_asset_total.index,
+                        y=_decomp.cumret_asset_total * 100,
+                        name="Ativo (moeda original)",
+                        line=dict(color='#6366f1', width=2),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Ativo</extra>'
+                    ))
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_fx_total.index,
+                        y=_decomp.cumret_fx_total * 100,
+                        name="Câmbio",
+                        line=dict(color='#f59e0b', width=2, dash='dot'),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Câmbio</extra>'
+                    ))
+
+                    _fig_attr.add_trace(go.Scatter(
+                        x=_decomp.cumret_total.index,
+                        y=_decomp.cumret_total * 100,
+                        name="Total BRL",
+                        line=dict(color='#10b981', width=2.5),
+                        hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}%<extra>Total</extra>'
+                    ))
+
+                    _fig_attr.add_hline(
+                        y=0, line_dash="dash",
+                        line_color="rgba(255,255,255,0.15)",
+                        line_width=1
+                    )
+
+                    _fig_attr.update_layout(
+                        height=300,
+                        margin=dict(t=20, b=40, l=60, r=20),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom", y=1.02,
+                            xanchor="right", x=1,
+                            font=dict(color='#94a3b8', size=11),
+                            bgcolor='rgba(0,0,0,0)'
+                        ),
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='#64748b', size=10),
+                        xaxis=dict(
+                            showgrid=False, zeroline=False, showline=False,
+                            tickformat='%b/%Y'
+                        ),
+                        yaxis=dict(
+                            gridcolor='rgba(148, 163, 184, 0.1)',
+                            zeroline=False, showline=False,
+                            ticksuffix='%', tickformat='.1f'
+                        ),
+                        hoverlabel=dict(
+                            bgcolor='#1e293b', font_color='#f1f5f9', font_size=12
+                        )
+                    )
+
+                    st.plotly_chart(_fig_attr, use_container_width=True, config={'displayModeBar': False})
+
+                    _ref_label = "PM câmbio (seu VET)" if view_mode == "💰 Meu Custo" else "cotação spot de mercado"
+                    st.caption(
+                        f"Fórmula: R_total = (1 + R_ativo) × (1 + R_câmbio) − 1  |  "
+                        f"Referência cambial: {_ref_label}"
+                    )
+
+                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+        except Exception:
+            pass  # Seção de atribuição é opcional; erros não bloqueiam a página
+
+    # ═══════════════════════════════════════════════════════════════════════════════
     # ANÁLISE DE CÂMBIO (Debug Discreto)
     # ═══════════════════════════════════════════════════════════════════════════════
 
