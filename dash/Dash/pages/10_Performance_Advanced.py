@@ -32,6 +32,7 @@ from core.performance.attribution import calculate_asset_attribution
 from core.performance.flow_ledger import build_flow_ledger
 from core.fx_cost_basis import build_fx_cost_series
 from core.ui import get_card_css, render_metric_card, render_fab
+from core.performance.visualizations import plot_nav_vs_twr, plot_drawdown_volatility
 from config import BASE_DIR
 
 # --- CONFIG ---
@@ -875,6 +876,16 @@ def main():
                             subtitle="Spot atual",
                         ), unsafe_allow_html=True)
 
+    # ── NAV + TWR Evolution Chart ──────────────────────────────────────
+    # Gives immediate visual context before drilling into any block
+    _fig_nav = plot_nav_vs_twr(
+        df_engine,
+        twr_result.cumulative_series,
+        df_engine['flow'],
+        title=""
+    )
+    st.plotly_chart(_fig_nav, use_container_width=True, config={'displayModeBar': False})
+
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════
@@ -998,34 +1009,49 @@ def main():
     fig_decomp = go.Figure()
     if not decomposition.cumret_asset_total.empty:
         asset_series = decomposition.cumret_asset_total.reindex(cum.index).ffill().fillna(0)
-        fx_series = decomposition.cumret_fx_total.reindex(cum.index).ffill().fillna(0)
+        fx_series_d = decomposition.cumret_fx_total.reindex(cum.index).ffill().fillna(0)
+        total_series = decomposition.cumret_total.reindex(cum.index).ffill().fillna(0)
 
-        # Asset return — Green (semantic: asset performance)
+        # Asset return — Green (semantic: stock picking in native currency)
         fig_decomp.add_trace(go.Scatter(
             x=asset_series.index, y=asset_series.values,
-            mode='lines', name=f'R_ativo  {decomposition.total_twr_asset:+.2%}',
-            line=dict(color=COLORS['asset'], width=1.5),
-            stackgroup='decomp',
-            fillcolor='rgba(110, 231, 183, 0.06)',  # Low transparency ~6%
+            mode='lines', name=f'Ativo  {decomposition.total_twr_asset:+.2%}',
+            line=dict(color=COLORS['asset'], width=1.8),
+            fill='tozeroy',
+            fillcolor='rgba(110, 231, 183, 0.05)',
             hovertemplate='%{y:.2%}<extra>Ativo</extra>',
         ))
-        # FX effect — Blue (semantic: currency impact)
+        # FX effect — Blue (semantic: currency impact), dotted
         fig_decomp.add_trace(go.Scatter(
-            x=fx_series.index, y=fx_series.values,
-            mode='lines', name=f'R_fx  {decomposition.total_twr_fx:+.2%}',
-            line=dict(color=COLORS['fx'], width=1.5),
-            stackgroup='decomp',
-            fillcolor='rgba(125, 211, 252, 0.06)',  # Low transparency ~6%
+            x=fx_series_d.index, y=fx_series_d.values,
+            mode='lines', name=f'Câmbio  {decomposition.total_twr_fx:+.2%}',
+            line=dict(color=COLORS['fx'], width=1.8, dash='dot'),
             hovertemplate='%{y:.2%}<extra>Câmbio</extra>',
         ))
-        # Last points markers
+        # Total return — White/neutral (combined result), thicker
         fig_decomp.add_trace(go.Scatter(
-            x=[asset_series.index[-1]], y=[asset_series.values[-1]],
-            mode='markers', marker=dict(color=COLORS['asset'], size=5),
-            showlegend=False, hoverinfo='skip',
+            x=total_series.index, y=total_series.values,
+            mode='lines', name=f'Total BRL  {decomposition.total_twr:+.2%}',
+            line=dict(color=COLORS['total'], width=2.5),
+            hovertemplate='%{y:.2%}<extra>Total</extra>',
         ))
+        # End-point markers for context
+        for series, color in [
+            (asset_series, COLORS['asset']),
+            (total_series, COLORS['total']),
+        ]:
+            if not series.empty:
+                fig_decomp.add_trace(go.Scatter(
+                    x=[series.index[-1]], y=[series.values[-1]],
+                    mode='markers+text',
+                    marker=dict(color=color, size=6, symbol='circle'),
+                    text=[f'{series.values[-1]:+.1%}'],
+                    textposition='top right',
+                    textfont=dict(size=9, color=color, family='JetBrains Mono'),
+                    showlegend=False, hoverinfo='skip',
+                ))
 
-    _apply_chart_layout(fig_decomp, "Decomposição Ativo + Câmbio", height=350)
+    _apply_chart_layout(fig_decomp, "Decomposição: Ativo + Câmbio → Total BRL", height=360)
     st.plotly_chart(fig_decomp, use_container_width=True)
 
     # Decomposition summary cards
@@ -1053,7 +1079,15 @@ def main():
         ), unsafe_allow_html=True)
 
     # Attribution table directly below decomposition chart
-    st.markdown("#### Atribuição por Ativo")
+    st.markdown("""
+    <div class="section-header" style="margin-top: 28px;">
+        <div class="section-icon">◈</div>
+        <div>
+            <div class="section-title">Atribuição por Ativo</div>
+            <div class="section-subtitle">Contribuição individual de cada posição para o retorno total</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if attribution.assets:
         df_attr = attribution.to_dataframe()
@@ -1093,21 +1127,38 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-    r1, r2 = st.columns(2)
+    r1, r2, r3 = st.columns(3)
     with r1:
         st.markdown(render_metric_card(
             label="Volatilidade",
             value=f"{twr_result.volatility:.2%}",
             delta_positive=twr_result.volatility < 0.20,
-            subtitle="Risco anualizado",
+            subtitle="Risco anualizado (diário × √252)",
         ), unsafe_allow_html=True)
     with r2:
         st.markdown(render_metric_card(
             label="Drawdown Máx",
             value=f"{twr_result.max_drawdown:.2%}",
             delta_positive=False if twr_result.max_drawdown < -0.05 else True,
-            subtitle="Maior queda do pico",
+            subtitle="Maior queda do pico ao vale",
         ), unsafe_allow_html=True)
+    with r3:
+        sharpe = (twr_result.annualized_twr / twr_result.volatility) if twr_result.volatility > 0 else 0.0
+        st.markdown(render_metric_card(
+            label="Sharpe (aprox.)",
+            value=f"{sharpe:.2f}",
+            delta_positive=sharpe >= 1.0,
+            subtitle="Retorno a.a. ÷ Volatilidade (sem RF)",
+        ), unsafe_allow_html=True)
+
+    if len(twr_result.daily_returns) > 20:
+        _fig_risk = plot_drawdown_volatility(
+            df_engine,
+            twr_result.drawdown_series,
+            twr_result.daily_returns,
+            rolling_window=20
+        )
+        st.plotly_chart(_fig_risk, use_container_width=True, config={'displayModeBar': False})
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
