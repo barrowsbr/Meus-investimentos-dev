@@ -459,14 +459,10 @@ def main():
                 ~df_rf_manual['Ticker'].astype(str).str.strip().str.upper().isin(CASH_TICKERS)
             ]
 
-            # groupby().sum() para agregar corretamente tickers duplicados
-            # (dict(zip()) perdia entradas quando o mesmo ticker aparecia mais de uma vez)
-            manual_rf_values = (
-                df_rf_manual
-                .groupby(df_rf_manual['Ticker'].astype(str).str.strip().str.upper())['Atual']
-                .sum()
-                .to_dict()
-            )
+            manual_rf_values = dict(zip(
+                df_rf_manual['Ticker'].astype(str).str.strip().str.upper(),
+                df_rf_manual['Atual']
+            ))
         
         multi_result = reconstruct_history_multicurrency(
             df_bruto=df_rv_final,
