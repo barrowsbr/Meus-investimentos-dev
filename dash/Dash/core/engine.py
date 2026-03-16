@@ -1070,13 +1070,28 @@ def reconstruct_history_multicurrency(
                 # =====================================================================
                 if manual_rf_proc and len(rf_nav) > 0:
                     manual_rf_total = sum(manual_rf_proc.values())
-                    print(f"[FIX v17.0 DEBUG] manual_rf_proc = {manual_rf_proc}")
-                    print(f"[FIX v17.0 DEBUG] manual_rf_total = {manual_rf_total}, rf_nav[-1] before = {rf_nav.iloc[-1]}")
-                    if manual_rf_total > 0:
-                        rf_nav.iloc[-1] = manual_rf_total
-                        print(f"[FIX v17.0 DEBUG] rf_nav[-1] after = {rf_nav.iloc[-1]}")
-                else:
-                    print(f"[FIX v17.0 DEBUG] SKIPPED - manual_rf_proc empty or rf_nav empty. manual_rf_proc={manual_rf_proc}, len(rf_nav)={len(rf_nav) if rf_nav is not None else 'None'}")
+                    # FIX v20.0: Usar max(manual_total, engine_current) em vez de
+                    # sobrescrever sempre com manual_total.
+                    #
+                    # PROBLEMA ORIGINAL (v17.0):
+                    # - FixedIncomeEngine subestimava ativos com manual values → R$158k vs R$193k
+                    # - Solução: forçar rf_nav[-1] = manual_total (R$193k)
+                    #
+                    # NOVO PROBLEMA introduzido pelo v17.0:
+                    # - Ativos presentes em renda_fixa (transações) mas AUSENTES de
+                    #   fixa_aberta (saldos manuais) — ex: NTNB sem saldo cadastrado —
+                    #   tinham sua estimativa SELIC descartada pelo override.
+                    # - engine_current > manual_total quando há ativos não-manuais
+                    #
+                    # SOLUÇÃO v20.0: max(manual_total, engine_current)
+                    # - Engine subestima (v17.0 case):  engine < manual → manual vence ✓
+                    # - NTNB sem saldo manual:          engine > manual → engine vence ✓
+                    # - Tudo coberto pelo manual:        engine ≈ manual → mesmo valor ✓
+                    engine_current = rf_result.current_value  # valor calculado para TODOS os ativos
+                    final_rf_nav = max(manual_rf_total, engine_current)
+                    if final_rf_nav > 0:
+                        rf_nav.iloc[-1] = final_rf_nav
+                        print(f"[FIX v20.0] manual={manual_rf_total:,.0f} engine={engine_current:,.0f} final={final_rf_nav:,.0f}")
 
                 # =====================================================================
                 # NOTA v16.0: Escala removida - causava valores inflados
