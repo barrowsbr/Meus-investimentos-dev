@@ -847,16 +847,24 @@ with tab_mensal:
         to_rm_car = None
         for i, cr in enumerate(cartao_list):
             ci_idx = rows.index(cr)
-            col_ci, col_cdel = st.columns([20, 1])
-            with col_ci:
-                st.markdown(f'''<div class="par-row">
-                    <div class="par-nome">{card_chip(cr["nome"])}</div>
-                    <div class="par-info">
-                        <div class="par-prog ativa" style="color:#fbbf24;">{fmt(cr["valor"])}</div>
-                        <div class="par-sub">fatura mensal</div>
-                    </div>
-                    <span class="par-badge" style="background:rgba(251,191,36,0.10);color:#fbbf24;">cartão</span>
-                </div>''', unsafe_allow_html=True)
+            col_chip, col_val, col_cdel = st.columns([8, 6, 1])
+            with col_chip:
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;height:34px;">{card_chip(cr["nome"])}</div>',
+                    unsafe_allow_html=True,
+                )
+            with col_val:
+                new_val = st.number_input(
+                    "Fatura",
+                    value=float(cr["valor"]),
+                    min_value=0.0,
+                    step=100.0,
+                    format="%.2f",
+                    key=f"car_val_{i}",
+                    label_visibility="collapsed",
+                )
+                if new_val != cr["valor"]:
+                    rows[ci_idx]["valor"] = new_val
             with col_cdel:
                 if st.button("×", key=f"crm{i}", help="Remover cartão"):
                     to_rm_car = ci_idx
