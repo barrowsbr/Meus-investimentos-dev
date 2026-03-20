@@ -357,58 +357,37 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         unsafe_allow_html=True
     )
 
-    # Encode logos as base64 for inline display
-    def _logo_b64(filename):
-        try:
-            p = _LOGOS / filename
-            return base64.b64encode(p.read_bytes()).decode()
-        except:
-            return ""
-
-    ibkr_b64 = _logo_b64("ibkr.jpg")
-    b3_b64   = _logo_b64("b3.png")
-    nu_b64   = _logo_b64("nubank.png")
-
     src_col1, src_col2, src_col3 = st.columns(3)
 
-    def _src_card(logo_b64, ext, name, key, current_source):
-        active = current_source == key
-        cls = "src-card active" if active else "src-card"
-        img_tag = (f'<img src="data:image/{ext};base64,{logo_b64}" '
-                   f'style="width:44px;height:44px;object-fit:contain;border-radius:8px;" />'
-                   if logo_b64 else f'<div style="font-size:1.6rem">{name[0]}</div>')
-        return f'<div class="{cls}">{img_tag}<div class="src-card-name">{name}</div></div>'
+    _SOURCES = [
+        ("IBKR",   "IBKR",  "ibkr.jpg"),
+        ("B3",     "B3",    "b3.svg"),
+        ("Nu",     "Nubank","nubank.png"),
+    ]
 
-    with src_col1:
-        st.markdown(_src_card(ibkr_b64, "jpeg", "IBKR", "IBKR", source), unsafe_allow_html=True)
-        if st.button("Selecionar", key="src_ibkr", use_container_width=True,
-                     type="primary" if source == "IBKR" else "secondary"):
-            if source != "IBKR":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "IBKR"
-            st.session_state.import_type   = None
-            st.rerun()
-    with src_col2:
-        st.markdown(_src_card(b3_b64, "png", "B3", "B3", source), unsafe_allow_html=True)
-        if st.button("Selecionar", key="src_b3", use_container_width=True,
-                     type="primary" if source == "B3" else "secondary"):
-            if source != "B3":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "B3"
-            st.session_state.import_type   = None
-            st.rerun()
-    with src_col3:
-        st.markdown(_src_card(nu_b64, "png", "Nubank", "Nu", source), unsafe_allow_html=True)
-        if st.button("Selecionar", key="src_nu", use_container_width=True,
-                     type="primary" if source == "Nu" else "secondary"):
-            if source != "Nu":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "Nu"
-            st.session_state.import_type   = None
-            st.rerun()
+    for col, (src_key, src_name, logo_file) in zip([src_col1, src_col2, src_col3], _SOURCES):
+        active = source == src_key
+        with col:
+            active_cls = "src-card active" if active else "src-card"
+            st.markdown(f'<div class="{active_cls}">', unsafe_allow_html=True)
+            logo_path = _LOGOS / logo_file
+            if logo_path.exists():
+                # Center the image
+                _, img_col, _ = st.columns([1, 3, 1])
+                with img_col:
+                    st.image(str(logo_path), use_container_width=True)
+            st.markdown(
+                f'<div class="src-card-name">{src_name}</div></div>',
+                unsafe_allow_html=True
+            )
+            if st.button("Selecionar", key=f"src_{src_key}", use_container_width=True,
+                         type="primary" if active else "secondary"):
+                if not active:
+                    st.session_state.import_file_data = None
+                    st.session_state.import_file_name = None
+                st.session_state.import_source = src_key
+                st.session_state.import_type   = None
+                st.rerun()
 
     # ── STEP 2: Tipo ─────────────────────────────────────────
     if source:
