@@ -346,7 +346,7 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
 
     source      = st.session_state.import_source
     import_type = st.session_state.import_type
-    needs_subtype = source in ["IBKR", "B3"]
+    needs_subtype = source == "IBKR"  # B3 define o tipo direto no card; Nu não tem subtipo
 
     # ── STEP 1: Instituição ──────────────────────────────────
     step1_done = source is not None
@@ -361,7 +361,7 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
 
     _SOURCES = [
         ("IBKR",   "IBKR",  "ibkr.jpg"),
-        ("B3",     "B3",    "b3.svg"),
+        ("B3",     "B3",    "b3.png"),
         ("Nu",     "Nubank","nubank.png"),
     ]
 
@@ -372,7 +372,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             st.markdown(f'<div class="{active_cls}">', unsafe_allow_html=True)
             logo_path = _LOGOS / logo_file
             if logo_path.exists():
-                # Center the image
                 _, img_col, _ = st.columns([1, 3, 1])
                 with img_col:
                     st.image(str(logo_path), use_container_width=True)
@@ -380,17 +379,40 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                 f'<div class="src-card-name">{src_name}</div></div>',
                 unsafe_allow_html=True
             )
-            if st.button("Selecionar", key=f"src_{src_key}", use_container_width=True,
-                         type="primary" if active else "secondary"):
-                if not active:
-                    st.session_state.import_file_data = None
-                    st.session_state.import_file_name = None
-                st.session_state.import_source = src_key
-                st.session_state.import_type   = None
-                st.rerun()
 
-    # ── STEP 2: Tipo ─────────────────────────────────────────
-    if source:
+            if src_key == "B3":
+                # B3: seleciona tipo diretamente no card (elimina o passo 2)
+                b3c1, b3c2 = st.columns(2)
+                with b3c1:
+                    prov_active = active and import_type == "proventos"
+                    if st.button("📊 Proventos", key="b3_prov", use_container_width=True,
+                                 type="primary" if prov_active else "secondary"):
+                        st.session_state.import_file_data = None
+                        st.session_state.import_file_name = None
+                        st.session_state.import_source = "B3"
+                        st.session_state.import_type = "proventos"
+                        st.rerun()
+                with b3c2:
+                    ativ_active = active and import_type == "ativos"
+                    if st.button("📈 Ativos", key="b3_ativ", use_container_width=True,
+                                 type="primary" if ativ_active else "secondary"):
+                        st.session_state.import_file_data = None
+                        st.session_state.import_file_name = None
+                        st.session_state.import_source = "B3"
+                        st.session_state.import_type = "ativos"
+                        st.rerun()
+            else:
+                if st.button("Selecionar", key=f"src_{src_key}", use_container_width=True,
+                             type="primary" if active else "secondary"):
+                    if not active:
+                        st.session_state.import_file_data = None
+                        st.session_state.import_file_name = None
+                    st.session_state.import_source = src_key
+                    st.session_state.import_type   = None
+                    st.rerun()
+
+    # ── STEP 2: Tipo (apenas IBKR e Nu — B3 já define o tipo no card) ────────
+    if source and source != "B3":
         step2_done = import_type is not None
         st.markdown(
             f'<div class="wiz-step" style="margin-top:18px;">'
@@ -399,7 +421,7 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             unsafe_allow_html=True
         )
 
-        if source in ["IBKR", "B3"]:
+        if source == "IBKR":
             tc1, tc2 = st.columns(2)
             with tc1:
                 if st.button("📊  Proventos", key=f"type_prov_{source}", use_container_width=True,
