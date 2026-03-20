@@ -2699,7 +2699,9 @@ with tab4:
         if not df_p.empty:
             df_p['ano_real'] = df_p['data'].dt.year
             df_p['mes_real'] = df_p['data'].dt.month
-            anos_disponiveis = sorted(df_p['ano_real'].unique().tolist(), reverse=True)
+            anos_disponiveis = sorted(
+                [int(a) for a in df_p['ano_real'].dropna().unique().tolist()], reverse=True
+            )
             meses_map = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',
                          7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'}
 
@@ -2710,9 +2712,9 @@ with tab4:
                 meses_sel_nomes = st.multiselect("Mês", list(meses_map.values()), placeholder="Todos os meses", key="prov_mes")
                 meses_sel = [k for k, v in meses_map.items() if v in meses_sel_nomes]
 
-            df_filter = df_p.copy()
-            if anos_sel: df_filter = df_filter[df_filter['ano_real'].isin(anos_sel)]
-            if meses_sel: df_filter = df_filter[df_filter['mes_real'].isin(meses_sel)]
+            df_filter = df_p.dropna(subset=['data']).copy()
+            if anos_sel: df_filter = df_filter[df_filter['ano_real'].isin(anos_sel)].copy()
+            if meses_sel: df_filter = df_filter[df_filter['mes_real'].isin(meses_sel)].copy()
 
             if not df_filter.empty:
                 # ── KPIs ──────────────────────────────────────────────────────
