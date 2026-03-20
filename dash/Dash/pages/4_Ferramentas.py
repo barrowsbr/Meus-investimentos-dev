@@ -119,58 +119,39 @@ p, h1, h2, h3, h4, h5, h6, span, div, label, li { color: #f1f5f9 !important; }
 .status-card-body  { font-size: 0.8rem !important; color: #94a3b8 !important; margin-top: 2px; line-height: 1.5; }
 
 /* ── Wizard step header ── */
-.wiz-step {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 16px 0 10px;
-}
-.wiz-num {
-    width: 24px; height: 24px;
-    border-radius: 50%;
-    background: rgba(99,102,241,0.2);
-    border: 1.5px solid rgba(99,102,241,0.4);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.68rem; font-weight: 700; color: #a5b4fc !important;
-    flex-shrink: 0;
-}
-.wiz-num.done {
-    background: rgba(52,211,153,0.15);
-    border-color: rgba(52,211,153,0.4);
-    color: #34d399 !important;
-}
-.wiz-label {
-    font-size: 0.68rem !important;
-    font-weight: 700 !important;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: #64748b !important;
-}
+.wiz-step { display:none; }
 
 /* ── Source selector cards ── */
-.src-card {
+.src-card { display:none; }
+
+/* ── Import tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0;
+    background: rgba(15,23,42,0.5);
     border-radius: 14px;
-    border: 1.5px solid rgba(255,255,255,0.07);
-    background: rgba(15,23,42,0.4);
-    padding: 14px 10px 10px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-bottom: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255,255,255,0.06);
 }
-.src-card.active {
-    border-color: rgba(99,102,241,0.5);
-    background: rgba(99,102,241,0.1);
-    box-shadow: 0 0 20px rgba(99,102,241,0.15);
-}
-.src-card-name {
-    font-size: 0.75rem !important;
+.stTabs [data-baseweb="tab"] {
+    border-radius: 10px !important;
+    padding: 8px 28px !important;
+    font-size: 0.82rem !important;
     font-weight: 600 !important;
-    color: #94a3b8 !important;
-    margin-top: 6px;
-    letter-spacing: 0.5px;
+    color: #64748b !important;
+    background: transparent !important;
+    border: none !important;
+    transition: all 0.2s ease !important;
 }
-.src-card.active .src-card-name { color: #a5b4fc !important; }
+.stTabs [aria-selected="true"] {
+    background: rgba(99,102,241,0.18) !important;
+    color: #a5b4fc !important;
+    box-shadow: 0 0 12px rgba(99,102,241,0.1) !important;
+}
+.stTabs [data-baseweb="tab-panel"] {
+    padding-top: 20px !important;
+}
+.inst-logo-wrap { display:flex; justify-content:center; margin-bottom:14px; }
+.inst-logo-wrap img { max-height: 56px; width:auto; }
 
 /* ── Type pill buttons ── */
 .type-pills { display: flex; gap: 8px; margin: 4px 0 8px; flex-wrap: wrap; }
@@ -333,419 +314,280 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════
-# 1. DATA INGESTION — Expandable Card
+# 1. DATA INGESTION — Tabs B3 | IBKR
 # ════════════════════════════════════════════════════════
 
-with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expanded=False):
+with st.expander("📥  Importar Dados  ·  B3 e IBKR", expanded=False):
 
-    # ── Session state ──
-    for _k, _v in [('import_source', None), ('import_type', None),
-                   ('import_file_data', None), ('import_file_name', None)]:
+    # ── Session state por instituição ──
+    for _k, _v in [
+        ('b3_type', None),   ('b3_file_data', None),   ('b3_file_name', None),
+        ('ibkr_type', None), ('ibkr_file_data', None), ('ibkr_file_name', None),
+    ]:
         if _k not in st.session_state:
             st.session_state[_k] = _v
 
-    source      = st.session_state.import_source
-    import_type = st.session_state.import_type
-    needs_subtype = source == "IBKR"  # B3 define o tipo direto no card; Nu não tem subtipo
+    # ── Helpers ──
+    def _card(kind, icon, title, body=""):
+        return (f'<div class="status-card {kind}">'
+                f'<span class="status-card-icon">{icon}</span>'
+                f'<div class="status-card-content">'
+                f'<div class="status-card-title">{title}</div>'
+                f'{"<div class=status-card-body>" + body + "</div>" if body else ""}'
+                f'</div></div>')
 
-    # ── STEP 1: Instituição ──────────────────────────────────
-    step1_done = source is not None
-    st.markdown(
-        f'<div class="wiz-step">'
-        f'<div class="wiz-num {"done" if step1_done else ""}">{"✓" if step1_done else "1"}</div>'
-        f'<span class="wiz-label">Instituição</span></div>',
-        unsafe_allow_html=True
-    )
+    def _backup_hint(path):
+        if path:
+            st.markdown(f'<div class="backup-hint">💾 Backup salvo em <code>{path}</code></div>',
+                        unsafe_allow_html=True)
 
-    src_col1, src_col2, src_col3 = st.columns(3)
+    def _import_btn(key):
+        return st.button("📥  Importar para produção", key=key,
+                         type="primary", use_container_width=True)
 
-    _SOURCES = [
-        ("IBKR",   "IBKR",  "ibkr.jpg"),
-        ("B3",     "B3",    "b3.png"),
-        ("Nu",     "Nubank","nubank.png"),
-    ]
+    def _type_buttons(prefix):
+        """Exibe botões Proventos / Ativos e retorna o tipo selecionado."""
+        current = st.session_state[f"{prefix}_type"]
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("📊  Proventos", key=f"{prefix}_prov", use_container_width=True,
+                         type="primary" if current == "proventos" else "secondary"):
+                st.session_state[f"{prefix}_type"] = "proventos"
+                st.session_state[f"{prefix}_file_data"] = None
+                st.session_state[f"{prefix}_file_name"] = None
+                st.rerun()
+        with c2:
+            if st.button("📈  Ativos", key=f"{prefix}_ativ", use_container_width=True,
+                         type="primary" if current == "ativos" else "secondary"):
+                st.session_state[f"{prefix}_type"] = "ativos"
+                st.session_state[f"{prefix}_file_data"] = None
+                st.session_state[f"{prefix}_file_name"] = None
+                st.rerun()
+        return st.session_state[f"{prefix}_type"]
 
-    for col, (src_key, src_name, logo_file) in zip([src_col1, src_col2, src_col3], _SOURCES):
-        active = source == src_key
-        with col:
-            active_cls = "src-card active" if active else "src-card"
-            st.markdown(f'<div class="{active_cls}">', unsafe_allow_html=True)
-            logo_path = _LOGOS / logo_file
-            if logo_path.exists():
-                _, img_col, _ = st.columns([1, 3, 1])
-                with img_col:
-                    st.image(str(logo_path), use_container_width=True)
-            st.markdown(
-                f'<div class="src-card-name">{src_name}</div></div>',
-                unsafe_allow_html=True
-            )
-
-            if src_key == "B3":
-                # B3: seleciona tipo diretamente no card (elimina o passo 2)
-                b3c1, b3c2 = st.columns(2)
-                with b3c1:
-                    prov_active = active and import_type == "proventos"
-                    if st.button("📊 Proventos", key="b3_prov", use_container_width=True,
-                                 type="primary" if prov_active else "secondary"):
-                        st.session_state.import_file_data = None
-                        st.session_state.import_file_name = None
-                        st.session_state.import_source = "B3"
-                        st.session_state.import_type = "proventos"
-                        st.rerun()
-                with b3c2:
-                    ativ_active = active and import_type == "ativos"
-                    if st.button("📈 Ativos", key="b3_ativ", use_container_width=True,
-                                 type="primary" if ativ_active else "secondary"):
-                        st.session_state.import_file_data = None
-                        st.session_state.import_file_name = None
-                        st.session_state.import_source = "B3"
-                        st.session_state.import_type = "ativos"
-                        st.rerun()
-            else:
-                if st.button("Selecionar", key=f"src_{src_key}", use_container_width=True,
-                             type="primary" if active else "secondary"):
-                    if not active:
-                        st.session_state.import_file_data = None
-                        st.session_state.import_file_name = None
-                    st.session_state.import_source = src_key
-                    st.session_state.import_type   = None
-                    st.rerun()
-
-    # ── STEP 2: Tipo (apenas IBKR e Nu — B3 já define o tipo no card) ────────
-    if source and source != "B3":
-        step2_done = import_type is not None
-        st.markdown(
-            f'<div class="wiz-step" style="margin-top:18px;">'
-            f'<div class="wiz-num {"done" if step2_done else ""}">{"✓" if step2_done else "2"}</div>'
-            f'<span class="wiz-label">{"Tipo de importação" if needs_subtype else "Conta"}</span></div>',
-            unsafe_allow_html=True
-        )
-
-        if source == "IBKR":
-            tc1, tc2 = st.columns(2)
-            with tc1:
-                if st.button("📊  Proventos", key=f"type_prov_{source}", use_container_width=True,
-                             type="primary" if import_type == "proventos" else "secondary"):
-                    st.session_state.import_type = "proventos"
-                    st.session_state.import_file_data = None
-                    st.session_state.import_file_name = None
-                    st.rerun()
-            with tc2:
-                if st.button("📈  Ativos", key=f"type_ativos_{source}", use_container_width=True,
-                             type="primary" if import_type == "ativos" else "secondary"):
-                    st.session_state.import_type = "ativos"
-                    st.session_state.import_file_data = None
-                    st.session_state.import_file_name = None
-                    st.rerun()
-        elif source == "Nu":
-            tc1, tc2 = st.columns(2)
-            with tc1:
-                if st.button("💳  Cartão", key="type_card_nu", use_container_width=True,
-                             type="primary" if import_type == "cartao" else "secondary"):
-                    st.session_state.import_type = "cartao"
-                    st.rerun()
-            with tc2:
-                if st.button("🏦  Conta", key="type_conta_nu", use_container_width=True,
-                             type="primary" if import_type == "conta" else "secondary"):
-                    st.session_state.import_type = "conta"
-                    st.rerun()
-
-    # ── STEP 3: Arquivo ──────────────────────────────────────
-    ready_for_upload = source and (import_type or not needs_subtype)
-
-    if ready_for_upload:
-        step3_done = st.session_state.import_file_name is not None
-        st.markdown(
-            f'<div class="wiz-step" style="margin-top:18px;">'
-            f'<div class="wiz-num {"done" if step3_done else ""}">{"✓" if step3_done else "3"}</div>'
-            f'<span class="wiz-label">Arquivo</span></div>',
-            unsafe_allow_html=True
-        )
-
-        file_cfg = {
-            "IBKR": (['csv'],        "CSV exportado do IBKR Activity Statement"),
-            "B3":   (['xlsx','xls'], "Excel da B3 · Movimentações (.xlsx)"),
-            "Nu":   (['ofx','txt'],  "OFX exportado do Nubank"),
-        }
-        file_types, file_hint = file_cfg.get(source, (['csv'], "Arquivo"))
-
-        st.markdown(f'<div class="file-zone-hint"><span class="file-zone-hint-text">📎 {file_hint}</span></div>', unsafe_allow_html=True)
-
-        new_upload = st.file_uploader(
-            "Upload", type=file_types,
-            key=f"uploader_{source}_{import_type}",
-            label_visibility="collapsed"
-        )
-
+    def _file_upload(prefix, file_types, file_hint):
+        """Exibe uploader e retorna (file_data, file_ext) ou (None, None)."""
+        st.markdown(f'<div class="file-zone-hint"><span class="file-zone-hint-text">📎 {file_hint}</span></div>',
+                    unsafe_allow_html=True)
+        imp_type = st.session_state[f"{prefix}_type"]
+        new_upload = st.file_uploader("Upload", type=file_types,
+                                      key=f"up_{prefix}_{imp_type}",
+                                      label_visibility="collapsed")
         if new_upload is not None:
-            st.session_state.import_file_data = new_upload.getvalue()
-            st.session_state.import_file_name = new_upload.name
+            st.session_state[f"{prefix}_file_data"] = new_upload.getvalue()
+            st.session_state[f"{prefix}_file_name"] = new_upload.name
 
-        uploaded_file = new_upload
-
-        if st.session_state.import_file_name and not new_upload:
+        if st.session_state[f"{prefix}_file_name"] and not new_upload:
             fc1, fc2 = st.columns([5, 2])
             with fc1:
-                st.markdown(
-                    f'<div style="font-size:0.78rem;color:#64748b;padding:6px 0;">'
-                    f'📄 <strong style="color:#94a3b8;">{st.session_state.import_file_name}</strong></div>',
-                    unsafe_allow_html=True
-                )
-            with fc2:
-                if st.button("✕ Limpar", key="clear_file", use_container_width=True):
-                    st.session_state.import_file_data = None
-                    st.session_state.import_file_name = None
-                    st.rerun()
-    else:
-        uploaded_file = None
-
-    # ── PROCESSING ──
-    has_file = uploaded_file is not None or st.session_state.import_file_data is not None
-    if has_file:
-        if uploaded_file is not None:
-            file_data = uploaded_file.getvalue()
-            file_ext = uploaded_file.name.split('.')[-1].lower()
-        else:
-            file_data = st.session_state.import_file_data
-            file_ext = st.session_state.import_file_name.split('.')[-1].lower()
-
-        # ── STEP 4: Resultado ────────────────────────────────────
-        st.markdown(
-            '<div class="wiz-step" style="margin-top:18px;">'
-            '<div class="wiz-num">4</div>'
-            '<span class="wiz-label">Análise e importação</span></div>',
-            unsafe_allow_html=True
-        )
-
-        def _card(kind, icon, title, body=""):
-            return (f'<div class="status-card {kind}">'
-                    f'<span class="status-card-icon">{icon}</span>'
-                    f'<div class="status-card-content">'
-                    f'<div class="status-card-title">{title}</div>'
-                    f'{"<div class=status-card-body>" + body + "</div>" if body else ""}'
-                    f'</div></div>')
-
-        def _backup_hint(path):
-            if path:
-                st.markdown(f'<div class="backup-hint">💾 Backup salvo em <code>{path}</code></div>',
+                st.markdown(f'<div style="font-size:0.78rem;color:#64748b;padding:6px 0;">'
+                            f'📄 <strong style="color:#94a3b8;">{st.session_state[f"{prefix}_file_name"]}</strong></div>',
                             unsafe_allow_html=True)
+            with fc2:
+                if st.button("✕ Limpar", key=f"clear_{prefix}", use_container_width=True):
+                    st.session_state[f"{prefix}_file_data"] = None
+                    st.session_state[f"{prefix}_file_name"] = None
+                    st.rerun()
 
-        def _import_btn(key):
-            return st.button("📥  Importar para produção", key=key,
-                             type="primary", use_container_width=True)
+        if st.session_state[f"{prefix}_file_data"]:
+            ext = st.session_state[f"{prefix}_file_name"].split('.')[-1].lower()
+            return st.session_state[f"{prefix}_file_data"], ext
+        return None, None
 
-        # ── IBKR ──────────────────────────────────
-        if source == "IBKR":
-            if import_type == "proventos":
-                import tempfile, os as os_sync
-                from core.sync.ibkr_sync import IBKRSyncManager
-                from core.data.loader import load_proventos
+    # ── Tabs ──
+    tab_b3, tab_ibkr = st.tabs(["  B3  ", "  IBKR  "])
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                    tmp.write(file_data)
-                    tmp_path = tmp.name
+    # ══════════════════════════════════════════════════
+    # TAB B3
+    # ══════════════════════════════════════════════════
+    with tab_b3:
+        logo_b3 = _LOGOS / "b3.png"
+        if logo_b3.exists():
+            _, lc, _ = st.columns([3, 2, 3])
+            with lc:
+                st.image(str(logo_b3), use_container_width=True)
+        st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
 
-                try:
-                    with st.spinner("Analisando CSV..."):
-                        sync_manager = IBKRSyncManager(csv_path=tmp_path)
-                        qtd_div, qtd_imp = sync_manager.load_csv()
+        b3_type = _type_buttons("b3")
 
-                    st.markdown(_card("info", "📊", "CSV analisado",
-                                      f"<strong>{qtd_div}</strong> dividendos · <strong>{qtd_imp}</strong> impostos retidos"),
-                                unsafe_allow_html=True)
+        if b3_type:
+            file_data, file_ext = _file_upload("b3", ['xlsx', 'xls'],
+                                               "Excel da B3 · Movimentações (.xlsx)")
+            if file_data:
+                if file_ext not in ['xlsx', 'xls']:
+                    st.markdown(_card("error", "❌", "Formato incorreto",
+                                      "Use o arquivo Excel (.xlsx) exportado da B3."), unsafe_allow_html=True)
 
-                    st.cache_data.clear()
-                    df_faltantes = sync_manager.find_missing(load_proventos())
-
-                    if df_faltantes.empty:
-                        st.markdown(_card("success", "✅", "Tudo sincronizado!",
-                                          "Todos os proventos do CSV já estão na base."),
+                elif b3_type == "proventos":
+                    import importlib, core.sync.b3_sync
+                    from io import BytesIO
+                    importlib.reload(core.sync.b3_sync)
+                    from core.sync.b3_sync import B3SyncManager
+                    with st.spinner("Processando Excel da B3..."):
+                        b3_mgr = B3SyncManager()
+                        df_prev, msg = b3_mgr.process_file(BytesIO(file_data))
+                    if not df_prev.empty:
+                        st.markdown(f'<div class="count-badge">📥 {len(df_prev)} proventos novos encontrados</div>',
                                     unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="count-badge">📥 {len(df_faltantes)} novos proventos para importar</div>',
-                                    unsafe_allow_html=True)
-                        st.dataframe(df_faltantes[['data','ticker','decisao','valor','moeda']],
-                                     use_container_width=True, height=180)
-                        if _import_btn("btn_sync_prod"):
+                        cols = [c for c in ['data','ticker','decisao','valor','moeda'] if c in df_prev.columns]
+                        st.dataframe(df_prev[cols], use_container_width=True, height=180)
+                        if _import_btn("btn_b3_prov_prod"):
                             with st.spinner("Fazendo backup e importando..."):
-                                ok, msg, backup_path = sync_manager.apply_to_production()
+                                ok, ms, backup_path = b3_mgr.apply_to_production()
                             if ok:
-                                st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
                                 _backup_hint(backup_path)
+                                st.session_state.b3_file_data = None
+                                st.session_state.b3_file_name = None
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                             else:
-                                st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
-
-                except Exception as e:
-                    st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
-                finally:
-                    try: os_sync.unlink(tmp_path)
-                    except: pass
-
-            elif import_type == "ativos":
-                import tempfile, os as os_sync
-                from core.sync.ibkr_sync import IBKRTradesManager
-                from core.data.provider import DataProvider
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                    tmp.write(file_data)
-                    tmp_path = tmp.name
-
-                try:
-                    with st.spinner("Analisando CSV..."):
-                        trades_mgr = IBKRTradesManager(csv_path=tmp_path)
-                        qtd_c, qtd_v = trades_mgr.load_csv()
-
-                    st.markdown(_card("info", "📈", "CSV analisado",
-                                      f"<strong>{qtd_c}</strong> compras · <strong>{qtd_v}</strong> vendas"),
-                                unsafe_allow_html=True)
-
-                    st.cache_data.clear()
-                    df_raw = trades_mgr.find_missing(DataProvider.get_assets())
-
-                    if 'status_match' in df_raw.columns:
-                        df_splits = df_raw[df_raw['status_match'] == 'POTENTIAL_SPLIT']
-                        df_missing = df_raw[df_raw['status_match'] == 'MISSING']
+                                st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
+                    elif msg:
+                        st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
                     else:
-                        df_splits, df_missing = pd.DataFrame(), df_raw
-
-                    trades_mgr.df_faltantes = df_missing
-
-                    if not df_splits.empty:
-                        st.markdown(_card("warning", "⚠️", f"{len(df_splits)} possíveis splits / ajustes",
-                                          "Valor total bate mas quantidade/preço diferem. Verifique manualmente."),
-                                    unsafe_allow_html=True)
-                        sc = [c for c in ['Data','Símbolo','Quantidade','Preço'] if c in df_splits.columns]
-                        st.dataframe(df_splits[sc], use_container_width=True, height=100)
-
-                    if df_missing.empty:
                         st.markdown(_card("success", "✅", "Tudo sincronizado!",
-                                          "Todos os trades do CSV já estão na base."),
+                                          "Nenhum provento novo no arquivo."), unsafe_allow_html=True)
+
+                elif b3_type == "ativos":
+                    import importlib, core.sync.b3_sync
+                    from io import BytesIO
+                    importlib.reload(core.sync.b3_sync)
+                    from core.sync.b3_sync import B3TradesManager
+                    with st.spinner("Processando Excel da B3..."):
+                        b3_t = B3TradesManager()
+                        df_prev, msg = b3_t.process_trades(BytesIO(file_data))
+                    if not df_prev.empty:
+                        st.markdown(f'<div class="count-badge">📥 {len(df_prev)} trades novos encontrados</div>',
                                     unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="count-badge">📥 {len(df_missing)} novos trades para importar</div>',
-                                    unsafe_allow_html=True)
-                        tc = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_missing.columns]
-                        st.dataframe(df_missing[tc], use_container_width=True, height=180)
-                        if _import_btn("btn_trades_prod"):
+                        cols = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_prev.columns]
+                        st.dataframe(df_prev[cols], use_container_width=True, height=180)
+                        if _import_btn("btn_b3_ativ_prod"):
                             with st.spinner("Fazendo backup e importando..."):
-                                ok, msg, backup_path = trades_mgr.apply_to_production()
+                                ok, ms, backup_path = b3_t.apply_to_production()
                             if ok:
-                                st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
                                 _backup_hint(backup_path)
+                                st.session_state.b3_file_data = None
+                                st.session_state.b3_file_name = None
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                             else:
-                                st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
+                                st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
+                    elif msg:
+                        st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
+                    else:
+                        st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                          "Nenhum trade novo no arquivo."), unsafe_allow_html=True)
 
-                except Exception as e:
-                    st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
-                finally:
-                    try: os_sync.unlink(tmp_path)
-                    except: pass
+    # ══════════════════════════════════════════════════
+    # TAB IBKR
+    # ══════════════════════════════════════════════════
+    with tab_ibkr:
+        logo_ibkr = _LOGOS / "ibkr.jpg"
+        if logo_ibkr.exists():
+            _, lc, _ = st.columns([3, 2, 3])
+            with lc:
+                st.image(str(logo_ibkr), use_container_width=True)
+        st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
 
-        # ── B3 ────────────────────────────────────
-        elif source == "B3":
-            if file_ext not in ['xlsx', 'xls']:
-                st.markdown(_card("error", "❌", "Formato incorreto",
-                                  "Use o arquivo Excel (.xlsx) exportado da B3."), unsafe_allow_html=True)
-            elif import_type == "proventos":
-                import importlib, core.sync.b3_sync
-                from io import BytesIO
-                importlib.reload(core.sync.b3_sync)
-                from core.sync.b3_sync import B3SyncManager
+        ibkr_type = _type_buttons("ibkr")
 
-                with st.spinner("Processando Excel da B3..."):
-                    b3_mgr = B3SyncManager()
-                    file_obj = BytesIO(file_data)
-                    df_prev, msg = b3_mgr.process_file(file_obj)
-
-                if not df_prev.empty:
-                    st.markdown(f'<div class="count-badge">📥 {len(df_prev)} proventos novos encontrados</div>',
-                                unsafe_allow_html=True)
-                    cols = [c for c in ['data','ticker','decisao','valor','moeda'] if c in df_prev.columns]
-                    st.dataframe(df_prev[cols], use_container_width=True, height=180)
-                    if _import_btn("btn_b3_prod"):
-                        with st.spinner("Fazendo backup e importando..."):
-                            ok, ms, backup_path = b3_mgr.apply_to_production()
-                        if ok:
-                            st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
-                            _backup_hint(backup_path)
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+        if ibkr_type:
+            file_data, file_ext = _file_upload("ibkr", ['csv'],
+                                               "CSV exportado do IBKR Activity Statement")
+            if file_data:
+                if ibkr_type == "proventos":
+                    import tempfile, os as os_sync
+                    from core.sync.ibkr_sync import IBKRSyncManager
+                    from core.data.loader import load_proventos
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                        tmp.write(file_data)
+                        tmp_path = tmp.name
+                    try:
+                        with st.spinner("Analisando CSV..."):
+                            sync_manager = IBKRSyncManager(csv_path=tmp_path)
+                            qtd_div, qtd_imp = sync_manager.load_csv()
+                        st.markdown(_card("info", "📊", "CSV analisado",
+                                          f"<strong>{qtd_div}</strong> dividendos · <strong>{qtd_imp}</strong> impostos retidos"),
+                                    unsafe_allow_html=True)
+                        st.cache_data.clear()
+                        df_faltantes = sync_manager.find_missing(load_proventos())
+                        if df_faltantes.empty:
+                            st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                              "Todos os proventos do CSV já estão na base."), unsafe_allow_html=True)
                         else:
-                            st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
-                elif msg:
-                    st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
-                else:
-                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
-                                      "Nenhum provento novo no arquivo."), unsafe_allow_html=True)
+                            st.markdown(f'<div class="count-badge">📥 {len(df_faltantes)} novos proventos para importar</div>',
+                                        unsafe_allow_html=True)
+                            st.dataframe(df_faltantes[['data','ticker','decisao','valor','moeda']],
+                                         use_container_width=True, height=180)
+                            if _import_btn("btn_ibkr_prov_prod"):
+                                with st.spinner("Fazendo backup e importando..."):
+                                    ok, msg, backup_path = sync_manager.apply_to_production()
+                                if ok:
+                                    st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                    _backup_hint(backup_path)
+                                    st.session_state.ibkr_file_data = None
+                                    st.session_state.ibkr_file_name = None
+                                    st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else:
+                                    st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
+                    finally:
+                        try: os_sync.unlink(tmp_path)
+                        except: pass
 
-            elif import_type == "ativos":
-                import importlib, core.sync.b3_sync
-                from io import BytesIO
-                importlib.reload(core.sync.b3_sync)
-                from core.sync.b3_sync import B3TradesManager
-
-                with st.spinner("Processando Excel da B3..."):
-                    b3_t = B3TradesManager()
-                    file_obj = BytesIO(file_data)
-                    df_prev, msg = b3_t.process_trades(file_obj)
-
-                if not df_prev.empty:
-                    st.markdown(f'<div class="count-badge">📥 {len(df_prev)} trades novos encontrados</div>',
-                                unsafe_allow_html=True)
-                    cols = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_prev.columns]
-                    st.dataframe(df_prev[cols], use_container_width=True, height=180)
-                    if _import_btn("btn_b3_trades_prod"):
-                        with st.spinner("Fazendo backup e importando..."):
-                            ok, ms, backup_path = b3_t.apply_to_production()
-                        if ok:
-                            st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
-                            _backup_hint(backup_path)
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                elif ibkr_type == "ativos":
+                    import tempfile, os as os_sync
+                    from core.sync.ibkr_sync import IBKRTradesManager
+                    from core.data.provider import DataProvider
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+                        tmp.write(file_data)
+                        tmp_path = tmp.name
+                    try:
+                        with st.spinner("Analisando CSV..."):
+                            trades_mgr = IBKRTradesManager(csv_path=tmp_path)
+                            qtd_c, qtd_v = trades_mgr.load_csv()
+                        st.markdown(_card("info", "📈", "CSV analisado",
+                                          f"<strong>{qtd_c}</strong> compras · <strong>{qtd_v}</strong> vendas"),
+                                    unsafe_allow_html=True)
+                        st.cache_data.clear()
+                        df_raw = trades_mgr.find_missing(DataProvider.get_assets())
+                        if 'status_match' in df_raw.columns:
+                            df_splits = df_raw[df_raw['status_match'] == 'POTENTIAL_SPLIT']
+                            df_missing = df_raw[df_raw['status_match'] == 'MISSING']
                         else:
-                            st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
-                elif msg:
-                    st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
-                else:
-                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
-                                      "Nenhum trade novo no arquivo."), unsafe_allow_html=True)
-
-        # ── OFX (Nu) ─────────────────────────────
-        elif source == "Nu":
-            if file_ext not in ['ofx', 'txt']:
-                st.markdown(_card("error", "❌", "Formato incorreto",
-                                  "Use o arquivo OFX exportado do Nubank."), unsafe_allow_html=True)
-            else:
-                import importlib, core.sync.finance_sync
-                from io import BytesIO
-                importlib.reload(core.sync.finance_sync)
-                from core.sync.finance_sync import FinanceSyncManager
-
-                tipo_bd = "Cartão" if import_type == "cartao" else "Conta"
-
-                with st.spinner("Processando OFX..."):
-                    f_mgr = FinanceSyncManager()
-                    file_obj = BytesIO(file_data)
-                    df_new, msg = f_mgr.process_file(file_obj, source, tipo_bd)
-
-                if not msg and not df_new.empty:
-                    st.markdown(f'<div class="count-badge blue">💳 {len(df_new)} novas transações</div>',
-                                unsafe_allow_html=True)
-                    st.dataframe(df_new[['data','descricao','valor','categoria']],
-                                 use_container_width=True, height=180)
-                    if _import_btn("btn_imp_ofx"):
-                        with st.spinner("Importando..."):
-                            ok, save_msg = f_mgr.save_to_gsheets()
-                        if ok:
-                            st.markdown(_card("success", "✅", save_msg), unsafe_allow_html=True)
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            df_splits, df_missing = pd.DataFrame(), df_raw
+                        trades_mgr.df_faltantes = df_missing
+                        if not df_splits.empty:
+                            st.markdown(_card("warning", "⚠️", f"{len(df_splits)} possíveis splits / ajustes",
+                                              "Valor total bate mas quantidade/preço diferem. Verifique manualmente."),
+                                        unsafe_allow_html=True)
+                            sc = [c for c in ['Data','Símbolo','Quantidade','Preço'] if c in df_splits.columns]
+                            st.dataframe(df_splits[sc], use_container_width=True, height=100)
+                        if df_missing.empty:
+                            st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                              "Todos os trades do CSV já estão na base."), unsafe_allow_html=True)
                         else:
-                            st.markdown(_card("error", "❌", "Falha", save_msg), unsafe_allow_html=True)
-                elif msg:
-                    st.markdown(_card("error", "❌", "Erro no arquivo", msg), unsafe_allow_html=True)
-                else:
-                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
-                                      "Nenhuma transação nova no OFX."), unsafe_allow_html=True)
+                            st.markdown(f'<div class="count-badge">📥 {len(df_missing)} novos trades para importar</div>',
+                                        unsafe_allow_html=True)
+                            tc = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_missing.columns]
+                            st.dataframe(df_missing[tc], use_container_width=True, height=180)
+                            if _import_btn("btn_ibkr_ativ_prod"):
+                                with st.spinner("Fazendo backup e importando..."):
+                                    ok, msg, backup_path = trades_mgr.apply_to_production()
+                                if ok:
+                                    st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                    _backup_hint(backup_path)
+                                    st.session_state.ibkr_file_data = None
+                                    st.session_state.ibkr_file_name = None
+                                    st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else:
+                                    st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
+                    finally:
+                        try: os_sync.unlink(tmp_path)
+                        except: pass
 
 # ════════════════════════════════════════════════════════
 # 2. SYSTEM SYNC — Expandable Card
