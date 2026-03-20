@@ -44,6 +44,26 @@ def get_logo_base64():
 
 logo_b64 = get_logo_base64()
 
+def _get_grimmi_b64():
+    try:
+        p = Path(__file__).parent / "assets" / "logos" / "grimmi.png"
+        with open(p, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+_grimmi_b64 = _get_grimmi_b64()
+
+# --- HOME CHAT STATE (inicializado cedo para uso no HTML dos cards) ---
+if "home_ai_open" not in st.session_state:
+    st.session_state.home_ai_open = False
+if "home_chat_history" not in st.session_state:
+    st.session_state.home_chat_history = []
+if "home_ctx_hash" not in st.session_state:
+    st.session_state.home_ctx_hash = ""
+if "home_ctx_at" not in st.session_state:
+    st.session_state.home_ctx_at = ""
+
 # --- PRELOADER LOGIC (Play only once per app load) ---
 if not intro_state["played"]:
     intro_state["played"] = True
@@ -2005,9 +2025,229 @@ st.markdown('''
     </div>
 </div>
 
+<!-- Grimmi IA Card -->
+<div class="expandable-wrapper">
+    <div class="expandable-card card-grimmi-exp" id="grimmi-nav-card">
+        <div class="expandable-header grimmi-card-header-click">
+            <div class="card-title">
+                <i class="card-icon" style="font-style:normal;">🤖</i> Grimmi IA
+            </div>
+            <div class="card-desc">Analise sua carteira com inteligência artificial</div>
+            <span class="expand-icon" id="grimmi-arrow">▼</span>
+        </div>
+    </div>
+</div>
+
 </div>
 ''', unsafe_allow_html=True)
 
+
+# ── GRIMMI IA — CSS + Toggle + Chat ─────────────────────────────────────────
+_grimmi_img_html = (
+    f'<img src="data:image/png;base64,{_grimmi_b64}" '
+    'style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;" />'
+    if _grimmi_b64 else "🤖"
+)
+
+st.markdown(f"""
+<style>
+/* Grimmi card — violet/indigo theme */
+.expandable-card.card-grimmi-exp:hover {{
+    box-shadow: 0 20px 50px -10px rgba(167,139,250,0.25) !important;
+}}
+.expandable-card.card-grimmi-exp:hover::before {{
+    background: linear-gradient(135deg,rgba(167,139,250,0.45) 0%,rgba(99,102,241,0.25) 100%) !important;
+}}
+.expandable-card.card-grimmi-exp::before {{
+    background: linear-gradient(135deg,rgba(167,139,250,0.2) 0%,rgba(99,102,241,0.1) 100%) !important;
+}}
+/* Toggle button — integrado ao card */
+.grimmi-toggle-row {{
+    display: flex;
+    justify-content: center;
+    max-width: 560px;
+    margin: -1px auto 0;
+    padding: 0 20px;
+}}
+/* Chat container */
+.grimmi-chat-wrap {{
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 0 20px 16px;
+}}
+.grimmi-chat-inner {{
+    background: linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(20,15,45,0.9) 100%);
+    border: 1px solid rgba(167,139,250,0.18);
+    border-top: none;
+    border-radius: 0 0 18px 18px;
+    padding: 16px;
+    backdrop-filter: blur(12px);
+}}
+.grimmi-welcome {{
+    text-align: center;
+    padding: 28px 16px 20px;
+    color: #64748b;
+}}
+.grimmi-welcome-icon {{
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+    display: block;
+    filter: drop-shadow(0 0 12px rgba(167,139,250,0.5));
+}}
+.grimmi-welcome-title {{
+    font-size: 1rem;
+    font-weight: 700;
+    color: #c4b5fd;
+    margin-bottom: 4px;
+}}
+.grimmi-welcome-sub {{
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.5;
+}}
+.grimmi-controls {{
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    align-items: center;
+    flex-wrap: wrap;
+}}
+.grimmi-ctx-badge {{
+    font-size: 0.65rem;
+    color: #4ade80;
+    background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.15);
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin-left: auto;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Toggle (Streamlit button dentro de coluna centralizada) ──────────────────
+_col_l, _col_c, _col_r = st.columns([1, 2, 1])
+with _col_c:
+    _btn_label = "▲ Fechar Grimmi" if st.session_state.home_ai_open else "💬 Conversar com Grimmi"
+    _btn_type  = "secondary" if st.session_state.home_ai_open else "primary"
+    if st.button(_btn_label, key="home_ai_toggle", use_container_width=True, type=_btn_type):
+        st.session_state.home_ai_open = not st.session_state.home_ai_open
+        st.rerun()
+
+# ── Chat (renderizado apenas quando aberto) ──────────────────────────────────
+if st.session_state.home_ai_open:
+    import hashlib as _hl
+    from datetime import datetime as _dt_home
+    from core.agent import GeminiAgent as _GeminiAgent, build_portfolio_context as _build_ctx
+    from core.agent.context_builder import build_market_snapshot as _build_snap
+    from core.computed import get_portfolio_snapshot as _get_snap
+    from core.data.loader import (load_assets as _la, load_proventos as _lp,
+                                  load_fixed_income as _lfi, load_fixed_income_manual as _lfm)
+
+    # Inicializa agente uma única vez
+    if "home_agent" not in st.session_state:
+        st.session_state.home_agent = _GeminiAgent()
+    _home_agent = st.session_state.home_agent
+
+    @st.cache_data(show_spinner=False, ttl=300)
+    def _home_build_full_context():
+        try: df_rv = _la()
+        except Exception: df_rv = None
+        try: df_rf_m = _lfm()
+        except Exception: df_rf_m = None
+        try: df_rf_h = _lfi()
+        except Exception: df_rf_h = None
+        try: df_pv = _lp()
+        except Exception: df_pv = None
+        ctx = _build_ctx(
+            df_rv=df_rv if (df_rv is not None and not df_rv.empty) else None,
+            df_rf_atual=df_rf_m if (df_rf_m is not None and not df_rf_m.empty) else None,
+            df_rf_hist=df_rf_h if (df_rf_h is not None and not df_rf_h.empty) else None,
+            df_proventos=df_pv if (df_pv is not None and not df_pv.empty) else None,
+        )
+        try:
+            snap = _get_snap()
+            ctx += "\n\n---\n\n" + _build_snap(snap)
+        except Exception:
+            pass
+        return ctx
+
+    if _home_agent.missing_dependency() or _home_agent.missing_key():
+        st.warning("⚠️ Gemini não configurado. Acesse **Agente IA** para detalhes.")
+    else:
+        # Sincroniza contexto (só quando hash mudar)
+        with st.spinner("Carregando contexto da carteira..."):
+            _full_ctx = _home_build_full_context()
+        _new_hash = _hl.md5(_full_ctx.encode()).hexdigest()
+        if st.session_state.home_ctx_hash != _new_hash:
+            _home_agent.set_context(_full_ctx, chat_history=st.session_state.home_chat_history)
+            st.session_state.home_ctx_hash = _new_hash
+            st.session_state.home_ctx_at = _dt_home.now().strftime("%H:%M:%S")
+
+        # ── Histórico ──────────────────────────────────────────────────────
+        if not st.session_state.home_chat_history:
+            _icon_html = (
+                f'<img src="data:image/png;base64,{_grimmi_b64}" class="grimmi-welcome-icon" '
+                'style="width:56px;height:56px;border-radius:50%;margin:0 auto 8px;" />'
+                if _grimmi_b64 else '<span class="grimmi-welcome-icon">🤖</span>'
+            )
+            st.markdown(f"""
+            <div class="grimmi-chat-wrap">
+              <div class="grimmi-chat-inner">
+                <div class="grimmi-welcome">
+                  {_icon_html}
+                  <div class="grimmi-welcome-title">Olá! Vamos analisar sua carteira?</div>
+                  <div class="grimmi-welcome-sub">Pergunte qualquer coisa. Eu leio seus dados automaticamente.</div>
+                </div>
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+            # Sugestões rápidas
+            _SUGS = ["Resumo da carteira", "Maiores riscos?", "Alocação setorial", "Rebalancear?", "Meus proventos"]
+            _sc = st.columns(len(_SUGS))
+            for _i, (_col_s, _sug) in enumerate(zip(_sc, _SUGS)):
+                with _col_s:
+                    if st.button(_sug, key=f"home_sug_{_i}", use_container_width=True):
+                        st.session_state.home_quick_prompt = _sug
+                        st.rerun()
+        else:
+            for _msg in st.session_state.home_chat_history:
+                _av = "👤" if _msg["role"] == "user" else "🤖"
+                with st.chat_message(_msg["role"], avatar=_av):
+                    st.markdown(_msg["content"])
+
+        # ── Input ──────────────────────────────────────────────────────────
+        _user_input = st.chat_input("Pergunte sobre seu portfólio...", key="home_chat_input")
+        if hasattr(st.session_state, "home_quick_prompt"):
+            _user_input = st.session_state.home_quick_prompt
+            del st.session_state.home_quick_prompt
+
+        if _user_input:
+            st.session_state.home_chat_history.append({"role": "user", "content": _user_input})
+            with st.chat_message("user", avatar="👤"):
+                st.markdown(_user_input)
+            with st.chat_message("assistant", avatar="🤖"):
+                _ph = st.empty()
+                _resp = ""
+                for _chunk in _home_agent.chat(_user_input, stream=True):
+                    _resp += _chunk
+                    _ph.markdown(_resp + "▌")
+                _ph.markdown(_resp)
+            st.session_state.home_chat_history.append({"role": "assistant", "content": _resp})
+            st.rerun()
+
+        # ── Controles ──────────────────────────────────────────────────────
+        _cc1, _cc2 = st.columns([1, 2])
+        with _cc1:
+            if st.button("🗑️ Limpar conversa", key="home_clear_chat", use_container_width=True):
+                st.session_state.home_chat_history = []
+                _home_agent.clear_history()
+                st.session_state.home_ctx_hash = ""
+                st.rerun()
+        with _cc2:
+            if st.session_state.home_ctx_at:
+                st.caption(f"📊 Contexto: {st.session_state.home_ctx_at} · {len(st.session_state.home_chat_history)} msgs")
 
 # --- ARCHITECTURE LINK ---
 st.markdown('''
