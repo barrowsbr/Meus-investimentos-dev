@@ -2018,34 +2018,56 @@ st.markdown('''
 # ── GRIMMI IA — Expander card ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Grimmi expander — violet/indigo theme, matches nav cards style */
+/* Grimmi expander — exact match to .expandable-card visual identity */
 div[data-testid="stExpander"] {
-    background: linear-gradient(135deg, rgba(10,10,30,0.85) 0%, rgba(20,15,45,0.8) 100%);
-    border: 1px solid rgba(167,139,250,0.2);
-    border-radius: 20px;
-    backdrop-filter: blur(20px);
-    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.4);
-    overflow: hidden;
-    max-width: 560px;
-    margin: 16px auto 0;
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important;
+    outline: 1px solid rgba(167,139,250,0.2) !important;
+    outline-offset: -1px !important;
+    overflow: hidden !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border: none !important;
+    max-width: 580px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
 }
 div[data-testid="stExpander"]:hover {
-    box-shadow: 0 20px 50px -10px rgba(167,139,250,0.3);
-    border-color: rgba(167,139,250,0.35);
+    transform: translateY(-4px) !important;
+    background: rgba(15, 23, 42, 0.75) !important;
+    box-shadow: 0 20px 50px -10px rgba(167,139,250,0.28) !important;
+    outline-color: rgba(167,139,250,0.45) !important;
+}
+div[data-testid="stExpander"] details {
+    background: transparent !important;
 }
 div[data-testid="stExpander"] details summary {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #e2e8f0;
-    padding: 20px 24px;
-    cursor: pointer;
+    padding: 18px 42px 18px 30px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    list-style: none !important;
 }
-div[data-testid="stExpander"] details[open] summary {
-    border-bottom: 1px solid rgba(167,139,250,0.15);
+div[data-testid="stExpander"] details summary p,
+div[data-testid="stExpander"] details summary span:not([data-testid]) {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
+    margin: 0 !important;
 }
-div[data-testid="stExpander"] details > div {
-    padding: 4px 12px 16px;
+div[data-testid="stExpander"] details[open] > summary {
+    border-bottom: 1px solid rgba(167,139,250,0.15) !important;
+}
+div[data-testid="stExpander"] details > div[data-testid="stExpanderDetails"] {
+    padding: 12px 16px 16px !important;
+    background: transparent !important;
 }
 </style>
 """, unsafe_allow_html=True)

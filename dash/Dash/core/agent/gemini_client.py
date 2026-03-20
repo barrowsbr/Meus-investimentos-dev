@@ -90,26 +90,29 @@ Regras:
 """
 
 # ── Candidatos de modelo ───────────────────────────────────────────────────
-# Novo SDK (google-genai) — prioridade para Gemini 3 > 2.5 > 2.0
+# Ordem da cascata de chat: do melhor ao mais leve.
+# Preview/experimentais removidos — consomem cota mas falham em mensagens reais.
 _CANDIDATES_NEW_SDK = [
-    "gemini-3-flash-preview",
-    "gemini-3-pro",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash-exp",
-    "gemini-1.5-flash-latest",
+    "gemini-2.5-flash",        # Confiável e capaz — ponto de partida
+    "gemini-2.5-pro",          # Mais poderoso, mas pode ter limite de taxa
+    "gemini-2.0-flash",        # Fallback estável
+    "gemini-2.0-flash-exp",    # Fallback experimental
+    "gemini-1.5-flash-latest", # Último recurso
 ]
 
-# SDK legado (google-generativeai) — prioridade para Gemini 2.5/2.0
 _CANDIDATES_OLD_SDK = [
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
     "gemini-2.5-pro",
+    "gemini-2.0-flash",
     "gemini-2.0-flash-exp",
     "gemini-1.5-flash-latest",
     "gemini-1.5-pro-latest",
 ]
+
+# Modelo barato usado APENAS para validar a chave de API no init.
+# Evita gastar cota dos modelos premium em pings de inicialização.
+_VALIDATION_MODEL_NEW = "gemini-1.5-flash-latest"
+_VALIDATION_MODEL_OLD = "gemini-1.5-flash-latest"
 
 
 class GeminiAgent:
@@ -168,53 +171,55 @@ class GeminiAgent:
     # ── Inicialização ──────────────────────────────────────────────────────
 
     def _init_new_sdk(self) -> None:
-        """Inicializa usando google-genai (novo SDK)."""
+        """Inicializa usando google-genai (novo SDK).
+
+        Usa modelo barato para validar a chave de API (sem gastar cota premium),
+        depois posiciona MODEL no topo da cascata para o chat.
+        """
         try:
             client = _new_genai.Client(api_key=self._api_key)
+            # Valida API key com modelo barato — apenas 1 token, sem gastar cota premium
+            client.models.generate_content(
+                model=_VALIDATION_MODEL_NEW,
+                contents="ping",
+                config=_genai_types.GenerateContentConfig(max_output_tokens=1),
+            )
             tools = self._new_sdk_tools()
             config = _genai_types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT_BASE,
                 tools=tools or None,
             )
-            for candidate in _CANDIDATES_NEW_SDK:
-                try:
-                    client.models.generate_content(
-                        model=candidate,
-                        contents="ping",
-                        config=_genai_types.GenerateContentConfig(max_output_tokens=1),
-                    )
-                    self._client = client
-                    self._config = config
-                    self.MODEL = candidate
-                    self._sdk_used = "new"
-                    self._web_search_active = bool(tools)
-                    self._new_chat()
-                    break
-                except Exception:
-                    continue
+            self._client = client
+            self._config = config
+            self._sdk_used = "new"
+            self._web_search_active = bool(tools)
+            # Começa do melhor modelo — a cascata em chat() fará fallback se necessário
+            self.MODEL = _CANDIDATES_NEW_SDK[0]
+            self._new_chat()
         except Exception:
             pass
 
     def _init_old_sdk(self) -> None:
-        """Inicializa usando google-generativeai (SDK legado)."""
+        """Inicializa usando google-generativeai (SDK legado).
+
+        Valida a chave com modelo barato, depois posiciona no topo da cascata.
+        """
         try:
             _old_genai.configure(api_key=self._api_key)
+            # Valida API key com modelo barato
+            _val_model = _old_genai.GenerativeModel(model_name=_VALIDATION_MODEL_OLD)
+            _val_model.count_tokens("ping")
             tools = self._old_sdk_tools()
-            for candidate in _CANDIDATES_OLD_SDK:
-                try:
-                    m = _old_genai.GenerativeModel(
-                        model_name=candidate,
-                        system_instruction=SYSTEM_PROMPT_BASE,
-                        tools=tools or None,
-                    )
-                    m.count_tokens("ping")
-                    self._old_model = m
-                    self.MODEL = candidate
-                    self._sdk_used = "old"
-                    self._web_search_active = bool(tools)
-                    break
-                except Exception:
-                    continue
+            # Começa do melhor modelo — chat() fará fallback se necessário
+            m = _old_genai.GenerativeModel(
+                model_name=_CANDIDATES_OLD_SDK[0],
+                system_instruction=SYSTEM_PROMPT_BASE,
+                tools=tools or None,
+            )
+            self._old_model = m
+            self.MODEL = _CANDIDATES_OLD_SDK[0]
+            self._sdk_used = "old"
+            self._web_search_active = bool(tools)
         except Exception:
             pass
 
