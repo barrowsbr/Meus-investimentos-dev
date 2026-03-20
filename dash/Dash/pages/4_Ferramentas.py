@@ -61,39 +61,31 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] { font-family: 'Outfit', sans-serif; }
-
-.stApp {
-    background: #0a0e14;
-}
-
+.stApp { background: #0a0e14; }
 section[data-testid="stSidebar"],
 [data-testid="collapsedControl"] { display: none !important; }
-
-/* Force text color */
-p, h1, h2, h3, h4, h5, h6, span, div, label, li {
-    color: #f1f5f9 !important;
-}
+p, h1, h2, h3, h4, h5, h6, span, div, label, li { color: #f1f5f9 !important; }
 
 /* ── Glassmorphism Expanders ── */
 .stExpander {
-    background: rgba(10, 18, 35, 0.4) !important;
-    backdrop-filter: blur(18px) !important;
-    -webkit-backdrop-filter: blur(18px) !important;
-    border: 1px solid rgba(99, 102, 241, 0.08) !important;
-    border-radius: 16px !important;
+    background: rgba(10, 18, 35, 0.45) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(99, 102, 241, 0.1) !important;
+    border-radius: 20px !important;
     overflow: hidden !important;
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.04), 0 6px 24px rgba(0,0,0,0.25) !important;
-    margin-bottom: 10px !important;
-    transition: all 0.35s ease !important;
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.05), 0 8px 32px rgba(0,0,0,0.3) !important;
+    margin-bottom: 12px !important;
+    transition: all 0.3s ease !important;
 }
 .stExpander:hover {
-    border-color: rgba(99, 102, 241, 0.15) !important;
-    box-shadow: 0 0 30px rgba(99, 102, 241, 0.08), 0 8px 32px rgba(0,0,0,0.3) !important;
+    border-color: rgba(99, 102, 241, 0.2) !important;
+    box-shadow: 0 0 36px rgba(99, 102, 241, 0.09), 0 10px 40px rgba(0,0,0,0.35) !important;
 }
 .stExpander > details > summary {
-    padding: 14px 20px !important;
+    padding: 18px 22px !important;
     font-family: 'Outfit', sans-serif !important;
-    font-size: 0.92rem !important;
+    font-size: 0.95rem !important;
     font-weight: 600 !important;
     color: #e2e8f0 !important;
     letter-spacing: -0.2px !important;
@@ -101,95 +93,230 @@ p, h1, h2, h3, h4, h5, h6, span, div, label, li {
     background: transparent !important;
 }
 .stExpander > details > summary:hover { color: #fff !important; }
-.stExpander > details > summary svg { color: rgba(99, 102, 241, 0.5) !important; }
+.stExpander > details > summary svg { color: rgba(99, 102, 241, 0.6) !important; }
 .stExpander > details > div[data-testid="stExpanderDetails"] {
-    padding: 4px 20px 16px !important;
-    border-top: 1px solid rgba(255,255,255,0.04) !important;
+    padding: 0 22px 20px !important;
+    border-top: 1px solid rgba(255,255,255,0.05) !important;
 }
 
 /* ── Status Cards ── */
 .status-card {
-    background: rgba(15, 23, 42, 0.95);
-    border-radius: 12px;
-    padding: 16px;
-    margin: 12px 0;
-    border-left: 4px solid;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    border-left: 3px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
 }
-.status-card.info    { border-left-color: #60a5fa; background: rgba(15, 23, 42, 0.92); }
-.status-card.success { border-left-color: #34d399; background: rgba(15, 23, 42, 0.92); }
-.status-card.warning { border-left-color: #fbbf24; background: rgba(15, 23, 42, 0.92); }
-.status-card.error   { border-left-color: #f87171; background: rgba(15, 23, 42, 0.92); }
-.status-card-header {
+.status-card.info    { border-left-color: #60a5fa; background: rgba(96,165,250,0.08); }
+.status-card.success { border-left-color: #34d399; background: rgba(52,211,153,0.08); }
+.status-card.warning { border-left-color: #fbbf24; background: rgba(251,191,36,0.08); }
+.status-card.error   { border-left-color: #f87171; background: rgba(248,113,113,0.08); }
+.status-card-icon  { font-size: 1.4rem; flex-shrink: 0; margin-top: 1px; }
+.status-card-content { flex: 1; }
+.status-card-title { font-size: 0.9rem !important; font-weight: 700 !important; color: #f1f5f9 !important; }
+.status-card-body  { font-size: 0.8rem !important; color: #94a3b8 !important; margin-top: 2px; line-height: 1.5; }
+
+/* ── Wizard step header ── */
+.wiz-step {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin: 16px 0 10px;
+}
+.wiz-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: rgba(99,102,241,0.2);
+    border: 1.5px solid rgba(99,102,241,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.68rem; font-weight: 700; color: #a5b4fc !important;
+    flex-shrink: 0;
+}
+.wiz-num.done {
+    background: rgba(52,211,153,0.15);
+    border-color: rgba(52,211,153,0.4);
+    color: #34d399 !important;
+}
+.wiz-label {
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #64748b !important;
+}
+
+/* ── Source selector cards ── */
+.src-card {
+    border-radius: 14px;
+    border: 1.5px solid rgba(255,255,255,0.07);
+    background: rgba(15,23,42,0.4);
+    padding: 14px 10px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
     margin-bottom: 4px;
 }
-.status-card-icon  { font-size: 1.3rem; }
-.status-card-title { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; }
-.status-card-body  { font-size: 0.85rem; color: #cbd5e1; line-height: 1.5; }
-
-/* ── Section Labels ── */
-.import-section-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: #64748b;
-    margin: 0 0 8px 2px;
+.src-card.active {
+    border-color: rgba(99,102,241,0.5);
+    background: rgba(99,102,241,0.1);
+    box-shadow: 0 0 20px rgba(99,102,241,0.15);
 }
-.import-divider {
-    border: none;
-    border-top: 1px solid rgba(148, 163, 184, 0.08);
-    margin: 14px 0;
+.src-card-name {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    color: #94a3b8 !important;
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+}
+.src-card.active .src-card-name { color: #a5b4fc !important; }
+
+/* ── Type pill buttons ── */
+.type-pills { display: flex; gap: 8px; margin: 4px 0 8px; flex-wrap: wrap; }
+.type-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px;
+    border-radius: 30px;
+    font-size: 0.78rem; font-weight: 600;
+    border: 1.5px solid rgba(255,255,255,0.08);
+    background: rgba(15,23,42,0.5);
+    color: #64748b !important;
+    cursor: pointer; transition: all 0.2s ease;
+}
+.type-pill.active {
+    border-color: rgba(99,102,241,0.5);
+    background: rgba(99,102,241,0.12);
+    color: #a5b4fc !important;
+    box-shadow: 0 0 12px rgba(99,102,241,0.1);
+}
+
+/* ── File zone ── */
+.file-zone-hint {
+    background: rgba(99,102,241,0.05);
+    border: 1.5px dashed rgba(99,102,241,0.2);
+    border-radius: 14px;
+    padding: 14px 16px;
+    text-align: center;
+    margin-bottom: 8px;
+}
+.file-zone-hint-text {
+    font-size: 0.75rem !important;
+    color: #475569 !important;
+    letter-spacing: 0.3px;
+}
+
+/* ── Count badge ── */
+.count-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(251,191,36,0.1);
+    border: 1px solid rgba(251,191,36,0.25);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.8rem; font-weight: 700;
+    color: #fbbf24 !important;
+    margin-bottom: 10px;
+}
+.count-badge.green {
+    background: rgba(52,211,153,0.1);
+    border-color: rgba(52,211,153,0.25);
+    color: #34d399 !important;
+}
+.count-badge.blue {
+    background: rgba(96,165,250,0.1);
+    border-color: rgba(96,165,250,0.25);
+    color: #60a5fa !important;
+}
+
+/* ── Section card (Sync / Security) ── */
+.section-card {
+    background: rgba(10,18,35,0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(99,102,241,0.1);
+    border-radius: 20px;
+    padding: 20px 22px;
+    margin-bottom: 12px;
+}
+.section-card-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.section-card-icon {
+    width: 40px; height: 40px;
+    background: rgba(99,102,241,0.12);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; flex-shrink: 0;
+}
+.section-card-title {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
+}
+.section-card-sub {
+    font-size: 0.75rem !important;
+    color: #475569 !important;
+    margin-top: 1px;
+}
+.divider { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 14px 0; }
+
+/* ── Backup hint ── */
+.backup-hint {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(52,211,153,0.06);
+    border: 1px solid rgba(52,211,153,0.15);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.7rem !important;
+    color: #34d399 !important;
+    margin-top: 6px;
+    word-break: break-all;
 }
 
 /* ── Header ── */
-.fh { text-align: center; padding: 14px 0 18px; animation: fadeIn 0.6s ease-out; }
+.fh { text-align: center; padding: 14px 0 20px; animation: fadeIn 0.5s ease-out; }
 .fh-t {
     font-size: 2rem; font-weight: 800;
     background: linear-gradient(to right, #f1f5f9, #a5b4fc);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     letter-spacing: -1.2px;
 }
-.fh-s { color: #475569; font-size: 0.82rem; font-weight: 300; margin-top: 2px; }
+.fh-s { color: #475569 !important; font-size: 0.82rem; font-weight: 300; margin-top: 2px; }
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
+    from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Compact Input overrides ── */
+/* ── Inputs ── */
 .stNumberInput > div > div > input,
 .stTextInput > div > div > input {
-    padding: 6px 10px !important;
-    font-size: 0.82rem !important;
-    height: 34px !important;
-    border-radius: 10px !important;
-    background: rgba(15, 23, 42, 0.5) !important;
+    padding: 8px 12px !important;
+    font-size: 0.85rem !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+    background: rgba(15,23,42,0.6) !important;
     border: 1px solid rgba(255,255,255,0.08) !important;
     color: #e2e8f0 !important;
 }
 .stNumberInput > div > div > input:focus,
 .stTextInput > div > div > input:focus {
-    border-color: rgba(99,102,241,0.4) !important;
-    box-shadow: 0 0 0 2px rgba(99,102,241,0.1) !important;
+    border-color: rgba(99,102,241,0.45) !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.1) !important;
 }
 .stNumberInput button { display: none !important; }
 .stButton > button {
-    padding: 4px 14px !important;
-    font-size: 0.78rem !important;
-    border-radius: 10px !important;
-    min-height: 34px !important;
+    padding: 6px 16px !important;
+    font-size: 0.82rem !important;
+    border-radius: 12px !important;
+    min-height: 38px !important;
+    font-weight: 600 !important;
 }
-
-/* ── Security Toggle ── */
-.stToggle label span {
-    color: #e2e8f0 !important;
-}
+.stToggle label span { color: #e2e8f0 !important; }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
     .fh-t { font-size: 1.6rem; }
+    .type-pills { gap: 6px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -212,111 +339,119 @@ st.markdown("""
 with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expanded=False):
 
     # ── Session state ──
-    if 'import_source' not in st.session_state:
-        st.session_state.import_source = None
-    if 'import_type' not in st.session_state:
-        st.session_state.import_type = None
-    if 'import_file_data' not in st.session_state:
-        st.session_state.import_file_data = None
-    if 'import_file_name' not in st.session_state:
-        st.session_state.import_file_name = None
+    for _k, _v in [('import_source', None), ('import_type', None),
+                   ('import_file_data', None), ('import_file_name', None)]:
+        if _k not in st.session_state:
+            st.session_state[_k] = _v
 
-    source = st.session_state.import_source
+    source      = st.session_state.import_source
     import_type = st.session_state.import_type
     needs_subtype = source in ["IBKR", "B3"]
 
-    # ROW 1: Source (com logos)
-    st.markdown('<div class="import-section-label">Instituição</div>', unsafe_allow_html=True)
+    # ── STEP 1: Instituição ──────────────────────────────────
+    step1_done = source is not None
+    st.markdown(
+        f'<div class="wiz-step">'
+        f'<div class="wiz-num {"done" if step1_done else ""}">{"✓" if step1_done else "1"}</div>'
+        f'<span class="wiz-label">Instituição</span></div>',
+        unsafe_allow_html=True
+    )
+
     src_col1, src_col2, src_col3 = st.columns(3)
-    with src_col1:
-        col_img = st.columns([1, 2, 1])[1]
-        with col_img:
-            st.image(str(_LOGOS / "ibkr.jpg"), width=50)
-        if st.button("IBKR", key="src_ibkr", use_container_width=True,
-                     type="primary" if source == "IBKR" else "secondary"):
-            if source != "IBKR":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "IBKR"
-            st.session_state.import_type = None
-            st.rerun()
-    with src_col2:
-        col_img = st.columns([1, 2, 1])[1]
-        with col_img:
-            st.image(str(_LOGOS / "b3.png"), width=50)
-        if st.button("B3", key="src_b3", use_container_width=True,
-                     type="primary" if source == "B3" else "secondary"):
-            if source != "B3":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "B3"
-            st.session_state.import_type = None
-            st.rerun()
-    with src_col3:
-        col_img = st.columns([1, 2, 1])[1]
-        with col_img:
-            st.image(str(_LOGOS / "nubank.png"), width=50)
-        if st.button("Nubank", key="src_nu", use_container_width=True,
-                     type="primary" if source == "Nu" else "secondary"):
-            if source != "Nu":
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-            st.session_state.import_source = "Nu"
-            st.session_state.import_type = None
-            st.rerun()
 
-    st.markdown('<hr class="import-divider">', unsafe_allow_html=True)
+    _SOURCES = [
+        ("IBKR",   "IBKR",  "ibkr.jpg"),
+        ("B3",     "B3",    "b3.svg"),
+        ("Nu",     "Nubank","nubank.png"),
+    ]
 
-    # ROW 2: Type (always shown)
-    if source in ["IBKR", "B3"]:
-        st.markdown('<div class="import-section-label">Tipo de importação</div>', unsafe_allow_html=True)
-        tc1, tc2 = st.columns(2)
-        with tc1:
-            if st.button("📊 Proventos", key=f"type_prov_{source}", use_container_width=True,
-                        type="primary" if import_type == "proventos" else "secondary"):
-                st.session_state.import_type = "proventos"
+    for col, (src_key, src_name, logo_file) in zip([src_col1, src_col2, src_col3], _SOURCES):
+        active = source == src_key
+        with col:
+            active_cls = "src-card active" if active else "src-card"
+            st.markdown(f'<div class="{active_cls}">', unsafe_allow_html=True)
+            logo_path = _LOGOS / logo_file
+            if logo_path.exists():
+                # Center the image
+                _, img_col, _ = st.columns([1, 3, 1])
+                with img_col:
+                    st.image(str(logo_path), use_container_width=True)
+            st.markdown(
+                f'<div class="src-card-name">{src_name}</div></div>',
+                unsafe_allow_html=True
+            )
+            if st.button("Selecionar", key=f"src_{src_key}", use_container_width=True,
+                         type="primary" if active else "secondary"):
+                if not active:
+                    st.session_state.import_file_data = None
+                    st.session_state.import_file_name = None
+                st.session_state.import_source = src_key
+                st.session_state.import_type   = None
                 st.rerun()
-        with tc2:
-            if st.button("📈 Ativos", key=f"type_ativos_{source}", use_container_width=True,
-                        type="primary" if import_type == "ativos" else "secondary"):
-                st.session_state.import_type = "ativos"
-                st.rerun()
-    elif source == "Nu":
-        st.markdown('<div class="import-section-label">Tipo de conta</div>', unsafe_allow_html=True)
-        tc1, tc2 = st.columns(2)
-        with tc1:
-            if st.button("💳 Cartão", key=f"type_card_{source}", use_container_width=True,
-                        type="primary" if import_type == "cartao" else "secondary"):
-                st.session_state.import_type = "cartao"
-                st.rerun()
-        with tc2:
-            if st.button("🏦 Conta", key=f"type_conta_{source}", use_container_width=True,
-                        type="primary" if import_type == "conta" else "secondary"):
-                st.session_state.import_type = "conta"
-                st.rerun()
-    else:
-        st.markdown('<div class="import-section-label">Tipo</div>', unsafe_allow_html=True)
-        st.caption("Selecione uma instituição acima")
 
-    st.markdown('<hr class="import-divider">', unsafe_allow_html=True)
+    # ── STEP 2: Tipo ─────────────────────────────────────────
+    if source:
+        step2_done = import_type is not None
+        st.markdown(
+            f'<div class="wiz-step" style="margin-top:18px;">'
+            f'<div class="wiz-num {"done" if step2_done else ""}">{"✓" if step2_done else "2"}</div>'
+            f'<span class="wiz-label">{"Tipo de importação" if needs_subtype else "Conta"}</span></div>',
+            unsafe_allow_html=True
+        )
 
-    # ROW 3: File Upload (always shown)
-    st.markdown('<div class="import-section-label">Arquivo</div>', unsafe_allow_html=True)
+        if source in ["IBKR", "B3"]:
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                if st.button("📊  Proventos", key=f"type_prov_{source}", use_container_width=True,
+                             type="primary" if import_type == "proventos" else "secondary"):
+                    st.session_state.import_type = "proventos"
+                    st.session_state.import_file_data = None
+                    st.session_state.import_file_name = None
+                    st.rerun()
+            with tc2:
+                if st.button("📈  Ativos", key=f"type_ativos_{source}", use_container_width=True,
+                             type="primary" if import_type == "ativos" else "secondary"):
+                    st.session_state.import_type = "ativos"
+                    st.session_state.import_file_data = None
+                    st.session_state.import_file_name = None
+                    st.rerun()
+        elif source == "Nu":
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                if st.button("💳  Cartão", key="type_card_nu", use_container_width=True,
+                             type="primary" if import_type == "cartao" else "secondary"):
+                    st.session_state.import_type = "cartao"
+                    st.rerun()
+            with tc2:
+                if st.button("🏦  Conta", key="type_conta_nu", use_container_width=True,
+                             type="primary" if import_type == "conta" else "secondary"):
+                    st.session_state.import_type = "conta"
+                    st.rerun()
 
+    # ── STEP 3: Arquivo ──────────────────────────────────────
     ready_for_upload = source and (import_type or not needs_subtype)
 
     if ready_for_upload:
+        step3_done = st.session_state.import_file_name is not None
+        st.markdown(
+            f'<div class="wiz-step" style="margin-top:18px;">'
+            f'<div class="wiz-num {"done" if step3_done else ""}">{"✓" if step3_done else "3"}</div>'
+            f'<span class="wiz-label">Arquivo</span></div>',
+            unsafe_allow_html=True
+        )
+
         file_cfg = {
-            "IBKR": (['csv'], "CSV do IBKR"),
-            "B3":   (['xlsx', 'xls'], "Excel da B3 (.xlsx)"),
-            "Nu":   (['ofx', 'txt'], "OFX do Nubank"),
+            "IBKR": (['csv'],        "CSV exportado do IBKR Activity Statement"),
+            "B3":   (['xlsx','xls'], "Excel da B3 · Movimentações (.xlsx)"),
+            "Nu":   (['ofx','txt'],  "OFX exportado do Nubank"),
         }
         file_types, file_hint = file_cfg.get(source, (['csv'], "Arquivo"))
 
+        st.markdown(f'<div class="file-zone-hint"><span class="file-zone-hint-text">📎 {file_hint}</span></div>', unsafe_allow_html=True)
+
         new_upload = st.file_uploader(
-            f"📁 {file_hint}",
-            type=file_types,
-            key=f"uploader_{source}",
+            "Upload", type=file_types,
+            key=f"uploader_{source}_{import_type}",
             label_visibility="collapsed"
         )
 
@@ -327,13 +462,19 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         uploaded_file = new_upload
 
         if st.session_state.import_file_name and not new_upload:
-            st.caption(f"📄 Arquivo: {st.session_state.import_file_name}")
-            if st.button("🗑️ Limpar arquivo", key="clear_file", use_container_width=True):
-                st.session_state.import_file_data = None
-                st.session_state.import_file_name = None
-                st.rerun()
+            fc1, fc2 = st.columns([5, 2])
+            with fc1:
+                st.markdown(
+                    f'<div style="font-size:0.78rem;color:#64748b;padding:6px 0;">'
+                    f'📄 <strong style="color:#94a3b8;">{st.session_state.import_file_name}</strong></div>',
+                    unsafe_allow_html=True
+                )
+            with fc2:
+                if st.button("✕ Limpar", key="clear_file", use_container_width=True):
+                    st.session_state.import_file_data = None
+                    st.session_state.import_file_name = None
+                    st.rerun()
     else:
-        st.caption("Complete as seleções acima para fazer upload")
         uploaded_file = None
 
     # ── PROCESSING ──
@@ -345,6 +486,31 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         else:
             file_data = st.session_state.import_file_data
             file_ext = st.session_state.import_file_name.split('.')[-1].lower()
+
+        # ── STEP 4: Resultado ────────────────────────────────────
+        st.markdown(
+            '<div class="wiz-step" style="margin-top:18px;">'
+            '<div class="wiz-num">4</div>'
+            '<span class="wiz-label">Análise e importação</span></div>',
+            unsafe_allow_html=True
+        )
+
+        def _card(kind, icon, title, body=""):
+            return (f'<div class="status-card {kind}">'
+                    f'<span class="status-card-icon">{icon}</span>'
+                    f'<div class="status-card-content">'
+                    f'<div class="status-card-title">{title}</div>'
+                    f'{"<div class=status-card-body>" + body + "</div>" if body else ""}'
+                    f'</div></div>')
+
+        def _backup_hint(path):
+            if path:
+                st.markdown(f'<div class="backup-hint">💾 Backup salvo em <code>{path}</code></div>',
+                            unsafe_allow_html=True)
+
+        def _import_btn(key):
+            return st.button("📥  Importar para produção", key=key,
+                             type="primary", use_container_width=True)
 
         # ── IBKR ──────────────────────────────────
         if source == "IBKR":
@@ -362,51 +528,34 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                         sync_manager = IBKRSyncManager(csv_path=tmp_path)
                         qtd_div, qtd_imp = sync_manager.load_csv()
 
-                    st.markdown(f'''
-                    <div class="status-card info">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">📊</span>
-                            <span class="status-card-title">CSV Analisado</span>
-                        </div>
-                        <div class="status-card-body"><strong>{qtd_div}</strong> dividendos · <strong>{qtd_imp}</strong> impostos</div>
-                    </div>''', unsafe_allow_html=True)
+                    st.markdown(_card("info", "📊", "CSV analisado",
+                                      f"<strong>{qtd_div}</strong> dividendos · <strong>{qtd_imp}</strong> impostos retidos"),
+                                unsafe_allow_html=True)
 
                     st.cache_data.clear()
                     df_faltantes = sync_manager.find_missing(load_proventos())
 
                     if df_faltantes.empty:
-                        st.markdown('''
-                        <div class="status-card success">
-                            <div class="status-card-header">
-                                <span class="status-card-icon">✅</span>
-                                <span class="status-card-title">Tudo sincronizado!</span>
-                            </div>
-                            <div class="status-card-body">Todos os proventos já estão na base.</div>
-                        </div>''', unsafe_allow_html=True)
+                        st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                          "Todos os proventos do CSV já estão na base."),
+                                    unsafe_allow_html=True)
                     else:
-                        st.markdown(f'''
-                        <div class="status-card warning">
-                            <div class="status-card-header">
-                                <span class="status-card-icon">📥</span>
-                                <span class="status-card-title">{len(df_faltantes)} novos proventos</span>
-                            </div>
-                        </div>''', unsafe_allow_html=True)
-
-                        st.dataframe(df_faltantes[['data','ticker','decisao','valor','moeda']], use_container_width=True, height=180)
-
-                        if st.button("📥 Importar para produção", key="btn_sync_prod", type="primary", use_container_width=True):
+                        st.markdown(f'<div class="count-badge">📥 {len(df_faltantes)} novos proventos para importar</div>',
+                                    unsafe_allow_html=True)
+                        st.dataframe(df_faltantes[['data','ticker','decisao','valor','moeda']],
+                                     use_container_width=True, height=180)
+                        if _import_btn("btn_sync_prod"):
                             with st.spinner("Fazendo backup e importando..."):
                                 ok, msg, backup_path = sync_manager.apply_to_production()
                             if ok:
-                                st.success(f"✅ {msg}")
-                                if backup_path:
-                                    st.caption(f"💾 Backup: `{backup_path}`")
+                                st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                _backup_hint(backup_path)
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                             else:
-                                st.error(f"❌ {msg}")
+                                st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
 
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
                 finally:
                     try: os_sync.unlink(tmp_path)
                     except: pass
@@ -425,14 +574,9 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                         trades_mgr = IBKRTradesManager(csv_path=tmp_path)
                         qtd_c, qtd_v = trades_mgr.load_csv()
 
-                    st.markdown(f'''
-                    <div class="status-card info">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">📈</span>
-                            <span class="status-card-title">CSV Analisado</span>
-                        </div>
-                        <div class="status-card-body"><strong>{qtd_c}</strong> compras · <strong>{qtd_v}</strong> vendas</div>
-                    </div>''', unsafe_allow_html=True)
+                    st.markdown(_card("info", "📈", "CSV analisado",
+                                      f"<strong>{qtd_c}</strong> compras · <strong>{qtd_v}</strong> vendas"),
+                                unsafe_allow_html=True)
 
                     st.cache_data.clear()
                     df_raw = trades_mgr.find_missing(DataProvider.get_assets())
@@ -446,43 +590,33 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     trades_mgr.df_faltantes = df_missing
 
                     if not df_splits.empty:
-                        with st.expander(f"⚠️ {len(df_splits)} possíveis splits", expanded=False):
-                            sc = [c for c in ['Data','Símbolo','Quantidade','Preço'] if c in df_splits.columns]
-                            st.dataframe(df_splits[sc], use_container_width=True, height=120)
+                        st.markdown(_card("warning", "⚠️", f"{len(df_splits)} possíveis splits / ajustes",
+                                          "Valor total bate mas quantidade/preço diferem. Verifique manualmente."),
+                                    unsafe_allow_html=True)
+                        sc = [c for c in ['Data','Símbolo','Quantidade','Preço'] if c in df_splits.columns]
+                        st.dataframe(df_splits[sc], use_container_width=True, height=100)
 
                     if df_missing.empty:
-                        st.markdown('''
-                        <div class="status-card success">
-                            <div class="status-card-header">
-                                <span class="status-card-icon">✅</span>
-                                <span class="status-card-title">Tudo sincronizado!</span>
-                            </div>
-                        </div>''', unsafe_allow_html=True)
+                        st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                          "Todos os trades do CSV já estão na base."),
+                                    unsafe_allow_html=True)
                     else:
-                        st.markdown(f'''
-                        <div class="status-card warning">
-                            <div class="status-card-header">
-                                <span class="status-card-icon">📥</span>
-                                <span class="status-card-title">{len(df_missing)} novos trades</span>
-                            </div>
-                        </div>''', unsafe_allow_html=True)
-
+                        st.markdown(f'<div class="count-badge">📥 {len(df_missing)} novos trades para importar</div>',
+                                    unsafe_allow_html=True)
                         tc = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_missing.columns]
                         st.dataframe(df_missing[tc], use_container_width=True, height=180)
-
-                        if st.button("📥 Importar para produção", key="btn_trades_prod", type="primary", use_container_width=True):
+                        if _import_btn("btn_trades_prod"):
                             with st.spinner("Fazendo backup e importando..."):
                                 ok, msg, backup_path = trades_mgr.apply_to_production()
                             if ok:
-                                st.success(f"✅ {msg}")
-                                if backup_path:
-                                    st.caption(f"💾 Backup: `{backup_path}`")
+                                st.markdown(_card("success", "✅", msg), unsafe_allow_html=True)
+                                _backup_hint(backup_path)
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                             else:
-                                st.error(f"❌ {msg}")
+                                st.markdown(_card("error", "❌", "Falha na importação", msg), unsafe_allow_html=True)
 
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.markdown(_card("error", "❌", "Erro ao processar", str(e)), unsafe_allow_html=True)
                 finally:
                     try: os_sync.unlink(tmp_path)
                     except: pass
@@ -490,50 +624,38 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         # ── B3 ────────────────────────────────────
         elif source == "B3":
             if file_ext not in ['xlsx', 'xls']:
-                st.error("❌ Use arquivo Excel (.xlsx)")
+                st.markdown(_card("error", "❌", "Formato incorreto",
+                                  "Use o arquivo Excel (.xlsx) exportado da B3."), unsafe_allow_html=True)
             elif import_type == "proventos":
                 import importlib, core.sync.b3_sync
                 from io import BytesIO
                 importlib.reload(core.sync.b3_sync)
                 from core.sync.b3_sync import B3SyncManager
 
-                with st.spinner("Processando B3..."):
+                with st.spinner("Processando Excel da B3..."):
                     b3_mgr = B3SyncManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_mgr.process_file(file_obj)
 
                 if not df_prev.empty:
-                    st.markdown(f'''
-                    <div class="status-card warning">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">📥</span>
-                            <span class="status-card-title">{len(df_prev)} proventos faltantes</span>
-                        </div>
-                    </div>''', unsafe_allow_html=True)
-
+                    st.markdown(f'<div class="count-badge">📥 {len(df_prev)} proventos novos encontrados</div>',
+                                unsafe_allow_html=True)
                     cols = [c for c in ['data','ticker','decisao','valor','moeda'] if c in df_prev.columns]
                     st.dataframe(df_prev[cols], use_container_width=True, height=180)
-
-                    if st.button("📥 Importar para produção", key="btn_b3_prod", type="primary", use_container_width=True):
+                    if _import_btn("btn_b3_prod"):
                         with st.spinner("Fazendo backup e importando..."):
                             ok, ms, backup_path = b3_mgr.apply_to_production()
                         if ok:
-                            st.success(f"✅ {ms}")
-                            if backup_path:
-                                st.caption(f"💾 Backup: `{backup_path}`")
+                            st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
+                            _backup_hint(backup_path)
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                         else:
-                            st.error(f"❌ {ms}")
+                            st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
                 elif msg:
-                    st.warning(msg)
+                    st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
                 else:
-                    st.markdown('''
-                    <div class="status-card success">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">✅</span>
-                            <span class="status-card-title">Tudo sincronizado!</span>
-                        </div>
-                    </div>''', unsafe_allow_html=True)
+                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                      "Nenhum provento novo no arquivo."), unsafe_allow_html=True)
 
             elif import_type == "ativos":
                 import importlib, core.sync.b3_sync
@@ -541,48 +663,36 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                 importlib.reload(core.sync.b3_sync)
                 from core.sync.b3_sync import B3TradesManager
 
-                with st.spinner("Processando B3..."):
+                with st.spinner("Processando Excel da B3..."):
                     b3_t = B3TradesManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_t.process_trades(file_obj)
 
                 if not df_prev.empty:
-                    st.markdown(f'''
-                    <div class="status-card warning">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">📥</span>
-                            <span class="status-card-title">{len(df_prev)} trades faltantes</span>
-                        </div>
-                    </div>''', unsafe_allow_html=True)
-
+                    st.markdown(f'<div class="count-badge">📥 {len(df_prev)} trades novos encontrados</div>',
+                                unsafe_allow_html=True)
                     cols = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_prev.columns]
                     st.dataframe(df_prev[cols], use_container_width=True, height=180)
-
-                    if st.button("📥 Importar para produção", key="btn_b3_trades_prod", type="primary", use_container_width=True):
+                    if _import_btn("btn_b3_trades_prod"):
                         with st.spinner("Fazendo backup e importando..."):
                             ok, ms, backup_path = b3_t.apply_to_production()
                         if ok:
-                            st.success(f"✅ {ms}")
-                            if backup_path:
-                                st.caption(f"💾 Backup: `{backup_path}`")
+                            st.markdown(_card("success", "✅", ms), unsafe_allow_html=True)
+                            _backup_hint(backup_path)
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                         else:
-                            st.error(f"❌ {ms}")
+                            st.markdown(_card("error", "❌", "Falha", ms), unsafe_allow_html=True)
                 elif msg:
-                    st.warning(msg)
+                    st.markdown(_card("warning", "⚠️", "Aviso", msg), unsafe_allow_html=True)
                 else:
-                    st.markdown('''
-                    <div class="status-card success">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">✅</span>
-                            <span class="status-card-title">Tudo sincronizado!</span>
-                        </div>
-                    </div>''', unsafe_allow_html=True)
+                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                      "Nenhum trade novo no arquivo."), unsafe_allow_html=True)
 
         # ── OFX (Nu) ─────────────────────────────
         elif source == "Nu":
             if file_ext not in ['ofx', 'txt']:
-                st.error("❌ Use arquivo OFX")
+                st.markdown(_card("error", "❌", "Formato incorreto",
+                                  "Use o arquivo OFX exportado do Nubank."), unsafe_allow_html=True)
             else:
                 import importlib, core.sync.finance_sync
                 from io import BytesIO
@@ -597,87 +707,101 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     df_new, msg = f_mgr.process_file(file_obj, source, tipo_bd)
 
                 if not msg and not df_new.empty:
-                    st.markdown(f'''
-                    <div class="status-card info">
-                        <div class="status-card-header">
-                            <span class="status-card-icon">💳</span>
-                            <span class="status-card-title">{len(df_new)} novas transações</span>
-                        </div>
-                    </div>''', unsafe_allow_html=True)
-
-                    st.dataframe(df_new[['data','descricao','valor','categoria']], use_container_width=True, height=180)
-
-                    if st.button("🚀 Importar", use_container_width=True, type="primary", key="btn_imp_ofx"):
+                    st.markdown(f'<div class="count-badge blue">💳 {len(df_new)} novas transações</div>',
+                                unsafe_allow_html=True)
+                    st.dataframe(df_new[['data','descricao','valor','categoria']],
+                                 use_container_width=True, height=180)
+                    if _import_btn("btn_imp_ofx"):
                         with st.spinner("Importando..."):
                             ok, save_msg = f_mgr.save_to_gsheets()
                         if ok:
-                            st.success(save_msg); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            st.markdown(_card("success", "✅", save_msg), unsafe_allow_html=True)
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
                         else:
-                            st.error(save_msg)
+                            st.markdown(_card("error", "❌", "Falha", save_msg), unsafe_allow_html=True)
                 elif msg:
-                    st.error(msg)
+                    st.markdown(_card("error", "❌", "Erro no arquivo", msg), unsafe_allow_html=True)
                 else:
-                    st.info("Nenhuma transação nova.")
+                    st.markdown(_card("success", "✅", "Tudo sincronizado!",
+                                      "Nenhuma transação nova no OFX."), unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════
 # 2. SYSTEM SYNC — Expandable Card
 # ════════════════════════════════════════════════════════
 
-with st.expander("🔄  Sincronização  ·  Atualizar cotações de câmbio (PTAX)", expanded=False):
+with st.expander("🔄  Sincronização  ·  Cotações de câmbio PTAX", expanded=False):
 
     st.markdown("""
     <div class="status-card info">
-        <div class="status-card-header">
-            <span class="status-card-icon">🏛️</span>
-            <span class="status-card-title">Fonte Oficial</span>
+        <span class="status-card-icon">🏛️</span>
+        <div class="status-card-content">
+            <div class="status-card-title">Fonte Oficial · Banco Central do Brasil</div>
+            <div class="status-card-body">Atualiza a série histórica de câmbio (USD/BRL) via API PTAX do BCB.
+            Necessário para conversão correta de ativos internacionais.</div>
         </div>
-        <div class="status-card-body">IPEA / Banco Central do Brasil</div>
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button("🔄 Sincronizar PTAX", use_container_width=True, key="btn_ptax", type="primary"):
+    if st.button("🔄  Sincronizar PTAX agora", use_container_width=True, key="btn_ptax", type="primary"):
         from core.ptax_updater import atualizar_ptax
-        with st.spinner("Conectando ao IPEA..."):
+        with st.spinner("Conectando ao Banco Central..."):
             success, msg = atualizar_ptax()
-        st.success(f"✅ {msg}") if success else st.error(f"❌ {msg}")
+        if success:
+            st.markdown(f'<div class="status-card success"><span class="status-card-icon">✅</span><div class="status-card-content"><div class="status-card-title">{msg}</div></div></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="status-card error"><span class="status-card-icon">❌</span><div class="status-card-content"><div class="status-card-title">Falha</div><div class="status-card-body">{msg}</div></div></div>', unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════
 # 3. SECURITY — Expandable Card
 # ════════════════════════════════════════════════════════
 
-with st.expander("🔐  Segurança  ·  Autenticação e credenciais de acesso", expanded=False):
+with st.expander("🔐  Segurança  ·  Autenticação e credenciais", expanded=False):
 
+    # Toggle auth
     current_auth_state = is_auth_enabled()
-    new_auth_state = st.toggle("🔒 Exigir senha", value=current_auth_state)
+    ca, cb = st.columns([3, 1])
+    with ca:
+        st.markdown(
+            '<div style="font-size:0.88rem;font-weight:600;color:#e2e8f0;margin-bottom:2px;">Exigir senha de acesso</div>'
+            '<div style="font-size:0.75rem;color:#475569;">Quando ativo, a senha é solicitada ao abrir o app.</div>',
+            unsafe_allow_html=True
+        )
+    with cb:
+        new_auth_state = st.toggle("", value=current_auth_state, key="auth_toggle", label_visibility="collapsed")
 
     if new_auth_state != current_auth_state:
         if set_auth_enabled(new_auth_state):
-            st.toast(f"Autenticação {'ativada' if new_auth_state else 'desativada'}", icon="🛡️")
-            time.sleep(1)
+            st.toast(f"Autenticação {'ativada ✅' if new_auth_state else 'desativada'}", icon="🛡️")
+            time.sleep(0.8)
             st.rerun()
         else:
-            st.error("Erro ao atualizar")
+            st.error("Erro ao atualizar configuração")
 
-    st.markdown('<hr class="import-divider">', unsafe_allow_html=True)
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;'
+        'letter-spacing:1.5px;color:#475569;margin-bottom:12px;">Alterar senha</div>',
+        unsafe_allow_html=True
+    )
 
     with st.form("update_password_form", clear_on_submit=True):
-        old_pwd = st.text_input("Senha atual", type="password")
-        new_pwd = st.text_input("Nova senha", type="password")
-        conf_pwd = st.text_input("Confirmar", type="password")
+        old_pwd  = st.text_input("Senha atual",   type="password", placeholder="••••••••")
+        new_pwd  = st.text_input("Nova senha",    type="password", placeholder="Mínimo 4 caracteres")
+        conf_pwd = st.text_input("Confirmar",     type="password", placeholder="Repita a nova senha")
 
-        submit = st.form_submit_button("Atualizar Senha", use_container_width=True)
+        submit = st.form_submit_button("Atualizar senha", use_container_width=True, type="primary")
 
         if submit:
             if old_pwd != get_password():
-                st.error("❌ Senha incorreta")
+                st.markdown('<div class="status-card error"><span class="status-card-icon">❌</span><div class="status-card-content"><div class="status-card-title">Senha atual incorreta</div></div></div>', unsafe_allow_html=True)
             elif new_pwd != conf_pwd:
-                st.error("❌ Senhas não coincidem")
+                st.markdown('<div class="status-card error"><span class="status-card-icon">❌</span><div class="status-card-content"><div class="status-card-title">As senhas não coincidem</div></div></div>', unsafe_allow_html=True)
             elif len(new_pwd) < 4:
-                st.error("❌ Mínimo 4 caracteres")
+                st.markdown('<div class="status-card warning"><span class="status-card-icon">⚠️</span><div class="status-card-content"><div class="status-card-title">Mínimo 4 caracteres</div></div></div>', unsafe_allow_html=True)
             else:
                 if update_password(new_pwd):
-                    st.success("✅ Senha atualizada")
-                    time.sleep(1)
-                    st.rerun()
+                    st.markdown('<div class="status-card success"><span class="status-card-icon">✅</span><div class="status-card-content"><div class="status-card-title">Senha atualizada com sucesso</div></div></div>', unsafe_allow_html=True)
+                    time.sleep(1); st.rerun()
                 else:
-                    st.error("❌ Erro ao salvar")
+                    st.markdown('<div class="status-card error"><span class="status-card-icon">❌</span><div class="status-card-content"><div class="status-card-title">Erro ao salvar senha</div></div></div>', unsafe_allow_html=True)
