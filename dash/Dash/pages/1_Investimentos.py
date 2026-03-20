@@ -2664,281 +2664,288 @@ with tab6:
                     st.markdown(f'<div class="glass-alert glass-info">ℹ️ Nenhum registro para {moeda_sel}.</div>', unsafe_allow_html=True)
 
 with tab4:
-    if not df_proventos_bruto.empty:
-        df_p = df_proventos_bruto.copy()
+    try:
+        if not df_proventos_bruto.empty:
+            df_p = df_proventos_bruto.copy()
 
-        if filtro_moeda != 'Todas':
-            df_p = df_p[df_p['moeda'] == filtro_moeda]
+            if filtro_moeda != 'Todas':
+                df_p = df_p[df_p['moeda'] == filtro_moeda]
 
-        df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
+            df_p['setor_calc'] = df_p['ticker'].apply(identificar_setor_ativo)
 
-        if filtro_setor:
-            df_p = df_p[df_p['setor_calc'].isin(filtro_setor)]
+            if filtro_setor:
+                df_p = df_p[df_p['setor_calc'].isin(filtro_setor)]
 
-        if lista_tickers_final:
-            def limpar_sufixo_prov(t): return str(t).replace('.SA','').replace('.TO','').replace('.L','').strip().upper()
-            tickers_permitidos = {limpar_sufixo_prov(t) for t in lista_tickers_final}
-            df_p = df_p[df_p['ticker'].apply(limpar_sufixo_prov).isin(tickers_permitidos)]
-        else:
-            df_p = df_p[0:0]
-
-        def conv_brl(row):
-            m = str(row.get('moeda', 'BRL')).strip().upper()
-            if m in ['NAN','NONE','']: m = 'BRL'
-            v = row['valor'] if pd.notna(row['valor']) else 0.0
-            if m == 'USD': return v * usd
-            if m == 'CAD': return v * cad
-            if m == 'EUR': return v * eur
-            return v
-
-        if not df_p.empty:
-            df_p['valor_brl'] = df_p.apply(conv_brl, axis=1)
-
-        st.markdown('<div class="tab-header">💰 Proventos Recebidos</div>', unsafe_allow_html=True)
-
-        if not df_p.empty:
-            df_p['ano_real'] = df_p['data'].dt.year
-            df_p['mes_real'] = df_p['data'].dt.month
-            anos_disponiveis = sorted(df_p['ano_real'].unique().tolist(), reverse=True)
-            meses_map = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',
-                         7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'}
-
-            col_ano, col_mes, _ = st.columns([2, 2, 1])
-            with col_ano:
-                anos_sel = st.multiselect("Ano", anos_disponiveis, placeholder="Todos os anos", key="prov_ano")
-            with col_mes:
-                meses_sel_nomes = st.multiselect("Mês", list(meses_map.values()), placeholder="Todos os meses", key="prov_mes")
-                meses_sel = [k for k, v in meses_map.items() if v in meses_sel_nomes]
-
-            df_filter = df_p.copy()
-            if anos_sel: df_filter = df_filter[df_filter['ano_real'].isin(anos_sel)]
-            if meses_sel: df_filter = df_filter[df_filter['mes_real'].isin(meses_sel)]
-
-            if not df_filter.empty:
-                # ── KPIs ──────────────────────────────────────────────────────
-                bruto       = df_filter[df_filter['valor_brl'] > 0]['valor_brl'].sum()
-                imposto_val = abs(df_filter[df_filter['valor_brl'] < 0]['valor_brl'].sum())
-                liq         = df_filter['valor_brl'].sum()
-                qtd_meses   = len(df_filter['data'].dt.to_period('M').unique())
-                media       = liq / qtd_meses if qtd_meses > 0 else 0
-
-                df_filter['sort_mes']  = df_filter['data'].dt.strftime('%Y-%m')
-                df_filter['label_mes'] = df_filter['data'].dt.strftime('%b/%Y')
-                df_mensal = df_filter.groupby(['sort_mes','label_mes'])['valor_brl'].sum().reset_index()
-                df_mensal_pos = df_mensal[df_mensal['valor_brl'] > 0]
-                if not df_mensal_pos.empty:
-                    bi = df_mensal_pos['valor_brl'].idxmax()
-                    best_mes_label = df_mensal_pos.loc[bi, 'label_mes']
-                    best_mes_val   = df_mensal_pos.loc[bi, 'valor_brl']
-                else:
-                    best_mes_label, best_mes_val = "—", 0.0
-
-                k1, k2, k3, k4, k5 = st.columns(5)
-                with k1:
-                    st.markdown(render_metric_card("Total Bruto", f"R$ {bruto:,.0f}", icon="💰"), unsafe_allow_html=True)
-                with k2:
-                    st.markdown(render_metric_card("Líquido Caixa", f"R$ {liq:,.0f}", icon="🏁"), unsafe_allow_html=True)
-                with k3:
-                    imp_pct = f"{imposto_val/bruto*100:.1f}% do bruto" if bruto > 0 else None
-                    st.markdown(render_metric_card("Impostos Retidos", f"R$ {imposto_val:,.0f}",
-                                                   delta=imp_pct, delta_positive=False, icon="🧾"), unsafe_allow_html=True)
-                with k4:
-                    st.markdown(render_metric_card("Média Mensal", f"R$ {media:,.0f}",
-                                                   subtitle=f"{qtd_meses} meses no período", icon="📊"), unsafe_allow_html=True)
-                with k5:
-                    st.markdown(render_metric_card("Melhor Mês", f"R$ {best_mes_val:,.0f}",
-                                                   subtitle=best_mes_label, icon="🏆"), unsafe_allow_html=True)
-
-                st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
-
-                # ── EVOLUÇÃO MENSAL (barras empilhadas + linha acumulada) ─────
-                df_filter['bruto_m']   = df_filter['valor_brl'].apply(lambda x: x if x > 0 else 0)
-                df_filter['imposto_m'] = df_filter['valor_brl'].apply(lambda x: abs(x) if x < 0 else 0)
-                df_time = (
-                    df_filter.groupby(['sort_mes','label_mes'])
-                    .agg(bruto_m=('bruto_m','sum'), imposto_m=('imposto_m','sum'), liq_m=('valor_brl','sum'))
-                    .reset_index().sort_values('sort_mes')
-                )
-                if not df_time.empty:
-                    df_time['acum'] = df_time['liq_m'].cumsum()
-                    fig_evo = go.Figure()
-                    fig_evo.add_trace(go.Bar(
-                        name='Bruto recebido', x=df_time['label_mes'], y=df_time['bruto_m'],
-                        marker_color='rgba(52,211,153,0.75)',
-                        hovertemplate='<b>%{x}</b><br>Bruto: R$ %{y:,.2f}<extra></extra>'
-                    ))
-                    fig_evo.add_trace(go.Bar(
-                        name='Impostos', x=df_time['label_mes'], y=-df_time['imposto_m'],
-                        marker_color='rgba(248,113,113,0.60)',
-                        hovertemplate='<b>%{x}</b><br>Impostos: R$ %{y:,.2f}<extra></extra>'
-                    ))
-                    fig_evo.add_trace(go.Scatter(
-                        name='Acumulado', x=df_time['label_mes'], y=df_time['acum'],
-                        mode='lines+markers',
-                        line=dict(color='#a5b4fc', width=2, dash='dot'),
-                        marker=dict(size=5, color='#a5b4fc'),
-                        yaxis='y2',
-                        hovertemplate='<b>%{x}</b><br>Acumulado: R$ %{y:,.2f}<extra></extra>'
-                    ))
-                    fig_evo.update_layout(
-                        title=dict(text='Evolução Mensal · Bruto × Impostos × Acumulado',
-                                   font=dict(size=13, color='#94a3b8')),
-                        barmode='relative',
-                        xaxis=dict(type='category', tickfont=dict(size=11), gridcolor='rgba(255,255,255,0.04)'),
-                        yaxis=dict(title='R$ / mês', gridcolor='rgba(255,255,255,0.05)', zeroline=True,
-                                   zerolinecolor='rgba(255,255,255,0.1)'),
-                        yaxis2=dict(title='Acumulado (R$)', overlaying='y', side='right',
-                                    showgrid=False),
-                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
-                                    font=dict(size=11)),
-                        height=340, hovermode='x unified',
-                        margin=dict(t=50, b=30, l=10, r=10),
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='#94a3b8')
-                    )
-                    st.plotly_chart(fig_evo, use_container_width=True)
-
-                # ── DONUT + RANKING ───────────────────────────────────────────
-                col_donut, col_rank = st.columns([1, 1])
-
-                with col_donut:
-                    st.markdown('<div class="tab-header-sm">🎯 Distribuição</div>', unsafe_allow_html=True)
-                    grp = st.radio("Agrupar por:", ["Ativo", "Setor", "Tipo"],
-                                   horizontal=True, key="radio_prov_grp")
-                    col_grp = 'ticker'
-                    if grp == "Setor": col_grp = 'setor_calc'
-                    elif grp == "Tipo" and 'lancamento' in df_filter.columns: col_grp = 'lancamento'
-
-                    df_pie = (df_filter.groupby(col_grp)['valor_brl']
-                              .apply(lambda x: x[x > 0].sum()).reset_index())
-                    df_pie = df_pie[df_pie['valor_brl'] > 0].sort_values('valor_brl', ascending=False)
-
-                    if not df_pie.empty:
-                        _PAL = ['#6366f1','#8b5cf6','#a78bfa','#34d399','#10b981',
-                                 '#60a5fa','#f59e0b','#f87171','#22d3ee','#fb923c']
-                        fig_donut = go.Figure(go.Pie(
-                            labels=df_pie[col_grp], values=df_pie['valor_brl'],
-                            hole=0.55, marker_colors=_PAL[:len(df_pie)],
-                            textinfo='percent',
-                            hovertemplate='<b>%{label}</b><br>R$ %{value:,.2f} · %{percent}<extra></extra>'
-                        ))
-                        fig_donut.add_annotation(
-                            text=f"R$ {bruto:,.0f}", x=0.5, y=0.5, showarrow=False,
-                            font=dict(size=13, color='#f1f5f9', family='Outfit'), align='center'
-                        )
-                        fig_donut.update_layout(
-                            showlegend=True,
-                            legend=dict(font=dict(size=10), orientation='v', x=1.02, y=0.5),
-                            margin=dict(t=10, b=10, l=0, r=70),
-                            height=290,
-                            paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8')
-                        )
-                        st.plotly_chart(fig_donut, use_container_width=True)
-                    else:
-                        st.markdown('<div class="glass-alert glass-info">ℹ️ Sem valores para o gráfico.</div>', unsafe_allow_html=True)
-
-                with col_rank:
-                    st.markdown('<div class="tab-header-sm">🏆 Ranking por Ativo</div>', unsafe_allow_html=True)
-                    df_rank = (df_filter[df_filter['valor_brl'] > 0]
-                               .groupby('ticker')['valor_brl'].sum().reset_index()
-                               .sort_values('valor_brl', ascending=False).head(10))
-                    df_rank['pct'] = df_rank['valor_brl'] / df_rank['valor_brl'].sum() * 100
-                    df_rank = df_rank.reset_index(drop=True)
-
-                    if not df_rank.empty:
-                        max_val = df_rank['valor_brl'].max()
-                        rows_html = ""
-                        for i, row in df_rank.iterrows():
-                            bar_w  = row['valor_brl'] / max_val * 100
-                            medal  = {0:'🥇', 1:'🥈', 2:'🥉'}.get(i, f"#{i+1}")
-                            rows_html += f"""
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
-  <span style="font-size:0.88rem;min-width:26px;text-align:center;">{medal}</span>
-  <div style="flex:1;">
-    <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-      <span style="font-size:0.82rem;font-weight:600;color:#e2e8f0;">{row['ticker']}</span>
-      <span style="font-size:0.75rem;color:#94a3b8;">R$ {row['valor_brl']:,.0f} · {row['pct']:.1f}%</span>
-    </div>
-    <div style="height:5px;background:rgba(255,255,255,0.06);border-radius:3px;">
-      <div style="height:100%;width:{bar_w:.1f}%;background:linear-gradient(90deg,#6366f1,#34d399);border-radius:3px;"></div>
-    </div>
-  </div>
-</div>"""
-                        st.markdown(f'<div style="padding:6px 0">{rows_html}</div>', unsafe_allow_html=True)
-
-                # ── SANKEY ────────────────────────────────────────────────────
-                st.markdown('<div class="tab-header-sm" style="margin-top:20px;">🌊 Fluxo de Capital · Ativo → Setor → Moeda</div>',
-                            unsafe_allow_html=True)
-
-                if 'moeda' not in df_filter.columns:
-                    df_filter['moeda'] = 'BRL'
-
-                df_L1 = df_filter.groupby(['ticker','setor_calc'])['valor_brl'].sum().reset_index()
-                df_L1.columns = ['source','target','value']
-                df_L2 = df_filter.groupby(['setor_calc','moeda'])['valor_brl'].sum().reset_index()
-                df_L2.columns = ['source','target','value']
-                df_L1 = df_L1[df_L1['value'] > 0]
-                df_L2 = df_L2[df_L2['value'] > 0]
-
-                if not df_L1.empty and not df_L2.empty:
-                    labels_tickers = sorted(df_L1['source'].unique().tolist())
-                    labels_sectors = sorted(df_L1['target'].unique().tolist())
-                    labels_moedas  = sorted(df_L2['target'].unique().tolist())
-                    all_labels = labels_tickers + labels_sectors + labels_moedas
-                    id_map = {l: i for i, l in enumerate(all_labels)}
-
-                    sources, targets, values, link_colors = [], [], [], []
-                    for _, row in df_L1.iterrows():
-                        sources.append(id_map[row['source']]); targets.append(id_map[row['target']])
-                        values.append(row['value']); link_colors.append('rgba(99,102,241,0.35)')
-                    for _, row in df_L2.iterrows():
-                        sources.append(id_map[row['source']]); targets.append(id_map[row['target']])
-                        values.append(row['value']); link_colors.append('rgba(52,211,153,0.35)')
-
-                    node_colors = []
-                    for lbl in all_labels:
-                        if lbl in labels_tickers: node_colors.append('#6366f1')
-                        elif lbl in labels_sectors: node_colors.append('#34d399')
-                        else: node_colors.append('#f59e0b')
-
-                    fig_sk = go.Figure(go.Sankey(
-                        node=dict(pad=20, thickness=18,
-                                  line=dict(color='rgba(255,255,255,0.08)', width=0.5),
-                                  label=all_labels, color=node_colors,
-                                  hovertemplate='%{label}<br>R$ %{value:,.2f}<extra></extra>'),
-                        link=dict(source=sources, target=targets, value=values,
-                                  color=link_colors,
-                                  hovertemplate='R$ %{value:,.2f}<extra></extra>')
-                    ))
-                    fig_sk.update_layout(
-                        height=520, font=dict(size=12, color='#cbd5e1'),
-                        margin=dict(l=10, r=10, t=10, b=10),
-                        paper_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(fig_sk, use_container_width=True)
-                else:
-                    st.markdown('<div class="glass-alert glass-info">ℹ️ Dados insuficientes para o diagrama de fluxo.</div>', unsafe_allow_html=True)
-
-                # ── EXTRATO COMPLETO ──────────────────────────────────────────
-                with st.expander("📋 Extrato completo", expanded=False):
-                    def _st_neg(v): return 'color:#f87171' if v < 0 else 'color:#34d399'
-                    cols_det = ['data','ticker','lancamento','valor','moeda','valor_brl']
-                    cols_det = [c for c in cols_det if c in df_filter.columns]
-                    df_display = df_filter[cols_det].dropna(subset=['data']).sort_values('data', ascending=False)
-                    st.dataframe(
-                        df_display.style
-                        .format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'})
-                        .map(_st_neg, subset=['valor','valor_brl']),
-                        use_container_width=True, height=300
-                    )
-
+            if lista_tickers_final:
+                def limpar_sufixo_prov(t): return str(t).replace('.SA','').replace('.TO','').replace('.L','').strip().upper()
+                tickers_permitidos = {limpar_sufixo_prov(t) for t in lista_tickers_final}
+                df_p = df_p[df_p['ticker'].apply(limpar_sufixo_prov).isin(tickers_permitidos)]
             else:
-                st.markdown('<div class="glass-alert glass-warn">⚠️ Sem dados para o período selecionado.</div>', unsafe_allow_html=True)
+                df_p = df_p[0:0]
+
+            def conv_brl(row):
+                m = str(row.get('moeda', 'BRL')).strip().upper()
+                if m in ['NAN','NONE','']: m = 'BRL'
+                v = row['valor'] if pd.notna(row['valor']) else 0.0
+                if m == 'USD': return v * usd
+                if m == 'CAD': return v * cad
+                if m == 'EUR': return v * eur
+                return v
+
+            if not df_p.empty:
+                df_p['valor_brl'] = df_p.apply(conv_brl, axis=1)
+
+            st.markdown('<div class="tab-header">💰 Proventos Recebidos</div>', unsafe_allow_html=True)
+
+            if not df_p.empty:
+                df_p['ano_real'] = df_p['data'].dt.year
+                df_p['mes_real'] = df_p['data'].dt.month
+                anos_disponiveis = sorted(
+                    [int(a) for a in df_p['ano_real'].dropna().unique().tolist()], reverse=True
+                )
+                meses_map = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',
+                             7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'}
+
+                col_ano, col_mes, _ = st.columns([2, 2, 1])
+                with col_ano:
+                    anos_sel = st.multiselect("Ano", anos_disponiveis, placeholder="Todos os anos", key="prov_ano")
+                with col_mes:
+                    meses_sel_nomes = st.multiselect("Mês", list(meses_map.values()), placeholder="Todos os meses", key="prov_mes")
+                    meses_sel = [k for k, v in meses_map.items() if v in meses_sel_nomes]
+
+                df_filter = df_p.dropna(subset=['data']).copy()
+                if anos_sel: df_filter = df_filter[df_filter['ano_real'].isin(anos_sel)].copy()
+                if meses_sel: df_filter = df_filter[df_filter['mes_real'].isin(meses_sel)].copy()
+
+                if not df_filter.empty:
+                    # ── KPIs ──────────────────────────────────────────────────────
+                    bruto       = df_filter[df_filter['valor_brl'] > 0]['valor_brl'].sum()
+                    imposto_val = abs(df_filter[df_filter['valor_brl'] < 0]['valor_brl'].sum())
+                    liq         = df_filter['valor_brl'].sum()
+                    qtd_meses   = len(df_filter['data'].dt.to_period('M').unique())
+                    media       = liq / qtd_meses if qtd_meses > 0 else 0
+
+                    df_filter['sort_mes']  = df_filter['data'].dt.strftime('%Y-%m')
+                    df_filter['label_mes'] = df_filter['data'].dt.strftime('%b/%Y')
+                    df_mensal = df_filter.groupby(['sort_mes','label_mes'])['valor_brl'].sum().reset_index()
+                    df_mensal_pos = df_mensal[df_mensal['valor_brl'] > 0]
+                    if not df_mensal_pos.empty:
+                        bi = df_mensal_pos['valor_brl'].idxmax()
+                        best_mes_label = df_mensal_pos.loc[bi, 'label_mes']
+                        best_mes_val   = df_mensal_pos.loc[bi, 'valor_brl']
+                    else:
+                        best_mes_label, best_mes_val = "—", 0.0
+
+                    k1, k2, k3, k4, k5 = st.columns(5)
+                    with k1:
+                        st.markdown(render_metric_card("Total Bruto", f"R$ {bruto:,.0f}", icon="💰"), unsafe_allow_html=True)
+                    with k2:
+                        st.markdown(render_metric_card("Líquido Caixa", f"R$ {liq:,.0f}", icon="🏁"), unsafe_allow_html=True)
+                    with k3:
+                        imp_pct = f"{imposto_val/bruto*100:.1f}% do bruto" if bruto > 0 else None
+                        st.markdown(render_metric_card("Impostos Retidos", f"R$ {imposto_val:,.0f}",
+                                                       delta=imp_pct, delta_positive=False, icon="🧾"), unsafe_allow_html=True)
+                    with k4:
+                        st.markdown(render_metric_card("Média Mensal", f"R$ {media:,.0f}",
+                                                       subtitle=f"{qtd_meses} meses no período", icon="📊"), unsafe_allow_html=True)
+                    with k5:
+                        st.markdown(render_metric_card("Melhor Mês", f"R$ {best_mes_val:,.0f}",
+                                                       subtitle=best_mes_label, icon="🏆"), unsafe_allow_html=True)
+
+                    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
+
+                    # ── EVOLUÇÃO MENSAL (barras empilhadas + linha acumulada) ─────
+                    df_filter['bruto_m']   = df_filter['valor_brl'].apply(lambda x: x if x > 0 else 0)
+                    df_filter['imposto_m'] = df_filter['valor_brl'].apply(lambda x: abs(x) if x < 0 else 0)
+                    df_time = (
+                        df_filter.groupby(['sort_mes','label_mes'])
+                        .agg(bruto_m=('bruto_m','sum'), imposto_m=('imposto_m','sum'), liq_m=('valor_brl','sum'))
+                        .reset_index().sort_values('sort_mes')
+                    )
+                    if not df_time.empty:
+                        df_time['acum'] = df_time['liq_m'].cumsum()
+                        fig_evo = go.Figure()
+                        fig_evo.add_trace(go.Bar(
+                            name='Bruto recebido', x=df_time['label_mes'], y=df_time['bruto_m'],
+                            marker_color='rgba(52,211,153,0.75)',
+                            hovertemplate='<b>%{x}</b><br>Bruto: R$ %{y:,.2f}<extra></extra>'
+                        ))
+                        fig_evo.add_trace(go.Bar(
+                            name='Impostos', x=df_time['label_mes'], y=-df_time['imposto_m'],
+                            marker_color='rgba(248,113,113,0.60)',
+                            hovertemplate='<b>%{x}</b><br>Impostos: R$ %{y:,.2f}<extra></extra>'
+                        ))
+                        fig_evo.add_trace(go.Scatter(
+                            name='Acumulado', x=df_time['label_mes'], y=df_time['acum'],
+                            mode='lines+markers',
+                            line=dict(color='#a5b4fc', width=2, dash='dot'),
+                            marker=dict(size=5, color='#a5b4fc'),
+                            yaxis='y2',
+                            hovertemplate='<b>%{x}</b><br>Acumulado: R$ %{y:,.2f}<extra></extra>'
+                        ))
+                        fig_evo.update_layout(
+                            title=dict(text='Evolução Mensal · Bruto × Impostos × Acumulado',
+                                       font=dict(size=13, color='#94a3b8')),
+                            barmode='relative',
+                            xaxis=dict(type='category', tickfont=dict(size=11), gridcolor='rgba(255,255,255,0.04)'),
+                            yaxis=dict(title='R$ / mês', gridcolor='rgba(255,255,255,0.05)', zeroline=True,
+                                       zerolinecolor='rgba(255,255,255,0.1)'),
+                            yaxis2=dict(title='Acumulado (R$)', overlaying='y', side='right',
+                                        showgrid=False),
+                            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
+                                        font=dict(size=11)),
+                            height=340, hovermode='x unified',
+                            margin=dict(t=50, b=30, l=10, r=10),
+                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                            font=dict(color='#94a3b8')
+                        )
+                        st.plotly_chart(fig_evo, use_container_width=True)
+
+                    # ── DONUT + RANKING ───────────────────────────────────────────
+                    col_donut, col_rank = st.columns([1, 1])
+
+                    with col_donut:
+                        st.markdown('<div class="tab-header-sm">🎯 Distribuição</div>', unsafe_allow_html=True)
+                        grp = st.radio("Agrupar por:", ["Ativo", "Setor", "Tipo"],
+                                       horizontal=True, key="radio_prov_grp")
+                        col_grp = 'ticker'
+                        if grp == "Setor": col_grp = 'setor_calc'
+                        elif grp == "Tipo" and 'lancamento' in df_filter.columns: col_grp = 'lancamento'
+
+                        df_pie = (df_filter.groupby(col_grp)['valor_brl']
+                                  .apply(lambda x: x[x > 0].sum()).reset_index())
+                        df_pie = df_pie[df_pie['valor_brl'] > 0].sort_values('valor_brl', ascending=False)
+
+                        if not df_pie.empty:
+                            _PAL = ['#6366f1','#8b5cf6','#a78bfa','#34d399','#10b981',
+                                     '#60a5fa','#f59e0b','#f87171','#22d3ee','#fb923c']
+                            fig_donut = go.Figure(go.Pie(
+                                labels=df_pie[col_grp], values=df_pie['valor_brl'],
+                                hole=0.55, marker_colors=_PAL[:len(df_pie)],
+                                textinfo='percent',
+                                hovertemplate='<b>%{label}</b><br>R$ %{value:,.2f} · %{percent}<extra></extra>'
+                            ))
+                            fig_donut.add_annotation(
+                                text=f"R$ {bruto:,.0f}", x=0.5, y=0.5, showarrow=False,
+                                font=dict(size=13, color='#f1f5f9', family='Outfit'), align='center'
+                            )
+                            fig_donut.update_layout(
+                                showlegend=True,
+                                legend=dict(font=dict(size=10), orientation='v', x=1.02, y=0.5),
+                                margin=dict(t=10, b=10, l=0, r=70),
+                                height=290,
+                                paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8')
+                            )
+                            st.plotly_chart(fig_donut, use_container_width=True)
+                        else:
+                            st.markdown('<div class="glass-alert glass-info">ℹ️ Sem valores para o gráfico.</div>', unsafe_allow_html=True)
+
+                    with col_rank:
+                        st.markdown('<div class="tab-header-sm">🏆 Ranking por Ativo</div>', unsafe_allow_html=True)
+                        df_rank = (df_filter[df_filter['valor_brl'] > 0]
+                                   .groupby('ticker')['valor_brl'].sum().reset_index()
+                                   .sort_values('valor_brl', ascending=False).head(10))
+                        df_rank['pct'] = df_rank['valor_brl'] / df_rank['valor_brl'].sum() * 100
+                        df_rank = df_rank.reset_index(drop=True)
+
+                        if not df_rank.empty:
+                            max_val = df_rank['valor_brl'].max()
+                            rows_html = ""
+                            for i, row in df_rank.iterrows():
+                                bar_w  = row['valor_brl'] / max_val * 100
+                                medal  = {0:'🥇', 1:'🥈', 2:'🥉'}.get(i, f"#{i+1}")
+                                rows_html += f"""
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
+      <span style="font-size:0.88rem;min-width:26px;text-align:center;">{medal}</span>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:0.82rem;font-weight:600;color:#e2e8f0;">{row['ticker']}</span>
+          <span style="font-size:0.75rem;color:#94a3b8;">R$ {row['valor_brl']:,.0f} · {row['pct']:.1f}%</span>
+        </div>
+        <div style="height:5px;background:rgba(255,255,255,0.06);border-radius:3px;">
+          <div style="height:100%;width:{bar_w:.1f}%;background:linear-gradient(90deg,#6366f1,#34d399);border-radius:3px;"></div>
+        </div>
+      </div>
+    </div>"""
+                            st.markdown(f'<div style="padding:6px 0">{rows_html}</div>', unsafe_allow_html=True)
+
+                    # ── SANKEY ────────────────────────────────────────────────────
+                    st.markdown('<div class="tab-header-sm" style="margin-top:20px;">🌊 Fluxo de Capital · Ativo → Setor → Moeda</div>',
+                                unsafe_allow_html=True)
+
+                    if 'moeda' not in df_filter.columns:
+                        df_filter['moeda'] = 'BRL'
+
+                    df_L1 = df_filter.groupby(['ticker','setor_calc'])['valor_brl'].sum().reset_index()
+                    df_L1.columns = ['source','target','value']
+                    df_L2 = df_filter.groupby(['setor_calc','moeda'])['valor_brl'].sum().reset_index()
+                    df_L2.columns = ['source','target','value']
+                    df_L1 = df_L1[df_L1['value'] > 0]
+                    df_L2 = df_L2[df_L2['value'] > 0]
+
+                    if not df_L1.empty and not df_L2.empty:
+                        labels_tickers = sorted(df_L1['source'].unique().tolist())
+                        labels_sectors = sorted(df_L1['target'].unique().tolist())
+                        labels_moedas  = sorted(df_L2['target'].unique().tolist())
+                        all_labels = labels_tickers + labels_sectors + labels_moedas
+                        id_map = {l: i for i, l in enumerate(all_labels)}
+
+                        sources, targets, values, link_colors = [], [], [], []
+                        for _, row in df_L1.iterrows():
+                            sources.append(id_map[row['source']]); targets.append(id_map[row['target']])
+                            values.append(row['value']); link_colors.append('rgba(99,102,241,0.35)')
+                        for _, row in df_L2.iterrows():
+                            sources.append(id_map[row['source']]); targets.append(id_map[row['target']])
+                            values.append(row['value']); link_colors.append('rgba(52,211,153,0.35)')
+
+                        node_colors = []
+                        for lbl in all_labels:
+                            if lbl in labels_tickers: node_colors.append('#6366f1')
+                            elif lbl in labels_sectors: node_colors.append('#34d399')
+                            else: node_colors.append('#f59e0b')
+
+                        fig_sk = go.Figure(go.Sankey(
+                            node=dict(pad=20, thickness=18,
+                                      line=dict(color='rgba(255,255,255,0.08)', width=0.5),
+                                      label=all_labels, color=node_colors,
+                                      hovertemplate='%{label}<br>R$ %{value:,.2f}<extra></extra>'),
+                            link=dict(source=sources, target=targets, value=values,
+                                      color=link_colors,
+                                      hovertemplate='R$ %{value:,.2f}<extra></extra>')
+                        ))
+                        fig_sk.update_layout(
+                            height=520, font=dict(size=12, color='#cbd5e1'),
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            paper_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig_sk, use_container_width=True)
+                    else:
+                        st.markdown('<div class="glass-alert glass-info">ℹ️ Dados insuficientes para o diagrama de fluxo.</div>', unsafe_allow_html=True)
+
+                    # ── EXTRATO COMPLETO ──────────────────────────────────────────
+                    with st.expander("📋 Extrato completo", expanded=False):
+                        def _st_neg(v): return 'color:#f87171' if v < 0 else 'color:#34d399'
+                        cols_det = ['data','ticker','lancamento','valor','moeda','valor_brl']
+                        cols_det = [c for c in cols_det if c in df_filter.columns]
+                        df_display = df_filter[cols_det].dropna(subset=['data']).sort_values('data', ascending=False)
+                        st.dataframe(
+                            df_display.style
+                            .format({'valor':'{:,.2f}', 'valor_brl':'R$ {:,.2f}', 'data':'{:%d/%m/%Y}'})
+                            .map(_st_neg, subset=['valor','valor_brl']),
+                            use_container_width=True, height=300
+                        )
+
+                else:
+                    st.markdown('<div class="glass-alert glass-warn">⚠️ Sem dados para o período selecionado.</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="glass-alert glass-warn">⚠️ Nenhum provento encontrado para os ativos filtrados.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="glass-alert glass-warn">⚠️ Nenhum provento encontrado para os ativos filtrados.</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="glass-alert glass-info">ℹ️ Arquivo de proventos vazio.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="glass-alert glass-info">ℹ️ Arquivo de proventos vazio.</div>', unsafe_allow_html=True)
         
+    except Exception as _e4:
+        import traceback
+        st.error(f"Erro ao carregar Proventos: {_e4}")
+        st.code(traceback.format_exc())
 with tab7:
     st.markdown('<div class="tab-header">🦁 Central Fiscal Inteligente</div>', unsafe_allow_html=True)
     st.caption("Regime de Competência | Cesta Swing Unificada | FIIs Isolados")
