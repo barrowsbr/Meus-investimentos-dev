@@ -220,10 +220,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         st.session_state.import_file_data = None
     if 'import_file_name' not in st.session_state:
         st.session_state.import_file_name = None
-    if 'b3_prov_faltantes' not in st.session_state:
-        st.session_state.b3_prov_faltantes = None
-    if 'b3_trades_faltantes' not in st.session_state:
-        st.session_state.b3_trades_faltantes = None
 
     source = st.session_state.import_source
     import_type = st.session_state.import_type
@@ -241,8 +237,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             if source != "IBKR":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
-                st.session_state.b3_prov_faltantes = None
-                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "IBKR"
             st.session_state.import_type = None
             st.rerun()
@@ -255,8 +249,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             if source != "B3":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
-                st.session_state.b3_prov_faltantes = None
-                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "B3"
             st.session_state.import_type = None
             st.rerun()
@@ -269,8 +261,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             if source != "Nu":
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
-                st.session_state.b3_prov_faltantes = None
-                st.session_state.b3_trades_faltantes = None
             st.session_state.import_source = "Nu"
             st.session_state.import_type = None
             st.rerun()
@@ -284,17 +274,11 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
         with tc1:
             if st.button("📊 Proventos", key=f"type_prov_{source}", use_container_width=True,
                         type="primary" if import_type == "proventos" else "secondary"):
-                if import_type != "proventos":
-                    st.session_state.b3_prov_faltantes = None
-                    st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "proventos"
                 st.rerun()
         with tc2:
             if st.button("📈 Ativos", key=f"type_ativos_{source}", use_container_width=True,
                         type="primary" if import_type == "ativos" else "secondary"):
-                if import_type != "ativos":
-                    st.session_state.b3_prov_faltantes = None
-                    st.session_state.b3_trades_faltantes = None
                 st.session_state.import_type = "ativos"
                 st.rerun()
     elif source == "Nu":
@@ -347,8 +331,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
             if st.button("🗑️ Limpar arquivo", key="clear_file", use_container_width=True):
                 st.session_state.import_file_data = None
                 st.session_state.import_file_name = None
-                st.session_state.b3_prov_faltantes = None
-                st.session_state.b3_trades_faltantes = None
                 st.rerun()
     else:
         st.caption("Complete as seleções acima para fazer upload")
@@ -412,28 +394,16 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
 
                         st.dataframe(df_faltantes[['data','ticker','decisao','valor','moeda']], use_container_width=True, height=180)
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("📝 Testar", key="btn_sync_test", use_container_width=True):
-                                with st.spinner("Enviando..."):
-                                    ok, msg = sync_manager.sync_to_test()
-                                st.success(f"✅ {msg}") if ok else st.error(f"❌ {msg}")
-                        with col2:
-                            if st.button("🚀 Produção", key="btn_sync_prod", type="primary", use_container_width=True):
-                                with st.spinner("Aplicando..."):
-                                    ok, msg, _ = sync_manager.apply_to_production()
-                                if ok:
-                                    st.success(f"✅ {msg}")
-                                    try:
-                                        from core.data.gsheets import _authenticate_no_cache
-                                        c = _authenticate_no_cache()
-                                        if c:
-                                            try: c.open('gdados').del_worksheet(c.open('gdados').worksheet('meus_proventos_test'))
-                                            except: pass
-                                    except: pass
-                                    st.cache_data.clear(); time.sleep(1); st.rerun()
-                                else:
-                                    st.error(f"❌ {msg}")
+                        if st.button("📥 Importar para produção", key="btn_sync_prod", type="primary", use_container_width=True):
+                            with st.spinner("Fazendo backup e importando..."):
+                                ok, msg, backup_path = sync_manager.apply_to_production()
+                            if ok:
+                                st.success(f"✅ {msg}")
+                                if backup_path:
+                                    st.caption(f"💾 Backup: `{backup_path}`")
+                                st.cache_data.clear(); time.sleep(1); st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
 
                 except Exception as e:
                     st.error(f"Erro: {e}")
@@ -500,20 +470,16 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                         tc = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_missing.columns]
                         st.dataframe(df_missing[tc], use_container_width=True, height=180)
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("📝 Testar", key="btn_trades_test", use_container_width=True):
-                                with st.spinner("Enviando..."):
-                                    ok, msg = trades_mgr.sync_to_test()
-                                st.success(f"✅ {msg}") if ok else st.error(f"❌ {msg}")
-                        with col2:
-                            if st.button("🚀 Produção", key="btn_trades_prod", type="primary", use_container_width=True):
-                                with st.spinner("Aplicando..."):
-                                    ok, msg, _ = trades_mgr.apply_to_production()
-                                if ok:
-                                    st.success(f"✅ {msg}"); st.cache_data.clear(); time.sleep(1); st.rerun()
-                                else:
-                                    st.error(f"❌ {msg}")
+                        if st.button("📥 Importar para produção", key="btn_trades_prod", type="primary", use_container_width=True):
+                            with st.spinner("Fazendo backup e importando..."):
+                                ok, msg, backup_path = trades_mgr.apply_to_production()
+                            if ok:
+                                st.success(f"✅ {msg}")
+                                if backup_path:
+                                    st.caption(f"💾 Backup: `{backup_path}`")
+                                st.cache_data.clear(); time.sleep(1); st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
 
                 except Exception as e:
                     st.error(f"Erro: {e}")
@@ -535,8 +501,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     b3_mgr = B3SyncManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_mgr.process_file(file_obj)
-                    if not df_prev.empty:
-                        st.session_state.b3_prov_faltantes = df_prev.copy()
 
                 if not df_prev.empty:
                     st.markdown(f'''
@@ -550,26 +514,16 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     cols = [c for c in ['data','ticker','decisao','valor','moeda'] if c in df_prev.columns]
                     st.dataframe(df_prev[cols], use_container_width=True, height=180)
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("📝 Testar", key="btn_b3_test", use_container_width=True):
-                            with st.spinner("Enviando..."):
-                                ok, ms = b3_mgr.sync_to_test()
-                            st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
-                    with col2:
-                        if st.button("🚀 Produção", key="btn_b3_prod", type="primary", use_container_width=True):
-                            df_faltantes = st.session_state.get('b3_prov_faltantes')
-                            if df_faltantes is not None and not df_faltantes.empty:
-                                b3_mgr.df_faltantes = df_faltantes
-                                with st.spinner("Aplicando..."):
-                                    ok, ms, _ = b3_mgr.apply_to_production()
-                                if ok:
-                                    st.session_state.b3_prov_faltantes = None
-                                    st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
-                                else:
-                                    st.error(f"❌ {ms}")
-                            else:
-                                st.error("❌ Nenhum dado faltante encontrado. Recarregue o arquivo.")
+                    if st.button("📥 Importar para produção", key="btn_b3_prod", type="primary", use_container_width=True):
+                        with st.spinner("Fazendo backup e importando..."):
+                            ok, ms, backup_path = b3_mgr.apply_to_production()
+                        if ok:
+                            st.success(f"✅ {ms}")
+                            if backup_path:
+                                st.caption(f"💾 Backup: `{backup_path}`")
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        else:
+                            st.error(f"❌ {ms}")
                 elif msg:
                     st.warning(msg)
                 else:
@@ -591,8 +545,6 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     b3_t = B3TradesManager()
                     file_obj = BytesIO(file_data)
                     df_prev, msg = b3_t.process_trades(file_obj)
-                    if not df_prev.empty:
-                        st.session_state.b3_trades_faltantes = df_prev.copy()
 
                 if not df_prev.empty:
                     st.markdown(f'''
@@ -606,26 +558,16 @@ with st.expander("📥  Importar Dados  ·  Upload de arquivos externos", expand
                     cols = [c for c in ['Data','Tipo de transação','Símbolo','Quantidade','Preço'] if c in df_prev.columns]
                     st.dataframe(df_prev[cols], use_container_width=True, height=180)
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("📝 Testar", key="btn_b3_trades_test", use_container_width=True):
-                            with st.spinner("Enviando..."):
-                                ok, ms = b3_t.sync_to_test()
-                            st.success(f"✅ {ms}") if ok else st.error(f"❌ {ms}")
-                    with col2:
-                        if st.button("🚀 Produção", key="btn_b3_trades_prod", type="primary", use_container_width=True):
-                            df_faltantes = st.session_state.get('b3_trades_faltantes')
-                            if df_faltantes is not None and not df_faltantes.empty:
-                                b3_t.df_faltantes = df_faltantes
-                                with st.spinner("Aplicando..."):
-                                    ok, ms, _ = b3_t.apply_to_production()
-                                if ok:
-                                    st.session_state.b3_trades_faltantes = None
-                                    st.success(f"✅ {ms}"); st.cache_data.clear(); time.sleep(1); st.rerun()
-                                else:
-                                    st.error(f"❌ {ms}")
-                            else:
-                                st.error("❌ Nenhum dado faltante encontrado. Recarregue o arquivo.")
+                    if st.button("📥 Importar para produção", key="btn_b3_trades_prod", type="primary", use_container_width=True):
+                        with st.spinner("Fazendo backup e importando..."):
+                            ok, ms, backup_path = b3_t.apply_to_production()
+                        if ok:
+                            st.success(f"✅ {ms}")
+                            if backup_path:
+                                st.caption(f"💾 Backup: `{backup_path}`")
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        else:
+                            st.error(f"❌ {ms}")
                 elif msg:
                     st.warning(msg)
                 else:

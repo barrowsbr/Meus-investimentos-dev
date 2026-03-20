@@ -201,42 +201,29 @@ class B3SyncManager:
         
         return df_missing
 
-    def sync_to_test(self) -> tuple:
-        """Envia faltantes para aba de teste (meus_proventos_test)."""
-        from core.sync.ibkr_sync import sync_to_test_tab
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return True, "Nenhum provento faltante"
-        return sync_to_test_tab(self.df_faltantes)
-
     def apply_to_production(self) -> tuple:
-        """Aplica faltantes diretamente em produção."""
-        from core.sync.ibkr_sync import merge_test_to_production
-        if self.df_faltantes is not None and not self.df_faltantes.empty:
-            return self._sync_direct(self.df_faltantes)
-        return merge_test_to_production(backup_dir=self.backup_dir)
+        """Aplica faltantes diretamente em produção — backup garantido antes de escrever."""
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return True, "Nenhum provento faltante", ""
+        return self._sync_direct(self.df_faltantes)
 
     def _sync_direct(self, df_new: pd.DataFrame) -> tuple:
-        """Sincroniza direto para produção com backup."""
+        """Sincroniza direto para produção com backup centralizado."""
         try:
-            from core.sync.ibkr_sync import _get_gsheets_client, create_backup
             import os
-            
+            from core.sync.ibkr_sync import _get_gsheets_client, backup_gsheet_tab
+
             client = _get_gsheets_client()
             if not client:
                 return False, "Falha na autenticação", ""
 
-            sh = client.open('gdados')
-            ws = sh.worksheet('meus_proventos')
-            
-            prod_data = ws.get_all_values()
-            headers = prod_data[0] if prod_data else COLS_GSHEETS
-            df_prod = pd.DataFrame(prod_data[1:], columns=headers) if len(prod_data) > 1 else pd.DataFrame(columns=headers)
-
-            # Backup
             backup_dir = self.backup_dir or os.path.join(os.path.dirname(__file__), '..', 'backups')
-            backup_path = create_backup(df_prod, backup_dir, prefix='meus_proventos_b3_backup')
+            df_prod, headers, ws, backup_path = backup_gsheet_tab(
+                client, 'gdados', 'meus_proventos', backup_dir, 'meus_proventos_b3_backup'
+            )
+            if not headers:
+                headers = COLS_GSHEETS
 
-            # Merge
             df_merged = pd.concat([df_prod, df_new[COLS_GSHEETS]], ignore_index=True)
             df_merged['_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
             df_merged = df_merged.sort_values('_sort', ascending=False).drop(columns=['_sort'])
@@ -421,40 +408,26 @@ class B3TradesManager:
         
         return df_missing
 
-    def sync_to_test(self) -> tuple:
-        """Envia faltantes para aba de teste (meus_ativos_test)."""
-        from core.sync.ibkr_sync import _sync_trades_to_tab
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return True, "Nenhum trade faltante"
-        return _sync_trades_to_tab(self.df_faltantes, 'meus_ativos_test')
-
     def apply_to_production(self) -> tuple:
-        """Aplica faltantes diretamente em produção com backup."""
+        """Aplica faltantes diretamente em produção — backup garantido antes de escrever."""
         if self.df_faltantes is None or self.df_faltantes.empty:
             return True, "Nenhum trade faltante", ""
-        
+
         try:
-            from core.sync.ibkr_sync import _get_gsheets_client, create_backup, COLS_ATIVOS as IBKR_COLS
             import os
-            
+            from core.sync.ibkr_sync import _get_gsheets_client, backup_gsheet_tab, COLS_ATIVOS
+
             client = _get_gsheets_client()
             if not client:
                 return False, "Falha na autenticação", ""
 
-            sh = client.open('gdados')
-            ws = sh.worksheet('meus_ativos')
-            prod_data = ws.get_all_values()
-
-            if len(prod_data) < 1:
+            backup_dir = self.backup_dir or os.path.join(os.path.dirname(__file__), '..', 'backups')
+            df_prod, headers, ws, backup_path = backup_gsheet_tab(
+                client, 'gdados', 'meus_ativos', backup_dir, 'meus_ativos_b3_backup'
+            )
+            if not headers:
                 return False, "Aba vazia", ""
 
-            headers = prod_data[0]
-            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-            
-            backup_dir = self.backup_dir or os.path.join(os.path.dirname(__file__), '..', 'backups')
-            backup_path = create_backup(df_prod, backup_dir, prefix='meus_ativos_b3_backup')
-
-            # Preparar novos registros
             new_rows = self.df_faltantes[COLS_ATIVOS].copy()
             for col in ['Quantidade', 'Preço', 'Valor bruto', 'Taxa de corretagem', 'Valor líquido']:
                 if col in new_rows.columns:
