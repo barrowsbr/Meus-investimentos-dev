@@ -275,88 +275,31 @@ def create_backup(df: pd.DataFrame, backup_dir: str, prefix: str = 'backup') -> 
     return path
 
 
+def backup_gsheet_tab(client, spreadsheet: str, tab_name: str,
+                      backup_dir: str, prefix: str) -> tuple:
+    """
+    Lê aba do GSheets, cria backup CSV e retorna (df_prod, headers, ws, backup_path).
+    Deve ser chamado ANTES de qualquer escrita — garante backup sempre.
+    """
+    sh = client.open(spreadsheet)
+    ws = sh.worksheet(tab_name)
+    data = ws.get_all_values()
+
+    if not data:
+        return pd.DataFrame(), [], ws, ""
+
+    headers = data[0]
+    df = pd.DataFrame(data[1:], columns=headers) if len(data) > 1 else pd.DataFrame(columns=headers)
+    backup_path = create_backup(df, backup_dir, prefix=prefix) if not df.empty else ""
+    return df, headers, ws, backup_path
+
+
 # ── GSheets I/O ─────────────────────────────────────────────
 
 def _get_gsheets_client():
     """Autenticação com Google Sheets."""
     from core.data.gsheets import _authenticate_no_cache
     return _authenticate_no_cache()
-
-
-def sync_to_test_tab(df_faltantes, spreadsheet='gdados', tab='meus_proventos_test'):
-    """Envia faltantes para aba de teste."""
-    try:
-        import gspread
-        client = _get_gsheets_client()
-        if not client:
-            return False, "Falha na autenticação"
-
-        sh = client.open(spreadsheet)
-        try:
-            ws = sh.worksheet(tab)
-        except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title=tab, rows=1000, cols=10)
-            ws.update('A1:I1', [COLS_GSHEETS])
-
-        existing = ws.get_all_values()
-        next_row = max(len(existing) + 1, 2)
-
-        rows = []
-        for _, row in df_faltantes.iterrows():
-            rows.append([str(row.get(c, '')) for c in COLS_GSHEETS])
-
-        if rows:
-            ws.update(f'A{next_row}:I{next_row + len(rows) - 1}', rows)
-            return True, f"Adicionados {len(rows)} registros na aba '{tab}'"
-        return True, "Nenhum registro novo"
-
-    except Exception as e:
-        return False, f"Erro: {e}"
-
-
-def merge_test_to_production(spreadsheet='gdados', test_tab='meus_proventos_test',
-                              prod_tab='meus_proventos', backup_dir=None):
-    """Mescla aba de teste para produção."""
-    try:
-        client = _get_gsheets_client()
-        if not client:
-            return False, "Falha na autenticação", ""
-
-        sh = client.open(spreadsheet)
-        ws_prod = sh.worksheet(prod_tab)
-        prod_data = ws_prod.get_all_values()
-
-        if len(prod_data) < 1:
-            return False, "Aba de produção vazia", ""
-
-        headers = prod_data[0]
-        df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-
-        # Prefix correto para proventos
-        backup_path = create_backup(df_prod, backup_dir, prefix='meus_proventos_backup') if backup_dir else ""
-
-        try:
-            ws_test = sh.worksheet(test_tab)
-            test_data = ws_test.get_all_values()
-            if len(test_data) <= 1:
-                return True, "Aba de teste vazia", backup_path
-            df_test = pd.DataFrame(test_data[1:], columns=test_data[0])
-        except:
-            return True, "Aba de teste não existe", backup_path
-
-        df_merged = pd.concat([df_prod, df_test], ignore_index=True)
-        df_merged['_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
-        df_merged = df_merged.sort_values('_sort', ascending=False).drop(columns=['_sort'])
-
-        ws_prod.clear()
-        ws_prod.update('A1', [headers] + df_merged.values.tolist())
-        ws_test.clear()
-        ws_test.update('A1', [headers])
-
-        return True, f"Mesclados {len(df_test)} registros", backup_path
-
-    except Exception as e:
-        return False, f"Erro: {e}", ""
 
 
 # ── API Pública: IBKRSyncManager ────────────────────────────
@@ -396,37 +339,24 @@ class IBKRSyncManager:
         self.df_faltantes = find_missing_proventos(df_gsheets, self.df_ibkr_formatted)
         return self.df_faltantes
 
-    def sync_to_test(self) -> Tuple[bool, str]:
-        """Envia faltantes para aba de teste."""
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return True, "Nenhum provento faltante"
-        return sync_to_test_tab(self.df_faltantes)
-
     def apply_to_production(self) -> Tuple[bool, str, str]:
-        """Aplica faltantes diretamente em produção."""
-        if self.df_faltantes is not None and not self.df_faltantes.empty:
-            return self._sync_direct(self.df_faltantes)
-        return merge_test_to_production(backup_dir=self.backup_dir)
+        """Aplica faltantes diretamente em produção com backup garantido."""
+        if self.df_faltantes is None or self.df_faltantes.empty:
+            return True, "Nenhum provento faltante", ""
+        return self._sync_direct(self.df_faltantes)
 
     def _sync_direct(self, df_new: pd.DataFrame) -> Tuple[bool, str, str]:
-        """Sincroniza direto para produção com backup."""
+        """Sincroniza direto para produção — sempre faz backup antes de escrever."""
         try:
             client = _get_gsheets_client()
             if not client:
                 return False, "Falha na autenticação", ""
 
-            sh = client.open('gdados')
-            ws = sh.worksheet('meus_proventos')
-            prod_data = ws.get_all_values()
-
-            if len(prod_data) < 1:
+            df_prod, headers, ws, backup_path = backup_gsheet_tab(
+                client, 'gdados', 'meus_proventos', self.backup_dir, 'meus_proventos_backup'
+            )
+            if not headers:
                 return False, "Aba vazia", ""
-
-            headers = prod_data[0]
-            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-            
-            # Prefix correto para proventos
-            backup_path = create_backup(df_prod, self.backup_dir, prefix='meus_proventos_backup')
 
             df_merged = pd.concat([df_prod, df_new[COLS_GSHEETS]], ignore_index=True)
             df_merged['_sort'] = pd.to_datetime(df_merged['data'], errors='coerce')
@@ -788,14 +718,8 @@ class IBKRTradesManager:
         self.df_faltantes = find_missing_trades(df_gsheets, self.df_trades)
         return self.df_faltantes
 
-    def sync_to_test(self) -> Tuple[bool, str]:
-        """Envia faltantes para aba de teste."""
-        if self.df_faltantes is None or self.df_faltantes.empty:
-            return True, "Nenhum trade faltante"
-        return _sync_trades_to_tab(self.df_faltantes, 'meus_ativos_test')
-
     def apply_to_production(self) -> Tuple[bool, str, str]:
-        """Aplica faltantes diretamente em produção com backup."""
+        """Aplica faltantes diretamente em produção — sempre faz backup antes de escrever."""
         if self.df_faltantes is None or self.df_faltantes.empty:
             return True, "Nenhum trade faltante", ""
 
@@ -804,28 +728,23 @@ class IBKRTradesManager:
             if not client:
                 return False, "Falha na autenticação", ""
 
-            sh = client.open('gdados')
-            ws = sh.worksheet('meus_ativos')
-            prod_data = ws.get_all_values()
-
-            if len(prod_data) < 1:
+            df_prod, headers, ws, backup_path = backup_gsheet_tab(
+                client, 'gdados', 'meus_ativos', self.backup_dir, 'meus_ativos_backup'
+            )
+            if not headers:
                 return False, "Aba vazia", ""
 
-            headers = prod_data[0]
-            df_prod = pd.DataFrame(prod_data[1:], columns=headers)
-            backup_path = create_backup(df_prod, self.backup_dir, prefix='meus_ativos_backup')
-
-            # Preparar novos registros (filtrar apenas colunas existentes)
+            # Preparar novos registros
             cols_to_use = [c for c in COLS_ATIVOS if c in self.df_faltantes.columns]
             new_rows = self.df_faltantes[cols_to_use].copy()
-            # Garantir que todas as colunas existam
             for c in COLS_ATIVOS:
                 if c not in new_rows.columns:
                     new_rows[c] = ''
-            # Formatar valores para o GSheets
             for col in ['Quantidade', 'Preço', 'Valor bruto', 'Taxa de corretagem', 'Valor líquido']:
                 if col in new_rows.columns:
-                    new_rows[col] = new_rows[col].apply(lambda v: str(round(float(v), 2)).replace('.', ',') if pd.notna(v) else '0')
+                    new_rows[col] = new_rows[col].apply(
+                        lambda v: str(round(float(v), 2)).replace('.', ',') if pd.notna(v) else '0'
+                    )
 
             df_merged = pd.concat([df_prod, new_rows], ignore_index=True)
             df_merged['_sort'] = pd.to_datetime(df_merged['Data'], errors='coerce')
@@ -862,37 +781,4 @@ class IBKRTradesManager:
         }
 
 
-def _sync_trades_to_tab(df, tab_name):
-    """Envia trades para uma aba do GSheets."""
-    try:
-        import gspread
-        client = _get_gsheets_client()
-        if not client:
-            return False, "Falha na autenticação"
-
-        sh = client.open('gdados')
-        try:
-            ws = sh.worksheet(tab_name)
-        except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title=tab_name, rows=1000, cols=len(COLS_ATIVOS))
-            ws.update('A1:J1', [COLS_ATIVOS])
-
-        existing = ws.get_all_values()
-        next_row = max(len(existing) + 1, 2)
-
-        rows = []
-        for _, row in df.iterrows():
-            row_data = []
-            for c in COLS_ATIVOS:
-                val = row.get(c, '')
-                row_data.append(str(val) if pd.notna(val) else '')
-            rows.append(row_data)
-
-        if rows:
-            ws.update(f'A{next_row}:J{next_row + len(rows) - 1}', rows)
-            return True, f"Adicionados {len(rows)} trades na aba '{tab_name}'"
-        return True, "Nenhum trade novo"
-
-    except Exception as e:
-        return False, f"Erro: {e}"
 
