@@ -2084,9 +2084,16 @@ div[data-testid="stExpander"] details summary p::after {
     margin-top: 5px !important;
     letter-spacing: normal !important;
 }
-/* Hide Streamlit's default chevron SVG */
-div[data-testid="stExpander"] [data-testid="stExpanderToggleIcon"] {
+/* Hide Streamlit's default chevron SVG — all possible selectors */
+div[data-testid="stExpander"] [data-testid="stExpanderToggleIcon"],
+div[data-testid="stExpander"] details summary svg,
+div[data-testid="stExpander"] details summary > div:first-child,
+div[data-testid="stExpander"] details summary > span:first-child {
     display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }
 /* Custom ▼ arrow on the right, matching .expand-icon */
 div[data-testid="stExpander"] details summary::after {
