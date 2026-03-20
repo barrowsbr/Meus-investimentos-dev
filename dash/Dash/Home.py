@@ -2015,36 +2015,43 @@ st.markdown('''
 ''', unsafe_allow_html=True)
 
 
-# ── GRIMMI IA — Expander card ─────────────────────────────────────────────────
+# ── AGENTE IA — Expander card ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Grimmi expander — exact match to .expandable-card visual identity */
+/* Constrain parent container to match nav cards width */
+.element-container:has(div[data-testid="stExpander"]) {
+    max-width: 580px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
+/* Match .expandable-wrapper + .expandable-card visual identity */
 div[data-testid="stExpander"] {
     background: rgba(15, 23, 42, 0.6) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
     border-radius: 20px !important;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important;
-    outline: 1px solid rgba(167,139,250,0.2) !important;
+    outline: 1px solid rgba(255,255,255,0.08) !important;
     outline-offset: -1px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
     border: none !important;
-    max-width: 580px !important;
     width: 100% !important;
     margin: 0 auto !important;
 }
 div[data-testid="stExpander"]:hover {
     transform: translateY(-4px) !important;
     background: rgba(15, 23, 42, 0.75) !important;
-    box-shadow: 0 20px 50px -10px rgba(167,139,250,0.28) !important;
-    outline-color: rgba(167,139,250,0.45) !important;
+    box-shadow: 0 20px 50px -10px rgba(167,139,250,0.25) !important;
+    outline-color: rgba(167,139,250,0.35) !important;
 }
 div[data-testid="stExpander"] details {
     background: transparent !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
 }
 div[data-testid="stExpander"] details summary {
-    padding: 18px 42px 18px 30px !important;
+    padding: 18px 50px 18px 30px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
@@ -2054,13 +2061,47 @@ div[data-testid="stExpander"] details summary {
     background: transparent !important;
     border: none !important;
     list-style: none !important;
+    position: relative !important;
 }
-div[data-testid="stExpander"] details summary p,
-div[data-testid="stExpander"] details summary span:not([data-testid]) {
-    font-size: 1rem !important;
+div[data-testid="stExpander"] details summary:hover {
+    background: rgba(255,255,255,0.02) !important;
+}
+/* Title text */
+div[data-testid="stExpander"] details summary p {
+    font-size: 1.15rem !important;
     font-weight: 700 !important;
     color: #e2e8f0 !important;
     margin: 0 !important;
+    letter-spacing: 0.01em !important;
+}
+/* Subtitle via pseudo-element — matches .card-desc style */
+div[data-testid="stExpander"] details summary p::after {
+    content: "Analise sua carteira com inteligência artificial";
+    display: block !important;
+    font-size: 0.75rem !important;
+    font-weight: 400 !important;
+    color: rgba(203, 213, 225, 0.55) !important;
+    margin-top: 5px !important;
+    letter-spacing: normal !important;
+}
+/* Hide Streamlit's default chevron SVG */
+div[data-testid="stExpander"] [data-testid="stExpanderToggleIcon"] {
+    display: none !important;
+}
+/* Custom ▼ arrow on the right, matching .expand-icon */
+div[data-testid="stExpander"] details summary::after {
+    content: "▼" !important;
+    position: absolute !important;
+    right: 25px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    color: rgba(255,255,255,0.4) !important;
+    font-size: 0.9rem !important;
+    transition: transform 0.3s ease !important;
+    pointer-events: none !important;
+}
+div[data-testid="stExpander"] details[open] > summary::after {
+    transform: translateY(-50%) rotate(180deg) !important;
 }
 div[data-testid="stExpander"] details[open] > summary {
     border-bottom: 1px solid rgba(167,139,250,0.15) !important;
@@ -2072,7 +2113,7 @@ div[data-testid="stExpander"] details > div[data-testid="stExpanderDetails"] {
 </style>
 """, unsafe_allow_html=True)
 
-with st.expander("🤖  Grimmi IA  ·  Analise sua carteira com inteligência artificial"):
+with st.expander("🤖  Agente de IA"):
     import hashlib as _hl
     from datetime import datetime as _dt_home
     from core.agent import GeminiAgent as _GeminiAgent, build_portfolio_context as _build_ctx
