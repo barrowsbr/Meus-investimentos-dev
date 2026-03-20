@@ -1,13 +1,29 @@
 import streamlit as st
 import time
 import os
+import hashlib
 
 PASSWORD_FILE = os.path.join(os.path.dirname(__file__), ".password")
 AUTH_STATE_FILE = os.path.join(os.path.dirname(__file__), ".auth_state")
 DEFAULT_PASSWORD = "1015"
 
+# ── Persistência ──────────────────────────────────────────────────────────────
+# Token diário derivado da senha + dia atual.
+# Fica salvo nos query_params da URL → sobrevive a:
+#   • navegação entre páginas (Streamlit mantém os params)
+#   • reconexões / restarts do servidor (browser preserva a URL)
+# Expira automaticamente ao mudar de dia.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_PARAM_KEY = "_t"  # nome do query param (curto, discreto)
+
+def _daily_token(password: str) -> str:
+    """Token HMAC-SHA256 que muda a cada dia."""
+    day = str(int(time.time()) // 86400)
+    return hashlib.sha256(f"{password}:{day}".encode()).hexdigest()[:20]
+
+
 def get_password():
-    """Reads the current password from file or returns the default."""
     if os.path.exists(PASSWORD_FILE):
         try:
             with open(PASSWORD_FILE, "r") as f:
@@ -17,7 +33,6 @@ def get_password():
     return DEFAULT_PASSWORD
 
 def update_password(new_password):
-    """Updates the persistent password."""
     try:
         with open(PASSWORD_FILE, "w") as f:
             f.write(new_password)
@@ -27,17 +42,15 @@ def update_password(new_password):
         return False
 
 def is_auth_enabled():
-    """Returns True if authentication is enabled, False otherwise."""
     if os.path.exists(AUTH_STATE_FILE):
         try:
             with open(AUTH_STATE_FILE, "r") as f:
                 return f.read().strip() == "ENABLED"
         except:
             return True
-    return True # Default to enabled
+    return True
 
 def set_auth_enabled(enabled: bool):
-    """Sets the authentication state."""
     try:
         with open(AUTH_STATE_FILE, "w") as f:
             f.write("ENABLED" if enabled else "DISABLED")
@@ -46,71 +59,100 @@ def set_auth_enabled(enabled: bool):
         print(f"Error updating auth state: {e}")
         return False
 
+
+def _restore_from_token() -> bool:
+    """
+    Verifica se o query param _t contém um token válido para hoje.
+    Se sim, marca a sessão como autenticada e retorna True.
+    """
+    try:
+        token = st.query_params.get(_PARAM_KEY, "")
+        if token and token == _daily_token(get_password()):
+            st.session_state["password_correct"] = True
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _save_token():
+    """Grava o token do dia nos query_params para persistência."""
+    try:
+        st.query_params[_PARAM_KEY] = _daily_token(get_password())
+    except Exception:
+        pass
+
+
+def require_auth():
+    """
+    Bloqueia execução se não autenticado.
+    Ordem de verificação:
+      1. session_state (mesma conexão WebSocket) — caminho rápido
+      2. query_params/_t (sobrevive a restarts e navegação) — restauração silenciosa
+      3. Formulário de senha
+    """
+    if not is_auth_enabled():
+        return
+
+    # 1. Já autenticado nesta sessão
+    if st.session_state.get("password_correct"):
+        return
+
+    # 2. Restaurar via token na URL
+    if _restore_from_token():
+        return
+
+    # 3. Mostrar tela de login
+    st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(-45deg, #0e1217, #171c26, #0f1724, #000000);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+        font-family: 'Outfit', sans-serif;
+    }
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    h1 { color: white; text-align: center; margin-top: 100px; }
+    .stTextInput { width: 300px; margin: 0 auto; }
+    </style>
+    <h1>🔒 Password</h1>
+    """, unsafe_allow_html=True)
+
+    if not check_password():
+        st.stop()
+
+
 def init_auth_state():
-    """Initializes authentication state keys safely."""
     if "password" not in st.session_state:
         st.session_state["password"] = ""
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = None
 
-def check_password():
-    """Returns `True` if the user had the correct password."""
-    # Ensure state is initialized
-    init_auth_state()
 
+def check_password():
+    init_auth_state()
     current_password = get_password()
 
     def password_entered():
-        """Checks whether a password entered by the user is correct."""
         if st.session_state.get("password") == current_password:
             st.session_state["password_correct"] = True
-            # Safe deletion
             if "password" in st.session_state:
                 del st.session_state["password"]
+            # Persiste o token na URL para sessões futuras
+            _save_token()
         else:
             st.session_state["password_correct"] = False
 
     if not st.session_state.get("password_correct", False):
-        # Show input for password.
         st.text_input(
-            "Digite a senha de acesso:", type="password", on_change=password_entered, key="password"
+            "Digite a senha de acesso:", type="password",
+            on_change=password_entered, key="password"
         )
-        # Show error if failed previously
-        if "password_correct" in st.session_state and st.session_state["password_correct"] is False:
-             st.error("😕 Senha incorreta")
+        if st.session_state.get("password_correct") is False:
+            st.error("😕 Senha incorreta")
         return False
-    else:
-        # Password correct.
-        return True
-
-def require_auth():
-    """
-    Blocks execution if not authenticated.
-    Usage: Call at the top of the page.
-    """
-    if not is_auth_enabled():
-        return
-
-    if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        st.markdown(
-            """
-            <style>
-            .stApp {
-                background: linear-gradient(-45deg, #0e1217, #171c26, #0f1724, #000000);
-                background-size: 400% 400%;
-                animation: gradient 15s ease infinite;
-                font-family: 'Outfit', sans-serif;
-            }
-            @keyframes gradient {
-                0% { background-position: 0% 50%; }
-                50% { background-position: 100% 50%; }
-                100% { background-position: 0% 50%; }
-            }
-            h1 { color: white; text-align: center; margin-top: 100px; }
-            .stTextInput { width: 300px; margin: 0 auto; }
-            </style>
-            <h1>🔒 Password</h1>
-            """, unsafe_allow_html=True
-        )
-        if not check_password():
-            st.stop()
+    return True
