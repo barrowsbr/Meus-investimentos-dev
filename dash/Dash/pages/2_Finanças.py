@@ -307,6 +307,34 @@ def card_chip(nome):
     return f'<span class="f-label">{nome}</span>'
 
 
+# ── CARD IMAGES ───────────────────────────────────────────────────────────────
+
+CARD_SVG_FILES = {
+    'xp':           'xp.svg',
+    'nubank lucas': 'nubank.svg',
+    'nubank maria': 'nubank_maria.svg',
+    'amex':         'amex.svg',
+}
+
+def get_card_img_tag(nome: str) -> str:
+    """Returns an <img> HTML tag with the card SVG embedded as base64, or empty string."""
+    key = nome.strip().lower()
+    filename = CARD_SVG_FILES.get(key, '')
+    if not filename:
+        return ''
+    try:
+        p = Path(__file__).parent.parent / "assets" / "cards" / filename
+        data = p.read_bytes()
+        b64 = base64.b64encode(data).decode()
+        return (
+            f'<img src="data:image/svg+xml;base64,{b64}" '
+            f'style="width:100%;border-radius:14px;display:block;'
+            f'box-shadow:0 4px 20px rgba(0,0,0,0.5);margin-bottom:6px;" />'
+        )
+    except Exception:
+        return ''
+
+
 # ── BACKGROUND VIDEO ─────────────────────────────────────────────────────────
 
 import base64
@@ -845,29 +873,47 @@ with tab_mensal:
     t_car = calc_total(rows, 'cartao')
     with st.expander(f"💳  Cartões  ·  {fmt(t_car)}", expanded=False):
         to_rm_car = None
-        for i, cr in enumerate(cartao_list):
-            ci_idx = rows.index(cr)
-            col_chip, col_val, col_cdel = st.columns([8, 6, 1])
-            with col_chip:
-                st.markdown(
-                    f'<div style="display:flex;align-items:center;height:34px;">{card_chip(cr["nome"])}</div>',
-                    unsafe_allow_html=True,
-                )
-            with col_val:
-                new_val = st.number_input(
-                    "Fatura",
-                    value=float(cr["valor"]),
-                    min_value=0.0,
-                    step=100.0,
-                    format="%.2f",
-                    key=f"car_val_{i}",
-                    label_visibility="collapsed",
-                )
-                if new_val != cr["valor"]:
-                    rows[ci_idx]["valor"] = new_val
-            with col_cdel:
-                if st.button("×", key=f"crm{i}", help="Remover cartão"):
-                    to_rm_car = ci_idx
+
+        # Render cards in a 2-column responsive grid
+        for pair_start in range(0, len(cartao_list), 2):
+            col_a, col_b = st.columns(2)
+            for col_j, col in enumerate([col_a, col_b]):
+                card_i = pair_start + col_j
+                if card_i >= len(cartao_list):
+                    break
+                cr = cartao_list[card_i]
+                ci_idx = rows.index(cr)
+                with col:
+                    # Card image
+                    img_tag = get_card_img_tag(cr["nome"])
+                    if img_tag:
+                        st.markdown(img_tag, unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            f'<div style="display:flex;align-items:center;height:34px;">'
+                            f'{card_chip(cr["nome"])}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    # Fatura label + input
+                    st.markdown(
+                        f'<div class="f-label" style="margin-bottom:3px;">'
+                        f'{cr["nome"]} — fatura</div>',
+                        unsafe_allow_html=True,
+                    )
+                    new_val = st.number_input(
+                        f"Fatura {cr['nome']}",
+                        value=float(cr["valor"]),
+                        min_value=0.0,
+                        step=100.0,
+                        format="%.2f",
+                        key=f"car_val_{card_i}",
+                        label_visibility="collapsed",
+                    )
+                    if new_val != cr["valor"]:
+                        rows[ci_idx]["valor"] = new_val
+                    # Remove button (ghost style)
+                    if st.button(f"× remover", key=f"crm{card_i}", help="Remover cartão"):
+                        to_rm_car = ci_idx
 
         if to_rm_car is not None:
             rows.pop(to_rm_car)
