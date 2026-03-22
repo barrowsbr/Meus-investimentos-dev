@@ -1022,7 +1022,7 @@ st.markdown(f"""
 <div class="hero-section">
     <div class="hero-content">
         <img src="data:image/png;base64,{logo_b64}" class="hero-logo" alt="Logo" />
-        <h1 class="hero-title">BRTS</h1>
+        <div class="hero-title">BRTS</div>
         <p class="hero-subtitle">Sistema Integrado para Gestão Pessoal</p>
     </div>
 </div>
