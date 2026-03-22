@@ -1265,7 +1265,7 @@ with tab_par:
         totals = [sum(inst_data[k][i] for k in inst_data) for i in range(len(month_list))]
         end_lbl = _month_lbl(end_month)
 
-        with st.expander(f"📊  Projeção de Dívida  ·  até {end_lbl}", expanded=False):
+        with st.expander(f"📊  Projeção de Dívida  ·  até {end_lbl}", expanded=True):
             # ── Gráfico
             fig = go.Figure()
             for ci, (nome, vals) in enumerate(inst_data.items()):
@@ -1275,49 +1275,106 @@ with tab_par:
                     marker_line_width=0,
                     hovertemplate=f'<b>{nome}</b><br>%{{x}}<br>R$ %{{y:,.2f}}<extra></extra>',
                 ))
+            n_series = len(inst_data)
+            leg_rows  = max(1, (n_series + 1) // 2)
+            chart_h   = 260 + leg_rows * 20
             fig.update_layout(
                 barmode='stack',
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=0, r=0, t=6, b=0),
-                height=200,
+                margin=dict(l=0, r=0, t=4, b=0),
+                height=chart_h,
                 font=dict(family='Outfit', color='#94a3b8', size=11),
                 legend=dict(
-                    orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0,
-                    font=dict(size=10, color='#94a3b8'), bgcolor='rgba(0,0,0,0)', borderwidth=0,
+                    orientation='h',
+                    yanchor='top', y=-0.08,
+                    xanchor='left', x=0,
+                    font=dict(size=11, color='#94a3b8'),
+                    bgcolor='rgba(0,0,0,0)',
+                    borderwidth=0,
+                    traceorder='normal',
+                    itemclick='toggleothers',
+                    itemsizing='constant',
                 ),
-                xaxis=dict(showgrid=False, showline=False, tickfont=dict(size=10, color='#64748b'), tickangle=-30),
+                xaxis=dict(
+                    showgrid=False, showline=False,
+                    tickfont=dict(size=11, color='#64748b'),
+                    tickangle=-35,
+                    fixedrange=True,
+                ),
                 yaxis=dict(
-                    showgrid=True, gridcolor='rgba(255,255,255,0.04)', gridwidth=1,
+                    showgrid=True, gridcolor='rgba(255,255,255,0.05)', gridwidth=1,
                     showline=False, zeroline=False,
-                    tickfont=dict(size=10, color='#64748b'), tickprefix='R$ ', tickformat=',.0f',
+                    tickfont=dict(size=11, color='#64748b'),
+                    tickprefix='R$\u00a0', tickformat=',.0f',
+                    fixedrange=True,
                 ),
                 hoverlabel=dict(
                     bgcolor='rgba(15,23,42,0.95)',
                     bordercolor='rgba(99,102,241,0.3)',
-                    font=dict(family='Outfit', size=12, color='#e2e8f0'),
+                    font=dict(family='Outfit', size=13, color='#e2e8f0'),
                 ),
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-            # ── Tabela
+            # ── Tabela com coluna Mês fixada e scroll horizontal fluido
             names = list(inst_data.keys())
-            thead = '<tr><th>Mês</th>' + ''.join(f'<th>{n}</th>' for n in names) + '<th>Total</th></tr>'
+
+            # Header
+            th_items = ''.join(
+                f'<th style="min-width:90px;white-space:nowrap;">{n}</th>'
+                for n in names
+            )
+            thead = (
+                f'<tr>'
+                f'<th style="position:sticky;left:0;z-index:2;background:#0f172a;'
+                f'min-width:60px;white-space:nowrap;">Mês</th>'
+                f'{th_items}'
+                f'<th style="min-width:90px;white-space:nowrap;">Total</th>'
+                f'</tr>'
+            )
+
             tbody = ''
             for i, m in enumerate(month_list):
                 is_cur = (m == cur_month)
-                row_bg = ' style="background:rgba(99,102,241,0.07);"' if is_cur else ''
-                lbl = _month_lbl(m)
-                mes_cell = f'<td><span style="color:#a5b4fc;font-weight:700;">{lbl} ◀</span></td>' if is_cur else f'<td>{lbl}</td>'
+                row_bg = 'background:rgba(99,102,241,0.09);' if is_cur else ''
+                lbl    = _month_lbl(m)
+
+                if is_cur:
+                    mes_cell = (
+                        f'<td style="position:sticky;left:0;z-index:1;{row_bg}'
+                        f'font-weight:800;color:#a5b4fc;white-space:nowrap;">'
+                        f'{lbl} ●</td>'
+                    )
+                else:
+                    mes_cell = (
+                        f'<td style="position:sticky;left:0;z-index:1;'
+                        f'background:#0f172a;color:#64748b;white-space:nowrap;">'
+                        f'{lbl}</td>'
+                    )
+
                 cells = ''
                 for name in names:
                     v = inst_data[name][i]
-                    cells += f'<td style="color:#fbbf24;">{fmt(v)}</td>' if v > 0 else '<td style="color:#374151;">–</td>'
-                tbody += f'<tr{row_bg}>{mes_cell}{cells}<td style="color:#f87171;font-weight:700;">{fmt(totals[i])}</td></tr>'
+                    if v > 0:
+                        cells += f'<td style="color:#fbbf24;font-weight:600;">{fmt(v)}</td>'
+                    else:
+                        cells += '<td style="color:#334155;">–</td>'
+
+                total_style = 'color:#f87171;font-weight:700;'
+                if is_cur:
+                    total_style += 'text-shadow:0 0 8px rgba(248,113,113,0.4);'
+                tbody += (
+                    f'<tr style="{row_bg}">'
+                    f'{mes_cell}{cells}'
+                    f'<td style="{total_style}">{fmt(totals[i])}</td>'
+                    f'</tr>'
+                )
 
             st.markdown(f"""
-            <div style="overflow-x:auto;margin-top:4px;">
-              <table class="par-table">
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;
+                        border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+              <table class="par-table" style="border-radius:10px;">
                 <thead>{thead}</thead>
                 <tbody>{tbody}</tbody>
               </table>
