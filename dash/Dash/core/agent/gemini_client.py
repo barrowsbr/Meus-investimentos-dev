@@ -18,9 +18,11 @@ from __future__ import annotations
 import os
 from typing import Generator, Optional
 
-# ── Chave de API (edite aqui manualmente) ─────────────────────────────────
+# ── Chave de API ──────────────────────────────────────────────────────────
+# Preferência: secrets.toml ou variável de ambiente GEMINI_API_KEY
+# Deixe vazio ("") para usar exclusivamente essas fontes.
 # Obtenha sua chave gratuita em: https://aistudio.google.com/apikey
-_HARDCODED_KEY: str = "AIzaSyDtlceSFQNzV7aWOxtw98COt6uDW9SvQX4"
+_HARDCODED_KEY: str = ""
 
 # ── Detecção de SDK disponível ─────────────────────────────────────────────
 _NEW_SDK = False   # google-genai  (novo)
