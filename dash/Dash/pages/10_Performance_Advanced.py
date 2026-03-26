@@ -22,7 +22,8 @@ import numpy as np
 
 # --- CORE IMPORTS ---
 from core.data.loader import load_assets, load_proventos, load_fixed_income, load_cambio, load_fixed_income_manual
-from core.data.market import fetch_historical_data
+from core.data.market import fetch_historical_data, fetch_market_data
+from core.finance import calcular_carteira_fechada
 from core.engine import reconstruct_history_multicurrency
 from core.consolidator import consolidate_to_brl, CurrencyBucket
 from core.performance.calculator import calculate_canonical_twr, DEFAULT_PREMISES
@@ -459,6 +460,7 @@ def _load_all_data():
 
     manual_rf_values = {}
     cash_balance = 0.0  # Valor de caixa separado para exibição no Patrimônio
+    df_rf_no_cash = pd.DataFrame()
 
     if not df_rf_manual.empty:
         df_rf_manual['Atual'] = pd.to_numeric(df_rf_manual['Atual'], errors='coerce').fillna(0)
@@ -482,12 +484,67 @@ def _load_all_data():
             df_rf_no_cash['Ticker'].astype(str).str.strip().str.upper()
         )['Atual'].sum().to_dict()
 
-    return df_assets, df_proventos, df_rf_raw, df_cambio, manual_rf_values, cash_balance
+    return df_assets, df_proventos, df_rf_raw, df_cambio, manual_rf_values, cash_balance, df_rf_no_cash
 
 
 @st.cache_data(ttl=900, show_spinner=False)
 def _fetch_prices(tickers, min_date):
     return fetch_historical_data(tickers, min_date)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _compute_realtime_patrimonio(df_assets, df_rf_no_cash, cash_balance):
+    """Calcula patrimônio com preços em tempo real (igual à Home e Investimentos).
+    Independente do modo Mercado/Meu Custo — sempre usa cotação spot atual.
+    """
+    rv_patrimonio = 0.0
+    rf_patrimonio = 0.0
+    usd_rt = 5.5
+    eur_rt = 6.0
+    cad_rt = 4.0
+    map_prices_rt = {}
+
+    # ── RV: posições atuais × preços em tempo real ──────────────────────
+    if not df_assets.empty:
+        df_pos, _ = calcular_carteira_fechada(df_assets)
+        if not df_pos.empty:
+            tickers_rt = df_pos[df_pos['Qtd'] > 0]['Ticker'].tolist()
+            for fx_ticker in ['BRL=X', 'EURBRL=X', 'CADBRL=X']:
+                if fx_ticker not in tickers_rt:
+                    tickers_rt.append(fx_ticker)
+
+            map_prices_rt, _ = fetch_market_data(tickers_rt)
+            usd_rt = map_prices_rt.get('BRL=X', 5.5)
+            eur_rt = map_prices_rt.get('EURBRL=X', 6.0)
+            cad_rt = map_prices_rt.get('CADBRL=X', 4.0)
+
+            for _, row in df_pos.iterrows():
+                if row['Qtd'] <= 0:
+                    continue
+                t = row['Ticker']
+                m = row.get('Moeda', 'BRL')
+                price = map_prices_rt.get(t, 0.0)
+                if price <= 0:
+                    price = row.get('PM_Origem', 0.0)
+                fx_rate = {'USD': usd_rt, 'EUR': eur_rt, 'CAD': cad_rt}.get(m, 1.0)
+                rv_patrimonio += row['Qtd'] * price * fx_rate
+
+    # ── RF: valores manuais com conversão USD → BRL ──────────────────────
+    if not df_rf_no_cash.empty:
+        df_rf = df_rf_no_cash.copy()
+        df_rf['Atual'] = pd.to_numeric(df_rf['Atual'], errors='coerce').fillna(0)
+        df_rf = df_rf[df_rf['Atual'] > 0]
+        if 'Moeda' in df_rf.columns:
+            mask_usd = df_rf['Moeda'].astype(str).str.upper() == 'USD'
+            if mask_usd.any():
+                if not map_prices_rt:
+                    _p, _ = fetch_market_data(['BRL=X'])
+                    usd_rt = _p.get('BRL=X', 5.5)
+                df_rf.loc[mask_usd, 'Atual'] = df_rf.loc[mask_usd, 'Atual'] * usd_rt
+        rf_patrimonio = df_rf['Atual'].sum()
+
+    patrimonio_total = rv_patrimonio + rf_patrimonio + cash_balance
+    return rv_patrimonio, rf_patrimonio, patrimonio_total
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -510,7 +567,13 @@ def main():
 
     # ── DATA LOADING ──────────────────────────────────────────────────
     with st.spinner("Carregando dados..."):
-        df_assets, df_proventos, df_rf_raw, df_cambio, manual_rf_values, cash_balance = _load_all_data()
+        df_assets, df_proventos, df_rf_raw, df_cambio, manual_rf_values, cash_balance, df_rf_no_cash = _load_all_data()
+
+    # ── PATRIMÔNIO EM TEMPO REAL (independente do modo/engine) ────────
+    _rv_rt, _rf_rt, patrimonio_realtime = _compute_realtime_patrimonio(
+        df_assets, df_rf_no_cash, cash_balance
+    )
+    _ativos_rt = _rv_rt + _rf_rt
 
     if df_assets.empty:
         st.warning("Nenhum ativo encontrado.")
@@ -757,13 +820,12 @@ def main():
     k1, k2, k3, k4, k5 = st.columns(5)
 
     with k1:
-        # Patrimônio = NAV dos ativos + Caixa (valor total real)
-        patrimonio_total = nav_final + cash_balance
-        # Mostrar composição no subtitle
-        subtitle_text = f"Ativos R$ {nav_final:,.0f} + Caixa R$ {cash_balance:,.0f}" if cash_balance > 0 else "Valor atual do portfólio"
+        # Patrimônio = preços em tempo real (igual à Home/Investimentos)
+        # Independente do modo Mercado/Meu Custo
+        subtitle_text = f"Ativos R$ {_ativos_rt:,.0f} + Caixa R$ {cash_balance:,.0f}" if cash_balance > 0 else "Valor atual do portfólio"
         st.markdown(render_metric_card(
             label="Patrimônio",
-            value=f"R$ {patrimonio_total:,.0f}",
+            value=f"R$ {patrimonio_realtime:,.0f}",
             delta=None,
             delta_positive=True,
             subtitle=subtitle_text,
