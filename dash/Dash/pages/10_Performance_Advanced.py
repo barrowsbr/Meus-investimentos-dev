@@ -1164,7 +1164,7 @@ def main():
                 'NAV Inicio': 'R$ {:,.0f}',
                 'NAV Fim': 'R$ {:,.0f}',
                 'Consistencia': '{:+.4f}%',
-            }).applymap(
+            }).map(
                 lambda v: 'color: #6ee7b7' if v == '✓' else 'color: #fcd34d' if v == '⚠️' else '',
                 subset=['OK']
             ),
