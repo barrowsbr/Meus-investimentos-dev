@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd /c \"dir /a \\\\\"g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash\\\\\"\")",
+      "Bash(powershell -Command \"Test-Path 'g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash'\")",
+      "Bash(powershell -Command \"\\(Get-Item 'g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash'\\).Attributes\")",
+      "Bash(docker build:*)"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+# Git & CI
+.git
+.github
+.claude
+.devcontainer
+
+# Python cache
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets (NEVER build into image — inject via Cloud Run secrets)
+dash/Dash/service_account.json
+dash/Dash/.streamlit/secrets.toml
+
+# Local dev / data
+dash/Dash/backups/
+dash/Dash/tests/
+dash/Dash/sample_data/
+
+# Large binary assets (use GCS or CDN in production)
+dash/Dash/assets/videos/
+
+# Docs
+*.md
+!dash/Dash/requirements.txt
