@@ -132,9 +132,6 @@ st.markdown("""
 # --- FUNÇÃO DO EDITOR DE DADOS ---
 def exibir_editor_dados():
     render_fab()
-    # Botao voltar no topo
-    if st.button("← Voltar para Home", type="secondary"):
-        st.switch_page("Home.py")
 
     # Styled Hero Header
     st.markdown("""

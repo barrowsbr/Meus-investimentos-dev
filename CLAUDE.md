@@ -294,3 +294,4 @@ border-radius: 16px !important;
 - Sub-items usam `translateX(4px)` + borda esquerda gradiente no hover.
 - Ticker tape tem duração dinâmica: `max(18, len(items) * 4)` segundos.
 - Cores semânticas (verde/vermelho) nunca usadas como acento decorativo — apenas para dados financeiros.
+- **Sem botão "Voltar para Home" nas páginas** — a navegação é feita exclusivamente pela barra de menu inferior (FAB). Nunca adicionar `render_back_button()` ou botões de voltar no topo das páginas.

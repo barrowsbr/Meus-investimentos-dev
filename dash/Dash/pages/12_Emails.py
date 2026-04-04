@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 
 from core.auth import require_auth
-from core.theme import inject_global_theme, render_back_button
+from core.theme import inject_global_theme
 from core.ui import render_fab
 
 # --- AUTH CHECK ---
@@ -226,8 +226,6 @@ section[data-testid="stSidebar"],
 """, unsafe_allow_html=True)
 
 # --- PAGE HEADER ---
-render_back_button()
-
 st.markdown("""
 <div class="email-page-header">
     <span class="email-page-icon">✉️</span>
