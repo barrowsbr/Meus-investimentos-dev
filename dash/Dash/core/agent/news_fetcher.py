@@ -336,17 +336,16 @@ def format_news_for_prompt(news: dict[str, list[dict]]) -> str:
     return "\n".join(lines)
 
 
-# ── Reddit (público, sem autenticação) ──────────────────────────────────────
+# ── Reddit (RSS público, sem autenticação) ──────────────────────────────────
 
-_REDDIT_SEARCH_URL = "https://www.reddit.com/search.json"
+_REDDIT_RSS_SEARCH = "https://www.reddit.com/search.rss"
+_REDDIT_RSS_SUBREDDIT = "https://www.reddit.com/r/{subreddit}/search.rss"
 
 _FINANCE_SUBREDDITS = [
     "investimentos", "farialimabets", "bolsa",
     "stocks", "wallstreetbets", "investing",
     "dividends", "stockmarket",
 ]
-
-import json
 
 
 def fetch_reddit_posts(
@@ -355,7 +354,9 @@ def fetch_reddit_posts(
     subreddits: list[str] | None = None,
 ) -> list[dict]:
     """
-    Busca posts do Reddit sobre um ticker usando a API pública JSON.
+    Busca posts do Reddit via RSS público (sem autenticação).
+
+    Usa os feeds RSS em vez da JSON API, que passou a exigir OAuth desde 2023.
 
     Parâmetros
     ----------
@@ -366,84 +367,83 @@ def fetch_reddit_posts(
     Retorna lista de dicts no formato padrão:
         {titulo, link, data, resumo, fonte, score, num_comments, subreddit}
     """
-    clean = _clean_ticker_query(ticker)
-    
-    # Detect if Brazilian ticker (.SA suffix or ends in 3/4/11)
-    is_br = ticker.upper().endswith('.SA') or clean.endswith('3') or clean.endswith('4') or clean.endswith('11')
-    
-    # Build query — broader for BR tickers, use subreddit filter for US/global
-    if is_br:
-        query = f'"{clean}" (investimento OR ação OR bolsa OR dividendo OR cotação)'
-    elif subreddits:
-        sr_filter = " OR ".join(f"subreddit:{s}" for s in subreddits[:4])
-        query = f"{clean} ({sr_filter})"
-    else:
-        query = f"{clean} stocks OR investing"
-
     import urllib.parse
-    params = urllib.parse.urlencode({
+
+    clean = _clean_ticker_query(ticker)
+    is_br = (
+        ticker.upper().endswith(".SA")
+        or clean.endswith("3")
+        or clean.endswith("4")
+        or clean.endswith("11")
+    )
+
+    if is_br:
+        query = f"{clean} investimento OR ação OR bolsa OR dividendo"
+    else:
+        query = f"{clean} stocks OR investing OR earnings"
+
+    base_params = urllib.parse.urlencode({
         "q": query,
         "sort": "relevance",
         "t": "month",
-        "limit": str(min(max_items * 3, 50)),
-        "type": "link",
+        "limit": str(min(max_items * 3, 25)),
     })
-    url = f"{_REDDIT_SEARCH_URL}?{params}"
 
-    try:
-        req = Request(url, headers={
-            "User-Agent": _USER_AGENT,
-            "Accept": "application/json",
-        })
-        with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-    except Exception:
-        return []
+    # Monta lista de feeds RSS a tentar: subreddits específicos + busca global
+    urls: list[str] = []
+    if subreddits and not is_br:
+        for sr in subreddits[:3]:
+            urls.append(
+                f"{_REDDIT_RSS_SUBREDDIT.format(subreddit=sr)}?{base_params}&restrict_sr=1"
+            )
+    urls.append(f"{_REDDIT_RSS_SEARCH}?{base_params}")
 
     posts: list[dict] = []
-    children = data.get("data", {}).get("children", [])
+    seen: set[str] = set()
 
-    for child in children:
-        d = child.get("data", {})
-        if not d:
+    for url in urls:
+        root = _fetch_rss(url, timeout=10)
+        if root is None:
             continue
 
-        title = d.get("title", "")
-        if not title:
+        channel = root.find("channel")
+        if channel is None:
             continue
 
-        # Timestamp Unix → formato RSS para compatibilidade com time_ago()
-        created_utc = d.get("created_utc", 0)
-        if created_utc:
-            dt = datetime.utcfromtimestamp(created_utc)
-            pub_date = dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-        else:
-            pub_date = ""
+        for item in channel.findall("item"):
+            title = _clean_html(item.findtext("title", ""))
+            if not title:
+                continue
 
-        permalink = d.get("permalink", "")
-        link = f"https://www.reddit.com{permalink}" if permalink else d.get("url", "")
+            link = item.findtext("link", "")
+            if link in seen:
+                continue
+            seen.add(link)
 
-        selftext = d.get("selftext", "") or ""
-        subreddit = d.get("subreddit", "reddit")
-        score = d.get("score", 0)
-        num_comments = d.get("num_comments", 0)
+            # Extrai nome do subreddit da URL: /r/subreddit/comments/...
+            sr_match = re.search(r"/r/([^/]+)/", link)
+            subreddit = sr_match.group(1) if sr_match else "reddit"
 
-        posts.append({
-            "titulo": title[:140],
-            "link": link,
-            "data": pub_date,
-            "resumo": selftext[:200] if selftext else "",
-            "fonte": f"r/{subreddit}",
-            "score": score,
-            "num_comments": num_comments,
-            "subreddit": subreddit,
-        })
+            pub_date = item.findtext("pubDate", "")
+            selftext = _clean_html(item.findtext("description", "") or "")
+
+            posts.append({
+                "titulo": title[:140],
+                "link": link,
+                "data": pub_date,
+                "resumo": selftext[:200] if selftext else "",
+                "fonte": f"r/{subreddit}",
+                "score": 0,
+                "num_comments": 0,
+                "subreddit": subreddit,
+            })
+
+            if len(posts) >= max_items:
+                break
 
         if len(posts) >= max_items:
             break
 
-    # Ordena por score (mais upvotados primeiro)
-    posts.sort(key=lambda x: x.get("score", 0), reverse=True)
     return posts
 
 
