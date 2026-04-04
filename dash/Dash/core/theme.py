@@ -331,11 +331,3 @@ def render_page_header(title: str, subtitle: str = "", icon: str = ""):
     """, unsafe_allow_html=True)
 
 
-def render_back_button(target: str = "Home.py"):
-    """
-    Botão discreto de voltar, estilo consistente.
-    """
-    col1, _ = st.columns([1, 10])
-    with col1:
-        if st.button("◀ Voltar", use_container_width=True):
-            st.switch_page(target)

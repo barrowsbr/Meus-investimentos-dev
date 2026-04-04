@@ -3,7 +3,7 @@ import pandas as pd
 from core.auth import require_auth
 from core.data.provider import DataProvider
 from core.utils import parse_decimal_br
-from core.theme import inject_global_theme, render_page_header, render_back_button, COLORS
+from core.theme import inject_global_theme, render_page_header, COLORS
 from core.ui import render_fab
 
 # --- AUTH CHECK ---
@@ -160,7 +160,6 @@ st.markdown(f"""
 
 # --- HEADER ---
 render_fab()
-render_back_button()
 render_page_header("Legado Patrimonial", "Registro histórico da construção de riqueza", "🏛️")
 
 # --- HELPERS ---
