@@ -1015,8 +1015,17 @@ else:
             for post in posts:
                 all_reddit.append({"_ticker": ticker, **post})
 
-        # Ordena por score
-        all_reddit.sort(key=lambda x: x.get("score", 0), reverse=True)
+        # Ordena por data (mais recente primeiro)
+        from core.agent.news_fetcher import _parse_rss_date
+        from datetime import timezone as _tz
+        def _reddit_sort_key(p: dict):
+            dt = _parse_rss_date(p.get("data", ""))
+            if dt is None:
+                return 0
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.timestamp()
+        all_reddit.sort(key=_reddit_sort_key, reverse=True)
 
         total_reddit = len(all_reddit)
         if total_reddit == 0:
@@ -1042,8 +1051,6 @@ else:
                 fonte = html.escape(post.get("fonte", "Reddit")[:35])
                 ago = time_ago(data)
                 ticker_clean = _ticker_clean(post["_ticker"])
-                score = post.get("score", 0)
-                num_comments = post.get("num_comments", 0)
                 # Strip markdown formatting from resumo before rendering
                 raw_resumo = post.get("resumo", "")
                 if raw_resumo:
@@ -1066,8 +1073,6 @@ else:
                     <div class="news-footer">
                         <div class="reddit-meta-badges">
                             <span class="news-ticker-tag">{ticker_clean}</span>
-                            <span class="reddit-badge">⬆ {score}</span>
-                            <span class="reddit-badge">💬 {num_comments}</span>
                         </div>
                         <span class="news-read-more">Abrir →</span>
                     </div>
