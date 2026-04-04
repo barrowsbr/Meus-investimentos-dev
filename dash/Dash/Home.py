@@ -1908,32 +1908,12 @@ st.markdown('''
     </div>
 </div>
 
-<!-- Editor Expandable Card -->
-<div class="expandable-wrapper">
-    <input type="checkbox" id="editor-toggle" class="expand-toggle editor-toggle">
-    <div class="expandable-card card-editor-exp">
-        <label for="editor-toggle" class="expandable-header">
-            <div class="card-title"><i class="card-icon">▣</i> Editor</div>
-            <div class="card-desc">Edição de registros e transações</div>
-            <span class="expand-icon">▼</span>
-        </label>
-        <div class="expandable-content">
-            <div class="divider-line"></div>
-            <div class="sub-items">
-                <a href="Editor" target="_self" class="sub-item">
-                    <span class="sub-item-icon">📋</span>
-                    <span class="sub-item-text">Lançamentos</span>
-                    <span class="sub-item-arrow">→</span>
-                </a>
-                <a href="Editor" target="_self" class="sub-item">
-                    <span class="sub-item-icon">💵</span>
-                    <span class="sub-item-text">Caixa Rápido</span>
-                    <span class="sub-item-arrow">→</span>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Editor Card -->
+<a href="Editor" target="_self" class="nav-card card-editor">
+    <div class="card-title"><i class="card-icon">▣</i> Editor</div>
+    <div class="card-desc">Edição de registros e transações</div>
+    <span class="card-arrow">→</span>
+</a>
 
 <!-- Notícias Expandable Card -->
 <div class="expandable-wrapper">
@@ -1993,6 +1973,21 @@ st.markdown('''
         </div>
     </div>
 </div>
+
+<!-- Emails Nav Card -->
+<a href="Emails" target="_self" class="nav-card card-noticias">
+    <div class="card-title">
+        <i class="card-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+        </i>
+        Emails
+    </div>
+    <div class="card-desc">Envio manual de relatórios por email</div>
+    <span class="card-arrow">→</span>
+</a>
 
 </div>
 ''', unsafe_allow_html=True)
