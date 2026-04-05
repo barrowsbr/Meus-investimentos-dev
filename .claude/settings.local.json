@@ -4,7 +4,9 @@
       "Bash(cmd /c \"dir /a \\\\\"g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash\\\\\"\")",
       "Bash(powershell -Command \"Test-Path 'g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash'\")",
       "Bash(powershell -Command \"\\(Get-Item 'g:\\\\Meu Drive\\\\Finanças\\\\Investimentos\\\\Meus-investimentos\\\\Dash'\\).Attributes\")",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(powershell -Command \"& 'C:\\\\Users\\\\lucas\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd' run services replace 'C:\\\\temp\\\\service-clean.yaml' --region southamerica-east1 2>&1\")",
+      "Bash(powershell -Command \"& 'C:\\\\Users\\\\lucas\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd' builds list --limit=1 2>&1\")"
     ]
   }
 }
