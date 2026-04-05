@@ -7,13 +7,12 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia o código da aplicação
+# core/ agora reside dentro de backend/ — sem dependência de legado/
 COPY backend/ ./backend/
-COPY legado/dash/Dash/ ./dash/Dash/
 
 # Remove secrets que NÃO devem estar na imagem
 # (injetados em runtime via Cloud Run secret env vars)
-RUN rm -f dash/Dash/service_account.json \
-         dash/Dash/.streamlit/secrets.toml
+RUN rm -f backend/service_account.json
 
 # Entrypoint injeta secrets em runtime
 COPY backend/docker-entrypoint.sh /docker-entrypoint.sh

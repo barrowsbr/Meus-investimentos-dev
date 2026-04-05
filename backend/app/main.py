@@ -24,15 +24,14 @@ sys.modules["streamlit.runtime"] = _st_stub                # type: ignore
 sys.modules["streamlit.runtime.scriptrunner"] = _st_stub   # type: ignore
 
 # ---------------------------------------------------------------------------
-# 2. Adiciona dash/Dash/ ao sys.path para que 'import core.*' funcione
+# 2. Adiciona backend/ ao sys.path para que 'import core.*' funcione
+#    core/ agora é parte do backend (não mais referenciado via legado/)
 # ---------------------------------------------------------------------------
-_HERE = os.path.dirname(os.path.abspath(__file__))          # backend/app/
-_BACKEND = os.path.dirname(_HERE)                           # backend/
-_ROOT = os.path.dirname(_BACKEND)                           # raiz do repo
-_DASH_ROOT = os.path.join(_ROOT, "dash", "Dash")
+_HERE    = os.path.dirname(os.path.abspath(__file__))   # backend/app/
+_BACKEND = os.path.dirname(_HERE)                       # backend/
 
-if _DASH_ROOT not in sys.path:
-    sys.path.insert(0, _DASH_ROOT)
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
 # ---------------------------------------------------------------------------
 # 3. FastAPI app + CORS
