@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia o código da aplicação
 COPY backend/ ./backend/
-COPY dash/Dash/ ./dash/Dash/
+COPY legado/dash/Dash/ ./dash/Dash/
 
 # Remove secrets que NÃO devem estar na imagem
 # (injetados em runtime via Cloud Run secret env vars)
