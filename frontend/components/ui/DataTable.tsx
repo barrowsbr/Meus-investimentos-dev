@@ -1,23 +1,19 @@
-interface Column<T> {
-  key: keyof T | string;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface Column {
+  key: string;
   header: string;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: any) => React.ReactNode;
   align?: "left" | "right" | "center";
 }
 
-interface DataTableProps<T> {
-  columns: Column<T>[];
-  data: T[];
+interface DataTableProps {
+  columns: Column[];
+  data: any[];
   loading?: boolean;
   emptyMessage?: string;
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
-  columns,
-  data,
-  loading,
-  emptyMessage = "Sem dados",
-}: DataTableProps<T>) {
+export default function DataTable({ columns, data, loading, emptyMessage = "Sem dados" }: DataTableProps) {
   if (loading) {
     return (
       <div className="animate-pulse space-y-2">
@@ -39,7 +35,7 @@ export default function DataTable<T extends Record<string, unknown>>({
           <tr className="border-b border-white/[0.07]">
             {columns.map((col) => (
               <th
-                key={String(col.key)}
+                key={col.key}
                 className={`pb-2 font-semibold text-slate-400 text-xs tracking-wider uppercase
                   ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
               >
@@ -53,12 +49,10 @@ export default function DataTable<T extends Record<string, unknown>>({
             <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors">
               {columns.map((col) => (
                 <td
-                  key={String(col.key)}
+                  key={col.key}
                   className={`py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
                 >
-                  {col.render
-                    ? col.render(row)
-                    : String(row[col.key as keyof T] ?? "")}
+                  {col.render ? col.render(row) : String(row[col.key] ?? "")}
                 </td>
               ))}
             </tr>
