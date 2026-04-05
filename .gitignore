@@ -31,3 +31,5 @@ dash/Dash/sample_data/
 
 # Claude worktrees (local only)
 **/.claude/worktrees/
+
+.vercel
