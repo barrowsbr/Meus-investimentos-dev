@@ -6,15 +6,14 @@ Replica os dados exibidos em 1_Investimentos.py.
 
 Endpoints:
   GET /api/portfolio/snapshot      — posições + P&L do dia + top gainers/losers
-  GET /api/portfolio/positions     — lista de posições abertas (RV)
+  GET /api/portfolio/positions     — lista de posições abertas (RV) com valores em BRL
   GET /api/portfolio/fixed-income  — posições de renda fixa
   GET /api/portfolio/dividends     — proventos recebidos
-  GET /api/portfolio/summary       — totalizadores do patrimônio
+  GET /api/portfolio/summary       — totalizadores do patrimônio em BRL
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
@@ -42,7 +41,6 @@ def _proventos_data() -> list[dict]:
     df = load_proventos()
     if df.empty:
         return []
-    # Converte datas para string JSON-serializável
     for col in df.select_dtypes(include=["datetime64[ns]", "datetime64"]).columns:
         df[col] = df[col].dt.strftime("%Y-%m-%d")
     df = df.fillna("")
@@ -61,9 +59,73 @@ def _fixed_income_data() -> list[dict]:
     return df.to_dict(orient="records")
 
 
-def _serialize_snapshot(snap: dict) -> dict:
-    """Remove DataFrames e garante que o snapshot é JSON-serializável."""
+@ttl_cache(ttl=300)
+def _fx_rates() -> dict[str, float]:
+    """
+    Busca cotações de câmbio atuais via yfinance.
+    Retorna mapa moeda → taxa BRL (ex: {"USD": 5.75, "EUR": 6.30}).
+    Cache de 5 min — FX não muda segundo a segundo.
+    """
+    import yfinance as yf
+
+    fx_map = {"BRL": 1.0}
+    try:
+        data = yf.download(
+            ["BRL=X", "EURBRL=X"],
+            period="5d",
+            progress=False,
+            auto_adjust=True,
+            threads=True,
+        )
+        if not data.empty:
+            closes = data["Close"].ffill()
+            last = closes.iloc[-1]
+            # BRL=X é USD/BRL (quantos reais por 1 dólar)
+            if "BRL=X" in last and pd.notna(last["BRL=X"]):
+                fx_map["USD"] = float(last["BRL=X"])
+            # EURBRL=X é EUR/BRL
+            if "EURBRL=X" in last and pd.notna(last["EURBRL=X"]):
+                fx_map["EUR"] = float(last["EURBRL=X"])
+    except Exception as exc:
+        logger.warning("Erro ao buscar FX rates: %s", exc)
+
+    return fx_map
+
+
+def _apply_fx(positions: list[dict], fx: dict[str, float]) -> list[dict]:
+    """
+    Adiciona market_value_brl, total_pnl_r_brl e day_pnl_r_brl a cada posição.
+    Posições BRL já estão em reais; outras são convertidas pela taxa do dia.
+    """
+    result = []
+    for p in positions:
+        p = dict(p)  # cópia para não mutar o cache
+        moeda = (p.get("moeda") or "BRL").upper()
+        rate = fx.get(moeda, 1.0)
+        p["fx_rate"] = round(rate, 4)
+        p["market_value_brl"] = round(p.get("market_value", 0) * rate, 2)
+        p["day_pnl_r_brl"] = round(p.get("day_pnl_r", 0) * rate, 2)
+        p["total_pnl_r_brl"] = round(p.get("total_pnl_r", 0) * rate, 2)
+        # pm_brl útil para exibição comparativa
+        p["pm_brl"] = round(p.get("pm", 0) * rate, 2)
+        result.append(p)
+    return result
+
+
+def _serialize_snapshot(snap: dict, fx: dict[str, float]) -> dict:
+    """Remove DataFrames, aplica FX e garante que o snapshot é JSON-serializável."""
     result = {k: v for k, v in snap.items() if not isinstance(v, pd.DataFrame)}
+
+    # Aplica FX nas posições
+    positions = _apply_fx(snap.get("positions", []), fx)
+    result["positions"] = positions
+    result["top_gainers"] = _apply_fx(snap.get("top_gainers", []), fx)
+    result["top_losers"] = _apply_fx(snap.get("top_losers", []), fx)
+
+    # rv_total_brl correto: soma de TODAS as posições convertidas
+    result["rv_total_brl"] = round(sum(p["market_value_brl"] for p in positions), 2)
+    result["day_pnl_r_brl"] = round(sum(p["day_pnl_r_brl"] for p in positions), 2)
+
     # rf_positions é um DataFrame — converte para lista de dicts
     rf_df: pd.DataFrame = snap.get("rf_positions", pd.DataFrame())
     if isinstance(rf_df, pd.DataFrame) and not rf_df.empty:
@@ -72,6 +134,8 @@ def _serialize_snapshot(snap: dict) -> dict:
         result["rf_positions"] = rf_df.fillna("").to_dict(orient="records")
     else:
         result["rf_positions"] = []
+
+    result["fx_rates"] = fx
     return result
 
 
@@ -83,11 +147,12 @@ def _serialize_snapshot(snap: dict) -> dict:
 def get_snapshot() -> dict:
     """
     Snapshot completo do portfólio: posições enriquecidas com preço atual,
-    P&L do dia, top gainers e top losers.
+    P&L do dia, top gainers e top losers. Todos os valores monetários em BRL.
     """
     try:
         snap = _portfolio_snapshot()
-        return _serialize_snapshot(snap)
+        fx = _fx_rates()
+        return _serialize_snapshot(snap, fx)
     except Exception as exc:
         logger.exception("Erro em /portfolio/snapshot")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -95,10 +160,11 @@ def get_snapshot() -> dict:
 
 @router.get("/positions")
 def get_positions() -> list[dict]:
-    """Lista de posições abertas de renda variável com preços e P&L."""
+    """Lista de posições abertas de renda variável com preços e P&L convertidos para BRL."""
     try:
         snap = _portfolio_snapshot()
-        return snap.get("positions", [])
+        fx = _fx_rates()
+        return _apply_fx(snap.get("positions", []), fx)
     except Exception as exc:
         logger.exception("Erro em /portfolio/positions")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -127,27 +193,34 @@ def get_dividends() -> list[dict]:
 @router.get("/summary")
 def get_summary() -> dict:
     """
-    Totalizadores do patrimônio:
-    - rv_total: valor de mercado total RV em BRL
+    Totalizadores do patrimônio em BRL:
+    - rv_total: valor de mercado total RV convertido para BRL
     - rf_total: saldo RF em BRL
-    - patrimonio_total: rv + rf + caixa
-    - day_pnl_r: P&L do dia em R$
+    - patrimonio_total: rv + rf
+    - day_pnl_r: P&L do dia em R$ (todas as moedas convertidas)
     - day_pnl_pct: P&L do dia em %
     """
     try:
         snap = _portfolio_snapshot()
-        positions = snap.get("positions", [])
-        rv_total = sum(p["market_value"] for p in positions if p.get("moeda") == "BRL")
+        fx = _fx_rates()
+        positions = _apply_fx(snap.get("positions", []), fx)
+
+        rv_total = sum(p["market_value_brl"] for p in positions)
+        prev_rv = rv_total - sum(p["day_pnl_r_brl"] for p in positions)
+        day_pnl_r = sum(p["day_pnl_r_brl"] for p in positions)
+        day_pnl_pct = (day_pnl_r / prev_rv * 100) if prev_rv > 0 else 0.0
+
         rf_total = snap.get("rf_total", 0.0)
         return {
             "rv_total": round(rv_total, 2),
             "rf_total": round(rf_total, 2),
             "patrimonio_total": round(rv_total + rf_total, 2),
-            "day_pnl_r": snap.get("portfolio_day_pnl_r", 0.0),
-            "day_pnl_pct": snap.get("portfolio_day_pnl_pct", 0.0),
-            "top_gainers": snap.get("top_gainers", []),
-            "top_losers": snap.get("top_losers", []),
+            "day_pnl_r": round(day_pnl_r, 2),
+            "day_pnl_pct": round(day_pnl_pct, 2),
+            "top_gainers": _apply_fx(snap.get("top_gainers", []), fx),
+            "top_losers": _apply_fx(snap.get("top_losers", []), fx),
             "computed_at": snap.get("computed_at"),
+            "fx_rates": fx,
         }
     except Exception as exc:
         logger.exception("Erro em /portfolio/summary")

@@ -90,13 +90,18 @@ export interface Position {
   moeda: string;
   qty: number;
   pm: number;
+  pm_brl: number;
   current_price: number | null;
   market_value: number;
+  market_value_brl: number;
   day_pnl_r: number;
+  day_pnl_r_brl: number;
   day_pnl_pct: number;
   total_pnl_r: number;
+  total_pnl_r_brl: number;
   total_pnl_pct: number;
   has_price: boolean;
+  fx_rate: number;
 }
 
 export interface PortfolioSnapshot {
@@ -105,10 +110,13 @@ export interface PortfolioSnapshot {
   top_losers: Position[];
   portfolio_day_pnl_r: number;
   portfolio_day_pnl_pct: number;
+  rv_total_brl: number;
+  day_pnl_r_brl: number;
   rf_positions: FixedIncomeItem[];
   rf_total: number;
   computed_at: string;
   errors: string[];
+  fx_rates: Record<string, number>;
 }
 
 export interface PortfolioSummary {
