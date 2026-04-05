@@ -6,7 +6,7 @@ set -e
 #    Inject via GCP_SERVICE_ACCOUNT_JSON env var (Cloud Run secret)
 # ---------------------------------------------------------------------------
 if [ -n "$GCP_SERVICE_ACCOUNT_JSON" ] && [ ! -f "service_account.json" ]; then
-    echo "$GCP_SERVICE_ACCOUNT_JSON" > service_account.json
+    printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > service_account.json
 fi
 
 # ---------------------------------------------------------------------------

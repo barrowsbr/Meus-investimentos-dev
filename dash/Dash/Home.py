@@ -2017,6 +2017,8 @@ rv_day_gain = 0.0
 rv_day_pct = 0.0
 dolar_change = 0.0
 total_patrimonio = 0.0
+map_prices = {}
+map_changes = {}
 
 if not df_assets.empty:
     df_rv = df_assets[df_assets['ticker'].notna()]

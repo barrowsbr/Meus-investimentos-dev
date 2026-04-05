@@ -9,6 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY dash/Dash/ .
 
+# Remove secrets that must NOT be bundled in the image
+# (injected at runtime via Cloud Run secret env vars)
+RUN rm -f service_account.json .streamlit/secrets.toml
+
 # Entrypoint script (generates secrets at runtime from env vars)
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
