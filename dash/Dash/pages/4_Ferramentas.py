@@ -6,8 +6,6 @@ from pathlib import Path
 from core.auth import require_auth, get_password, update_password, is_auth_enabled, set_auth_enabled
 from core.theme import inject_global_theme, render_back_button
 from core.ui import render_fab
-import base64
-
 _LOGOS = Path(__file__).parent.parent / "assets" / "logos"
 
 # --- AUTH CHECK ---
@@ -26,33 +24,14 @@ inject_global_theme()
 
 # ── BACKGROUND VIDEO ─────────────────────────────────────────────────────────
 
-def get_video_base64():
-    try:
-        vpath = Path(__file__).parent.parent / "assets" / "videos" / "Video 1.mp4"
-        with open(vpath, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except Exception:
-        return None
-
-video_b64 = get_video_base64()
-
-if video_b64:
-    st.markdown(f"""
-    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;overflow:hidden;pointer-events:none;">
-        <video id="bgvid" autoplay muted playsinline style="width:100vw;height:100vh;object-fit:cover;opacity:0.15;">
-            <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-        </video>
-        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(10,14,20,0.7);"></div>
-    </div>
-    <script>
-        var v = document.getElementById('bgvid');
-        if (v) {{
-            v.addEventListener('ended', function() {{
-                setTimeout(function() {{ v.currentTime = 0; v.play(); }}, 5000);
-            }});
-        }}
-    </script>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<div style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;overflow:hidden;pointer-events:none;">
+    <video id="bgvid" autoplay muted playsinline loop style="width:100vw;height:100vh;object-fit:cover;opacity:0.15;">
+        <source src="app/static/videos/video1.mp4" type="video/mp4">
+    </video>
+    <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(10,14,20,0.7);"></div>
+</div>
+""", unsafe_allow_html=True)
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 

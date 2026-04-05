@@ -35,9 +35,9 @@ COLORS = {
 
 
 def _get_bg_base64() -> str | None:
-    """Load Fundo.png as base64."""
+    """Load fundo.png as base64."""
     try:
-        path = Path(__file__).parent.parent / "pictures" / "Fundo.png"
+        path = Path(__file__).parent.parent / "assets" / "backgrounds" / "fundo.png"
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except Exception:
@@ -99,23 +99,25 @@ def inject_global_theme(*, hide_sidebar: bool = True):
     }}
 
     /* ═══ HIDE STREAMLIT CHROME ═══ */
-    #MainMenu, footer, header,
+    #MainMenu, footer,
     .stAppDeployButton,
-    [data-testid="stToolbar"],
-    [data-testid="stHeader"],
-    [data-testid="stStatusWidget"],
-    [data-testid="stAppToolbar"],
     div[class*="viewerBadge"],
-    [data-testid="stManageAppButton"],
     div[data-testid="stDecoration"] {{
         display: none !important;
+    }}
+
+    /* Colapsa o header sem usar display:none — render_fab() repositions stToolbar */
+    [data-testid="stHeader"] {{
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        background: transparent !important;
     }}
     {sidebar_css}
 
     /* ═══ LAYOUT RESET ═══ */
-    .stApp > header {{
-        display: none !important;
-    }}
     .block-container {{
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
@@ -294,6 +296,11 @@ def inject_global_theme(*, hide_sidebar: bool = True):
 
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_back_button():
+    """Stub mantido por compatibilidade — não renderiza nada (nav via FAB)."""
+    pass
 
 
 def render_page_header(title: str, subtitle: str = "", icon: str = ""):

@@ -30,7 +30,7 @@ from config import BASE_DIR, TAB_ASSETS, TAB_COMPOSICAO, TAB_CAMBIO, TAB_PTAX
 st.set_page_config(
     page_title="Carteira de Investimentos",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="💎"
 )
 

@@ -24,7 +24,7 @@ from core.computed import get_portfolio_snapshot
 st.set_page_config(
     page_title="Agente IA – Meus Investimentos",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="🤖",
 )
 

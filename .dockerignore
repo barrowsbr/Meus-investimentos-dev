@@ -20,7 +20,7 @@ dash/Dash/backups/
 dash/Dash/tests/
 dash/Dash/sample_data/
 
-# Large binary assets (use GCS or CDN in production)
+# Original video sources (servidos via static/ no container)
 dash/Dash/assets/videos/
 
 # Docs

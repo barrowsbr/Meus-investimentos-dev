@@ -5,8 +5,7 @@
   "customizations": {
     "codespaces": {
       "openFiles": [
-        "README.md",
-        "dash/Dash/app.py"
+        "dash/Dash/Home.py"
       ]
     },
     "vscode": {
@@ -17,9 +16,9 @@
       ]
     }
   },
-  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
+  "updateContentCommand": "pip3 install --user -r dash/Dash/requirements.txt; echo '✅ Requirements installed'",
   "postAttachCommand": {
-    "server": "streamlit run dash/Dash/app.py --server.enableCORS false --server.enableXsrfProtection false"
+    "server": "streamlit run dash/Dash/Home.py --server.enableCORS false --server.enableXsrfProtection false"
   },
   "portsAttributes": {
     "8501": {

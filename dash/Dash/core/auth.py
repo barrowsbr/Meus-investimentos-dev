@@ -5,7 +5,7 @@ import hashlib
 
 PASSWORD_FILE = os.path.join(os.path.dirname(__file__), ".password")
 AUTH_STATE_FILE = os.path.join(os.path.dirname(__file__), ".auth_state")
-DEFAULT_PASSWORD = "1015"
+DEFAULT_PASSWORD = os.environ.get("AUTH_PASSWORD", "1015")
 
 # ── Persistência ──────────────────────────────────────────────────────────────
 # Token diário derivado da senha + dia atual.

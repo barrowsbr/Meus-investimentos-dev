@@ -46,18 +46,8 @@ logo_b64 = get_logo_base64()
 
 if not intro_state["played"]:
     intro_state["played"] = True
-    
-    def get_video_base64():
-        """Load video as base64 for preloader."""
-        try:
-            video_path = Path(__file__).parent / "assets" / "videos" / "Video 1.mp4"
-            with open(video_path, "rb") as f:
-                return base64.b64encode(f.read()).decode()
-        except:
-            return None
 
-    video_b64 = get_video_base64()
-    video_html = f'<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>' if video_b64 else '<div class="preloader-spinner"></div>'
+    video_html = '<video autoplay muted playsinline id="preloader-video" class="preloader-video"><source src="app/static/videos/video1.mp4" type="video/mp4"></video>'
 
     st.markdown(f"""
     <style>
