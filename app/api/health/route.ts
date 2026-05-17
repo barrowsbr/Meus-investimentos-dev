@@ -5,10 +5,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const checks: Record<string, unknown> = {
-    env_client_email: !!process.env.GOOGLE_CLIENT_EMAIL,
-    env_private_key: !!process.env.GOOGLE_PRIVATE_KEY,
-    env_private_key_length: process.env.GOOGLE_PRIVATE_KEY?.length ?? 0,
-    env_spreadsheet_id: process.env.SPREADSHEET_ID || "(auto-detect via Drive)",
+    env_api_key: !!process.env.GOOGLE_API_KEY,
+    env_spreadsheet_id: !!process.env.SPREADSHEET_ID,
   };
 
   try {

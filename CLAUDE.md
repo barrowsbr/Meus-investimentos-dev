@@ -31,7 +31,7 @@ lib/
 
 ```bash
 npm install
-# Preencher .env.local com GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY e SPREADSHEET_ID
+# Preencher .env.local com GOOGLE_API_KEY e SPREADSHEET_ID
 npm run dev
 ```
 
@@ -39,13 +39,13 @@ npm run dev
 
 1. Push para o GitHub
 2. Importar projeto na Vercel
-3. Configurar Environment Variables: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SPREADSHEET_ID`
+3. Configurar Environment Variables: `GOOGLE_API_KEY`, `SPREADSHEET_ID`
+4. A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor)
 
 ## Acesso ao Google Sheets
 
 - **Planilha**: `gdados`
-- **Credenciais**: via env vars (extraídas do `service_account.json`)
-- **Service account email**: `gdados@project-34f443f1-80d4-441b-879.iam.gserviceaccount.com`
+- **Autenticação**: API Key (não precisa de service account)
 - **Biblioteca**: `googleapis` (Node.js)
 
 ---
