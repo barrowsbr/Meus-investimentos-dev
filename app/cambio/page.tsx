@@ -8,9 +8,10 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 export default function CambioPage() {
-  const { data, loading } = useSheetData("cambio");
+  const { data, loading, error } = useSheetData("cambio");
 
   const metrics = useMemo(() => {
     let totalOrigem = 0;
@@ -74,6 +75,7 @@ export default function CambioPage() {
   ];
 
   if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorAlert message={error} tab="cambio" />;
 
   return (
     <>

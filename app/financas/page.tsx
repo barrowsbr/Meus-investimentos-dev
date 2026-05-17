@@ -8,6 +8,7 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 export default function FinancasPage() {
   const financas = useSheetData("financas");
@@ -17,6 +18,10 @@ export default function FinancasPage() {
   );
 
   const loading = financas.loading || pessoal.loading;
+  const errors = [
+    financas.error && `financas: ${financas.error}`,
+    pessoal.error && `financas_pessoal: ${pessoal.error}`,
+  ].filter(Boolean) as string[];
 
   const activeData = activeTab === "financas" ? financas.data : pessoal.data;
 
@@ -42,6 +47,14 @@ export default function FinancasPage() {
         title="Finanças"
         description="Controle financeiro pessoal"
       />
+
+      {errors.length > 0 && (
+        <div className="mb-6 flex flex-col gap-2">
+          {errors.map((err) => (
+            <ErrorAlert key={err} message={err} />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <MetricCard

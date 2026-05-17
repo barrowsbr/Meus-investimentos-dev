@@ -8,12 +8,17 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 export default function RendaFixaPage() {
   const transacoes = useSheetData("renda_fixa");
   const posicoes = useSheetData("fixa_aberta");
 
   const loading = transacoes.loading || posicoes.loading;
+  const errors = [
+    transacoes.error && `renda_fixa: ${transacoes.error}`,
+    posicoes.error && `fixa_aberta: ${posicoes.error}`,
+  ].filter(Boolean) as string[];
 
   const metrics = useMemo(() => {
     const totalPosicao = posicoes.data.reduce((sum, r) => {
@@ -96,6 +101,14 @@ export default function RendaFixaPage() {
         title="Renda Fixa"
         description="Posições e transações de renda fixa"
       />
+
+      {errors.length > 0 && (
+        <div className="mb-6 flex flex-col gap-2">
+          {errors.map((err) => (
+            <ErrorAlert key={err} message={err} />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <MetricCard

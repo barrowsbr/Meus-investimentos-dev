@@ -8,9 +8,10 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 export default function PortfolioPage() {
-  const { data, loading } = useSheetData("meus_ativos");
+  const { data, loading, error } = useSheetData("meus_ativos");
 
   const metrics = useMemo(() => {
     let compras = 0;
@@ -83,6 +84,7 @@ export default function PortfolioPage() {
   ];
 
   if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorAlert message={error} tab="meus_ativos" />;
 
   return (
     <>

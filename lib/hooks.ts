@@ -10,11 +10,18 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
     fetch(`/api/sheets/${tab}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok || body.error) {
+          throw new Error(body.error || `HTTP ${r.status}`);
+        }
+        if (!Array.isArray(body)) {
+          throw new Error("Resposta inesperada da API");
+        }
+        return body;
       })
       .then((d) => {
         if (!cancelled) {
@@ -23,7 +30,10 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          setData([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
