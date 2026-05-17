@@ -16,9 +16,10 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 export default function ProventosPage() {
-  const { data, loading } = useSheetData("meus_proventos");
+  const { data, loading, error } = useSheetData("meus_proventos");
 
   const metrics = useMemo(() => {
     let total = 0;
@@ -75,6 +76,7 @@ export default function ProventosPage() {
   ];
 
   if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorAlert message={error} tab="meus_proventos" />;
 
   return (
     <>

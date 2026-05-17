@@ -18,6 +18,7 @@ import { toNumber, brl, formatDate, shortMonth } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 const COLORS = [
   "#d4a574",
@@ -40,6 +41,13 @@ export default function Dashboard() {
 
   const loading =
     ativos.loading || proventos.loading || fixaAberta.loading || cambio.loading;
+
+  const errors = [
+    ativos.error && `meus_ativos: ${ativos.error}`,
+    proventos.error && `meus_proventos: ${proventos.error}`,
+    fixaAberta.error && `fixa_aberta: ${fixaAberta.error}`,
+    cambio.error && `cambio: ${cambio.error}`,
+  ].filter(Boolean) as string[];
 
   const metrics = useMemo(() => {
     const totalInvestido = ativos.data.reduce((sum, r) => {
@@ -113,6 +121,14 @@ export default function Dashboard() {
         title="Dashboard"
         description="Visão geral dos seus investimentos"
       />
+
+      {errors.length > 0 && (
+        <div className="mb-6 flex flex-col gap-2">
+          {errors.map((err) => (
+            <ErrorAlert key={err} message={err} />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <MetricCard

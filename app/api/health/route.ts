@@ -1,0 +1,26 @@
+import { NextResponse } from "next/server";
+import { fetchTab } from "@/lib/gsheets";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const checks: Record<string, unknown> = {
+    env_client_email: !!process.env.GOOGLE_CLIENT_EMAIL,
+    env_private_key: !!process.env.GOOGLE_PRIVATE_KEY,
+    env_private_key_length: process.env.GOOGLE_PRIVATE_KEY?.length ?? 0,
+    env_spreadsheet_id: process.env.SPREADSHEET_ID || "(auto-detect via Drive)",
+  };
+
+  try {
+    const sample = await fetchTab("meus_ativos");
+    checks.sheets_connection = "ok";
+    checks.meus_ativos_rows = sample.length;
+    checks.meus_ativos_columns = sample.length > 0 ? Object.keys(sample[0]) : [];
+  } catch (e: unknown) {
+    checks.sheets_connection = "error";
+    checks.sheets_error = e instanceof Error ? e.message : String(e);
+  }
+
+  const healthy = checks.sheets_connection === "ok";
+  return NextResponse.json(checks, { status: healthy ? 200 : 500 });
+}
