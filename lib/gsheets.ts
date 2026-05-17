@@ -1,40 +1,7 @@
 import { google } from "googleapis";
 
-const SPREADSHEET_NAME = "gdados";
-
-function getAuth() {
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    },
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets.readonly",
-      "https://www.googleapis.com/auth/drive.readonly",
-    ],
-  });
-}
-
-let cachedSpreadsheetId: string | null = null;
-
-async function getSpreadsheetId(): Promise<string> {
-  if (process.env.SPREADSHEET_ID) return process.env.SPREADSHEET_ID;
-  if (cachedSpreadsheetId) return cachedSpreadsheetId;
-
-  const auth = getAuth();
-  const drive = google.drive({ version: "v3", auth });
-  const res = await drive.files.list({
-    q: `name='${SPREADSHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
-    fields: "files(id)",
-    pageSize: 1,
-  });
-
-  const id = res.data.files?.[0]?.id;
-  if (!id) throw new Error(`Planilha '${SPREADSHEET_NAME}' não encontrada`);
-
-  cachedSpreadsheetId = id;
-  return id;
-}
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
+const API_KEY = process.env.GOOGLE_API_KEY!;
 
 function serialToDate(serial: number): string {
   const utcDays = Math.floor(serial - 25569);
@@ -48,12 +15,10 @@ function serialToDate(serial: number): string {
 export async function fetchTab(
   tabName: string
 ): Promise<Record<string, unknown>[]> {
-  const auth = getAuth();
-  const sheets = google.sheets({ version: "v4", auth });
-  const spreadsheetId = await getSpreadsheetId();
+  const sheets = google.sheets({ version: "v4", auth: API_KEY });
 
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
+    spreadsheetId: SPREADSHEET_ID,
     range: tabName,
     valueRenderOption: "UNFORMATTED_VALUE",
   });

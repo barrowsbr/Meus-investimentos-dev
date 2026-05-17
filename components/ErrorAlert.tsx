@@ -15,9 +15,9 @@ export default function ErrorAlert({ message, tab }: Props) {
         </p>
         <p className="text-zinc-400 text-xs mt-1">{message}</p>
         <p className="text-zinc-600 text-xs mt-2">
-          Verifique as variáveis de ambiente (GOOGLE_CLIENT_EMAIL,
-          GOOGLE_PRIVATE_KEY) e se a planilha está compartilhada com o service
-          account.
+          Verifique as variáveis de ambiente (GOOGLE_API_KEY, SPREADSHEET_ID) e
+          se a planilha está compartilhada com &quot;Qualquer pessoa com o
+          link&quot;.
         </p>
       </div>
     </div>
