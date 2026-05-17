@@ -1,27 +1,52 @@
 # Meus Investimentos
 
+Dashboard de investimentos pessoal — Next.js 14 + Tailwind CSS + Google Sheets.
+
+## Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Estilo**: Tailwind CSS 3 (tema dark, glassmorphism)
+- **Gráficos**: Recharts
+- **Dados**: Google Sheets API (`googleapis`)
+- **Deploy**: Vercel
+
+## Estrutura
+
+```
+app/                    Páginas e API routes
+  api/sheets/[tab]/     API genérica — retorna dados de qualquer aba
+  portfolio/            Transações de ativos
+  proventos/            Dividendos e rendimentos
+  renda-fixa/           Renda fixa (posições + transações)
+  cambio/               Operações de câmbio
+  financas/             Controle financeiro
+components/             Componentes reutilizáveis
+lib/
+  gsheets.ts            Conexão com Google Sheets
+  hooks.ts              Hook useSheetData para fetching
+  format.ts             Formatação BRL/USD, datas, números
+```
+
+## Setup Local
+
+```bash
+npm install
+# Preencher .env.local com GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY e SPREADSHEET_ID
+npm run dev
+```
+
+## Deploy na Vercel
+
+1. Push para o GitHub
+2. Importar projeto na Vercel
+3. Configurar Environment Variables: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SPREADSHEET_ID`
+
 ## Acesso ao Google Sheets
 
 - **Planilha**: `gdados`
-- **Credenciais**: `service_account.json` (service account GCP)
+- **Credenciais**: via env vars (extraídas do `service_account.json`)
 - **Service account email**: `gdados@project-34f443f1-80d4-441b-879.iam.gserviceaccount.com`
-- **Biblioteca**: `gspread` com `google-auth`
-
-### Conexão
-
-```python
-import gspread
-from google.oauth2.service_account import Credentials
-
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
-
-creds = Credentials.from_service_account_file("service_account.json", scopes=SCOPES)
-client = gspread.authorize(creds)
-spreadsheet = client.open("gdados")
-```
+- **Biblioteca**: `googleapis` (Node.js)
 
 ---
 

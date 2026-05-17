@@ -1,7 +1,7 @@
 # Secrets (NEVER commit)
 service_account.json
-*.env
-.env*
+.env.local
+.env*.local
 
 # Python
 __pycache__/
@@ -17,4 +17,5 @@ Thumbs.db
 
 # Node
 node_modules/
+.next/
 .vercel
