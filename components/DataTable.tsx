@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Column {
   key: string;
@@ -49,7 +50,7 @@ export default function DataTable({ data, columns, pageSize = 20 }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="glass-card p-8 text-center text-zinc-500">
+      <div className="glass-card p-8 text-center text-zinc-600 text-sm">
         Nenhum dado encontrado.
       </div>
     );
@@ -65,7 +66,7 @@ export default function DataTable({ data, columns, pageSize = 20 }: Props) {
                 <th
                   key={col.key}
                   onClick={() => toggleSort(col.key)}
-                  className={`px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider cursor-pointer hover:text-zinc-300 transition-colors whitespace-nowrap ${
+                  className={`px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider cursor-pointer hover:text-zinc-300 transition-colors whitespace-nowrap select-none ${
                     col.align === "right" ? "text-right" : "text-left"
                   }`}
                 >
@@ -83,12 +84,14 @@ export default function DataTable({ data, columns, pageSize = 20 }: Props) {
             {rows.map((row, i) => (
               <tr
                 key={i}
-                className="border-b border-border/50 hover:bg-white/[0.02] transition-colors"
+                className={`border-b border-border/30 transition-colors hover:bg-white/[0.025] ${
+                  i % 2 === 1 ? "bg-white/[0.01]" : ""
+                }`}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 whitespace-nowrap ${
+                    className={`px-4 py-3 whitespace-nowrap text-zinc-300 ${
                       col.align === "right" ? "text-right" : "text-left"
                     }`}
                   >
@@ -106,23 +109,26 @@ export default function DataTable({ data, columns, pageSize = 20 }: Props) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border text-xs text-zinc-500">
           <span>
-            {page * pageSize + 1}–
-            {Math.min((page + 1) * pageSize, sorted.length)} de {sorted.length}
+            {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} de{" "}
+            {sorted.length}
           </span>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              Anterior
+              <ChevronLeft size={14} />
             </button>
+            <span className="px-2 text-zinc-400 font-medium">
+              {page + 1}/{totalPages}
+            </span>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              Próximo
+              <ChevronRight size={14} />
             </button>
           </div>
         </div>

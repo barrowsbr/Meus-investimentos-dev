@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { fetchTab, listSheetNames } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,13 @@ const TABS = [
 ];
 
 export async function GET() {
+  let sheetNames: string[] = [];
+  try {
+    sheetNames = await listSheetNames();
+  } catch (e) {
+    sheetNames = [`error: ${e instanceof Error ? e.message : String(e)}`];
+  }
+
   const results: Record<string, { columns: string[]; rows: number; sample: Record<string, unknown> | null; error?: string }> = {};
 
   for (const tab of TABS) {
@@ -36,7 +43,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json(results, {
+  return NextResponse.json({ sheetNames, tabs: results }, {
     headers: { "Cache-Control": "no-store" },
   });
 }
