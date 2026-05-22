@@ -1,7 +1,7 @@
 import { toNumber } from "./format";
 import type { Quote, FxRates } from "./cotacoes";
 import { fxToBRL } from "./cotacoes";
-import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaEfetiva } from "./sectors";
+import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaEfetiva, getMoedaExposicao } from "./sectors";
 
 interface Lote {
   qty: number;
@@ -318,7 +318,7 @@ export function calcularSnapshot(
   const exposicaoCambial: Record<string, number> = {};
   for (const p of positions) {
     if (p.valorAtualBRL < 1) continue;
-    const moedaKey = p.moeda === "BRL" ? "BRL" : p.moeda;
+    const moedaKey = getMoedaExposicao(p.setor, p.moeda);
     exposicaoCambial[moedaKey] = (exposicaoCambial[moedaKey] ?? 0) + p.valorAtualBRL;
   }
 

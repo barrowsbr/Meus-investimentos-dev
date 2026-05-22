@@ -62,9 +62,15 @@ export function isRendaVariavel(setor: string): boolean {
 
 export function getMoedaEfetiva(ticker: string, moedaPlanilha: string, setor: string): string {
   if (setor === "ETF USA") return "USD";
+  if (setor === "Cripto") return "USD";
   const tClean = ticker.toUpperCase().replace(".SA", "").replace(".L", "");
   if (tClean === "VWRA") return "USD";
   return moedaPlanilha || "BRL";
+}
+
+export function getMoedaExposicao(setor: string, moedaEfetiva: string): string {
+  if (setor === "Cripto") return "Cripto";
+  return moedaEfetiva;
 }
 
 export { RF_SETORES };
