@@ -23,4 +23,39 @@ body {
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border rounded-2xl;
   }
+
+  .metric-glow {
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-glow::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--glow-color, #d4a574), transparent);
+    opacity: 0.6;
+  }
+
+  .tag {
+    @apply text-[10px] px-2 py-0.5 rounded-full font-medium;
+  }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.animate-delay-1 { animation-delay: 50ms; }
+.animate-delay-2 { animation-delay: 100ms; }
+.animate-delay-3 { animation-delay: 150ms; }
+.animate-delay-4 { animation-delay: 200ms; }
+.animate-delay-5 { animation-delay: 250ms; }
+.animate-delay-6 { animation-delay: 300ms; }
