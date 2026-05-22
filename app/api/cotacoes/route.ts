@@ -3,7 +3,8 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 
-export const revalidate = 900;
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function GET() {
   try {
@@ -34,10 +35,16 @@ export async function GET() {
     const cotacoes = await fetchCotacoes(tickers);
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, cotacoes.fx);
 
+    const quotesFound = Object.keys(cotacoes.quotes).length;
+    const quotesTotal = tickers.length;
+
     return NextResponse.json({
       ...snapshot,
       fx: cotacoes.fx,
       timestamp: cotacoes.timestamp,
+      quotesFound,
+      quotesTotal,
+      quotesErrors: cotacoes.errors,
       tickerMap: Object.fromEntries(
         tickers.map((t) => [t.ticker, yahooTicker(t.ticker, t.moeda, t.corretora)])
       ),

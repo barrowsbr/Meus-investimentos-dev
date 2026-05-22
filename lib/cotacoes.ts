@@ -1,8 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const yahooFinance = require("yahoo-finance2").default;
 import { identificarSetor } from "./sectors";
-
-const AWESOME_FX_URL = "https://economia.awesomeapi.com.br/last";
 
 export interface Quote {
   price: number;
@@ -24,6 +20,7 @@ export interface CotacoesData {
   quotes: Record<string, Quote>;
   fx: FxRates;
   timestamp: string;
+  errors: string[];
 }
 
 const DEFAULTS_FX: FxRates = { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 };
@@ -40,52 +37,22 @@ const INTL_SUFFIX_MAP: Record<string, string> = {
 export function yahooTicker(ticker: string, moeda: string, corretora: string): string {
   const t = ticker.toUpperCase().trim();
   if (t.includes(".")) return t;
-
   if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
   if (t === "ETH" || t === "ETH-USD") return "ETH-USD";
-
   const tClean = t.replace(".SA", "").replace(".L", "");
   if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
-
   const setor = identificarSetor(t);
-  if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) {
-    return `${t}.SA`;
-  }
-
+  if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) return `${t}.SA`;
   return t;
 }
 
-// --- FX via Yahoo Finance (primary) + AwesomeAPI (fallback) ---
-
-interface YQuote {
-  symbol?: string;
-  regularMarketPrice?: number;
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
-  currency?: string;
-  shortName?: string;
-  longName?: string;
-}
-
-async function fetchFxYahoo(): Promise<FxRates> {
-  const fxTickers = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
-  const raw = await Promise.all(fxTickers.map((t) => yahooFinance.quote(t).catch(() => null)));
-
-  const fx = { ...DEFAULTS_FX };
-  for (const q of raw as YQuote[]) {
-    if (!q?.symbol || q.regularMarketPrice == null) continue;
-    const p = q.regularMarketPrice;
-    if (q.symbol === "BRL=X") fx.USDBRL = p;
-    if (q.symbol === "EURBRL=X") fx.EURBRL = p;
-    if (q.symbol === "CADBRL=X") fx.CADBRL = p;
-    if (q.symbol === "GBPBRL=X") fx.GBPBRL = p;
-  }
-  return fx;
-}
+// --- FX via AwesomeAPI ---
 
 async function fetchFxAwesome(): Promise<FxRates> {
-  const res = await fetch(`${AWESOME_FX_URL}/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL`);
-  if (!res.ok) return DEFAULTS_FX;
+  const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL", {
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`AwesomeAPI HTTP ${res.status}`);
   const data = await res.json();
   return {
     USDBRL: parseFloat(data.USDBRL?.bid) || DEFAULTS_FX.USDBRL,
@@ -97,46 +64,103 @@ async function fetchFxAwesome(): Promise<FxRates> {
 
 export async function fetchFxRates(): Promise<FxRates> {
   try {
-    return await fetchFxYahoo();
+    return await fetchFxAwesome();
   } catch {
-    try {
-      return await fetchFxAwesome();
-    } catch {
-      return DEFAULTS_FX;
-    }
+    return DEFAULTS_FX;
   }
 }
 
-// --- Stock quotes via yahoo-finance2 ---
+// --- Quotes via yahoo-finance2 ---
 
-export async function fetchQuotes(yahooTickers: string[]): Promise<Record<string, Quote>> {
-  if (yahooTickers.length === 0) return {};
+async function fetchQuotesYF2(yahooTickers: string[]): Promise<Record<string, Quote>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const yahooFinance: any = (await import("yahoo-finance2")).default;
 
   const results: Record<string, Quote> = {};
+  const batchSize = 5;
 
-  try {
-    const raw = await Promise.all(
-      yahooTickers.map((t) => yahooFinance.quote(t).catch(() => null))
-    );
-
-    for (const q of raw as YQuote[]) {
-      if (!q?.symbol || q.regularMarketPrice == null) continue;
-      results[q.symbol] = {
-        price: q.regularMarketPrice,
-        change: q.regularMarketChange ?? 0,
-        changePercent: q.regularMarketChangePercent ?? 0,
-        currency: q.currency ?? "USD",
-        name: q.shortName ?? q.longName ?? q.symbol,
-      };
-    }
-  } catch (e) {
-    console.error("Yahoo Finance quote error:", e);
+  for (let i = 0; i < yahooTickers.length; i += batchSize) {
+    const batch = yahooTickers.slice(i, i + batchSize);
+    const promises = batch.map(async (ticker: string) => {
+      try {
+        const q = await yahooFinance.quote(ticker);
+        if (q && q.regularMarketPrice != null) {
+          results[q.symbol ?? ticker] = {
+            price: q.regularMarketPrice,
+            change: q.regularMarketChange ?? 0,
+            changePercent: q.regularMarketChangePercent ?? 0,
+            currency: q.currency ?? "USD",
+            name: q.shortName ?? q.longName ?? ticker,
+          };
+        }
+      } catch {
+        // skip failed ticker
+      }
+    });
+    await Promise.all(promises);
   }
 
   return results;
 }
 
-// --- Conversion helper ---
+// --- Fallback: direct Yahoo v8 chart API ---
+
+async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quote>> {
+  const results: Record<string, Quote> = {};
+
+  const promises = yahooTickers.map(async (ticker) => {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) {
+        results[meta.symbol ?? ticker] = {
+          price: meta.regularMarketPrice,
+          change: (meta.regularMarketPrice - (meta.previousClose ?? meta.regularMarketPrice)),
+          changePercent: meta.previousClose
+            ? ((meta.regularMarketPrice / meta.previousClose - 1) * 100)
+            : 0,
+          currency: meta.currency ?? "USD",
+          name: ticker,
+        };
+      }
+    } catch {
+      // skip
+    }
+  });
+
+  await Promise.all(promises);
+  return results;
+}
+
+// --- Main fetch with fallbacks ---
+
+export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Record<string, Quote>; source: string }> {
+  if (yahooTickers.length === 0) return { quotes: {}, source: "empty" };
+
+  // Try yahoo-finance2 first
+  try {
+    const quotes = await fetchQuotesYF2(yahooTickers);
+    if (Object.keys(quotes).length > 0) return { quotes, source: "yahoo-finance2" };
+  } catch {
+    // fall through
+  }
+
+  // Fallback: direct Yahoo v8 API
+  try {
+    const quotes = await fetchQuotesV8(yahooTickers);
+    if (Object.keys(quotes).length > 0) return { quotes, source: "yahoo-v8" };
+  } catch {
+    // fall through
+  }
+
+  return { quotes: {}, source: "none" };
+}
 
 export function fxToBRL(currency: string, fx: FxRates): number {
   const cur = (currency || "BRL").toUpperCase();
@@ -149,30 +173,48 @@ export function fxToBRL(currency: string, fx: FxRates): number {
   return fx[key] ?? 1;
 }
 
-// --- Main fetch ---
-
 export async function fetchCotacoes(
   tickers: { ticker: string; moeda: string; corretora: string }[]
 ): Promise<CotacoesData> {
+  const errors: string[] = [];
+
   const yahooMap = new Map<string, string>();
   for (const t of tickers) {
     const yt = yahooTicker(t.ticker, t.moeda, t.corretora);
     yahooMap.set(t.ticker, yt);
   }
-
   const uniqueYahoo = [...new Set(yahooMap.values())];
 
-  const [yahooQuotes, fx] = await Promise.all([
-    fetchQuotes(uniqueYahoo).catch(() => ({} as Record<string, Quote>)),
-    fetchFxRates(),
-  ]);
+  let fx: FxRates;
+  try {
+    fx = await fetchFxRates();
+  } catch (e) {
+    errors.push(`FX error: ${e instanceof Error ? e.message : String(e)}`);
+    fx = DEFAULTS_FX;
+  }
+
+  let quoteResult: { quotes: Record<string, Quote>; source: string };
+  try {
+    quoteResult = await fetchQuotes(uniqueYahoo);
+    if (quoteResult.source === "none") {
+      errors.push("Nenhuma fonte de cotações respondeu");
+    }
+  } catch (e) {
+    errors.push(`Quotes error: ${e instanceof Error ? e.message : String(e)}`);
+    quoteResult = { quotes: {}, source: "error" };
+  }
 
   const quotes: Record<string, Quote> = {};
   for (const [originalTicker, yahooTck] of yahooMap) {
-    if (yahooQuotes[yahooTck]) {
-      quotes[originalTicker] = yahooQuotes[yahooTck];
+    if (quoteResult.quotes[yahooTck]) {
+      quotes[originalTicker] = quoteResult.quotes[yahooTck];
     }
   }
 
-  return { quotes, fx, timestamp: new Date().toISOString() };
+  return {
+    quotes,
+    fx,
+    timestamp: new Date().toISOString(),
+    errors,
+  };
 }
