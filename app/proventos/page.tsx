@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Coins, Calendar, TrendingUp } from "lucide-react";
+import { usePortfolio } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, currency, formatDate, shortMonth } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
@@ -19,30 +20,52 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
 export default function ProventosPage() {
-  const { data, loading, error } = useSheetData("meus_proventos");
+  const { data: portfolio, loading: portfolioLoading } = usePortfolio();
+  const { data: rawData, loading: sheetLoading, error } = useSheetData("meus_proventos");
+
+  const loading = portfolioLoading || sheetLoading;
 
   const metrics = useMemo(() => {
-    let total = 0;
-    const months = new Set<string>();
-    const tickers = new Set<string>();
+    if (!portfolio) {
+      let total = 0;
+      const months = new Set<string>();
+      const tickers = new Set<string>();
 
-    data.forEach((r) => {
-      total += Math.abs(toNumber(r["valor"]) || 0);
-      const dateStr = String(r["data"] || "");
-      const match = dateStr.match(/^(\d{4})-(\d{2})/);
-      if (match) months.add(`${match[1]}-${match[2]}`);
+      rawData.forEach((r) => {
+        total += Math.abs(toNumber(r["valor"]) || 0);
+        const dateStr = String(r["data"] || "");
+        const match = dateStr.match(/^(\d{4})-(\d{2})/);
+        if (match) months.add(`${match[1]}-${match[2]}`);
+        const t = String(r["ticker"] || "");
+        if (t) tickers.add(t.toUpperCase());
+      });
+
+      const avgMonth = months.size > 0 ? total / months.size : 0;
+      return { total, avgMonth, tickers: tickers.size };
+    }
+
+    const total = portfolio.totalProventosBRL;
+    const months = Object.keys(portfolio.proventosMensais);
+    const avgMonth = months.length > 0 ? total / months.length : 0;
+    const tickers = new Set<string>();
+    rawData.forEach((r) => {
       const t = String(r["ticker"] || "");
       if (t) tickers.add(t.toUpperCase());
     });
 
-    const avgMonth = months.size > 0 ? total / months.size : 0;
-
     return { total, avgMonth, tickers: tickers.size };
-  }, [data]);
+  }, [portfolio, rawData]);
 
   const monthlyChart = useMemo(() => {
+    if (portfolio?.proventosMensais) {
+      return Object.entries(portfolio.proventosMensais)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-24)
+        .map(([month, total]) => ({ month: shortMonth(month), total }));
+    }
+
     const byMonth: Record<string, number> = {};
-    data.forEach((r) => {
+    rawData.forEach((r) => {
       const dateStr = String(r["data"] || "");
       const match = dateStr.match(/^(\d{4})-(\d{2})/);
       if (!match) return;
@@ -53,7 +76,7 @@ export default function ProventosPage() {
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-24)
       .map(([month, total]) => ({ month: shortMonth(month), total }));
-  }, [data]);
+  }, [portfolio, rawData]);
 
   const columns = [
     { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
@@ -140,7 +163,7 @@ export default function ProventosPage() {
         )}
       </div>
 
-      <DataTable data={data} columns={columns} />
+      <DataTable data={rawData} columns={columns} />
     </>
   );
 }
