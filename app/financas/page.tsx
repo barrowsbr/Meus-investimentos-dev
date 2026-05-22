@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Wallet, CreditCard } from "lucide-react";
+import { Wallet, CreditCard, RefreshCw } from "lucide-react";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
@@ -13,9 +13,7 @@ import ErrorAlert from "@/components/ErrorAlert";
 export default function FinancasPage() {
   const financas = useSheetData("financas");
   const pessoal = useSheetData("financas_pessoal");
-  const [activeTab, setActiveTab] = useState<"financas" | "pessoal">(
-    "financas"
-  );
+  const [activeTab, setActiveTab] = useState<"financas" | "pessoal">("financas");
 
   const loading = financas.loading || pessoal.loading;
   const errors = [
@@ -41,6 +39,9 @@ export default function FinancasPage() {
 
   if (loading) return <LoadingSpinner />;
 
+  const bothEmpty = financas.data.length === 0 && pessoal.data.length === 0;
+  const allErrors = errors.length === 2;
+
   return (
     <>
       <PageHeader
@@ -56,43 +57,82 @@ export default function FinancasPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <MetricCard
-          label="Registros Finanças"
-          value={String(financas.data.length)}
-          icon={<Wallet size={18} />}
-        />
-        <MetricCard
-          label="Registros Pessoal"
-          value={String(pessoal.data.length)}
-          icon={<CreditCard size={18} />}
-        />
-      </div>
+      {allErrors && (
+        <div className="glass-card p-6 text-center mb-6 animate-fade-in">
+          <RefreshCw size={32} className="text-zinc-600 mx-auto mb-3" />
+          <p className="text-zinc-400 text-sm mb-1">
+            Não foi possível carregar os dados financeiros.
+          </p>
+          <p className="text-zinc-600 text-xs">
+            Verifique se as abas &quot;financas&quot; e &quot;financas_pessoal&quot; existem na planilha
+            e se os nomes estão corretos.
+          </p>
+        </div>
+      )}
 
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setActiveTab("financas")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            activeTab === "financas"
-              ? "bg-accent/15 text-accent"
-              : "bg-white/5 text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Finanças
-        </button>
-        <button
-          onClick={() => setActiveTab("pessoal")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            activeTab === "pessoal"
-              ? "bg-accent/15 text-accent"
-              : "bg-white/5 text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Pessoal
-        </button>
-      </div>
+      {!allErrors && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6">
+            <div className="animate-fade-in">
+              <MetricCard
+                label="Registros Finanças"
+                value={String(financas.data.length)}
+                sub={financas.error ? "Erro ao carregar" : undefined}
+                icon={<Wallet size={18} />}
+                glowColor="#3b82f6"
+              />
+            </div>
+            <div className="animate-fade-in animate-delay-1">
+              <MetricCard
+                label="Registros Pessoal"
+                value={String(pessoal.data.length)}
+                sub={pessoal.error ? "Erro ao carregar" : undefined}
+                icon={<CreditCard size={18} />}
+                glowColor="#8b5cf6"
+              />
+            </div>
+          </div>
 
-      <DataTable data={activeData} columns={autoColumns} />
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab("financas")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                activeTab === "financas"
+                  ? "bg-accent/12 text-accent shadow-[inset_0_0_20px_rgba(212,165,116,0.05)]"
+                  : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]"
+              }`}
+            >
+              Finanças
+              {financas.data.length > 0 && (
+                <span className="ml-2 text-[10px] opacity-60">{financas.data.length}</span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("pessoal")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                activeTab === "pessoal"
+                  ? "bg-accent/12 text-accent shadow-[inset_0_0_20px_rgba(212,165,116,0.05)]"
+                  : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]"
+              }`}
+            >
+              Pessoal
+              {pessoal.data.length > 0 && (
+                <span className="ml-2 text-[10px] opacity-60">{pessoal.data.length}</span>
+              )}
+            </button>
+          </div>
+
+          {bothEmpty && !allErrors && (
+            <div className="glass-card p-8 text-center text-zinc-600 text-sm">
+              Nenhum dado encontrado nas abas de finanças.
+            </div>
+          )}
+
+          {activeData.length > 0 && (
+            <DataTable data={activeData} columns={autoColumns} />
+          )}
+        </>
+      )}
     </>
   );
 }

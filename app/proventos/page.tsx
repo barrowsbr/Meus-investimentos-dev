@@ -8,6 +8,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  CartesianGrid,
 } from "recharts";
 import { Coins, Calendar, TrendingUp } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
@@ -18,6 +19,15 @@ import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+
+const TOOLTIP_STYLE = {
+  background: "#18181b",
+  border: "1px solid #27272a",
+  borderRadius: 12,
+  color: "#fafafa",
+  fontSize: 13,
+  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+};
 
 export default function ProventosPage() {
   const { data: portfolio, loading: portfolioLoading } = usePortfolio();
@@ -108,54 +118,52 @@ export default function ProventosPage() {
         description="Dividendos, JCP e rendimentos recebidos"
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <MetricCard
-          label="Total Recebido"
-          value={brl(metrics.total)}
-          icon={<Coins size={18} />}
-        />
-        <MetricCard
-          label="Média Mensal"
-          value={brl(metrics.avgMonth)}
-          icon={<Calendar size={18} />}
-        />
-        <MetricCard
-          label="Ativos Pagadores"
-          value={String(metrics.tickers)}
-          icon={<TrendingUp size={18} />}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-8">
+        <div className="animate-fade-in">
+          <MetricCard
+            label="Total Recebido"
+            value={brl(metrics.total)}
+            icon={<Coins size={18} />}
+            glowColor="#d4a574"
+          />
+        </div>
+        <div className="animate-fade-in animate-delay-1">
+          <MetricCard
+            label="Média Mensal"
+            value={brl(metrics.avgMonth)}
+            icon={<Calendar size={18} />}
+            glowColor="#3b82f6"
+          />
+        </div>
+        <div className="animate-fade-in animate-delay-2">
+          <MetricCard
+            label="Ativos Pagadores"
+            value={String(metrics.tickers)}
+            icon={<TrendingUp size={18} />}
+            glowColor="#10b981"
+          />
+        </div>
       </div>
 
-      <div className="glass-card p-5 mb-6">
-        <h2 className="text-sm font-medium text-zinc-400 mb-4">
+      <div className="glass-card p-5 mb-6 animate-fade-in">
+        <h2 className="section-title mb-4">
+          <Coins size={15} />
           Proventos Mensais (últimos 24 meses)
         </h2>
         {monthlyChart.length > 0 ? (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={monthlyChart}>
-              <XAxis
-                dataKey="month"
-                tick={{ fill: "#71717a", fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fill: "#71717a", fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#18181b",
-                  border: "1px solid #27272a",
-                  borderRadius: 12,
-                  color: "#fafafa",
-                  fontSize: 13,
-                }}
-                formatter={(v: number) => [brl(v), "Total"]}
-              />
-              <Bar dataKey="total" fill="#d4a574" radius={[6, 6, 0, 0]} />
+              <defs>
+                <linearGradient id="gradProv" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#d4a574" stopOpacity={1} />
+                  <stop offset="100%" stopColor="#d4a574" stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
+              <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
+              <Bar dataKey="total" fill="url(#gradProv)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

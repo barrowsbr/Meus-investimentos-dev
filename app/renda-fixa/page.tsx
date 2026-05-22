@@ -110,33 +110,35 @@ export default function RendaFixaPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <MetricCard
-          label="Posição Atual"
-          value={brl(metrics.totalPosicao)}
-          sub={`${posicoes.data.length} títulos`}
-          icon={<PiggyBank size={18} />}
-        />
-        <MetricCard
-          label="Total Investido"
-          value={brl(metrics.totalCompras)}
-          sub={`${transacoes.data.length} transações`}
-          icon={<Landmark size={18} />}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-8">
+        <div className="animate-fade-in">
+          <MetricCard
+            label="Posição Atual"
+            value={brl(metrics.totalPosicao)}
+            sub={`${posicoes.data.length} títulos`}
+            icon={<PiggyBank size={18} />}
+            glowColor="#8b5cf6"
+          />
+        </div>
+        <div className="animate-fade-in animate-delay-1">
+          <MetricCard
+            label="Total Investido"
+            value={brl(metrics.totalCompras)}
+            sub={`${transacoes.data.length} transações`}
+            icon={<Landmark size={18} />}
+            glowColor="#d4a574"
+          />
+        </div>
       </div>
 
       {posicoes.data.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-zinc-400 mb-3">
-            Posições Abertas
-          </h2>
+        <div className="mb-6 animate-fade-in">
+          <h2 className="section-title mb-3">Posições Abertas</h2>
           <DataTable data={posicoes.data} columns={posColumns} />
         </div>
       )}
 
-      <h2 className="text-sm font-medium text-zinc-400 mb-3">
-        Histórico de Transações
-      </h2>
+      <h2 className="section-title mb-3">Histórico de Transações</h2>
       <DataTable data={transacoes.data} columns={txColumns} />
     </>
   );

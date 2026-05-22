@@ -7,8 +7,10 @@ interface Props {
 
 export default function ErrorAlert({ message, tab }: Props) {
   return (
-    <div className="glass-card border-red-500/30 p-5 flex items-start gap-3">
-      <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
+    <div className="glass-card border-red-500/20 p-5 flex items-start gap-3 animate-fade-in">
+      <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+        <AlertTriangle size={16} className="text-red-400" />
+      </div>
       <div>
         <p className="text-red-400 font-medium text-sm">
           Erro ao carregar dados{tab ? ` (${tab})` : ""}

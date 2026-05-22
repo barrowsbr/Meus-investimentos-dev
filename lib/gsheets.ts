@@ -12,14 +12,45 @@ function serialToDate(serial: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+let _sheetNamesCache: string[] | null = null;
+
+export async function listSheetNames(): Promise<string[]> {
+  if (_sheetNamesCache) return _sheetNamesCache;
+  const sheets = google.sheets({ version: "v4", auth: API_KEY });
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: "sheets.properties.title",
+  });
+  _sheetNamesCache = meta.data.sheets?.map((s) => s.properties?.title ?? "") ?? [];
+  return _sheetNamesCache;
+}
+
+async function resolveTabName(tabName: string): Promise<string> {
+  const names = await listSheetNames();
+  if (names.includes(tabName)) return tabName;
+  const lower = tabName.toLowerCase().replace(/[_\s]/g, "");
+  for (const name of names) {
+    const norm = name.toLowerCase().replace(/[_\s]/g, "")
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (norm === lower) return name;
+  }
+  for (const name of names) {
+    const norm = name.toLowerCase().replace(/[_\s]/g, "")
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (norm.includes(lower) || lower.includes(norm)) return name;
+  }
+  return tabName;
+}
+
 export async function fetchTab(
   tabName: string
 ): Promise<Record<string, unknown>[]> {
   const sheets = google.sheets({ version: "v4", auth: API_KEY });
+  const resolved = await resolveTabName(tabName);
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: tabName,
+    range: resolved,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
 

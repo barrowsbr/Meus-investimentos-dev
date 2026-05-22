@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   title: "Meus Investimentos",
   description: "Dashboard de investimentos pessoal",
   manifest: "/manifest.json",
-  themeColor: "#09090b",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
