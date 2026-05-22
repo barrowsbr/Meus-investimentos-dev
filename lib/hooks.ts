@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { PortfolioSummary } from "./portfolio";
+import type { PortfolioSnapshot } from "./portfolio";
 import type { FxRates } from "./cotacoes";
 
 export function useSheetData<T = Record<string, unknown>>(tab: string) {
@@ -49,8 +49,7 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
   return { data, loading, error };
 }
 
-export interface PortfolioResponse extends PortfolioSummary {
-  proventosMensais: Record<string, number>;
+export interface PortfolioResponse extends PortfolioSnapshot {
   fx: FxRates;
   timestamp: string;
   tickerMap: Record<string, string>;

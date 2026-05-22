@@ -15,6 +15,7 @@ import {
 import { Wallet, TrendingUp, Landmark, Coins, DollarSign, BarChart3 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, shortMonth } from "@/lib/format";
+import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -39,8 +40,8 @@ export default function Dashboard() {
   const allocation = useMemo(() => {
     if (!data?.positions) return [];
     return data.positions
-      .filter((p) => p.valorAtualBRL > 0)
-      .map((p) => ({ name: p.ticker, value: p.valorAtualBRL }))
+      .filter((p) => isRendaVariavel(p.setor) && p.valorAtualBRL > 1)
+      .map((p) => ({ name: p.ticker, value: p.valorAtualBRL, setor: p.setor }))
       .slice(0, 10);
   }, [data]);
 
@@ -52,6 +53,8 @@ export default function Dashboard() {
     ? `+${data.lucroPct.toFixed(1)}%`
     : `${data.lucroPct.toFixed(1)}%`;
 
+  const rvPositions = data.positions.filter((p) => isRendaVariavel(p.setor));
+
   return (
     <>
       <PageHeader
@@ -62,23 +65,23 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <MetricCard
           label="Patrimônio Total"
-          value={brl(data.patrimonioBRL)}
-          sub="Renda variável + fixa"
+          value={brl(data.totalPatrimonioBRL)}
+          sub="RV + RF"
           icon={<Wallet size={18} />}
         />
         <MetricCard
           label="Renda Variável"
-          value={brl(data.totalAtualBRL)}
-          sub={`${data.positions.length} ativos`}
+          value={brl(data.rvPatrimonioBRL)}
+          sub={`${rvPositions.length} ativos`}
           icon={<BarChart3 size={18} />}
         />
         <MetricCard
           label="Renda Fixa"
-          value={brl(data.totalRendaFixaBRL)}
+          value={brl(data.rfPatrimonioBRL)}
           icon={<Landmark size={18} />}
         />
         <MetricCard
-          label="Lucro/Prejuízo"
+          label="Lucro RV"
           value={brl(data.lucroBRL)}
           sub={lucroPctStr}
           icon={<TrendingUp size={18} />}
@@ -89,8 +92,9 @@ export default function Dashboard() {
           icon={<Coins size={18} />}
         />
         <MetricCard
-          label="Dólar (USD/BRL)"
+          label="Dólar"
           value={`R$ ${data.usdbrl.toFixed(2)}`}
+          sub={`EUR ${data.eurbrl.toFixed(2)} | CAD ${data.cadbrl.toFixed(2)}`}
           icon={<DollarSign size={18} />}
         />
       </div>
@@ -135,7 +139,7 @@ export default function Dashboard() {
 
         <div className="glass-card p-5">
           <h2 className="text-sm font-medium text-zinc-400 mb-4">
-            Alocação (valor atual)
+            Alocação RV (valor atual)
           </h2>
           {allocation.length > 0 ? (
             <>
@@ -187,33 +191,35 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Posições */}
+      {/* Posições RV */}
       <div className="glass-card p-5">
         <h2 className="text-sm font-medium text-zinc-400 mb-4">
-          Posições Abertas
+          Posições — Renda Variável
         </h2>
-        {data.positions.length > 0 ? (
+        {rvPositions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Ativo</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Setor</th>
                   <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Qtd</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Preço Atual</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Valor Atual</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Preço</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Valor (R$)</th>
                   <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (R$)</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (%)</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">%</th>
                 </tr>
               </thead>
               <tbody>
-                {data.positions.map((p) => {
-                  const lucroCor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                {rvPositions.map((p) => {
+                  const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                   return (
                     <tr key={p.ticker} className="border-b border-border/30">
                       <td className="px-3 py-2.5">
                         <span className="font-medium">{p.ticker}</span>
                         <span className="text-zinc-600 text-xs ml-2">{p.moeda}</span>
                       </td>
+                      <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.setor}</td>
                       <td className="px-3 py-2.5 text-right text-zinc-400">
                         {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
                       </td>
@@ -225,10 +231,10 @@ export default function Dashboard() {
                       <td className="px-3 py-2.5 text-right font-medium">
                         {brl(p.valorAtualBRL)}
                       </td>
-                      <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                      <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>
                         {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
                       </td>
-                      <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                      <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>
                         {p.lucroPct !== null
                           ? `${p.lucroPct >= 0 ? "+" : ""}${p.lucroPct.toFixed(1)}%`
                           : "—"}
@@ -240,7 +246,7 @@ export default function Dashboard() {
             </table>
           </div>
         ) : (
-          <p className="text-zinc-600 text-sm">Nenhuma posição aberta.</p>
+          <p className="text-zinc-600 text-sm">Nenhuma posição.</p>
         )}
       </div>
     </>
