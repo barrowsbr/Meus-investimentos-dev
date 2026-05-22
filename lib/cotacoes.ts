@@ -46,7 +46,29 @@ export function yahooTicker(ticker: string, moeda: string, corretora: string): s
   return t;
 }
 
-// --- FX via AwesomeAPI ---
+// --- FX: Yahoo Finance (primary) + AwesomeAPI (fallback) ---
+
+async function fetchFxYahoo(): Promise<FxRates> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const yahooFinance: any = (await import("yahoo-finance2")).default;
+
+  const fxTickers = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
+  const fx = { ...DEFAULTS_FX };
+
+  const results = await Promise.all(
+    fxTickers.map((t) => yahooFinance.quote(t).catch(() => null))
+  );
+
+  for (const q of results) {
+    if (!q?.symbol || q.regularMarketPrice == null) continue;
+    const p = q.regularMarketPrice;
+    if (q.symbol === "BRL=X") fx.USDBRL = p;
+    if (q.symbol === "EURBRL=X") fx.EURBRL = p;
+    if (q.symbol === "CADBRL=X") fx.CADBRL = p;
+    if (q.symbol === "GBPBRL=X") fx.GBPBRL = p;
+  }
+  return fx;
+}
 
 async function fetchFxAwesome(): Promise<FxRates> {
   const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL");
@@ -62,9 +84,13 @@ async function fetchFxAwesome(): Promise<FxRates> {
 
 export async function fetchFxRates(): Promise<FxRates> {
   try {
-    return await fetchFxAwesome();
+    return await fetchFxYahoo();
   } catch {
-    return DEFAULTS_FX;
+    try {
+      return await fetchFxAwesome();
+    } catch {
+      return DEFAULTS_FX;
+    }
   }
 }
 
