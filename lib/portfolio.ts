@@ -3,8 +3,6 @@ import type { Quote, FxRates } from "./cotacoes";
 import { fxToBRL } from "./cotacoes";
 import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaEfetiva } from "./sectors";
 
-// --- Types ---
-
 interface Lote {
   qty: number;
   pm: number;
@@ -34,10 +32,13 @@ export interface Position {
   custoTotalBRL: number;
   lucroBRL: number | null;
   lucroPct: number | null;
+  ganhoAtivoBRL: number | null;
+  ganhoCambioBRL: number | null;
   dayChange: number | null;
   dayChangePct: number | null;
   dayChangeBRL: number | null;
   fatorBRL: number;
+  fatorCusto: number;
 }
 
 export interface PortfolioSnapshot {
@@ -49,14 +50,16 @@ export interface PortfolioSnapshot {
   proventosMensais: Record<string, number>;
   lucroBRL: number;
   lucroPct: number;
+  ganhoAtivoTotalBRL: number;
+  ganhoCambioTotalBRL: number;
   usdbrl: number;
   eurbrl: number;
   cadbrl: number;
+  exposicaoCambial: Record<string, number>;
+  setorAlocacao: Record<string, number>;
 }
 
 type Row = Record<string, unknown>;
-
-// --- Helpers ---
 
 function getVal(row: Row, ...keys: string[]): unknown {
   for (const k of keys) {
@@ -102,11 +105,8 @@ function getData(row: Row): number {
   return new Date(s).getTime() || 0;
 }
 
-// --- FIFO Portfolio Calculator ---
-
 export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInterna> {
   const portfolio = new Map<string, PosicaoInterna>();
-
   const sorted = [...transacoes].sort((a, b) => getData(a) - getData(b));
 
   for (const row of sorted) {
@@ -155,12 +155,11 @@ export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInte
   return portfolio;
 }
 
-// --- Enrich positions with market data ---
-
 export function enriquecerPosicoes(
   portfolio: Map<string, PosicaoInterna>,
   quotes: Record<string, Quote>,
-  fx: FxRates
+  fxAtual: FxRates,
+  fxCusto: FxRates
 ): Position[] {
   const positions: Position[] = [];
 
@@ -172,7 +171,8 @@ export function enriquecerPosicoes(
     const custoMedio = qtdTotal > 0 ? custoTotal / qtdTotal : 0;
     const setor = identificarSetor(ticker);
     const moeda = getMoedaEfetiva(ticker, pos.moeda, setor);
-    const fator = fxToBRL(moeda, fx);
+    const fatorAtual = fxToBRL(moeda, fxAtual);
+    const fatorCusto = fxToBRL(moeda, fxCusto);
 
     const quote = quotes[ticker];
     const precoAtual = quote?.price ?? null;
@@ -186,7 +186,7 @@ export function enriquecerPosicoes(
 
     if (precoAtual !== null) {
       valorAtual = qtdTotal * precoAtual;
-      const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fx) : fator;
+      const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
       valorAtualBRL = valorAtual * fatorQuote;
 
       if (quote) {
@@ -195,14 +195,25 @@ export function enriquecerPosicoes(
         dayChangeBRL = dayChange * fatorQuote;
       }
     } else {
-      valorAtualBRL = custoTotal * fator;
+      valorAtualBRL = custoTotal * fatorAtual;
     }
 
-    const custoTotalBRL = custoTotal * fator;
+    const custoTotalBRL = custoTotal * fatorCusto;
     const lucroBRL = precoAtual !== null ? valorAtualBRL - custoTotalBRL : null;
     const lucroPct = lucroBRL !== null && custoTotalBRL > 0
       ? (lucroBRL / custoTotalBRL) * 100
       : null;
+
+    let ganhoAtivoBRL: number | null = null;
+    let ganhoCambioBRL: number | null = null;
+    if (precoAtual !== null && moeda !== "BRL") {
+      const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
+      ganhoAtivoBRL = (precoAtual - custoMedio) * qtdTotal * fatorQuote;
+      ganhoCambioBRL = custoTotal * (fatorAtual - fatorCusto);
+    } else if (precoAtual !== null) {
+      ganhoAtivoBRL = lucroBRL;
+      ganhoCambioBRL = 0;
+    }
 
     positions.push({
       ticker,
@@ -220,18 +231,19 @@ export function enriquecerPosicoes(
       custoTotalBRL,
       lucroBRL,
       lucroPct,
+      ganhoAtivoBRL,
+      ganhoCambioBRL,
       dayChange,
       dayChangePct,
       dayChangeBRL,
-      fatorBRL: fator,
+      fatorBRL: fatorAtual,
+      fatorCusto,
     });
   }
 
   positions.sort((a, b) => b.valorAtualBRL - a.valorAtualBRL);
   return positions;
 }
-
-// --- Proventos ---
 
 export function calcularProventosBRL(
   proventos: Row[],
@@ -259,8 +271,6 @@ export function calcularProventosBRL(
   return { totalBRL, porMes };
 }
 
-// --- Renda Fixa (fixa_aberta) ---
-
 export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
   let totalBRL = 0;
   for (const row of fixaAberta) {
@@ -272,41 +282,51 @@ export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
   return totalBRL;
 }
 
-// --- Portfolio Snapshot ---
-
 export function calcularSnapshot(
   transacoes: Row[],
   proventos: Row[],
   fixaAberta: Row[],
   quotes: Record<string, Quote>,
-  fx: FxRates
+  fxAtual: FxRates,
+  fxCusto: FxRates
 ): PortfolioSnapshot {
   const portfolio = calcularCarteiraFIFO(transacoes);
-  const positions = enriquecerPosicoes(portfolio, quotes, fx);
-  const prov = calcularProventosBRL(proventos, fx);
-  const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fx);
+  const positions = enriquecerPosicoes(portfolio, quotes, fxAtual, fxCusto);
+  const prov = calcularProventosBRL(proventos, fxAtual);
+  const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
-  // RV: tudo exceto setores de renda fixa, posições > R$1
-  const rvPatrimonioBRL = positions
-    .filter((p) => isRendaVariavel(p.setor) && p.valorAtualBRL > 1.0)
+  const rvPositions = positions.filter((p) => isRendaVariavel(p.setor));
+  const rvPatrimonioBRL = rvPositions
+    .filter((p) => p.valorAtualBRL > 1.0)
     .reduce((sum, p) => sum + p.valorAtualBRL, 0);
 
-  // RF de posições (SHV, BIL, etc.)
   const rfDePosicoes = positions
     .filter((p) => isRendaFixa(p.setor))
     .reduce((sum, p) => sum + p.valorAtualBRL, 0);
 
-  // RF total = fixa_aberta + posições RF
   const rfPatrimonioBRL = rfFixaAberta + rfDePosicoes;
-
   const totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL;
 
-  // Lucro total (RV apenas)
-  const rvPositions = positions.filter((p) => isRendaVariavel(p.setor));
   const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
   const lucroBRL = totalAtualRV - totalInvestidoRV;
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
+
+  const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
+  const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+
+  const exposicaoCambial: Record<string, number> = {};
+  for (const p of positions) {
+    if (p.valorAtualBRL < 1) continue;
+    const moedaKey = p.moeda === "BRL" ? "BRL" : p.moeda;
+    exposicaoCambial[moedaKey] = (exposicaoCambial[moedaKey] ?? 0) + p.valorAtualBRL;
+  }
+
+  const setorAlocacao: Record<string, number> = {};
+  for (const p of positions) {
+    if (p.valorAtualBRL < 1) continue;
+    setorAlocacao[p.setor] = (setorAlocacao[p.setor] ?? 0) + p.valorAtualBRL;
+  }
 
   return {
     positions,
@@ -317,8 +337,12 @@ export function calcularSnapshot(
     proventosMensais: prov.porMes,
     lucroBRL,
     lucroPct,
-    usdbrl: fx.USDBRL,
-    eurbrl: fx.EURBRL,
-    cadbrl: fx.CADBRL,
+    ganhoAtivoTotalBRL,
+    ganhoCambioTotalBRL,
+    usdbrl: fxAtual.USDBRL,
+    eurbrl: fxAtual.EURBRL,
+    cadbrl: fxAtual.CADBRL,
+    exposicaoCambial,
+    setorAlocacao,
   };
 }

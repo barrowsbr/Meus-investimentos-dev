@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
+import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function GET() {
   try {
-    const [transacoes, proventos, fixaAberta] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, lbRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos"),
       fetchTab("fixa_aberta"),
+      fetchTab("cambio").catch(() => []),
+      fetchTab("p_tax").catch(() => []),
+      fetchTab("lb_historic").catch(() => []),
     ]);
 
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();
@@ -33,15 +37,35 @@ export async function GET() {
     }));
 
     const cotacoes = await fetchCotacoes(tickers);
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, cotacoes.fx);
+    const fxAtual = cotacoes.fx;
+
+    const cambio = calcularCambioMetrics(cambioRows, fxAtual);
+    const fxCusto = buildPmFxRates(cambio);
+    const ptax = parsePtax(ptaxRows);
+    const lbHistoric = parseLbHistoric(lbRows);
+
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
 
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;
 
     return NextResponse.json({
       ...snapshot,
-      fx: cotacoes.fx,
+      fx: fxAtual,
       fxSource: cotacoes.fxSource,
+      fxCusto,
+      cambio: {
+        pmDolar: cambio.pmDolar,
+        pmEuro: cambio.pmEuro,
+        pmCad: cambio.pmCad,
+        pmGbp: cambio.pmGbp,
+        totalEnviadoBRL: cambio.totalEnviadoBRL,
+        totalRecebidoUSD: cambio.totalRecebidoUSD,
+        ganhoCambialUSD_BRL: cambio.ganhoCambialUSD_BRL,
+        operacoes: cambio.operacoes,
+      },
+      ptax,
+      lbHistoric,
       timestamp: cotacoes.timestamp,
       quotesFound,
       quotesTotal,

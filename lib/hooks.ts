@@ -49,8 +49,37 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
   return { data, loading, error };
 }
 
+export interface CambioInfo {
+  pmDolar: number;
+  pmEuro: number;
+  pmCad: number;
+  pmGbp: number;
+  totalEnviadoBRL: number;
+  totalRecebidoUSD: number;
+  ganhoCambialUSD_BRL: number;
+  operacoes: number;
+}
+
+export interface PtaxInfo {
+  USDBRL: number;
+  EURBRL: number;
+  data: string;
+}
+
+export interface LbHistoricPoint {
+  data: string;
+  patrimonio: number;
+  rv: number;
+  rf: number;
+}
+
 export interface PortfolioResponse extends PortfolioSnapshot {
   fx: FxRates;
+  fxSource: string;
+  fxCusto: FxRates;
+  cambio: CambioInfo;
+  ptax: PtaxInfo | null;
+  lbHistoric: LbHistoricPoint[];
   timestamp: string;
   tickerMap: Record<string, string>;
 }

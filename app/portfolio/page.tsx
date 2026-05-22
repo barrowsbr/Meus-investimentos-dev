@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { TrendingUp, TrendingDown, Briefcase, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight, DollarSign } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { brl, currency } from "@/lib/format";
+import { brl, compactBRL, pct, currency } from "@/lib/format";
 import { isRendaVariavel, isRendaFixa } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -28,44 +28,55 @@ export default function PortfolioPage() {
   if (error) return <ErrorAlert message={error} tab="cotacoes" />;
   if (!data || !metrics) return <ErrorAlert message="Dados não disponíveis" />;
 
-  const lucroPctStr = data.lucroPct >= 0
-    ? `+${data.lucroPct.toFixed(1)}%`
-    : `${data.lucroPct.toFixed(1)}%`;
+  const lucroPctStr = pct(data.lucroPct);
+  const hasUSD = metrics.rv.some((p) => p.moeda !== "BRL");
 
   return (
     <>
       <PageHeader
         title="Portfolio"
-        description="Posições abertas — FIFO com cotação em tempo real"
+        description="Posições abertas — FIFO com PM do dólar e cotação em tempo real"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6">
+        <MetricCard label="Investido (RV)" value={compactBRL(metrics.totalInvestido)} sub="Custo com PM do dólar" icon={<Briefcase size={18} />} glowColor="#d4a574" />
+        <MetricCard label="Valor Atual (RV)" value={compactBRL(data.rvPatrimonioBRL)} sub={`${metrics.rv.length} ativos`} icon={<Target size={18} />} glowColor="#3b82f6" />
         <MetricCard
-          label="Investido (RV)"
-          value={brl(metrics.totalInvestido)}
-          icon={<Briefcase size={18} />}
-        />
-        <MetricCard
-          label="Valor Atual (RV)"
-          value={brl(data.rvPatrimonioBRL)}
-          sub={`${metrics.rv.length} ativos`}
-          icon={<Target size={18} />}
-        />
-        <MetricCard
-          label="Lucro Não Realizado"
+          label="Lucro Total"
           value={brl(data.lucroBRL)}
           sub={lucroPctStr}
-          icon={<TrendingUp size={18} />}
+          icon={data.lucroBRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+          trend={data.lucroBRL >= 0 ? "up" : "down"}
+          glowColor={data.lucroBRL >= 0 ? "#4ade80" : "#f87171"}
         />
-        <MetricCard
-          label="Lucro Realizado"
-          value={brl(metrics.lucroRealizado)}
-          sub={`${metrics.posComLucro} no lucro, ${metrics.posSemLucro} no prejuízo`}
-          icon={<TrendingDown size={18} />}
-        />
+        <MetricCard label="Ganho Ativo" value={brl(data.ganhoAtivoTotalBRL)} sub="Valorização dos ativos" icon={<TrendingUp size={18} />} glowColor="#06b6d4" compact />
+        <MetricCard label="Ganho Câmbio" value={brl(data.ganhoCambioTotalBRL)} sub="Variação cambial" icon={<ArrowLeftRight size={18} />} trend={data.ganhoCambioTotalBRL >= 0 ? "up" : "down"} glowColor="#10b981" compact />
+        <MetricCard label="Lucro Realizado" value={brl(metrics.lucroRealizado)} sub={`${metrics.posComLucro} ganho, ${metrics.posSemLucro} perda`} icon={<DollarSign size={18} />} glowColor="#f59e0b" compact />
       </div>
 
-      {/* Renda Variável */}
+      {hasUSD && data.cambio && (
+        <div className="glass-card p-4 mb-6 flex flex-wrap gap-6 text-xs">
+          <div>
+            <span className="text-zinc-500">Spot USD/BRL</span>
+            <span className="text-zinc-200 font-medium ml-2">R$ {data.usdbrl.toFixed(4)}</span>
+          </div>
+          <div>
+            <span className="text-zinc-500">PM Dólar</span>
+            <span className="text-zinc-200 font-medium ml-2">R$ {data.cambio.pmDolar.toFixed(4)}</span>
+          </div>
+          {data.ptax && (
+            <div>
+              <span className="text-zinc-500">PTAX ({data.ptax.data})</span>
+              <span className="text-zinc-200 font-medium ml-2">R$ {data.ptax.USDBRL.toFixed(4)}</span>
+            </div>
+          )}
+          <div>
+            <span className="text-zinc-500">Fonte FX</span>
+            <span className="text-zinc-200 font-medium ml-2">{data.fxSource}</span>
+          </div>
+        </div>
+      )}
+
       <div className="glass-card p-5 mb-6">
         <h2 className="text-sm font-medium text-zinc-400 mb-4">Renda Variável</h2>
         <div className="overflow-x-auto">
@@ -81,39 +92,33 @@ export default function PortfolioPage() {
                 <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Atual</th>
                 <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro</th>
                 <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">%</th>
+                {hasUSD && <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">G.Ativo</th>}
+                {hasUSD && <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">G.Câmbio</th>}
               </tr>
             </thead>
             <tbody>
               {metrics.rv.map((p) => {
                 const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 return (
-                  <tr key={p.ticker} className="border-b border-border/30">
+                  <tr key={p.ticker} className="border-b border-border/30 hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5">
                       <span className="font-medium">{p.ticker}</span>
                       <span className="text-zinc-600 text-xs ml-1">{p.moeda}</span>
                     </td>
                     <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.setor}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">{p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">{currency(p.custoMedio, p.moeda)}</td>
                     <td className="px-3 py-2.5 text-right text-zinc-400">
-                      {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400">
-                      {currency(p.custoMedio, p.moeda)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400">
-                      {p.precoAtual !== null
-                        ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : "—"}
+                      {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">{brl(p.custoTotalBRL)}</td>
                     <td className="px-3 py-2.5 text-right font-medium">{brl(p.valorAtualBRL)}</td>
-                    <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>
-                      {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>
-                      {p.lucroPct !== null
-                        ? `${p.lucroPct >= 0 ? "+" : ""}${p.lucroPct.toFixed(1)}%`
-                        : "—"}
-                    </td>
+                    <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
+                    <td className={`px-3 py-2.5 text-right font-medium ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                    {hasUSD && <td className={`px-3 py-2.5 text-right text-xs ${corAtivo}`}>{p.ganhoAtivoBRL !== null ? brl(p.ganhoAtivoBRL) : "—"}</td>}
+                    {hasUSD && <td className={`px-3 py-2.5 text-right text-xs ${corCambio}`}>{p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? brl(p.ganhoCambioBRL) : "—"}</td>}
                   </tr>
                 );
               })}
@@ -123,19 +128,16 @@ export default function PortfolioPage() {
                 <td className="px-3 py-3" colSpan={5}>Total RV</td>
                 <td className="px-3 py-3 text-right">{brl(metrics.totalInvestido)}</td>
                 <td className="px-3 py-3 text-right">{brl(data.rvPatrimonioBRL)}</td>
-                <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>
-                  {brl(data.lucroBRL)}
-                </td>
-                <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>
-                  {data.lucroPct >= 0 ? "+" : ""}{data.lucroPct.toFixed(1)}%
-                </td>
+                <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
+                <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
+                {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoTotalBRL)}</td>}
+                {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCambioTotalBRL)}</td>}
               </tr>
             </tfoot>
           </table>
         </div>
       </div>
 
-      {/* Renda Fixa (posições com cotação) */}
       {metrics.rf.length > 0 && (
         <div className="glass-card p-5">
           <h2 className="text-sm font-medium text-zinc-400 mb-4">Renda Fixa (com cotação)</h2>
@@ -152,19 +154,15 @@ export default function PortfolioPage() {
               </thead>
               <tbody>
                 {metrics.rf.map((p) => (
-                  <tr key={p.ticker} className="border-b border-border/30">
+                  <tr key={p.ticker} className="border-b border-border/30 hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5">
                       <span className="font-medium">{p.ticker}</span>
                       <span className="text-zinc-600 text-xs ml-1">{p.moeda}</span>
                     </td>
                     <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.setor}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">{p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}</td>
                     <td className="px-3 py-2.5 text-right text-zinc-400">
-                      {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400">
-                      {p.precoAtual !== null
-                        ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : "—"}
+                      {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium">{brl(p.valorAtualBRL)}</td>
                   </tr>

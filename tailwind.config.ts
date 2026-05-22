@@ -16,6 +16,8 @@ const config: Config = {
         "accent-light": "#e8c9a0",
         positive: "#4ade80",
         negative: "#f87171",
+        info: "#60a5fa",
+        warning: "#fbbf24",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
