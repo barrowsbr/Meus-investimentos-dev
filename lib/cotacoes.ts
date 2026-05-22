@@ -19,6 +19,7 @@ export interface FxRates {
 export interface CotacoesData {
   quotes: Record<string, Quote>;
   fx: FxRates;
+  fxSource: string;
   timestamp: string;
   errors: string[];
 }
@@ -46,7 +47,15 @@ export function yahooTicker(ticker: string, moeda: string, corretora: string): s
   return t;
 }
 
-// --- FX: Yahoo Finance (primary) + AwesomeAPI (fallback) ---
+// --- FX rate sources with proper fallback chain ---
+
+const FX_SYMBOL_MAP: Record<string, keyof FxRates> = {
+  "BRL=X": "USDBRL",
+  "USDBRL=X": "USDBRL",
+  "EURBRL=X": "EURBRL",
+  "CADBRL=X": "CADBRL",
+  "GBPBRL=X": "GBPBRL",
+};
 
 async function fetchFxYahoo(): Promise<FxRates> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,6 +63,7 @@ async function fetchFxYahoo(): Promise<FxRates> {
 
   const fxTickers = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
   const fx = { ...DEFAULTS_FX };
+  let updated = 0;
 
   const results = await Promise.all(
     fxTickers.map((t) => yahooFinance.quote(t).catch(() => null))
@@ -61,12 +71,14 @@ async function fetchFxYahoo(): Promise<FxRates> {
 
   for (const q of results) {
     if (!q?.symbol || q.regularMarketPrice == null) continue;
-    const p = q.regularMarketPrice;
-    if (q.symbol === "BRL=X") fx.USDBRL = p;
-    if (q.symbol === "EURBRL=X") fx.EURBRL = p;
-    if (q.symbol === "CADBRL=X") fx.CADBRL = p;
-    if (q.symbol === "GBPBRL=X") fx.GBPBRL = p;
+    const key = FX_SYMBOL_MAP[q.symbol];
+    if (key) {
+      fx[key] = q.regularMarketPrice;
+      updated++;
+    }
   }
+
+  if (updated === 0) throw new Error("Yahoo FX: no rates returned");
   return fx;
 }
 
@@ -74,24 +86,47 @@ async function fetchFxAwesome(): Promise<FxRates> {
   const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL");
   if (!res.ok) throw new Error(`AwesomeAPI HTTP ${res.status}`);
   const data = await res.json();
+  const fx: FxRates = {
+    USDBRL: parseFloat(data.USDBRL?.bid) || 0,
+    EURBRL: parseFloat(data.EURBRL?.bid) || 0,
+    GBPBRL: parseFloat(data.GBPBRL?.bid) || 0,
+    CADBRL: parseFloat(data.CADBRL?.bid) || 0,
+  };
+  if (fx.USDBRL === 0) throw new Error("AwesomeAPI: no USDBRL rate");
+  return fx;
+}
+
+async function fetchFxOpenExchangeRate(): Promise<FxRates> {
+  const res = await fetch("https://open.er-api.com/v6/latest/BRL");
+  if (!res.ok) throw new Error(`ExchangeRate-API HTTP ${res.status}`);
+  const data = await res.json();
+  const r = data.rates;
+  if (!r?.USD) throw new Error("ExchangeRate-API: no USD rate");
   return {
-    USDBRL: parseFloat(data.USDBRL?.bid) || DEFAULTS_FX.USDBRL,
-    EURBRL: parseFloat(data.EURBRL?.bid) || DEFAULTS_FX.EURBRL,
-    GBPBRL: parseFloat(data.GBPBRL?.bid) || DEFAULTS_FX.GBPBRL,
-    CADBRL: parseFloat(data.CADBRL?.bid) || DEFAULTS_FX.CADBRL,
+    USDBRL: 1 / r.USD,
+    EURBRL: 1 / r.EUR,
+    GBPBRL: 1 / r.GBP,
+    CADBRL: 1 / r.CAD,
   };
 }
 
-export async function fetchFxRates(): Promise<FxRates> {
-  try {
-    return await fetchFxYahoo();
-  } catch {
+export async function fetchFxRates(): Promise<{ fx: FxRates; fxSource: string }> {
+  const sources: [string, () => Promise<FxRates>][] = [
+    ["yahoo", fetchFxYahoo],
+    ["awesomeapi", fetchFxAwesome],
+    ["exchangerate-api", fetchFxOpenExchangeRate],
+  ];
+
+  for (const [name, fn] of sources) {
     try {
-      return await fetchFxAwesome();
+      const fx = await fn();
+      return { fx, fxSource: name };
     } catch {
-      return DEFAULTS_FX;
+      // try next source
     }
   }
+
+  return { fx: DEFAULTS_FX, fxSource: "defaults" };
 }
 
 // --- Quotes via yahoo-finance2 ---
@@ -209,8 +244,14 @@ export async function fetchCotacoes(
   const uniqueYahoo = [...new Set(yahooMap.values())];
 
   let fx: FxRates;
+  let fxSource = "defaults";
   try {
-    fx = await fetchFxRates();
+    const fxResult = await fetchFxRates();
+    fx = fxResult.fx;
+    fxSource = fxResult.fxSource;
+    if (fxSource === "defaults") {
+      errors.push("FX: todas as fontes falharam, usando valores padrão");
+    }
   } catch (e) {
     errors.push(`FX error: ${e instanceof Error ? e.message : String(e)}`);
     fx = DEFAULTS_FX;
@@ -237,6 +278,7 @@ export async function fetchCotacoes(
   return {
     quotes,
     fx,
+    fxSource,
     timestamp: new Date().toISOString(),
     errors,
   };
