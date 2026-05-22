@@ -1,117 +1,132 @@
 "use client";
 
 import { useMemo } from "react";
-import { Briefcase, TrendingUp, TrendingDown } from "lucide-react";
-import { useSheetData } from "@/lib/hooks";
-import { toNumber, brl, currency, formatDate } from "@/lib/format";
+import { TrendingUp, TrendingDown, Briefcase, Target } from "lucide-react";
+import { usePortfolio } from "@/lib/hooks";
+import { brl, currency } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
-import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
 export default function PortfolioPage() {
-  const { data, loading, error } = useSheetData("meus_ativos");
+  const { data, loading, error } = usePortfolio();
 
   const metrics = useMemo(() => {
-    let compras = 0;
-    let vendas = 0;
-    const corretoras = new Set<string>();
-
-    data.forEach((r) => {
-      const tipo = String(r["tipo de transação"] || r["tipo_de_transacao"] || "").toLowerCase();
-      const val = Math.abs(toNumber(r["valor líquido"] || r["valor_liquido"] || r["valor bruto"] || r["valor_bruto"]) || 0);
-      const corretora = String(r["corretora"] || "");
-      if (corretora) corretoras.add(corretora);
-
-      if (tipo.includes("compra") || tipo.includes("buy")) compras += val;
-      else if (tipo.includes("venda") || tipo.includes("sell")) vendas += val;
-    });
-
-    return { compras, vendas, corretoras: corretoras.size };
+    if (!data) return null;
+    const posComLucro = data.positions.filter((p) => (p.lucroBRL ?? 0) > 0).length;
+    const posSemLucro = data.positions.filter((p) => (p.lucroBRL ?? 0) < 0).length;
+    return { posComLucro, posSemLucro };
   }, [data]);
 
-  const columns = [
-    { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
-    {
-      key: "símbolo",
-      label: "Ticker",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["símbolo"] || row["simbolo"] || row["ticker"] || "—").toUpperCase(),
-    },
-    {
-      key: "tipo de transação",
-      label: "Tipo",
-      render: (_v: unknown, row: Record<string, unknown>) => {
-        const tipo = String(row["tipo de transação"] || row["tipo_de_transacao"] || "");
-        const isCompra = tipo.toLowerCase().includes("compra") || tipo.toLowerCase().includes("buy");
-        return (
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full ${
-              isCompra ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
-            }`}
-          >
-            {tipo}
-          </span>
-        );
-      },
-    },
-    {
-      key: "quantidade",
-      label: "Qtd",
-      align: "right" as const,
-      render: (v: unknown) => toNumber(v)?.toLocaleString("pt-BR") ?? "—",
-    },
-    {
-      key: "preço",
-      label: "Preço",
-      align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        currency(row["preço"] || row["preco"], String(row["moeda"] || "BRL")),
-    },
-    {
-      key: "valor líquido",
-      label: "Total",
-      align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        currency(
-          row["valor líquido"] || row["valor_liquido"] || row["valor bruto"] || row["valor_bruto"],
-          String(row["moeda"] || "BRL")
-        ),
-    },
-    { key: "moeda", label: "Moeda" },
-    { key: "corretora", label: "Corretora" },
-  ];
-
   if (loading) return <LoadingSpinner />;
-  if (error) return <ErrorAlert message={error} tab="meus_ativos" />;
+  if (error) return <ErrorAlert message={error} tab="cotacoes" />;
+  if (!data || !metrics) return <ErrorAlert message="Dados não disponíveis" />;
+
+  const lucroPctStr = data.lucroPct >= 0
+    ? `+${data.lucroPct.toFixed(1)}%`
+    : `${data.lucroPct.toFixed(1)}%`;
 
   return (
     <>
       <PageHeader
         title="Portfolio"
-        description="Todas as transações de ativos"
+        description="Posições abertas com cotação em tempo real"
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
-          label="Total Compras"
-          value={brl(metrics.compras)}
+          label="Valor Investido"
+          value={brl(data.totalInvestidoBRL)}
+          icon={<Briefcase size={18} />}
+        />
+        <MetricCard
+          label="Valor Atual"
+          value={brl(data.totalAtualBRL)}
+          sub={`${data.positions.length} ativos`}
+          icon={<Target size={18} />}
+        />
+        <MetricCard
+          label="Lucro/Prejuízo"
+          value={brl(data.lucroBRL)}
+          sub={lucroPctStr}
           icon={<TrendingUp size={18} />}
         />
         <MetricCard
-          label="Total Vendas"
-          value={brl(metrics.vendas)}
+          label="Ativos"
+          value={`${metrics.posComLucro} +  / ${metrics.posSemLucro} -`}
+          sub={`${metrics.posComLucro} no lucro, ${metrics.posSemLucro} no prejuízo`}
           icon={<TrendingDown size={18} />}
-        />
-        <MetricCard
-          label="Corretoras"
-          value={String(metrics.corretoras)}
-          icon={<Briefcase size={18} />}
         />
       </div>
 
-      <DataTable data={data} columns={columns} />
+      <div className="glass-card p-5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Ativo</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Corretora</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Qtd</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Custo Médio</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Preço Atual</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Investido (R$)</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Atual (R$)</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (R$)</th>
+                <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.positions.map((p) => {
+                const lucroCor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                return (
+                  <tr key={p.ticker} className="border-b border-border/30">
+                    <td className="px-3 py-2.5">
+                      <span className="font-medium">{p.ticker}</span>
+                      <span className="text-zinc-600 text-xs ml-2">{p.moeda}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-zinc-400 text-xs">{p.corretora}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">
+                      {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">
+                      {currency(p.custoMedio, p.moeda)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400">
+                      {p.precoAtual !== null
+                        ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">{brl(p.custoTotalBRL)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium">{brl(p.valorAtualBRL)}</td>
+                    <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                      {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                      {p.lucroPct !== null
+                        ? `${p.lucroPct >= 0 ? "+" : ""}${p.lucroPct.toFixed(1)}%`
+                        : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-border font-medium">
+                <td className="px-3 py-3" colSpan={5}>Total</td>
+                <td className="px-3 py-3 text-right">{brl(data.totalInvestidoBRL)}</td>
+                <td className="px-3 py-3 text-right">{brl(data.totalAtualBRL)}</td>
+                <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>
+                  {brl(data.lucroBRL)}
+                </td>
+                <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>
+                  {data.lucroPct >= 0 ? "+" : ""}{data.lucroPct.toFixed(1)}%
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </>
   );
 }

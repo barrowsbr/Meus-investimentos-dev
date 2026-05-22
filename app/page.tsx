@@ -12,108 +12,45 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Briefcase, Coins, Landmark, ArrowLeftRight } from "lucide-react";
-import { useSheetData } from "@/lib/hooks";
-import { toNumber, brl, formatDate, shortMonth } from "@/lib/format";
+import { Wallet, TrendingUp, Landmark, Coins, DollarSign, BarChart3 } from "lucide-react";
+import { usePortfolio } from "@/lib/hooks";
+import { brl, shortMonth } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
 const COLORS = [
-  "#d4a574",
-  "#8b5cf6",
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#06b6d4",
-  "#ec4899",
-  "#84cc16",
-  "#f97316",
+  "#d4a574", "#8b5cf6", "#3b82f6", "#10b981", "#f59e0b",
+  "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#f97316",
 ];
 
 export default function Dashboard() {
-  const ativos = useSheetData("meus_ativos");
-  const proventos = useSheetData("meus_proventos");
-  const fixaAberta = useSheetData("fixa_aberta");
-  const cambio = useSheetData("cambio");
-
-  const loading =
-    ativos.loading || proventos.loading || fixaAberta.loading || cambio.loading;
-
-  const errors = [
-    ativos.error && `meus_ativos: ${ativos.error}`,
-    proventos.error && `meus_proventos: ${proventos.error}`,
-    fixaAberta.error && `fixa_aberta: ${fixaAberta.error}`,
-    cambio.error && `cambio: ${cambio.error}`,
-  ].filter(Boolean) as string[];
-
-  const metrics = useMemo(() => {
-    const totalInvestido = ativos.data.reduce((sum, r) => {
-      const tipo = String(r["tipo de transação"] || r["tipo_de_transacao"] || "").toLowerCase();
-      const val = Math.abs(toNumber(r["valor líquido"] || r["valor_liquido"] || r["valor bruto"] || r["valor_bruto"]) || 0);
-      if (tipo.includes("compra") || tipo.includes("buy")) return sum + val;
-      if (tipo.includes("venda") || tipo.includes("sell")) return sum - val;
-      return sum;
-    }, 0);
-
-    const totalProventos = proventos.data.reduce(
-      (sum, r) => sum + Math.abs(toNumber(r["valor"]) || 0),
-      0
-    );
-
-    const totalRF = fixaAberta.data.reduce((sum, r) => {
-      const val = toNumber(r["atual"] || r["valor_atual"] || r["saldo"] || r["valor atual"]) || 0;
-      return sum + val;
-    }, 0);
-
-    const totalCambio = cambio.data.reduce(
-      (sum, r) => sum + Math.abs(toNumber(r["valor_origem"] || r["valor entrada"]) || 0),
-      0
-    );
-
-    return { totalInvestido, totalProventos, totalRF, totalCambio };
-  }, [ativos.data, proventos.data, fixaAberta.data, cambio.data]);
+  const { data, loading, error } = usePortfolio();
 
   const monthlyDividends = useMemo(() => {
-    const byMonth: Record<string, number> = {};
-    proventos.data.forEach((r) => {
-      const dateStr = String(r["data"] || "");
-      const match = dateStr.match(/^(\d{4})-(\d{2})/);
-      if (!match) return;
-      const key = `${match[1]}-${match[2]}`;
-      byMonth[key] = (byMonth[key] || 0) + Math.abs(toNumber(r["valor"]) || 0);
-    });
-    return Object.entries(byMonth)
+    if (!data?.proventosMensais) return [];
+    return Object.entries(data.proventosMensais)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)
       .map(([month, total]) => ({ month: shortMonth(month), total }));
-  }, [proventos.data]);
+  }, [data]);
 
   const allocation = useMemo(() => {
-    const byTicker: Record<string, number> = {};
-    ativos.data.forEach((r) => {
-      const ticker = String(r["símbolo"] || r["simbolo"] || r["ticker"] || "?").toUpperCase();
-      const tipo = String(r["tipo de transação"] || r["tipo_de_transacao"] || "").toLowerCase();
-      const val = Math.abs(toNumber(r["valor líquido"] || r["valor_liquido"] || r["valor bruto"] || r["valor_bruto"]) || 0);
-      if (tipo.includes("compra") || tipo.includes("buy")) {
-        byTicker[ticker] = (byTicker[ticker] || 0) + val;
-      }
-    });
-    return Object.entries(byTicker)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+    if (!data?.positions) return [];
+    return data.positions
+      .filter((p) => p.valorAtualBRL > 0)
+      .map((p) => ({ name: p.ticker, value: p.valorAtualBRL }))
       .slice(0, 10);
-  }, [ativos.data]);
-
-  const recentTx = useMemo(() => {
-    return [...ativos.data]
-      .sort((a, b) => String(b["data"] || "").localeCompare(String(a["data"] || "")))
-      .slice(0, 5);
-  }, [ativos.data]);
+  }, [data]);
 
   if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorAlert message={error} />;
+  if (!data) return <ErrorAlert message="Dados não disponíveis" />;
+
+  const lucroPctStr = data.lucroPct >= 0
+    ? `+${data.lucroPct.toFixed(1)}%`
+    : `${data.lucroPct.toFixed(1)}%`;
 
   return (
     <>
@@ -122,43 +59,43 @@ export default function Dashboard() {
         description="Visão geral dos seus investimentos"
       />
 
-      {errors.length > 0 && (
-        <div className="mb-6 flex flex-col gap-2">
-          {errors.map((err) => (
-            <ErrorAlert key={err} message={err} />
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <MetricCard
-          label="Total Investido"
-          value={brl(metrics.totalInvestido)}
-          sub={`${ativos.data.length} transações`}
-          icon={<Briefcase size={18} />}
+          label="Patrimônio Total"
+          value={brl(data.patrimonioBRL)}
+          sub="Renda variável + fixa"
+          icon={<Wallet size={18} />}
         />
         <MetricCard
-          label="Proventos Recebidos"
-          value={brl(metrics.totalProventos)}
-          sub={`${proventos.data.length} pagamentos`}
-          icon={<Coins size={18} />}
+          label="Renda Variável"
+          value={brl(data.totalAtualBRL)}
+          sub={`${data.positions.length} ativos`}
+          icon={<BarChart3 size={18} />}
         />
         <MetricCard
           label="Renda Fixa"
-          value={brl(metrics.totalRF)}
-          sub={`${fixaAberta.data.length} posições`}
+          value={brl(data.totalRendaFixaBRL)}
           icon={<Landmark size={18} />}
         />
         <MetricCard
-          label="Câmbio Enviado"
-          value={brl(metrics.totalCambio)}
-          sub={`${cambio.data.length} operações`}
-          icon={<ArrowLeftRight size={18} />}
+          label="Lucro/Prejuízo"
+          value={brl(data.lucroBRL)}
+          sub={lucroPctStr}
+          icon={<TrendingUp size={18} />}
+        />
+        <MetricCard
+          label="Proventos"
+          value={brl(data.totalProventosBRL)}
+          icon={<Coins size={18} />}
+        />
+        <MetricCard
+          label="Dólar (USD/BRL)"
+          value={`R$ ${data.usdbrl.toFixed(2)}`}
+          icon={<DollarSign size={18} />}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        {/* Dividendos mensais */}
         <div className="glass-card p-5 lg:col-span-2">
           <h2 className="text-sm font-medium text-zinc-400 mb-4">
             Proventos Mensais (últimos 12 meses)
@@ -196,10 +133,9 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Alocação */}
         <div className="glass-card p-5">
           <h2 className="text-sm font-medium text-zinc-400 mb-4">
-            Top 10 Ativos (por valor investido)
+            Alocação (valor atual)
           </h2>
           {allocation.length > 0 ? (
             <>
@@ -226,7 +162,7 @@ export default function Dashboard() {
                       color: "#fafafa",
                       fontSize: 13,
                     }}
-                    formatter={(v: number) => [brl(v), "Investido"]}
+                    formatter={(v: number) => [brl(v), "Valor atual"]}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -251,51 +187,51 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Transações recentes */}
+      {/* Posições */}
       <div className="glass-card p-5">
         <h2 className="text-sm font-medium text-zinc-400 mb-4">
-          Últimas Transações
+          Posições Abertas
         </h2>
-        {recentTx.length > 0 ? (
+        {data.positions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Data</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Ticker</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Tipo</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium">Ativo</th>
                   <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Qtd</th>
-                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Valor</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Preço Atual</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Valor Atual</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (R$)</th>
+                  <th className="px-3 py-2 text-xs text-zinc-500 font-medium text-right">Lucro (%)</th>
                 </tr>
               </thead>
               <tbody>
-                {recentTx.map((r, i) => {
-                  const tipo = String(r["tipo de transação"] || r["tipo_de_transacao"] || "");
-                  const isCompra = tipo.toLowerCase().includes("compra") || tipo.toLowerCase().includes("buy");
+                {data.positions.map((p) => {
+                  const lucroCor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                   return (
-                    <tr key={i} className="border-b border-border/30">
-                      <td className="px-3 py-2.5 text-zinc-400">
-                        {formatDate(r["data"])}
-                      </td>
-                      <td className="px-3 py-2.5 font-medium">
-                        {String(r["símbolo"] || r["simbolo"] || r["ticker"] || "—")}
-                      </td>
+                    <tr key={p.ticker} className="border-b border-border/30">
                       <td className="px-3 py-2.5">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
-                            isCompra
-                              ? "bg-positive/10 text-positive"
-                              : "bg-negative/10 text-negative"
-                          }`}
-                        >
-                          {tipo}
-                        </span>
+                        <span className="font-medium">{p.ticker}</span>
+                        <span className="text-zinc-600 text-xs ml-2">{p.moeda}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right text-zinc-400">
-                        {toNumber(r["quantidade"])?.toLocaleString("pt-BR") ?? "—"}
+                        {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400">
+                        {p.precoAtual !== null
+                          ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-right font-medium">
-                        {brl(r["valor líquido"] || r["valor_liquido"] || r["valor bruto"] || r["valor_bruto"])}
+                        {brl(p.valorAtualBRL)}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                        {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-medium ${lucroCor}`}>
+                        {p.lucroPct !== null
+                          ? `${p.lucroPct >= 0 ? "+" : ""}${p.lucroPct.toFixed(1)}%`
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -304,7 +240,7 @@ export default function Dashboard() {
             </table>
           </div>
         ) : (
-          <p className="text-zinc-600 text-sm">Nenhuma transação encontrada.</p>
+          <p className="text-zinc-600 text-sm">Nenhuma posição aberta.</p>
         )}
       </div>
     </>
