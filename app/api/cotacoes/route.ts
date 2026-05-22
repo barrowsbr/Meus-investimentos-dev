@@ -41,6 +41,7 @@ export async function GET() {
     return NextResponse.json({
       ...snapshot,
       fx: cotacoes.fx,
+      fxSource: cotacoes.fxSource,
       timestamp: cotacoes.timestamp,
       quotesFound,
       quotesTotal,
