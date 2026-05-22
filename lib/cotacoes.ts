@@ -49,9 +49,7 @@ export function yahooTicker(ticker: string, moeda: string, corretora: string): s
 // --- FX via AwesomeAPI ---
 
 async function fetchFxAwesome(): Promise<FxRates> {
-  const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL", {
-    signal: AbortSignal.timeout(5000),
-  });
+  const res = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL");
   if (!res.ok) throw new Error(`AwesomeAPI HTTP ${res.status}`);
   const data = await res.json();
   return {
@@ -113,7 +111,6 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
       const res = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0" },
-        signal: AbortSignal.timeout(5000),
       });
       if (!res.ok) return;
       const data = await res.json();
