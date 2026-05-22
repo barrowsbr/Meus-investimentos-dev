@@ -1,12 +1,24 @@
 import { toNumber } from "./format";
 import type { FxRates } from "./cotacoes";
-import { fxToBRL } from "./cotacoes";
 
 type Row = Record<string, unknown>;
 
-function getVal(row: Row, ...keys: string[]): unknown {
-  for (const k of keys) {
-    if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+function fuzzyGet(row: Row, ...patterns: string[]): unknown {
+  const keys = Object.keys(row);
+  for (const p of patterns) {
+    if (row[p] !== undefined && row[p] !== null && row[p] !== "") return row[p];
+  }
+  for (const p of patterns) {
+    const normalized = p.replace(/[_\s]/g, "").toLowerCase();
+    for (const k of keys) {
+      const kNorm = k.replace(/[_\s]/g, "").toLowerCase();
+      if (kNorm === normalized && row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+    }
+  }
+  for (const p of patterns) {
+    for (const k of keys) {
+      if (k.toLowerCase().includes(p.toLowerCase()) && row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+    }
   }
   return null;
 }
@@ -22,6 +34,7 @@ export interface CambioMetrics {
   ganhoCambialUSD_BRL: number;
   operacoes: number;
   historico: CambioOp[];
+  debug: { rowsParsed: number; rowsTotal: number; usdOps: number; sampleKeys: string[] };
 }
 
 export interface CambioOp {
@@ -50,29 +63,49 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   let totalBRL_paraGBP = 0;
   let totalGBP_recebido = 0;
   let totalEnviadoBRL = 0;
+  let usdOps = 0;
+  let rowsParsed = 0;
 
   const historico: CambioOp[] = [];
+  const sampleKeys = cambioRows.length > 0 ? Object.keys(cambioRows[0]) : [];
 
   for (const row of cambioRows) {
-    const moedaOrig = String(getVal(row, "moeda_origem", "moeda origem") ?? "BRL").toUpperCase().trim();
-    const moedaDest = String(getVal(row, "moeda_destino", "moeda destino") ?? "USD").toUpperCase().trim();
-    const valorOrig = Math.abs(toNumber(getVal(row, "valor_origem", "valor entrada", "valor_entrada")) ?? 0);
-    const valorDest = Math.abs(toNumber(getVal(row, "valor_destino", "valor saída", "valor_saida", "valor saida")) ?? 0);
-    const taxa = toNumber(getVal(row, "taxa", "vet")) ?? (valorOrig > 0 && valorDest > 0 ? valorOrig / valorDest : 0);
-    const data = String(getVal(row, "data", "date") ?? "");
-    const corretora = String(getVal(row, "corretora", "corretora destino", "instituição", "instituicao") ?? "");
+    const moedaOrig = String(fuzzyGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase().trim();
+    const moedaDest = String(fuzzyGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase().trim();
+    const valorOrig = Math.abs(toNumber(fuzzyGet(row, "valor_origem", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl")) ?? 0);
+    const valorDest = Math.abs(toNumber(fuzzyGet(row, "valor_destino", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd")) ?? 0);
+    const taxaRaw = toNumber(fuzzyGet(row, "taxa", "vet", "câmbio", "cambio", "cotação", "cotacao", "rate"));
+    const taxa = taxaRaw ?? (valorOrig > 0 && valorDest > 0 ? valorOrig / valorDest : 0);
+    const data = String(fuzzyGet(row, "data", "date") ?? "");
+    const corretora = String(fuzzyGet(row, "corretora", "corretora destino", "instituição", "instituicao", "banco") ?? "");
 
-    if (valorOrig === 0 && valorDest === 0) continue;
+    if (valorOrig === 0 && valorDest === 0 && taxa === 0) continue;
+    rowsParsed++;
 
     historico.push({ data, moedaOrigem: moedaOrig, moedaDestino: moedaDest, valorOrigem: valorOrig, valorDestino: valorDest, taxa, corretora });
 
-    if (moedaOrig === "BRL") {
+    if (moedaOrig === "BRL" || moedaOrig === "") {
       totalEnviadoBRL += valorOrig;
-      if (moedaDest === "USD") { totalBRL_paraUSD += valorOrig; totalUSD_recebido += valorDest; }
+      if (moedaDest === "USD" || moedaDest === "") {
+        usdOps++;
+        totalBRL_paraUSD += valorOrig;
+        totalUSD_recebido += valorDest;
+        if (totalBRL_paraUSD === 0 && taxa > 0 && valorDest > 0) {
+          totalBRL_paraUSD = valorDest * taxa;
+        }
+      }
       if (moedaDest === "EUR") { totalBRL_paraEUR += valorOrig; totalEUR_recebido += valorDest; }
       if (moedaDest === "CAD") { totalBRL_paraCAD += valorOrig; totalCAD_recebido += valorDest; }
       if (moedaDest === "GBP") { totalBRL_paraGBP += valorOrig; totalGBP_recebido += valorDest; }
     }
+  }
+
+  if (totalBRL_paraUSD === 0 && totalUSD_recebido > 0) {
+    const avgTaxa = historico
+      .filter((h) => h.moedaDestino === "USD" && h.taxa > 0)
+      .reduce((s, h) => s + h.taxa * h.valorDestino, 0) /
+      Math.max(totalUSD_recebido, 0.01);
+    if (avgTaxa > 0) totalBRL_paraUSD = totalUSD_recebido * avgTaxa;
   }
 
   const pmDolar = totalUSD_recebido > 0 ? totalBRL_paraUSD / totalUSD_recebido : fxAtual.USDBRL;
@@ -80,7 +113,7 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   const pmCad = totalCAD_recebido > 0 ? totalBRL_paraCAD / totalCAD_recebido : fxAtual.CADBRL;
   const pmGbp = totalGBP_recebido > 0 ? totalBRL_paraGBP / totalGBP_recebido : fxAtual.GBPBRL;
 
-  const ganhoCambialUSD_BRL = totalUSD_recebido * (fxAtual.USDBRL - pmDolar);
+  const ganhoCambialUSD_BRL = totalUSD_recebido > 0 ? totalUSD_recebido * (fxAtual.USDBRL - pmDolar) : 0;
 
   return {
     pmDolar,
@@ -93,6 +126,7 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
     ganhoCambialUSD_BRL,
     operacoes: historico.length,
     historico,
+    debug: { rowsParsed, rowsTotal: cambioRows.length, usdOps, sampleKeys },
   };
 }
 
@@ -113,21 +147,20 @@ export function parsePtax(ptaxRows: Row[]): PtaxRates | null {
   let latestEUR = 0;
 
   for (const row of ptaxRows) {
-    const data = String(getVal(row, "data", "date", "data cotação", "data cotacao") ?? "");
-    const moeda = String(getVal(row, "moeda", "currency", "par") ?? "USD").toUpperCase();
-    const venda = toNumber(getVal(row, "venda", "ptax_venda", "cotacao", "cotação", "valor")) ?? 0;
+    const data = String(fuzzyGet(row, "data", "date", "data cotação", "data cotacao") ?? "");
+    const moeda = String(fuzzyGet(row, "moeda", "currency", "par") ?? "USD").toUpperCase();
+    const venda = toNumber(fuzzyGet(row, "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
 
     if (!data || venda === 0) continue;
 
     if (data >= latestDate) {
       latestDate = data;
-      if (moeda.includes("USD")) latestUSD = venda;
+      if (moeda.includes("USD") || !moeda.includes("EUR")) latestUSD = venda;
       if (moeda.includes("EUR")) latestEUR = venda;
     }
   }
 
   if (latestUSD === 0) return null;
-
   return { USDBRL: latestUSD, EURBRL: latestEUR || latestUSD * 1.08, data: latestDate };
 }
 
@@ -135,21 +168,15 @@ export function parseLbHistoric(rows: Row[]): { data: string; patrimonio: number
   const result: { data: string; patrimonio: number; rv: number; rf: number }[] = [];
 
   for (const row of rows) {
-    const data = String(getVal(row, "data", "date", "mes", "mês") ?? "");
+    const data = String(fuzzyGet(row, "data", "date", "mes", "mês") ?? "");
     if (!data) continue;
 
-    const patrimonio = toNumber(getVal(row, "patrimonio", "patrimônio", "total", "patrimonio_total")) ?? 0;
-    const rv = toNumber(getVal(row, "rv", "renda_variavel", "renda variável", "renda variavel")) ?? 0;
-    const rf = toNumber(getVal(row, "rf", "renda_fixa", "renda fixa")) ?? 0;
+    const patrimonio = toNumber(fuzzyGet(row, "patrimonio", "patrimônio", "total", "patrimonio_total")) ?? 0;
+    const rv = toNumber(fuzzyGet(row, "rv", "renda_variavel", "renda variável", "renda variavel")) ?? 0;
+    const rf = toNumber(fuzzyGet(row, "rf", "renda_fixa", "renda fixa")) ?? 0;
 
     if (patrimonio === 0 && rv === 0 && rf === 0) continue;
-
-    result.push({
-      data,
-      patrimonio: patrimonio || (rv + rf),
-      rv,
-      rf,
-    });
+    result.push({ data, patrimonio: patrimonio || (rv + rf), rv, rf });
   }
 
   result.sort((a, b) => a.data.localeCompare(b.data));

@@ -63,6 +63,7 @@ export async function GET() {
         totalRecebidoUSD: cambio.totalRecebidoUSD,
         ganhoCambialUSD_BRL: cambio.ganhoCambialUSD_BRL,
         operacoes: cambio.operacoes,
+        debug: cambio.debug,
       },
       ptax,
       lbHistoric,
