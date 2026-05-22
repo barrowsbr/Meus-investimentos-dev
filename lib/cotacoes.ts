@@ -1,3 +1,5 @@
+import { identificarSetor } from "./sectors";
+
 const AWESOME_FX_URL = "https://economia.awesomeapi.com.br/last";
 const YAHOO_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 
@@ -23,6 +25,7 @@ export interface CotacoesData {
   timestamp: string;
 }
 
+// Tickers internacionais que precisam de sufixo específico no Yahoo Finance
 const INTL_SUFFIX_MAP: Record<string, string> = {
   VWRA: "VWRA.L",
   VWCE: "VWCE.DE",
@@ -33,16 +36,27 @@ const INTL_SUFFIX_MAP: Record<string, string> = {
 };
 
 export function yahooTicker(ticker: string, moeda: string, corretora: string): string {
-  if (ticker.includes(".")) return ticker;
+  const t = ticker.toUpperCase().trim();
+  if (t.includes(".")) return t;
 
-  const upperCorretora = corretora.toUpperCase();
-  if (upperCorretora.includes("B3") || (moeda === "BRL" && !upperCorretora.includes("IBKR"))) {
-    return `${ticker}.SA`;
+  // Tickers cripto
+  if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
+  if (t === "ETH" || t === "ETH-USD") return "ETH-USD";
+
+  // Mapeamento explícito de tickers internacionais
+  const tClean = t.replace(".SA", "").replace(".L", "");
+  if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
+
+  // Identificar setor para decidir sufixo
+  const setor = identificarSetor(t);
+
+  // Ações Brasil, ETF BR, FIIs, BDRs → .SA
+  if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) {
+    return `${t}.SA`;
   }
 
-  if (INTL_SUFFIX_MAP[ticker]) return INTL_SUFFIX_MAP[ticker];
-
-  return ticker;
+  // US stocks, ETF USA, Commodities, Renda Fixa USD → sem sufixo
+  return t;
 }
 
 export async function fetchFxRates(): Promise<FxRates> {
@@ -93,7 +107,7 @@ export async function fetchQuotesYahoo(yahooTickers: string[]): Promise<Record<s
 }
 
 export function fxToBRL(currency: string, fx: FxRates): number {
-  const cur = currency.toUpperCase();
+  const cur = (currency || "BRL").toUpperCase();
   if (cur === "BRL") return 1;
   if (cur === "USD") return fx.USDBRL;
   if (cur === "EUR") return fx.EURBRL;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
-import { calcularResumo, calcularProventosBRL } from "@/lib/portfolio";
+import { calcularSnapshot } from "@/lib/portfolio";
 
 export const revalidate = 900;
 
@@ -32,12 +32,10 @@ export async function GET() {
     }));
 
     const cotacoes = await fetchCotacoes(tickers);
-    const resumo = calcularResumo(transacoes, proventos, fixaAberta, cotacoes.quotes, cotacoes.fx);
-    const provMensal = calcularProventosBRL(proventos, cotacoes.fx);
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, cotacoes.fx);
 
     return NextResponse.json({
-      ...resumo,
-      proventosMensais: provMensal.porMes,
+      ...snapshot,
       fx: cotacoes.fx,
       timestamp: cotacoes.timestamp,
       tickerMap: Object.fromEntries(
