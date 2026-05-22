@@ -1,7 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const yahooFinance = require("yahoo-finance2").default;
 import { identificarSetor } from "./sectors";
 
 const AWESOME_FX_URL = "https://economia.awesomeapi.com.br/last";
-const YAHOO_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 
 export interface Quote {
   price: number;
@@ -25,7 +26,8 @@ export interface CotacoesData {
   timestamp: string;
 }
 
-// Tickers internacionais que precisam de sufixo específico no Yahoo Finance
+const DEFAULTS_FX: FxRates = { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 };
+
 const INTL_SUFFIX_MAP: Record<string, string> = {
   VWRA: "VWRA.L",
   VWCE: "VWCE.DE",
@@ -39,72 +41,102 @@ export function yahooTicker(ticker: string, moeda: string, corretora: string): s
   const t = ticker.toUpperCase().trim();
   if (t.includes(".")) return t;
 
-  // Tickers cripto
   if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
   if (t === "ETH" || t === "ETH-USD") return "ETH-USD";
 
-  // Mapeamento explícito de tickers internacionais
   const tClean = t.replace(".SA", "").replace(".L", "");
   if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
 
-  // Identificar setor para decidir sufixo
   const setor = identificarSetor(t);
-
-  // Ações Brasil, ETF BR, FIIs, BDRs → .SA
   if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) {
     return `${t}.SA`;
   }
 
-  // US stocks, ETF USA, Commodities, Renda Fixa USD → sem sufixo
   return t;
 }
 
-export async function fetchFxRates(): Promise<FxRates> {
-  const pairs = "USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL";
-  const res = await fetch(`${AWESOME_FX_URL}/${pairs}`, { next: { revalidate: 900 } });
+// --- FX via Yahoo Finance (primary) + AwesomeAPI (fallback) ---
 
-  const defaults: FxRates = { USDBRL: 5.0, EURBRL: 5.5, GBPBRL: 6.3, CADBRL: 3.6 };
-  if (!res.ok) return defaults;
+interface YQuote {
+  symbol?: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  currency?: string;
+  shortName?: string;
+  longName?: string;
+}
 
+async function fetchFxYahoo(): Promise<FxRates> {
+  const fxTickers = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
+  const raw = await Promise.all(fxTickers.map((t) => yahooFinance.quote(t).catch(() => null)));
+
+  const fx = { ...DEFAULTS_FX };
+  for (const q of raw as YQuote[]) {
+    if (!q?.symbol || q.regularMarketPrice == null) continue;
+    const p = q.regularMarketPrice;
+    if (q.symbol === "BRL=X") fx.USDBRL = p;
+    if (q.symbol === "EURBRL=X") fx.EURBRL = p;
+    if (q.symbol === "CADBRL=X") fx.CADBRL = p;
+    if (q.symbol === "GBPBRL=X") fx.GBPBRL = p;
+  }
+  return fx;
+}
+
+async function fetchFxAwesome(): Promise<FxRates> {
+  const res = await fetch(`${AWESOME_FX_URL}/USD-BRL,EUR-BRL,GBP-BRL,CAD-BRL`);
+  if (!res.ok) return DEFAULTS_FX;
   const data = await res.json();
   return {
-    USDBRL: parseFloat(data.USDBRL?.bid) || defaults.USDBRL,
-    EURBRL: parseFloat(data.EURBRL?.bid) || defaults.EURBRL,
-    GBPBRL: parseFloat(data.GBPBRL?.bid) || defaults.GBPBRL,
-    CADBRL: parseFloat(data.CADBRL?.bid) || defaults.CADBRL,
+    USDBRL: parseFloat(data.USDBRL?.bid) || DEFAULTS_FX.USDBRL,
+    EURBRL: parseFloat(data.EURBRL?.bid) || DEFAULTS_FX.EURBRL,
+    GBPBRL: parseFloat(data.GBPBRL?.bid) || DEFAULTS_FX.GBPBRL,
+    CADBRL: parseFloat(data.CADBRL?.bid) || DEFAULTS_FX.CADBRL,
   };
 }
 
-export async function fetchQuotesYahoo(yahooTickers: string[]): Promise<Record<string, Quote>> {
+export async function fetchFxRates(): Promise<FxRates> {
+  try {
+    return await fetchFxYahoo();
+  } catch {
+    try {
+      return await fetchFxAwesome();
+    } catch {
+      return DEFAULTS_FX;
+    }
+  }
+}
+
+// --- Stock quotes via yahoo-finance2 ---
+
+export async function fetchQuotes(yahooTickers: string[]): Promise<Record<string, Quote>> {
   if (yahooTickers.length === 0) return {};
 
-  const symbols = yahooTickers.join(",");
-  const url = `${YAHOO_URL}?symbols=${encodeURIComponent(symbols)}`;
-
-  const res = await fetch(url, {
-    next: { revalidate: 900 },
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-
-  if (!res.ok) return {};
-
-  const data = await res.json();
   const results: Record<string, Quote> = {};
 
-  for (const item of data.quoteResponse?.result ?? []) {
-    if (item.symbol && item.regularMarketPrice != null) {
-      results[item.symbol] = {
-        price: item.regularMarketPrice,
-        change: item.regularMarketChange ?? 0,
-        changePercent: item.regularMarketChangePercent ?? 0,
-        currency: item.currency ?? "USD",
-        name: item.shortName ?? item.longName ?? item.symbol,
+  try {
+    const raw = await Promise.all(
+      yahooTickers.map((t) => yahooFinance.quote(t).catch(() => null))
+    );
+
+    for (const q of raw as YQuote[]) {
+      if (!q?.symbol || q.regularMarketPrice == null) continue;
+      results[q.symbol] = {
+        price: q.regularMarketPrice,
+        change: q.regularMarketChange ?? 0,
+        changePercent: q.regularMarketChangePercent ?? 0,
+        currency: q.currency ?? "USD",
+        name: q.shortName ?? q.longName ?? q.symbol,
       };
     }
+  } catch (e) {
+    console.error("Yahoo Finance quote error:", e);
   }
 
   return results;
 }
+
+// --- Conversion helper ---
 
 export function fxToBRL(currency: string, fx: FxRates): number {
   const cur = (currency || "BRL").toUpperCase();
@@ -116,6 +148,8 @@ export function fxToBRL(currency: string, fx: FxRates): number {
   const key = `${cur}BRL`;
   return fx[key] ?? 1;
 }
+
+// --- Main fetch ---
 
 export async function fetchCotacoes(
   tickers: { ticker: string; moeda: string; corretora: string }[]
@@ -129,8 +163,8 @@ export async function fetchCotacoes(
   const uniqueYahoo = [...new Set(yahooMap.values())];
 
   const [yahooQuotes, fx] = await Promise.all([
-    fetchQuotesYahoo(uniqueYahoo).catch(() => ({} as Record<string, Quote>)),
-    fetchFxRates().catch(() => ({ USDBRL: 5.0, EURBRL: 5.5, GBPBRL: 6.3, CADBRL: 3.6 } as FxRates)),
+    fetchQuotes(uniqueYahoo).catch(() => ({} as Record<string, Quote>)),
+    fetchFxRates(),
   ]);
 
   const quotes: Record<string, Quote> = {};
