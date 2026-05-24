@@ -76,11 +76,13 @@ export async function GET(request: Request) {
     }));
 
     // ── 3. Fetch historical price data ────────────────────────────────────────
+    console.log(`[TWR] Fetching history for ${tickerList.length} tickers, lookback=${lookback}`);
     const hist = await fetchHistoricalData(tickerList, lookback + 10);
+    console.log(`[TWR] History result: ${hist.dates.length} dates, errors: ${hist.errors.join("; ") || "none"}`);
 
     if (hist.dates.length === 0) {
       return NextResponse.json(
-        { error: "Sem dados históricos disponíveis", histErrors: hist.errors },
+        { error: "Sem dados históricos disponíveis", histErrors: hist.errors, tickerCount: tickerList.length },
         { status: 422 }
       );
     }

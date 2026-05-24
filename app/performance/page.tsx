@@ -127,7 +127,12 @@ export default function PerformancePage() {
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
-        if (body.error) throw new Error(body.error);
+        if (body.error) {
+          const parts = [body.error];
+          if (body.tickerCount != null) parts.push(`(${body.tickerCount} tickers)`);
+          if (body.histErrors?.length) parts.push(...body.histErrors.slice(0, 5));
+          throw new Error(parts.join("\n"));
+        }
         setData(body);
       })
       .catch(e => {
