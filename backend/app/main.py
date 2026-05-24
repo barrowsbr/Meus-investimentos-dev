@@ -10,9 +10,18 @@ app = FastAPI(
     description="FastAPI backend para o dashboard de investimentos pessoal.",
 )
 
+_origins = [
+    settings.frontend_url,
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+# Accept any *.vercel.app subdomain for preview deployments
+_origin_regex = r"https://.*\.vercel\.app"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000", "http://localhost:5173"],
+    allow_origins=_origins,
+    allow_origin_regex=_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
