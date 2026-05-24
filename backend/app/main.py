@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agent, cambio, financas, fluxos, historico, market, performance, portfolio, proventos, sheets
+from app.routers import agent, cambio, composicao, financas, fluxos, historico, market, performance, portfolio, proventos, sheets
 
 app = FastAPI(
     title="Meus Investimentos API",
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(portfolio.router)
+app.include_router(composicao.router)
 app.include_router(performance.router)
 app.include_router(sheets.router)
 app.include_router(market.router)
