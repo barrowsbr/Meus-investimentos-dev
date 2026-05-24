@@ -17,9 +17,9 @@ export default function ErrorAlert({ message, tab }: Props) {
         </p>
         <p className="text-zinc-400 text-xs mt-1">{message}</p>
         <p className="text-zinc-600 text-xs mt-2">
-          Verifique as variáveis de ambiente (GOOGLE_API_KEY, SPREADSHEET_ID) e
-          se a planilha está compartilhada com &quot;Qualquer pessoa com o
-          link&quot;.
+          Verifique se o backend está online e se{" "}
+          <code className="text-zinc-500">NEXT_PUBLIC_API_URL</code> está
+          configurada no Vercel.
         </p>
       </div>
     </div>
