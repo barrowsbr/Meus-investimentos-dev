@@ -45,6 +45,9 @@ interface TwrResponse {
     vsIBOV: number;
     cdiTotal: number;
     ibovTotal: number;
+    ganhoEconomico?: number;
+    usandoLbHistoric?: boolean;
+    numAnchors?: number;
   };
   chart: TwrPoint[];
   benchmarks: {
@@ -366,9 +369,13 @@ export default function PerformancePage() {
                   { label: "CDI no período", value: pct(s.cdiTotal * 100), color: "#6366f1" },
                   { label: "IBOV no período", value: pct(s.ibovTotal * 100), color: "#f59e0b" },
                   { label: "Alpha vs CDI", value: pct(s.vsCDI * 100), color: s.vsCDI >= 0 ? "#34d399" : "#f87171" },
+                  ...(s.ganhoEconomico !== undefined
+                    ? [{ label: "Ganho econômico", value: compactBRL(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" }]
+                    : []),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                   { label: "Total investido (RV)", value: compactBRL(s.totalInvestido) },
+                  { label: "Fonte dos dados", value: s.usandoLbHistoric ? `Histórico (${s.numAnchors} pontos)` : "Proxy de fluxos" },
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-2 last:border-0 last:pb-0">
                     <span className="text-zinc-400">{row.label}</span>

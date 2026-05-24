@@ -18,6 +18,7 @@ import {
   Settings,
   Bot,
   Newspaper,
+  ListOrdered,
 } from "lucide-react";
 
 interface NavItem {
@@ -61,6 +62,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/impostos", label: "Impostos",      icon: Receipt },
       { href: "/financas", label: "Fin. Pessoais", icon: Wallet },
+      { href: "/fluxos",   label: "Fluxos",        icon: ListOrdered },
     ],
   },
   {
