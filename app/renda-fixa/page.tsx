@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { Landmark, PiggyBank, TrendingUp, Globe } from "lucide-react";
+import React, { useMemo, useState, useEffect } from "react";
+import { Landmark, PiggyBank, TrendingUp, Globe, Zap } from "lucide-react";
 import { useSheetData, usePortfolio } from "@/lib/hooks";
 import { toNumber, brl, currency, formatDate, compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
@@ -12,10 +12,32 @@ import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
+interface RFPosicao {
+  ticker: string;
+  moeda: string;
+  tipo: string;
+  valor_original: number;
+  valor_capitalizado: number;
+  valor_brl: number;
+  data_referencia: string | null;
+  dias_passados: number;
+  rendimento_estimado_pct: number;
+}
+
 export default function RendaFixaPage() {
   const transacoes = useSheetData("renda_fixa");
   const posicoes = useSheetData("fixa_aberta");
   const { data: portfolio, loading: portLoading } = usePortfolio();
+  const [rfSelic, setRfSelic] = useState<{ totalBrl: number; posicoes: RFPosicao[] } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/renda-fixa/posicoes`)
+      .then(r => r.json())
+      .then(body => setRfSelic(body))
+      .catch(() => {});
+  }, []);
 
   const loading = transacoes.loading || posicoes.loading || portLoading;
 
@@ -32,17 +54,16 @@ export default function RendaFixaPage() {
 
   // ── Métricas ───────────────────────────────────────────────────────────────
   const metrics = useMemo(() => {
-    const usdbrl = portfolio?.usdbrl ?? 5.7;
-    const eurbrl = portfolio?.eurbrl ?? 6.4;
-
-    const totalManualBRL = posicoes.data.reduce((sum: number, r) => {
+    const totalAtivosBRL = rfDeAtivos.reduce((s: number, p: Position) => s + p.valorAtualBRL, 0);
+    // Prefer SELIC-capitalized total from API, fall back to raw sum
+    const totalManualBRL = rfSelic?.totalBrl ?? posicoes.data.reduce((sum: number, r) => {
+      const usdbrl = portfolio?.usdbrl ?? 5.7;
+      const eurbrl = portfolio?.eurbrl ?? 6.4;
       const val = toNumber(r["atual"] || r["valor_atual"] || r["saldo"] || r["valor atual"]) ?? 0;
       const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
       const fx = moeda === "USD" ? usdbrl : moeda === "EUR" ? eurbrl : 1;
       return sum + val * fx;
     }, 0);
-
-    const totalAtivosBRL = rfDeAtivos.reduce((s: number, p: Position) => s + p.valorAtualBRL, 0);
 
     const totalCompras = transacoes.data.reduce((sum: number, r) => {
       const tipo = String(r["tipo"] || r["movimentacao"] || "").toLowerCase();
@@ -57,7 +78,7 @@ export default function RendaFixaPage() {
     const rent = totalCompras > 0 ? (lucro / totalCompras) * 100 : 0;
 
     return { totalManualBRL, totalAtivosBRL, totalRF, totalCompras, lucro, rent };
-  }, [posicoes.data, transacoes.data, rfDeAtivos, portfolio]);
+  }, [posicoes.data, transacoes.data, rfDeAtivos, portfolio, rfSelic]);
 
   // ── Colunas de posições manuais ───────────────────────────────────────────
   const posColumns = [
@@ -241,8 +262,54 @@ export default function RendaFixaPage() {
         </div>
       )}
 
-      {/* Posições manuais */}
-      {posicoes.data.length > 0 && (
+      {/* Posições manuais — SELIC capitalizado */}
+      {rfSelic && rfSelic.posicoes.length > 0 ? (
+        <div className="mb-6 animate-fade-in">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="section-title">Posições Abertas</h2>
+            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-700/30">
+              <Zap size={10} />
+              SELIC capitalizado
+            </span>
+          </div>
+          <div className="glass-card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  {["Título", "Tipo", "Moeda", "Atualizado", "Valor Orig.", "Valor Capitalizado", "Rendimento Est."].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rfSelic.posicoes.map((p, i) => (
+                  <tr key={i} className="border-b border-border/10 hover:bg-white/[0.02]">
+                    <td className="px-4 py-2.5 text-zinc-200 font-medium text-xs">{p.ticker}</td>
+                    <td className="px-4 py-2.5 text-zinc-500 text-xs">{p.tipo || "—"}</td>
+                    <td className="px-4 py-2.5 text-zinc-500 text-xs">{p.moeda}</td>
+                    <td className="px-4 py-2.5 text-zinc-500 text-xs">
+                      {p.data_referencia ? formatDate(p.data_referencia) : "—"}
+                      {p.dias_passados > 0 && <span className="text-zinc-700 ml-1">({p.dias_passados}d)</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs text-zinc-400">{compactBRL(p.valor_original)}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-zinc-200">{compactBRL(p.valor_capitalizado)}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-400">
+                      +{p.rendimento_estimado_pct.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-border/30 bg-white/[0.02]">
+                  <td colSpan={5} className="px-4 py-2.5 text-xs font-bold text-zinc-400">Total capitalizado</td>
+                  <td className="px-4 py-2.5 text-right text-xs font-bold text-zinc-100">{compactBRL(rfSelic.totalBrl)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      ) : posicoes.data.length > 0 && (
         <div className="mb-6 animate-fade-in">
           <h2 className="section-title mb-3">Posições Abertas</h2>
           <DataTable data={posicoes.data} columns={posColumns} />

@@ -256,6 +256,145 @@ def build_nav_anchors_from_lb_historic(
     return anchors
 
 
+# ── MWR (Money-Weighted Return / IRR) ────────────────────────────────────────
+
+def _npv(rate: float, cashflows: list[tuple[int, float]]) -> float:
+    """NPV given a daily rate and (day_index, amount) pairs."""
+    return sum(amount / (1 + rate) ** day for day, amount in cashflows)
+
+
+def _npv_deriv(rate: float, cashflows: list[tuple[int, float]]) -> float:
+    """First derivative of NPV w.r.t. rate."""
+    return sum(
+        -day * amount / (1 + rate) ** (day + 1)
+        for day, amount in cashflows
+    )
+
+
+def calculate_mwr(
+    nav_final: float,
+    flows: list[tuple[date, float]],
+    start_date: date,
+    premises: TWRPremises = DEFAULT_PREMISES,
+) -> float:
+    """
+    Money-Weighted Return (IRR) via Newton-Raphson.
+
+    From the investor's perspective:
+    - Each purchase is an outflow  (–)
+    - The final NAV is an inflow   (+)
+
+    Returns the annualized rate (252 business days, ANBIMA).
+    Returns 0.0 if calculation fails.
+    """
+    end_date = date.today()
+    total_days = (end_date - start_date).days
+    if total_days <= 0 or nav_final <= 0 or not flows:
+        return 0.0
+
+    cf: list[tuple[int, float]] = []
+    for d, f in flows:
+        days = max(0, (d - start_date).days)
+        if days <= total_days:
+            cf.append((days, -f))   # investment = outflow
+
+    cf.append((total_days, nav_final))  # final NAV = inflow
+
+    # Newton-Raphson starting from ~daily SELIC equivalent
+    r = premises.selic_annual_rate / premises.business_days_per_year
+    for _ in range(200):
+        npv = _npv(r, cf)
+        d_npv = _npv_deriv(r, cf)
+        if abs(d_npv) < 1e-14:
+            break
+        r_new = r - npv / d_npv
+        # Guard against divergence
+        if r_new < -0.999:
+            r_new = -0.5
+        if abs(r_new - r) < 1e-12:
+            r = r_new
+            break
+        r = r_new
+
+    if r < -0.999 or r > 100:
+        return 0.0
+
+    # Annualise: 252 business days (ANBIMA)
+    annual_mwr = (1 + r) ** premises.business_days_per_year - 1
+    return round(float(annual_mwr), 6)
+
+
+# ── Currency decomposition ────────────────────────────────────────────────────
+
+def decompose_by_currency(positions: list[dict]) -> dict:
+    """
+    Aggregates positions into currency buckets and computes:
+    - Total value per currency in BRL
+    - Asset return contribution (ganho_ativo_brl)
+    - FX return contribution (ganho_cambio_brl)
+
+    positions: list of dicts matching the Position schema (snake_case keys).
+    """
+    buckets: dict[str, dict] = {}
+
+    for pos in positions:
+        moeda = str(pos.get("moeda") or "BRL").upper()
+        valor_brl = float(pos.get("valor_atual_brl") or pos.get("valorAtualBRL") or 0)
+        custo_brl = float(pos.get("custo_total_brl") or pos.get("custoTotalBRL") or 0)
+        ganho_ativo = float(pos.get("ganho_ativo_brl") or pos.get("ganhoAtivoBRL") or 0)
+        ganho_cambio = float(pos.get("ganho_cambio_brl") or pos.get("ganhoCambioBRL") or 0)
+
+        if moeda not in buckets:
+            buckets[moeda] = {
+                "currency": moeda,
+                "valor_brl": 0.0,
+                "custo_brl": 0.0,
+                "ganho_ativo_brl": 0.0,
+                "ganho_cambio_brl": 0.0,
+                "num_positions": 0,
+            }
+
+        b = buckets[moeda]
+        b["valor_brl"] += valor_brl
+        b["custo_brl"] += custo_brl
+        b["ganho_ativo_brl"] += ganho_ativo
+        b["ganho_cambio_brl"] += ganho_cambio
+        b["num_positions"] += 1
+
+    result = []
+    for moeda, b in sorted(buckets.items(), key=lambda x: -x[1]["valor_brl"]):
+        custo = b["custo_brl"]
+        retorno_ativo_pct = (b["ganho_ativo_brl"] / custo * 100) if custo > 0 else 0
+        retorno_cambio_pct = (b["ganho_cambio_brl"] / custo * 100) if custo > 0 else 0
+        total_pct = (
+            (1 + retorno_ativo_pct / 100) * (1 + retorno_cambio_pct / 100) - 1
+        ) * 100
+
+        result.append({
+            **b,
+            "retorno_ativo_pct": round(retorno_ativo_pct, 4),
+            "retorno_cambio_pct": round(retorno_cambio_pct, 4),
+            "retorno_total_pct": round(total_pct, 4),
+        })
+
+    total_valor = sum(b["valor_brl"] for b in buckets.values())
+    total_custo = sum(b["custo_brl"] for b in buckets.values())
+    total_ganho_ativo = sum(b["ganho_ativo_brl"] for b in buckets.values())
+    total_ganho_cambio = sum(b["ganho_cambio_brl"] for b in buckets.values())
+
+    return {
+        "buckets": result,
+        "total": {
+            "valor_brl": round(total_valor, 2),
+            "custo_brl": round(total_custo, 2),
+            "ganho_ativo_brl": round(total_ganho_ativo, 2),
+            "ganho_cambio_brl": round(total_ganho_cambio, 2),
+            "retorno_ativo_pct": round((total_ganho_ativo / total_custo * 100) if total_custo > 0 else 0, 4),
+            "retorno_cambio_pct": round((total_ganho_cambio / total_custo * 100) if total_custo > 0 else 0, 4),
+        },
+    }
+
+
 def build_flows_from_transactions(
     transacoes: list[dict],
 ) -> list[tuple[date, float]]:

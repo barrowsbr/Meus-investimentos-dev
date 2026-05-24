@@ -11,12 +11,14 @@ from fastapi import APIRouter, HTTPException
 from app.services.gsheets_service import fetch_tab
 from app.services.performance_service import (
     DEFAULT_PREMISES,
-    TWRPremises,
     build_flows_from_transactions,
     build_nav_anchors_from_lb_historic,
     calculate_canonical_twr,
+    calculate_mwr,
 )
 from app.services.cambio_service import parse_lb_historic
+
+from app.services.performance_service import decompose_by_currency
 
 router = APIRouter(prefix="/api", tags=["performance"])
 
@@ -52,10 +54,9 @@ async def _safe_fetch(tab: str) -> list[Row]:
 @router.get("/twr")
 async def get_twr(lookback: int = 365):
     try:
-        transacoes, lb_rows, fixa_aberta = await asyncio.gather(
+        transacoes, lb_rows = await asyncio.gather(
             fetch_tab("meus_ativos"),
             _safe_fetch("lb_historic"),
-            _safe_fetch("fixa_aberta"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -138,12 +139,21 @@ async def get_twr(lookback: int = 365):
     cdi_total = cdi_twr[-1]["twr"] if cdi_twr else 0
     ibov_total = ibov_twr[-1]["twr"] if ibov_twr else 0
 
+    # MWR (Money-Weighted Return / IRR)
+    mwr = calculate_mwr(
+        nav_final=result.capital_base,
+        flows=flows,
+        start_date=anchors[0][0],
+        premises=DEFAULT_PREMISES,
+    )
+
     errors = result.validation.warnings if not result.validation.is_valid else []
 
     return {
         "summary": {
             "twrTotal": round(twr_total, 6),
             "twrAnualizado": round(twr_anualizado, 6),
+            "mwr": round(mwr, 6),
             "navFinal": result.capital_base,
             "navInicial": anchors[0][1],
             "totalInvestido": sum(f for _, f in flows if f > 0),
@@ -166,3 +176,42 @@ async def get_twr(lookback: int = 365):
         "errors": errors,
         "lookback": lookback,
     }
+
+
+@router.get("/twr/decomposicao")
+async def get_decomposicao():
+    """Returns currency bucket decomposition: asset return vs FX return."""
+    from app.services.gsheets_service import fetch_tab as ft
+    from app.services.cambio_service import build_pm_fx_rates, calcular_cambio_metrics
+    from app.services.market_service import fetch_cotacoes
+    from app.services.portfolio_service import calcular_carteira_fifo, enriquecer_posicoes
+
+    try:
+        transacoes, cambio_rows = await asyncio.gather(
+            ft("meus_ativos"),
+            _safe_fetch("cambio"),
+        )
+        cotacoes = await fetch_cotacoes(
+            [
+                {
+                    "ticker": str(r.get("símbolo") or r.get("simbolo") or r.get("ticker") or ""),
+                    "moeda": str(r.get("moeda") or "BRL").upper(),
+                    "corretora": str(r.get("corretora") or ""),
+                }
+                for r in transacoes
+                if r.get("símbolo") or r.get("simbolo") or r.get("ticker")
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    from app.models.schemas import FxRates
+    fx_atual: FxRates = cotacoes["fx"]
+    cambio = calcular_cambio_metrics(cambio_rows, fx_atual)
+    fx_custo = build_pm_fx_rates(cambio)
+
+    portfolio = calcular_carteira_fifo(transacoes)
+    positions = enriquecer_posicoes(portfolio, cotacoes["quotes"], fx_atual, fx_custo)
+
+    pos_dicts = [p.model_dump() for p in positions]
+    return decompose_by_currency(pos_dicts)

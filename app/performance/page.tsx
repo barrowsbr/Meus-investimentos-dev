@@ -19,7 +19,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import MetricCard from "@/components/MetricCard";
 import { brl, compactBRL, pct } from "@/lib/format";
-import { TrendingUp, TrendingDown, Calendar, Target, Landmark, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar, Target, Landmark, DollarSign, BarChart2, Scale } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,7 @@ interface TwrResponse {
   summary: {
     twrTotal: number;
     twrAnualizado: number;
+    mwr?: number;
     navFinal: number;
     navInicial: number;
     totalInvestido: number;
@@ -116,12 +117,37 @@ function formatDate(iso: string): string {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+interface DecomposicaoBucket {
+  currency: string;
+  valor_brl: number;
+  custo_brl: number;
+  ganho_ativo_brl: number;
+  ganho_cambio_brl: number;
+  retorno_ativo_pct: number;
+  retorno_cambio_pct: number;
+  retorno_total_pct: number;
+  num_positions: number;
+}
+
+interface DecomposicaoResponse {
+  buckets: DecomposicaoBucket[];
+  total: {
+    valor_brl: number;
+    custo_brl: number;
+    ganho_ativo_brl: number;
+    ganho_cambio_brl: number;
+    retorno_ativo_pct: number;
+    retorno_cambio_pct: number;
+  };
+}
+
 export default function PerformancePage() {
   const [window, setWindow] = useState<number>(365);
   const [data, setData] = useState<TwrResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showBenchmarks, setShowBenchmarks] = useState(true);
+  const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,15 +166,18 @@ export default function PerformancePage() {
         }
         setData(body);
       })
-      .catch(e => {
-        if (!cancelled) setError(e.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .catch(e => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
   }, [window]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/twr/decomposicao`)
+      .then(r => r.json())
+      .then(body => setDecomp(body))
+      .catch(() => {});
+  }, []);
 
   const chartData = useMemo(() => {
     if (!data) return [];
@@ -199,15 +228,25 @@ export default function PerformancePage() {
       {!loading && !error && s && (
         <>
           {/* Key metrics */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             <MetricCard
               label="TWR Total"
               value={pct(s.twrTotal * 100)}
-              sub={`Anualizado ${pct(s.twrAnualizado * 100)}`}
+              sub={`Anualizado (CAGR) ${pct(s.twrAnualizado * 100)}`}
               icon={isPositive ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
               trend={isPositive ? "up" : "down"}
               glowColor={trendColor}
             />
+            {s.mwr !== undefined && (
+              <MetricCard
+                label="MWR (TIR)"
+                value={pct(s.mwr * 100)}
+                sub="Retorno ponderado por capital"
+                icon={<Scale size={18} />}
+                trend={s.mwr >= 0 ? "up" : "down"}
+                glowColor={s.mwr >= 0 ? "#34d399" : "#f87171"}
+              />
+            )}
             <MetricCard
               label="NAV Atual"
               value={compactBRL(s.navFinal)}
@@ -231,6 +270,16 @@ export default function PerformancePage() {
               trend={s.vsIBOV >= 0 ? "up" : "down"}
               glowColor={s.vsIBOV >= 0 ? "#34d399" : "#f87171"}
             />
+            {s.ganhoEconomico !== undefined && (
+              <MetricCard
+                label="Ganho Econômico"
+                value={compactBRL(s.ganhoEconomico)}
+                sub="NAV final − inicial − aportes"
+                icon={<BarChart2 size={18} />}
+                trend={s.ganhoEconomico >= 0 ? "up" : "down"}
+                glowColor={s.ganhoEconomico >= 0 ? "#34d399" : "#f87171"}
+              />
+            )}
           </div>
 
           {/* TWR Chart */}
@@ -366,16 +415,16 @@ export default function PerformancePage() {
                 {[
                   { label: "TWR acumulado", value: pct(s.twrTotal * 100), color: trendColor },
                   { label: "TWR anualizado (CAGR)", value: pct(s.twrAnualizado * 100), color: trendColor },
+                  ...(s.mwr !== undefined
+                    ? [{ label: "MWR / TIR anualizado", value: pct(s.mwr * 100), color: s.mwr >= 0 ? "#a78bfa" : "#f87171" }]
+                    : []),
                   { label: "CDI no período", value: pct(s.cdiTotal * 100), color: "#6366f1" },
                   { label: "IBOV no período", value: pct(s.ibovTotal * 100), color: "#f59e0b" },
                   { label: "Alpha vs CDI", value: pct(s.vsCDI * 100), color: s.vsCDI >= 0 ? "#34d399" : "#f87171" },
-                  ...(s.ganhoEconomico !== undefined
-                    ? [{ label: "Ganho econômico", value: compactBRL(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" }]
-                    : []),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                   { label: "Total investido (RV)", value: compactBRL(s.totalInvestido) },
-                  { label: "Fonte dos dados", value: s.usandoLbHistoric ? `Histórico (${s.numAnchors} pontos)` : "Proxy de fluxos" },
+                  { label: "Fonte dos dados", value: s.usandoLbHistoric ? `lb_historic (${s.numAnchors} pontos)` : "Proxy de fluxos", color: s.usandoLbHistoric ? "#34d399" : "#f59e0b" },
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-2 last:border-0 last:pb-0">
                     <span className="text-zinc-400">{row.label}</span>
@@ -387,6 +436,62 @@ export default function PerformancePage() {
               </div>
             </div>
           </div>
+
+          {/* Currency decomposition */}
+          {decomp && decomp.buckets.length > 1 && (
+            <div className="glass-card p-5 mb-6">
+              <h2 className="section-title mb-4">
+                <BarChart2 size={15} />
+                Decomposição por Moeda
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/30">
+                      {["Moeda", "Posições", "Valor BRL", "Ret. Ativo", "Ret. Câmbio", "Ret. Total"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decomp.buckets.map(b => (
+                      <tr key={b.currency} className="border-b border-border/10 hover:bg-white/[0.02]">
+                        <td className="px-3 py-2.5 font-mono text-xs font-semibold text-zinc-200">{b.currency}</td>
+                        <td className="px-3 py-2.5 text-xs text-zinc-500">{b.num_positions}</td>
+                        <td className="px-3 py-2.5 text-xs text-zinc-300">{compactBRL(b.valor_brl)}</td>
+                        <td className="px-3 py-2.5 text-xs font-semibold" style={{ color: b.retorno_ativo_pct >= 0 ? "#34d399" : "#f87171" }}>
+                          {b.retorno_ativo_pct >= 0 ? "+" : ""}{b.retorno_ativo_pct.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-xs font-semibold" style={{ color: b.retorno_cambio_pct >= 0 ? "#34d399" : "#f87171" }}>
+                          {b.retorno_cambio_pct >= 0 ? "+" : ""}{b.retorno_cambio_pct.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-xs font-bold" style={{ color: b.retorno_total_pct >= 0 ? "#34d399" : "#f87171" }}>
+                          {b.retorno_total_pct >= 0 ? "+" : ""}{b.retorno_total_pct.toFixed(2)}%
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border/30 bg-white/[0.02]">
+                      <td className="px-3 py-2.5 text-xs font-bold text-zinc-200">Total</td>
+                      <td className="px-3 py-2.5" />
+                      <td className="px-3 py-2.5 text-xs font-bold text-zinc-200">{compactBRL(decomp.total.valor_brl)}</td>
+                      <td className="px-3 py-2.5 text-xs font-bold" style={{ color: decomp.total.retorno_ativo_pct >= 0 ? "#34d399" : "#f87171" }}>
+                        {decomp.total.retorno_ativo_pct >= 0 ? "+" : ""}{decomp.total.retorno_ativo_pct.toFixed(2)}%
+                      </td>
+                      <td className="px-3 py-2.5 text-xs font-bold" style={{ color: decomp.total.retorno_cambio_pct >= 0 ? "#34d399" : "#f87171" }}>
+                        {decomp.total.retorno_cambio_pct >= 0 ? "+" : ""}{decomp.total.retorno_cambio_pct.toFixed(2)}%
+                      </td>
+                      <td className="px-3 py-2.5" />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-2">
+                Ret. Ativo = retorno do ativo na moeda original · Ret. Câmbio = impacto do câmbio no BRL · Total = (1+Ativo)×(1+Câmbio)−1
+              </p>
+            </div>
+          )}
 
           {/* Data quality warnings */}
           {data.errors.length > 0 && (
