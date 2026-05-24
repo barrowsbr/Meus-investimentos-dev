@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\lucas\\\\OneDrive\\\\Área de Trabalho\\\\Meus-investimentos-dev\\\\app\\\\api\\\\twr\")",
+      "Bash(Out-Null)",
+      "Bash(npx tsc *)",
+      "PowerShell($n = Get-Command node -ErrorAction SilentlyContinue; if \\($n\\) { $n.Source } else { \"not found\" })"
+    ]
+  }
+}

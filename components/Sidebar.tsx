@@ -9,11 +9,13 @@ import {
   Landmark,
   ArrowLeftRight,
   Wallet,
+  TrendingUp,
 } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
+  { href: "/performance", label: "Performance", icon: TrendingUp },
   { href: "/proventos", label: "Proventos", icon: Coins },
   { href: "/renda-fixa", label: "Renda Fixa", icon: Landmark },
   { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight },
