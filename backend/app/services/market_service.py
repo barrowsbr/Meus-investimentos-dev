@@ -71,9 +71,9 @@ async def _fetch_fx_yahoo() -> FxRates:
         return data
 
     loop = asyncio.get_event_loop()
-    data = await loop.run_in_executor(None, _download)
+    data = await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=12.0)
 
-    result = dict(DEFAULTS_FX)
+    result = DEFAULTS_FX.model_dump()
     updated = 0
 
     for sym in fx_tickers:
@@ -139,7 +139,7 @@ async def fetch_fx_rates() -> tuple[FxRates, str]:
     ]
     for name, fn in sources:
         try:
-            fx = await fn()
+            fx = await asyncio.wait_for(fn(), timeout=15.0)
             return fx, name
         except Exception:
             pass
@@ -148,34 +148,67 @@ async def fetch_fx_rates() -> tuple[FxRates, str]:
 
 # --- Quotes via yfinance ---
 
+def _currency_from_yahoo_ticker(sym: str) -> str:
+    s = sym.upper()
+    if s.endswith(".SA"):
+        return "BRL"
+    if s.endswith(".L"):
+        return "GBP"
+    if s.endswith(".DE"):
+        return "EUR"
+    if s.endswith(".TO"):
+        return "CAD"
+    return "USD"
+
+
 def _fetch_quotes_sync(yahoo_tickers: list[str]) -> dict[str, Quote]:
+    """Fetches quotes using yf.download() batch — no per-ticker HTTP calls."""
     if not yahoo_tickers:
         return {}
     results: dict[str, Quote] = {}
-    batch_size = 10
+    batch_size = 20
 
     for i in range(0, len(yahoo_tickers), batch_size):
         batch = yahoo_tickers[i : i + batch_size]
         try:
-            data = yf.download(batch, period="2d", auto_adjust=True, progress=False, group_by="ticker")
-            info_data: dict[str, Any] = {}
+            data = yf.download(
+                batch,
+                period="5d",
+                auto_adjust=True,
+                progress=False,
+                group_by="ticker",
+            )
+            if data.empty:
+                continue
+
             for sym in batch:
                 try:
-                    tk = yf.Ticker(sym)
-                    info = tk.fast_info
-                    price = getattr(info, "last_price", None)
-                    prev_close = getattr(info, "previous_close", None)
-                    currency = getattr(info, "currency", "USD") or "USD"
-                    if price and price > 0:
-                        change = price - prev_close if prev_close else 0.0
-                        change_pct = (change / prev_close * 100) if prev_close else 0.0
-                        results[sym] = Quote(
-                            price=price,
-                            change=change,
-                            change_percent=change_pct,
-                            currency=currency,
-                            name=sym,
-                        )
+                    # Single-ticker download has flat columns; multi-ticker has MultiIndex
+                    if len(batch) == 1:
+                        close_series = data["Close"]
+                    else:
+                        close_series = data["Close"][sym]
+
+                    close_vals = close_series.dropna()
+                    if len(close_vals) < 1:
+                        continue
+
+                    price = float(close_vals.iloc[-1])
+                    prev_close = float(close_vals.iloc[-2]) if len(close_vals) >= 2 else price
+
+                    if price <= 0:
+                        continue
+
+                    change = price - prev_close
+                    change_pct = (change / prev_close * 100) if prev_close else 0.0
+
+                    results[sym] = Quote(
+                        price=price,
+                        change=change,
+                        change_percent=change_pct,
+                        currency=_currency_from_yahoo_ticker(sym),
+                        name=sym,
+                    )
                 except Exception:
                     pass
         except Exception:
@@ -190,9 +223,14 @@ async def fetch_quotes(yahoo_tickers: list[str]) -> tuple[dict[str, Quote], str]
 
     loop = asyncio.get_event_loop()
     try:
-        quotes = await loop.run_in_executor(None, _fetch_quotes_sync, yahoo_tickers)
+        quotes = await asyncio.wait_for(
+            loop.run_in_executor(None, _fetch_quotes_sync, yahoo_tickers),
+            timeout=35.0,
+        )
         if quotes:
             return quotes, "yfinance"
+    except asyncio.TimeoutError:
+        pass
     except Exception:
         pass
 
