@@ -16,6 +16,8 @@ import {
   Activity,
   Wallet,
   Settings,
+  Bot,
+  Newspaper,
 } from "lucide-react";
 
 interface NavItem {
@@ -57,12 +59,15 @@ const navGroups: NavGroup[] = [
   {
     label: "Gestão",
     items: [
-      { href: "/impostos", label: "Impostos",     icon: Receipt },
+      { href: "/impostos", label: "Impostos",      icon: Receipt },
       { href: "/financas", label: "Fin. Pessoais", icon: Wallet },
     ],
   },
   {
+    label: "Mais",
     items: [
+      { href: "/noticias",   label: "Notícias",   icon: Newspaper },
+      { href: "/agente-ia",  label: "Agente IA",  icon: Bot, mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings },
     ],
   },

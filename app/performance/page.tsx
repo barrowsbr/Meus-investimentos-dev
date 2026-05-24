@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 import {
   AreaChart,
   Area,
@@ -123,7 +125,7 @@ export default function PerformancePage() {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/twr?lookback=${window}`)
+    fetch(`${API_URL}/api/twr?lookback=${window}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
