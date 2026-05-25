@@ -116,7 +116,6 @@ export default function HomePage() {
         <video
           autoPlay
           muted
-          loop
           playsInline
           preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
@@ -175,7 +174,7 @@ export default function HomePage() {
                 }}
               >
                 <div
-                  className="rounded-[calc(1rem-1px)] p-5 h-full flex flex-col gap-3 min-h-[130px]"
+                  className="rounded-[calc(1rem-1px)] p-5 flex flex-col gap-3 h-[140px]"
                   style={{ background: "rgba(17,18,24,0.88)" }}
                 >
                   <div className="flex items-center justify-between">
