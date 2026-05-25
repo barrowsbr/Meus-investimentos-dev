@@ -117,7 +117,7 @@ export default function RendaFixaPage() {
             value={brl(metrics.totalPosicao)}
             sub={`${posicoes.data.length} títulos`}
             icon={<PiggyBank size={18} />}
-            glowColor="#8b5cf6"
+           
           />
         </div>
         <div className="animate-fade-in animate-delay-1">
@@ -126,7 +126,7 @@ export default function RendaFixaPage() {
             value={brl(metrics.totalCompras)}
             sub={`${transacoes.data.length} transações`}
             icon={<Landmark size={18} />}
-            glowColor="#d4a574"
+           
           />
         </div>
       </div>

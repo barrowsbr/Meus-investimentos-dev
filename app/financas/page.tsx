@@ -79,7 +79,7 @@ export default function FinancasPage() {
                 value={String(financas.data.length)}
                 sub={financas.error ? "Erro ao carregar" : undefined}
                 icon={<Wallet size={18} />}
-                glowColor="#3b82f6"
+               
               />
             </div>
             <div className="animate-fade-in animate-delay-1">
@@ -88,7 +88,7 @@ export default function FinancasPage() {
                 value={String(pessoal.data.length)}
                 sub={pessoal.error ? "Erro ao carregar" : undefined}
                 icon={<CreditCard size={18} />}
-                glowColor="#8b5cf6"
+               
               />
             </div>
           </div>

@@ -52,6 +52,8 @@ export interface PortfolioSnapshot {
   lucroPct: number;
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
+  dayChangeTotalBRL: number;
+  dayChangeTotalPct: number;
   usdbrl: number;
   eurbrl: number;
   cadbrl: number;
@@ -315,6 +317,9 @@ export function calcularSnapshot(
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
   const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
 
+  const dayChangeTotalBRL = rvPositions.reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
+  const dayChangeTotalPct = rvPatrimonioBRL > 0 ? (dayChangeTotalBRL / rvPatrimonioBRL) * 100 : 0;
+
   const exposicaoCambial: Record<string, number> = {};
   for (const p of positions) {
     if (p.valorAtualBRL < 1) continue;
@@ -339,6 +344,8 @@ export function calcularSnapshot(
     lucroPct,
     ganhoAtivoTotalBRL,
     ganhoCambioTotalBRL,
+    dayChangeTotalBRL,
+    dayChangeTotalPct,
     usdbrl: fxAtual.USDBRL,
     eurbrl: fxAtual.EURBRL,
     cadbrl: fxAtual.CADBRL,

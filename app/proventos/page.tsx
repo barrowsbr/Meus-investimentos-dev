@@ -124,7 +124,7 @@ export default function ProventosPage() {
             label="Total Recebido"
             value={brl(metrics.total)}
             icon={<Coins size={18} />}
-            glowColor="#d4a574"
+           
           />
         </div>
         <div className="animate-fade-in animate-delay-1">
@@ -132,7 +132,7 @@ export default function ProventosPage() {
             label="Média Mensal"
             value={brl(metrics.avgMonth)}
             icon={<Calendar size={18} />}
-            glowColor="#3b82f6"
+           
           />
         </div>
         <div className="animate-fade-in animate-delay-2">
@@ -140,7 +140,7 @@ export default function ProventosPage() {
             label="Ativos Pagadores"
             value={String(metrics.tickers)}
             icon={<TrendingUp size={18} />}
-            glowColor="#10b981"
+           
           />
         </div>
       </div>
