@@ -25,6 +25,7 @@ export interface Position {
   custoMedio: number;
   custoTotal: number;
   lucroRealizado: number;
+  lucroRealizadoBRL: number;
   precoAtual: number | null;
   quoteCurrency: string | null;
   valorAtual: number | null;
@@ -48,6 +49,7 @@ export interface PortfolioSnapshot {
   totalPatrimonioBRL: number;
   totalProventosBRL: number;
   proventosMensais: Record<string, number>;
+  proventosPorTicker: Record<string, number>;
   lucroBRL: number;
   lucroPct: number;
   ganhoAtivoTotalBRL: number;

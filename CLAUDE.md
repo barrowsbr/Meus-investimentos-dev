@@ -29,11 +29,28 @@ lib/
 
 ## Setup Local
 
+### Opção 1: Tudo em um (Recomendado — Next.js + Python Serverless no mesmo domínio)
 ```bash
 npm install
-# Preencher .env.local com GOOGLE_API_KEY e SPREADSHEET_ID
-npm run dev
+# Preencher .env.local com GOOGLE_API_KEY, SPREADSHEET_ID e GEMINI_API_KEY
+npx vercel dev
 ```
+Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://localhost:3000`), exatamente como em produção.
+
+### Opção 2: Separados (Tradicional)
+* Frontend:
+  ```bash
+  npm run dev
+  ```
+* Backend (em outra aba do terminal, na raiz do projeto):
+  ```bash
+  python -m venv .venv
+  source .venv/bin/activate  # ou .venv\Scripts\activate no Windows
+  pip install -r requirements.txt
+  python -m uvicorn api.index:app --reload
+  ```
+  *(Defina `NEXT_PUBLIC_API_URL=http://localhost:8000` em `.env.local` se optar por rodar separado).*
+
 
 ## Deploy na Vercel
 
