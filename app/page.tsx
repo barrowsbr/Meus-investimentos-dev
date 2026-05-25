@@ -131,7 +131,7 @@ export default function HomePage() {
           preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
           style={{
-            opacity: 0.12,
+            opacity: 0.18,
             filter: "blur(1px)",
           }}
         >
@@ -149,15 +149,15 @@ export default function HomePage() {
       {/* Content */}
       <div className="relative z-10 max-w-5xl">
         {/* Hero */}
-        <div className="mb-12 animate-fade-in">
+        <div className="mb-12 animate-fade-in pt-6">
           {/* Logo */}
           <div className="flex justify-center mb-8">
             <Image
               src="/midias/carregamento.png"
               alt="Meus Investimentos"
-              width={120}
-              height={120}
-              className="h-20 w-auto"
+              width={144}
+              height={144}
+              className="h-24 w-auto"
               priority
             />
           </div>
