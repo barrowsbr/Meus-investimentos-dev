@@ -1,5 +1,47 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "rewrites": [
+    {
+      "source": "/api/portfolio",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/composicao/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/renda-fixa/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/fluxos",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/agent/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/market/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/proventos/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/cambio/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/financas/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/historico/:path*",
+      "destination": "/api/index.py"
+    }
+  ]
 }
