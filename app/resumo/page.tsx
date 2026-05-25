@@ -148,6 +148,7 @@ export default function ResumoPage() {
   const [compLoading, setCompLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("global");
   const [hoveredNode, setHoveredNode] = useState<{ name: string; value: number; pct: number } | null>(null);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
@@ -332,6 +333,12 @@ export default function ResumoPage() {
     return { level1, level2, level3 };
   }, [composicao]);
 
+  const nestedOuter = useMemo(() => {
+    if (!sunburstData) return [];
+    if (!selectedClass) return sunburstData.level2;
+    return sunburstData.level2.filter((s: any) => s.parentName === selectedClass);
+  }, [sunburstData, selectedClass]);
+
   if (loading) return <LoadingSpinner />;
   if (error && !data) return <ErrorAlert message={error} />;
   if (!data) return <ErrorAlert message="Dados não disponíveis" />;
@@ -459,9 +466,125 @@ export default function ResumoPage() {
             ) : <p className="text-zinc-600 text-sm">Sem dados de proventos.</p>}
           </div>
         )}
-        <div className="glass-card p-5 animate-fade-in">
-          <h2 className="section-title mb-4"><Globe size={15} />Alocação por Setor</h2>
-          {sectorData.length > 0 ? (
+        <div className="glass-card p-5 animate-fade-in flex flex-col">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="section-title"><Globe size={15} />Alocação por Classe</h2>
+            {selectedClass && (
+              <button
+                onClick={() => setSelectedClass(null)}
+                className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                ← Tudo
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-zinc-600 mb-2">
+            {selectedClass
+              ? `Setores de ${selectedClass}`
+              : "Clique no anel interno para detalhar"}
+          </p>
+
+          {sunburstData && sunburstData.level1.length > 0 ? (
+            <>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={210}>
+                  <PieChart>
+                    {/* Inner ring — RV vs RF */}
+                    <Pie
+                      data={sunburstData.level1}
+                      cx="50%" cy="50%"
+                      innerRadius={38} outerRadius={68}
+                      dataKey="value"
+                      stroke="none"
+                      paddingAngle={3}
+                      onClick={(d: any) =>
+                        setSelectedClass(prev => prev === d.name ? null : d.name)
+                      }
+                      style={{ cursor: "pointer" }}
+                    >
+                      {sunburstData.level1.map((entry: any) => (
+                        <Cell
+                          key={entry.name}
+                          fill={entry.color}
+                          opacity={selectedClass && selectedClass !== entry.name ? 0.22 : 1}
+                        />
+                      ))}
+                    </Pie>
+
+                    {/* Outer ring — sectors */}
+                    <Pie
+                      data={nestedOuter}
+                      cx="50%" cy="50%"
+                      innerRadius={73} outerRadius={98}
+                      dataKey="value"
+                      stroke="none"
+                      paddingAngle={1}
+                    >
+                      {nestedOuter.map((entry: any, i: number) => (
+                        <Cell key={`${entry.name}-${i}`} fill={entry.color} opacity={0.82} />
+                      ))}
+                    </Pie>
+
+                    <Tooltip
+                      contentStyle={TOOLTIP_STYLE}
+                      content={({ active, payload }: any) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as {
+                          name: string; value: number; pct: number;
+                        };
+                        return (
+                          <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl">
+                            <p className="font-semibold text-zinc-200 text-xs">{d.name}</p>
+                            <p className="text-zinc-400 text-[11px]">{d.pct?.toFixed(1)}%</p>
+                            <p className="text-zinc-300 text-[11px]">{compactBRL(d.value)}</p>
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                {/* Center label */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    {selectedClass ? (
+                      <>
+                        <p className="text-[11px] font-bold text-zinc-200 leading-tight">
+                          {selectedClass === "Renda Variável" ? "RV" : "RF"}
+                        </p>
+                        <p className="text-[10px] text-zinc-500">
+                          {sunburstData.level1
+                            .find((d: any) => d.name === selectedClass)
+                            ?.pct.toFixed(0)}%
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[9px] text-zinc-700 max-w-[52px] text-center leading-tight">
+                        toque p/ detalhar
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(selectedClass ? nestedOuter : sunburstData.level1).map((s: any) => (
+                  <span
+                    key={s.name}
+                    className="text-[9px] px-1.5 py-0.5 rounded-full font-medium transition-opacity"
+                    style={{
+                      backgroundColor: `${s.color}20`,
+                      color: s.color,
+                      border: `1px solid ${s.color}30`,
+                    }}
+                  >
+                    {s.name.replace("Renda ", "")} {s.pct.toFixed(0)}%
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : sectorData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
