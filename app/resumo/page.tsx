@@ -579,7 +579,10 @@ export default function ResumoPage() {
                     dataKey="value"
                     stroke="none"
                     paddingAngle={1}
-                    onClick={(d: any) => setSelectedSector((prev: string | null) => prev === d.name ? null : d.name)}
+                    onClick={(d: any) => {
+                      setSelectedClass(d.parentName);
+                      setSelectedSector((prev: string | null) => prev === d.name ? null : d.name);
+                    }}
                     style={{ cursor: "pointer" }}
                     label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
                       if (percent < 0.07) return null;
@@ -728,7 +731,10 @@ export default function ResumoPage() {
                     <div
                       key={s.name}
                       className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => setSelectedSector((prev: string | null) => prev === s.name ? null : s.name)}
+                      onClick={() => {
+                        setSelectedClass(s.parentName);
+                        setSelectedSector((prev: string | null) => prev === s.name ? null : s.name);
+                      }}
                     >
                       <div className="flex items-center gap-2">
                         <div
