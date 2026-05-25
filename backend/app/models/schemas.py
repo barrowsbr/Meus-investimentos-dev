@@ -26,6 +26,7 @@ class Position(BaseModel):
     custo_medio: float
     custo_total: float
     lucro_realizado: float
+    lucro_realizado_brl: float = 0.0
     preco_atual: Optional[float]
     quote_currency: Optional[str]
     valor_atual: Optional[float]
@@ -49,6 +50,7 @@ class PortfolioSnapshot(BaseModel):
     total_patrimonio_brl: float
     total_proventos_brl: float
     proventos_mensais: dict[str, float]
+    proventos_por_ticker: dict[str, float] = {}
     lucro_brl: float
     lucro_pct: float
     ganho_ativo_total_brl: float
@@ -103,6 +105,7 @@ class PortfolioResponse(BaseModel):
     total_patrimonio_brl: float
     total_proventos_brl: float
     proventos_mensais: dict[str, float]
+    proventos_por_ticker: dict[str, float] = {}
     lucro_brl: float
     lucro_pct: float
     ganho_ativo_total_brl: float

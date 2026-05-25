@@ -1118,7 +1118,7 @@ export default function ResumoPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left" style={{ borderColor: "#1E2028" }}>
-                  {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Lucro", "%"].map((h, i) => (
+                  {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Dividendos", "Retorno"].map((h, i) => (
                     <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : ""}`}>
                       {h}
                     </th>
@@ -1127,8 +1127,17 @@ export default function ResumoPage() {
               </thead>
               <tbody>
                 {rvPositions.map((p, i) => {
-                  const cor = (p.valorAtual !== null ? (p.valorAtual - p.custoTotal) : (p.lucroBRL ?? 0)) >= 0 ? "text-positive" : "text-negative";
-                  const lucroNaMoeda = p.valorAtual !== null ? p.valorAtual - p.custoTotal : null;
+                  const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
+                  const naoRealizadoBRL = p.lucroBRL ?? 0;
+                  const realizadoBRL = p.lucroRealizadoBRL ?? 0;
+                  const totalBRL = naoRealizadoBRL + realizadoBRL + dividendosBRL;
+                  const naoRealizadoPct = p.lucroPct;
+                  const realizadoPct = p.custoTotalBRL > 0 ? (realizadoBRL / p.custoTotalBRL) * 100 : 0;
+                  const totalPct = p.lucroBRL !== null && p.custoTotalBRL > 0
+                    ? (totalBRL / p.custoTotalBRL) * 100
+                    : null;
+                  const corTotal = totalPct !== null ? (totalPct >= 0 ? "text-positive" : "text-negative") : "text-zinc-500";
+
                   return (
                     <tr key={p.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
                       <td className="px-3 py-2.5">
@@ -1146,9 +1155,34 @@ export default function ResumoPage() {
                       <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
                         {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{lucroNaMoeda !== null ? currency(lucroNaMoeda, p.moeda) : "—"}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">
+                        {p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {dividendosBRL > 0 ? (
+                          <span className="text-amber-400 font-mono">{compactBRL(dividendosBRL)}</span>
+                        ) : (
+                          <span className="text-zinc-700">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className={`font-bold text-sm ${corTotal}`}>
+                          {totalPct !== null
+                            ? `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(1)}%`
+                            : "—"}
+                        </div>
+                        <div className="text-[9px] text-zinc-600 font-mono mt-0.5">
+                          <span title="Não realizado">
+                            {naoRealizadoPct !== null
+                              ? `NR ${naoRealizadoPct >= 0 ? "+" : ""}${naoRealizadoPct.toFixed(1)}%`
+                              : "NR —"}
+                          </span>
+                          {" · "}
+                          <span title="Realizado">
+                            {`R ${realizadoPct >= 0 ? "+" : ""}${realizadoPct.toFixed(1)}%`}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

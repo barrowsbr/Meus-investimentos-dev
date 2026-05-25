@@ -224,6 +224,8 @@ def enriquecer_posicoes(
             ganho_ativo_brl = lucro_brl
             ganho_cambio_brl = 0.0
 
+        lucro_realizado_brl = pos.lucro_realizado * fator_atual
+
         positions.append(
             Position(
                 ticker=ticker,
@@ -234,6 +236,7 @@ def enriquecer_posicoes(
                 custo_medio=custo_medio,
                 custo_total=custo_total,
                 lucro_realizado=pos.lucro_realizado,
+                lucro_realizado_brl=lucro_realizado_brl,
                 preco_atual=preco_atual,
                 quote_currency=quote_currency,
                 valor_atual=valor_atual,
@@ -257,11 +260,16 @@ def enriquecer_posicoes(
 
 def calcular_proventos_brl(
     proventos: list[Row], fx: FxRates
-) -> tuple[float, dict[str, float]]:
+) -> tuple[float, dict[str, float], dict[str, float]]:
     total_brl = 0.0
     por_mes: dict[str, float] = {}
+    por_ticker: dict[str, float] = {}
 
     for row in proventos:
+        decisao = str(_get_val(row, "decisao", "decisão") or "").lower()
+        if "imposto" in decisao:
+            continue
+
         valor = abs(to_number(_get_val(row, "valor", "value")) or 0)
         if valor == 0:
             continue
@@ -275,7 +283,11 @@ def calcular_proventos_brl(
             key = f"{m.group(1)}-{m.group(2)}"
             por_mes[key] = por_mes.get(key, 0) + valor_brl
 
-    return total_brl, por_mes
+        ticker = str(_get_val(row, "ticker", "symbol", "ativo") or "").upper().strip()
+        if ticker:
+            por_ticker[ticker] = por_ticker.get(ticker, 0) + valor_brl
+
+    return total_brl, por_mes, por_ticker
 
 
 def calcular_renda_fixa_brl(fixa_aberta: list[Row], fx: FxRates) -> float:
@@ -294,7 +306,7 @@ def calcular_snapshot(
 ) -> PortfolioSnapshot:
     portfolio = calcular_carteira_fifo(transacoes)
     positions = enriquecer_posicoes(portfolio, quotes, fx_atual, fx_custo)
-    total_proventos_brl, proventos_mensais = calcular_proventos_brl(proventos, fx_atual)
+    total_proventos_brl, proventos_mensais, proventos_por_ticker = calcular_proventos_brl(proventos, fx_atual)
     rf_fixa_aberta = calcular_renda_fixa_brl(fixa_aberta, fx_atual)
 
     rv_positions = [p for p in positions if is_renda_variavel(p.setor)]
@@ -332,6 +344,7 @@ def calcular_snapshot(
         total_patrimonio_brl=total_patrimonio_brl,
         total_proventos_brl=total_proventos_brl,
         proventos_mensais=proventos_mensais,
+        proventos_por_ticker=proventos_por_ticker,
         lucro_brl=lucro_brl,
         lucro_pct=lucro_pct,
         ganho_ativo_total_brl=ganho_ativo_total,
