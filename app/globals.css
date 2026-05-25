@@ -31,30 +31,16 @@ body {
     border-color: rgba(212, 165, 116, 0.12);
   }
 
-  .metric-glow {
-    position: relative;
-    overflow: hidden;
+  .metric-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border rounded-2xl p-4 md:p-5;
+    min-height: 108px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: border-color 0.2s ease;
   }
-  .metric-glow::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--glow-color, #d4a574), transparent);
-    opacity: 0.5;
-  }
-  .metric-glow::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    background: radial-gradient(ellipse at 50% 0%, var(--glow-color, #d4a574), transparent 70%);
-    opacity: 0.04;
-    pointer-events: none;
+  .metric-card:hover {
+    border-color: #3f3f46;
   }
 
   .tag {

@@ -17,13 +17,8 @@ import {
   Legend,
 } from "recharts";
 import {
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  Landmark,
   Coins,
   DollarSign,
-  BarChart3,
   ArrowUpRight,
   Globe,
 } from "lucide-react";
@@ -106,12 +101,10 @@ export default function Dashboard() {
   if (!data) return <ErrorAlert message="Dados não disponíveis" />;
 
   const rvPositions = data.positions.filter((p) => isRendaVariavel(p.setor));
-  const lucroPctStr = pct(data.lucroPct);
-  const pmVsSpot = data.cambio?.pmDolar
-    ? ((data.usdbrl / data.cambio.pmDolar - 1) * 100)
-    : 0;
-
+  const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
   const currencyTotal = currencyData.reduce((s, c) => s + c.value, 0);
+  const dayChange = data.dayChangeTotalBRL ?? 0;
+  const dayChangePct = data.dayChangeTotalPct ?? 0;
 
   return (
     <>
@@ -120,60 +113,51 @@ export default function Dashboard() {
         description="Visão geral dos seus investimentos"
       />
 
-      {/* Metric Cards */}
+      {/* Metric Cards — 6 uniform cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
         <div className="animate-fade-in">
           <MetricCard
             label="Patrimônio Total"
             value={compactBRL(data.totalPatrimonioBRL)}
-            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} + RF ${compactBRL(data.rfPatrimonioBRL)}`}
-            icon={<Wallet size={18} />}
-            glowColor="#d4a574"
+            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
           />
         </div>
         <div className="animate-fade-in animate-delay-1">
           <MetricCard
-            label="Renda Variável"
-            value={compactBRL(data.rvPatrimonioBRL)}
-            sub={`${rvPositions.length} ativos`}
-            icon={<BarChart3 size={18} />}
-            glowColor="#3b82f6"
+            label="Variação Hoje"
+            value={brl(dayChange)}
+            sub={`${pct(dayChangePct)} sobre patrimônio RV`}
+            trend={dayChange >= 0 ? "up" : "down"}
           />
         </div>
         <div className="animate-fade-in animate-delay-2">
           <MetricCard
-            label="Renda Fixa"
-            value={compactBRL(data.rfPatrimonioBRL)}
-            icon={<Landmark size={18} />}
-            glowColor="#8b5cf6"
+            label="Lucro Total RV"
+            value={brl(data.lucroBRL)}
+            sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
+            trend={data.lucroBRL >= 0 ? "up" : "down"}
           />
         </div>
         <div className="animate-fade-in animate-delay-3">
           <MetricCard
-            label="Lucro RV"
-            value={brl(data.lucroBRL)}
-            sub={`${lucroPctStr} | Ativo ${compactBRL(data.ganhoAtivoTotalBRL)} | Câmbio ${compactBRL(data.ganhoCambioTotalBRL)}`}
-            icon={data.lucroBRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-            trend={data.lucroBRL >= 0 ? "up" : "down"}
-            glowColor={data.lucroBRL >= 0 ? "#4ade80" : "#f87171"}
+            label="Ganho Ativo vs Câmbio"
+            value={compactBRL(data.ganhoAtivoTotalBRL)}
+            sub={`Câmbio ${brl(data.ganhoCambioTotalBRL)}`}
+            trend={data.ganhoAtivoTotalBRL >= 0 ? "up" : "down"}
           />
         </div>
         <div className="animate-fade-in animate-delay-4">
           <MetricCard
             label="Proventos"
             value={compactBRL(data.totalProventosBRL)}
-            icon={<Coins size={18} />}
-            glowColor="#f59e0b"
+            sub={`${rvPositions.length} ativos em carteira`}
           />
         </div>
         <div className="animate-fade-in animate-delay-5">
           <MetricCard
             label="Dólar"
             value={`R$ ${data.usdbrl.toFixed(2)}`}
-            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} (${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}%) | EUR ${data.eurbrl.toFixed(2)}`}
-            icon={<DollarSign size={18} />}
-            trend={pmVsSpot >= 0 ? "up" : "down"}
-            glowColor="#10b981"
+            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ ${data.eurbrl.toFixed(2)}`}
           />
         </div>
       </div>
@@ -372,11 +356,13 @@ export default function Dashboard() {
                   <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Valor</th>
                   <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Lucro</th>
                   <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">%</th>
+                  <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Dia</th>
                 </tr>
               </thead>
               <tbody>
                 {rvPositions.map((p, i) => {
                   const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                  const corDia = (p.dayChangeBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                   return (
                     <tr key={p.ticker} className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
                       <td className="px-3 py-2.5">
@@ -402,6 +388,9 @@ export default function Dashboard() {
                       </td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>
                         {p.lucroPct !== null ? pct(p.lucroPct) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right text-xs font-medium ${p.dayChangeBRL !== null && p.dayChangeBRL !== 0 ? corDia : "text-zinc-600"}`}>
+                        {p.dayChangeBRL !== null && p.dayChangeBRL !== 0 ? brl(p.dayChangeBRL) : "—"}
                       </td>
                     </tr>
                   );

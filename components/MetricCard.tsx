@@ -6,26 +6,23 @@ interface Props {
   sub?: string;
   icon?: ReactNode;
   trend?: "up" | "down" | "neutral";
-  glowColor?: string;
-  compact?: boolean;
 }
 
-export default function MetricCard({ label, value, sub, icon, trend, glowColor, compact }: Props) {
+export default function MetricCard({ label, value, sub, icon, trend }: Props) {
   const trendColor = trend === "up" ? "text-positive" : trend === "down" ? "text-negative" : "";
 
   return (
-    <div
-      className="glass-card metric-glow p-4 md:p-5 flex flex-col gap-1.5 group transition-transform duration-200 hover:scale-[1.01]"
-      style={{ "--glow-color": glowColor || "#d4a574" } as React.CSSProperties}
-    >
-      <div className="flex items-center justify-between">
-        <span className="stat-label">{label}</span>
-        {icon && <span className="text-zinc-600 group-hover:text-zinc-400 transition-colors">{icon}</span>}
+    <div className="metric-card">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium leading-none">
+          {label}
+        </span>
+        {icon && <span className="text-zinc-600">{icon}</span>}
       </div>
-      <span className={`${compact ? "text-lg md:text-xl" : "text-xl md:text-2xl"} font-bold tracking-tight text-zinc-100 ${trendColor}`}>
+      <span className={`text-xl md:text-2xl font-bold tracking-tight leading-none ${trendColor || "text-zinc-100"}`}>
         {value}
       </span>
-      {sub && <span className="text-[10px] md:text-xs text-zinc-500 leading-relaxed">{sub}</span>}
+      {sub && <span className="text-[11px] text-zinc-500 mt-2 block leading-snug">{sub}</span>}
     </div>
   );
 }
