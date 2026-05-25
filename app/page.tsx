@@ -162,103 +162,105 @@ export default function HomePage() {
               priority
             />
           </div>
-          className="inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full font-medium mb-6"
-          style={{
-            background: "rgba(74,222,128,0.08)",
-            color: "#4ade80",
-            border: "1px solid rgba(74,222,128,0.2)",
-          }}
+
+          <div
+            className="inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full font-medium mb-6"
+            style={{
+              background: "rgba(74,222,128,0.08)",
+              color: "#4ade80",
+              border: "1px solid rgba(74,222,128,0.2)",
+            }}
           >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
-          Sistema operacional
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
+            Sistema operacional
+          </div>
+
+          <h1
+            className="text-4xl md:text-5xl font-bold mb-4 leading-tight"
+            style={{
+              background: "linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            Olá, Lucas
+          </h1>
+          <p className="text-zinc-500 text-base md:text-lg max-w-lg leading-relaxed">
+            Seu painel de controle financeiro pessoal. Todas as suas informações de
+            investimento em um só lugar.
+          </p>
         </div>
 
-        <h1
-          className="text-4xl md:text-5xl font-bold mb-4 leading-tight"
-          style={{
-            background: "linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          Olá, Lucas
-        </h1>
-        <p className="text-zinc-500 text-base md:text-lg max-w-lg leading-relaxed">
-          Seu painel de controle financeiro pessoal. Todas as suas informações de
-          investimento em um só lugar.
-        </p>
-      </div>
-
-      {/* Sections grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 animate-fade-in animate-delay-1">
-        {sections.map(({ href, label, description, icon: Icon, color, gradient, ready }) => (
-          <Link key={href} href={href} className="group block">
-            <div
-              className="rounded-2xl p-px transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${color}40 0%, ${color}12 50%, ${color}28 100%)`,
-                boxShadow: `0 2px 16px ${color}10`,
-              }}
-            >
+        {/* Sections grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 animate-fade-in animate-delay-1">
+          {sections.map(({ href, label, description, icon: Icon, color, gradient, ready }) => (
+            <Link key={href} href={href} className="group block">
               <div
-                className="rounded-[calc(1rem-1px)] p-4 h-full flex flex-col gap-3 backdrop-blur-md"
-                style={{ background: "rgba(19,20,26,0.92)" }}
+                className="rounded-2xl p-px transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+                style={{
+                  background: `linear-gradient(135deg, ${color}40 0%, ${color}12 50%, ${color}28 100%)`,
+                  boxShadow: `0 2px 16px ${color}10`,
+                }}
               >
-                {/* Icon + status */}
-                <div className="flex items-start justify-between">
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ background: `${color}14`, color }}
-                  >
-                    <Icon size={17} strokeWidth={1.7} />
-                  </div>
-                  {!ready && (
-                    <span
-                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide"
-                      style={{
-                        background: "rgba(113,113,122,0.12)",
-                        color: "#71717a",
-                        border: "1px solid rgba(113,113,122,0.2)",
-                      }}
+                <div
+                  className="rounded-[calc(1rem-1px)] p-4 h-full flex flex-col gap-3 backdrop-blur-md"
+                  style={{ background: "rgba(19,20,26,0.92)" }}
+                >
+                  {/* Icon + status */}
+                  <div className="flex items-start justify-between">
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{ background: `${color}14`, color }}
                     >
-                      Em breve
-                    </span>
-                  )}
-                  {ready && (
-                    <ArrowRight
-                      size={13}
-                      className="text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1"
-                    />
-                  )}
-                </div>
+                      <Icon size={17} strokeWidth={1.7} />
+                    </div>
+                    {!ready && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide"
+                        style={{
+                          background: "rgba(113,113,122,0.12)",
+                          color: "#71717a",
+                          border: "1px solid rgba(113,113,122,0.2)",
+                        }}
+                      >
+                        Em breve
+                      </span>
+                    )}
+                    {ready && (
+                      <ArrowRight
+                        size={13}
+                        className="text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1"
+                      />
+                    )}
+                  </div>
 
-                {/* Text */}
-                <div>
-                  <p className="text-sm font-semibold text-zinc-200 mb-0.5">{label}</p>
-                  <p className="text-[11px] text-zinc-600 leading-relaxed">{description}</p>
+                  {/* Text */}
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-200 mb-0.5">{label}</p>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed">{description}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
 
-      {/* Footer note */}
-      <div className="mt-10 flex items-center gap-3 animate-fade-in animate-delay-2">
-        <div
-          className="h-px flex-1"
-          style={{ background: "linear-gradient(90deg, #1E2028, transparent)" }}
-        />
-        <span className="text-[11px] text-zinc-700 font-medium tracking-wider uppercase">
-          Dashboard Pessoal · v1.0
-        </span>
-        <div
-          className="h-px flex-1"
-          style={{ background: "linear-gradient(90deg, transparent, #1E2028)" }}
-        />
+        {/* Footer note */}
+        <div className="mt-10 flex items-center gap-3 animate-fade-in animate-delay-2">
+          <div
+            className="h-px flex-1"
+            style={{ background: "linear-gradient(90deg, #1E2028, transparent)" }}
+          />
+          <span className="text-[11px] text-zinc-700 font-medium tracking-wider uppercase">
+            Dashboard Pessoal · v1.0
+          </span>
+          <div
+            className="h-px flex-1"
+            style={{ background: "linear-gradient(90deg, transparent, #1E2028)" }}
+          />
+        </div>
       </div>
-    </div>
     </div >
   );
 }
