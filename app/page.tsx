@@ -135,7 +135,7 @@ export default function HomePage() {
       {/* Content — centered */}
       <div className="relative z-10 w-full max-w-4xl px-4 py-10 flex flex-col items-center">
         {/* Hero */}
-        <div className="text-center mb-14 animate-fade-in pt-8">
+        <div className="text-center mb-14 animate-fade-in pt-20">
           <div className="flex justify-center mb-6">
             <Image
               src="/midias/carregamento.png"
