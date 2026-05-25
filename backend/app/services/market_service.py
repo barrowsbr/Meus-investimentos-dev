@@ -21,6 +21,17 @@ INTL_SUFFIX_MAP: dict[str, str] = {
     "IWDA": "IWDA.L",
 }
 
+# Map tickers to their actual currencies (overrides suffix-based detection)
+TICKER_CURRENCY_OVERRIDE: dict[str, str] = {
+    "VWRA.L": "USD",      # LSE but priced in USD
+    "CSPX.L": "GBP",      # LSE in GBP
+    "EIMI.L": "GBP",      # LSE in GBP
+    "IWDA.L": "USD",      # LSE but priced in USD
+    "VWCE.DE": "EUR",     # Xetra/Frankfurt in EUR
+    "ASML.AS": "EUR",     # Amsterdam exchange in EUR
+    "DPM.TO": "CAD",      # Toronto exchange in CAD
+}
+
 
 def yahoo_ticker(ticker: str, moeda: str = "BRL", corretora: str = "") -> str:
     t = ticker.upper().strip()
@@ -30,9 +41,12 @@ def yahoo_ticker(ticker: str, moeda: str = "BRL", corretora: str = "") -> str:
         return "BTC-USD"
     if t in ("ETH", "ETH-USD"):
         return "ETH-USD"
-    t_clean = t.replace(".SA", "").replace(".L", "")
+    t_clean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "")
     if t_clean in INTL_SUFFIX_MAP:
         return INTL_SUFFIX_MAP[t_clean]
+    # Handle Amsterdam exchange
+    if t == "ASML":
+        return "ASML.AS"
     setor = identificar_setor(t)
     if setor in ("Ações Brasil", "ETF", "FIIs", "BDRs"):
         return f"{t}.SA"
@@ -150,6 +164,12 @@ async def fetch_fx_rates() -> tuple[FxRates, str]:
 
 def _currency_from_yahoo_ticker(sym: str) -> str:
     s = sym.upper()
+    
+    # Check explicit overrides first
+    if s in TICKER_CURRENCY_OVERRIDE:
+        return TICKER_CURRENCY_OVERRIDE[s]
+    
+    # Fallback to suffix-based detection
     if s.endswith(".SA"):
         return "BRL"
     if s.endswith(".L"):
@@ -158,6 +178,8 @@ def _currency_from_yahoo_ticker(sym: str) -> str:
         return "EUR"
     if s.endswith(".TO"):
         return "CAD"
+    if s.endswith(".AS"):
+        return "EUR"
     return "USD"
 
 
