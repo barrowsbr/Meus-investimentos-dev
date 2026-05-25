@@ -71,7 +71,7 @@ async def _fetch_fx_yahoo() -> FxRates:
         return data
 
     loop = asyncio.get_event_loop()
-    data = await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=12.0)
+    data = await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=20.0)
 
     result = DEFAULTS_FX.model_dump()
     updated = 0
@@ -183,11 +183,17 @@ def _fetch_quotes_sync(yahoo_tickers: list[str]) -> dict[str, Quote]:
 
             for sym in batch:
                 try:
-                    # Single-ticker download has flat columns; multi-ticker has MultiIndex
-                    if len(batch) == 1:
-                        close_series = data["Close"]
-                    else:
-                        close_series = data["Close"][sym]
+                    # Handle both single and multi-ticker results
+                    try:
+                        if len(batch) == 1:
+                            close_series = data["Close"]
+                        else:
+                            close_series = data["Close"][sym]
+                    except (KeyError, TypeError):
+                        # Fallback: try direct access
+                        close_series = data[sym]["Close"] if sym in data.columns else None
+                        if close_series is None:
+                            continue
 
                     close_vals = close_series.dropna()
                     if len(close_vals) < 1:
@@ -209,10 +215,10 @@ def _fetch_quotes_sync(yahoo_tickers: list[str]) -> dict[str, Quote]:
                         currency=_currency_from_yahoo_ticker(sym),
                         name=sym,
                     )
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    print(f"[DEBUG] Error fetching {sym}: {e}")
+        except Exception as e:
+            print(f"[DEBUG] Batch {batch} download failed: {e}")
 
     return results
 
