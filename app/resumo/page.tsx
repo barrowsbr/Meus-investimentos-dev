@@ -147,6 +147,7 @@ export default function ResumoPage() {
   const [composicao, setComposicao] = useState<ComposicaoData | null>(null);
   const [compLoading, setCompLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("global");
+  const [hoveredNode, setHoveredNode] = useState<{ name: string; value: number; pct: number } | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
@@ -224,6 +225,111 @@ export default function ResumoPage() {
   const treemapData = useMemo(() => {
     if (!composicao?.estrutura_carteira?.length) return [];
     return composicao.estrutura_carteira;
+  }, [composicao]);
+
+  const sunburstData = useMemo(() => {
+    if (!composicao?.estrutura_carteira?.length) return null;
+
+    const totalPortfolio = composicao.resumo.total_portfolio;
+
+    const level1: any[] = [];
+    const level2: any[] = [];
+    const level3: any[] = [];
+
+    const sectorStyles: Record<string, { h: number; s: number; l: number }> = {
+      "Ações Internacional": { h: 260, s: 65, l: 45 },
+      "ETF USA": { h: 235, s: 60, l: 50 },
+      "ETF": { h: 215, s: 65, l: 52 },
+      "Ações Brasil": { h: 330, s: 75, l: 48 },
+      "FIIs": { h: 25, s: 80, l: 50 },
+      "BDRs": { h: 295, s: 65, l: 45 },
+      "Cripto": { h: 42, s: 85, l: 52 },
+      "Commodities": { h: 80, s: 55, l: 48 },
+      "Renda Fixa": { h: 170, s: 70, l: 38 },
+      "Renda Fixa USD": { h: 220, s: 75, l: 45 },
+      "Caixa": { h: 210, s: 15, l: 48 },
+      "Tesouro Direto": { h: 150, s: 65, l: 42 },
+    };
+
+    let rvValueSum = 0;
+    let rfValueSum = 0;
+
+    const checkIsRendaFixa = (sector: string) => {
+      return sector === "Renda Fixa" || sector === "Renda Fixa USD" || sector === "Caixa" || sector === "Tesouro Direto";
+    };
+
+    composicao.estrutura_carteira.forEach((macroNode: any) => {
+      macroNode.children.forEach((sectorNode: any) => {
+        const isRF = checkIsRendaFixa(sectorNode.name);
+        if (isRF) {
+          rfValueSum += sectorNode.value;
+        } else {
+          rvValueSum += sectorNode.value;
+        }
+      });
+    });
+
+    if (rvValueSum > 0) {
+      level1.push({
+        name: "Renda Variável",
+        value: rvValueSum,
+        pct: (rvValueSum / totalPortfolio) * 100,
+        color: "rgba(109, 40, 217, 0.9)",
+        glow: "#8b5cf6",
+      });
+    }
+    if (rfValueSum > 0) {
+      level1.push({
+        name: "Renda Fixa",
+        value: rfValueSum,
+        pct: (rfValueSum / totalPortfolio) * 100,
+        color: "rgba(13, 148, 136, 0.9)",
+        glow: "#10b981",
+      });
+    }
+
+    const processGroup = (isRFGroup: boolean) => {
+      composicao.estrutura_carteira.forEach((macroNode: any) => {
+        macroNode.children.forEach((sectorNode: any) => {
+          const isRF = checkIsRendaFixa(sectorNode.name);
+          if (isRF !== isRFGroup) return;
+
+          const baseColor = sectorStyles[sectorNode.name] || { h: 200, s: 40, l: 50 };
+          const sectorColor = `hsl(${baseColor.h}, ${baseColor.s}%, ${baseColor.l}%)`;
+
+          level2.push({
+            name: sectorNode.name,
+            value: sectorNode.value,
+            pct: sectorNode.pct,
+            parentName: isRFGroup ? "Renda Fixa" : "Renda Variável",
+            color: sectorColor,
+          });
+
+          if (sectorNode.children && sectorNode.children.length > 0) {
+            sectorNode.children.forEach((assetNode: any, idx: number) => {
+              const totalChildren = sectorNode.children.length;
+              const lightnessShift = totalChildren > 1 
+                ? ((idx - (totalChildren - 1) / 2) * (15 / totalChildren)) 
+                : 0;
+              const assetColor = `hsl(${baseColor.h}, ${baseColor.s}%, ${Math.min(90, Math.max(25, baseColor.l + lightnessShift))}%)`;
+
+              level3.push({
+                name: assetNode.name,
+                value: assetNode.value,
+                pct: assetNode.pct,
+                parentName: sectorNode.name,
+                color: assetColor,
+              });
+            });
+          }
+        });
+      });
+    };
+
+    processGroup(false);
+    processGroup(true);
+
+    return { level1, level2, level3 };
   }, [composicao]);
 
   if (loading) return <LoadingSpinner />;
