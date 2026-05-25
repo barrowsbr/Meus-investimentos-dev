@@ -218,7 +218,7 @@ export default function RendaFixaPage() {
             value={compactBRL(metrics.totalRF)}
             sub={`Manual ${compactBRL(metrics.totalManualBRL)} + Ativos ${compactBRL(metrics.totalAtivosBRL)}`}
             icon={<PiggyBank size={18} />}
-           
+            glowColor="#8b5cf6"
           />
         </div>
         <div className="animate-fade-in animate-delay-1">
@@ -227,7 +227,7 @@ export default function RendaFixaPage() {
             value={compactBRL(metrics.totalCompras)}
             sub={`${transacoes.data.length} transações`}
             icon={<Landmark size={18} />}
-           
+            glowColor="#d4a574"
           />
         </div>
         <div className="animate-fade-in animate-delay-2">

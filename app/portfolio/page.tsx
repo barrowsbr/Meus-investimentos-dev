@@ -53,10 +53,10 @@ export default function PortfolioPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
         <div className="animate-fade-in">
-          <MetricCard label="Investido (RV)" value={compactBRL(metrics.totalInvestido)} sub="Custo com PM do dólar" icon={<Briefcase size={18} />} />
+          <MetricCard label="Investido (RV)" value={compactBRL(metrics.totalInvestido)} sub="Custo com PM do dólar" icon={<Briefcase size={18} />} glowColor="#d4a574" />
         </div>
         <div className="animate-fade-in animate-delay-1">
-          <MetricCard label="Valor Atual (RV)" value={compactBRL(data.rvPatrimonioBRL)} sub={`${metrics.rv.length} ativos`} icon={<Target size={18} />} />
+          <MetricCard label="Valor Atual (RV)" value={compactBRL(data.rvPatrimonioBRL)} sub={`${metrics.rv.length} ativos`} icon={<Target size={18} />} glowColor="#3b82f6" />
         </div>
         <div className="animate-fade-in animate-delay-2">
           <MetricCard
@@ -65,17 +65,17 @@ export default function PortfolioPage() {
             sub={lucroPctStr}
             icon={data.lucroBRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
             trend={data.lucroBRL >= 0 ? "up" : "down"}
-           
+            glowColor={data.lucroBRL >= 0 ? "#4ade80" : "#f87171"}
           />
         </div>
         <div className="animate-fade-in animate-delay-3">
-          <MetricCard label="Ganho Ativo" value={brl(data.ganhoAtivoTotalBRL)} sub="Valorização dos ativos" icon={<TrendingUp size={18} />} />
+          <MetricCard label="Ganho Ativo" value={brl(data.ganhoAtivoTotalBRL)} sub="Valorização dos ativos" icon={<TrendingUp size={18} />} glowColor="#06b6d4" compact />
         </div>
         <div className="animate-fade-in animate-delay-4">
-          <MetricCard label="Ganho Câmbio" value={brl(data.ganhoCambioTotalBRL)} sub="Variação cambial" icon={<ArrowLeftRight size={18} />} trend={data.ganhoCambioTotalBRL >= 0 ? "up" : "down"} />
+          <MetricCard label="Ganho Câmbio" value={brl(data.ganhoCambioTotalBRL)} sub="Variação cambial" icon={<ArrowLeftRight size={18} />} trend={data.ganhoCambioTotalBRL >= 0 ? "up" : "down"} glowColor="#10b981" compact />
         </div>
         <div className="animate-fade-in animate-delay-5">
-          <MetricCard label="Lucro Realizado" value={brl(metrics.lucroRealizado)} sub={`${metrics.posComLucro} ganho, ${metrics.posSemLucro} perda`} icon={<DollarSign size={18} />} />
+          <MetricCard label="Lucro Realizado" value={brl(metrics.lucroRealizado)} sub={`${metrics.posComLucro} ganho, ${metrics.posSemLucro} perda`} icon={<DollarSign size={18} />} glowColor="#f59e0b" compact />
         </div>
       </div>
 

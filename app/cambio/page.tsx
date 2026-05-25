@@ -116,7 +116,7 @@ export default function CambioPage() {
                 value={`R$ ${cambio.pmDolar.toFixed(4)}`}
                 sub={`${cambio.operacoes} operações`}
                 icon={<DollarSign size={18} />}
-               
+                glowColor="#d4a574"
               />
             </div>
             <div className="animate-fade-in animate-delay-1">
@@ -126,7 +126,7 @@ export default function CambioPage() {
                 sub={`${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}% vs PM`}
                 icon={<ArrowLeftRight size={18} />}
                 trend={pmVsSpot >= 0 ? "up" : "down"}
-               
+                glowColor="#3b82f6"
               />
             </div>
             <div className="animate-fade-in animate-delay-2">
@@ -136,7 +136,7 @@ export default function CambioPage() {
                 sub={`Sobre $${cambio.totalRecebidoUSD.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
                 icon={cambio.ganhoCambialUSD_BRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
                 trend={cambio.ganhoCambialUSD_BRL >= 0 ? "up" : "down"}
-               
+                glowColor={cambio.ganhoCambialUSD_BRL >= 0 ? "#4ade80" : "#f87171"}
               />
             </div>
             <div className="animate-fade-in animate-delay-3">
@@ -145,7 +145,7 @@ export default function CambioPage() {
                 value={ptax ? `R$ ${ptax.USDBRL.toFixed(4)}` : "—"}
                 sub={ptax ? `Diferença: R$ ${(spot - ptax.USDBRL).toFixed(4)}` : "Sem dados PTAX"}
                 icon={<Scale size={18} />}
-               
+                glowColor="#8b5cf6"
               />
             </div>
           </div>
