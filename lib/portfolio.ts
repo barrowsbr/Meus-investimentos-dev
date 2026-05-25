@@ -228,6 +228,7 @@ export function enriquecerPosicoes(
       custoMedio,
       custoTotal,
       lucroRealizado: pos.lucroRealizado,
+      lucroRealizadoBRL: pos.lucroRealizado * fatorAtual,
       precoAtual,
       quoteCurrency,
       valorAtual,
@@ -252,9 +253,10 @@ export function enriquecerPosicoes(
 export function calcularProventosBRL(
   proventos: Row[],
   fx: FxRates
-): { totalBRL: number; porMes: Record<string, number> } {
+): { totalBRL: number; porMes: Record<string, number>; porTicker: Record<string, number> } {
   let totalBRL = 0;
   const porMes: Record<string, number> = {};
+  const porTicker: Record<string, number> = {};
 
   for (const row of proventos) {
     const valor = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
@@ -264,6 +266,9 @@ export function calcularProventosBRL(
     const valorBRL = valor * fxToBRL(moeda, fx);
     totalBRL += valorBRL;
 
+    const ticker = String(getVal(row, "ticker", "símbolo", "simbolo") ?? "").toUpperCase().trim();
+    if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
+
     const dataStr = String(getVal(row, "data", "date", "pagamento") ?? "");
     const match = dataStr.match(/^(\d{4})-(\d{2})/);
     if (match) {
@@ -272,7 +277,7 @@ export function calcularProventosBRL(
     }
   }
 
-  return { totalBRL, porMes };
+  return { totalBRL, porMes, porTicker };
 }
 
 export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
@@ -342,6 +347,7 @@ export function calcularSnapshot(
     totalPatrimonioBRL,
     totalProventosBRL: prov.totalBRL,
     proventosMensais: prov.porMes,
+    proventosPorTicker: prov.porTicker,
     lucroBRL,
     lucroPct,
     ganhoAtivoTotalBRL,

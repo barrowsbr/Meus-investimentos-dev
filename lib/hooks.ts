@@ -131,6 +131,8 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     lucroPct: data.lucro_pct ?? 0,
     ganhoAtivoTotalBRL: data.ganho_ativo_total_brl ?? 0,
     ganhoCambioTotalBRL: data.ganho_cambio_total_brl ?? 0,
+    dayChangeTotalBRL: data.day_change_total_brl ?? 0,
+    dayChangeTotalPct: data.day_change_total_pct ?? 0,
     usdbrl: data.usdbrl ?? 5.7,
     eurbrl: data.eurbrl ?? 6.4,
     cadbrl: data.cadbrl ?? 4.1,

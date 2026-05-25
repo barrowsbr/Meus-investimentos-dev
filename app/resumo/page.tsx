@@ -75,15 +75,7 @@ const TOOLTIP_STYLE = {
   color: "#fafafa", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
-const CARD_GRADIENTS = {
-  patrimonio: "linear-gradient(135deg, #d4a574 0%, #f5c842 50%, #b8860b 100%)",
-  rv: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 55%, #3b82f6 100%)",
-  rf: "linear-gradient(135deg, #8b5cf6 0%, #c084fc 55%, #6366f1 100%)",
-  proventos: "linear-gradient(135deg, #f59e0b 0%, #fb923c 55%, #f59e0b 100%)",
-  dolar: "linear-gradient(135deg, #10b981 0%, #4ade80 55%, #059669 100%)",
-  lucroUp: "linear-gradient(135deg, #10b981 0%, #34d399 55%, #059669 100%)",
-  lucroDown: "linear-gradient(135deg, #f87171 0%, #ef4444 55%, #dc2626 100%)",
-};
+// Card gradients removed — using uniform clean design
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -357,8 +349,9 @@ export default function ResumoPage() {
   if (!data) return <ErrorAlert message="Dados não disponíveis" />;
 
   const rvPositions = data.positions.filter(p => isRendaVariavel(p.setor));
-  const lucroPctStr = pct(data.lucroPct);
-  const pmVsSpot = data.cambio?.pmDolar ? (data.usdbrl / data.cambio.pmDolar - 1) * 100 : 0;
+  const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+  const dayChange = data.dayChangeTotalBRL ?? 0;
+  const dayChangePct = data.dayChangeTotalPct ?? 0;
 
   const top = composicao?.resumo.top_performer;
   const bot = composicao?.resumo.bottom_performer;
@@ -370,39 +363,34 @@ export default function ResumoPage() {
         description={composicao?.computed_at ? `Atualizado às ${formatComputedAt(composicao.computed_at)}` : "Visão geral dos seus investimentos"}
       />
 
-      {/* ── Metric Cards ── */}
+      {/* ── Metric Cards — uniform, clean ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
         <div className="animate-fade-in">
           <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
-            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} + RF ${compactBRL(data.rfPatrimonioBRL)}`}
-            icon={<Wallet size={17} strokeWidth={1.6} />} glowColor="#d4a574" borderGradient={CARD_GRADIENTS.patrimonio} />
+            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`} />
         </div>
         <div className="animate-fade-in animate-delay-1">
-          <MetricCard label="Renda Variável" value={compactBRL(data.rvPatrimonioBRL)}
-            sub={`${rvPositions.length} ativos`}
-            icon={<BarChart3 size={17} strokeWidth={1.6} />} glowColor="#3b82f6" borderGradient={CARD_GRADIENTS.rv} />
+          <MetricCard label="Variação Hoje" value={brl(dayChange)}
+            sub={`${pct(dayChangePct)} sobre patrimônio RV`}
+            trend={dayChange >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-2">
-          <MetricCard label="Renda Fixa" value={compactBRL(data.rfPatrimonioBRL)}
-            icon={<Landmark size={17} strokeWidth={1.6} />} glowColor="#8b5cf6" borderGradient={CARD_GRADIENTS.rf} />
+          <MetricCard label="Lucro Total RV" value={brl(data.lucroBRL)}
+            sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
+            trend={data.lucroBRL >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-3">
-          <MetricCard label="Lucro RV" value={brl(data.lucroBRL)}
-            sub={`${lucroPctStr} | Ativo ${compactBRL(data.ganhoAtivoTotalBRL)} | Câmbio ${compactBRL(data.ganhoCambioTotalBRL)}`}
-            icon={data.lucroBRL >= 0 ? <TrendingUp size={17} strokeWidth={1.6} /> : <TrendingDown size={17} strokeWidth={1.6} />}
-            trend={data.lucroBRL >= 0 ? "up" : "down"}
-            glowColor={data.lucroBRL >= 0 ? "#10b981" : "#f87171"}
-            borderGradient={data.lucroBRL >= 0 ? CARD_GRADIENTS.lucroUp : CARD_GRADIENTS.lucroDown} />
+          <MetricCard label="Ganho Ativo vs Câmbio" value={compactBRL(data.ganhoAtivoTotalBRL)}
+            sub={`Câmbio ${brl(data.ganhoCambioTotalBRL)}`}
+            trend={data.ganhoAtivoTotalBRL >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-4">
           <MetricCard label="Proventos" value={compactBRL(data.totalProventosBRL)}
-            icon={<Coins size={17} strokeWidth={1.6} />} glowColor="#f59e0b" borderGradient={CARD_GRADIENTS.proventos} />
+            sub={`${rvPositions.length} ativos em carteira`} />
         </div>
         <div className="animate-fade-in animate-delay-5">
           <MetricCard label="Dólar" value={`R$ ${data.usdbrl.toFixed(2)}`}
-            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} (${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}%) · EUR ${data.eurbrl.toFixed(2)}`}
-            icon={<DollarSign size={17} strokeWidth={1.6} />}
-            trend={pmVsSpot >= 0 ? "up" : "down"} glowColor="#10b981" borderGradient={CARD_GRADIENTS.dolar} />
+            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ ${data.eurbrl.toFixed(2)}`} />
         </div>
       </div>
 
