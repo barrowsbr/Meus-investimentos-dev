@@ -42,12 +42,12 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   ```bash
   npm run dev
   ```
-* Backend (em outra aba do terminal, na pasta `backend`):
+* Backend (em outra aba do terminal, na raiz do projeto):
   ```bash
   python -m venv .venv
   source .venv/bin/activate  # ou .venv\Scripts\activate no Windows
   pip install -r requirements.txt
-  python -m uvicorn app.main:app --reload
+  python -m uvicorn api.index:app --reload
   ```
   *(Defina `NEXT_PUBLIC_API_URL=http://localhost:8000` em `.env.local` se optar por rodar separado).*
 
