@@ -13,7 +13,7 @@ import {
   Layers, Target, PieChart as PieIcon,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { brl, compactBRL, pct, shortMonth } from "@/lib/format";
+import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -104,7 +104,7 @@ const TreemapContent = (props: any) => {
   if (width < 2 || height < 2) return null;
   const color = depth === 1 ? (MACRO_COLORS[name] || "#52525b")
     : depth === 2 ? (SECTOR_COLORS[name] || "#3f3f46")
-    : "#1a1a2e";
+      : "#1a1a2e";
   const showLabel = width > 35 && height > 22;
   return (
     <g>
@@ -153,7 +153,7 @@ export default function ResumoPage() {
     fetch(`${API_URL}/api/composicao/resumo`)
       .then(r => r.json())
       .then(setComposicao)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCompLoading(false));
   }, []);
 
@@ -308,8 +308,8 @@ export default function ResumoPage() {
           if (sectorNode.children && sectorNode.children.length > 0) {
             sectorNode.children.forEach((assetNode: any, idx: number) => {
               const totalChildren = sectorNode.children.length;
-              const lightnessShift = totalChildren > 1 
-                ? ((idx - (totalChildren - 1) / 2) * (15 / totalChildren)) 
+              const lightnessShift = totalChildren > 1
+                ? ((idx - (totalChildren - 1) / 2) * (15 / totalChildren))
                 : 0;
               const assetColor = `hsl(${baseColor.h}, ${baseColor.s}%, ${Math.min(90, Math.max(25, baseColor.l + lightnessShift))}%)`;
 
@@ -603,11 +603,10 @@ export default function ResumoPage() {
         <div className="flex flex-wrap gap-2 mb-6 animate-fade-in">
           {["global", ...macros].map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                activeFilter === f
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
                   ? "border-transparent text-zinc-900"
                   : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              }`}
+                }`}
               style={activeFilter === f ? {
                 background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
               } : undefined}
@@ -826,7 +825,8 @@ export default function ResumoPage() {
               </thead>
               <tbody>
                 {rvPositions.map((p, i) => {
-                  const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                  const cor = (p.valorAtual !== null ? (p.valorAtual - p.custoTotal) : (p.lucroBRL ?? 0)) >= 0 ? "text-positive" : "text-negative";
+                  const lucroNaMoeda = p.valorAtual !== null ? p.valorAtual - p.custoTotal : null;
                   return (
                     <tr key={p.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
                       <td className="px-3 py-2.5">
@@ -844,8 +844,8 @@ export default function ResumoPage() {
                       <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
                         {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{compactBRL(p.valorAtualBRL)}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
+                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{lucroNaMoeda !== null ? currency(lucroNaMoeda, p.moeda) : "—"}</td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
                     </tr>
                   );

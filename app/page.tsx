@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -120,17 +121,54 @@ const sections = [
 
 export default function HomePage() {
   return (
-    <div className="max-w-5xl">
-      {/* Hero */}
-      <div className="mb-12 animate-fade-in">
+    <div className="relative min-h-screen">
+      {/* Background video with transparency */}
+      <div className="fixed inset-0 overflow-hidden z-0 pointer-events-none">
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{
+            opacity: 0.12,
+            filter: "blur(1px)",
+          }}
+        >
+          <source src="/midias/video2.mp4" type="video/mp4" />
+        </video>
+        {/* Overlay gradient for better text readability */}
         <div
+          className="absolute inset-0"
+          style={{
+            background: "radial-gradient(ellipse at 50% 50%, rgba(13,14,17,0) 0%, rgba(13,14,17,0.8) 100%)",
+          }}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 max-w-5xl">
+        {/* Hero */}
+        <div className="mb-12 animate-fade-in">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <Image
+              src="/midias/carregamento.png"
+              alt="Meus Investimentos"
+              width={120}
+              height={120}
+              className="h-20 w-auto"
+              priority
+            />
+          </div>
           className="inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full font-medium mb-6"
           style={{
             background: "rgba(74,222,128,0.08)",
             color: "#4ade80",
             border: "1px solid rgba(74,222,128,0.2)",
           }}
-        >
+          >
           <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
           Sistema operacional
         </div>
@@ -221,5 +259,6 @@ export default function HomePage() {
         />
       </div>
     </div>
+    </div >
   );
 }
