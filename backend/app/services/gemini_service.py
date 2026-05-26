@@ -16,7 +16,7 @@ SYSTEM_PROMPT = (
 def _get_model():
     genai.configure(api_key=settings.gemini_api_key)
     return genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.0-flash",
         system_instruction=SYSTEM_PROMPT,
     )
 
