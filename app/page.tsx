@@ -111,22 +111,12 @@ const sections = [
 export default function HomePage() {
   return (
     <div className="relative min-h-screen flex flex-col items-center">
-      {/* Background video */}
+      {/* Background */}
       <div className="fixed inset-0 overflow-hidden z-0 pointer-events-none">
-        <video
-          autoPlay
-          muted
-          playsInline
-          preload="auto"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: 0.18, filter: "blur(1px)" }}
-        >
-          <source src="/midias/video2.mp4" type="video/mp4" />
-        </video>
         <div
           className="absolute inset-0"
           style={{
-            background: "radial-gradient(ellipse at 50% 40%, rgba(13,14,17,0) 0%, rgba(13,14,17,0.85) 100%)",
+            background: "radial-gradient(ellipse at 50% 40%, rgba(25,26,35,0.6) 0%, rgba(13,14,17,0.95) 100%)",
           }}
         />
       </div>
