@@ -228,7 +228,10 @@ export async function GET(request: Request) {
   const lookback = Math.min(parseInt(searchParams.get("lookback") ?? "1825", 10), 3650);
 
   try {
-    const transacoes = await fetchTab("meus_ativos");
+    const [transacoes, proventos] = await Promise.all([
+      fetchTab("meus_ativos"),
+      fetchTab("meus_proventos").catch(() => []),
+    ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
     }
@@ -269,7 +272,7 @@ export async function GET(request: Request) {
       return idx != null ? hist.ibov[idx] : null;
     });
 
-    const twr = calcularTWR({ transacoes, dates, prices: alignedPrices, fxHistory: alignedFx });
+    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx });
 
     // CDI and IBOV benchmarks
     const cdiPoints = buildCDIBenchmark(dates);
@@ -321,7 +324,7 @@ export async function GET(request: Request) {
       cashFlows.push({ date: last.date, amount: last.nav }); // final NAV = inflow
     }
     cashFlows.sort((a, b) => a.date.localeCompare(b.date));
-    const mwr = calcularMWR(cashFlows);
+    const mwr = twr.mwr ?? calcularMWR(cashFlows);
 
     // FX decomposition
     const fxDecomp = calcularDecomposicaoFX(meaningfulPoints);
@@ -396,8 +399,10 @@ export async function GET(request: Request) {
         date: d.date,
         nav: d.nav,
         flow: twr.points[i]?.flow ?? 0,
+        income: twr.points[i]?.income ?? 0,
         ret: twr.points[i]?.ret ?? 0,
         twr: d.drawdown / 100,
+        forceZero: twr.points[i]?.forceZero ?? false,
       }))),
       drawdownData: drawdownSeries.filter((_, i) => i % Math.max(1, Math.floor(drawdownSeries.length / 400)) === 0),
       rolling: rollingReturns.filter((_, i) => i % Math.max(1, Math.floor(rollingReturns.length / 400)) === 0),
