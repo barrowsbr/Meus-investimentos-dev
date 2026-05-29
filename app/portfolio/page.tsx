@@ -119,6 +119,7 @@ export default function PortfolioPage() {
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Atual</th>
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Lucro</th>
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">%</th>
+                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Dia %</th>
                 {hasUSD && <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">G.Ativo</th>}
                 {hasUSD && <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">G.Câmbio</th>}
               </tr>
@@ -148,6 +149,9 @@ export default function PortfolioPage() {
                     <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(p.valorAtualBRL)}</td>
                     <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
                     <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                    <td className={`px-3 py-2.5 text-right text-xs ${p.dayChangePct !== null ? (p.dayChangePct >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
+                      {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
+                    </td>
                     {hasUSD && <td className={`px-3 py-2.5 text-right text-xs ${corAtivo}`}>{p.ganhoAtivoBRL !== null ? brl(p.ganhoAtivoBRL) : "—"}</td>}
                     {hasUSD && <td className={`px-3 py-2.5 text-right text-xs ${corCambio}`}>{p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? brl(p.ganhoCambioBRL) : "—"}</td>}
                   </tr>
@@ -161,6 +165,7 @@ export default function PortfolioPage() {
                 <td className="px-3 py-3 text-right text-zinc-200">{brl(data.rvPatrimonioBRL)}</td>
                 <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
                 <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
+                <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.dayChangeTotalPct ?? 0)}</td>
                 {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoTotalBRL)}</td>}
                 {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCambioTotalBRL)}</td>}
               </tr>

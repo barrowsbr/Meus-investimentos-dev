@@ -2,7 +2,7 @@
 
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, BarChart, Bar,
+  CartesianGrid, Legend, BarChart, Bar, Cell,
 } from "recharts";
 import { Activity, TrendingUp, Calendar, Landmark } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
@@ -176,10 +176,7 @@ export default function EvolucaoPage() {
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}%`, "Retorno"]} />
                 <Bar dataKey="retorno" radius={[4, 4, 0, 0]}>
                   {anuais.map((entry, i) => (
-                    <rect
-                      key={i}
-                      fill={entry.retorno >= 0 ? "#4ade80" : "#f87171"}
-                    />
+                    <Cell key={i} fill={entry.retorno >= 0 ? "#4ade80" : "#f87171"} />
                   ))}
                 </Bar>
               </BarChart>

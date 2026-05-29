@@ -15,6 +15,9 @@ import {
   Wallet,
   Settings,
   ArrowRight,
+  Newspaper,
+  Bot,
+  ListOrdered,
 } from "lucide-react";
 
 const sections = [
@@ -24,7 +27,6 @@ const sections = [
     description: "Patrimônio total, alocação e posições",
     icon: LayoutDashboard,
     color: "#d4a574",
-    ready: true,
   },
   {
     href: "/performance",
@@ -32,7 +34,6 @@ const sections = [
     description: "TWR, retorno acumulado e benchmarks",
     icon: TrendingUp,
     color: "#3b82f6",
-    ready: true,
   },
   {
     href: "/renda-variavel",
@@ -40,7 +41,6 @@ const sections = [
     description: "Ações, ETFs, FIIs e BDRs",
     icon: BarChart2,
     color: "#06b6d4",
-    ready: true,
   },
   {
     href: "/renda-fixa",
@@ -48,7 +48,6 @@ const sections = [
     description: "CDBs, Tesouro Direto e posições abertas",
     icon: Landmark,
     color: "#8b5cf6",
-    ready: true,
   },
   {
     href: "/proventos",
@@ -56,7 +55,6 @@ const sections = [
     description: "Dividendos, JCP e rendimentos recebidos",
     icon: Coins,
     color: "#f59e0b",
-    ready: true,
   },
   {
     href: "/criptoativos",
@@ -64,7 +62,6 @@ const sections = [
     description: "Bitcoin, Ethereum e ativos digitais",
     icon: Bitcoin,
     color: "#f97316",
-    ready: false,
   },
   {
     href: "/cambio",
@@ -72,23 +69,20 @@ const sections = [
     description: "Operações de câmbio e VET médio",
     icon: ArrowLeftRight,
     color: "#10b981",
-    ready: true,
   },
   {
     href: "/impostos",
     label: "Impostos",
-    description: "DARFs, declaração IR e isenções",
+    description: "FIFO, DARFs e isenção mensal",
     icon: Receipt,
     color: "#6366f1",
-    ready: false,
   },
   {
     href: "/evolucao",
     label: "Evolução",
-    description: "Histórico patrimonial e projeções",
+    description: "Histórico patrimonial ao longo do tempo",
     icon: Activity,
     color: "#60a5fa",
-    ready: false,
   },
   {
     href: "/financas",
@@ -96,15 +90,34 @@ const sections = [
     description: "Receitas, despesas e controle financeiro",
     icon: Wallet,
     color: "#ec4899",
-    ready: true,
+  },
+  {
+    href: "/fluxos",
+    label: "Fluxos",
+    description: "Registro auditável de entradas e saídas",
+    icon: ListOrdered,
+    color: "#a78bfa",
+  },
+  {
+    href: "/noticias",
+    label: "Notícias",
+    description: "Feed financeiro e mercado em tempo real",
+    icon: Newspaper,
+    color: "#34d399",
+  },
+  {
+    href: "/agente-ia",
+    label: "Agente IA",
+    description: "Assistente financeiro com Gemini AI",
+    icon: Bot,
+    color: "#818cf8",
   },
   {
     href: "/configuracoes",
     label: "Configurações",
-    description: "Preferências e integrações",
+    description: "Senha, sincronização e integrações",
     icon: Settings,
     color: "#71717a",
-    ready: false,
   },
 ];
 
@@ -154,7 +167,7 @@ export default function HomePage() {
 
         {/* Sections grid — symmetric 3 columns */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full animate-fade-in animate-delay-1">
-          {sections.map(({ href, label, description, icon: Icon, color, ready }) => (
+          {sections.map(({ href, label, description, icon: Icon, color }) => (
             <Link key={href} href={href} className="group block">
               <div
                 className="rounded-2xl p-px transition-all duration-250 hover:scale-[1.03]"
@@ -177,23 +190,10 @@ export default function HomePage() {
                     >
                       <Icon size={18} strokeWidth={1.8} style={{ color }} />
                     </div>
-                    {!ready ? (
-                      <span
-                        className="text-[9px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                        style={{
-                          background: "rgba(113,113,122,0.1)",
-                          color: "#a1a1aa",
-                          border: "1px solid rgba(113,113,122,0.25)",
-                        }}
-                      >
-                        Em breve
-                      </span>
-                    ) : (
-                      <ArrowRight
-                        size={14}
-                        className="text-zinc-700 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-all mt-0.5"
-                      />
-                    )}
+                    <ArrowRight
+                      size={14}
+                      className="text-zinc-700 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-all mt-0.5"
+                    />
                   </div>
 
                   <div className="mt-auto">
