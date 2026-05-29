@@ -142,6 +142,7 @@ export default function ResumoPage() {
   const [hoveredNode, setHoveredNode] = useState<{ name: string; value: number; pct: number } | null>(null);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa">("por-etf");
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
@@ -1069,50 +1070,172 @@ export default function ResumoPage() {
         </div>
       )}
 
-      {/* ── Look-through ETFs ── */}
-      {composicao?.look_through && composicao.look_through.supported.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title"><Layers size={15} />Look-through de ETFs</h2>
-            <span className="text-[10px] text-zinc-500">{compactBRL(composicao.look_through.total_look_through_brl)} sujeito a look-through</span>
-          </div>
-          <div className="space-y-4">
-            {Object.values(composicao.look_through.compositions).map(etf => (
-              <div key={etf.ticker}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
-                  <span className="text-zinc-600 text-xs">{compactBRL(etf.valor_brl)}</span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
-                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {etf.components.map(c => (
-                        <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                          <td className="py-1.5 px-2 text-zinc-300 font-medium">{c.ativo}</td>
-                          <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
-                          <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+      {/* ── Look-through ETFs (3 tabs) ── */}
+      {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
+        const lt = composicao.look_through;
+
+        // Tab 2: Aggregate by stock across all ETFs
+        const combined: Record<string, { ativo: string; valorBRL: number; etfs: string[] }> = {};
+        for (const etf of Object.values(lt.compositions)) {
+          for (const c of etf.components) {
+            if (!combined[c.ativo]) combined[c.ativo] = { ativo: c.ativo, valorBRL: 0, etfs: [] };
+            combined[c.ativo].valorBRL += etf.valor_brl * c.peso;
+            if (!combined[c.ativo].etfs.includes(etf.ticker)) combined[c.ativo].etfs.push(etf.ticker);
+          }
+        }
+        const combinedList = Object.values(combined).sort((a, b) => b.valorBRL - a.valorBRL);
+        const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
+
+        // Tab 3: All RV positions with ETFs expanded
+        const rvComplete: { ticker: string; valorBRL: number; source: string; isExpanded: boolean }[] = [];
+        for (const p of rvPositions) {
+          if (lt.compositions[p.ticker]) {
+            // Expand ETF
+            for (const c of lt.compositions[p.ticker].components) {
+              rvComplete.push({ ticker: c.ativo, valorBRL: p.valorAtualBRL * c.peso, source: p.ticker, isExpanded: true });
+            }
+          } else {
+            rvComplete.push({ ticker: p.ticker, valorBRL: p.valorAtualBRL, source: "", isExpanded: false });
+          }
+        }
+        // Merge same ticker across ETFs
+        const rvMerged: Record<string, { valorBRL: number; sources: string[] }> = {};
+        for (const item of rvComplete) {
+          if (!rvMerged[item.ticker]) rvMerged[item.ticker] = { valorBRL: 0, sources: [] };
+          rvMerged[item.ticker].valorBRL += item.valorBRL;
+          if (item.source && !rvMerged[item.ticker].sources.includes(item.source))
+            rvMerged[item.ticker].sources.push(item.source);
+        }
+        const rvCompleteList = Object.entries(rvMerged)
+          .map(([ticker, d]) => ({ ticker, valorBRL: d.valorBRL, via: d.sources.join(", ") }))
+          .sort((a, b) => b.valorBRL - a.valorBRL);
+        const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
+
+        return (
+          <div className="glass-card p-5 mb-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="section-title"><Layers size={15} />Look-through de ETFs</h2>
+              <span className="text-[10px] text-zinc-500">{compactBRL(lt.total_look_through_brl)} sujeito a look-through</span>
+            </div>
+
+            {/* Tab bar */}
+            <div className="flex gap-1 mb-4 bg-zinc-900/60 p-1 rounded-lg w-fit">
+              {([
+                ["por-etf", "Por ETF"],
+                ["combinada", "Visão Combinada"],
+                ["rv-completa", "RV Completa"],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setLookThroughTab(id)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab: Por ETF */}
+            {lookThroughTab === "por-etf" && (
+              <div className="space-y-4">
+                {Object.values(lt.compositions).map(etf => (
+                  <div key={etf.ticker}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
+                      <span className="text-zinc-600 text-xs">{compactBRL(etf.valor_brl)}</span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-800">
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {etf.components.map(c => (
+                          <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                            <td className="py-1.5 px-2 text-zinc-300 font-medium">{c.ativo}</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            {/* Tab: Visão Combinada */}
+            {lookThroughTab === "combinada" && (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
+                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                    <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
+                    <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% Total LT</th>
+                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {combinedList.slice(0, 30).map((c, i) => (
+                    <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                      <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                      <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
+                      <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                      <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                        {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
+                      </td>
+                      <td className="py-1.5 px-2 text-zinc-600">{c.etfs.join(", ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* Tab: RV Completa */}
+            {lookThroughTab === "rv-completa" && (
+              <>
+                <p className="text-[10px] text-zinc-600 mb-3">
+                  Posições diretas + ETFs expandidos pelos seus componentes. ETFs não suportados mantidos como linha única.
+                </p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-800">
+                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
+                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                      <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
+                      <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% RV</th>
+                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via ETF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rvCompleteList.map((c, i) => (
+                      <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
+                        <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                        <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                        <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                        <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                          {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
+                        </td>
+                        <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {lt.unsupported.length > 0 && (
+              <p className="text-[10px] text-zinc-600 mt-3">
+                Sem composição: {lt.unsupported.join(", ")}
+              </p>
+            )}
           </div>
-          {composicao.look_through.unsupported.length > 0 && (
-            <p className="text-[10px] text-zinc-600 mt-3">
-              Sem composição: {composicao.look_through.unsupported.join(", ")}
-            </p>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Posições RV ── */}
       <div className="glass-card p-5 animate-fade-in">
