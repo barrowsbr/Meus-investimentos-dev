@@ -167,12 +167,16 @@ export default function PerformanceAvancadaPage() {
     })),
     [data]);
 
-  const monthlyHeatmap = useMemo(() => {
-    if (!data?.monthlyReturns) return [];
-    return data.monthlyReturns.slice(-24).map(m => ({
-      month: formatMonth(m.month),
-      value: m.return_pct,
-    }));
+  const monthlyGrid = useMemo(() => {
+    if (!data?.monthlyReturns) return { years: [], byYearMonth: {} as Record<number, Record<number, number>> };
+    const byYearMonth: Record<number, Record<number, number>> = {};
+    for (const m of data.monthlyReturns) {
+      const [y, mo] = m.month.split("-").map(Number);
+      if (!byYearMonth[y]) byYearMonth[y] = {};
+      byYearMonth[y][mo] = m.return_pct;
+    }
+    const years = Object.keys(byYearMonth).map(Number).sort((a, b) => a - b);
+    return { years, byYearMonth };
   }, [data]);
 
   if (loading) return <LoadingSpinner />;
@@ -457,35 +461,95 @@ export default function PerformanceAvancadaPage() {
         </div>
       )}
 
-      {/* ── Monthly Returns ── */}
+      {/* ── Monthly Returns Heatmap ── */}
       {activeTab === "monthly" && (
         <div className="glass-card p-5">
-          <h2 className="section-title mb-4"><Calendar size={15} />Retornos Mensais</h2>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={monthlyHeatmap} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                angle={-35} textAnchor="end" height={50} />
-              <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v.toFixed(0)}%`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toFixed(2)}%`, "Retorno Mensal"]} />
-              <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                {monthlyHeatmap.map((entry, i) => (
-                  <Cell key={i} fill={entry.value >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.85} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          {monthlyHeatmap.length > 0 && (
-            <p className="text-xs text-zinc-600 mt-2">
-              Média mensal: <span className="text-zinc-400 font-semibold">
-                {(monthlyHeatmap.reduce((s, m) => s + m.value, 0) / monthlyHeatmap.length).toFixed(2)}%
-              </span>
-              {" · "}Positivos: <span className="text-emerald-400 font-semibold">{monthlyHeatmap.filter(m => m.value >= 0).length}</span>
-              {" · "}Negativos: <span className="text-red-400 font-semibold">{monthlyHeatmap.filter(m => m.value < 0).length}</span>
-            </p>
+          <h2 className="section-title mb-4"><Calendar size={15} />Retornos Mensais — Heatmap</h2>
+          <p className="text-xs text-zinc-600 mb-5">Cada célula representa o retorno do portfólio naquele mês. Verde = positivo, vermelho = negativo.</p>
+
+          {monthlyGrid.years.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-3 pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] w-12">Ano</th>
+                    {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map(m => (
+                      <th key={m} className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] min-w-[52px]">{m}</th>
+                    ))}
+                    <th className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] pl-3 w-16">Ano</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyGrid.years.map(year => {
+                    const mths = monthlyGrid.byYearMonth[year] ?? {};
+                    const yearVals = Object.values(mths);
+                    const yearTotal = yearVals.length > 0
+                      ? yearVals.reduce((acc, v) => acc * (1 + v / 100), 1) * 100 - 100
+                      : null;
+                    return (
+                      <tr key={year} className="group">
+                        <td className="pr-3 py-1 text-zinc-400 font-bold text-[11px]">{year}</td>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
+                          const v = mths[mo];
+                          if (v === undefined) {
+                            return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-9 bg-zinc-900/40" /></td>;
+                          }
+                          const isPos = v >= 0;
+                          const intensity = Math.min(Math.abs(v) / 5, 1);
+                          const bg = isPos
+                            ? `rgba(52,211,153,${0.12 + intensity * 0.55})`
+                            : `rgba(248,113,113,${0.12 + intensity * 0.55})`;
+                          const textColor = isPos ? "#34d399" : "#f87171";
+                          return (
+                            <td key={mo} className="py-1 px-0.5">
+                              <div
+                                className="rounded-md h-9 flex items-center justify-center font-semibold cursor-default transition-transform hover:scale-105"
+                                style={{ background: bg, color: textColor }}
+                                title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
+                              >
+                                {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                              </div>
+                            </td>
+                          );
+                        })}
+                        <td className="py-1 pl-3">
+                          {yearTotal !== null && (
+                            <div
+                              className="rounded-md h-9 flex items-center justify-center font-bold text-[11px] border"
+                              style={{
+                                borderColor: yearTotal >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
+                                color: yearTotal >= 0 ? "#34d399" : "#f87171",
+                                background: yearTotal >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
+                              }}
+                            >
+                              {yearTotal >= 0 ? "+" : ""}{yearTotal.toFixed(1)}%
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-zinc-600 text-sm text-center py-8">Sem dados mensais disponíveis</p>
           )}
+
+          {monthlyGrid.years.length > 0 && (() => {
+            const all = Object.values(monthlyGrid.byYearMonth).flatMap(m => Object.values(m));
+            const pos = all.filter(v => v >= 0).length;
+            const neg = all.filter(v => v < 0).length;
+            const avg = all.length > 0 ? all.reduce((s, v) => s + v, 0) / all.length : 0;
+            return (
+              <p className="text-xs text-zinc-600 mt-4">
+                Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{avg.toFixed(2)}%</span>
+                {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
+                {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
+                {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
+              </p>
+            );
+          })()}
         </div>
       )}
 
