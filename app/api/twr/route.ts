@@ -23,13 +23,11 @@ function today(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-// Thin the series to at most maxPoints for chart performance
 function thinSeries(points: TwrDayPoint[], maxPoints = 500): TwrDayPoint[] {
   if (points.length <= maxPoints) return points;
   const step = Math.ceil(points.length / maxPoints);
   const result: TwrDayPoint[] = [];
   for (let i = 0; i < points.length; i += step) result.push(points[i]);
-  // Always include the last point
   if (result[result.length - 1] !== points[points.length - 1]) {
     result.push(points[points.length - 1]);
   }
@@ -42,12 +40,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const lookback = Math.min(
     parseInt(searchParams.get("lookback") ?? "1825", 10),
-    3650  // cap at 10 years
+    3650
   );
 
   try {
-    // ── 1. Load all transaction data ──────────────────────────────────────────
-    const [transacoes, _proventos] = await Promise.all([
+    // ── 1. Load transaction + provento data ──────────────────────────────────
+    const [transacoes, proventos] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
     ]);
@@ -56,7 +54,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
     }
 
-    // ── 2. Extract unique RV tickers with metadata ────────────────────────────
+    // ── 2. Extract unique RV tickers ─────────────────────────────────────────
     const tickerMeta = new Map<string, { moeda: string; corretora: string }>();
     for (const row of transacoes) {
       const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -75,7 +73,7 @@ export async function GET(request: Request) {
       corretora: info.corretora,
     }));
 
-    // ── 3. Fetch historical price data ────────────────────────────────────────
+    // ── 3. Fetch historical price data ───────────────────────────────────────
     console.log(`[TWR] Fetching history for ${tickerList.length} tickers, lookback=${lookback}`);
     const hist = await fetchHistoricalData(tickerList, lookback + 10);
     console.log(`[TWR] History result: ${hist.dates.length} dates, errors: ${hist.errors.join("; ") || "none"}`);
@@ -87,12 +85,9 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── 4. Restrict to lookback window ────────────────────────────────────────
+    // ── 4. Restrict to lookback window ───────────────────────────────────────
     const windowStart = startDateFromLookback(lookback);
     const windowEnd = today();
-
-    // Generate business day calendar for the window
-    // (hist.dates are actual trading days from Yahoo, use them directly)
     const dates = hist.dates.filter(d => d >= windowStart && d <= windowEnd);
 
     if (dates.length === 0) {
@@ -116,19 +111,19 @@ export async function GET(request: Request) {
       return idx != null ? hist.ibov[idx] : null;
     });
 
-    // ── 5. Calculate TWR ──────────────────────────────────────────────────────
+    // ── 5. Calculate TWR (with proventos) ────────────────────────────────────
     const twr = calcularTWR({
       transacoes,
+      proventos,
       dates,
       prices: alignedPrices,
       fxHistory: alignedFx,
     });
 
-    // ── 6. Benchmarks ─────────────────────────────────────────────────────────
+    // ── 6. Benchmarks ────────────────────────────────────────────────────────
     const cdiPoints = buildCDIBenchmark(dates);
     const ibovPoints = buildPriceBenchmark("IBOV", dates, alignedIbov);
 
-    // Normalise benchmarks to start at 0% on the same date as portfolio
     function normalizeBenchmark(
       bench: TwrDayPoint[],
       fromDate: string
@@ -146,18 +141,19 @@ export async function GET(request: Request) {
     const cdiNorm = normalizeBenchmark(cdiPoints, benchStart);
     const ibovNorm = normalizeBenchmark(ibovPoints, benchStart);
 
-    // ── 7. Build chart series (thin for payload size) ─────────────────────────
+    // ── 7. Thin series for chart ─────────────────────────────────────────────
     const chartPoints = thinSeries(twr.points);
     const chartCDI = thinSeries(cdiNorm);
     const chartIBOV = thinSeries(ibovNorm);
 
-    // ── 8. Summary metrics ────────────────────────────────────────────────────
+    // ── 8. Summary metrics ───────────────────────────────────────────────────
     const cdiTotal = cdiNorm.length > 0 ? cdiNorm[cdiNorm.length - 1].twr : 0;
     const ibovTotal = ibovNorm.length > 0 ? ibovNorm[ibovNorm.length - 1].twr : 0;
 
     const summary = {
       twrTotal: twr.twrTotal,
       twrAnualizado: twr.twrAnualizado,
+      mwr: twr.mwr,
       navFinal: twr.navFinal,
       navInicial: twr.navInicial,
       totalInvestido: twr.totalInvestido,
@@ -168,6 +164,7 @@ export async function GET(request: Request) {
       vsIBOV: twr.twrTotal - ibovTotal,
       cdiTotal,
       ibovTotal,
+      ganhoEconomico: twr.ganhoEconomico,
     };
 
     return NextResponse.json(

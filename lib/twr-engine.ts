@@ -89,12 +89,42 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ─── Parse proventos ─────────────────────────────────────────────────────────
+
+interface ParsedIncome {
+  date: string;
+  bizDate: string;
+  ticker: string;
+  valor: number;
+  moeda: string;
+}
+
+export function parseProventos(rows: Row[]): ParsedIncome[] {
+  const result: ParsedIncome[] = [];
+  for (const row of rows) {
+    const ticker = String(row["ticker"] ?? "").toUpperCase().trim();
+    if (!ticker) continue;
+
+    const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
+    if (decisao.includes("imposto")) continue;
+
+    const valor = Math.abs(toNumber(row["valor"]) ?? 0);
+    if (valor < 0.01) continue;
+
+    const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+    const date = toYMD(row["data"] ?? row["date"]);
+    if (!date) continue;
+
+    result.push({ date, bizDate: nextBusinessDay(date), ticker, valor, moeda });
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // ─── Daily custody reconstruction (FIFO cumulative) ───────────────────────────
 
 type CustodySnapshot = Record<string, number>;
 
 function buildDailyCustody(txs: ParsedTx[], dates: string[]): CustodySnapshot[] {
-  // Change events sorted by business date
   const events = txs.map(tx => ({
     date: tx.bizDate,
     ticker: tx.ticker,
@@ -144,6 +174,14 @@ function fxFactor(moeda: string, fx: FxRates): number {
   return 1;
 }
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
+const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
+const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
+const MIN_NAV_FOR_RETURN = 1.0; // Minimum capital for valid return
+const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50%
+
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type PriceMatrix = Record<string, (number | null)[]>;
@@ -154,10 +192,12 @@ export interface FxHistory {
 
 export interface TwrDayPoint {
   date: string;
-  nav: number;       // NAV em BRL naquele dia
-  flow: number;      // Fluxo líquido do dia em BRL (+ = compra/entrada)
-  ret: number;       // Retorno do dia (fração)
-  twr: number;       // TWR acumulado até este dia (fração, ex: 0.35 = +35%)
+  nav: number;
+  flow: number;
+  income: number;
+  ret: number;
+  twr: number;
+  forceZero: boolean;
 }
 
 export interface TwrResult {
@@ -169,15 +209,55 @@ export interface TwrResult {
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
-  totalInvestido: number; // soma de todos os aportes em BRL
+  totalInvestido: number;
+  ganhoEconomico: number;
+  mwr: number | null;
 }
 
 export interface TwrInput {
   transacoes: Row[];
-  dates: string[];          // business days aligned with priceMatrix columns
-  prices: PriceMatrix;      // ticker → array of prices, indexed by dates
-  fxHistory: FxHistory;     // date → FxRates
-  rfNavByDate?: Record<string, number>; // RF curve (optional, from FixedIncomeEngine)
+  proventos?: Row[];
+  dates: string[];
+  prices: PriceMatrix;
+  fxHistory: FxHistory;
+  rfNavByDate?: Record<string, number>;
+}
+
+// ─── MWR (Money-Weighted Return) via Newton-Raphson ──────────────────────────
+
+function calculateMWR(
+  flows: { day: number; amount: number }[],
+  navFinal: number,
+  totalDays: number,
+): number | null {
+  if (totalDays <= 0 || flows.length === 0) return null;
+
+  // NPV function: Σ(-flow / (1+r)^day) + navFinal / (1+r)^totalDays = 0
+  let r = 0.0001; // daily rate initial guess
+
+  for (let iter = 0; iter < 200; iter++) {
+    let npv = navFinal / Math.pow(1 + r, totalDays);
+    let dnpv = -totalDays * navFinal / Math.pow(1 + r, totalDays + 1);
+
+    for (const f of flows) {
+      npv -= f.amount / Math.pow(1 + r, f.day);
+      dnpv += f.day * f.amount / Math.pow(1 + r, f.day + 1);
+    }
+
+    if (Math.abs(npv) < 1e-6) break;
+    if (Math.abs(dnpv) < 1e-12) return null;
+
+    const step = npv / dnpv;
+    r -= step;
+
+    if (r <= -1) r = -0.99;
+    if (r > 1) r = 1.0;
+  }
+
+  // Annualise: (1 + daily_rate)^252 - 1
+  const annual = Math.pow(1 + r, BUSINESS_DAYS_PER_YEAR) - 1;
+  if (!isFinite(annual) || Math.abs(annual) > 10) return null;
+  return annual;
 }
 
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
@@ -189,21 +269,21 @@ export function calcularTWR(input: TwrInput): TwrResult {
     points: [], twrTotal: 0, twrAnualizado: 0,
     navInicial: 0, navFinal: 0, duracaoAnos: 0,
     primeiraData: "", ultimaData: "", totalInvestido: 0,
+    ganhoEconomico: 0, mwr: null,
   };
 
   if (dates.length === 0) return EMPTY;
 
   const txs = parseRVTransactions(input.transacoes);
+  const incomeEvents = input.proventos ? parseProventos(input.proventos) : [];
 
-  // Filter transactions within the date range
   const lastDate = dates[dates.length - 1];
   const inRange = txs.filter(tx => tx.date <= lastDate);
   if (inRange.length === 0) return EMPTY;
 
-  // Build daily custody for all RV tickers
   const custody = buildDailyCustody(inRange, dates);
 
-  // Group flow events by business date for O(1) lookup
+  // Group flow events by business date
   const flowsByDate = new Map<string, ParsedTx[]>();
   for (const tx of inRange) {
     const arr = flowsByDate.get(tx.bizDate) ?? [];
@@ -211,10 +291,21 @@ export function calcularTWR(input: TwrInput): TwrResult {
     flowsByDate.set(tx.bizDate, arr);
   }
 
+  // Group income events by business date
+  const incomeByDate = new Map<string, ParsedIncome[]>();
+  for (const inc of incomeEvents) {
+    const arr = incomeByDate.get(inc.bizDate) ?? [];
+    arr.push(inc);
+    incomeByDate.set(inc.bizDate, arr);
+  }
+
   const points: TwrDayPoint[] = [];
   let prevNav = 0;
   let cumTwr = 1.0;
   let totalInvestido = 0;
+  let totalFlows = 0;
+  const mwrFlows: { day: number; amount: number }[] = [];
+  const firstDate = dates[0];
 
   for (let i = 0; i < dates.length; i++) {
     const date = dates[i];
@@ -232,13 +323,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
       navRV += qty * price * fxFactor(moeda, fx);
     }
 
-    // ── RF NAV (from engine curve or zero) ──
+    // ── RF NAV ──
     const navRF = rfNavByDate?.[date] ?? 0;
-
     const nav = navRV + navRF;
 
-    // ── Flows: capital entering/leaving the portfolio today ──
-    // We use MARKET price (not transaction price) per CALCULOS.md §15 FIX
+    // ── Flows: capital entering/leaving today ──
     let flow = 0;
     const dayTxs = flowsByDate.get(date) ?? [];
     for (const tx of dayTxs) {
@@ -252,26 +341,61 @@ export function calcularTWR(input: TwrInput): TwrResult {
         flow -= value;
       }
     }
+    totalFlows += flow;
 
-    // ── Modified Dietz — daily ──
-    // SoD: flow > 1% of previous NAV (per CALCULOS.md §19)
+    // ── Income: dividends/JCP received today ──
+    let income = 0;
+    const dayIncome = incomeByDate.get(date) ?? [];
+    for (const inc of dayIncome) {
+      income += inc.valor * fxFactor(inc.moeda, fx);
+    }
+
+    // ── MWR flow tracking (purchases = outflows from investor) ──
+    if (Math.abs(flow) > 0.01) {
+      const dayNum = businessDaysBetween(firstDate, date);
+      mwrFlows.push({ day: dayNum, amount: flow });
+    }
+
+    // ── Flow timing & force_zero logic (from Streamlit engine) ──
+    let forceZero = false;
+    let isSoD = false;
+
+    // Rule 1: Previous NAV too small — no valid return
+    if (prevNav < MIN_NAV_FOR_RETURN) {
+      forceZero = true;
+    }
+    // Rule 2: Enormous flow (>90% of NAV) — return is meaningless
+    else if (Math.abs(flow) / prevNav > LARGE_FLOW_FORCE_ZERO) {
+      forceZero = true;
+    }
+    // Rule 3: Large inflow (>1% of NAV) — use SoD to prevent inflation
+    else if (flow > 0 && flow / prevNav > FLOW_THRESHOLD) {
+      isSoD = true;
+    }
+    // Rule 4: Large outflow (>1% of NAV) — use SoD to prevent deflation
+    else if (flow < 0 && Math.abs(flow) / prevNav > FLOW_THRESHOLD) {
+      isSoD = true;
+    }
+
+    // ── Modified Dietz daily return ──
     let ret = 0;
-    if (prevNav > 1) {
-      const isSoD = Math.abs(flow) / prevNav > 0.01;
-      const denom = isSoD ? prevNav + flow : prevNav;
-      const numer = nav - prevNav - flow;
-      if (Math.abs(denom) > 0.01) ret = numer / denom;
+    if (!forceZero) {
+      const economicGain = (nav + income) - prevNav - flow;
+      const base = isSoD ? prevNav + flow : prevNav;
+      if (Math.abs(base) > MIN_NAV_FOR_RETURN) {
+        ret = economicGain / base;
+      }
     }
 
     // Guard against data anomalies
-    ret = Math.max(-0.5, Math.min(0.5, ret));
+    ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);
 
-    points.push({ date, nav, flow, ret, twr: cumTwr - 1 });
+    points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero });
     prevNav = nav;
   }
 
-  // Find the first point with meaningful NAV (>= R$ 100)
+  // Find first meaningful point (NAV >= R$100)
   const firstMeaningful = points.find(p => p.nav >= 100);
   if (!firstMeaningful) return { ...EMPTY, points };
 
@@ -280,12 +404,21 @@ export function calcularTWR(input: TwrInput): TwrResult {
   // TWR from first meaningful point
   const twrTotal = (cumTwr / (1 + firstMeaningful.twr)) - 1;
 
-  const t0 = new Date(firstMeaningful.date).getTime();
-  const t1 = new Date(last.date).getTime();
-  const duracaoAnos = (t1 - t0) / (365.25 * 24 * 60 * 60 * 1000);
-  const twrAnualizado = duracaoAnos > 0.08
+  // Count business days for annualization (ANBIMA: 252 DU/year)
+  const firstIdx = points.indexOf(firstMeaningful);
+  const bizDaysCount = points.length - firstIdx;
+  const duracaoAnos = bizDaysCount / BUSINESS_DAYS_PER_YEAR;
+
+  const twrAnualizado = duracaoAnos > (20 / BUSINESS_DAYS_PER_YEAR)
     ? Math.pow(1 + twrTotal, 1 / duracaoAnos) - 1
     : twrTotal;
+
+  // Economic gain: NAV change minus net capital flows
+  const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows;
+
+  // MWR calculation
+  const totalBizDays = businessDaysBetween(firstMeaningful.date, last.date);
+  const mwr = calculateMWR(mwrFlows, last.nav, totalBizDays);
 
   return {
     points,
@@ -297,12 +430,27 @@ export function calcularTWR(input: TwrInput): TwrResult {
     primeiraData: firstMeaningful.date,
     ultimaData: last.date,
     totalInvestido,
+    ganhoEconomico,
+    mwr,
   };
+}
+
+// ─── Business days counter ───────────────────────────────────────────────────
+
+function businessDaysBetween(startStr: string, endStr: string): number {
+  let count = 0;
+  const cur = new Date(startStr + "T12:00:00Z");
+  const end = new Date(endStr + "T12:00:00Z");
+  while (cur <= end) {
+    if (cur.getDay() !== 0 && cur.getDay() !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return Math.max(count - 1, 0);
 }
 
 // ─── CDI benchmark (SELIC proxy) ──────────────────────────────────────────────
 
-const SELIC_ANUAL = 0.1375; // 13.75% a.a. — atualizar conforme COPOM
+const SELIC_ANUAL = 0.1375; // 13.75% a.a.
 const SELIC_DIARIA = Math.pow(1 + SELIC_ANUAL, 1 / 252) - 1;
 
 export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {
@@ -310,14 +458,14 @@ export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {
   return dates.map((date, i) => {
     const ret = i === 0 ? 0 : SELIC_DIARIA;
     cdi *= 1 + ret;
-    return { date, nav: cdi, flow: 0, ret, twr: cdi - 1 };
+    return { date, nav: cdi, flow: 0, income: 0, ret, twr: cdi - 1, forceZero: false };
   });
 }
 
 // ─── IBOV benchmark builder (from raw price array) ────────────────────────────
 
 export function buildPriceBenchmark(
-  name: string,
+  _name: string,
   dates: string[],
   prices: (number | null)[]
 ): TwrDayPoint[] {
@@ -327,13 +475,13 @@ export function buildPriceBenchmark(
 
   return dates.map((date, i) => {
     const price = prices[i] ?? prevPrice;
-    if (price == null) return { date, nav: 0, flow: 0, ret: 0, twr: 0 };
+    if (price == null) return { date, nav: 0, flow: 0, income: 0, ret: 0, twr: 0, forceZero: false };
 
     if (base == null) base = price;
     const ret = prevPrice != null && prevPrice > 0 ? (price - prevPrice) / prevPrice : 0;
     cumTwr *= 1 + ret;
     prevPrice = price;
 
-    return { date, nav: price / base, flow: 0, ret, twr: cumTwr - 1 };
+    return { date, nav: price / base, flow: 0, income: 0, ret, twr: cumTwr - 1, forceZero: false };
   });
 }
