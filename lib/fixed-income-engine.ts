@@ -25,7 +25,7 @@ function toDate(val: unknown): Date | null {
   return null;
 }
 
-function toYMD(d: Date): string {
+function _toYMD(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 

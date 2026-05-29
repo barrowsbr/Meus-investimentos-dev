@@ -47,7 +47,7 @@ const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
   "DPM.TO": "CAD",      // Toronto exchange in CAD
 };
 
-export function yahooTicker(ticker: string, moeda: string, corretora: string): string {
+export function yahooTicker(ticker: string, _moeda: string, _corretora: string): string {
   const t = ticker.toUpperCase().trim();
   if (t.includes(".")) return t;
   if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
