@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -23,7 +24,6 @@ const sections = [
     description: "Patrimônio total, alocação e posições",
     icon: LayoutDashboard,
     color: "#d4a574",
-    gradient: "linear-gradient(135deg, #d4a574 0%, #f5c842 100%)",
     ready: true,
   },
   {
@@ -32,7 +32,6 @@ const sections = [
     description: "TWR, retorno acumulado e benchmarks",
     icon: TrendingUp,
     color: "#3b82f6",
-    gradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)",
     ready: true,
   },
   {
@@ -41,7 +40,6 @@ const sections = [
     description: "Ações, ETFs, FIIs e BDRs",
     icon: BarChart2,
     color: "#06b6d4",
-    gradient: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)",
     ready: true,
   },
   {
@@ -50,7 +48,6 @@ const sections = [
     description: "CDBs, Tesouro Direto e posições abertas",
     icon: Landmark,
     color: "#8b5cf6",
-    gradient: "linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)",
     ready: true,
   },
   {
@@ -59,7 +56,6 @@ const sections = [
     description: "Dividendos, JCP e rendimentos recebidos",
     icon: Coins,
     color: "#f59e0b",
-    gradient: "linear-gradient(135deg, #f59e0b 0%, #fb923c 100%)",
     ready: true,
   },
   {
@@ -68,7 +64,6 @@ const sections = [
     description: "Bitcoin, Ethereum e ativos digitais",
     icon: Bitcoin,
     color: "#f97316",
-    gradient: "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
     ready: false,
   },
   {
@@ -77,7 +72,6 @@ const sections = [
     description: "Operações de câmbio e VET médio",
     icon: ArrowLeftRight,
     color: "#10b981",
-    gradient: "linear-gradient(135deg, #10b981 0%, #4ade80 100%)",
     ready: true,
   },
   {
@@ -86,7 +80,6 @@ const sections = [
     description: "DARFs, declaração IR e isenções",
     icon: Receipt,
     color: "#6366f1",
-    gradient: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
     ready: false,
   },
   {
@@ -95,7 +88,6 @@ const sections = [
     description: "Histórico patrimonial e projeções",
     icon: Activity,
     color: "#60a5fa",
-    gradient: "linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)",
     ready: false,
   },
   {
@@ -104,7 +96,6 @@ const sections = [
     description: "Receitas, despesas e controle financeiro",
     icon: Wallet,
     color: "#ec4899",
-    gradient: "linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)",
     ready: true,
   },
   {
@@ -113,112 +104,116 @@ const sections = [
     description: "Preferências e integrações",
     icon: Settings,
     color: "#71717a",
-    gradient: "linear-gradient(135deg, #71717a 0%, #a1a1aa 100%)",
     ready: false,
   },
 ];
 
 export default function HomePage() {
   return (
-    <div className="max-w-5xl">
-      {/* Hero */}
-      <div className="mb-12 animate-fade-in">
+    <div className="relative min-h-screen flex flex-col items-center">
+      {/* Background */}
+      <div className="fixed inset-0 overflow-hidden z-0 pointer-events-none">
         <div
-          className="inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full font-medium mb-6"
+          className="absolute inset-0"
           style={{
-            background: "rgba(74,222,128,0.08)",
-            color: "#4ade80",
-            border: "1px solid rgba(74,222,128,0.2)",
+            background: "radial-gradient(ellipse at 50% 40%, rgba(25,26,35,0.6) 0%, rgba(13,14,17,0.95) 100%)",
           }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
-          Sistema operacional
+        />
+      </div>
+
+      {/* Content — centered */}
+      <div className="relative z-10 w-full max-w-4xl px-4 py-10 flex flex-col items-center">
+        {/* Hero */}
+        <div className="text-center mb-14 animate-fade-in pt-20">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/midias/carregamento.png"
+              alt="Meus Investimentos"
+              width={144}
+              height={144}
+              className="h-24 w-auto"
+              priority
+            />
+          </div>
+
+          <h1
+            className="text-4xl md:text-5xl font-bold mb-3 leading-tight"
+            style={{
+              background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            Olá, Lucas
+          </h1>
+          <p className="text-zinc-400 text-base md:text-lg max-w-md mx-auto leading-relaxed">
+            Seu painel de controle financeiro pessoal
+          </p>
         </div>
 
-        <h1
-          className="text-4xl md:text-5xl font-bold mb-4 leading-tight"
-          style={{
-            background: "linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          Olá, Lucas
-        </h1>
-        <p className="text-zinc-500 text-base md:text-lg max-w-lg leading-relaxed">
-          Seu painel de controle financeiro pessoal. Todas as suas informações de
-          investimento em um só lugar.
-        </p>
-      </div>
-
-      {/* Sections grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 animate-fade-in animate-delay-1">
-        {sections.map(({ href, label, description, icon: Icon, color, gradient, ready }) => (
-          <Link key={href} href={href} className="group block">
-            <div
-              className="rounded-2xl p-px transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${color}40 0%, ${color}12 50%, ${color}28 100%)`,
-                boxShadow: `0 2px 16px ${color}10`,
-              }}
-            >
+        {/* Sections grid — symmetric 3 columns */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full animate-fade-in animate-delay-1">
+          {sections.map(({ href, label, description, icon: Icon, color, ready }) => (
+            <Link key={href} href={href} className="group block">
               <div
-                className="rounded-[calc(1rem-1px)] p-4 h-full flex flex-col gap-3 backdrop-blur-md"
-                style={{ background: "rgba(19,20,26,0.92)" }}
+                className="rounded-2xl p-px transition-all duration-250 hover:scale-[1.03]"
+                style={{
+                  background: `linear-gradient(145deg, ${color}60 0%, ${color}20 50%, ${color}40 100%)`,
+                  boxShadow: `0 4px 24px ${color}15, 0 0 1px ${color}30`,
+                }}
               >
-                {/* Icon + status */}
-                <div className="flex items-start justify-between">
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ background: `${color}14`, color }}
-                  >
-                    <Icon size={17} strokeWidth={1.7} />
-                  </div>
-                  {!ready && (
-                    <span
-                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide"
+                <div
+                  className="rounded-[calc(1rem-1px)] p-5 flex flex-col gap-3 h-[140px]"
+                  style={{ background: "rgba(17,18,24,0.88)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center"
                       style={{
-                        background: "rgba(113,113,122,0.12)",
-                        color: "#71717a",
-                        border: "1px solid rgba(113,113,122,0.2)",
+                        background: `${color}18`,
+                        boxShadow: `0 0 12px ${color}20`,
                       }}
                     >
-                      Em breve
-                    </span>
-                  )}
-                  {ready && (
-                    <ArrowRight
-                      size={13}
-                      className="text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1"
-                    />
-                  )}
-                </div>
+                      <Icon size={18} strokeWidth={1.8} style={{ color }} />
+                    </div>
+                    {!ready ? (
+                      <span
+                        className="text-[9px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                        style={{
+                          background: "rgba(113,113,122,0.1)",
+                          color: "#a1a1aa",
+                          border: "1px solid rgba(113,113,122,0.25)",
+                        }}
+                      >
+                        Em breve
+                      </span>
+                    ) : (
+                      <ArrowRight
+                        size={14}
+                        className="text-zinc-700 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-all mt-0.5"
+                      />
+                    )}
+                  </div>
 
-                {/* Text */}
-                <div>
-                  <p className="text-sm font-semibold text-zinc-200 mb-0.5">{label}</p>
-                  <p className="text-[11px] text-zinc-600 leading-relaxed">{description}</p>
+                  <div className="mt-auto">
+                    <p className="text-[13px] font-semibold text-zinc-100 mb-1">{label}</p>
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">{description}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
 
-      {/* Footer note */}
-      <div className="mt-10 flex items-center gap-3 animate-fade-in animate-delay-2">
-        <div
-          className="h-px flex-1"
-          style={{ background: "linear-gradient(90deg, #1E2028, transparent)" }}
-        />
-        <span className="text-[11px] text-zinc-700 font-medium tracking-wider uppercase">
-          Dashboard Pessoal · v1.0
-        </span>
-        <div
-          className="h-px flex-1"
-          style={{ background: "linear-gradient(90deg, transparent, #1E2028)" }}
-        />
+        {/* Footer */}
+        <div className="mt-12 flex items-center gap-4 w-full max-w-sm animate-fade-in animate-delay-2">
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, #2d2f3a)" }} />
+          <span className="text-[10px] text-zinc-600 font-medium tracking-widest uppercase">
+            v1.0 · Personal
+          </span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2d2f3a, transparent)" }} />
+        </div>
       </div>
     </div>
   );

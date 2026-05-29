@@ -21,6 +21,17 @@ INTL_SUFFIX_MAP: dict[str, str] = {
     "IWDA": "IWDA.L",
 }
 
+# Map tickers to their actual currencies (overrides suffix-based detection)
+TICKER_CURRENCY_OVERRIDE: dict[str, str] = {
+    "VWRA.L": "USD",      # LSE but priced in USD
+    "CSPX.L": "GBP",      # LSE in GBP
+    "EIMI.L": "GBP",      # LSE in GBP
+    "IWDA.L": "USD",      # LSE but priced in USD
+    "VWCE.DE": "EUR",     # Xetra/Frankfurt in EUR
+    "ASML.AS": "EUR",     # Amsterdam exchange in EUR
+    "DPM.TO": "CAD",      # Toronto exchange in CAD
+}
+
 
 def yahoo_ticker(ticker: str, moeda: str = "BRL", corretora: str = "") -> str:
     t = ticker.upper().strip()
@@ -30,9 +41,12 @@ def yahoo_ticker(ticker: str, moeda: str = "BRL", corretora: str = "") -> str:
         return "BTC-USD"
     if t in ("ETH", "ETH-USD"):
         return "ETH-USD"
-    t_clean = t.replace(".SA", "").replace(".L", "")
+    t_clean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "")
     if t_clean in INTL_SUFFIX_MAP:
         return INTL_SUFFIX_MAP[t_clean]
+    # Handle Amsterdam exchange
+    if t == "ASML":
+        return "ASML.AS"
     setor = identificar_setor(t)
     if setor in ("Ações Brasil", "ETF", "FIIs", "BDRs"):
         return f"{t}.SA"
@@ -71,7 +85,7 @@ async def _fetch_fx_yahoo() -> FxRates:
         return data
 
     loop = asyncio.get_event_loop()
-    data = await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=12.0)
+    data = await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=20.0)
 
     result = DEFAULTS_FX.model_dump()
     updated = 0
@@ -150,6 +164,12 @@ async def fetch_fx_rates() -> tuple[FxRates, str]:
 
 def _currency_from_yahoo_ticker(sym: str) -> str:
     s = sym.upper()
+    
+    # Check explicit overrides first
+    if s in TICKER_CURRENCY_OVERRIDE:
+        return TICKER_CURRENCY_OVERRIDE[s]
+    
+    # Fallback to suffix-based detection
     if s.endswith(".SA"):
         return "BRL"
     if s.endswith(".L"):
@@ -158,6 +178,8 @@ def _currency_from_yahoo_ticker(sym: str) -> str:
         return "EUR"
     if s.endswith(".TO"):
         return "CAD"
+    if s.endswith(".AS"):
+        return "EUR"
     return "USD"
 
 
@@ -183,11 +205,17 @@ def _fetch_quotes_sync(yahoo_tickers: list[str]) -> dict[str, Quote]:
 
             for sym in batch:
                 try:
-                    # Single-ticker download has flat columns; multi-ticker has MultiIndex
-                    if len(batch) == 1:
-                        close_series = data["Close"]
-                    else:
-                        close_series = data["Close"][sym]
+                    # Handle both single and multi-ticker results
+                    try:
+                        if len(batch) == 1:
+                            close_series = data["Close"]
+                        else:
+                            close_series = data["Close"][sym]
+                    except (KeyError, TypeError):
+                        # Fallback: try direct access
+                        close_series = data[sym]["Close"] if sym in data.columns else None
+                        if close_series is None:
+                            continue
 
                     close_vals = close_series.dropna()
                     if len(close_vals) < 1:
@@ -209,10 +237,10 @@ def _fetch_quotes_sync(yahoo_tickers: list[str]) -> dict[str, Quote]:
                         currency=_currency_from_yahoo_ticker(sym),
                         name=sym,
                     )
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    print(f"[DEBUG] Error fetching {sym}: {e}")
+        except Exception as e:
+            print(f"[DEBUG] Batch {batch} download failed: {e}")
 
     return results
 

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
+import AuthGate from "@/components/AuthGate";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -65,10 +66,12 @@ export default function RootLayout({
           />
         </div>
 
-        <Sidebar />
-        <main className="relative z-10 md:ml-56 min-h-screen px-4 py-6 md:px-8 md:py-8 pb-20 md:pb-8">
-          {children}
-        </main>
+        <AuthGate>
+          <Sidebar />
+          <main className="relative z-10 md:ml-56 min-h-screen px-4 py-6 md:px-8 md:py-8 pb-20 md:pb-8">
+            {children}
+          </main>
+        </AuthGate>
       </body>
     </html>
   );

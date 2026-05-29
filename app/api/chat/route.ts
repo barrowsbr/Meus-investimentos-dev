@@ -14,10 +14,10 @@ interface HistoryPart {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     return Response.json(
-      { error: "GEMINI_API_KEY não configurada. Adicione ao .env.local." },
+      { error: "GEMINI_API_KEY ou GOOGLE_API_KEY não configurada. Adicione ao .env.local." },
       { status: 500 }
     );
   }
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: SYSTEM_PROMPT,
     });
 

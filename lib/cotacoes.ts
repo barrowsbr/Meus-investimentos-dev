@@ -33,6 +33,18 @@ const INTL_SUFFIX_MAP: Record<string, string> = {
   CSPX: "CSPX.L",
   EIMI: "EIMI.L",
   IWDA: "IWDA.L",
+  ASML: "ASML.AS",
+};
+
+// Map tickers to their actual currencies (overrides API detection if needed)
+const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
+  "VWRA.L": "USD",      // LSE but priced in USD
+  "CSPX.L": "GBP",      // LSE in GBP
+  "EIMI.L": "GBP",      // LSE in GBP
+  "IWDA.L": "USD",      // LSE but priced in USD
+  "VWCE.DE": "EUR",     // Xetra/Frankfurt in EUR
+  "ASML.AS": "EUR",     // Amsterdam exchange in EUR
+  "DPM.TO": "CAD",      // Toronto exchange in CAD
 };
 
 export function yahooTicker(ticker: string, moeda: string, corretora: string): string {
@@ -40,7 +52,7 @@ export function yahooTicker(ticker: string, moeda: string, corretora: string): s
   if (t.includes(".")) return t;
   if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
   if (t === "ETH" || t === "ETH-USD") return "ETH-USD";
-  const tClean = t.replace(".SA", "").replace(".L", "");
+  const tClean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "");
   if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
   const setor = identificarSetor(t);
   if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) return `${t}.SA`;
@@ -271,7 +283,12 @@ export async function fetchCotacoes(
   const quotes: Record<string, Quote> = {};
   for (const [originalTicker, yahooTck] of yahooMap) {
     if (quoteResult.quotes[yahooTck]) {
-      quotes[originalTicker] = quoteResult.quotes[yahooTck];
+      const quote = quoteResult.quotes[yahooTck];
+      // Apply currency override if it exists
+      if (TICKER_CURRENCY_OVERRIDE[yahooTck]) {
+        quote.currency = TICKER_CURRENCY_OVERRIDE[yahooTck];
+      }
+      quotes[originalTicker] = quote;
     }
   }
 

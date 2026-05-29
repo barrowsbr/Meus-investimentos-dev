@@ -25,6 +25,7 @@ export interface Position {
   custoMedio: number;
   custoTotal: number;
   lucroRealizado: number;
+  lucroRealizadoBRL: number;
   precoAtual: number | null;
   quoteCurrency: string | null;
   valorAtual: number | null;
@@ -48,10 +49,13 @@ export interface PortfolioSnapshot {
   totalPatrimonioBRL: number;
   totalProventosBRL: number;
   proventosMensais: Record<string, number>;
+  proventosPorTicker: Record<string, number>;
   lucroBRL: number;
   lucroPct: number;
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
+  dayChangeTotalBRL: number;
+  dayChangeTotalPct: number;
   usdbrl: number;
   eurbrl: number;
   cadbrl: number;
@@ -224,6 +228,7 @@ export function enriquecerPosicoes(
       custoMedio,
       custoTotal,
       lucroRealizado: pos.lucroRealizado,
+      lucroRealizadoBRL: pos.lucroRealizado * fatorAtual,
       precoAtual,
       quoteCurrency,
       valorAtual,
@@ -248,9 +253,10 @@ export function enriquecerPosicoes(
 export function calcularProventosBRL(
   proventos: Row[],
   fx: FxRates
-): { totalBRL: number; porMes: Record<string, number> } {
+): { totalBRL: number; porMes: Record<string, number>; porTicker: Record<string, number> } {
   let totalBRL = 0;
   const porMes: Record<string, number> = {};
+  const porTicker: Record<string, number> = {};
 
   for (const row of proventos) {
     const valor = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
@@ -260,6 +266,9 @@ export function calcularProventosBRL(
     const valorBRL = valor * fxToBRL(moeda, fx);
     totalBRL += valorBRL;
 
+    const ticker = String(getVal(row, "ticker", "símbolo", "simbolo") ?? "").toUpperCase().trim();
+    if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
+
     const dataStr = String(getVal(row, "data", "date", "pagamento") ?? "");
     const match = dataStr.match(/^(\d{4})-(\d{2})/);
     if (match) {
@@ -268,7 +277,7 @@ export function calcularProventosBRL(
     }
   }
 
-  return { totalBRL, porMes };
+  return { totalBRL, porMes, porTicker };
 }
 
 export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
@@ -315,6 +324,9 @@ export function calcularSnapshot(
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
   const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
 
+  const dayChangeTotalBRL = rvPositions.reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
+  const dayChangeTotalPct = rvPatrimonioBRL > 0 ? (dayChangeTotalBRL / rvPatrimonioBRL) * 100 : 0;
+
   const exposicaoCambial: Record<string, number> = {};
   for (const p of positions) {
     if (p.valorAtualBRL < 1) continue;
@@ -335,10 +347,13 @@ export function calcularSnapshot(
     totalPatrimonioBRL,
     totalProventosBRL: prov.totalBRL,
     proventosMensais: prov.porMes,
+    proventosPorTicker: prov.porTicker,
     lucroBRL,
     lucroPct,
     ganhoAtivoTotalBRL,
     ganhoCambioTotalBRL,
+    dayChangeTotalBRL,
+    dayChangeTotalPct,
     usdbrl: fxAtual.USDBRL,
     eurbrl: fxAtual.EURBRL,
     cadbrl: fxAtual.CADBRL,

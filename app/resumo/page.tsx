@@ -13,7 +13,7 @@ import {
   Layers, Target, PieChart as PieIcon,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { brl, compactBRL, pct, shortMonth } from "@/lib/format";
+import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -75,15 +75,7 @@ const TOOLTIP_STYLE = {
   color: "#fafafa", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
-const CARD_GRADIENTS = {
-  patrimonio: "linear-gradient(135deg, #d4a574 0%, #f5c842 50%, #b8860b 100%)",
-  rv: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 55%, #3b82f6 100%)",
-  rf: "linear-gradient(135deg, #8b5cf6 0%, #c084fc 55%, #6366f1 100%)",
-  proventos: "linear-gradient(135deg, #f59e0b 0%, #fb923c 55%, #f59e0b 100%)",
-  dolar: "linear-gradient(135deg, #10b981 0%, #4ade80 55%, #059669 100%)",
-  lucroUp: "linear-gradient(135deg, #10b981 0%, #34d399 55%, #059669 100%)",
-  lucroDown: "linear-gradient(135deg, #f87171 0%, #ef4444 55%, #dc2626 100%)",
-};
+// Card gradients removed — using uniform clean design
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +96,7 @@ const TreemapContent = (props: any) => {
   if (width < 2 || height < 2) return null;
   const color = depth === 1 ? (MACRO_COLORS[name] || "#52525b")
     : depth === 2 ? (SECTOR_COLORS[name] || "#3f3f46")
-    : "#1a1a2e";
+      : "#1a1a2e";
   const showLabel = width > 35 && height > 22;
   return (
     <g>
@@ -147,12 +139,15 @@ export default function ResumoPage() {
   const [composicao, setComposicao] = useState<ComposicaoData | null>(null);
   const [compLoading, setCompLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("global");
+  const [hoveredNode, setHoveredNode] = useState<{ name: string; value: number; pct: number } | null>(null);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
       .then(r => r.json())
       .then(setComposicao)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCompLoading(false));
   }, []);
 
@@ -226,13 +221,151 @@ export default function ResumoPage() {
     return composicao.estrutura_carteira;
   }, [composicao]);
 
+  const sunburstData = useMemo(() => {
+    const sectorStyles: Record<string, { h: number; s: number; l: number }> = {
+      "Ações Internacional": { h: 260, s: 65, l: 45 },
+      "ETF USA": { h: 235, s: 60, l: 50 },
+      "ETF": { h: 215, s: 65, l: 52 },
+      "Ações Brasil": { h: 330, s: 75, l: 48 },
+      "FIIs": { h: 25, s: 80, l: 50 },
+      "BDRs": { h: 295, s: 65, l: 45 },
+      "Cripto": { h: 42, s: 85, l: 52 },
+      "Commodities": { h: 80, s: 55, l: 48 },
+      "Renda Fixa": { h: 170, s: 70, l: 38 },
+      "Renda Fixa USD": { h: 220, s: 75, l: 45 },
+      "Caixa": { h: 210, s: 15, l: 48 },
+      "Tesouro Direto": { h: 150, s: 65, l: 42 },
+    };
+
+    const checkIsRendaFixa = (sector: string) =>
+      sector === "Renda Fixa" || sector === "Renda Fixa USD" || sector === "Caixa" || sector === "Tesouro Direto";
+
+    // ── Source A: composicao API (preferred) ──
+    if (composicao?.estrutura_carteira?.length) {
+      const totalPortfolio = composicao.resumo.total_portfolio;
+      const level1: any[] = [];
+      const level2: any[] = [];
+      const level3: any[] = [];
+
+      let rvValueSum = 0;
+      let rfValueSum = 0;
+
+      composicao.estrutura_carteira.forEach((macroNode: any) => {
+        macroNode.children.forEach((sectorNode: any) => {
+          if (checkIsRendaFixa(sectorNode.name)) rfValueSum += sectorNode.value;
+          else rvValueSum += sectorNode.value;
+        });
+      });
+
+      if (rvValueSum > 0) {
+        level1.push({ name: "Renda Variável", value: rvValueSum, pct: (rvValueSum / totalPortfolio) * 100, color: "rgba(109, 40, 217, 0.9)", glow: "#8b5cf6" });
+      }
+      if (rfValueSum > 0) {
+        level1.push({ name: "Renda Fixa", value: rfValueSum, pct: (rfValueSum / totalPortfolio) * 100, color: "rgba(13, 148, 136, 0.9)", glow: "#10b981" });
+      }
+
+      const processGroup = (isRFGroup: boolean) => {
+        composicao.estrutura_carteira.forEach((macroNode: any) => {
+          macroNode.children.forEach((sectorNode: any) => {
+            if (checkIsRendaFixa(sectorNode.name) !== isRFGroup) return;
+            const baseColor = sectorStyles[sectorNode.name] || { h: 200, s: 40, l: 50 };
+            const sectorColor = `hsl(${baseColor.h}, ${baseColor.s}%, ${baseColor.l}%)`;
+            level2.push({ name: sectorNode.name, value: sectorNode.value, pct: sectorNode.pct, parentName: isRFGroup ? "Renda Fixa" : "Renda Variável", color: sectorColor });
+            if (sectorNode.children?.length) {
+              sectorNode.children.forEach((assetNode: any, idx: number) => {
+                const n = sectorNode.children.length;
+                const shift = n > 1 ? ((idx - (n - 1) / 2) * (15 / n)) : 0;
+                level3.push({ name: assetNode.name, value: assetNode.value, pct: assetNode.pct, parentName: sectorNode.name, color: `hsl(${baseColor.h}, ${baseColor.s}%, ${Math.min(90, Math.max(25, baseColor.l + shift))}%)` });
+              });
+            }
+          });
+        });
+      };
+      processGroup(false);
+      processGroup(true);
+      return { level1, level2, level3 };
+    }
+
+    // ── Source B: fallback from portfolio positions ──
+    if (!data?.positions?.length) return null;
+
+    const positions = data.positions.filter(p => p.valorAtualBRL > 1);
+    const totalPortfolio = data.totalPatrimonioBRL || positions.reduce((s, p) => s + p.valorAtualBRL, 0);
+    if (totalPortfolio <= 0) return null;
+
+    const level1: any[] = [];
+    const level2: any[] = [];
+    const level3: any[] = [];
+
+    const sectors: Record<string, { value: number; isRF: boolean; assets: { name: string; value: number }[] }> = {};
+    for (const p of positions) {
+      const setor = p.setor;
+      if (!sectors[setor]) sectors[setor] = { value: 0, isRF: checkIsRendaFixa(setor), assets: [] };
+      sectors[setor].value += p.valorAtualBRL;
+      sectors[setor].assets.push({ name: p.ticker, value: p.valorAtualBRL });
+    }
+
+    let rvSum = 0;
+    let rfSum = 0;
+    for (const s of Object.values(sectors)) {
+      if (s.isRF) rfSum += s.value;
+      else rvSum += s.value;
+    }
+
+    const rfExtra = (data.rfPatrimonioBRL ?? 0) - rfSum;
+    if (rfExtra > 1) {
+      if (!sectors["Renda Fixa"]) sectors["Renda Fixa"] = { value: 0, isRF: true, assets: [] };
+      sectors["Renda Fixa"].value += rfExtra;
+      sectors["Renda Fixa"].assets.push({ name: "RF Manual", value: rfExtra });
+      rfSum += rfExtra;
+    }
+
+    if (rvSum > 0) level1.push({ name: "Renda Variável", value: rvSum, pct: (rvSum / totalPortfolio) * 100, color: "rgba(109, 40, 217, 0.9)", glow: "#8b5cf6" });
+    if (rfSum > 0) level1.push({ name: "Renda Fixa", value: rfSum, pct: (rfSum / totalPortfolio) * 100, color: "rgba(13, 148, 136, 0.9)", glow: "#10b981" });
+
+    const sortedSectors = Object.entries(sectors).sort((a, b) => b[1].value - a[1].value);
+    for (const [false_, true_] of [[false, "Renda Variável"], [true, "Renda Fixa"]] as [boolean, string][]) {
+      for (const [name, sec] of sortedSectors) {
+        if (sec.isRF !== false_) continue;
+        const baseColor = sectorStyles[name] || { h: 200, s: 40, l: 50 };
+        level2.push({ name, value: sec.value, pct: (sec.value / totalPortfolio) * 100, parentName: true_, color: `hsl(${baseColor.h}, ${baseColor.s}%, ${baseColor.l}%)` });
+        sec.assets.sort((a, b) => b.value - a.value).forEach((a, idx) => {
+          const n = sec.assets.length;
+          const shift = n > 1 ? ((idx - (n - 1) / 2) * (15 / n)) : 0;
+          level3.push({ name: a.name, value: a.value, pct: (a.value / totalPortfolio) * 100, parentName: name, color: `hsl(${baseColor.h}, ${baseColor.s}%, ${Math.min(90, Math.max(25, baseColor.l + shift))}%)` });
+        });
+      }
+    }
+
+    return level1.length > 0 ? { level1, level2, level3 } : null;
+  }, [composicao, data]);
+
+  const nestedMiddle = useMemo(() => {
+    if (!sunburstData) return [];
+    if (!selectedClass) return sunburstData.level2;
+    return sunburstData.level2.filter((s: any) => s.parentName === selectedClass);
+  }, [sunburstData, selectedClass]);
+
+  const nestedOuter = useMemo(() => {
+    if (!sunburstData) return [];
+    if (selectedSector) return sunburstData.level3.filter((a: any) => a.parentName === selectedSector);
+    if (selectedClass) {
+      const classSectorNames = new Set(
+        sunburstData.level2.filter((s: any) => s.parentName === selectedClass).map((s: any) => s.name)
+      );
+      return sunburstData.level3.filter((a: any) => classSectorNames.has(a.parentName));
+    }
+    return sunburstData.level3;
+  }, [sunburstData, selectedClass, selectedSector]);
+
   if (loading) return <LoadingSpinner />;
   if (error && !data) return <ErrorAlert message={error} />;
   if (!data) return <ErrorAlert message="Dados não disponíveis" />;
 
   const rvPositions = data.positions.filter(p => isRendaVariavel(p.setor));
-  const lucroPctStr = pct(data.lucroPct);
-  const pmVsSpot = data.cambio?.pmDolar ? (data.usdbrl / data.cambio.pmDolar - 1) * 100 : 0;
+  const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+  const dayChange = data.dayChangeTotalBRL ?? 0;
+  const dayChangePct = data.dayChangeTotalPct ?? 0;
 
   const top = composicao?.resumo.top_performer;
   const bot = composicao?.resumo.bottom_performer;
@@ -244,39 +377,34 @@ export default function ResumoPage() {
         description={composicao?.computed_at ? `Atualizado às ${formatComputedAt(composicao.computed_at)}` : "Visão geral dos seus investimentos"}
       />
 
-      {/* ── Metric Cards ── */}
+      {/* ── Metric Cards — uniform, clean ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
         <div className="animate-fade-in">
           <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
-            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} + RF ${compactBRL(data.rfPatrimonioBRL)}`}
-            icon={<Wallet size={17} strokeWidth={1.6} />} glowColor="#d4a574" borderGradient={CARD_GRADIENTS.patrimonio} />
+            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`} />
         </div>
         <div className="animate-fade-in animate-delay-1">
-          <MetricCard label="Renda Variável" value={compactBRL(data.rvPatrimonioBRL)}
-            sub={`${rvPositions.length} ativos`}
-            icon={<BarChart3 size={17} strokeWidth={1.6} />} glowColor="#3b82f6" borderGradient={CARD_GRADIENTS.rv} />
+          <MetricCard label="Variação Hoje" value={brl(dayChange)}
+            sub={`${pct(dayChangePct)} sobre patrimônio RV`}
+            trend={dayChange >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-2">
-          <MetricCard label="Renda Fixa" value={compactBRL(data.rfPatrimonioBRL)}
-            icon={<Landmark size={17} strokeWidth={1.6} />} glowColor="#8b5cf6" borderGradient={CARD_GRADIENTS.rf} />
+          <MetricCard label="Lucro Total RV" value={brl(data.lucroBRL)}
+            sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
+            trend={data.lucroBRL >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-3">
-          <MetricCard label="Lucro RV" value={brl(data.lucroBRL)}
-            sub={`${lucroPctStr} | Ativo ${compactBRL(data.ganhoAtivoTotalBRL)} | Câmbio ${compactBRL(data.ganhoCambioTotalBRL)}`}
-            icon={data.lucroBRL >= 0 ? <TrendingUp size={17} strokeWidth={1.6} /> : <TrendingDown size={17} strokeWidth={1.6} />}
-            trend={data.lucroBRL >= 0 ? "up" : "down"}
-            glowColor={data.lucroBRL >= 0 ? "#10b981" : "#f87171"}
-            borderGradient={data.lucroBRL >= 0 ? CARD_GRADIENTS.lucroUp : CARD_GRADIENTS.lucroDown} />
+          <MetricCard label="Ganho Ativo vs Câmbio" value={compactBRL(data.ganhoAtivoTotalBRL)}
+            sub={`Câmbio ${brl(data.ganhoCambioTotalBRL)}`}
+            trend={data.ganhoAtivoTotalBRL >= 0 ? "up" : "down"} />
         </div>
         <div className="animate-fade-in animate-delay-4">
           <MetricCard label="Proventos" value={compactBRL(data.totalProventosBRL)}
-            icon={<Coins size={17} strokeWidth={1.6} />} glowColor="#f59e0b" borderGradient={CARD_GRADIENTS.proventos} />
+            sub={`${rvPositions.length} ativos em carteira`} />
         </div>
         <div className="animate-fade-in animate-delay-5">
           <MetricCard label="Dólar" value={`R$ ${data.usdbrl.toFixed(2)}`}
-            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} (${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}%) · EUR ${data.eurbrl.toFixed(2)}`}
-            icon={<DollarSign size={17} strokeWidth={1.6} />}
-            trend={pmVsSpot >= 0 ? "up" : "down"} glowColor="#10b981" borderGradient={CARD_GRADIENTS.dolar} />
+            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ ${data.eurbrl.toFixed(2)}`} />
         </div>
       </div>
 
@@ -376,6 +504,288 @@ export default function ResumoPage() {
           ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
         </div>
       </div>
+
+      {/* ── Mapa Interativo da Carteira (3 anéis) ── */}
+      {sunburstData && sunburstData.level1.length > 0 && (
+        <div className="glass-card p-5 mb-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="section-title"><PieIcon size={15} />Mapa Interativo da Carteira</h2>
+            <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+              {selectedSector && (
+                <button
+                  onClick={() => setSelectedSector(null)}
+                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors"
+                >
+                  ← {selectedSector}
+                </button>
+              )}
+              {selectedClass && (
+                <button
+                  onClick={() => { setSelectedClass(null); setSelectedSector(null); }}
+                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors"
+                >
+                  ← Todos
+                </button>
+              )}
+              {!selectedClass && <span>Clique nos anéis para filtrar</span>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Chart — 2/3 width */}
+            <div className="lg:col-span-2 relative">
+              <ResponsiveContainer width="100%" height={440}>
+                <PieChart>
+                  {/* Inner ring — Classe (RV / RF) */}
+                  <Pie
+                    data={sunburstData.level1}
+                    cx="50%" cy="50%"
+                    innerRadius={58} outerRadius={100}
+                    dataKey="value"
+                    stroke="none"
+                    paddingAngle={3}
+                    onClick={(d: any) => {
+                      if (selectedClass === d.name) { setSelectedClass(null); setSelectedSector(null); }
+                      else { setSelectedClass(d.name); setSelectedSector(null); }
+                    }}
+                    style={{ cursor: "pointer" }}
+                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
+                      const R = Math.PI / 180;
+                      const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+                      const x = cx + r * Math.cos(-midAngle * R);
+                      const y = cy + r * Math.sin(-midAngle * R);
+                      const abbrev = name === "Renda Variável" ? "RV" : "RF";
+                      return (
+                        <text textAnchor="middle" style={{ pointerEvents: "none" }}>
+                          <tspan x={x} y={y - 8} fill="rgba(255,255,255,0.65)" fontSize={9}>{abbrev}</tspan>
+                          <tspan x={x} y={y + 8} fill="white" fontSize={15} fontWeight={800}>{(percent * 100).toFixed(0)}%</tspan>
+                        </text>
+                      );
+                    }}
+                    labelLine={false}
+                  >
+                    {sunburstData.level1.map((entry: any) => (
+                      <Cell
+                        key={entry.name}
+                        fill={entry.color}
+                        opacity={selectedClass && selectedClass !== entry.name ? 0.18 : 1}
+                      />
+                    ))}
+                  </Pie>
+
+                  {/* Middle ring — Setor */}
+                  <Pie
+                    data={nestedMiddle}
+                    cx="50%" cy="50%"
+                    innerRadius={106} outerRadius={150}
+                    dataKey="value"
+                    stroke="none"
+                    paddingAngle={1}
+                    onClick={(d: any) => {
+                      setSelectedClass(d.parentName);
+                      setSelectedSector((prev: string | null) => prev === d.name ? null : d.name);
+                    }}
+                    style={{ cursor: "pointer" }}
+                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+                      if (percent < 0.07) return null;
+                      const R = Math.PI / 180;
+                      const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+                      const x = cx + r * Math.cos(-midAngle * R);
+                      const y = cy + r * Math.sin(-midAngle * R);
+                      return (
+                        <text x={x} y={y} fill="rgba(255,255,255,0.7)" textAnchor="middle" dominantBaseline="middle" fontSize={9} style={{ pointerEvents: "none" }}>
+                          {(percent * 100).toFixed(0)}%
+                        </text>
+                      );
+                    }}
+                    labelLine={false}
+                  >
+                    {nestedMiddle.map((entry: any, i: number) => (
+                      <Cell
+                        key={`mid-${i}`}
+                        fill={entry.color}
+                        opacity={selectedSector && selectedSector !== entry.name ? 0.2 : 0.88}
+                      />
+                    ))}
+                  </Pie>
+
+                  {/* Outer ring — Ativos individuais */}
+                  <Pie
+                    data={nestedOuter}
+                    cx="50%" cy="50%"
+                    innerRadius={156} outerRadius={192}
+                    dataKey="value"
+                    stroke="none"
+                    paddingAngle={0.5}
+                  >
+                    {nestedOuter.map((entry: any, i: number) => (
+                      <Cell key={`out-${i}`} fill={entry.color} opacity={0.72} />
+                    ))}
+                  </Pie>
+
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    content={({ active, payload }: any) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload as { name: string; value: number; pct: number; parentName?: string };
+                      return (
+                        <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl min-w-[130px]">
+                          {d.parentName && (
+                            <p className="text-[10px] text-zinc-600 mb-0.5">{d.parentName}</p>
+                          )}
+                          <p className="font-semibold text-zinc-200 text-xs">{d.name}</p>
+                          <p className="text-zinc-400 text-[11px]">{d.pct?.toFixed(1)}%</p>
+                          <p className="text-zinc-300 text-[11px]">{compactBRL(d.value)}</p>
+                        </div>
+                      );
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Center label */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  {selectedSector ? (
+                    <>
+                      <p className="text-xs font-bold text-zinc-200">{selectedSector}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">
+                        {nestedMiddle.find((s: any) => s.name === selectedSector)?.pct?.toFixed(1)}%
+                      </p>
+                    </>
+                  ) : selectedClass ? (
+                    <>
+                      <p className="text-xs font-bold text-zinc-200">
+                        {selectedClass === "Renda Variável" ? "RV" : "RF"}
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">
+                        {sunburstData.level1.find((d: any) => d.name === selectedClass)?.pct?.toFixed(0)}%
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[9px] text-zinc-700 max-w-[64px] text-center leading-snug">
+                      Clique p/ filtrar
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Ring labels */}
+              <div className="flex items-center gap-5 mt-2">
+                {[
+                  { label: "Classe (RV/RF)", w: "w-5 h-2.5", bg: "bg-violet-700" },
+                  { label: "Setor", w: "w-5 h-2.5", bg: "bg-violet-500 opacity-70" },
+                  { label: "Ativos", w: "w-5 h-2.5", bg: "bg-violet-400 opacity-50" },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-1.5">
+                    <div className={`${item.w} ${item.bg} rounded-sm`} />
+                    <span className="text-[9px] text-zinc-600">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Legend panel — 1/3 width */}
+            <div className="flex flex-col gap-5 pt-2">
+              {/* Classe */}
+              <div>
+                <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">Classe</p>
+                <div className="space-y-2">
+                  {sunburstData.level1.map((s: any) => (
+                    <div
+                      key={s.name}
+                      className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => {
+                        if (selectedClass === s.name) { setSelectedClass(null); setSelectedSector(null); }
+                        else { setSelectedClass(s.name); setSelectedSector(null); }
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
+                          style={{ backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}
+                        />
+                        <span
+                          className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors"
+                          style={{ opacity: selectedClass && selectedClass !== s.name ? 0.35 : 1 }}
+                        >
+                          {s.name}
+                        </span>
+                      </div>
+                      <span
+                        className="text-xs font-mono font-semibold tabular-nums transition-opacity"
+                        style={{ color: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}
+                      >
+                        {s.pct.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Setor */}
+              <div>
+                <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
+                  Setor{selectedClass ? ` · ${selectedClass === "Renda Variável" ? "RV" : "RF"}` : ""}
+                </p>
+                <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: 180 }}>
+                  {nestedMiddle.map((s: any) => (
+                    <div
+                      key={s.name}
+                      className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => {
+                        setSelectedClass(s.parentName);
+                        setSelectedSector((prev: string | null) => prev === s.name ? null : s.name);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0 transition-opacity"
+                          style={{ backgroundColor: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}
+                        />
+                        <span
+                          className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors"
+                          style={{ opacity: selectedSector && selectedSector !== s.name ? 0.35 : 1 }}
+                        >
+                          {s.name}
+                        </span>
+                      </div>
+                      <span
+                        className="text-[11px] font-mono tabular-nums transition-opacity"
+                        style={{ color: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}
+                      >
+                        {s.pct.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ativos */}
+              {nestedOuter.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
+                    Ativos{selectedSector ? ` · ${selectedSector}` : ""}
+                  </p>
+                  <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 160 }}>
+                    {nestedOuter.map((s: any, i: number) => (
+                      <div key={`leg-out-${i}`} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                          <span className="text-[10px] text-zinc-600">{s.name}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                          {s.pct.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Proventos + Exposição Cambial ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -497,11 +907,10 @@ export default function ResumoPage() {
         <div className="flex flex-wrap gap-2 mb-6 animate-fade-in">
           {["global", ...macros].map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                activeFilter === f
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
                   ? "border-transparent text-zinc-900"
                   : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              }`}
+                }`}
               style={activeFilter === f ? {
                 background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
               } : undefined}
@@ -711,7 +1120,7 @@ export default function ResumoPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left" style={{ borderColor: "#1E2028" }}>
-                  {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Lucro", "%"].map((h, i) => (
+                  {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Dividendos", "Retorno"].map((h, i) => (
                     <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : ""}`}>
                       {h}
                     </th>
@@ -720,7 +1129,17 @@ export default function ResumoPage() {
               </thead>
               <tbody>
                 {rvPositions.map((p, i) => {
-                  const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                  const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
+                  const naoRealizadoBRL = p.lucroBRL ?? 0;
+                  const realizadoBRL = p.lucroRealizadoBRL ?? 0;
+                  const totalBRL = naoRealizadoBRL + realizadoBRL + dividendosBRL;
+                  const naoRealizadoPct = p.lucroPct;
+                  const realizadoPct = p.custoTotalBRL > 0 ? (realizadoBRL / p.custoTotalBRL) * 100 : 0;
+                  const totalPct = p.lucroBRL !== null && p.custoTotalBRL > 0
+                    ? (totalBRL / p.custoTotalBRL) * 100
+                    : null;
+                  const corTotal = totalPct !== null ? (totalPct >= 0 ? "text-positive" : "text-negative") : "text-zinc-500";
+
                   return (
                     <tr key={p.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
                       <td className="px-3 py-2.5">
@@ -738,9 +1157,34 @@ export default function ResumoPage() {
                       <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
                         {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{compactBRL(p.valorAtualBRL)}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">
+                        {p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {dividendosBRL > 0 ? (
+                          <span className="text-amber-400 font-mono">{compactBRL(dividendosBRL)}</span>
+                        ) : (
+                          <span className="text-zinc-700">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className={`font-bold text-sm ${corTotal}`}>
+                          {totalPct !== null
+                            ? `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(1)}%`
+                            : "—"}
+                        </div>
+                        <div className="text-[9px] text-zinc-600 font-mono mt-0.5">
+                          <span title="Não realizado">
+                            {naoRealizadoPct !== null
+                              ? `NR ${naoRealizadoPct >= 0 ? "+" : ""}${naoRealizadoPct.toFixed(1)}%`
+                              : "NR —"}
+                          </span>
+                          {" · "}
+                          <span title="Realizado">
+                            {`R ${realizadoPct >= 0 ? "+" : ""}${realizadoPct.toFixed(1)}%`}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

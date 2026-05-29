@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, timedelta
 from typing import Any
 
@@ -20,6 +21,7 @@ from app.services.cambio_service import parse_lb_historic
 
 from app.services.performance_service import decompose_by_currency
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["performance"])
 
 Row = dict[str, Any]
@@ -32,8 +34,12 @@ def _fetch_benchmark_sync(ticker: str, start: date, end: date) -> list[tuple[str
             start=start.isoformat(),
             end=(end + timedelta(days=1)).isoformat(),
         )
+        if hist.empty:
+            logger.warning(f"No data returned for benchmark {ticker}")
+            return []
         return [(str(dt.date()), float(row["Close"])) for dt, row in hist.iterrows()]
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to fetch benchmark {ticker}: {e}", exc_info=True)
         return []
 
 
