@@ -56,9 +56,20 @@ export interface CambioInfo {
   pmEuro: number;
   pmCad: number;
   pmGbp: number;
+  spotUSD: number;
+  spotEUR: number;
+  spotCAD: number;
+  spotGBP: number;
   totalEnviadoBRL: number;
   totalRecebidoUSD: number;
+  totalRecebidoEUR: number;
+  totalRecebidoCAD: number;
+  totalRecebidoGBP: number;
   ganhoCambialUSD_BRL: number;
+  ganhoCambialEUR_BRL: number;
+  ganhoCambialCAD_BRL: number;
+  ganhoCambialGBP_BRL: number;
+  ganhoTotal_BRL: number;
   operacoes: number;
 }
 
@@ -147,9 +158,20 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
       pmEuro: cambio.pmEuro ?? cambio.pm_euro ?? 0,
       pmCad: cambio.pmCad ?? cambio.pm_cad ?? 0,
       pmGbp: cambio.pmGbp ?? cambio.pm_gbp ?? 0,
+      spotUSD: cambio.spotUSD ?? cambio.spot_usd ?? 0,
+      spotEUR: cambio.spotEUR ?? cambio.spot_eur ?? 0,
+      spotCAD: cambio.spotCAD ?? cambio.spot_cad ?? 0,
+      spotGBP: cambio.spotGBP ?? cambio.spot_gbp ?? 0,
       totalEnviadoBRL: cambio.totalEnviadoBRL ?? cambio.total_enviado_brl ?? 0,
       totalRecebidoUSD: cambio.totalRecebidoUSD ?? cambio.total_recebido_usd ?? 0,
+      totalRecebidoEUR: cambio.totalRecebidoEUR ?? cambio.total_recebido_eur ?? 0,
+      totalRecebidoCAD: cambio.totalRecebidoCAD ?? cambio.total_recebido_cad ?? 0,
+      totalRecebidoGBP: cambio.totalRecebidoGBP ?? cambio.total_recebido_gbp ?? 0,
       ganhoCambialUSD_BRL: cambio.ganhoCambialUSD_BRL ?? cambio.ganho_cambial_usd_brl ?? 0,
+      ganhoCambialEUR_BRL: cambio.ganhoCambialEUR_BRL ?? cambio.ganho_cambial_eur_brl ?? 0,
+      ganhoCambialCAD_BRL: cambio.ganhoCambialCAD_BRL ?? cambio.ganho_cambial_cad_brl ?? 0,
+      ganhoCambialGBP_BRL: cambio.ganhoCambialGBP_BRL ?? cambio.ganho_cambial_gbp_brl ?? 0,
+      ganhoTotal_BRL: cambio.ganhoTotal_BRL ?? cambio.ganho_total_brl ?? 0,
       operacoes: cambio.operacoes ?? 0,
     },
     ptax: data.ptax ?? null,

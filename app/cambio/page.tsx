@@ -109,34 +109,35 @@ export default function CambioPage() {
 
       {cambio && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
             <div className="animate-fade-in">
               <MetricCard
                 label="PM Dólar"
                 value={`R$ ${cambio.pmDolar.toFixed(4)}`}
-                sub={`${cambio.operacoes} operações`}
+                sub={`Spot R$ ${spot.toFixed(4)} · ${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}%`}
                 icon={<DollarSign size={18} />}
                 glowColor="#d4a574"
               />
             </div>
             <div className="animate-fade-in animate-delay-1">
               <MetricCard
-                label="Spot Atual"
-                value={`R$ ${spot.toFixed(4)}`}
-                sub={`${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}% vs PM`}
-                icon={<ArrowLeftRight size={18} />}
-                trend={pmVsSpot >= 0 ? "up" : "down"}
-                glowColor="#3b82f6"
+                label="Ganho Total Câmbio"
+                value={brl(cambio.ganhoTotal_BRL)}
+                sub={`${cambio.operacoes} operações`}
+                icon={cambio.ganhoTotal_BRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                trend={cambio.ganhoTotal_BRL >= 0 ? "up" : "down"}
+                glowColor={cambio.ganhoTotal_BRL >= 0 ? "#4ade80" : "#f87171"}
               />
             </div>
             <div className="animate-fade-in animate-delay-2">
               <MetricCard
-                label="Ganho Cambial"
+                label="Ganho USD"
                 value={brl(cambio.ganhoCambialUSD_BRL)}
-                sub={`Sobre $${cambio.totalRecebidoUSD.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
-                icon={cambio.ganhoCambialUSD_BRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                sub={`$ ${cambio.totalRecebidoUSD.toLocaleString("en-US", { maximumFractionDigits: 0 })} · PM R$ ${cambio.pmDolar.toFixed(2)}`}
+                icon={<ArrowLeftRight size={18} />}
                 trend={cambio.ganhoCambialUSD_BRL >= 0 ? "up" : "down"}
-                glowColor={cambio.ganhoCambialUSD_BRL >= 0 ? "#4ade80" : "#f87171"}
+                glowColor="#3b82f6"
+                compact
               />
             </div>
             <div className="animate-fade-in animate-delay-3">
@@ -149,6 +150,38 @@ export default function CambioPage() {
               />
             </div>
           </div>
+
+          {/* Multi-currency PM grid */}
+          {(cambio.totalRecebidoEUR > 0 || cambio.totalRecebidoCAD > 0 || cambio.totalRecebidoGBP > 0) && (
+            <div className="glass-card p-5 mb-6 animate-fade-in">
+              <h2 className="section-title mb-4">Preço Médio por Moeda</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: "USD", pm: cambio.pmDolar, spot: cambio.spotUSD, total: cambio.totalRecebidoUSD, ganho: cambio.ganhoCambialUSD_BRL, color: "#3b82f6", sym: "$" },
+                  ...(cambio.totalRecebidoEUR > 0 ? [{ label: "EUR", pm: cambio.pmEuro, spot: cambio.spotEUR, total: cambio.totalRecebidoEUR, ganho: cambio.ganhoCambialEUR_BRL, color: "#8b5cf6", sym: "€" }] : []),
+                  ...(cambio.totalRecebidoCAD > 0 ? [{ label: "CAD", pm: cambio.pmCad, spot: cambio.spotCAD, total: cambio.totalRecebidoCAD, ganho: cambio.ganhoCambialCAD_BRL, color: "#f59e0b", sym: "C$" }] : []),
+                  ...(cambio.totalRecebidoGBP > 0 ? [{ label: "GBP", pm: cambio.pmGbp, spot: cambio.spotGBP, total: cambio.totalRecebidoGBP, ganho: cambio.ganhoCambialGBP_BRL, color: "#10b981", sym: "£" }] : []),
+                ].map(c => {
+                  const diff = c.spot > 0 && c.pm > 0 ? ((c.spot / c.pm - 1) * 100) : 0;
+                  return (
+                    <div key={c.label} className="rounded-xl p-4" style={{ background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold" style={{ color: c.color }}>{c.label}</span>
+                        <span className={`text-xs font-semibold ${c.ganho >= 0 ? "text-emerald-400" : "text-red-400"}`}>{c.ganho >= 0 ? "+" : ""}{brl(c.ganho)}</span>
+                      </div>
+                      <div className="text-sm font-bold text-zinc-100">R$ {c.pm.toFixed(4)}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1">PM custo · {c.sym} {c.total.toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
+                      {c.spot > 0 && (
+                        <div className={`text-[10px] font-semibold mt-1 ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          Spot R$ {c.spot.toFixed(2)} · {diff >= 0 ? "+" : ""}{diff.toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Comparison Bars */}
           <div className="glass-card p-5 mb-6 animate-fade-in">

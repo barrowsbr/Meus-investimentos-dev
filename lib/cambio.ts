@@ -28,10 +28,20 @@ export interface CambioMetrics {
   pmEuro: number;
   pmCad: number;
   pmGbp: number;
+  spotUSD: number;
+  spotEUR: number;
+  spotCAD: number;
+  spotGBP: number;
   totalEnviadoBRL: number;
   totalRecebidoUSD: number;
   totalRecebidoEUR: number;
+  totalRecebidoCAD: number;
+  totalRecebidoGBP: number;
   ganhoCambialUSD_BRL: number;
+  ganhoCambialEUR_BRL: number;
+  ganhoCambialCAD_BRL: number;
+  ganhoCambialGBP_BRL: number;
+  ganhoTotal_BRL: number;
   operacoes: number;
   historico: CambioOp[];
   debug: { rowsParsed: number; rowsTotal: number; usdOps: number; sampleKeys: string[] };
@@ -114,16 +124,30 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   const pmGbp = totalGBP_recebido > 0 ? totalBRL_paraGBP / totalGBP_recebido : fxAtual.GBPBRL;
 
   const ganhoCambialUSD_BRL = totalUSD_recebido > 0 ? totalUSD_recebido * (fxAtual.USDBRL - pmDolar) : 0;
+  const ganhoCambialEUR_BRL = totalEUR_recebido > 0 ? totalEUR_recebido * (fxAtual.EURBRL - pmEuro) : 0;
+  const ganhoCambialCAD_BRL = totalCAD_recebido > 0 ? totalCAD_recebido * (fxAtual.CADBRL - pmCad) : 0;
+  const ganhoCambialGBP_BRL = totalGBP_recebido > 0 ? totalGBP_recebido * (fxAtual.GBPBRL - pmGbp) : 0;
+  const ganhoTotal_BRL = ganhoCambialUSD_BRL + ganhoCambialEUR_BRL + ganhoCambialCAD_BRL + ganhoCambialGBP_BRL;
 
   return {
     pmDolar,
     pmEuro,
     pmCad,
     pmGbp,
+    spotUSD: fxAtual.USDBRL,
+    spotEUR: fxAtual.EURBRL,
+    spotCAD: fxAtual.CADBRL,
+    spotGBP: fxAtual.GBPBRL,
     totalEnviadoBRL,
     totalRecebidoUSD: totalUSD_recebido,
     totalRecebidoEUR: totalEUR_recebido,
+    totalRecebidoCAD: totalCAD_recebido,
+    totalRecebidoGBP: totalGBP_recebido,
     ganhoCambialUSD_BRL,
+    ganhoCambialEUR_BRL,
+    ganhoCambialCAD_BRL,
+    ganhoCambialGBP_BRL,
+    ganhoTotal_BRL,
     operacoes: historico.length,
     historico,
     debug: { rowsParsed, rowsTotal: cambioRows.length, usdOps, sampleKeys },
