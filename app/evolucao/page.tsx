@@ -2,9 +2,9 @@
 
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, BarChart, Bar,
+  CartesianGrid, Legend, BarChart, Bar, Cell, ReferenceLine,
 } from "recharts";
-import { Activity, TrendingUp, Calendar, Landmark } from "lucide-react";
+import { Activity, TrendingUp, Calendar, Landmark, Zap } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
@@ -60,9 +60,15 @@ export default function EvolucaoPage() {
   const last = historico[historico.length - 1];
   const crescimento = first.patrimonio > 0 ? ((last.patrimonio / first.patrimonio - 1) * 100) : 0;
   const peakValue = Math.max(...historico.map((p) => p.patrimonio));
+  const totalMonths = historico.length;
+  const totalYears = totalMonths / 12;
+  const cagr = first.patrimonio > 0 && last.patrimonio > 0 && totalYears > 0
+    ? (Math.pow(last.patrimonio / first.patrimonio, 1 / totalYears) - 1) * 100
+    : 0;
+  const multiplier = first.patrimonio > 0 ? last.patrimonio / first.patrimonio : 1;
 
-  // Annual returns
-  const anuais: { ano: string; retorno: number }[] = [];
+  // Annual returns with multiplier
+  const anuais: { ano: string; retorno: number; multiplier: number }[] = [];
   const byYear: Record<string, number[]> = {};
   historico.forEach((p) => {
     const ano = p.data.slice(0, 4);
@@ -72,7 +78,8 @@ export default function EvolucaoPage() {
   Object.entries(byYear).forEach(([ano, vals]) => {
     if (vals.length < 2) return;
     const ret = ((vals[vals.length - 1] / vals[0] - 1) * 100);
-    anuais.push({ ano, retorno: +ret.toFixed(1) });
+    const mult = vals[0] > 0 ? vals[vals.length - 1] / vals[0] : 1;
+    anuais.push({ ano, retorno: +ret.toFixed(1), multiplier: +mult.toFixed(2) });
   });
 
   return (
@@ -93,7 +100,7 @@ export default function EvolucaoPage() {
           <MetricCard
             label="Crescimento Total"
             value={pct(crescimento)}
-            sub={`${historico.length} meses registrados`}
+            sub={`${multiplier.toFixed(2)}× · ${totalMonths} meses`}
             icon={<TrendingUp size={18} />}
             trend={crescimento >= 0 ? "up" : "down"}
             glowColor={crescimento >= 0 ? "#4ade80" : "#f87171"}
@@ -101,19 +108,21 @@ export default function EvolucaoPage() {
         </div>
         <div className="animate-fade-in animate-delay-2">
           <MetricCard
-            label="Pico Histórico"
-            value={compactBRL(peakValue)}
-            icon={<Activity size={18} />}
-            glowColor="#6366f1"
+            label="CAGR"
+            value={`${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}%`}
+            sub={`Retorno anualizado · ${totalYears.toFixed(1)} anos`}
+            icon={<Zap size={18} />}
+            trend={cagr >= 0 ? "up" : "down"}
+            glowColor="#06b6d4"
           />
         </div>
         <div className="animate-fade-in animate-delay-3">
           <MetricCard
-            label="Período"
-            value={`${first.data.slice(0, 7)}`}
+            label="Pico Histórico"
+            value={compactBRL(peakValue)}
             sub={`até ${last.data.slice(0, 7)}`}
-            icon={<Calendar size={18} />}
-            glowColor="#06b6d4"
+            icon={<Activity size={18} />}
+            glowColor="#6366f1"
           />
         </div>
       </div>
@@ -173,17 +182,61 @@ export default function EvolucaoPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
                 <XAxis dataKey="ano" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}%`, "Retorno"]} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload as { ano: string; retorno: number; multiplier: number };
+                    return (
+                      <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl">
+                        <p className="font-bold text-zinc-200">{d.ano}</p>
+                        <p className={`text-sm font-semibold ${d.retorno >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {d.retorno >= 0 ? "+" : ""}{d.retorno}%
+                        </p>
+                        <p className="text-xs text-zinc-500">{d.multiplier.toFixed(2)}×</p>
+                      </div>
+                    );
+                  }}
+                />
+                <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
                 <Bar dataKey="retorno" radius={[4, 4, 0, 0]}>
                   {anuais.map((entry, i) => (
-                    <rect
-                      key={i}
-                      fill={entry.retorno >= 0 ? "#4ade80" : "#f87171"}
-                    />
+                    <Cell key={i} fill={entry.retorno >= 0 ? "#4ade80" : "#f87171"} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            {/* Annual summary table */}
+            <div className="overflow-x-auto mt-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="py-1.5 text-left text-zinc-600 font-semibold uppercase tracking-wider">Ano</th>
+                    {anuais.map(a => (
+                      <th key={a.ano} className="py-1.5 text-right text-zinc-600 font-semibold uppercase tracking-wider">{a.ano}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-zinc-900">
+                    <td className="py-1.5 text-zinc-500">Retorno</td>
+                    {anuais.map(a => (
+                      <td key={a.ano} className={`py-1.5 text-right font-semibold font-mono tabular-nums ${a.retorno >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {a.retorno >= 0 ? "+" : ""}{a.retorno}%
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-1.5 text-zinc-500">Múltiplo</td>
+                    {anuais.map(a => (
+                      <td key={a.ano} className={`py-1.5 text-right font-mono tabular-nums ${a.multiplier >= 1 ? "text-zinc-300" : "text-red-400"}`}>
+                        {a.multiplier.toFixed(2)}×
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

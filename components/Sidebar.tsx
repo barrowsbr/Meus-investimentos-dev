@@ -19,6 +19,7 @@ import {
   Bot,
   Newspaper,
   ListOrdered,
+  Zap,
 } from "lucide-react";
 
 interface NavItem {
@@ -52,9 +53,10 @@ const navGroups: NavGroup[] = [
   {
     label: "Análise",
     items: [
-      { href: "/performance", label: "Performance", icon: TrendingUp, mobileShow: true },
-      { href: "/evolucao",    label: "Evolução",    icon: Activity },
-      { href: "/cambio",      label: "Câmbio",      icon: ArrowLeftRight },
+      { href: "/performance",          label: "Performance",   icon: TrendingUp, mobileShow: true },
+      { href: "/performance-avancada", label: "Perf. Avançada", icon: Zap },
+      { href: "/evolucao",             label: "Evolução",       icon: Activity },
+      { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
     ],
   },
   {

@@ -1,7 +1,56 @@
 import { google } from "googleapis";
+import { JWT } from "google-auth-library";
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 const API_KEY = process.env.GOOGLE_API_KEY!;
+
+// ── Service account auth (required for writes) ────────────────────────────────
+function getServiceAccountAuth(): JWT | null {
+  const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    const sa = JSON.parse(saJson);
+    return new JWT({
+      email: sa.client_email,
+      key: sa.private_key,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Append rows to a sheet tab (requires service account write access)
+export async function appendRows(tabName: string, rows: string[][]): Promise<void> {
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+  const sheets = google.sheets({ version: "v4", auth });
+  const resolved = await resolveTabName(tabName);
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: resolved,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: rows },
+  });
+}
+
+// Write/overwrite a full sheet tab (requires service account write access)
+export async function writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void> {
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+  const sheets = google.sheets({ version: "v4", auth });
+  const resolved = await resolveTabName(tabName);
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SPREADSHEET_ID,
+    range: resolved,
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${resolved}!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [headers, ...rows] },
+  });
+}
 
 function serialToDate(serial: number): string {
   const utcDays = Math.floor(serial - 25569);

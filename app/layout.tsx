@@ -68,7 +68,7 @@ export default function RootLayout({
 
         <AuthGate>
           <Sidebar />
-          <main className="relative z-10 md:ml-56 min-h-screen px-4 py-6 md:px-8 md:py-8 pb-20 md:pb-8">
+          <main className="relative z-10 md:ml-56 min-h-screen px-4 pt-[max(0.9rem,calc(0.9rem+env(safe-area-inset-top)))] pb-20 md:px-8 md:pt-8 md:pb-8">
             {children}
           </main>
         </AuthGate>

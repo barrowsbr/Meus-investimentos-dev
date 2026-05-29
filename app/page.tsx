@@ -1,143 +1,190 @@
 "use client";
 
+import { useState } from "react";
+import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  LayoutDashboard,
-  TrendingUp,
-  BarChart2,
-  Landmark,
-  Coins,
-  Bitcoin,
-  ArrowLeftRight,
-  Receipt,
-  Activity,
-  Wallet,
-  Settings,
-  ArrowRight,
+  LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
+  Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
+  Settings, Newspaper, Bot, ListOrdered, Zap, ChevronDown,
+  ArrowRight, TrendingDown,
 } from "lucide-react";
+import { usePortfolio } from "@/lib/hooks";
+import { compactBRL, pct } from "@/lib/format";
 
-const sections = [
+interface NavItem { href: string; label: string; icon: ElementType }
+interface NavGroup {
+  id: string;
+  label: string;
+  desc: string;
+  icon: ElementType;
+  accentColor: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
   {
-    href: "/resumo",
-    label: "Resumo",
-    description: "Patrimônio total, alocação e posições",
+    id: "composicao",
+    label: "Composição",
+    desc: "Portfolio, alocação e posições",
     icon: LayoutDashboard,
-    color: "#d4a574",
-    ready: true,
+    accentColor: "#d4a574",
+    items: [
+      { href: "/resumo",          label: "Resumo",         icon: LayoutDashboard },
+      { href: "/renda-variavel",  label: "Renda Variável", icon: BarChart2 },
+      { href: "/renda-fixa",      label: "Renda Fixa",     icon: Landmark },
+      { href: "/proventos",       label: "Proventos",      icon: Coins },
+      { href: "/criptoativos",    label: "Criptoativos",   icon: Bitcoin },
+    ],
   },
   {
-    href: "/performance",
-    label: "Performance",
-    description: "TWR, retorno acumulado e benchmarks",
+    id: "analise",
+    label: "Análise",
+    desc: "Performance, retorno e risco",
     icon: TrendingUp,
-    color: "#3b82f6",
-    ready: true,
+    accentColor: "#3b82f6",
+    items: [
+      { href: "/performance",           label: "Performance",    icon: TrendingUp },
+      { href: "/performance-avancada",  label: "Perf. Avançada", icon: Zap },
+      { href: "/evolucao",              label: "Evolução",       icon: Activity },
+      { href: "/cambio",                label: "Câmbio",         icon: ArrowLeftRight },
+    ],
   },
   {
-    href: "/renda-variavel",
-    label: "Renda Variável",
-    description: "Ações, ETFs, FIIs e BDRs",
-    icon: BarChart2,
-    color: "#06b6d4",
-    ready: true,
-  },
-  {
-    href: "/renda-fixa",
-    label: "Renda Fixa",
-    description: "CDBs, Tesouro Direto e posições abertas",
-    icon: Landmark,
-    color: "#8b5cf6",
-    ready: true,
-  },
-  {
-    href: "/proventos",
-    label: "Proventos",
-    description: "Dividendos, JCP e rendimentos recebidos",
-    icon: Coins,
-    color: "#f59e0b",
-    ready: true,
-  },
-  {
-    href: "/criptoativos",
-    label: "Criptoativos",
-    description: "Bitcoin, Ethereum e ativos digitais",
-    icon: Bitcoin,
-    color: "#f97316",
-    ready: false,
-  },
-  {
-    href: "/cambio",
-    label: "Câmbio",
-    description: "Operações de câmbio e VET médio",
-    icon: ArrowLeftRight,
-    color: "#10b981",
-    ready: true,
-  },
-  {
-    href: "/impostos",
-    label: "Impostos",
-    description: "DARFs, declaração IR e isenções",
+    id: "gestao",
+    label: "Gestão",
+    desc: "Impostos, fluxos e finanças pessoais",
     icon: Receipt,
-    color: "#6366f1",
-    ready: false,
+    accentColor: "#8b5cf6",
+    items: [
+      { href: "/impostos", label: "Impostos",      icon: Receipt },
+      { href: "/financas", label: "Fin. Pessoais", icon: Wallet },
+      { href: "/fluxos",   label: "Fluxos",        icon: ListOrdered },
+    ],
   },
   {
-    href: "/evolucao",
-    label: "Evolução",
-    description: "Histórico patrimonial e projeções",
-    icon: Activity,
-    color: "#60a5fa",
-    ready: false,
-  },
-  {
-    href: "/financas",
-    label: "Fin. Pessoais",
-    description: "Receitas, despesas e controle financeiro",
-    icon: Wallet,
-    color: "#ec4899",
-    ready: true,
-  },
-  {
-    href: "/configuracoes",
-    label: "Configurações",
-    description: "Preferências e integrações",
-    icon: Settings,
-    color: "#71717a",
-    ready: false,
+    id: "mais",
+    label: "Mais",
+    desc: "Notícias, Agente IA e configurações",
+    icon: Newspaper,
+    accentColor: "#06b6d4",
+    items: [
+      { href: "/noticias",       label: "Notícias",       icon: Newspaper },
+      { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
+      { href: "/configuracoes",  label: "Configurações",  icon: Settings },
+    ],
   },
 ];
 
+function AccordionGroup({ group }: { group: NavGroup }) {
+  const [open, setOpen] = useState(false);
+  const Icon = group.icon;
+  const c = group.accentColor;
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden transition-all duration-300"
+      style={{
+        background: "rgba(13,14,20,0.75)",
+        border: `1px solid ${open ? c + "35" : "rgba(255,255,255,0.05)"}`,
+        boxShadow: open ? `0 12px 40px ${c}12` : "none",
+      }}
+    >
+      {/* Header */}
+      <button
+        className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
+        style={{ background: open ? `${c}08` : "transparent" }}
+        onClick={() => setOpen(!open)}
+      >
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${c}18`, boxShadow: open ? `0 0 16px ${c}25` : "none" }}
+        >
+          <Icon size={18} style={{ color: c }} strokeWidth={1.8} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-zinc-100">{group.label}</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{group.desc}</p>
+        </div>
+        <ChevronDown
+          size={15}
+          className="shrink-0 transition-transform duration-300 text-zinc-600"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", color: open ? c : undefined }}
+        />
+      </button>
+
+      {/* Sub-items */}
+      <div
+        className="overflow-hidden transition-all duration-300"
+        style={{ maxHeight: open ? `${group.items.length * 56}px` : "0px" }}
+      >
+        <div className="px-4 pb-3 flex flex-col gap-1">
+          {group.items.map(({ href, label, icon: SubIcon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.04)",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = `${c}0d`;
+                (e.currentTarget as HTMLElement).style.borderColor = `${c}25`;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)";
+                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.04)";
+              }}
+            >
+              <SubIcon size={15} className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0" strokeWidth={1.6} />
+              <span className="flex-1 text-[12px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">{label}</span>
+              <ArrowRight size={12} className="text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
+  const { data, loading } = usePortfolio();
+
+  const patrimonioBRL = data?.rvPatrimonioBRL ?? null;
+  const lucroPct = data?.lucroPct ?? null;
+  const dayChangePct = data?.dayChangeTotalPct ?? null;
+  const usdbrl = data?.usdbrl ?? null;
+  const isUp = (lucroPct ?? 0) >= 0;
+  const isDayUp = (dayChangePct ?? 0) >= 0;
+
   return (
     <div className="relative min-h-screen flex flex-col items-center">
       {/* Background */}
-      <div className="fixed inset-0 overflow-hidden z-0 pointer-events-none">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <div
           className="absolute inset-0"
-          style={{
-            background: "radial-gradient(ellipse at 50% 40%, rgba(25,26,35,0.6) 0%, rgba(13,14,17,0.95) 100%)",
-          }}
+          style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(20,22,35,0.7) 0%, rgba(10,11,15,0.97) 100%)" }}
         />
       </div>
 
-      {/* Content — centered */}
-      <div className="relative z-10 w-full max-w-4xl px-4 py-10 flex flex-col items-center">
-        {/* Hero */}
-        <div className="text-center mb-14 animate-fade-in pt-20">
-          <div className="flex justify-center mb-6">
+      <div className="relative z-10 w-full max-w-lg px-4 py-10 flex flex-col items-center">
+
+        {/* ── Hero ── */}
+        <div className="text-center mb-8 pt-16 animate-fade-in">
+          <div className="flex justify-center mb-5">
             <Image
               src="/midias/carregamento.png"
               alt="Meus Investimentos"
-              width={144}
-              height={144}
-              className="h-24 w-auto"
+              width={96}
+              height={96}
+              className="h-20 w-auto drop-shadow-lg"
               priority
             />
           </div>
-
           <h1
-            className="text-4xl md:text-5xl font-bold mb-3 leading-tight"
+            className="text-3xl md:text-4xl font-bold mb-2 leading-tight"
             style={{
               background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 100%)",
               WebkitBackgroundClip: "text",
@@ -147,69 +194,86 @@ export default function HomePage() {
           >
             Olá, Lucas
           </h1>
-          <p className="text-zinc-400 text-base md:text-lg max-w-md mx-auto leading-relaxed">
-            Seu painel de controle financeiro pessoal
-          </p>
+          <p className="text-zinc-500 text-sm">Sistema integrado de gestão de investimentos</p>
         </div>
 
-        {/* Sections grid — symmetric 3 columns */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full animate-fade-in animate-delay-1">
-          {sections.map(({ href, label, description, icon: Icon, color, ready }) => (
-            <Link key={href} href={href} className="group block">
-              <div
-                className="rounded-2xl p-px transition-all duration-250 hover:scale-[1.03]"
-                style={{
-                  background: `linear-gradient(145deg, ${color}60 0%, ${color}20 50%, ${color}40 100%)`,
-                  boxShadow: `0 4px 24px ${color}15, 0 0 1px ${color}30`,
-                }}
-              >
-                <div
-                  className="rounded-[calc(1rem-1px)] p-5 flex flex-col gap-3 h-[140px]"
-                  style={{ background: "rgba(17,18,24,0.88)" }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{
-                        background: `${color}18`,
-                        boxShadow: `0 0 12px ${color}20`,
-                      }}
-                    >
-                      <Icon size={18} strokeWidth={1.8} style={{ color }} />
-                    </div>
-                    {!ready ? (
-                      <span
-                        className="text-[9px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                        style={{
-                          background: "rgba(113,113,122,0.1)",
-                          color: "#a1a1aa",
-                          border: "1px solid rgba(113,113,122,0.25)",
-                        }}
-                      >
-                        Em breve
-                      </span>
-                    ) : (
-                      <ArrowRight
-                        size={14}
-                        className="text-zinc-700 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-all mt-0.5"
-                      />
-                    )}
-                  </div>
+        {/* ── Live Metrics ── */}
+        <div className="w-full grid grid-cols-3 gap-3 mb-7 animate-fade-in animate-delay-1">
+          {/* RV Patrimônio */}
+          <div
+            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+            style={{
+              background: "rgba(13,14,20,0.8)",
+              border: "1px solid rgba(212,165,116,0.15)",
+              boxShadow: "0 4px 20px rgba(212,165,116,0.05)",
+            }}
+          >
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">Patrimônio RV</span>
+            {loading || patrimonioBRL === null ? (
+              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            ) : (
+              <span className="text-sm font-bold text-zinc-100">{compactBRL(patrimonioBRL)}</span>
+            )}
+          </div>
 
-                  <div className="mt-auto">
-                    <p className="text-[13px] font-semibold text-zinc-100 mb-1">{label}</p>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">{description}</p>
-                  </div>
-                </div>
+          {/* Lucro total */}
+          <div
+            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+            style={{
+              background: "rgba(13,14,20,0.8)",
+              border: `1px solid ${isUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}`,
+              boxShadow: `0 4px 20px ${isUp ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)"}`,
+            }}
+          >
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">Retorno Total</span>
+            {loading || lucroPct === null ? (
+              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            ) : (
+              <div className="flex items-center gap-1">
+                {isUp
+                  ? <TrendingUp size={12} className="text-emerald-400" />
+                  : <TrendingDown size={12} className="text-red-400" />}
+                <span className={`text-sm font-bold ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                  {pct(lucroPct)}
+                </span>
               </div>
-            </Link>
+            )}
+          </div>
+
+          {/* USD/BRL */}
+          <div
+            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+            style={{
+              background: "rgba(13,14,20,0.8)",
+              border: `1px solid ${isDayUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+              boxShadow: `0 4px 20px ${isDayUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
+            }}
+          >
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">USD/BRL</span>
+            {loading || usdbrl === null ? (
+              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            ) : (
+              <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
+            )}
+            {!loading && dayChangePct !== null && (
+              <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}% hoje
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* ── Navigation Groups ── */}
+        <div className="w-full flex flex-col gap-3 animate-fade-in animate-delay-2">
+          {NAV_GROUPS.map(group => (
+            <AccordionGroup key={group.id} group={group} />
           ))}
         </div>
 
         {/* Footer */}
-        <div className="mt-12 flex items-center gap-4 w-full max-w-sm animate-fade-in animate-delay-2">
+        <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
           <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, #2d2f3a)" }} />
-          <span className="text-[10px] text-zinc-600 font-medium tracking-widest uppercase">
+          <span className="text-[9px] text-zinc-700 font-medium tracking-widest uppercase">
             v1.0 · Personal
           </span>
           <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2d2f3a, transparent)" }} />

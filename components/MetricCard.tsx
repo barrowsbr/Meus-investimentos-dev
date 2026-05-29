@@ -46,7 +46,7 @@ export default function MetricCard({
         } as React.CSSProperties}
       >
         <div className="flex items-center justify-between">
-          <span className="stat-label">{label}</span>
+          <span className="stat-label text-zinc-300">{label}</span>
           {icon && (
             <span
               className="transition-colors duration-200"
@@ -66,7 +66,7 @@ export default function MetricCard({
         </span>
 
         {sub && (
-          <span className="text-[10px] md:text-xs text-zinc-500 leading-relaxed">
+          <span className="text-[10px] md:text-xs text-zinc-400 leading-relaxed">
             {sub}
           </span>
         )}
