@@ -18,6 +18,7 @@ import {
   Newspaper,
   Bot,
   ListOrdered,
+  Zap,
 } from "lucide-react";
 
 const sections = [
@@ -34,6 +35,13 @@ const sections = [
     description: "TWR, retorno acumulado e benchmarks",
     icon: TrendingUp,
     color: "#3b82f6",
+  },
+  {
+    href: "/performance-avancada",
+    label: "Perf. Avançada",
+    description: "Sharpe, Sortino, drawdown e atribuição",
+    icon: Zap,
+    color: "#a78bfa",
   },
   {
     href: "/renda-variavel",
