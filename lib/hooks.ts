@@ -86,7 +86,7 @@ export interface PortfolioResponse extends PortfolioSnapshot {
   tickerMap: Record<string, string>;
 }
 
-// Maps a snake_case position from Python API to the TypeScript Position interface
+// Maps a position — handles both camelCase (Next.js API) and snake_case (legacy)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPosition(p: any): Position {
   return {
@@ -95,62 +95,63 @@ function mapPosition(p: any): Position {
     quantidade: p.quantidade,
     moeda: p.moeda,
     corretora: p.corretora,
-    custoMedio: p.custo_medio,
-    custoTotal: p.custo_total,
-    lucroRealizado: p.lucro_realizado,
-    precoAtual: p.preco_atual,
-    quoteCurrency: p.quote_currency,
-    valorAtual: p.valor_atual,
-    valorAtualBRL: p.valor_atual_brl,
-    custoTotalBRL: p.custo_total_brl,
-    lucroBRL: p.lucro_brl,
-    lucroPct: p.lucro_pct,
-    ganhoAtivoBRL: p.ganho_ativo_brl,
-    ganhoCambioBRL: p.ganho_cambio_brl,
-    dayChange: p.day_change,
-    dayChangePct: p.day_change_pct,
-    dayChangeBRL: p.day_change_brl,
-    fatorBRL: p.fator_brl,
-    fatorCusto: p.fator_custo,
+    custoMedio: p.custoMedio ?? p.custo_medio ?? 0,
+    custoTotal: p.custoTotal ?? p.custo_total ?? 0,
+    lucroRealizado: p.lucroRealizado ?? p.lucro_realizado ?? 0,
+    precoAtual: p.precoAtual ?? p.preco_atual ?? null,
+    quoteCurrency: p.quoteCurrency ?? p.quote_currency ?? null,
+    valorAtual: p.valorAtual ?? p.valor_atual ?? null,
+    valorAtualBRL: p.valorAtualBRL ?? p.valor_atual_brl ?? 0,
+    custoTotalBRL: p.custoTotalBRL ?? p.custo_total_brl ?? 0,
+    lucroBRL: p.lucroBRL ?? p.lucro_brl ?? null,
+    lucroPct: p.lucroPct ?? p.lucro_pct ?? null,
+    ganhoAtivoBRL: p.ganhoAtivoBRL ?? p.ganho_ativo_brl ?? null,
+    ganhoCambioBRL: p.ganhoCambioBRL ?? p.ganho_cambio_brl ?? null,
+    dayChange: p.dayChange ?? p.day_change ?? null,
+    dayChangePct: p.dayChangePct ?? p.day_change_pct ?? null,
+    dayChangeBRL: p.dayChangeBRL ?? p.day_change_brl ?? null,
+    fatorBRL: p.fatorBRL ?? p.fator_brl ?? 1,
+    fatorCusto: p.fatorCusto ?? p.fator_custo ?? 1,
   };
 }
 
-// Maps the full Python snake_case portfolio response to the TypeScript interface
+// Maps portfolio response — handles both camelCase (Next.js) and snake_case (legacy)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPortfolioResponse(data: any): PortfolioResponse {
+  const cambio = data.cambio ?? {};
   return {
     positions: (data.positions ?? []).map(mapPosition),
-    rvPatrimonioBRL: data.rv_patrimonio_brl ?? 0,
-    rfPatrimonioBRL: data.rf_patrimonio_brl ?? 0,
-    totalPatrimonioBRL: data.total_patrimonio_brl ?? 0,
-    totalProventosBRL: data.total_proventos_brl ?? 0,
-    proventosMensais: data.proventos_mensais ?? {},
-    lucroBRL: data.lucro_brl ?? 0,
-    lucroPct: data.lucro_pct ?? 0,
-    ganhoAtivoTotalBRL: data.ganho_ativo_total_brl ?? 0,
-    ganhoCambioTotalBRL: data.ganho_cambio_total_brl ?? 0,
+    rvPatrimonioBRL: data.rvPatrimonioBRL ?? data.rv_patrimonio_brl ?? 0,
+    rfPatrimonioBRL: data.rfPatrimonioBRL ?? data.rf_patrimonio_brl ?? 0,
+    totalPatrimonioBRL: data.totalPatrimonioBRL ?? data.total_patrimonio_brl ?? 0,
+    totalProventosBRL: data.totalProventosBRL ?? data.total_proventos_brl ?? 0,
+    proventosMensais: data.proventosMensais ?? data.proventos_mensais ?? {},
+    lucroBRL: data.lucroBRL ?? data.lucro_brl ?? 0,
+    lucroPct: data.lucroPct ?? data.lucro_pct ?? 0,
+    ganhoAtivoTotalBRL: data.ganhoAtivoTotalBRL ?? data.ganho_ativo_total_brl ?? 0,
+    ganhoCambioTotalBRL: data.ganhoCambioTotalBRL ?? data.ganho_cambio_total_brl ?? 0,
     usdbrl: data.usdbrl ?? 5.7,
     eurbrl: data.eurbrl ?? 6.4,
     cadbrl: data.cadbrl ?? 4.1,
-    exposicaoCambial: data.exposicao_cambial ?? {},
-    setorAlocacao: data.setor_alocacao ?? {},
+    exposicaoCambial: data.exposicaoCambial ?? data.exposicao_cambial ?? {},
+    setorAlocacao: data.setorAlocacao ?? data.setor_alocacao ?? {},
     fx: data.fx ?? { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 },
-    fxSource: data.fx_source ?? "unknown",
-    fxCusto: data.fx_custo ?? { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 },
+    fxSource: data.fxSource ?? data.fx_source ?? "unknown",
+    fxCusto: data.fxCusto ?? data.fx_custo ?? { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 },
     cambio: {
-      pmDolar: data.cambio?.pm_dolar ?? 0,
-      pmEuro: data.cambio?.pm_euro ?? 0,
-      pmCad: data.cambio?.pm_cad ?? 0,
-      pmGbp: data.cambio?.pm_gbp ?? 0,
-      totalEnviadoBRL: data.cambio?.total_enviado_brl ?? 0,
-      totalRecebidoUSD: data.cambio?.total_recebido_usd ?? 0,
-      ganhoCambialUSD_BRL: data.cambio?.ganho_cambial_usd_brl ?? 0,
-      operacoes: data.cambio?.operacoes ?? 0,
+      pmDolar: cambio.pmDolar ?? cambio.pm_dolar ?? 0,
+      pmEuro: cambio.pmEuro ?? cambio.pm_euro ?? 0,
+      pmCad: cambio.pmCad ?? cambio.pm_cad ?? 0,
+      pmGbp: cambio.pmGbp ?? cambio.pm_gbp ?? 0,
+      totalEnviadoBRL: cambio.totalEnviadoBRL ?? cambio.total_enviado_brl ?? 0,
+      totalRecebidoUSD: cambio.totalRecebidoUSD ?? cambio.total_recebido_usd ?? 0,
+      ganhoCambialUSD_BRL: cambio.ganhoCambialUSD_BRL ?? cambio.ganho_cambial_usd_brl ?? 0,
+      operacoes: cambio.operacoes ?? 0,
     },
     ptax: data.ptax ?? null,
-    lbHistoric: data.lb_historic ?? [],
+    lbHistoric: data.lbHistoric ?? data.lb_historic ?? [],
     timestamp: data.timestamp ?? new Date().toISOString(),
-    tickerMap: data.ticker_map ?? {},
+    tickerMap: data.tickerMap ?? data.ticker_map ?? {},
   };
 }
 
@@ -164,7 +165,7 @@ export function usePortfolio() {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_URL}/api/portfolio`)
+    fetch(`${API_URL}/api/cotacoes`)
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok || body.error) {
