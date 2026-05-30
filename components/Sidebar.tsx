@@ -68,8 +68,9 @@ const navGroups: NavGroup[] = [
   {
     label: "Mais",
     items: [
-      { href: "/noticias",   label: "Notícias",   icon: Newspaper },
-      { href: "/agente-ia",  label: "Agente IA",  icon: Bot, mobileShow: true },
+      { href: "/noticias",      label: "Notícias",     icon: Newspaper },
+      { href: "/polymarket",    label: "Polymarket",   icon: BarChart2 },
+      { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings },
     ],
   },

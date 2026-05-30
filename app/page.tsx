@@ -7,7 +7,7 @@ import Image from "next/image";
 import {
   LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
-  Settings, Newspaper, Bot, ListOrdered, Zap, ChevronDown,
+  Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
@@ -45,10 +45,9 @@ const NAV_GROUPS: NavGroup[] = [
     icon: TrendingUp,
     accentColor: "#3b82f6",
     items: [
-      { href: "/performance",           label: "Performance",    icon: TrendingUp },
-      { href: "/performance-avancada",  label: "Perf. Avançada", icon: Zap },
-      { href: "/evolucao",              label: "Evolução",       icon: Activity },
-      { href: "/cambio",                label: "Câmbio",         icon: ArrowLeftRight },
+      { href: "/performance",  label: "Performance", icon: TrendingUp },
+      { href: "/evolucao",     label: "Evolução",    icon: Activity },
+      { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
     ],
   },
   {
@@ -66,11 +65,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "mais",
     label: "Mais",
-    desc: "Notícias, Agente IA e configurações",
+    desc: "Notícias, Polymarket, Agente IA e configurações",
     icon: Newspaper,
     accentColor: "#06b6d4",
     items: [
       { href: "/noticias",       label: "Notícias",       icon: Newspaper },
+      { href: "/polymarket",     label: "Polymarket",     icon: BarChart2 },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
       { href: "/configuracoes",  label: "Configurações",  icon: Settings },
     ],
