@@ -7,6 +7,7 @@ import {
   ComposedChart, Line, Scatter, ScatterChart, ZAxis, Treemap,
   ReferenceLine,
 } from "recharts";
+import SunburstChart from "@/components/SunburstChart";
 import {
   Wallet, TrendingUp, TrendingDown, Landmark, Coins, DollarSign,
   BarChart3, ArrowUpRight, Globe, Home, Award, AlertTriangle,
@@ -56,9 +57,10 @@ const MACRO_MAP: Record<string, string> = {
 };
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Ações Brasil": "#3b82f6", "Ações Internacional": "#8b5cf6", "ETF USA": "#06b6d4",
-  "ETF": "#10b981", "FIIs": "#f59e0b", "Cripto": "#f97316",
-  "Commodities": "#eab308", "BDRs": "#ec4899", "Renda Fixa": "#6366f1", "Renda Fixa USD": "#a78bfa",
+  "Ações Brasil": "#db2777", "Ações Internacional": "#8b5cf6", "ETF USA": "#06b6d4",
+  "ETF": "#6366f1", "FIIs": "#f97316", "Cripto": "#eab308",
+  "Commodities": "#84cc16", "BDRs": "#a855f7", "Renda Fixa": "#0f766e", "Renda Fixa USD": "#1d4ed8",
+  "Tesouro Direto": "#10b981", "CDBs": "#0ea5e9", "LCI/LCA": "#06b6d4", "Debêntures": "#3b82f6", "Caixa": "#64748b",
 };
 
 const MACRO_COLORS: Record<string, string> = {
@@ -224,22 +226,25 @@ export default function ResumoPage() {
 
   const sunburstData = useMemo(() => {
     const sectorStyles: Record<string, { h: number; s: number; l: number }> = {
-      "Ações Internacional": { h: 260, s: 65, l: 45 },
-      "ETF USA": { h: 235, s: 60, l: 50 },
-      "ETF": { h: 215, s: 65, l: 52 },
+      "Ações Internacional": { h: 260, s: 65, l: 48 },
+      "ETF USA": { h: 240, s: 60, l: 52 },
+      "ETF": { h: 240, s: 65, l: 55 },
       "Ações Brasil": { h: 330, s: 75, l: 48 },
-      "FIIs": { h: 25, s: 80, l: 50 },
-      "BDRs": { h: 295, s: 65, l: 45 },
-      "Cripto": { h: 42, s: 85, l: 52 },
-      "Commodities": { h: 80, s: 55, l: 48 },
+      "FIIs": { h: 25, s: 85, l: 52 },
+      "BDRs": { h: 295, s: 65, l: 48 },
+      "Cripto": { h: 42, s: 88, l: 52 },
+      "Commodities": { h: 75, s: 60, l: 48 },
       "Renda Fixa": { h: 170, s: 70, l: 38 },
-      "Renda Fixa USD": { h: 220, s: 75, l: 45 },
+      "Renda Fixa USD": { h: 220, s: 70, l: 48 },
+      "Tesouro Direto": { h: 160, s: 72, l: 42 },
+      "CDBs": { h: 200, s: 68, l: 50 },
+      "LCI/LCA": { h: 185, s: 70, l: 46 },
+      "Debêntures": { h: 220, s: 65, l: 52 },
       "Caixa": { h: 210, s: 15, l: 48 },
-      "Tesouro Direto": { h: 150, s: 65, l: 42 },
     };
 
-    const checkIsRendaFixa = (sector: string) =>
-      sector === "Renda Fixa" || sector === "Renda Fixa USD" || sector === "Caixa" || sector === "Tesouro Direto";
+    const RF_SECTORS = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]);
+    const checkIsRendaFixa = (sector: string) => RF_SECTORS.has(sector);
 
     // ── Source A: composicao API (preferred) ──
     if (composicao?.estrutura_carteira?.length) {
@@ -506,25 +511,21 @@ export default function ResumoPage() {
         </div>
       </div>
 
-      {/* ── Mapa Interativo da Carteira (3 anéis) ── */}
+      {/* ── Mapa Interativo da Carteira (Sunburst) ── */}
       {sunburstData && sunburstData.level1.length > 0 && (
         <div className="glass-card p-5 mb-6 animate-fade-in">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="section-title"><PieIcon size={15} />Mapa Interativo da Carteira</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title"><PieIcon size={15} />Mapa da Carteira</h2>
             <div className="flex items-center gap-2 text-[10px] text-zinc-500">
               {selectedSector && (
-                <button
-                  onClick={() => setSelectedSector(null)}
-                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors"
-                >
+                <button onClick={() => setSelectedSector(null)}
+                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
                   ← {selectedSector}
                 </button>
               )}
               {selectedClass && (
-                <button
-                  onClick={() => { setSelectedClass(null); setSelectedSector(null); }}
-                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors"
-                >
+                <button onClick={() => { setSelectedClass(null); setSelectedSector(null); }}
+                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
                   ← Todos
                 </button>
               )}
@@ -533,190 +534,35 @@ export default function ResumoPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Chart — 2/3 width */}
-            <div className="lg:col-span-2 relative">
-              <ResponsiveContainer width="100%" height={440}>
-                <PieChart>
-                  {/* Inner ring — Classe (RV / RF) */}
-                  <Pie
-                    data={sunburstData.level1}
-                    cx="50%" cy="50%"
-                    innerRadius={58} outerRadius={100}
-                    dataKey="value"
-                    stroke="none"
-                    paddingAngle={3}
-                    onClick={(d: any) => {
-                      if (selectedClass === d.name) { setSelectedClass(null); setSelectedSector(null); }
-                      else { setSelectedClass(d.name); setSelectedSector(null); }
-                    }}
-                    style={{ cursor: "pointer" }}
-                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
-                      const R = Math.PI / 180;
-                      const r = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + r * Math.cos(-midAngle * R);
-                      const y = cy + r * Math.sin(-midAngle * R);
-                      const abbrev = name === "Renda Variável" ? "RV" : "RF";
-                      return (
-                        <text textAnchor="middle" style={{ pointerEvents: "none" }}>
-                          <tspan x={x} y={y - 8} fill="rgba(255,255,255,0.65)" fontSize={9}>{abbrev}</tspan>
-                          <tspan x={x} y={y + 8} fill="white" fontSize={15} fontWeight={800}>{(percent * 100).toFixed(0)}%</tspan>
-                        </text>
-                      );
-                    }}
-                    labelLine={false}
-                  >
-                    {sunburstData.level1.map((entry: any) => (
-                      <Cell
-                        key={entry.name}
-                        fill={entry.color}
-                        opacity={selectedClass && selectedClass !== entry.name ? 0.18 : 1}
-                      />
-                    ))}
-                  </Pie>
-
-                  {/* Middle ring — Setor */}
-                  <Pie
-                    data={nestedMiddle}
-                    cx="50%" cy="50%"
-                    innerRadius={106} outerRadius={150}
-                    dataKey="value"
-                    stroke="none"
-                    paddingAngle={1}
-                    onClick={(d: any) => {
-                      setSelectedClass(d.parentName);
-                      setSelectedSector((prev: string | null) => prev === d.name ? null : d.name);
-                    }}
-                    style={{ cursor: "pointer" }}
-                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-                      if (percent < 0.07) return null;
-                      const R = Math.PI / 180;
-                      const r = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + r * Math.cos(-midAngle * R);
-                      const y = cy + r * Math.sin(-midAngle * R);
-                      return (
-                        <text x={x} y={y} fill="rgba(255,255,255,0.7)" textAnchor="middle" dominantBaseline="middle" fontSize={9} style={{ pointerEvents: "none" }}>
-                          {(percent * 100).toFixed(0)}%
-                        </text>
-                      );
-                    }}
-                    labelLine={false}
-                  >
-                    {nestedMiddle.map((entry: any, i: number) => (
-                      <Cell
-                        key={`mid-${i}`}
-                        fill={entry.color}
-                        opacity={selectedSector && selectedSector !== entry.name ? 0.2 : 0.88}
-                      />
-                    ))}
-                  </Pie>
-
-                  {/* Outer ring — Ativos individuais */}
-                  <Pie
-                    data={nestedOuter}
-                    cx="50%" cy="50%"
-                    innerRadius={156} outerRadius={192}
-                    dataKey="value"
-                    stroke="none"
-                    paddingAngle={0.5}
-                  >
-                    {nestedOuter.map((entry: any, i: number) => (
-                      <Cell key={`out-${i}`} fill={entry.color} opacity={0.72} />
-                    ))}
-                  </Pie>
-
-                  <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    content={({ active, payload }: any) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload as { name: string; value: number; pct: number; parentName?: string };
-                      return (
-                        <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl min-w-[130px]">
-                          {d.parentName && (
-                            <p className="text-[10px] text-zinc-600 mb-0.5">{d.parentName}</p>
-                          )}
-                          <p className="font-semibold text-zinc-200 text-xs">{d.name}</p>
-                          <p className="text-zinc-400 text-[11px]">{d.pct?.toFixed(1)}%</p>
-                          <p className="text-zinc-300 text-[11px]">{compactBRL(d.value)}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-
-              {/* Center label */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center">
-                  {selectedSector ? (
-                    <>
-                      <p className="text-xs font-bold text-zinc-200">{selectedSector}</p>
-                      <p className="text-[10px] text-zinc-500 mt-0.5">
-                        {nestedMiddle.find((s: any) => s.name === selectedSector)?.pct?.toFixed(1)}%
-                      </p>
-                    </>
-                  ) : selectedClass ? (
-                    <>
-                      <p className="text-xs font-bold text-zinc-200">
-                        {selectedClass === "Renda Variável" ? "RV" : "RF"}
-                      </p>
-                      <p className="text-[10px] text-zinc-500 mt-0.5">
-                        {sunburstData.level1.find((d: any) => d.name === selectedClass)?.pct?.toFixed(0)}%
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[9px] text-zinc-700 max-w-[64px] text-center leading-snug">
-                      Clique p/ filtrar
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Ring labels */}
-              <div className="flex items-center gap-5 mt-2">
-                {[
-                  { label: "Classe (RV/RF)", w: "w-5 h-2.5", bg: "bg-violet-700" },
-                  { label: "Setor", w: "w-5 h-2.5", bg: "bg-violet-500 opacity-70" },
-                  { label: "Ativos", w: "w-5 h-2.5", bg: "bg-violet-400 opacity-50" },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center gap-1.5">
-                    <div className={`${item.w} ${item.bg} rounded-sm`} />
-                    <span className="text-[9px] text-zinc-600">{item.label}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="lg:col-span-2 flex justify-center">
+              <SunburstChart
+                level1={sunburstData.level1}
+                level2={nestedMiddle}
+                level3={nestedOuter}
+                size={560}
+                selectedClass={selectedClass}
+                selectedSector={selectedSector}
+                onSelectClass={setSelectedClass}
+                onSelectSector={setSelectedSector}
+              />
             </div>
 
-            {/* Legend panel — 1/3 width */}
+            {/* Legend panel */}
             <div className="flex flex-col gap-5 pt-2">
-              {/* Classe */}
               <div>
                 <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">Classe</p>
                 <div className="space-y-2">
                   {sunburstData.level1.map((s: any) => (
-                    <div
-                      key={s.name}
-                      className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => {
-                        if (selectedClass === s.name) { setSelectedClass(null); setSelectedSector(null); }
-                        else { setSelectedClass(s.name); setSelectedSector(null); }
-                      }}
-                    >
+                    <div key={s.name} className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => { setSelectedClass(selectedClass === s.name ? null : s.name); setSelectedSector(null); }}>
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
-                          style={{ backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}
-                        />
-                        <span
-                          className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors"
-                          style={{ opacity: selectedClass && selectedClass !== s.name ? 0.35 : 1 }}
-                        >
-                          {s.name}
-                        </span>
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
+                          style={{ backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }} />
+                        <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors"
+                          style={{ opacity: selectedClass && selectedClass !== s.name ? 0.35 : 1 }}>{s.name}</span>
                       </div>
-                      <span
-                        className="text-xs font-mono font-semibold tabular-nums transition-opacity"
-                        style={{ color: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}
-                      >
+                      <span className="text-xs font-mono font-semibold tabular-nums transition-opacity"
+                        style={{ color: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}>
                         {s.pct.toFixed(1)}%
                       </span>
                     </div>
@@ -724,37 +570,22 @@ export default function ResumoPage() {
                 </div>
               </div>
 
-              {/* Setor */}
               <div>
                 <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
                   Setor{selectedClass ? ` · ${selectedClass === "Renda Variável" ? "RV" : "RF"}` : ""}
                 </p>
-                <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: 180 }}>
+                <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: 220 }}>
                   {nestedMiddle.map((s: any) => (
-                    <div
-                      key={s.name}
-                      className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => {
-                        setSelectedClass(s.parentName);
-                        setSelectedSector((prev: string | null) => prev === s.name ? null : s.name);
-                      }}
-                    >
+                    <div key={s.name} className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => { setSelectedClass(s.parentName); setSelectedSector(selectedSector === s.name ? null : s.name); }}>
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-2 h-2 rounded-full flex-shrink-0 transition-opacity"
-                          style={{ backgroundColor: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}
-                        />
-                        <span
-                          className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors"
-                          style={{ opacity: selectedSector && selectedSector !== s.name ? 0.35 : 1 }}
-                        >
-                          {s.name}
-                        </span>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0 transition-opacity"
+                          style={{ backgroundColor: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }} />
+                        <span className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors"
+                          style={{ opacity: selectedSector && selectedSector !== s.name ? 0.35 : 1 }}>{s.name}</span>
                       </div>
-                      <span
-                        className="text-[11px] font-mono tabular-nums transition-opacity"
-                        style={{ color: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}
-                      >
+                      <span className="text-[11px] font-mono tabular-nums transition-opacity"
+                        style={{ color: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}>
                         {s.pct.toFixed(1)}%
                       </span>
                     </div>
@@ -762,22 +593,19 @@ export default function ResumoPage() {
                 </div>
               </div>
 
-              {/* Ativos */}
               {nestedOuter.length > 0 && (
                 <div>
                   <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
                     Ativos{selectedSector ? ` · ${selectedSector}` : ""}
                   </p>
-                  <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 160 }}>
+                  <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 180 }}>
                     {nestedOuter.map((s: any, i: number) => (
                       <div key={`leg-out-${i}`} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                           <span className="text-[10px] text-zinc-600">{s.name}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
-                          {s.pct.toFixed(1)}%
-                        </span>
+                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">{s.pct.toFixed(1)}%</span>
                       </div>
                     ))}
                   </div>

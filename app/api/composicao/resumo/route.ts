@@ -115,12 +115,29 @@ const SETOR_TO_MACRO: Record<string, string> = {
   "ETF USA":            "Exterior",
   "Renda Fixa":         "Renda Fixa",
   "Renda Fixa USD":     "Renda Fixa",
+  "Tesouro Direto":     "Renda Fixa",
+  "CDBs":               "Renda Fixa",
+  "LCI/LCA":            "Renda Fixa",
+  "Debêntures":         "Renda Fixa",
+  "Caixa":              "Renda Fixa",
   "Commodities":        "Commodities",
   "Cripto":             "Cripto",
 };
 
 function getMacro(setor: string): string {
   return SETOR_TO_MACRO[setor] ?? "Outros";
+}
+
+function getSubSetor(ticker: string, setor: string): string {
+  if (setor === "Renda Fixa USD") return "Renda Fixa USD";
+  if (setor !== "Renda Fixa") return setor;
+
+  const t = ticker.toUpperCase();
+  if (t.includes("CAIXA") || t.includes("CASH") || t.includes("SALDO") || t.includes("DISPONIVEL")) return "Caixa";
+  if (t.includes("CDB")) return "CDBs";
+  if (t.includes("LCI") || t.includes("LCA")) return "LCI/LCA";
+  if (t.includes("DEBENTURE") || t.includes("DEB")) return "Debêntures";
+  return "Tesouro Direto";
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -222,11 +239,12 @@ export async function GET() {
     // ── 6. Estrutura da carteira (Treemap: Macro > Setor > Ticker) ────────────
     const macroMap = new Map<string, Map<string, Map<string, number>>>();
     for (const pos of positions) {
-      const macro = getMacro(pos.setor);
+      const subSetor = getSubSetor(pos.ticker, pos.setor);
+      const macro = getMacro(subSetor);
       if (!macroMap.has(macro)) macroMap.set(macro, new Map());
       const setorMap = macroMap.get(macro)!;
-      if (!setorMap.has(pos.setor)) setorMap.set(pos.setor, new Map());
-      const tickerMap = setorMap.get(pos.setor)!;
+      if (!setorMap.has(subSetor)) setorMap.set(subSetor, new Map());
+      const tickerMap = setorMap.get(subSetor)!;
       tickerMap.set(pos.ticker, (tickerMap.get(pos.ticker) ?? 0) + pos.valorAtualBRL);
     }
 
