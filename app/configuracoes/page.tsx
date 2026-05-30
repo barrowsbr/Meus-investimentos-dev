@@ -21,7 +21,7 @@ interface SyncResult {
   hint?: string;
   parsed?: { proventos: number; trades: number };
   proventos?: { total_csv: number; faltantes: number; inserted?: number };
-  trades?: { total_csv: number; faltantes: number; inserted?: number };
+  trades?: { total_csv: number; faltantes: number; inserted?: number; potential_splits?: number };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -293,11 +293,19 @@ function IBKRSyncSection() {
                 } />
               )}
               {result.trades && (
-                <StatusBadge ok={(result.trades.faltantes === 0 || (result.trades.inserted ?? 0) > 0)} text={
-                  result.trades.inserted !== undefined
-                    ? `${result.trades.inserted} operações adicionadas`
-                    : `${result.trades.faltantes} operações a adicionar (${result.trades.total_csv} no CSV)`
-                } />
+                <>
+                  <StatusBadge ok={(result.trades.faltantes === 0 || (result.trades.inserted ?? 0) > 0)} text={
+                    result.trades.inserted !== undefined
+                      ? `${result.trades.inserted} operações adicionadas`
+                      : `${result.trades.faltantes} operações a adicionar (${result.trades.total_csv} no CSV)`
+                  } />
+                  {(result.trades.potential_splits ?? 0) > 0 && (
+                    <p className="text-xs text-amber-400/80 flex items-center gap-1">
+                      <AlertCircle size={11} />
+                      {result.trades.potential_splits} possível(is) split/ajuste detectado(s) — valor total bate mas qtd/preço diferem
+                    </p>
+                  )}
+                </>
               )}
               {dryRun && ((result.proventos?.faltantes ?? 0) + (result.trades?.faltantes ?? 0)) > 0 && (
                 <p className="text-xs text-amber-400 flex items-center gap-1 mt-1">
