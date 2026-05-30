@@ -27,6 +27,8 @@ function normalizeDate(s: string): string {
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const brHyphen = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
+  if (brHyphen) return `${brHyphen[3]}-${brHyphen[2]}-${brHyphen[1]}`;
   return s.slice(0, 10);
 }
 
@@ -131,7 +133,10 @@ function parseIBKRCsv(content: string): { proventos: IbkrEvent[]; trades: IbkrTr
       const qtd = Math.abs(parseValor(qtdStr));
       const preco = Math.abs(parseValor(precoStr));
       const comissao = Math.abs(parseValor(comissaoStr));
-      const valorBruto = qtd * preco;
+      let valorBruto = Math.abs(parseValor(valorStr));
+      if (valorBruto === 0 && qtd > 0 && preco > 0) {
+        valorBruto = Math.round(qtd * preco * 100) / 100;
+      }
       const tipoNorm = ["Compra", "Buy"].includes(tipo) ? "Compra" : "Venda";
       const valorLiquido = tipoNorm === "Compra" ? valorBruto + comissao : valorBruto - comissao;
 
@@ -190,33 +195,130 @@ function findMissingProventos(
   });
 }
 
+interface IbkrTradeResult extends IbkrTrade {
+  status_match?: string;
+  match_details?: string[];
+}
+
 function findMissingTrades(
   existing: Record<string, unknown>[],
   incoming: IbkrTrade[]
-): IbkrTrade[] {
-  const existingSet: Array<{ ticker: string; tipo: string; qty: number; preco: number }> = [];
+): IbkrTradeResult[] {
+  if (incoming.length === 0) return [];
+
+  const existingTrades: Array<{
+    ticker: string; tipo: string; qty: number; preco: number; matched: boolean;
+  }> = [];
 
   for (const row of existing) {
-    const ticker = normalizeTicker(String(row["Símbolo"] ?? row["simbolo"] ?? ""));
-    const tipo = String(row["Tipo de transação"] ?? "").trim();
-    const qty = Math.round(parseValor(String(row["Quantidade"] ?? "0")) * 100);
-    const preco = parseValor(String(row["Preço"] ?? row["preco"] ?? "0"));
-    existingSet.push({ ticker, tipo, qty, preco });
+    const ticker = normalizeTicker(String(row["símbolo"] ?? row["simbolo"] ?? ""));
+    const tipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? "").trim();
+    const qty = Math.round(parseValor(String(row["quantidade"] ?? "0")) * 100) / 100;
+    const preco = parseValor(String(row["preço"] ?? row["preco"] ?? "0"));
+    existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
-  return incoming.filter(trade => {
-    const ticker = normalizeTicker(trade.Símbolo);
-    const tipo = trade["Tipo de transação"];
-    const qty = Math.round(parseValor(trade.Quantidade) * 100);
-    const preco = parseValor(trade.Preço);
+  function findMatch(ticker: string, tipo: string, qty: number, preco: number) {
+    for (const trade of existingTrades) {
+      if (trade.matched) continue;
+      if (trade.ticker !== ticker) continue;
+      if (trade.tipo !== tipo) continue;
+      if (Math.abs(trade.qty - qty) > 0.01) continue;
+      const precoDiff = Math.abs(trade.preco - preco);
+      const precoPct = precoDiff / Math.max(trade.preco, preco, 1) * 100;
+      if (precoPct <= 1 || precoDiff <= 1) {
+        return trade;
+      }
+    }
+    return null;
+  }
 
-    return !existingSet.some(ex =>
-      ex.ticker === ticker &&
-      ex.tipo === tipo &&
-      Math.abs(ex.qty - qty) < 2 &&
-      Math.abs(ex.preco - preco) / Math.max(Math.abs(ex.preco), Math.abs(preco), 1) < 0.02
-    );
-  });
+  function findSplitOrCorrection(ticker: string, tipo: string, valorTotalIbkr: number) {
+    const candidates: Array<typeof existingTrades[0]> = [];
+    for (const trade of existingTrades) {
+      if (trade.matched) continue;
+      if (trade.ticker !== ticker) continue;
+      if (trade.tipo !== tipo) continue;
+      const valorTotalGs = trade.qty * trade.preco;
+      const diff = Math.abs(valorTotalGs - valorTotalIbkr);
+      if (diff < 5 || (valorTotalIbkr > 0 && diff / valorTotalIbkr < 0.01)) {
+        candidates.push(trade);
+      }
+    }
+    return candidates;
+  }
+
+  // Phase 0: Group fragmented orders (IBKR sends 1+1, GSheets has 2)
+  const groupKeys = new Map<string, number[]>();
+  for (let i = 0; i < incoming.length; i++) {
+    const t = incoming[i];
+    const key = `${normalizeTicker(t.Símbolo)}|${t["Tipo de transação"]}|${t.Data}`;
+    const indices = groupKeys.get(key) ?? [];
+    indices.push(i);
+    groupKeys.set(key, indices);
+  }
+
+  const processedIndices = new Set<number>();
+  const faltantes: IbkrTradeResult[] = [];
+
+  // Phase A: Process fragmented groups first
+  for (const [, indices] of groupKeys) {
+    if (indices.length <= 1) continue;
+
+    const groupRows = indices.map(i => incoming[i]);
+    let totalQty = 0;
+    let totalValue = 0;
+    for (const r of groupRows) {
+      const q = Math.abs(parseValor(r.Quantidade));
+      const p = Math.abs(parseValor(r.Preço));
+      totalQty += q;
+      totalValue += q * p;
+    }
+    const avgPrice = totalQty > 0 ? totalValue / totalQty : 0;
+
+    const first = groupRows[0];
+    const ticker = normalizeTicker(first.Símbolo);
+    const tipo = first["Tipo de transação"];
+
+    const match = findMatch(ticker, tipo, Math.round(totalQty * 100) / 100, avgPrice);
+    if (match) {
+      match.matched = true;
+      for (const idx of indices) processedIndices.add(idx);
+    }
+  }
+
+  // Phase B: Individual matching for remaining
+  for (let i = 0; i < incoming.length; i++) {
+    if (processedIndices.has(i)) continue;
+
+    const row = incoming[i];
+    const ticker = normalizeTicker(row.Símbolo);
+    const tipo = row["Tipo de transação"];
+    const qty = Math.round(Math.abs(parseValor(row.Quantidade)) * 100) / 100;
+    const preco = Math.abs(parseValor(row.Preço));
+    const valorTotal = qty * preco;
+
+    const match = findMatch(ticker, tipo, qty, preco);
+    if (match) {
+      match.matched = true;
+    } else {
+      const possibleSplits = findSplitOrCorrection(ticker, tipo, valorTotal);
+      const result: IbkrTradeResult = { ...row };
+
+      if (possibleSplits.length > 0) {
+        result.status_match = "POTENTIAL_SPLIT";
+        result.match_details = possibleSplits.map(
+          s => `${s.qty} x ${s.preco} (Total: ${(s.qty * s.preco).toFixed(2)})`
+        );
+      } else {
+        result.status_match = "MISSING";
+      }
+
+      faltantes.push(result);
+    }
+  }
+
+  return faltantes;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -262,19 +364,28 @@ export async function POST(request: Request) {
 
     if (["trades", "both"].includes(mode) && parsedTrades.length > 0) {
       const existing = await fetchTab("meus_ativos");
-      const missing = findMissingTrades(existing, parsedTrades);
+      const allMissing = findMissingTrades(existing, parsedTrades);
+
+      const trulyMissing = allMissing.filter(t => t.status_match === "MISSING");
+      const potentialSplits = allMissing.filter(t => t.status_match === "POTENTIAL_SPLIT");
 
       result.trades = {
         total_csv: parsedTrades.length,
-        faltantes: missing.length,
-        preview: missing.slice(0, 5),
+        existing_count: existing.length,
+        faltantes: trulyMissing.length,
+        potential_splits: potentialSplits.length,
+        preview: allMissing.slice(0, 10).map(t => ({
+          ...t,
+          status_match: t.status_match,
+          match_details: t.match_details,
+        })),
       };
 
-      if (!dryRun && missing.length > 0) {
+      if (!dryRun && trulyMissing.length > 0) {
         const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
-        const rows = missing.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
+        const rows = trulyMissing.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
         await appendRows("meus_ativos", rows);
-        (result.trades as Record<string, unknown>).inserted = missing.length;
+        (result.trades as Record<string, unknown>).inserted = trulyMissing.length;
       }
     }
 
