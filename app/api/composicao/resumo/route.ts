@@ -248,6 +248,27 @@ export async function GET() {
       tickerMap.set(pos.ticker, (tickerMap.get(pos.ticker) ?? 0) + pos.valorAtualBRL);
     }
 
+    // Include fixa_aberta positions (not in snapshot.positions but counted in totalPatrimonioBRL)
+    for (const row of fixaAberta) {
+      const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+      if (!ticker) continue;
+      const valorRaw = parseFloat(
+        String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", ".")
+      );
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+      const valorBRL = moeda === "USD" ? valorRaw * fxAtual.USDBRL
+        : moeda === "EUR" ? valorRaw * fxAtual.EURBRL
+        : valorRaw;
+      const subSetor = getSubSetor(ticker, "Renda Fixa");
+      const macro = getMacro(subSetor);
+      if (!macroMap.has(macro)) macroMap.set(macro, new Map());
+      const setorMap = macroMap.get(macro)!;
+      if (!setorMap.has(subSetor)) setorMap.set(subSetor, new Map());
+      const tickerMap = setorMap.get(subSetor)!;
+      tickerMap.set(ticker, (tickerMap.get(ticker) ?? 0) + valorBRL);
+    }
+
     const totalPortfolio = snapshot.totalPatrimonioBRL;
     const estruturaCarteira = Array.from(macroMap.entries())
       .map(([macro, setorMap]) => {
