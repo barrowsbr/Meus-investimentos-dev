@@ -193,17 +193,85 @@ function classify(events: PolyEvent[]): Record<string, PolyEvent[]> {
     else cats["⭐ Em Destaque"].push(ev);
   }
 
-  // top 8 per category
-  for (const k of Object.keys(cats)) cats[k] = cats[k].slice(0, 8);
+  for (const k of Object.keys(cats)) cats[k] = cats[k].slice(0, 12);
   return Object.fromEntries(Object.entries(cats).filter(([, v]) => v.length > 0));
+}
+
+// ── Ticker-to-keyword mapping for portfolio correlation ──────────────────────
+
+const TICKER_KEYWORDS: Record<string, string[]> = {
+  PETR4: ["petrobras", "petróleo", "oil price", "crude", "opec"],
+  VALE3: ["vale", "iron ore", "mining", "minério"],
+  ITUB4: ["itaú", "itau", "banking", "brazil bank"],
+  BBDC4: ["bradesco", "banking", "brazil bank"],
+  BBAS3: ["banco do brasil", "banking", "brazil bank"],
+  WEGE3: ["weg", "industrial"],
+  RENT3: ["localiza", "rental"],
+  ABEV3: ["ambev", "beer", "beverage"],
+  B3SA3: ["b3", "stock exchange", "bolsa"],
+  ELET3: ["eletrobras", "energy", "electricity"],
+  SUZB3: ["suzano", "pulp", "paper"],
+  JBSS3: ["jbs", "meat", "beef"],
+  MGLU3: ["magazine luiza", "e-commerce"],
+  HAPV3: ["hapvida", "health"],
+  BBSE3: ["bb seguridade", "insurance"],
+  IVVB11: ["s&p 500", "s&p500"],
+  BOVA11: ["ibovespa"],
+  VOO: ["s&p 500", "s&p500", "vanguard"],
+  SPY: ["s&p 500", "s&p500"],
+  QQQ: ["nasdaq", "tech"],
+  AAPL: ["apple"],
+  MSFT: ["microsoft"],
+  GOOGL: ["google", "alphabet"],
+  AMZN: ["amazon"],
+  NVDA: ["nvidia"],
+  META: ["meta ", "facebook", "instagram"],
+  TSLA: ["tesla", "elon musk"],
+  BTC: ["bitcoin", "btc"],
+  ETH: ["ethereum"],
+  VWRA: ["global equity", "world index"],
+  ASML: ["asml", "semiconductor", "chip"],
+  DPM: ["diversified royalties"],
+};
+
+function correlate(events: PolyEvent[], tickers: string[]): PolyEvent[] {
+  const keywords: string[] = [];
+  for (const t of tickers) {
+    const clean = t.replace(".SA", "").replace(".L", "").replace(".DE", "").replace(".TO", "").replace(".AS", "").toUpperCase();
+    const mapped = TICKER_KEYWORDS[clean];
+    if (mapped) keywords.push(...mapped);
+    else keywords.push(clean.toLowerCase());
+  }
+  if (!keywords.length) return [];
+
+  const matched: PolyEvent[] = [];
+  for (const ev of events) {
+    const text = ev.title.toLowerCase();
+    if (keywords.some(kw => text.includes(kw))) {
+      matched.push(ev);
+    }
+  }
+  return matched.slice(0, 12);
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const tickersParam = searchParams.get("tickers");
+    const portfolioTickers = tickersParam ? tickersParam.split(",").filter(Boolean) : [];
+
     const events = await fetchEvents();
     const categories = classify(events);
+
+    if (portfolioTickers.length > 0) {
+      const correlated = correlate(events, portfolioTickers);
+      if (correlated.length > 0) {
+        categories["📊 Correlatos ao Portfólio"] = correlated;
+      }
+    }
+
     return NextResponse.json({
       categories,
       cached_at: new Date().toISOString(),

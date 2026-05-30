@@ -2,16 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Newspaper, RefreshCw, BarChart2, Briefcase, Globe, Clock,
-  ExternalLink, TrendingUp, TrendingDown, MessageSquare, ArrowUp,
-  Activity,
+  Newspaper, RefreshCw, Briefcase, Globe, Clock,
+  ExternalLink, TrendingUp, MessageSquare, ArrowUp, BarChart2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import type { NewsItem } from "@/app/api/noticias/route";
 import type { RedditPost } from "@/app/api/reddit/route";
-import type { PolyEvent, PolyResponse } from "@/app/api/polymarket/route";
 
 // ─── Ticker Tape ──────────────────────────────────────────────────────────────
 
@@ -116,65 +114,15 @@ function RedditCard({ post }: { post: RedditPost }) {
   );
 }
 
-// ─── Polymarket Card ──────────────────────────────────────────────────────────
-
-const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
-
-function PolyCard({ ev }: { ev: PolyEvent }) {
-  const top3 = ev.odds.slice(0, 3);
-  const volFmt = ev.volume >= 1_000_000
-    ? `$${(ev.volume/1_000_000).toFixed(1)}M`
-    : ev.volume >= 1000
-    ? `$${(ev.volume/1000).toFixed(0)}K`
-    : `$${ev.volume.toFixed(0)}`;
-
-  return (
-    <a href={ev.url} target="_blank" rel="noopener noreferrer"
-      className="group flex flex-col gap-3 p-4 rounded-2xl border border-white/[0.07] bg-zinc-950/60 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all duration-200 no-underline">
-      <div className="text-sm font-semibold text-zinc-200 leading-snug line-clamp-2 group-hover:text-white">
-        {ev.title}
-      </div>
-
-      {/* Odds bars */}
-      <div className="flex flex-col gap-1.5">
-        {top3.map((odd, i) => (
-          <div key={i} className="relative flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-            <div className="absolute left-0 top-0 bottom-0 rounded-lg transition-all duration-500"
-              style={{ width: `${odd.percent}%`, background: `${POLY_COLORS[i]}18`, borderRight: `2px solid ${POLY_COLORS[i]}50` }} />
-            <span className="relative z-10 flex-1 text-xs text-zinc-300 truncate">{odd.outcome}</span>
-            <span className="relative z-10 text-xs font-bold tabular-nums" style={{ color: POLY_COLORS[i] }}>{odd.percent}%</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between text-[10px] text-zinc-600">
-        <span className="flex items-center gap-1"><Activity size={10}/> Vol {volFmt}</span>
-        {ev.days_left !== null
-          ? <span className={ev.days_left <= 7 ? "text-amber-500 font-semibold" : ""}>{ev.days_left}d restantes</span>
-          : <span>Sem prazo</span>}
-        <ExternalLink size={10} className="group-hover:text-zinc-400" />
-      </div>
-    </a>
-  );
-}
-
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
-type Tab = "todas" | "reddit" | "polymarket" | "ticker";
+type Tab = "todas" | "reddit" | "ticker";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "todas",      label: "Todas",      icon: <Newspaper size={13}/> },
-  { id: "ticker",     label: "Por Ticker", icon: <Briefcase size={13}/> },
-  { id: "reddit",     label: "Reddit",     icon: <MessageSquare size={13}/> },
-  { id: "polymarket", label: "Polymarket", icon: <BarChart2 size={13}/> },
+  { id: "todas",  label: "Todas",      icon: <Newspaper size={13}/> },
+  { id: "ticker", label: "Por Ticker", icon: <Briefcase size={13}/> },
+  { id: "reddit", label: "Reddit",     icon: <MessageSquare size={13}/> },
 ];
-
-const POLY_CAT_COLORS: Record<string, string> = {
-  "🏦 Macro & Finanças": "#38bdf8",
-  "🌍 Geopolítica": "#f59e0b",
-  "🤖 Tech & IA": "#a78bfa",
-  "⭐ Em Destaque": "#34d399",
-};
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -184,10 +132,8 @@ export default function NoticiasPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [news, setNews] = useState<NewsItem[]>([]);
   const [reddit, setReddit] = useState<RedditPost[]>([]);
-  const [poly, setPoly] = useState<PolyResponse | null>(null);
   const [newsLoading, setNewsLoading] = useState(true);
   const [redditLoading, setRedditLoading] = useState(false);
-  const [polyLoading, setPolyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [catFilter, setCatFilter] = useState<"all" | "mercado" | "portfolio" | "economia">("all");
@@ -231,17 +177,6 @@ export default function NoticiasPage() {
       .finally(() => setRedditLoading(false));
   }, [tab]); // eslint-disable-line
 
-  // Load Polymarket lazily
-  useEffect(() => {
-    if (tab !== "polymarket" || poly !== null) return;
-    setPolyLoading(true);
-    fetch("/api/polymarket")
-      .then(r => r.json())
-      .then(d => setPoly(d))
-      .catch(() => {})
-      .finally(() => setPolyLoading(false));
-  }, [tab]); // eslint-disable-line
-
   // By-ticker grouping
   const newsByTicker = useMemo(() => {
     const map = new Map<string, NewsItem[]>();
@@ -266,8 +201,6 @@ export default function NoticiasPage() {
     portfolio: news.filter(n => n.categoria === "portfolio").length,
     economia: news.filter(n => n.categoria === "economia").length,
   }), [news]);
-
-  const isLoading = tab === "todas" || tab === "ticker" ? newsLoading : tab === "reddit" ? redditLoading : polyLoading;
 
   return (
     <>
@@ -294,7 +227,7 @@ export default function NoticiasPage() {
         ))}
       </div>
 
-      {error && tab !== "reddit" && tab !== "polymarket" && (
+      {error && tab !== "reddit" && (
         <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400">
           Erro ao carregar notícias: {error}
         </div>
@@ -360,36 +293,6 @@ export default function NoticiasPage() {
         )
       )}
 
-      {/* ── Tab: Polymarket ── */}
-      {tab === "polymarket" && (
-        polyLoading ? <LoadingSpinner /> : (
-          <div className="space-y-8">
-            {!poly || Object.keys(poly.categories).length === 0
-              ? <div className="text-center py-20 text-zinc-600"><BarChart2 size={40} className="mx-auto mb-3 opacity-30"/><p className="text-sm">Não foi possível carregar o Polymarket.</p></div>
-              : <>
-                  <p className="text-xs text-zinc-600 mb-1">Mercados de predição em tempo real — via Gamma API. Exclui criptoativos.</p>
-                  {Object.entries(poly.categories).map(([cat, events]) => (
-                    <div key={cat}>
-                      <div className="flex items-center gap-3 mb-3">
-                        <h2 className="text-sm font-bold" style={{ color: POLY_CAT_COLORS[cat] ?? "#71717a" }}>{cat}</h2>
-                        <div className="flex-1 h-px" style={{ background: `${POLY_CAT_COLORS[cat] ?? "#71717a"}30` }} />
-                        <span className="text-[10px] text-zinc-600">{events.length} mercados</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {events.map(ev => <PolyCard key={ev.id} ev={ev} />)}
-                      </div>
-                    </div>
-                  ))}
-                  {poly.cached_at && (
-                    <p className="text-center text-xs text-zinc-800">
-                      Atualizado: {new Date(poly.cached_at).toLocaleTimeString("pt-BR")}
-                    </p>
-                  )}
-                </>
-            }
-          </div>
-        )
-      )}
     </>
   );
 }
