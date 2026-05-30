@@ -129,8 +129,8 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   for (const row of cambioRows) {
     const moedaOrig = String(fuzzyGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase().trim();
     const moedaDest = String(fuzzyGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase().trim();
-    const valorOrig = Math.abs(toNumber(fuzzyGet(row, "valor_origem", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl")) ?? 0);
-    const valorDest = Math.abs(toNumber(fuzzyGet(row, "valor_destino", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd")) ?? 0);
+    const valorOrig = Math.abs(toNumber(fuzzyGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl")) ?? 0);
+    const valorDest = Math.abs(toNumber(fuzzyGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd")) ?? 0);
     const taxaRaw = toNumber(fuzzyGet(row, "taxa", "vet", "câmbio", "cambio", "cotação", "cotacao", "rate"));
     const taxa = taxaRaw ?? (valorOrig > 0 && valorDest > 0 ? valorOrig / valorDest : 0);
     const data = String(fuzzyGet(row, "data", "date") ?? "");
