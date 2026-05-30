@@ -106,38 +106,49 @@ const LOOKTHROUGH_ETFS = new Set(["QQQ", "VWRA", "VWRA.L", "SPY", "VOO", "IVV", 
 
 // ── Macro classification ──────────────────────────────────────────────────────
 
-const SETOR_TO_MACRO: Record<string, string> = {
-  "Ações Brasil":       "Brasil",
-  "FIIs":               "Brasil",
-  "BDRs":               "Brasil",
-  "ETF":                "Brasil",
-  "Ações Internacional":"Exterior",
-  "ETF USA":            "Exterior",
-  "Renda Fixa":         "Renda Fixa",
-  "Renda Fixa USD":     "Renda Fixa",
-  "Tesouro Direto":     "Renda Fixa",
-  "CDBs":               "Renda Fixa",
-  "LCI/LCA":            "Renda Fixa",
-  "Debêntures":         "Renda Fixa",
-  "Caixa":              "Renda Fixa",
-  "Commodities":        "Commodities",
-  "Cripto":             "Cripto",
-};
+// Matches Streamlit classificar_camadas() — maps (ticker, setor) → (macro, sub)
+const RF_SETORES = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"]);
+const RF_USD_TICKERS = new Set(["SHV", "BIL"]);
+const ETF_KEYWORDS = ["VWRA", "WRLD", "ACWI", "VT", "URTH", "SPY", "QQQ", "IVV", "VOO", "VNQ", "BND", "AGG"];
+const MUNDO_TICKERS = ["ASML", "DPM", "TSM", "BABA", "JD", "TCEHY"];
 
-function getMacro(setor: string): string {
-  return SETOR_TO_MACRO[setor] ?? "Outros";
+function classificarCamadas(ticker: string, setor: string): { macro: string; sub: string } {
+  const t = ticker.toUpperCase().replace(".SA", "").replace(".L", "");
+  let macro = RF_SETORES.has(setor) ? "Renda Fixa" : "Renda Variável";
+  let sub = setor;
+
+  if (RF_USD_TICKERS.has(t) || setor === "Renda Fixa USD") {
+    macro = "Renda Fixa";
+    sub = "Renda Fixa USD";
+  } else if (ETF_KEYWORDS.some(k => t.includes(k)) || setor === "ETF USA" || setor === "ETF") {
+    macro = "Renda Variável";
+    sub = "ETFs";
+  } else if (macro === "Renda Fixa") {
+    if (t.includes("CAIXA") || t.includes("SALDO") || t.includes("CASH") || t.includes("DISPONIVEL") || setor === "Caixa/Liquidez") sub = "Caixa";
+    else if (t.includes("CDB")) sub = "CDBs";
+    else if (t.includes("LCI") || t.includes("LCA")) sub = "LCI/LCA";
+    else if (t.includes("DEBENTURE") || t.includes("DEB")) sub = "Debêntures";
+    else sub = "Tesouro Direto";
+  } else if (setor === "Ações Internacional") {
+    if (MUNDO_TICKERS.some(k => t.includes(k)) || t.includes(".TO")) sub = "Ações Mundo";
+    else sub = "Ações EUA";
+  }
+
+  return { macro, sub };
 }
 
-function getSubSetor(ticker: string, setor: string): string {
-  if (setor === "Renda Fixa USD") return "Renda Fixa USD";
-  if (setor !== "Renda Fixa") return setor;
-
-  const t = ticker.toUpperCase();
-  if (t.includes("CAIXA") || t.includes("CASH") || t.includes("SALDO") || t.includes("DISPONIVEL")) return "Caixa";
-  if (t.includes("CDB")) return "CDBs";
-  if (t.includes("LCI") || t.includes("LCA")) return "LCI/LCA";
-  if (t.includes("DEBENTURE") || t.includes("DEB")) return "Debêntures";
-  return "Tesouro Direto";
+function getMacro(setor: string): string {
+  const map: Record<string, string> = {
+    "Ações Brasil": "Renda Variável", "FIIs": "Renda Variável", "BDRs": "Renda Variável",
+    "ETFs": "Renda Variável", "ETF": "Renda Variável", "ETF USA": "Renda Variável",
+    "Ações EUA": "Renda Variável", "Ações Mundo": "Renda Variável",
+    "Ações Internacional": "Renda Variável",
+    "Renda Fixa": "Renda Fixa", "Renda Fixa USD": "Renda Fixa",
+    "Tesouro Direto": "Renda Fixa", "CDBs": "Renda Fixa",
+    "LCI/LCA": "Renda Fixa", "Debêntures": "Renda Fixa", "Caixa": "Renda Fixa",
+    "Commodities": "Renda Variável", "Cripto": "Renda Variável",
+  };
+  return map[setor] ?? "Renda Variável";
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -239,13 +250,32 @@ export async function GET() {
     // ── 6. Estrutura da carteira (Treemap: Macro > Setor > Ticker) ────────────
     const macroMap = new Map<string, Map<string, Map<string, number>>>();
     for (const pos of positions) {
-      const subSetor = getSubSetor(pos.ticker, pos.setor);
-      const macro = getMacro(subSetor);
+      const { macro, sub: subSetor } = classificarCamadas(pos.ticker, pos.setor);
       if (!macroMap.has(macro)) macroMap.set(macro, new Map());
       const setorMap = macroMap.get(macro)!;
       if (!setorMap.has(subSetor)) setorMap.set(subSetor, new Map());
       const tickerMap = setorMap.get(subSetor)!;
       tickerMap.set(pos.ticker, (tickerMap.get(pos.ticker) ?? 0) + pos.valorAtualBRL);
+    }
+
+    // Include fixa_aberta positions (not in snapshot.positions but counted in totalPatrimonioBRL)
+    for (const row of fixaAberta) {
+      const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+      if (!ticker) continue;
+      const valorRaw = parseFloat(
+        String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", ".")
+      );
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+      const valorBRL = moeda === "USD" ? valorRaw * fxAtual.USDBRL
+        : moeda === "EUR" ? valorRaw * fxAtual.EURBRL
+        : valorRaw;
+      const { macro, sub: subSetor } = classificarCamadas(ticker, "Renda Fixa");
+      if (!macroMap.has(macro)) macroMap.set(macro, new Map());
+      const setorMap = macroMap.get(macro)!;
+      if (!setorMap.has(subSetor)) setorMap.set(subSetor, new Map());
+      const tickerMap = setorMap.get(subSetor)!;
+      tickerMap.set(ticker, (tickerMap.get(ticker) ?? 0) + valorBRL);
     }
 
     const totalPortfolio = snapshot.totalPatrimonioBRL;
@@ -275,59 +305,73 @@ export async function GET() {
       })
       .sort((a, b) => b.value - a.value);
 
-    // ── 7. Custódia Brasil vs Exterior ────────────────────────────────────────
+    // ── 7. Custódia Brasil vs Exterior (matches Streamlit: based on currency) ─
     let brasil = 0;
     let exterior = 0;
     for (const pos of positions) {
-      const setor = pos.setor;
-      if (["Ações Brasil", "FIIs", "ETF", "BDRs", "Renda Fixa"].includes(setor)) {
+      if (pos.moeda === "BRL") {
         brasil += pos.valorAtualBRL;
       } else {
         exterior += pos.valorAtualBRL;
       }
     }
-    const totalRV = brasil + exterior;
+    const totalCustodia = brasil + exterior;
     const custodia = {
       brasil,
       exterior,
-      brasil_pct: totalRV > 0 ? (brasil / totalRV) * 100 : 0,
-      exterior_pct: totalRV > 0 ? (exterior / totalRV) * 100 : 0,
+      brasil_pct: totalCustodia > 0 ? (brasil / totalCustodia) * 100 : 0,
+      exterior_pct: totalCustodia > 0 ? (exterior / totalCustodia) * 100 : 0,
     };
 
-    // ── 8. Rentabilidade por ativo ────────────────────────────────────────────
+    // ── 8. Rentabilidade por ativo (matches Streamlit: includes realized + proventos) ─
+    const proventosPorTicker = snapshot.proventosPorTicker;
     const rentabilidade = positions
       .filter(p => p.lucroPct !== null)
-      .map(p => ({
-        ticker: p.ticker,
-        setor: p.setor,
-        macro: getMacro(p.setor),
-        valor_atual_brl: p.valorAtualBRL,
-        lucro_nao_realizado_brl: p.lucroBRL ?? 0,
-        lucro_realizado_brl: p.lucroRealizado * fxFactor(p.moeda, fxAtual),
-        retorno_total_pct: p.lucroPct ?? 0,
-      }))
+      .map(p => {
+        const lucroNaoRealizado = p.lucroBRL ?? 0;
+        const lucroRealizado = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
+        const proventosAtivo = proventosPorTicker[p.ticker] ?? 0;
+        const resultadoTotal = lucroNaoRealizado + lucroRealizado + proventosAtivo;
+        const custoBase = p.custoTotalBRL > 0 ? p.custoTotalBRL : Math.abs(lucroRealizado - p.lucroRealizado * fxFactor(p.moeda, fxAtual));
+        const retornoTotalPct = custoBase > 0 ? (resultadoTotal / custoBase) * 100 : (p.lucroPct ?? 0);
+        return {
+          ticker: p.ticker,
+          setor: p.setor,
+          macro: classificarCamadas(p.ticker, p.setor).macro,
+          valor_atual_brl: p.valorAtualBRL,
+          lucro_nao_realizado_brl: lucroNaoRealizado,
+          lucro_realizado_brl: lucroRealizado,
+          proventos_brl: proventosAtivo,
+          resultado_total_brl: resultadoTotal,
+          retorno_total_pct: retornoTotalPct,
+        };
+      })
       .sort((a, b) => b.retorno_total_pct - a.retorno_total_pct);
 
     // ── 9. Risco x Retorno ────────────────────────────────────────────────────
     const riscoRetorno = positions
       .filter(p => p.lucroPct !== null && p.valorAtualBRL > 100)
-      .map(p => ({
-        ticker: p.ticker,
-        setor: p.setor,
-        macro: getMacro(p.setor),
-        valor_atual_brl: p.valorAtualBRL,
-        retorno_acumulado: p.lucroPct ?? 0,
-      }));
+      .map(p => {
+        const { macro } = classificarCamadas(p.ticker, p.setor);
+        return {
+          ticker: p.ticker,
+          setor: p.setor,
+          macro,
+          valor_atual_brl: p.valorAtualBRL,
+          retorno_acumulado: p.lucroPct ?? 0,
+        };
+      });
 
     // ── 10. Pareto (concentração) ─────────────────────────────────────────────
     const sortedByValue = [...positions].sort((a, b) => b.valorAtualBRL - a.valorAtualBRL);
     let acumulado = 0;
     const pareto = sortedByValue.map(p => {
+      const { macro } = classificarCamadas(p.ticker, p.setor);
       acumulado += p.valorAtualBRL;
       return {
         ticker: p.ticker,
         setor: p.setor,
-        macro: getMacro(p.setor),
+        macro,
         valor_brl: p.valorAtualBRL,
         pct: totalPortfolio > 0 ? (p.valorAtualBRL / totalPortfolio) * 100 : 0,
         acumulado_pct: totalPortfolio > 0 ? (acumulado / totalPortfolio) * 100 : 0,

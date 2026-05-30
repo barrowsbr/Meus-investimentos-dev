@@ -1,4 +1,4 @@
-const RF_SETORES = new Set(["Renda Fixa USD", "Renda Fixa"]);
+const RF_SETORES = new Set(["Renda Fixa USD", "Renda Fixa", "Caixa/Liquidez"]);
 
 const CRIPTO = new Set([
   "BTC", "ETH", "SOL", "USDT", "USDC", "HBAR", "ADA",

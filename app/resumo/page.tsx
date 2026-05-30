@@ -57,8 +57,9 @@ const MACRO_MAP: Record<string, string> = {
 };
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Ações Brasil": "#db2777", "Ações Internacional": "#8b5cf6", "ETF USA": "#06b6d4",
-  "ETF": "#6366f1", "FIIs": "#f97316", "Cripto": "#eab308",
+  "Ações Brasil": "#db2777", "Ações Internacional": "#8b5cf6", "Ações EUA": "#8b5cf6", "Ações Mundo": "#a78bfa",
+  "ETF USA": "#06b6d4", "ETFs": "#6366f1", "ETF": "#6366f1",
+  "FIIs": "#f97316", "Cripto": "#eab308",
   "Commodities": "#84cc16", "BDRs": "#a855f7", "Renda Fixa": "#0f766e", "Renda Fixa USD": "#1d4ed8",
   "Tesouro Direto": "#10b981", "CDBs": "#0ea5e9", "LCI/LCA": "#06b6d4", "Debêntures": "#3b82f6", "Caixa": "#64748b",
 };
@@ -226,7 +227,10 @@ export default function ResumoPage() {
 
   const sunburstData = useMemo(() => {
     const sectorStyles: Record<string, { h: number; s: number; l: number }> = {
+      "Ações EUA": { h: 260, s: 65, l: 48 },
+      "Ações Mundo": { h: 280, s: 55, l: 52 },
       "Ações Internacional": { h: 260, s: 65, l: 48 },
+      "ETFs": { h: 240, s: 60, l: 52 },
       "ETF USA": { h: 240, s: 60, l: 52 },
       "ETF": { h: 240, s: 65, l: 55 },
       "Ações Brasil": { h: 330, s: 75, l: 48 },

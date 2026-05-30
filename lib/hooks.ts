@@ -51,6 +51,21 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
   return { data, loading, error };
 }
 
+export interface Fx2CurrencyInfo {
+  moeda: string;
+  qtd: number;
+  usdGasto: number;
+  pmUSD: number;
+  pmBRL: number;
+  brlCusto: number;
+  cotBRL: number;
+  cotUSD: number;
+  valBRL: number;
+  ganhoBRL: number;
+  ganhoPct: number;
+  deltaUSD: number;
+}
+
 export interface CambioInfo {
   pmDolar: number;
   pmEuro: number;
@@ -70,6 +85,20 @@ export interface CambioInfo {
   ganhoCambialCAD_BRL: number;
   ganhoCambialGBP_BRL: number;
   ganhoTotal_BRL: number;
+  usdComprado: number;
+  usdVendido: number;
+  usdNet: number;
+  brlGastoUSD: number;
+  brlCustoUsdNet: number;
+  valorUsdHoje: number;
+  ganhoUsdBRL: number;
+  ganhoUsdPct: number;
+  deltaPmUsd: number;
+  totalValBRL: number;
+  totalCustoBRL: number;
+  ganhoTotalPct: number;
+  numMoedas: number;
+  fx2: Fx2CurrencyInfo[];
   operacoes: number;
 }
 
@@ -172,6 +201,20 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
       ganhoCambialCAD_BRL: cambio.ganhoCambialCAD_BRL ?? cambio.ganho_cambial_cad_brl ?? 0,
       ganhoCambialGBP_BRL: cambio.ganhoCambialGBP_BRL ?? cambio.ganho_cambial_gbp_brl ?? 0,
       ganhoTotal_BRL: cambio.ganhoTotal_BRL ?? cambio.ganho_total_brl ?? 0,
+      usdComprado: cambio.usdComprado ?? cambio.usd_comprado ?? 0,
+      usdVendido: cambio.usdVendido ?? cambio.usd_vendido ?? 0,
+      usdNet: cambio.usdNet ?? cambio.usd_net ?? 0,
+      brlGastoUSD: cambio.brlGastoUSD ?? cambio.brl_gasto_usd ?? 0,
+      brlCustoUsdNet: cambio.brlCustoUsdNet ?? cambio.brl_custo_usd_net ?? 0,
+      valorUsdHoje: cambio.valorUsdHoje ?? cambio.valor_usd_hoje ?? 0,
+      ganhoUsdBRL: cambio.ganhoUsdBRL ?? cambio.ganho_usd_brl ?? 0,
+      ganhoUsdPct: cambio.ganhoUsdPct ?? cambio.ganho_usd_pct ?? 0,
+      deltaPmUsd: cambio.deltaPmUsd ?? cambio.delta_pm_usd ?? 0,
+      totalValBRL: cambio.totalValBRL ?? cambio.total_val_brl ?? 0,
+      totalCustoBRL: cambio.totalCustoBRL ?? cambio.total_custo_brl ?? 0,
+      ganhoTotalPct: cambio.ganhoTotalPct ?? cambio.ganho_total_pct ?? 0,
+      numMoedas: cambio.numMoedas ?? cambio.num_moedas ?? 1,
+      fx2: cambio.fx2 ?? [],
       operacoes: cambio.operacoes ?? 0,
     },
     ptax: data.ptax ?? null,
