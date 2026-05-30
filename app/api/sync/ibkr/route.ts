@@ -27,6 +27,8 @@ function normalizeDate(s: string): string {
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const brHyphen = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
+  if (brHyphen) return `${brHyphen[3]}-${brHyphen[2]}-${brHyphen[1]}`;
   return s.slice(0, 10);
 }
 
@@ -131,7 +133,10 @@ function parseIBKRCsv(content: string): { proventos: IbkrEvent[]; trades: IbkrTr
       const qtd = Math.abs(parseValor(qtdStr));
       const preco = Math.abs(parseValor(precoStr));
       const comissao = Math.abs(parseValor(comissaoStr));
-      const valorBruto = qtd * preco;
+      let valorBruto = Math.abs(parseValor(valorStr));
+      if (valorBruto === 0 && qtd > 0 && preco > 0) {
+        valorBruto = Math.round(qtd * preco * 100) / 100;
+      }
       const tipoNorm = ["Compra", "Buy"].includes(tipo) ? "Compra" : "Venda";
       const valorLiquido = tipoNorm === "Compra" ? valorBruto + comissao : valorBruto - comissao;
 
