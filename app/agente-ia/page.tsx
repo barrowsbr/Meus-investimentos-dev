@@ -11,14 +11,6 @@ interface Message {
   content: string;
 }
 
-const SUGGESTIONS = [
-  "Como está minha carteira hoje?",
-  "Explique o que é Sharpe Ratio",
-  "Qual a diferença entre LCI e LCA?",
-  "Como funciona o come-cotas em FIIs?",
-  "O que é FIFO no imposto de renda?",
-];
-
 function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   return (
@@ -123,17 +115,6 @@ export default function AgenteIAPage() {
             <div className="text-center">
               <p className="text-zinc-300 font-medium mb-1">Olá! Sou seu assistente financeiro.</p>
               <p className="text-zinc-500 text-sm">Pergunte sobre seu portfólio, tributação, estratégias e mais.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  className="text-xs px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.07] transition-all"
-                >
-                  {s}
-                </button>
-              ))}
             </div>
           </div>
         )}
