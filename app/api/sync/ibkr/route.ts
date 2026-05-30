@@ -211,10 +211,10 @@ function findMissingTrades(
   }> = [];
 
   for (const row of existing) {
-    const ticker = normalizeTicker(String(row["Símbolo"] ?? row["simbolo"] ?? ""));
-    const tipo = String(row["Tipo de transação"] ?? "").trim();
-    const qty = Math.round(parseValor(String(row["Quantidade"] ?? "0")) * 100) / 100;
-    const preco = parseValor(String(row["Preço"] ?? row["preco"] ?? "0"));
+    const ticker = normalizeTicker(String(row["símbolo"] ?? row["simbolo"] ?? ""));
+    const tipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? "").trim();
+    const qty = Math.round(parseValor(String(row["quantidade"] ?? "0")) * 100) / 100;
+    const preco = parseValor(String(row["preço"] ?? row["preco"] ?? "0"));
     existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
@@ -371,6 +371,7 @@ export async function POST(request: Request) {
 
       result.trades = {
         total_csv: parsedTrades.length,
+        existing_count: existing.length,
         faltantes: trulyMissing.length,
         potential_splits: potentialSplits.length,
         preview: allMissing.slice(0, 10).map(t => ({
