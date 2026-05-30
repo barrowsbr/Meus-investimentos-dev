@@ -152,12 +152,14 @@ function AccordionGroup({ group }: { group: NavGroup }) {
 export default function HomePage() {
   const { data, loading } = usePortfolio();
 
-  const patrimonioBRL = data?.rvPatrimonioBRL ?? null;
-  const lucroPct = data?.lucroPct ?? null;
-  const dayChangePct = data?.dayChangeTotalPct ?? null;
+  const totalBRL = data?.totalPatrimonioBRL ?? null;
   const usdbrl = data?.usdbrl ?? null;
+  const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
+  const lucroPct = data?.lucroPct ?? null;
+  const dayChangeBRL = data?.dayChangeTotalBRL ?? null;
+  const dayChangePct = data?.dayChangeTotalPct ?? null;
   const isUp = (lucroPct ?? 0) >= 0;
-  const isDayUp = (dayChangePct ?? 0) >= 0;
+  const isDayUp = (dayChangeBRL ?? 0) >= 0;
 
   return (
     <div className="relative min-h-screen flex flex-col items-center">
@@ -199,7 +201,7 @@ export default function HomePage() {
 
         {/* ── Live Metrics ── */}
         <div className="w-full grid grid-cols-3 gap-3 mb-7 animate-fade-in animate-delay-1">
-          {/* RV Patrimônio */}
+          {/* Patrimônio Total */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
             style={{
@@ -208,15 +210,22 @@ export default function HomePage() {
               boxShadow: "0 4px 20px rgba(212,165,116,0.05)",
             }}
           >
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">Patrimônio RV</span>
-            {loading || patrimonioBRL === null ? (
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
+            {loading || totalBRL === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
-              <span className="text-sm font-bold text-zinc-100">{compactBRL(patrimonioBRL)}</span>
+              <>
+                <span className="text-sm font-bold text-zinc-100">{compactBRL(totalBRL)}</span>
+                {totalUSD !== null && (
+                  <span className="text-[9px] text-zinc-500 mt-1">
+                    US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : totalUSD.toFixed(0)}
+                  </span>
+                )}
+              </>
             )}
           </div>
 
-          {/* Lucro total */}
+          {/* Retorno total */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
             style={{
@@ -225,7 +234,7 @@ export default function HomePage() {
               boxShadow: `0 4px 20px ${isUp ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)"}`,
             }}
           >
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">Retorno Total</span>
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Retorno Total</span>
             {loading || lucroPct === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
@@ -240,7 +249,7 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* USD/BRL */}
+          {/* Dólar */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
             style={{
@@ -249,16 +258,21 @@ export default function HomePage() {
               boxShadow: `0 4px 20px ${isDayUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
             }}
           >
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-2">USD/BRL</span>
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
             {loading || usdbrl === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
               <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
             )}
-            {!loading && dayChangePct !== null && (
-              <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
-                {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}% hoje
-              </span>
+            {!loading && dayChangeBRL !== null && dayChangePct !== null && (
+              <div className="flex flex-col items-center mt-1">
+                <span className={`text-[9px] font-semibold ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                  {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
+                </span>
+                <span className={`text-[9px] font-semibold ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                  {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}%
+                </span>
+              </div>
             )}
           </div>
         </div>
