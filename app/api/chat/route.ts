@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { NextRequest } from "next/server";
+import { buildAgentContext } from "@/lib/agent-context";
 
 export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `Você é um assistente financeiro pessoal inteligente integrado a um dashboard de investimentos.
+const SYSTEM_PROMPT_BASE = `Você é um assistente financeiro pessoal inteligente integrado a um dashboard de investimentos.
 
 Sua missão:
 1. Analisar o portfólio do usuário com base nos dados fornecidos no contexto.
@@ -21,6 +22,24 @@ Regras:
 Conhecimentos: mercado financeiro brasileiro (B3, Tesouro Direto, FIIs, ETFs, BDRs),
 análise de portfólio, imposto de renda sobre investimentos (DARF, come-cotas, isenção até R$20k/mês),
 câmbio e investimentos internacionais, criptoativos, estratégias de alocação de ativos, e planejamento financeiro.`;
+
+let cachedContext: { text: string; timestamp: number } | null = null;
+const CONTEXT_TTL_MS = 120_000; // 2 minutes
+
+async function getPortfolioContext(): Promise<string> {
+  const now = Date.now();
+  if (cachedContext && now - cachedContext.timestamp < CONTEXT_TTL_MS) {
+    return cachedContext.text;
+  }
+  try {
+    const ctx = await buildAgentContext();
+    cachedContext = { text: ctx, timestamp: now };
+    return ctx;
+  } catch (e) {
+    console.error("[Chat] Failed to build portfolio context:", e);
+    return "";
+  }
+}
 
 const MODEL_CASCADE = [
   "gemini-2.5-flash",
@@ -50,11 +69,12 @@ async function tryModel(
   modelName: string,
   message: string,
   history: HistoryPart[],
+  systemPrompt: string,
 ): Promise<{ response: string; model: string }> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
-    systemInstruction: SYSTEM_PROMPT,
+    systemInstruction: systemPrompt,
   });
   const chat = model.startChat({ history });
   const result = await chat.sendMessage(message);
@@ -78,11 +98,16 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Mensagem vazia." }, { status: 400 });
     }
 
+    const portfolioContext = await getPortfolioContext();
+    const systemPrompt = portfolioContext
+      ? `${SYSTEM_PROMPT_BASE}\n\n---\n\n${portfolioContext}`
+      : SYSTEM_PROMPT_BASE;
+
     let lastError: unknown = null;
 
     for (const modelName of MODEL_CASCADE) {
       try {
-        const result = await tryModel(apiKey, modelName, message, history);
+        const result = await tryModel(apiKey, modelName, message, history, systemPrompt);
         return Response.json(result);
       } catch (err) {
         lastError = err;
