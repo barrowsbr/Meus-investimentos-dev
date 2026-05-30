@@ -232,6 +232,8 @@ export default function PortfolioPage() {
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Atual</th>
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Lucro</th>
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">%</th>
+                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Prov.</th>
+                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Ret. Total</th>
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Dia %</th>
                 {hasUSD && <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">G.Ativo</th>}
                 {hasUSD && <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">G.Câmbio</th>}
@@ -242,6 +244,12 @@ export default function PortfolioPage() {
                 const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                const provBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
+                const realizadoBRL = p.lucroRealizadoBRL;
+                const naoRealizadoBRL = p.lucroBRL ?? 0;
+                const resultadoTotal = naoRealizadoBRL + realizadoBRL + provBRL;
+                const retornoTotalPct = p.custoTotalBRL > 0 ? (resultadoTotal / p.custoTotalBRL) * 100 : (p.lucroPct ?? 0);
+                const corTotal = resultadoTotal >= 0 ? "text-positive" : "text-negative";
                 return (
                   <tr key={p.ticker} className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
                     <td className="px-3 py-2.5">
@@ -262,6 +270,12 @@ export default function PortfolioPage() {
                     <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(p.valorAtualBRL)}</td>
                     <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
                     <td className={`px-3 py-2.5 text-right font-semibold ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right text-xs text-amber-400">
+                      {provBRL > 0 ? compactBRL(provBRL) : "—"}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-bold ${corTotal}`}>
+                      {p.lucroBRL !== null ? pct(retornoTotalPct) : "—"}
+                    </td>
                     <td className={`px-3 py-2.5 text-right text-xs ${p.dayChangePct !== null ? (p.dayChangePct >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
                       {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
                     </td>
@@ -272,16 +286,26 @@ export default function PortfolioPage() {
               })}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-border font-semibold">
-                <td className="px-3 py-3 text-zinc-300" colSpan={5}>Total RV</td>
-                <td className="px-3 py-3 text-right text-zinc-300">{brl(metrics.totalInvestido)}</td>
-                <td className="px-3 py-3 text-right text-zinc-200">{brl(data.rvPatrimonioBRL)}</td>
-                <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
-                <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
-                <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.dayChangeTotalPct ?? 0)}</td>
-                {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoTotalBRL)}</td>}
-                {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCambioTotalBRL)}</td>}
-              </tr>
+              {(() => {
+                const totalProvRV = metrics.rv.reduce((s, p) => s + (data.proventosPorTicker?.[p.ticker] ?? 0), 0);
+                const totalRealizadoRV = metrics.lucroRealizado;
+                const totalResultado = data.lucroBRL + totalRealizadoRV + totalProvRV;
+                const totalRetornoPct = metrics.totalInvestido > 0 ? (totalResultado / metrics.totalInvestido) * 100 : 0;
+                return (
+                  <tr className="border-t-2 border-border font-semibold">
+                    <td className="px-3 py-3 text-zinc-300" colSpan={5}>Total RV</td>
+                    <td className="px-3 py-3 text-right text-zinc-300">{brl(metrics.totalInvestido)}</td>
+                    <td className="px-3 py-3 text-right text-zinc-200">{brl(data.rvPatrimonioBRL)}</td>
+                    <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
+                    <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
+                    <td className="px-3 py-3 text-right text-amber-400">{compactBRL(totalProvRV)}</td>
+                    <td className={`px-3 py-3 text-right font-bold ${totalResultado >= 0 ? "text-positive" : "text-negative"}`}>{pct(totalRetornoPct)}</td>
+                    <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.dayChangeTotalPct ?? 0)}</td>
+                    {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoTotalBRL)}</td>}
+                    {hasUSD && <td className={`px-3 py-3 text-right text-xs ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCambioTotalBRL)}</td>}
+                  </tr>
+                );
+              })()}
             </tfoot>
           </table>
         </div>
