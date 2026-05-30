@@ -8,7 +8,8 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import type { PolyEvent, PolyResponse } from "@/app/api/polymarket/route";
+import { fetchPolymarket } from "@/lib/polymarket";
+import type { PolyEvent, PolyResponse } from "@/lib/polymarket";
 
 const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
 
@@ -99,6 +100,7 @@ export default function PolymarketPage() {
   const { data: portfolio } = usePortfolio();
   const [poly, setPoly] = useState<PolyResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
@@ -110,15 +112,14 @@ export default function PolymarketPage() {
   }, [portfolio]);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    const tickersParam = portfolioTickers.length > 0
-      ? `?tickers=${encodeURIComponent(portfolioTickers.join(","))}`
-      : "";
-    fetch(`/api/polymarket${tickersParam}`)
-      .then((r) => r.json())
-      .then((d) => setPoly(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    setError(null);
+    fetchPolymarket(portfolioTickers)
+      .then((d) => { if (!cancelled) setPoly(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Erro ao buscar Polymarket"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [portfolioTickers.join(","), refreshKey]); // eslint-disable-line
 
   const sortedCategories = useMemo(() => {
@@ -154,6 +155,13 @@ export default function PolymarketPage() {
           Atualizar
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Stats bar */}
       {!loading && poly && (
