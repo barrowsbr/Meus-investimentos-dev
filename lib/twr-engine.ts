@@ -179,7 +179,6 @@ function fxFactor(moeda: string, fx: FxRates): number {
 const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
 const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
 const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MIN_NAV_FOR_RETURN = 1.0; // Minimum capital for valid return
 const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50%
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -389,8 +388,8 @@ export function calcularTWR(input: TwrInput): TwrResult {
     let forceZero = false;
     let isSoD = false;
 
-    // Rule 1: Previous NAV too small — no valid return
-    if (prevNav < MIN_NAV_FOR_RETURN) {
+    // Rule 1: Previous NAV ≤ 0 — no capital base, return undefined
+    if (prevNav <= 0) {
       forceZero = true;
     }
     // Rule 2: Enormous flow (>90% of NAV) — return is meaningless
@@ -411,7 +410,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     if (!forceZero) {
       const economicGain = (nav + income) - prevNav - flow;
       const base = isSoD ? prevNav + flow : prevNav;
-      if (Math.abs(base) > MIN_NAV_FOR_RETURN) {
+      if (base > 0) {
         ret = economicGain / base;
       }
     }
@@ -424,17 +423,28 @@ export function calcularTWR(input: TwrInput): TwrResult {
     prevNav = nav;
   }
 
-  // Find first meaningful point (NAV >= R$100)
-  const firstMeaningful = points.find(p => p.nav >= 100);
+  // Find first day with NAV > 0 (first capital injection)
+  const firstMeaningful = points.find(p => p.nav > 0);
   if (!firstMeaningful) return { ...EMPTY, points };
 
   const last = points[points.length - 1];
-
-  // TWR from first meaningful point
-  const twrTotal = (cumTwr / (1 + firstMeaningful.twr)) - 1;
-
-  // Count business days for annualization (ANBIMA: 252 DU/year)
   const firstIdx = points.indexOf(firstMeaningful);
+
+  // Recompute cumTwr starting from firstMeaningful (avoid pre-capital noise)
+  let cleanCum = 1.0;
+  for (let i = firstIdx; i < points.length; i++) {
+    if (!points[i].forceZero) {
+      cleanCum *= (1 + points[i].ret);
+    }
+    points[i].twr = cleanCum - 1;
+  }
+  // Zero out TWR for pre-capital days
+  for (let i = 0; i < firstIdx; i++) {
+    points[i].twr = 0;
+  }
+
+  const twrTotal = cleanCum - 1;
+
   const bizDaysCount = points.length - firstIdx;
   const duracaoAnos = bizDaysCount / BUSINESS_DAYS_PER_YEAR;
 
@@ -442,10 +452,8 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ? Math.pow(1 + twrTotal, 1 / duracaoAnos) - 1
     : twrTotal;
 
-  // Economic gain: NAV change minus net capital flows
   const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows;
 
-  // MWR calculation
   const totalBizDays = businessDaysBetween(firstMeaningful.date, last.date);
   const mwr = calculateMWR(mwrFlows, last.nav, totalBizDays);
 
