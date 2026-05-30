@@ -36,14 +36,28 @@ function rowYear(r: Record<string, unknown>): string {
 
 function rowMonth(r: Record<string, unknown>): string {
   const s = String(r["data"] || "");
-  const m = s.match(/^(\d{4}-\d{2})/);
-  return m ? m[1] : "";
+  const isoMatch = s.match(/^(\d{4}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) return `${brMatch[3]}-${brMatch[2].padStart(2, "0")}`;
+  return "";
 }
 
-function rowValueBRL(r: Record<string, unknown>, usdbrl: number): number {
+interface FxRatesSimple {
+  usdbrl: number;
+  eurbrl: number;
+  cadbrl: number;
+  gbpbrl: number;
+}
+
+function rowValueBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
   const v = Math.abs(toNumber(r["valor"]) ?? 0);
   const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
-  return moeda === "USD" ? v * usdbrl : v;
+  if (moeda === "USD") return v * fx.usdbrl;
+  if (moeda === "EUR") return v * fx.eurbrl;
+  if (moeda === "CAD") return v * fx.cadbrl;
+  if (moeda === "GBP") return v * fx.gbpbrl;
+  return v;
 }
 
 // ─── FilterBar ────────────────────────────────────────────────────────────────
@@ -124,7 +138,12 @@ export default function ProventosPage() {
   const { data: rawData, loading: sheetLoading, error } = useSheetData("meus_proventos");
   const loading = portfolioLoading || sheetLoading;
 
-  const usdbrl = portfolio?.usdbrl ?? 5.7;
+  const fx: FxRatesSimple = {
+    usdbrl: portfolio?.usdbrl ?? 5.7,
+    eurbrl: portfolio?.eurbrl ?? 6.4,
+    cadbrl: portfolio?.fx?.CADBRL ?? 4.1,
+    gbpbrl: portfolio?.fx?.GBPBRL ?? 7.6,
+  };
 
   const [filters, setFilters] = useState<Filters>({ year: "all", ticker: "all", tipo: "all", moeda: "all" });
   const updateFilter = (f: Partial<Filters>) => setFilters(p => ({ ...p, ...f }));
@@ -153,7 +172,7 @@ export default function ProventosPage() {
 
   // Metrics from filtered data
   const metrics = useMemo(() => {
-    const total = filteredData.reduce((s, r) => s + rowValueBRL(r, usdbrl), 0);
+    const total = filteredData.reduce((s, r) => s + rowValueBRL(r, fx), 0);
     const months = new Set(filteredData.map(r => rowMonth(r)).filter(Boolean));
     const avgMonth = months.size > 0 ? total / months.size : 0;
     const tickers = new Set(filteredData.map(r => String(r["ticker"] ?? "").toUpperCase().trim()).filter(Boolean));
@@ -163,12 +182,12 @@ export default function ProventosPage() {
     filteredData.forEach(r => {
       const t = String(r["ticker"] ?? "").toUpperCase().trim();
       if (!t) return;
-      byTicker[t] = (byTicker[t] ?? 0) + rowValueBRL(r, usdbrl);
+      byTicker[t] = (byTicker[t] ?? 0) + rowValueBRL(r, fx);
     });
     const topEntry = Object.entries(byTicker).sort((a, b) => b[1] - a[1])[0];
 
     return { total, avgMonth, tickers: tickers.size, topTicker: topEntry?.[0] ?? "—", topValue: topEntry?.[1] ?? 0 };
-  }, [filteredData, usdbrl]);
+  }, [filteredData, fx]);
 
   // Monthly chart
   const monthlyChart = useMemo(() => {
@@ -176,17 +195,17 @@ export default function ProventosPage() {
     filteredData.forEach(r => {
       const key = rowMonth(r);
       if (!key) return;
-      const v = Math.abs(toNumber(r["valor"]) ?? 0);
+      const valBRL = rowValueBRL(r, fx);
       const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
       if (!byMonth[key]) byMonth[key] = { brl: 0, usd: 0 };
-      if (moeda === "USD") byMonth[key].usd += v;
-      else byMonth[key].brl += v;
+      if (moeda !== "BRL") byMonth[key].usd += valBRL;
+      else byMonth[key].brl += valBRL;
     });
     return Object.entries(byMonth)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-24)
-      .map(([month, v]) => ({ month: shortMonth(month), brl: v.brl, usd: v.usd, total: v.brl + v.usd * usdbrl }));
-  }, [filteredData, usdbrl]);
+      .map(([month, v]) => ({ month: shortMonth(month), brl: v.brl, usd: v.usd, total: v.brl + v.usd }));
+  }, [filteredData, fx]);
 
   // By ticker (top 10 in BRL)
   const byTickerChart = useMemo(() => {
@@ -194,30 +213,30 @@ export default function ProventosPage() {
     filteredData.forEach(r => {
       const t = String(r["ticker"] ?? "").toUpperCase().trim();
       if (!t) return;
-      acc[t] = (acc[t] ?? 0) + rowValueBRL(r, usdbrl);
+      acc[t] = (acc[t] ?? 0) + rowValueBRL(r, fx);
     });
     return Object.entries(acc)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)
       .map(([ticker, total]) => ({ ticker, total }));
-  }, [filteredData, usdbrl]);
+  }, [filteredData, fx]);
 
   // By type
   const byTypeChart = useMemo(() => {
     const acc: Record<string, number> = {};
     filteredData.forEach(r => {
       const t = String(r["lancamento"] ?? r["decisao"] ?? "Outro").trim() || "Outro";
-      acc[t] = (acc[t] ?? 0) + rowValueBRL(r, usdbrl);
+      acc[t] = (acc[t] ?? 0) + rowValueBRL(r, fx);
     });
     return Object.entries(acc)
       .sort((a, b) => b[1] - a[1])
       .map(([tipo, total]) => ({ tipo, total }));
-  }, [filteredData, usdbrl]);
+  }, [filteredData, fx]);
 
   // Cumulative line
   const cumulativeChart = useMemo(() => {
     const sorted = [...filteredData]
-      .map(r => ({ date: String(r["data"] ?? ""), value: rowValueBRL(r, usdbrl) }))
+      .map(r => ({ date: String(r["data"] ?? ""), value: rowValueBRL(r, fx) }))
       .filter(r => r.date)
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -226,7 +245,7 @@ export default function ProventosPage() {
       cum += r.value;
       return { date: r.date.slice(0, 7), cumulative: cum };
     });
-  }, [filteredData, usdbrl]);
+  }, [filteredData, fx]);
 
   const columns = [
     { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
@@ -295,8 +314,8 @@ export default function ProventosPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
                 <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "brl" ? "BRL" : "USD"]} />
-                <Legend formatter={v => v === "brl" ? "BRL" : "USD"} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "brl" ? "BRL" : "Exterior (R$)"]} />
+                <Legend formatter={v => v === "brl" ? "BRL" : "Exterior (R$)"} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
                 <Bar dataKey="brl" fill="url(#gradBRL)" radius={[4, 4, 0, 0]} stackId="a" />
                 <Bar dataKey="usd" fill="url(#gradUSD)" radius={[4, 4, 0, 0]} stackId="a" />
               </BarChart>
