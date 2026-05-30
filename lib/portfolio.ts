@@ -270,9 +270,13 @@ export function calcularProventosBRL(
     if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
 
     const dataStr = String(getVal(row, "data", "date", "pagamento") ?? "");
-    const match = dataStr.match(/^(\d{4})-(\d{2})/);
-    if (match) {
-      const key = `${match[1]}-${match[2]}`;
+    const isoMatch = dataStr.match(/^(\d{4})-(\d{2})/);
+    const brMatch = dataStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (isoMatch) {
+      const key = `${isoMatch[1]}-${isoMatch[2]}`;
+      porMes[key] = (porMes[key] ?? 0) + valorBRL;
+    } else if (brMatch) {
+      const key = `${brMatch[3]}-${brMatch[2].padStart(2, "0")}`;
       porMes[key] = (porMes[key] ?? 0) + valorBRL;
     }
   }

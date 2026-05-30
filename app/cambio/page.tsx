@@ -66,14 +66,14 @@ export default function CambioPage() {
       label: "Enviado",
       align: "right" as const,
       render: (_v: unknown, row: Record<string, unknown>) =>
-        brl(row["valor_origem"] || row["valor entrada"] || row["valor_entrada"]),
+        brl(row["valor_origem"] || row["valor total entrada"] || row["valor entrada"] || row["valor_entrada"]),
     },
     {
       key: "valor_destino",
       label: "Recebido",
       align: "right" as const,
       render: (_v: unknown, row: Record<string, unknown>) =>
-        usd(row["valor_destino"] || row["valor saída"] || row["valor_saida"] || row["valor saida"]),
+        usd(row["valor_destino"] || row["valor total saída"] || row["valor total saida"] || row["valor saída"] || row["valor_saida"] || row["valor saida"]),
     },
     {
       key: "taxa",
@@ -229,7 +229,7 @@ export default function CambioPage() {
 
             {/* Layer 2 cards: USD → other currencies */}
             {cambio.fx2.length > 0 && (
-              <div className={`grid grid-cols-1 md:grid-cols-${Math.min(cambio.fx2.length, 3)} gap-4 mb-4`}>
+              <div className={`grid grid-cols-1 gap-4 mb-4 ${cambio.fx2.length === 1 ? "md:grid-cols-1" : cambio.fx2.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
                 {cambio.fx2.map(c => {
                   const color = FX_COLORS[c.moeda] ?? "#64748b";
                   const vc = c.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400";
