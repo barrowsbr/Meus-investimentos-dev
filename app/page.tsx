@@ -264,15 +264,10 @@ export default function HomePage() {
             ) : (
               <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
             )}
-            {!loading && dayChangeBRL !== null && dayChangePct !== null && (
-              <div className="flex flex-col items-center mt-1">
-                <span className={`text-[9px] font-semibold ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
-                  {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
-                </span>
-                <span className={`text-[9px] font-semibold ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
-                  {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}%
-                </span>
-              </div>
+            {!loading && dayChangePct !== null && (
+              <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}% hoje
+              </span>
             )}
           </div>
         </div>
