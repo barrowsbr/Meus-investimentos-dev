@@ -23,16 +23,59 @@ function fuzzyGet(row: Row, ...patterns: string[]): unknown {
   return null;
 }
 
+// ── Layer 2 currency data (USD → other) ──────────────────────────────────────
+
+export interface Fx2CurrencyData {
+  moeda: string;
+  qtd: number;
+  usdGasto: number;
+  pmUSD: number;
+  pmBRL: number;
+  brlCusto: number;
+  cotBRL: number;
+  cotUSD: number;
+  valBRL: number;
+  ganhoBRL: number;
+  ganhoPct: number;
+  deltaUSD: number;
+}
+
 export interface CambioMetrics {
+  // Layer 1: BRL → USD
   pmDolar: number;
+  usdComprado: number;
+  usdVendido: number;
+  usdNet: number;
+  brlGastoUSD: number;
+  brlCustoUsdNet: number;
+  valorUsdHoje: number;
+  ganhoUsdBRL: number;
+  ganhoUsdPct: number;
+  deltaPmUsd: number;
+
+  // Layer 2: USD → other currencies
+  fx2: Fx2CurrencyData[];
+
+  // Totals
+  totalEnviadoBRL: number;
+  totalValBRL: number;
+  totalCustoBRL: number;
+  ganhoTotal_BRL: number;
+  ganhoTotalPct: number;
+  numMoedas: number;
+
+  // PM rates (for portfolio cost basis)
   pmEuro: number;
   pmCad: number;
   pmGbp: number;
+
+  // Spot
   spotUSD: number;
   spotEUR: number;
   spotCAD: number;
   spotGBP: number;
-  totalEnviadoBRL: number;
+
+  // Legacy compat
   totalRecebidoUSD: number;
   totalRecebidoEUR: number;
   totalRecebidoCAD: number;
@@ -41,7 +84,7 @@ export interface CambioMetrics {
   ganhoCambialEUR_BRL: number;
   ganhoCambialCAD_BRL: number;
   ganhoCambialGBP_BRL: number;
-  ganhoTotal_BRL: number;
+
   operacoes: number;
   historico: CambioOp[];
   debug: { rowsParsed: number; rowsTotal: number; usdOps: number; sampleKeys: string[] };
@@ -63,21 +106,25 @@ export interface PtaxRates {
   data: string;
 }
 
-export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): CambioMetrics {
-  let totalBRL_paraUSD = 0;
-  let totalUSD_recebido = 0;
-  let totalBRL_paraEUR = 0;
-  let totalEUR_recebido = 0;
-  let totalBRL_paraCAD = 0;
-  let totalCAD_recebido = 0;
-  let totalBRL_paraGBP = 0;
-  let totalGBP_recebido = 0;
-  let totalEnviadoBRL = 0;
-  let usdOps = 0;
-  let rowsParsed = 0;
+// ── Main calculation (matches Streamlit 1_Investimentos.py Câmbio tab) ───────
 
+export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): CambioMetrics {
   const historico: CambioOp[] = [];
   const sampleKeys = cambioRows.length > 0 ? Object.keys(cambioRows[0]) : [];
+  let rowsParsed = 0;
+  let usdOps = 0;
+
+  // Accumulators per currency pair
+  let brlGastoUSD = 0;
+  let usdComprado = 0;
+  let usdVendido = 0;
+  let totalEnviadoBRL = 0;
+
+  // Track USD → other conversions
+  const usdToOther: Record<string, { usdGasto: number; qtdRecebida: number }> = {};
+
+  // Track BRL → other (direct, non-USD)
+  const brlToOther: Record<string, { brlGasto: number; qtdRecebida: number }> = {};
 
   for (const row of cambioRows) {
     const moedaOrig = String(fuzzyGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase().trim();
@@ -94,60 +141,154 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
 
     historico.push({ data, moedaOrigem: moedaOrig, moedaDestino: moedaDest, valorOrigem: valorOrig, valorDestino: valorDest, taxa, corretora });
 
-    if (moedaOrig === "BRL" || moedaOrig === "") {
+    // Layer 1: BRL → USD
+    if ((moedaOrig === "BRL" || moedaOrig === "") && (moedaDest === "USD" || moedaDest === "")) {
+      usdOps++;
+      brlGastoUSD += valorOrig;
+      usdComprado += valorDest;
       totalEnviadoBRL += valorOrig;
-      if (moedaDest === "USD" || moedaDest === "") {
-        usdOps++;
-        totalBRL_paraUSD += valorOrig;
-        totalUSD_recebido += valorDest;
-        if (totalBRL_paraUSD === 0 && taxa > 0 && valorDest > 0) {
-          totalBRL_paraUSD = valorDest * taxa;
-        }
+    }
+    // Layer 1: BRL → other (direct, e.g. BRL → EUR)
+    else if (moedaOrig === "BRL" && moedaDest !== "USD" && moedaDest !== "" && moedaDest !== "BRL") {
+      totalEnviadoBRL += valorOrig;
+      if (!brlToOther[moedaDest]) brlToOther[moedaDest] = { brlGasto: 0, qtdRecebida: 0 };
+      brlToOther[moedaDest].brlGasto += valorOrig;
+      brlToOther[moedaDest].qtdRecebida += valorDest;
+    }
+    // Layer 2: USD → other currency (e.g. USD → EUR, USD → CAD)
+    else if (moedaOrig === "USD") {
+      usdVendido += valorOrig;
+      if (moedaDest && moedaDest !== "BRL" && moedaDest !== "USD") {
+        if (!usdToOther[moedaDest]) usdToOther[moedaDest] = { usdGasto: 0, qtdRecebida: 0 };
+        usdToOther[moedaDest].usdGasto += valorOrig;
+        usdToOther[moedaDest].qtdRecebida += valorDest;
       }
-      if (moedaDest === "EUR") { totalBRL_paraEUR += valorOrig; totalEUR_recebido += valorDest; }
-      if (moedaDest === "CAD") { totalBRL_paraCAD += valorOrig; totalCAD_recebido += valorDest; }
-      if (moedaDest === "GBP") { totalBRL_paraGBP += valorOrig; totalGBP_recebido += valorDest; }
     }
   }
 
-  if (totalBRL_paraUSD === 0 && totalUSD_recebido > 0) {
+  // Fallback: if no BRL values but have USD values with taxa
+  if (brlGastoUSD === 0 && usdComprado > 0) {
     const avgTaxa = historico
-      .filter((h) => h.moedaDestino === "USD" && h.taxa > 0)
+      .filter((h) => (h.moedaDestino === "USD" || h.moedaDestino === "") && h.taxa > 0)
       .reduce((s, h) => s + h.taxa * h.valorDestino, 0) /
-      Math.max(totalUSD_recebido, 0.01);
-    if (avgTaxa > 0) totalBRL_paraUSD = totalUSD_recebido * avgTaxa;
+      Math.max(usdComprado, 0.01);
+    if (avgTaxa > 0) brlGastoUSD = usdComprado * avgTaxa;
   }
 
-  const pmDolar = totalUSD_recebido > 0 ? totalBRL_paraUSD / totalUSD_recebido : fxAtual.USDBRL;
-  const pmEuro = totalEUR_recebido > 0 ? totalBRL_paraEUR / totalEUR_recebido : fxAtual.EURBRL;
-  const pmCad = totalCAD_recebido > 0 ? totalBRL_paraCAD / totalCAD_recebido : fxAtual.CADBRL;
-  const pmGbp = totalGBP_recebido > 0 ? totalBRL_paraGBP / totalGBP_recebido : fxAtual.GBPBRL;
+  // ── Layer 1 calculations (matching Streamlit lines 2909-2920) ──────────────
 
-  const ganhoCambialUSD_BRL = totalUSD_recebido > 0 ? totalUSD_recebido * (fxAtual.USDBRL - pmDolar) : 0;
-  const ganhoCambialEUR_BRL = totalEUR_recebido > 0 ? totalEUR_recebido * (fxAtual.EURBRL - pmEuro) : 0;
-  const ganhoCambialCAD_BRL = totalCAD_recebido > 0 ? totalCAD_recebido * (fxAtual.CADBRL - pmCad) : 0;
-  const ganhoCambialGBP_BRL = totalGBP_recebido > 0 ? totalGBP_recebido * (fxAtual.GBPBRL - pmGbp) : 0;
-  const ganhoTotal_BRL = ganhoCambialUSD_BRL + ganhoCambialEUR_BRL + ganhoCambialCAD_BRL + ganhoCambialGBP_BRL;
+  const pmDolar = usdComprado > 0 ? brlGastoUSD / usdComprado : fxAtual.USDBRL;
+  const usdNet = Math.max(0, usdComprado - usdVendido);
+  const brlCustoUsdNet = usdNet * pmDolar;
+  const cotUsdBrl = fxAtual.USDBRL;
+  const valorUsdHoje = usdNet * cotUsdBrl;
+  const ganhoUsdBRL = valorUsdHoje - brlCustoUsdNet;
+  const ganhoUsdPct = brlCustoUsdNet > 0 ? (ganhoUsdBRL / brlCustoUsdNet) * 100 : 0;
+  const deltaPmUsd = pmDolar > 0 ? ((cotUsdBrl - pmDolar) / pmDolar) * 100 : 0;
+
+  // ── Layer 2 calculations (matching Streamlit lines 2930-2959) ──────────────
+
+  const spotMap: Record<string, number> = {
+    EUR: fxAtual.EURBRL,
+    CAD: fxAtual.CADBRL,
+    GBP: fxAtual.GBPBRL,
+  };
+
+  const fx2: Fx2CurrencyData[] = [];
+
+  for (const [moeda, d] of Object.entries(usdToOther)) {
+    const qtd = d.qtdRecebida;
+    const usdGasto = d.usdGasto;
+    const pmUSD = qtd > 0 ? usdGasto / qtd : 0;
+    const brlCusto = usdGasto * pmDolar; // inherited BRL cost from Layer 1
+    const pmBRL = qtd > 0 ? brlCusto / qtd : 0;
+    const cotBRL = spotMap[moeda] ?? 0;
+    const cotUSD = cotUsdBrl > 0 ? cotBRL / cotUsdBrl : 0;
+    const valBRL = qtd * cotBRL;
+    const ganhoBRL = valBRL - brlCusto;
+    const ganhoPct = brlCusto > 0 ? (ganhoBRL / brlCusto) * 100 : 0;
+    const deltaUSD = pmUSD > 0 ? ((cotUSD - pmUSD) / pmUSD) * 100 : 0;
+
+    fx2.push({ moeda, qtd, usdGasto, pmUSD, pmBRL, brlCusto, cotBRL, cotUSD, valBRL, ganhoBRL, ganhoPct, deltaUSD });
+  }
+
+  // Add BRL → other (direct) currencies not already covered via USD
+  for (const [moeda, d] of Object.entries(brlToOther)) {
+    if (usdToOther[moeda]) continue; // already handled via USD chain
+    const qtd = d.qtdRecebida;
+    const brlCusto = d.brlGasto;
+    const pmBRL = qtd > 0 ? brlCusto / qtd : 0;
+    const cotBRL = spotMap[moeda] ?? 0;
+    const valBRL = qtd * cotBRL;
+    const ganhoBRL = valBRL - brlCusto;
+    const ganhoPct = brlCusto > 0 ? (ganhoBRL / brlCusto) * 100 : 0;
+
+    fx2.push({ moeda, qtd, usdGasto: 0, pmUSD: 0, pmBRL, brlCusto, cotBRL, cotUSD: 0, valBRL, ganhoBRL, ganhoPct, deltaUSD: 0 });
+  }
+
+  // ── Totals (matching Streamlit lines 2962-2965) ────────────────────────────
+
+  const totalValBRL = valorUsdHoje + fx2.reduce((s, c) => s + c.valBRL, 0);
+  const totalCustoBRL = brlGastoUSD;
+  const ganhoTotal_BRL = totalValBRL - totalCustoBRL;
+  const ganhoTotalPct = totalCustoBRL > 0 ? (ganhoTotal_BRL / totalCustoBRL) * 100 : 0;
+  const numMoedas = 1 + fx2.length;
+
+  // ── PM rates for portfolio cost basis ──────────────────────────────────────
+
+  const findFx2 = (m: string) => fx2.find(c => c.moeda === m);
+  const eurData = findFx2("EUR");
+  const cadData = findFx2("CAD");
+  const gbpData = findFx2("GBP");
+
+  const pmEuro = eurData ? eurData.pmBRL : (brlToOther["EUR"]?.qtdRecebida ? brlToOther["EUR"].brlGasto / brlToOther["EUR"].qtdRecebida : fxAtual.EURBRL);
+  const pmCad = cadData ? cadData.pmBRL : (brlToOther["CAD"]?.qtdRecebida ? brlToOther["CAD"].brlGasto / brlToOther["CAD"].qtdRecebida : fxAtual.CADBRL);
+  const pmGbp = gbpData ? gbpData.pmBRL : (brlToOther["GBP"]?.qtdRecebida ? brlToOther["GBP"].brlGasto / brlToOther["GBP"].qtdRecebida : fxAtual.GBPBRL);
+
+  // Legacy compat fields
+  const totalRecebidoEUR = eurData?.qtd ?? brlToOther["EUR"]?.qtdRecebida ?? 0;
+  const totalRecebidoCAD = cadData?.qtd ?? brlToOther["CAD"]?.qtdRecebida ?? 0;
+  const totalRecebidoGBP = gbpData?.qtd ?? brlToOther["GBP"]?.qtdRecebida ?? 0;
 
   return {
     pmDolar,
+    usdComprado,
+    usdVendido,
+    usdNet,
+    brlGastoUSD,
+    brlCustoUsdNet,
+    valorUsdHoje,
+    ganhoUsdBRL,
+    ganhoUsdPct,
+    deltaPmUsd,
+
+    fx2,
+
+    totalEnviadoBRL,
+    totalValBRL,
+    totalCustoBRL,
+    ganhoTotal_BRL,
+    ganhoTotalPct,
+    numMoedas,
+
     pmEuro,
     pmCad,
     pmGbp,
+
     spotUSD: fxAtual.USDBRL,
     spotEUR: fxAtual.EURBRL,
     spotCAD: fxAtual.CADBRL,
     spotGBP: fxAtual.GBPBRL,
-    totalEnviadoBRL,
-    totalRecebidoUSD: totalUSD_recebido,
-    totalRecebidoEUR: totalEUR_recebido,
-    totalRecebidoCAD: totalCAD_recebido,
-    totalRecebidoGBP: totalGBP_recebido,
-    ganhoCambialUSD_BRL,
-    ganhoCambialEUR_BRL,
-    ganhoCambialCAD_BRL,
-    ganhoCambialGBP_BRL,
-    ganhoTotal_BRL,
+
+    totalRecebidoUSD: usdComprado,
+    totalRecebidoEUR,
+    totalRecebidoCAD,
+    totalRecebidoGBP,
+    ganhoCambialUSD_BRL: ganhoUsdBRL,
+    ganhoCambialEUR_BRL: eurData?.ganhoBRL ?? 0,
+    ganhoCambialCAD_BRL: cadData?.ganhoBRL ?? 0,
+    ganhoCambialGBP_BRL: gbpData?.ganhoBRL ?? 0,
+
     operacoes: historico.length,
     historico,
     debug: { rowsParsed, rowsTotal: cambioRows.length, usdOps, sampleKeys },

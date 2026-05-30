@@ -75,9 +75,9 @@ function getVal(row: Row, ...keys: string[]): unknown {
 function getTipo(row: Row): string {
   const raw = String(
     getVal(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo") ?? ""
-  ).toLowerCase().trim();
-  if (raw.includes("compra") || raw.includes("buy") || raw.includes("aporte") || raw.includes("subscri")) return "Compra";
-  if (raw.includes("venda") || raw.includes("sell") || raw.includes("resgate")) return "Venda";
+  ).toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (raw.includes("compra") || raw.includes("buy") || raw.includes("aporte") || raw.includes("entrada") || raw.includes("subscri")) return "Compra";
+  if (raw.includes("venda") || raw.includes("sell") || raw.includes("resgate") || raw.includes("saida")) return "Venda";
   if (raw.includes("bonif")) return "Compra";
   return raw;
 }

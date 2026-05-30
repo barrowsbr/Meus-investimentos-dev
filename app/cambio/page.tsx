@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
@@ -22,6 +22,10 @@ const TOOLTIP_STYLE = {
   color: "#fafafa",
   fontSize: 12,
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+};
+
+const FX_COLORS: Record<string, string> = {
+  USD: "#3b82f6", EUR: "#8b5cf6", CAD: "#f59e0b", GBP: "#10b981", CHF: "#06b6d4",
 };
 
 export default function CambioPage() {
@@ -42,11 +46,6 @@ export default function CambioPage() {
       })
       .filter(Boolean) as { data: string; taxa: number }[];
   }, [rawData]);
-
-  const pmVsSpot = useMemo(() => {
-    if (!portfolio?.cambio?.pmDolar || !portfolio?.usdbrl) return 0;
-    return ((portfolio.usdbrl / portfolio.cambio.pmDolar - 1) * 100);
-  }, [portfolio]);
 
   const columns = [
     { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
@@ -109,12 +108,192 @@ export default function CambioPage() {
 
       {cambio && (
         <>
+          {/* ── Hero: Total em Reais ── */}
+          <div className="glass-card p-6 mb-6 animate-fade-in">
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-1">
+              Total em Reais (moeda de consumo)
+            </div>
+            <div className={`text-3xl font-extrabold mb-4 ${cambio.ganhoTotal_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {brl(cambio.totalValBRL)}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <span className="stat-label block mb-1">BRL Investido</span>
+                <span className="text-sm font-bold text-zinc-300">{brl(cambio.totalCustoBRL)}</span>
+              </div>
+              <div>
+                <span className="stat-label block mb-1">Ganho Cambial</span>
+                <span className={`text-sm font-bold ${cambio.ganhoTotal_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {cambio.ganhoTotal_BRL >= 0 ? "+" : ""}{brl(cambio.ganhoTotal_BRL)}
+                </span>
+                <span className={`text-xs ml-1 ${cambio.ganhoTotalPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {cambio.ganhoTotalPct >= 0 ? "+" : ""}{cambio.ganhoTotalPct.toFixed(1)}%
+                </span>
+              </div>
+              <div>
+                <span className="stat-label block mb-1">Saldo USD</span>
+                <span className="text-sm font-bold text-zinc-300">US$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {cambio.usdVendido > 0 && (
+                  <span className="text-[10px] text-zinc-600 block">−US$ {cambio.usdVendido.toLocaleString("en-US", { maximumFractionDigits: 0 })} convertidos</span>
+                )}
+              </div>
+              <div>
+                <span className="stat-label block mb-1">Moedas</span>
+                <span className="text-sm font-bold text-zinc-300">{cambio.numMoedas}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Cadeia de Conversão ── */}
+          <div className="mb-6">
+            <h2 className="section-title mb-1"><Layers size={15} />Cadeia de Conversão</h2>
+            <p className="text-[10px] text-zinc-600 mb-4">USD é a moeda intermediária: recebe de BRL e distribui para outras moedas. Saldo USD = comprado − convertido.</p>
+
+            {/* USD Card (Layer 1) */}
+            <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: "rgba(59,130,246,0.15)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🇺🇸</span>
+                  <div>
+                    <div className="text-sm font-bold text-zinc-100">USD</div>
+                    <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Conta intermediária · recebe BRL · distribui</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Ganho cambial (BRL)</div>
+                  <div className={`text-xl font-extrabold ${cambio.ganhoUsdBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {cambio.ganhoUsdBRL >= 0 ? "+" : ""}R$ {Math.abs(cambio.ganhoUsdBRL).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className={`text-xs ${cambio.ganhoUsdPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {cambio.ganhoUsdPct >= 0 ? "+" : ""}{cambio.ganhoUsdPct.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">PM compra (R$/USD)</div>
+                  <div className="text-sm font-bold text-zinc-400">R$ {cambio.pmDolar.toFixed(4)}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Cotação hoje</div>
+                  <div className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</div>
+                  <div className={`text-[10px] font-semibold ${cambio.deltaPmUsd >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {cambio.deltaPmUsd >= 0 ? "+" : ""}{cambio.deltaPmUsd.toFixed(1)}% vs PM
+                  </div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Valor em BRL</div>
+                  <div className="text-sm font-bold text-zinc-100">R$ {cambio.valorUsdHoje.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
+                  <div className="text-[10px] text-zinc-600">custo R$ {cambio.brlCustoUsdNet.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
+                </div>
+              </div>
+
+              {/* Ledger: USD balance */}
+              <div className="rounded-xl p-4 mb-3" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Saldo USD — conta intermediária</div>
+                <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                  <span className="text-xs text-zinc-500">＋ Comprado com BRL</span>
+                  <span className="text-sm font-bold text-emerald-400">US$ {cambio.usdComprado.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                {cambio.fx2.map(c => (
+                  <div key={c.moeda} className="flex items-center justify-between py-1.5 border-b border-white/5">
+                    <span className="text-xs text-zinc-500">− Convertido → {c.moeda}</span>
+                    <span className="text-sm font-bold text-red-400">US$ {c.usdGasto.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs font-bold text-zinc-100">= Saldo disponível</span>
+                  <span className="text-base font-extrabold text-zinc-100">US$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              {/* PM vs Spot bar */}
+              <div className="flex justify-between mb-1">
+                <span className="text-[10px] text-zinc-700">PM R$ {cambio.pmDolar.toFixed(4)} → Cotação R$ {spot.toFixed(4)}</span>
+                <span className={`text-[10px] font-semibold ${cambio.deltaPmUsd >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {cambio.deltaPmUsd >= 0 ? "+" : ""}{cambio.deltaPmUsd.toFixed(2)}%
+                </span>
+              </div>
+              <div className="h-1 rounded-full relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full opacity-80"
+                  style={{
+                    width: `${Math.min(Math.max((cambio.deltaPmUsd / 20 + 0.5) * 100, 2), 98)}%`,
+                    backgroundColor: cambio.deltaPmUsd >= 0 ? "#34d399" : "#f87171",
+                  }}
+                />
+                <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "rgba(255,255,255,0.2)" }} />
+              </div>
+            </div>
+
+            {/* Layer 2 cards: USD → other currencies */}
+            {cambio.fx2.length > 0 && (
+              <div className={`grid grid-cols-1 md:grid-cols-${Math.min(cambio.fx2.length, 3)} gap-4 mb-4`}>
+                {cambio.fx2.map(c => {
+                  const color = FX_COLORS[c.moeda] ?? "#64748b";
+                  const vc = c.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400";
+                  const dc = c.deltaUSD >= 0 ? "text-emerald-400" : "text-red-400";
+                  const fillPct = Math.min(Math.max((c.deltaUSD / 20 + 0.5) * 100, 2), 98);
+                  return (
+                    <div key={c.moeda} className="glass-card p-5 animate-fade-in" style={{ borderColor: `${color}20` }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{c.moeda === "EUR" ? "🇪🇺" : c.moeda === "GBP" ? "🇬🇧" : c.moeda === "CAD" ? "🇨🇦" : "🌐"}</span>
+                          <div>
+                            <div className="text-sm font-bold" style={{ color }}>{c.moeda}</div>
+                            <div className="text-[9px] text-zinc-600 uppercase tracking-wider">via USD</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-base font-bold ${vc}`}>{c.ganhoBRL >= 0 ? "+" : ""}R$ {Math.abs(c.ganhoBRL).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
+                          <div className={`text-xs ${vc}`}>{c.ganhoPct >= 0 ? "+" : ""}{c.ganhoPct.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <div className="text-[9px] text-zinc-600">PM (USD/{c.moeda})</div>
+                          <div className="text-xs font-bold text-zinc-400">{c.pmUSD.toFixed(4)}</div>
+                        </div>
+                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <div className="text-[9px] text-zinc-600">Cotação (USD/{c.moeda})</div>
+                          <div className="text-xs font-bold text-zinc-100">{c.cotUSD.toFixed(4)}</div>
+                          <div className={`text-[9px] font-semibold ${dc}`}>{c.deltaUSD >= 0 ? "+" : ""}{c.deltaUSD.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <div className="text-[9px] text-zinc-600">PM (R$/{c.moeda})</div>
+                          <div className="text-xs font-bold text-zinc-400">R$ {c.pmBRL.toFixed(4)}</div>
+                        </div>
+                        <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <div className="text-[9px] text-zinc-600">Posição</div>
+                          <div className="text-xs font-bold text-zinc-100">{c.moeda === "EUR" ? "€" : c.moeda === "GBP" ? "£" : "C$"} {c.qtd.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="flex justify-between mb-1">
+                        <span className="text-[9px] text-zinc-700">PM → Spot</span>
+                        <span className={`text-[9px] font-semibold ${dc}`}>{c.deltaUSD >= 0 ? "+" : ""}{c.deltaUSD.toFixed(2)}%</span>
+                      </div>
+                      <div className="h-1 rounded-full relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                        <div className="absolute top-0 left-0 h-full rounded-full opacity-80" style={{ width: `${fillPct}%`, backgroundColor: c.deltaUSD >= 0 ? "#34d399" : "#f87171" }} />
+                        <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "rgba(255,255,255,0.2)" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Metric Cards ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
             <div className="animate-fade-in">
               <MetricCard
                 label="PM Dólar"
                 value={`R$ ${cambio.pmDolar.toFixed(4)}`}
-                sub={`Spot R$ ${spot.toFixed(4)} · ${pmVsSpot >= 0 ? "+" : ""}${pmVsSpot.toFixed(1)}%`}
+                sub={`Spot R$ ${spot.toFixed(4)} · ${cambio.deltaPmUsd >= 0 ? "+" : ""}${cambio.deltaPmUsd.toFixed(1)}%`}
                 icon={<DollarSign size={18} />}
                 glowColor="#d4a574"
               />
@@ -131,11 +310,11 @@ export default function CambioPage() {
             </div>
             <div className="animate-fade-in animate-delay-2">
               <MetricCard
-                label="Ganho USD"
-                value={brl(cambio.ganhoCambialUSD_BRL)}
-                sub={`$ ${cambio.totalRecebidoUSD.toLocaleString("en-US", { maximumFractionDigits: 0 })} · PM R$ ${cambio.pmDolar.toFixed(2)}`}
+                label="Ganho USD (net)"
+                value={brl(cambio.ganhoUsdBRL)}
+                sub={`$ ${cambio.usdNet.toLocaleString("en-US", { maximumFractionDigits: 0 })} net · PM R$ ${cambio.pmDolar.toFixed(2)}`}
                 icon={<ArrowLeftRight size={18} />}
-                trend={cambio.ganhoCambialUSD_BRL >= 0 ? "up" : "down"}
+                trend={cambio.ganhoUsdBRL >= 0 ? "up" : "down"}
                 glowColor="#3b82f6"
                 compact
               />
@@ -151,39 +330,7 @@ export default function CambioPage() {
             </div>
           </div>
 
-          {/* Multi-currency PM grid */}
-          {(cambio.totalRecebidoEUR > 0 || cambio.totalRecebidoCAD > 0 || cambio.totalRecebidoGBP > 0) && (
-            <div className="glass-card p-5 mb-6 animate-fade-in">
-              <h2 className="section-title mb-4">Preço Médio por Moeda</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: "USD", pm: cambio.pmDolar, spot: cambio.spotUSD, total: cambio.totalRecebidoUSD, ganho: cambio.ganhoCambialUSD_BRL, color: "#3b82f6", sym: "$" },
-                  ...(cambio.totalRecebidoEUR > 0 ? [{ label: "EUR", pm: cambio.pmEuro, spot: cambio.spotEUR, total: cambio.totalRecebidoEUR, ganho: cambio.ganhoCambialEUR_BRL, color: "#8b5cf6", sym: "€" }] : []),
-                  ...(cambio.totalRecebidoCAD > 0 ? [{ label: "CAD", pm: cambio.pmCad, spot: cambio.spotCAD, total: cambio.totalRecebidoCAD, ganho: cambio.ganhoCambialCAD_BRL, color: "#f59e0b", sym: "C$" }] : []),
-                  ...(cambio.totalRecebidoGBP > 0 ? [{ label: "GBP", pm: cambio.pmGbp, spot: cambio.spotGBP, total: cambio.totalRecebidoGBP, ganho: cambio.ganhoCambialGBP_BRL, color: "#10b981", sym: "£" }] : []),
-                ].map(c => {
-                  const diff = c.spot > 0 && c.pm > 0 ? ((c.spot / c.pm - 1) * 100) : 0;
-                  return (
-                    <div key={c.label} className="rounded-xl p-4" style={{ background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold" style={{ color: c.color }}>{c.label}</span>
-                        <span className={`text-xs font-semibold ${c.ganho >= 0 ? "text-emerald-400" : "text-red-400"}`}>{c.ganho >= 0 ? "+" : ""}{brl(c.ganho)}</span>
-                      </div>
-                      <div className="text-sm font-bold text-zinc-100">R$ {c.pm.toFixed(4)}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1">PM custo · {c.sym} {c.total.toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
-                      {c.spot > 0 && (
-                        <div className={`text-[10px] font-semibold mt-1 ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          Spot R$ {c.spot.toFixed(2)} · {diff >= 0 ? "+" : ""}{diff.toFixed(1)}%
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Comparison Bars */}
+          {/* ── Comparison Bars ── */}
           <div className="glass-card p-5 mb-6 animate-fade-in">
             <h2 className="section-title mb-5">Comparativo de Taxas</h2>
             <div className="grid grid-cols-3 gap-6">
@@ -209,7 +356,7 @@ export default function CambioPage() {
             </div>
           </div>
 
-          {/* FX History Chart */}
+          {/* ── FX History Chart ── */}
           {fxHistory.length > 1 && (
             <div className="glass-card p-5 mb-6 animate-fade-in">
               <h2 className="section-title mb-4">Histórico de Taxas (VET)</h2>
@@ -226,7 +373,7 @@ export default function CambioPage() {
             </div>
           )}
 
-          {/* Summary */}
+          {/* ── Summary ── */}
           <div className="glass-card p-5 mb-6 animate-fade-in">
             <h2 className="section-title mb-4">Resumo</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
@@ -235,16 +382,16 @@ export default function CambioPage() {
                 <span className="stat-value">{compactBRL(cambio.totalEnviadoBRL)}</span>
               </div>
               <div>
-                <span className="stat-label block mb-1">Total Recebido (USD)</span>
-                <span className="stat-value">$ {cambio.totalRecebidoUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="stat-label block mb-1">Total Comprado (USD)</span>
+                <span className="stat-value">$ {cambio.usdComprado.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div>
-                <span className="stat-label block mb-1">PM Euro</span>
-                <span className="stat-value">R$ {cambio.pmEuro.toFixed(4)}</span>
+                <span className="stat-label block mb-1">USD Disponível (net)</span>
+                <span className="stat-value">$ {cambio.usdNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
               <div>
                 <span className="stat-label block mb-1">Valor USD Hoje</span>
-                <span className="stat-value">{brl(cambio.totalRecebidoUSD * spot)}</span>
+                <span className="stat-value">{brl(cambio.valorUsdHoje)}</span>
               </div>
             </div>
           </div>
