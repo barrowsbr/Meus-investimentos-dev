@@ -293,26 +293,30 @@ function TickerTape({ items }: { items: TickerItem[] }) {
             <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.05)" }}>
               ▲ MELHORES
             </div>
-            {best5.map(p => (
-              <div key={p.ticker} className="flex items-baseline justify-between gap-1 px-2.5 py-[6px] border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] transition-colors overflow-hidden">
-                <span className="text-[0.7rem] font-bold text-zinc-200 truncate shrink-0">{p.label}</span>
-                <span className="text-[0.6rem] font-medium text-zinc-600 truncate text-right">{fmtPrice(p.price, p.moeda)}</span>
-                <span className="text-[0.6rem] font-bold text-emerald-400 shrink-0 whitespace-nowrap">{(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(1)}%</span>
-              </div>
-            ))}
+            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
+              {best5.map(p => (
+                <React.Fragment key={p.ticker}>
+                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
+                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
+                  <span className="text-[0.6rem] font-bold text-emerald-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(1)}%</span>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
           {/* Worst */}
           <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
             <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.05)" }}>
               ▼ PIORES
             </div>
-            {worst5.map(p => (
-              <div key={p.ticker} className="flex items-baseline justify-between gap-1 px-2.5 py-[6px] border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] transition-colors overflow-hidden">
-                <span className="text-[0.7rem] font-bold text-zinc-200 truncate shrink-0">{p.label}</span>
-                <span className="text-[0.6rem] font-medium text-zinc-600 truncate text-right">{fmtPrice(p.price, p.moeda)}</span>
-                <span className="text-[0.6rem] font-bold text-red-400 shrink-0 whitespace-nowrap">{(p.changePct ?? 0).toFixed(1)}%</span>
-              </div>
-            ))}
+            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
+              {worst5.map(p => (
+                <React.Fragment key={p.ticker}>
+                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
+                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
+                  <span className="text-[0.6rem] font-bold text-red-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0).toFixed(1)}%</span>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>
