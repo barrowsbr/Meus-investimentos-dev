@@ -176,7 +176,10 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
 
 // ── FX decomposition: R_total = (1 + R_ativo)(1 + R_fx) - 1 ─────────────────
 
-function calcularDecomposicaoFX(points: TwrDayPoint[]): {
+function calcularDecomposicaoFX(
+  points: TwrDayPoint[],
+  fxHistory: Record<string, { USDBRL: number }>,
+): {
   r_total: number;
   r_ativo: number;
   r_fx: number;
@@ -184,10 +187,13 @@ function calcularDecomposicaoFX(points: TwrDayPoint[]): {
 } {
   if (points.length < 2) return { r_total: 0, r_ativo: 0, r_fx: 0, r_combinado: 0 };
   const r_total = points[points.length - 1].twr;
-  // Simplified: without per-currency breakdown from the TWR engine
-  // Use approximate USD/BRL change as FX component
-  const r_ativo = r_total * 0.7; // approximate
-  const r_fx = r_total * 0.3;     // approximate
+  const firstFx = fxHistory[points[0].date]?.USDBRL;
+  const lastFx = fxHistory[points[points.length - 1].date]?.USDBRL;
+  if (!firstFx || !lastFx || firstFx <= 0) {
+    return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
+  }
+  const r_fx = (lastFx / firstFx) - 1;
+  const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
   const r_combinado = (1 + r_ativo) * (1 + r_fx) - 1;
   return { r_total, r_ativo, r_fx, r_combinado };
 }
@@ -329,7 +335,7 @@ export async function GET(request: Request) {
     const mwr = twr.mwr ?? calcularMWR(cashFlows);
 
     // FX decomposition
-    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints);
+    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx);
 
     // Attribution
     const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
