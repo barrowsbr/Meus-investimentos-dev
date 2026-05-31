@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,7 +9,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink,
+  ExternalLink, X,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -146,6 +146,111 @@ function fmtPrice(price: number, moeda: string): string {
   return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
+// ── Hologram Panel ──────────────────────────────────────────────────────────
+
+function HologramPanel({ active, onClose }: { active: boolean; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [exiting, setExiting] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (active) {
+      setVisible(true);
+      setExiting(false);
+      videoRef.current?.play().catch(() => {});
+    } else if (visible) {
+      setExiting(true);
+      const t = setTimeout(() => {
+        setVisible(false);
+        setExiting(false);
+        videoRef.current?.pause();
+        if (videoRef.current) videoRef.current.currentTime = 0;
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [active, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="flex flex-col items-center w-full mt-2 mb-4">
+      {/* Beam from logo */}
+      <div
+        className="w-px h-6 mx-auto"
+        style={{
+          background: "linear-gradient(180deg, rgba(0,255,255,0.5), rgba(0,255,255,0.05))",
+          animation: "holoBeam 2s ease-in-out infinite",
+        }}
+      />
+
+      {/* Holographic panel */}
+      <div
+        className={`relative w-full max-w-md rounded-xl overflow-hidden holo-scanlines ${exiting ? "holo-panel-exit" : "holo-panel-enter"}`}
+        style={{
+          background: "rgba(0, 20, 30, 0.75)",
+          border: "1px solid rgba(0, 255, 255, 0.25)",
+          boxShadow: "0 0 40px rgba(0, 255, 255, 0.12), 0 0 80px rgba(0, 255, 255, 0.06), inset 0 0 30px rgba(0, 255, 255, 0.04)",
+          animation: exiting
+            ? "holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards, holoFlicker 0.3s linear infinite"
+            : "holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards, holoFlicker 4s ease-in-out infinite",
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-full transition-colors"
+          style={{ background: "rgba(0,255,255,0.1)", border: "1px solid rgba(0,255,255,0.2)" }}
+        >
+          <X size={12} className="text-cyan-400" />
+        </button>
+
+        {/* Hologram label */}
+        <div
+          className="absolute top-2 left-3 z-10 flex items-center gap-1.5"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-[8px] font-extrabold tracking-[2px] uppercase text-cyan-400/70">HOLO · LIVE</span>
+        </div>
+
+        {/* Cyan tint overlay */}
+        <div
+          className="absolute inset-0 z-[1] pointer-events-none"
+          style={{
+            background: "linear-gradient(135deg, rgba(0,255,255,0.06) 0%, transparent 50%, rgba(0,180,255,0.04) 100%)",
+            mixBlendMode: "screen",
+          }}
+        />
+
+        {/* Video */}
+        <video
+          ref={videoRef}
+          src="/midias/video2.mp4"
+          muted
+          loop
+          playsInline
+          className="w-full aspect-video object-cover relative z-0"
+          style={{ filter: "brightness(0.8) contrast(1.1) saturate(0.7) hue-rotate(10deg)" }}
+        />
+
+        {/* Bottom edge glow */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-8 z-[4] pointer-events-none"
+          style={{ background: "linear-gradient(to top, rgba(0,255,255,0.08), transparent)" }}
+        />
+      </div>
+
+      {/* Beam reflection */}
+      <div
+        className="w-24 h-1 mx-auto rounded-full"
+        style={{
+          background: "radial-gradient(ellipse, rgba(0,255,255,0.2), transparent)",
+          filter: "blur(2px)",
+        }}
+      />
+    </div>
+  );
+}
+
 // ── AccordionGroup ───────────────────────────────────────────────────────────
 
 function AccordionGroup({ group }: { group: NavGroup }) {
@@ -157,25 +262,25 @@ function AccordionGroup({ group }: { group: NavGroup }) {
     <div
       className="rounded-2xl overflow-hidden transition-all duration-300"
       style={{
-        background: "rgba(13,14,20,0.75)",
-        border: `1px solid ${open ? c + "35" : "rgba(255,255,255,0.05)"}`,
-        boxShadow: open ? `0 12px 40px ${c}12` : "none",
+        background: "rgba(13,14,20,0.65)",
+        border: `1px solid ${open ? c + "30" : "rgba(255,255,255,0.05)"}`,
+        boxShadow: open ? `0 8px 32px ${c}10` : "none",
       }}
     >
       <button
         className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
-        style={{ background: open ? `${c}08` : "transparent" }}
+        style={{ background: open ? `${c}06` : "transparent" }}
         onClick={() => setOpen(!open)}
       >
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${c}18`, boxShadow: open ? `0 0 16px ${c}25` : "none" }}
+          style={{ background: `${c}12`, boxShadow: open ? `0 0 12px ${c}20` : "none" }}
         >
           <Icon size={18} style={{ color: c }} strokeWidth={1.8} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-zinc-100">{group.label}</p>
-          <p className="text-[11px] text-zinc-500 mt-0.5">{group.desc}</p>
+          <p className="text-[11px] text-zinc-600 mt-0.5">{group.desc}</p>
         </div>
         <ChevronDown
           size={15}
@@ -196,15 +301,15 @@ function AccordionGroup({ group }: { group: NavGroup }) {
               className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
               style={{
                 background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.03)",
               }}
               onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = `${c}0d`;
-                (e.currentTarget as HTMLElement).style.borderColor = `${c}25`;
+                (e.currentTarget as HTMLElement).style.background = `${c}0a`;
+                (e.currentTarget as HTMLElement).style.borderColor = `${c}20`;
               }}
               onMouseLeave={e => {
                 (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)";
-                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.04)";
+                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.03)";
               }}
             >
               <SubIcon size={15} className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0" strokeWidth={1.6} />
@@ -236,18 +341,18 @@ function TickerTape({ items }: { items: TickerItem[] }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-stretch overflow-hidden h-[44px] transition-all"
         style={{
-          background: "rgba(15,23,42,0.55)",
+          background: "rgba(13,14,20,0.65)",
           backdropFilter: "blur(16px)",
-          border: `1px solid ${expanded ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.12)"}`,
+          border: `1px solid ${expanded ? "rgba(212,165,116,0.25)" : "rgba(255,255,255,0.07)"}`,
           borderRadius: expanded ? "16px 16px 0 0" : "16px",
-          boxShadow: expanded ? "0 12px 40px -8px rgba(99,102,241,0.2)" : "0 8px 32px rgba(0,0,0,0.35)",
+          boxShadow: expanded ? "0 8px 32px rgba(212,165,116,0.08)" : "0 4px 20px rgba(0,0,0,0.25)",
         }}
       >
         {/* Badge */}
-        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r border-white/[0.07]"
-          style={{ background: "rgba(99,102,241,0.08)" }}>
-          <span className="w-[5px] h-[5px] rounded-full bg-indigo-400 animate-pulse" />
-          <span className="text-[0.52rem] font-extrabold tracking-[2px] text-indigo-400 whitespace-nowrap">AO VIVO</span>
+        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r border-white/[0.06]"
+          style={{ background: "rgba(212,165,116,0.06)" }}>
+          <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "#d4a574" }} />
+          <span className="text-[0.52rem] font-extrabold tracking-[2px] whitespace-nowrap" style={{ color: "#d4a574" }}>AO VIVO</span>
         </div>
 
         {/* Viewport */}
@@ -264,7 +369,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
                 <span className={`text-[0.7rem] font-bold ${(p.changePct ?? 0) > 0 ? "text-emerald-400" : (p.changePct ?? 0) < 0 ? "text-red-400" : "text-zinc-500"}`}>
                   {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
                 </span>
-                {i < items.length * 2 - 1 && <span className="text-white/[0.07] text-[0.85rem] pl-1">|</span>}
+                {i < items.length * 2 - 1 && <span className="text-white/[0.05] text-[0.85rem] pl-1">|</span>}
               </span>
             ))}
           </div>
@@ -280,17 +385,17 @@ function TickerTape({ items }: { items: TickerItem[] }) {
         className="overflow-hidden transition-all duration-400"
         style={{
           maxHeight: expanded ? "400px" : "0px",
-          background: "rgba(15,23,42,0.55)",
+          background: "rgba(13,14,20,0.65)",
           backdropFilter: "blur(16px)",
-          border: expanded ? "1px solid rgba(99,102,241,0.15)" : "1px solid transparent",
+          border: expanded ? "1px solid rgba(212,165,116,0.12)" : "1px solid transparent",
           borderTop: "none",
           borderRadius: "0 0 16px 16px",
         }}
       >
         <div className="p-3 grid grid-cols-2 gap-2">
           {/* Best */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.05)" }}>
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.04)" }}>
               ▲ MELHORES
             </div>
             <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
@@ -304,8 +409,8 @@ function TickerTape({ items }: { items: TickerItem[] }) {
             </div>
           </div>
           {/* Worst */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.05)" }}>
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.04)" }}>
               ▼ PIORES
             </div>
             <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
@@ -394,19 +499,19 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
 
   return (
-    <div className="w-full max-w-lg rounded-[20px] overflow-hidden" style={{
-      background: "rgba(9,14,25,0.82)",
+    <div className="w-full max-w-lg rounded-2xl overflow-hidden" style={{
+      background: "rgba(13,14,20,0.65)",
       backdropFilter: "blur(16px)",
-      border: "1px solid rgba(255,255,255,0.07)",
-      boxShadow: "0 14px 48px -10px rgba(0,0,0,0.55)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
     }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/[0.05]">
         <div className="flex items-center gap-2">
-          <span className="w-[7px] h-[7px] rounded-full bg-cyan-400 animate-pulse" />
+          <span className="w-[6px] h-[6px] rounded-full bg-cyan-400 animate-pulse" />
           <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-500">Radar do Dia</span>
         </div>
-        <span className="text-[0.63rem] text-zinc-800">{today}</span>
+        <span className="text-[0.63rem] text-zinc-700">{today}</span>
       </div>
 
       {/* News row: best vs worst */}
@@ -419,9 +524,9 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
 
       {/* Polymarket section */}
       <div className="flex items-center gap-2.5 px-4 py-2 border-b border-white/[0.04]">
-        <div className="flex-1 h-px bg-white/[0.05]" />
-        <span className="text-[0.6rem] font-extrabold tracking-[1.2px] uppercase text-sky-400 whitespace-nowrap">📊 Mercado Preditivo</span>
-        <div className="flex-1 h-px bg-white/[0.05]" />
+        <div className="flex-1 h-px bg-white/[0.04]" />
+        <span className="text-[0.6rem] font-extrabold tracking-[1.2px] uppercase text-cyan-400/80 whitespace-nowrap">Mercado Preditivo</span>
+        <div className="flex-1 h-px bg-white/[0.04]" />
       </div>
 
       {polyLoading ? (
@@ -444,7 +549,7 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
               href={ev.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-4 py-3 border-b border-white/[0.04] hover:bg-sky-400/[0.04] transition-colors"
+              className="block px-4 py-3 border-b border-white/[0.04] hover:bg-cyan-400/[0.03] transition-colors"
               style={{ display: i === polyIdx ? "block" : "none" }}
             >
               <p className="text-[0.87rem] font-semibold text-zinc-200 leading-[1.42] mb-2.5">{ev.title}</p>
@@ -452,15 +557,15 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
                 {(Array.isArray(ev.odds) ? ev.odds : []).slice(0, 3).map((o, j) => {
                   if (!o) return null;
                   const colorMap = {
-                    0: { bg: "rgba(34,211,238,0.16)", border: "rgba(34,211,238,0.4)", text: "text-cyan-400" },
-                    1: { bg: "rgba(251,146,60,0.14)", border: "rgba(251,146,60,0.35)", text: "text-orange-400" },
-                    2: { bg: "rgba(167,139,250,0.13)", border: "rgba(167,139,250,0.3)", text: "text-violet-400" },
+                    0: { bg: "rgba(212,165,116,0.14)", border: "rgba(212,165,116,0.4)", text: "text-amber-400" },
+                    1: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)", text: "text-indigo-400" },
+                    2: { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.3)", text: "text-violet-400" },
                   } as const;
                   const barColors = colorMap[j as 0 | 1 | 2] ?? colorMap[2];
                   const pct = typeof o.percent === "number" ? o.percent : 0;
                   return (
-                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-[7px]" style={{ background: "rgba(255,255,255,0.04)" }}>
-                      <div className="absolute left-0 top-0 bottom-0 rounded-[7px]" style={{
+                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <div className="absolute left-0 top-0 bottom-0 rounded-lg" style={{
                         width: `${pct}%`,
                         background: barColors.bg,
                         borderRight: `2px solid ${barColors.border}`,
@@ -484,11 +589,11 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
                   </b>
                   {ev.days_left != null && (
                     ev.days_left === 0 ? " · resolve hoje"
-                      : ev.days_left <= 7 ? ` · ⏳ ${ev.days_left}d restantes`
+                      : ev.days_left <= 7 ? ` · ${ev.days_left}d restantes`
                       : ` · resolve em ${ev.days_left}d`
                   )}
                 </span>
-                <span className="text-sky-400 font-semibold">Ver no Polymarket →</span>
+                <span className="font-semibold" style={{ color: "#d4a574" }}>Ver no Polymarket →</span>
               </div>
             </a>
           ))}
@@ -498,8 +603,8 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
             <span className="text-[0.63rem] text-zinc-600">{polyIdx + 1} / {polyEvents.length}</span>
             <button
               onClick={nextPoly}
-              className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:text-sky-400 hover:border-sky-400/30 hover:bg-sky-400/[0.06]"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}
+              className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:border-[#d4a574]/30 hover:bg-[#d4a574]/[0.06]"
+              style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)", color: "rgba(212,165,116,0.7)" }}
             >
               <ChevronRight size={11} />
               Próximo
@@ -558,7 +663,6 @@ function NewsCard({ article, ticker, changePct, isBest }: {
 }
 
 // ── FxExpandCard (Dollar) ────────────────────────────────────────────────────
-// Split into button (lives inside grid) + panel (rendered outside grid)
 
 function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
   usdbrl: number | null; usdDayChangePct: number | null; expanded: boolean; onToggle: () => void;
@@ -569,9 +673,9 @@ function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
       onClick={onToggle}
       className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer w-full h-full"
       style={{
-        background: "rgba(13,14,20,0.8)",
-        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
-        boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
+        background: "rgba(13,14,20,0.7)",
+        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.12)" : "rgba(248,113,113,0.12)"}`,
+        boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.03)" : "rgba(248,113,113,0.03)"}`,
       }}
     >
       <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
@@ -616,11 +720,11 @@ function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: 
       <div
         className="rounded-2xl overflow-hidden"
         style={{
-          background: "rgba(13,14,20,0.8)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(13,14,20,0.7)",
+          border: "1px solid rgba(255,255,255,0.06)",
         }}
       >
-        <div className="grid grid-cols-3 divide-x divide-white/[0.06]">
+        <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
           {fxPairs.map(pair => (
             <div key={pair.label} className="flex flex-col items-center py-2.5 px-2">
               <span className="text-[0.52rem] font-bold text-zinc-600 uppercase tracking-[1px] mb-1">{pair.label}</span>
@@ -630,11 +734,28 @@ function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: 
             </div>
           ))}
         </div>
-        <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.06] hover:bg-white/[0.03] transition-colors">
-          <Globe size={11} className="text-cyan-400" />
-          <span className="text-[0.6rem] font-semibold text-cyan-400">Ver todas as moedas</span>
+        <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
+          <Globe size={11} style={{ color: "#d4a574" }} />
+          <span className="text-[0.6rem] font-semibold" style={{ color: "#d4a574" }}>Ver todas as moedas</span>
         </Link>
       </div>
+    </div>
+  );
+}
+
+// ── MetricCard ──────────────────────────────────────────────────────────────
+
+function MetricCard({ children, borderColor }: { children: React.ReactNode; borderColor: string }) {
+  return (
+    <div
+      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+      style={{
+        background: "rgba(13,14,20,0.7)",
+        border: `1px solid ${borderColor}`,
+        boxShadow: `0 4px 20px ${borderColor.replace(/[^,]+\)$/, "0.03)")}`,
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -644,6 +765,7 @@ function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: 
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [fxExpanded, setFxExpanded] = useState(false);
+  const [holoActive, setHoloActive] = useState(false);
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -678,6 +800,10 @@ export default function HomePage() {
     return items;
   }, [data?.positions]);
 
+  const handleLogoClick = useCallback(() => {
+    setHoloActive(prev => !prev);
+  }, []);
+
   return (
     <ErrorBoundary>
     <div className="relative min-h-screen flex flex-col items-center">
@@ -685,28 +811,54 @@ export default function HomePage() {
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div
           className="absolute inset-0"
-          style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(20,22,35,0.7) 0%, rgba(10,11,15,0.97) 100%)" }}
+          style={{ background: "radial-gradient(ellipse at 50% 25%, rgba(22,24,38,0.6) 0%, rgba(10,11,15,0.98) 100%)" }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: "radial-gradient(ellipse at 30% 60%, rgba(212,165,116,0.02) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(99,102,241,0.02) 0%, transparent 50%)",
+          }}
         />
       </div>
 
       <div className="relative z-10 w-full max-w-lg px-4 py-10 flex flex-col items-center">
 
         {/* ── Hero ── */}
-        <div className="text-center mb-8 pt-16 animate-fade-in">
+        <div className="text-center mb-6 pt-16 animate-fade-in">
+          {/* Clickable logo with tilt */}
           <div className="flex justify-center mb-5">
-            <Image
-              src="/midias/carregamento.png"
-              alt="Meus Investimentos"
-              width={96}
-              height={96}
-              className="h-20 w-auto drop-shadow-lg"
-              priority
-            />
+            <button
+              onClick={handleLogoClick}
+              className={`relative group cursor-pointer transition-all duration-300 ${holoActive ? "logo-tilted" : "logo-idle"}`}
+              style={{ transformStyle: "preserve-3d" }}
+              aria-label="Ativar holograma"
+            >
+              <Image
+                src="/midias/carregamento.png"
+                alt="Meus Investimentos"
+                width={96}
+                height={96}
+                className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(212,165,116,0.3)]"
+                priority
+              />
+              {/* Eye beam when active */}
+              {holoActive && (
+                <div
+                  className="absolute -right-1 top-1/2 w-12 h-[2px] -translate-y-1/2"
+                  style={{
+                    background: "linear-gradient(90deg, rgba(0,255,255,0.6), rgba(0,255,255,0))",
+                    filter: "blur(1px)",
+                    animation: "holoBeam 2s ease-in-out infinite",
+                  }}
+                />
+              )}
+            </button>
           </div>
+
           <h1
-            className="text-3xl md:text-4xl font-bold mb-2 leading-tight"
+            className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight"
             style={{
-              background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 100%)",
+              background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 50%, #a1a1aa 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -714,37 +866,36 @@ export default function HomePage() {
           >
             Olá, Lucas
           </h1>
-          <div className="flex items-center gap-2 mt-2">
-            <p className="text-zinc-500 text-sm">Sistema integrado de gestão de investimentos</p>
+
+          <div className="flex items-center justify-center gap-2.5 mt-1.5">
+            <p className="text-zinc-600 text-sm">Gestão integrada de investimentos</p>
             <a
               href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
               target="_blank"
               rel="noopener noreferrer"
               className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all hover:scale-105 group"
               style={{
-                background: "rgba(255,75,75,0.08)",
-                border: "1px solid rgba(255,75,75,0.18)",
+                background: "rgba(255,75,75,0.06)",
+                border: "1px solid rgba(255,75,75,0.14)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/midias/streamlit-logo.svg" alt="" width={14} height={14} />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/70 group-hover:text-red-400 transition-colors">v1</span>
-              <ExternalLink size={8} className="text-red-400/40 group-hover:text-red-400/70 transition-colors" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/60 group-hover:text-red-400 transition-colors">v1</span>
+              <ExternalLink size={8} className="text-red-400/30 group-hover:text-red-400/60 transition-colors" />
             </a>
           </div>
         </div>
 
+        {/* ── Hologram ── */}
+        <ErrorBoundary>
+          <HologramPanel active={holoActive} onClose={() => setHoloActive(false)} />
+        </ErrorBoundary>
+
         {/* ── Live Metrics ── */}
         <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
           {/* Patrimônio Total */}
-          <div
-            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
-            style={{
-              background: "rgba(13,14,20,0.8)",
-              border: "1px solid rgba(212,165,116,0.15)",
-              boxShadow: "0 4px 20px rgba(212,165,116,0.05)",
-            }}
-          >
+          <MetricCard borderColor="rgba(212,165,116,0.12)">
             <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
             {loading || totalBRL === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
@@ -752,23 +903,16 @@ export default function HomePage() {
               <>
                 <span className="text-sm font-bold text-zinc-100">{compactBRL(totalBRL)}</span>
                 {totalUSD !== null && (
-                  <span className="text-[9px] text-zinc-500 mt-1">
+                  <span className="text-[9px] text-zinc-600 mt-1">
                     US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : Number(totalUSD).toFixed(0)}
                   </span>
                 )}
               </>
             )}
-          </div>
+          </MetricCard>
 
           {/* Retorno dia */}
-          <div
-            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
-            style={{
-              background: "rgba(13,14,20,0.8)",
-              border: `1px solid ${isDayUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}`,
-              boxShadow: `0 4px 20px ${isDayUp ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)"}`,
-            }}
-          >
+          <MetricCard borderColor={isDayUp ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)"}>
             <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
             {loading || dayChangePct === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
@@ -783,23 +927,20 @@ export default function HomePage() {
                   </span>
                 </div>
                 {dayChangeBRL !== null && (
-                  <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400/70" : "text-red-400/70"}`}>
+                  <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
                     {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
                   </span>
                 )}
               </>
             )}
-          </div>
+          </MetricCard>
 
-          {/* Dólar — button only, panel renders below grid */}
+          {/* Dólar */}
           {loading || !data ? (
-            <div
-              className="rounded-2xl p-4 flex flex-col items-center text-center"
-              style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}
-            >
+            <MetricCard borderColor="rgba(255,255,255,0.05)">
               <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
-            </div>
+            </MetricCard>
           ) : (
             <FxDollarButton
               usdbrl={usdbrl}
@@ -810,7 +951,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* FX expand panel — full width below the grid */}
+        {/* FX expand panel */}
         {!loading && data && (
           <FxExpandPanel data={data} expanded={fxExpanded} />
         )}
@@ -833,8 +974,15 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
+        {/* ── Section label ── */}
+        <div className="w-full flex items-center gap-3 mb-3 animate-fade-in animate-delay-2">
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(212,165,116,0.15))" }} />
+          <span className="text-[9px] font-extrabold tracking-[2px] uppercase text-zinc-700">Navegação</span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(212,165,116,0.15), transparent)" }} />
+        </div>
+
         {/* ── Navigation Groups ── */}
-        <div className="w-full flex flex-col gap-3 animate-fade-in animate-delay-2">
+        <div className="w-full flex flex-col gap-2.5 animate-fade-in animate-delay-2">
           {NAV_GROUPS.map(group => (
             <AccordionGroup key={group.id} group={group} />
           ))}
@@ -842,11 +990,11 @@ export default function HomePage() {
 
         {/* Footer */}
         <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, #2d2f3a)" }} />
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(45,47,58,0.5))" }} />
           <span className="text-[9px] text-zinc-700 font-medium tracking-widest uppercase">
             v1.0 · Personal
           </span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2d2f3a, transparent)" }} />
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(45,47,58,0.5), transparent)" }} />
         </div>
       </div>
 

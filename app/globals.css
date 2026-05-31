@@ -163,3 +163,95 @@ body {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
+
+/* ─── Hologram animations ─── */
+@keyframes logoTilt {
+  0%   { transform: perspective(600px) rotateY(0deg); }
+  100% { transform: perspective(600px) rotateY(-18deg); }
+}
+
+@keyframes holoAppear {
+  0%   { opacity: 0; transform: perspective(800px) rotateY(8deg) scale(0.85); clip-path: inset(50% 0 50% 0); }
+  40%  { opacity: 0.7; clip-path: inset(5% 0 5% 0); }
+  100% { opacity: 1; transform: perspective(800px) rotateY(2deg) scale(1); clip-path: inset(0 0 0 0); }
+}
+
+@keyframes holoDisappear {
+  0%   { opacity: 1; transform: perspective(800px) rotateY(2deg) scale(1); clip-path: inset(0 0 0 0); }
+  60%  { opacity: 0.5; clip-path: inset(10% 0 10% 0); }
+  100% { opacity: 0; transform: perspective(800px) rotateY(8deg) scale(0.85); clip-path: inset(50% 0 50% 0); }
+}
+
+@keyframes scanLines {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes holoFlicker {
+  0%, 100% { opacity: 0.92; }
+  5%       { opacity: 0.78; }
+  10%      { opacity: 0.95; }
+  50%      { opacity: 0.88; }
+  52%      { opacity: 0.72; }
+  54%      { opacity: 0.93; }
+}
+
+@keyframes holoBeam {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.55; }
+}
+
+.logo-idle {
+  transform: perspective(600px) rotateY(0deg);
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.logo-tilted {
+  animation: logoTilt 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.holo-panel-enter {
+  animation: holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.holo-panel-exit {
+  animation: holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+.holo-scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 255, 0.03) 2px,
+    rgba(0, 255, 255, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+.holo-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 255, 255, 0.08) 0%,
+    transparent 12%,
+    transparent 88%,
+    rgba(0, 255, 255, 0.08) 100%
+  );
+  animation: scanLines 3s linear infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ─── Section dividers ─── */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,165,116,0.2), transparent);
+  margin: 0.5rem 0;
+}
