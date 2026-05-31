@@ -244,29 +244,40 @@ export async function GET() {
     }
 
     type RentItem = {
-      ticker: string; setor: string; macro: string; status: string;
+      ticker: string; setor: string; macro: string; moeda: string; status: string;
       valor_atual_brl: number; custo_brl: number;
       lucro_nao_realizado_brl: number; lucro_realizado_brl: number;
-      proventos_brl: number; resultado_total_brl: number; retorno_total_pct: number;
+      proventos_brl: number; resultado_total_brl: number;
+      retorno_nao_realizado_pct: number;
+      retorno_realizado_proventos_pct: number;
+      retorno_total_pct: number;
     };
     const rentabilidade: RentItem[] = [];
 
-    // Active positions from snapshot
+    // Active positions from snapshot — returns computed in native currency
     for (const p of positions) {
       if (p.lucroPct === null) continue;
-      const lucroNaoRealizado = p.lucroBRL ?? 0;
-      const lucroRealizado = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
+      const lucroNaoRealizadoBRL = p.lucroBRL ?? 0;
+      const lucroRealizadoBRL = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
       const proventosAtivo = proventosPorTicker[p.ticker] ?? 0;
-      const resultadoTotal = lucroNaoRealizado + lucroRealizado + proventosAtivo;
-      const custoBase = p.custoTotalBRL > 0 ? p.custoTotalBRL : 1;
-      const retornoTotalPct = custoBase > 0 ? (resultadoTotal / custoBase) * 100 : (p.lucroPct ?? 0);
+      const resultadoTotal = lucroNaoRealizadoBRL + lucroRealizadoBRL + proventosAtivo;
+
+      const nativeFx = fxFactor(p.moeda, fxAtual);
+      const nativeNaoRealizado = p.valorAtual !== null ? p.valorAtual - p.custoTotal : 0;
+      const nativeRealizado = p.lucroRealizado;
+      const nativeProventos = nativeFx > 0 ? proventosAtivo / nativeFx : 0;
+      const retNaoRealizadoPct = p.custoTotal > 0 ? (nativeNaoRealizado / p.custoTotal) * 100 : 0;
+      const retRealizadoProventosPct = p.custoTotal > 0 ? ((nativeRealizado + nativeProventos) / p.custoTotal) * 100 : 0;
+
       rentabilidade.push({
-        ticker: p.ticker, setor: p.setor,
+        ticker: p.ticker, setor: p.setor, moeda: p.moeda,
         macro: classificarCamadas(p.ticker, p.setor).macro,
         status: "Ativo", valor_atual_brl: p.valorAtualBRL, custo_brl: p.custoTotalBRL,
-        lucro_nao_realizado_brl: lucroNaoRealizado, lucro_realizado_brl: lucroRealizado,
+        lucro_nao_realizado_brl: lucroNaoRealizadoBRL, lucro_realizado_brl: lucroRealizadoBRL,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
-        retorno_total_pct: retornoTotalPct,
+        retorno_nao_realizado_pct: retNaoRealizadoPct,
+        retorno_realizado_proventos_pct: retRealizadoProventosPct,
+        retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
       });
     }
 
@@ -278,18 +289,21 @@ export async function GET() {
       const proventosAtivo = proventosPorTicker[ticker] ?? 0;
       if (Math.abs(pos.lucroRealizado) < 0.01 && proventosAtivo < 0.01) continue;
       const setor = identificarSetor(ticker);
-      const lucroRealizado = pos.lucroRealizado * fxFactor(pos.moeda, fxAtual);
-      const resultadoTotal = lucroRealizado + proventosAtivo;
+      const lucroRealizadoBRL = pos.lucroRealizado * fxFactor(pos.moeda, fxAtual);
+      const resultadoTotal = lucroRealizadoBRL + proventosAtivo;
       rentabilidade.push({
-        ticker, setor, macro: classificarCamadas(ticker, setor).macro,
+        ticker, setor, moeda: pos.moeda,
+        macro: classificarCamadas(ticker, setor).macro,
         status: "Vendido", valor_atual_brl: 0, custo_brl: 0,
-        lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado,
+        lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizadoBRL,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        retorno_nao_realizado_pct: 0,
+        retorno_realizado_proventos_pct: 0,
         retorno_total_pct: 0,
       });
     }
 
-    // fixa_aberta RF positions (Tesouro Direto, CDBs, etc.)
+    // fixa_aberta RF positions (Tesouro Direto, CDBs, etc.) — already in native BRL
     for (const row of fixaAberta) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
       if (!ticker || activeTickerSet.has(ticker.toUpperCase())) continue;
@@ -301,14 +315,17 @@ export async function GET() {
       const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
       const lucroNaoRealizado = custo > 0 ? valorBRL - custo : 0;
       const resultadoTotal = lucroNaoRealizado + proventosAtivo;
-      const retorno = custo > 0 ? (resultadoTotal / custo) * 100 : 0;
+      const retNaoRealizadoPct = custo > 0 ? (lucroNaoRealizado / custo) * 100 : 0;
+      const retRealizadoProventosPct = custo > 0 && proventosAtivo > 0 ? (proventosAtivo / custo) * 100 : 0;
       const { macro, sub } = classificarCamadas(ticker, "Renda Fixa");
       rentabilidade.push({
-        ticker, setor: sub, macro,
+        ticker, setor: sub, macro, moeda,
         status: "Ativo", valor_atual_brl: valorBRL, custo_brl: custo,
         lucro_nao_realizado_brl: lucroNaoRealizado, lucro_realizado_brl: 0,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
-        retorno_total_pct: retorno,
+        retorno_nao_realizado_pct: retNaoRealizadoPct,
+        retorno_realizado_proventos_pct: retRealizadoProventosPct,
+        retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
       });
     }
 
