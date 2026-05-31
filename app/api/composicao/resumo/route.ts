@@ -4,105 +4,12 @@ import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
+import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
-
-// ── ETF Holdings (embedded fallback Q1-2025) ──────────────────────────────────
-
-const ETF_HOLDINGS: Record<string, Array<{ ticker: string; name: string; weight: number }>> = {
-  QQQ: [
-    { ticker: "AAPL",  name: "Apple Inc",               weight: 8.9 },
-    { ticker: "MSFT",  name: "Microsoft Corp",           weight: 8.1 },
-    { ticker: "NVDA",  name: "NVIDIA Corp",              weight: 8.0 },
-    { ticker: "AMZN",  name: "Amazon.com Inc",           weight: 5.4 },
-    { ticker: "META",  name: "Meta Platforms",           weight: 4.8 },
-    { ticker: "AVGO",  name: "Broadcom Inc",             weight: 4.6 },
-    { ticker: "GOOGL", name: "Alphabet Class A",         weight: 4.2 },
-    { ticker: "TSLA",  name: "Tesla Inc",                weight: 3.6 },
-    { ticker: "GOOG",  name: "Alphabet Class C",         weight: 3.5 },
-    { ticker: "COST",  name: "Costco Wholesale",         weight: 2.7 },
-    { ticker: "NFLX",  name: "Netflix Inc",              weight: 1.9 },
-    { ticker: "AMD",   name: "Advanced Micro Devices",   weight: 1.7 },
-    { ticker: "ADBE",  name: "Adobe Inc",                weight: 1.5 },
-    { ticker: "QCOM",  name: "Qualcomm Inc",             weight: 1.5 },
-    { ticker: "INTU",  name: "Intuit Inc",               weight: 1.4 },
-    { ticker: "TXN",   name: "Texas Instruments",        weight: 1.3 },
-    { ticker: "AMAT",  name: "Applied Materials",        weight: 1.2 },
-    { ticker: "AMGN",  name: "Amgen Inc",                weight: 1.1 },
-    { ticker: "HON",   name: "Honeywell International",  weight: 1.0 },
-    { ticker: "SBUX",  name: "Starbucks Corp",           weight: 0.9 },
-    { ticker: "ISRG",  name: "Intuitive Surgical",       weight: 0.9 },
-    { ticker: "MU",    name: "Micron Technology",        weight: 0.8 },
-    { ticker: "LRCX",  name: "Lam Research",             weight: 0.8 },
-    { ticker: "PDD",   name: "PDD Holdings",             weight: 0.8 },
-    { ticker: "REGN",  name: "Regeneron Pharmaceuticals",weight: 0.7 },
-  ],
-  "VWRA.L": [
-    { ticker: "AAPL",  name: "Apple Inc",               weight: 4.2 },
-    { ticker: "MSFT",  name: "Microsoft Corp",           weight: 3.9 },
-    { ticker: "NVDA",  name: "NVIDIA Corp",              weight: 3.8 },
-    { ticker: "AMZN",  name: "Amazon.com Inc",           weight: 2.5 },
-    { ticker: "META",  name: "Meta Platforms",           weight: 2.3 },
-    { ticker: "GOOGL", name: "Alphabet Class A",         weight: 2.0 },
-    { ticker: "AVGO",  name: "Broadcom Inc",             weight: 1.8 },
-    { ticker: "TSLA",  name: "Tesla Inc",                weight: 1.7 },
-    { ticker: "GOOG",  name: "Alphabet Class C",         weight: 1.5 },
-    { ticker: "BRK-B", name: "Berkshire Hathaway B",     weight: 1.3 },
-    { ticker: "JPM",   name: "JPMorgan Chase",           weight: 1.2 },
-    { ticker: "LLY",   name: "Eli Lilly",                weight: 1.0 },
-    { ticker: "V",     name: "Visa Inc",                 weight: 0.9 },
-    { ticker: "XOM",   name: "Exxon Mobil",              weight: 0.8 },
-    { ticker: "JNJ",   name: "Johnson & Johnson",        weight: 0.8 },
-    { ticker: "UNH",   name: "UnitedHealth Group",       weight: 0.8 },
-    { ticker: "MA",    name: "Mastercard",               weight: 0.8 },
-    { ticker: "COST",  name: "Costco Wholesale",         weight: 0.7 },
-    { ticker: "HD",    name: "Home Depot",               weight: 0.7 },
-    { ticker: "ASML",  name: "ASML Holding",             weight: 0.7 },
-    { ticker: "PG",    name: "Procter & Gamble",         weight: 0.7 },
-    { ticker: "WMT",   name: "Walmart Inc",              weight: 0.6 },
-    { ticker: "BAC",   name: "Bank of America",          weight: 0.6 },
-    { ticker: "NFLX",  name: "Netflix Inc",              weight: 0.6 },
-    { ticker: "ABBV",  name: "AbbVie Inc",               weight: 0.6 },
-  ],
-  SPY: [
-    { ticker: "AAPL",  name: "Apple Inc",               weight: 7.1 },
-    { ticker: "MSFT",  name: "Microsoft Corp",           weight: 6.5 },
-    { ticker: "NVDA",  name: "NVIDIA Corp",              weight: 6.3 },
-    { ticker: "AMZN",  name: "Amazon.com Inc",           weight: 3.7 },
-    { ticker: "META",  name: "Meta Platforms",           weight: 2.8 },
-    { ticker: "AVGO",  name: "Broadcom Inc",             weight: 2.5 },
-    { ticker: "GOOGL", name: "Alphabet Class A",         weight: 2.2 },
-    { ticker: "TSLA",  name: "Tesla Inc",                weight: 2.0 },
-    { ticker: "GOOG",  name: "Alphabet Class C",         weight: 1.9 },
-    { ticker: "BRK-B", name: "Berkshire Hathaway B",     weight: 1.7 },
-    { ticker: "JPM",   name: "JPMorgan Chase",           weight: 1.5 },
-    { ticker: "LLY",   name: "Eli Lilly",                weight: 1.4 },
-    { ticker: "UNH",   name: "UnitedHealth Group",       weight: 1.3 },
-    { ticker: "XOM",   name: "Exxon Mobil",              weight: 1.3 },
-    { ticker: "COST",  name: "Costco Wholesale",         weight: 1.2 },
-    { ticker: "V",     name: "Visa Inc",                 weight: 1.1 },
-    { ticker: "NFLX",  name: "Netflix Inc",              weight: 1.1 },
-    { ticker: "MA",    name: "Mastercard",               weight: 1.0 },
-    { ticker: "HD",    name: "Home Depot",               weight: 0.9 },
-    { ticker: "PG",    name: "Procter & Gamble",         weight: 0.9 },
-    { ticker: "JNJ",   name: "Johnson & Johnson",        weight: 0.8 },
-    { ticker: "WMT",   name: "Walmart Inc",              weight: 0.8 },
-    { ticker: "ABBV",  name: "AbbVie Inc",               weight: 0.8 },
-    { ticker: "BAC",   name: "Bank of America",          weight: 0.7 },
-    { ticker: "CRM",   name: "Salesforce Inc",           weight: 0.7 },
-  ],
-  VOO: [],
-};
-ETF_HOLDINGS.VOO = ETF_HOLDINGS.SPY;
-ETF_HOLDINGS.IVV = ETF_HOLDINGS.SPY;
-ETF_HOLDINGS.IVVB11 = ETF_HOLDINGS.SPY;
-ETF_HOLDINGS.VWRA = ETF_HOLDINGS["VWRA.L"];
-
-// ETFs that support look-through expansion
-const LOOKTHROUGH_ETFS = new Set(["QQQ", "VWRA", "VWRA.L", "SPY", "VOO", "IVV", "IVVB11"]);
 
 // ── Macro classification ──────────────────────────────────────────────────────
 
@@ -170,14 +77,13 @@ export async function GET() {
 
   try {
     // ── 1. Load all data ──────────────────────────────────────────────────────
-    const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows, composicaoRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
       fetchTab("fixa_aberta").catch(() => []),
       fetchTab("renda_fixa").catch(() => []),
       fetchTab("cambio").catch(() => []),
       fetchTab("p_tax").catch(() => []),
-      fetchTab("composicao").catch(() => []),
     ]);
 
     // ── 2. Get quotes and build snapshot ─────────────────────────────────────
@@ -209,25 +115,7 @@ export async function GET() {
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
     const positions = snapshot.positions;
 
-    // ── 3. Load stored ETF compositions from GSheets ─────────────────────────
-    const storedCompositions: Record<string, Array<{ ticker: string; name: string; weight: number }>> = {};
-    if (composicaoRows.length > 0) {
-      for (const row of composicaoRows) {
-        const etf = String(row["etf"] ?? "").toUpperCase().trim();
-        const ticker = String(row["ticker"] ?? "").trim();
-        const weightRaw = String(row["weight_pct"] ?? row["peso"] ?? row["percentual"] ?? "0");
-        const weight = parseFloat(weightRaw.replace(",", "."));
-        if (!etf || !ticker || isNaN(weight)) continue;
-        if (!storedCompositions[etf]) storedCompositions[etf] = [];
-        storedCompositions[etf].push({
-          ticker,
-          name: String(row["name"] ?? row["nome"] ?? ticker),
-          weight,
-        });
-      }
-    }
-
-    // ── 4. Top / Bottom performers (native currency return) ─────────────────
+    // ── 3. Top / Bottom performers (native currency return) ──────────────────
     const rvPositions = positions.filter(p => isRendaVariavel(p.setor) && p.valorAtual !== null && p.custoTotal > 0);
     let topPerformer: { ticker: string; lucro_pct: number; setor: string } | null = null;
     let bottomPerformer: { ticker: string; lucro_pct: number; setor: string } | null = null;
@@ -456,49 +344,35 @@ export async function GET() {
     });
 
     // ── 11. ETF Look-Through ──────────────────────────────────────────────────
-    const etfPositions = positions.filter(p =>
-      ["ETF USA", "ETF"].includes(p.setor) && LOOKTHROUGH_ETFS.has(p.ticker)
-    );
+    const ltPositions = positions.map(p => ({
+      ticker: p.ticker,
+      setor: p.setor,
+      valorAtualBRL: p.valorAtualBRL,
+      quantidade: p.quantidade,
+    }));
 
-    const lookThroughCompositions: Record<string, {
-      ticker: string;
-      valor_brl: number;
-      components: Array<{ ativo: string; peso: number }>;
-    }> = {};
-    const supported: string[] = [];
-    const unsupported: string[] = [];
-    let totalLookThroughBRL = 0;
-
-    for (const pos of etfPositions) {
-      const holdings =
-        storedCompositions[pos.ticker] ||
-        ETF_HOLDINGS[pos.ticker] ||
-        ETF_HOLDINGS[pos.ticker.replace(".SA", "")] ||
-        null;
-
-      if (holdings && holdings.length > 0) {
-        const totalWeight = holdings.reduce((s, h) => s + h.weight, 0);
-        supported.push(pos.ticker);
-        totalLookThroughBRL += pos.valorAtualBRL;
-        lookThroughCompositions[pos.ticker] = {
-          ticker: pos.ticker,
-          valor_brl: pos.valorAtualBRL,
-          components: holdings.map(h => ({
-            ativo: h.ticker,
-            peso: totalWeight > 0 ? h.weight / totalWeight : 0,
-          })).sort((a, b) => b.peso - a.peso),
-        };
-      } else {
-        unsupported.push(pos.ticker);
-      }
+    let ltResult: Awaited<ReturnType<typeof computeLookThrough>>;
+    const { stored, updatedAt } = await loadFromGSheets();
+    if (Object.keys(stored).length > 0) {
+      ltResult = computeFromStored(stored, ltPositions, 50);
+      if (updatedAt) ltResult.updated_at = updatedAt;
+    } else {
+      ltResult = await computeLookThrough(ltPositions, 50);
     }
 
-    // ETF positions without look-through
-    const allEtfPositions = positions.filter(p =>
-      ["ETF USA", "ETF"].includes(p.setor) && !LOOKTHROUGH_ETFS.has(p.ticker)
-    );
-    for (const pos of allEtfPositions) {
-      unsupported.push(pos.ticker);
+    const lookThroughCompositions: Record<string, { ticker: string; valor_brl: number; components: Array<{ ativo: string; name: string; peso: number }> }> = {};
+    for (const [etfTicker, data] of Object.entries(ltResult.per_etf)) {
+      if (data.status !== "ok" || !data.holdings) continue;
+      const totalWeight = data.holdings.reduce((s, h) => s + h.weight_pct, 0);
+      lookThroughCompositions[etfTicker] = {
+        ticker: etfTicker,
+        valor_brl: data.value_brl,
+        components: data.holdings.map(h => ({
+          ativo: h.ticker,
+          name: h.name,
+          peso: totalWeight > 0 ? h.weight_pct / totalWeight : 0,
+        })).sort((a, b) => b.peso - a.peso),
+      };
     }
 
     return NextResponse.json(
@@ -525,10 +399,12 @@ export async function GET() {
         risco_retorno: riscoRetorno,
         pareto,
         look_through: {
-          supported,
-          unsupported: [...new Set(unsupported)],
+          supported: ltResult.supported,
+          unsupported: ltResult.unsupported,
           compositions: lookThroughCompositions,
-          total_look_through_brl: totalLookThroughBRL,
+          total_look_through_brl: ltResult.total_look_through_brl,
+          sources: ltResult.sources,
+          updated_at: ltResult.updated_at,
         },
         errors,
       },

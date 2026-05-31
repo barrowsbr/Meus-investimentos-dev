@@ -39,7 +39,7 @@ export default function MetricCard({
       }}
     >
       <div
-        className="metric-glow rounded-[calc(1rem-1px)] p-4 md:p-5 flex flex-col gap-1.5 h-full backdrop-blur-md"
+        className="metric-glow rounded-[calc(1rem-1px)] p-3 sm:p-4 md:p-5 flex flex-col gap-1 sm:gap-1.5 h-full backdrop-blur-md"
         style={{
           background: "rgba(19, 20, 26, 0.90)",
           "--glow-color": color,
@@ -59,7 +59,7 @@ export default function MetricCard({
 
         <span
           className={`${
-            compact ? "text-lg md:text-xl" : "text-xl md:text-2xl"
+            compact ? "text-base sm:text-lg md:text-xl" : "text-lg sm:text-xl md:text-2xl"
           } font-bold tracking-tight text-zinc-100 ${trendColor}`}
         >
           {value}
