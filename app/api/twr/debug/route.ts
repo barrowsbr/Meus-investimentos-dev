@@ -6,7 +6,8 @@ export const maxDuration = 30;
 async function testYF2(ticker: string) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yf: any = (await import("yahoo-finance2")).default;
+    const YF: any = (await import("yahoo-finance2")).default;
+    const yf = typeof YF === "function" ? new YF() : YF;
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 10);

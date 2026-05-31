@@ -39,8 +39,8 @@ async function fetchViaYF2(
   endStr: string
 ): Promise<{ date: string; price: number }[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const yf: any = (await import("yahoo-finance2")).default;
-  // validateResult: false avoids strict schema validation failures in yf2 v3+
+  const YF: any = (await import("yahoo-finance2")).default;
+  const yf = typeof YF === "function" ? new YF() : YF;
   const rows = await yf.historical(
     ticker,
     { period1: startStr, period2: endStr, interval: "1d" },

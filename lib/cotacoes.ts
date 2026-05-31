@@ -71,7 +71,8 @@ const FX_SYMBOL_MAP: Record<string, keyof FxRates> = {
 
 async function fetchFxYahoo(): Promise<FxRates> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const yahooFinance: any = (await import("yahoo-finance2")).default;
+  const YF: any = (await import("yahoo-finance2")).default;
+  const yahooFinance = typeof YF === "function" ? new YF() : YF;
 
   const fxTickers = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
   const fx = { ...DEFAULTS_FX };
@@ -145,7 +146,8 @@ export async function fetchFxRates(): Promise<{ fx: FxRates; fxSource: string }>
 
 async function fetchQuotesYF2(yahooTickers: string[]): Promise<Record<string, Quote>> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const yahooFinance: any = (await import("yahoo-finance2")).default;
+  const YF: any = (await import("yahoo-finance2")).default;
+  const yahooFinance = typeof YF === "function" ? new YF() : YF;
 
   const results: Record<string, Quote> = {};
   const batchSize = 5;

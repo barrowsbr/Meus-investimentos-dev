@@ -33,7 +33,8 @@ interface OHLCPoint {
 
 async function fetchViaYF2(symbol: string, range: string): Promise<OHLCPoint[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const yf: any = (await import("yahoo-finance2")).default;
+  const YF: any = (await import("yahoo-finance2")).default;
+  const yf = typeof YF === "function" ? new YF() : YF;
   const startDate = rangeToStartDate(range);
   const endDate = new Date().toISOString().split("T")[0];
   const rows = await yf.historical(
