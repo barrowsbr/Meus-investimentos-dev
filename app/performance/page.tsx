@@ -48,7 +48,7 @@ interface Summary {
   troughTwr: number;
 }
 
-interface ChartPoint { date: string; nav: number; flow: number; ret: number; twr: number }
+interface ChartPoint { date: string; nav: number; flow: number; ret: number; twr: number; cdi_twr?: number | null; ibov_twr?: number | null }
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
@@ -215,12 +215,12 @@ export default function PerformancePage() {
 
   const chartData = useMemo(() => {
     if (!data) return [];
-    return data.chart.map((p, i) => ({
+    return data.chart.map(p => ({
       date: p.date.slice(5),
       fullDate: p.date,
       portfolio: +(p.twr * 100).toFixed(2),
-      cdi: data.benchmarks.cdi[i]?.twr != null ? +(data.benchmarks.cdi[i].twr * 100).toFixed(2) : null,
-      ibov: data.benchmarks.ibov[i]?.twr != null ? +(data.benchmarks.ibov[i].twr * 100).toFixed(2) : null,
+      cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
+      ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
       nav: p.nav,
     }));
   }, [data]);

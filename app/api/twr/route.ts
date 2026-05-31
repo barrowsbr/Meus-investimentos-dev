@@ -148,7 +148,17 @@ export async function GET(request: Request) {
     const ibovNorm = normalizeBenchmark(ibovPoints, benchStart);
 
     // ── 7. Thin series for chart ─────────────────────────────────────────────
-    const chartPoints = thinSeries(twr.points);
+    // Only send meaningful points (NAV > 0) with benchmarks merged by date
+    const firstMeanIdx = twr.points.findIndex(p => p.nav > 0);
+    const meaningfulPts = firstMeanIdx >= 0 ? twr.points.slice(firstMeanIdx) : twr.points;
+    const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
+    const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
+    const mergedChart = meaningfulPts.map(p => ({
+      ...p,
+      cdi_twr: cdiMap.get(p.date) ?? null,
+      ibov_twr: ibovMap.get(p.date) ?? null,
+    }));
+    const chartPoints = thinSeries(mergedChart as TwrDayPoint[]);
     const chartCDI = thinSeries(cdiNorm);
     const chartIBOV = thinSeries(ibovNorm);
 

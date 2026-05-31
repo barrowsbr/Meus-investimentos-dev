@@ -451,7 +451,19 @@ export async function GET(request: Request) {
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
         troughTwr: troughTwr === Infinity ? 0 : troughTwr,
       },
-      chart: thinSeries(twr.points),
+      chart: (() => {
+        // Merge benchmarks into chart points by date so the frontend doesn't
+        // need index-based alignment (which breaks after independent thinning).
+        // Only send meaningful points (NAV > 0) to avoid the flat 0% prefix.
+        const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
+        const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
+        const merged = meaningfulPoints.map(p => ({
+          date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
+          cdi_twr: cdiMap.get(p.date) ?? null,
+          ibov_twr: ibovMap.get(p.date) ?? null,
+        }));
+        return thinSeries(merged as any);
+      })(),
       benchmarks: {
         cdi: thinSeries(cdiNorm),
         ibov: thinSeries(ibovNorm),
