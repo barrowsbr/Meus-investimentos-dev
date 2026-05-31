@@ -457,6 +457,7 @@ export async function GET() {
           rv_value: snapshot.rvPatrimonioBRL,
           rf_value: snapshot.rfPatrimonioBRL,
           total_proventos: snapshot.totalProventosBRL,
+          lucro_total_brl: rentabilidade.reduce((s, r) => s + r.resultado_total_brl, 0),
           top_performer: topPerformer,
           bottom_performer: bottomPerformer,
         },

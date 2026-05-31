@@ -40,7 +40,7 @@ interface TreeNode { name: string; value: number; pct: number; children?: TreeNo
 interface ComposicaoData {
   computed_at: string;
   fx: { USDBRL: number; EURBRL: number; CADBRL: number; GBPBRL: number };
-  resumo: { total_portfolio: number; rv_value: number; rf_value: number; total_proventos: number; top_performer: Performer | null; bottom_performer: Performer | null };
+  resumo: { total_portfolio: number; rv_value: number; rf_value: number; total_proventos: number; lucro_total_brl: number; top_performer: Performer | null; bottom_performer: Performer | null };
   estrutura_carteira: TreeNode[];
   exposicao_cambial: Record<string, number>;
   custodia: { brasil: number; exterior: number; brasil_pct: number; exterior_pct: number };
@@ -364,7 +364,7 @@ export default function ResumoPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
            HERO — Big numbers
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-3">
         <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
           sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
           icon={<DollarSign size={17} />}
@@ -379,6 +379,16 @@ export default function ResumoPage() {
           icon={<TrendingUp size={17} />}
           trend={data.lucroBRL >= 0 ? "up" : "down"}
           glowColor={data.lucroBRL >= 0 ? "#34d399" : "#f87171"} />
+        {composicao?.resumo.lucro_total_brl !== undefined && (() => {
+          const lucroTotal = composicao.resumo.lucro_total_brl;
+          return (
+            <MetricCard label="Resultado Total" value={compactBRL(lucroTotal)}
+              sub={`RV + RF + Proventos`}
+              icon={lucroTotal >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
+              trend={lucroTotal >= 0 ? "up" : "down"}
+              glowColor={lucroTotal >= 0 ? "#34d399" : "#f87171"} />
+          );
+        })()}
       </div>
 
       {/* ── Secondary metrics + performers in a unified strip ── */}
