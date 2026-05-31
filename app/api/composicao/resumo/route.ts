@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
-import { calcularSnapshot } from "@/lib/portfolio";
+import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
 import type { Position } from "@/lib/portfolio";
@@ -170,10 +170,11 @@ export async function GET() {
 
   try {
     // ── 1. Load all data ──────────────────────────────────────────────────────
-    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, composicaoRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows, composicaoRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
       fetchTab("fixa_aberta").catch(() => []),
+      fetchTab("renda_fixa").catch(() => []),
       fetchTab("cambio").catch(() => []),
       fetchTab("p_tax").catch(() => []),
       fetchTab("composicao").catch(() => []),
@@ -226,25 +227,33 @@ export async function GET() {
       }
     }
 
-    // ── 4. Top / Bottom performers ────────────────────────────────────────────
-    const rvPositions = positions.filter(p => isRendaVariavel(p.setor) && p.lucroPct !== null);
+    // ── 4. Top / Bottom performers (native currency return) ─────────────────
+    const rvPositions = positions.filter(p => isRendaVariavel(p.setor) && p.valorAtual !== null && p.custoTotal > 0);
     let topPerformer: { ticker: string; lucro_pct: number; setor: string } | null = null;
     let bottomPerformer: { ticker: string; lucro_pct: number; setor: string } | null = null;
 
     if (rvPositions.length > 0) {
-      const sorted = [...rvPositions].sort((a, b) => (b.lucroPct ?? 0) - (a.lucroPct ?? 0));
+      const nativeRet = (p: Position) => ((p.valorAtual! / p.custoTotal) - 1) * 100;
+      const sorted = [...rvPositions].sort((a, b) => nativeRet(b) - nativeRet(a));
       const top = sorted[0];
       const bot = sorted[sorted.length - 1];
-      if (top) topPerformer = { ticker: top.ticker, lucro_pct: top.lucroPct ?? 0, setor: top.setor };
-      if (bot) bottomPerformer = { ticker: bot.ticker, lucro_pct: bot.lucroPct ?? 0, setor: bot.setor };
+      if (top) topPerformer = { ticker: top.ticker, lucro_pct: nativeRet(top), setor: top.setor };
+      if (bot) bottomPerformer = { ticker: bot.ticker, lucro_pct: nativeRet(bot), setor: bot.setor };
     }
 
-    // ── 5. Exposição cambial detalhada ────────────────────────────────────────
+    // ── 5. Exposição cambial detalhada (includes fixa_aberta) ───────────────
     const exposicaoCambial: Record<string, number> = {};
     for (const pos of positions) {
       const moedaExp = getMoedaExposicao(pos.setor, pos.moeda);
       const key = pos.setor === "Cripto" ? "Cripto" : moedaExp;
       exposicaoCambial[key] = (exposicaoCambial[key] ?? 0) + pos.valorAtualBRL;
+    }
+    for (const row of fixaAberta) {
+      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
+      exposicaoCambial[moeda] = (exposicaoCambial[moeda] ?? 0) + valorBRL;
     }
 
     // ── 6. Estrutura da carteira (Treemap: Macro > Setor > Ticker) ────────────
@@ -305,15 +314,20 @@ export async function GET() {
       })
       .sort((a, b) => b.value - a.value);
 
-    // ── 7. Custódia Brasil vs Exterior (matches Streamlit: based on currency) ─
+    // ── 7. Custódia Brasil vs Exterior (includes fixa_aberta) ──────────────
     let brasil = 0;
     let exterior = 0;
     for (const pos of positions) {
-      if (pos.moeda === "BRL") {
-        brasil += pos.valorAtualBRL;
-      } else {
-        exterior += pos.valorAtualBRL;
-      }
+      if (pos.moeda === "BRL") brasil += pos.valorAtualBRL;
+      else exterior += pos.valorAtualBRL;
+    }
+    for (const row of fixaAberta) {
+      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
+      if (moeda === "BRL") brasil += valorBRL;
+      else exterior += valorBRL;
     }
     const totalCustodia = brasil + exterior;
     const custodia = {
@@ -323,30 +337,93 @@ export async function GET() {
       exterior_pct: totalCustodia > 0 ? (exterior / totalCustodia) * 100 : 0,
     };
 
-    // ── 8. Rentabilidade por ativo (matches Streamlit: includes realized + proventos) ─
+    // ── 8. Rentabilidade por ativo (all positions: active, sold, RF) ─────────
     const proventosPorTicker = snapshot.proventosPorTicker;
-    const rentabilidade = positions
-      .filter(p => p.lucroPct !== null)
-      .map(p => {
-        const lucroNaoRealizado = p.lucroBRL ?? 0;
-        const lucroRealizado = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
-        const proventosAtivo = proventosPorTicker[p.ticker] ?? 0;
-        const resultadoTotal = lucroNaoRealizado + lucroRealizado + proventosAtivo;
-        const custoBase = p.custoTotalBRL > 0 ? p.custoTotalBRL : Math.abs(lucroRealizado - p.lucroRealizado * fxFactor(p.moeda, fxAtual));
-        const retornoTotalPct = custoBase > 0 ? (resultadoTotal / custoBase) * 100 : (p.lucroPct ?? 0);
-        return {
-          ticker: p.ticker,
-          setor: p.setor,
-          macro: classificarCamadas(p.ticker, p.setor).macro,
-          valor_atual_brl: p.valorAtualBRL,
-          lucro_nao_realizado_brl: lucroNaoRealizado,
-          lucro_realizado_brl: lucroRealizado,
-          proventos_brl: proventosAtivo,
-          resultado_total_brl: resultadoTotal,
-          retorno_total_pct: retornoTotalPct,
-        };
-      })
-      .sort((a, b) => b.retorno_total_pct - a.retorno_total_pct);
+    const rawPortfolio = calcularCarteiraFIFO(transacoes);
+    const activeTickerSet = new Set(positions.map(p => p.ticker));
+
+    // RF cost basis from renda_fixa transactions
+    const rfCostBasis: Record<string, number> = {};
+    for (const row of rfTransacoes) {
+      const tipo = String(row["tipo"] ?? "").toLowerCase();
+      if (!tipo.includes("compra") && !tipo.includes("aporte")) continue;
+      const ticker = String(row["ticker"] ?? "").trim();
+      const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
+      if (!ticker || valor <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + valor * fxFactor(moeda, fxAtual);
+    }
+
+    type RentItem = {
+      ticker: string; setor: string; macro: string; status: string;
+      valor_atual_brl: number; custo_brl: number;
+      lucro_nao_realizado_brl: number; lucro_realizado_brl: number;
+      proventos_brl: number; resultado_total_brl: number; retorno_total_pct: number;
+    };
+    const rentabilidade: RentItem[] = [];
+
+    // Active positions from snapshot
+    for (const p of positions) {
+      if (p.lucroPct === null) continue;
+      const lucroNaoRealizado = p.lucroBRL ?? 0;
+      const lucroRealizado = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
+      const proventosAtivo = proventosPorTicker[p.ticker] ?? 0;
+      const resultadoTotal = lucroNaoRealizado + lucroRealizado + proventosAtivo;
+      const custoBase = p.custoTotalBRL > 0 ? p.custoTotalBRL : 1;
+      const retornoTotalPct = custoBase > 0 ? (resultadoTotal / custoBase) * 100 : (p.lucroPct ?? 0);
+      rentabilidade.push({
+        ticker: p.ticker, setor: p.setor,
+        macro: classificarCamadas(p.ticker, p.setor).macro,
+        status: "Ativo", valor_atual_brl: p.valorAtualBRL, custo_brl: p.custoTotalBRL,
+        lucro_nao_realizado_brl: lucroNaoRealizado, lucro_realizado_brl: lucroRealizado,
+        proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        retorno_total_pct: retornoTotalPct,
+      });
+    }
+
+    // Sold positions (qty=0, have realized P&L or proventos)
+    for (const [ticker, pos] of rawPortfolio) {
+      if (activeTickerSet.has(ticker)) continue;
+      const qtdTotal = pos.lotes.reduce((s, l) => s + l.qty, 0);
+      if (qtdTotal >= 0.000001) continue;
+      const proventosAtivo = proventosPorTicker[ticker] ?? 0;
+      if (Math.abs(pos.lucroRealizado) < 0.01 && proventosAtivo < 0.01) continue;
+      const setor = identificarSetor(ticker);
+      const lucroRealizado = pos.lucroRealizado * fxFactor(pos.moeda, fxAtual);
+      const resultadoTotal = lucroRealizado + proventosAtivo;
+      rentabilidade.push({
+        ticker, setor, macro: classificarCamadas(ticker, setor).macro,
+        status: "Vendido", valor_atual_brl: 0, custo_brl: 0,
+        lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado,
+        proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        retorno_total_pct: 0,
+      });
+    }
+
+    // fixa_aberta RF positions (Tesouro Direto, CDBs, etc.)
+    for (const row of fixaAberta) {
+      const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+      if (!ticker || activeTickerSet.has(ticker.toUpperCase())) continue;
+      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
+      const custo = rfCostBasis[ticker] ?? 0;
+      const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
+      const lucroNaoRealizado = custo > 0 ? valorBRL - custo : 0;
+      const resultadoTotal = lucroNaoRealizado + proventosAtivo;
+      const retorno = custo > 0 ? (resultadoTotal / custo) * 100 : 0;
+      const { macro, sub } = classificarCamadas(ticker, "Renda Fixa");
+      rentabilidade.push({
+        ticker, setor: sub, macro,
+        status: "Ativo", valor_atual_brl: valorBRL, custo_brl: custo,
+        lucro_nao_realizado_brl: lucroNaoRealizado, lucro_realizado_brl: 0,
+        proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        retorno_total_pct: retorno,
+      });
+    }
+
+    rentabilidade.sort((a, b) => b.resultado_total_brl - a.resultado_total_brl);
 
     // ── 9. Risco x Retorno ────────────────────────────────────────────────────
     const riscoRetorno = positions
