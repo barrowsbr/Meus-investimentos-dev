@@ -142,7 +142,8 @@ function fmtPrice(price: number, moeda: string): string {
   if (moeda === "BRL") {
     return `R$${price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: price < 1000 ? 2 : 0 })}`;
+  const decimals = price >= 1000 ? 0 : 2;
+  return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
 // ── AccordionGroup ───────────────────────────────────────────────────────────
@@ -553,13 +554,41 @@ function NewsCard({ article, ticker, changePct, isBest }: {
 }
 
 // ── FxExpandCard (Dollar) ────────────────────────────────────────────────────
+// Split into button (lives inside grid) + panel (rendered outside grid)
 
-function FxExpandCard({ data }: { data: PortfolioResponse }) {
-  const [expanded, setExpanded] = useState(false);
-  const usdbrl = typeof data.usdbrl === "number" && isFinite(data.usdbrl) ? data.usdbrl : null;
-  const usdDayChangePct = typeof data.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null;
+function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
+  usdbrl: number | null; usdDayChangePct: number | null; expanded: boolean; onToggle: () => void;
+}) {
   const isUsdUp = (usdDayChangePct ?? 0) >= 0;
+  return (
+    <button
+      onClick={onToggle}
+      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer w-full h-full"
+      style={{
+        background: "rgba(13,14,20,0.8)",
+        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+        boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
+      }}
+    >
+      <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+      {usdbrl === null ? (
+        <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+      ) : (
+        <span className="text-sm font-bold text-zinc-100">R$ {Number(usdbrl).toFixed(3)}</span>
+      )}
+      {usdDayChangePct !== null && (
+        <div className="flex items-center gap-1 mt-1">
+          <span className={`text-[9px] font-semibold ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
+            {isUsdUp ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
+          </span>
+          <ChevronDown size={9} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      )}
+    </button>
+  );
+}
 
+function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: boolean }) {
   const fxPairs = useMemo(() => {
     const fx = data?.fx;
     if (!fx || typeof fx !== "object") return [];
@@ -572,58 +601,35 @@ function FxExpandCard({ data }: { data: PortfolioResponse }) {
   }, [data?.fx?.EURBRL, data?.fx?.CADBRL, data?.fx?.GBPBRL]);
 
   return (
-    <div className="flex flex-col">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer"
-        style={{
-          background: "rgba(13,14,20,0.8)",
-          border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
-          boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
-          borderRadius: expanded ? "16px 16px 0 0" : "16px",
-        }}
-      >
-        <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
-        {usdbrl === null ? (
-          <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
-        ) : (
-          <span className="text-sm font-bold text-zinc-100">R$ {Number(usdbrl).toFixed(3)}</span>
-        )}
-        {usdDayChangePct !== null && (
-          <div className="flex items-center gap-1 mt-1">
-            <span className={`text-[9px] font-semibold ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
-              {isUsdUp ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
-            </span>
-            <ChevronDown size={9} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
-          </div>
-        )}
-      </button>
-
-      {/* FX grid expandable */}
+    <div
+      className="w-full overflow-hidden transition-all duration-300 rounded-2xl"
+      style={{
+        maxHeight: expanded ? "200px" : "0px",
+        marginTop: expanded ? "8px" : "0px",
+        opacity: expanded ? 1 : 0,
+      }}
+    >
       <div
-        className="overflow-hidden transition-all duration-300"
+        className="rounded-2xl overflow-hidden"
         style={{
-          maxHeight: expanded ? "200px" : "0px",
           background: "rgba(13,14,20,0.8)",
-          border: expanded ? "1px solid rgba(255,255,255,0.08)" : "none",
-          borderTop: "none",
-          borderRadius: "0 0 16px 16px",
+          border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        <div className="grid grid-cols-1 divide-y divide-white/[0.06]">
+        <div className="grid grid-cols-3 divide-x divide-white/[0.06]">
           {fxPairs.map(pair => (
-            <div key={pair.label} className="flex items-center justify-between px-3 py-2">
-              <span className="text-[0.58rem] font-bold text-zinc-500 uppercase tracking-[1px]">{pair.label}</span>
-              <span className="text-[0.85rem] font-bold text-zinc-200">
+            <div key={pair.label} className="flex flex-col items-center py-2.5 px-2">
+              <span className="text-[0.52rem] font-bold text-zinc-600 uppercase tracking-[1px] mb-1">{pair.label}</span>
+              <span className="text-[0.8rem] font-bold text-zinc-200">
                 {pair.prefix} {Number(pair.value).toFixed(pair.decimals)}
               </span>
             </div>
           ))}
-          <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 hover:bg-white/[0.03] transition-colors">
-            <Globe size={11} className="text-cyan-400" />
-            <span className="text-[0.6rem] font-semibold text-cyan-400">Ver todas as moedas</span>
-          </Link>
         </div>
+        <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.06] hover:bg-white/[0.03] transition-colors">
+          <Globe size={11} className="text-cyan-400" />
+          <span className="text-[0.6rem] font-semibold text-cyan-400">Ver todas as moedas</span>
+        </Link>
       </div>
     </div>
   );
@@ -633,6 +639,7 @@ function FxExpandCard({ data }: { data: PortfolioResponse }) {
 
 export default function HomePage() {
   const { data, loading } = usePortfolio();
+  const [fxExpanded, setFxExpanded] = useState(false);
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -703,11 +710,28 @@ export default function HomePage() {
           >
             Olá, Lucas
           </h1>
-          <p className="text-zinc-500 text-sm">Sistema integrado de gestão de investimentos</p>
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-zinc-500 text-sm">Sistema integrado de gestão de investimentos</p>
+            <a
+              href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all hover:scale-105 group"
+              style={{
+                background: "rgba(255,75,75,0.08)",
+                border: "1px solid rgba(255,75,75,0.18)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/midias/streamlit-logo.svg" alt="" width={14} height={14} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/70 group-hover:text-red-400 transition-colors">v1</span>
+              <ExternalLink size={8} className="text-red-400/40 group-hover:text-red-400/70 transition-colors" />
+            </a>
+          </div>
         </div>
 
         {/* ── Live Metrics ── */}
-        <div className="w-full grid grid-cols-4 gap-3 mb-4 animate-fade-in animate-delay-1">
+        <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
           {/* Patrimônio Total */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
@@ -725,7 +749,7 @@ export default function HomePage() {
                 <span className="text-sm font-bold text-zinc-100">{compactBRL(totalBRL)}</span>
                 {totalUSD !== null && (
                   <span className="text-[9px] text-zinc-500 mt-1">
-                    US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : totalUSD.toFixed(0)}
+                    US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : Number(totalUSD).toFixed(0)}
                   </span>
                 )}
               </>
@@ -763,7 +787,7 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Dólar — expandable with FX grid */}
+          {/* Dólar — button only, panel renders below grid */}
           {loading || !data ? (
             <div
               className="rounded-2xl p-4 flex flex-col items-center text-center"
@@ -773,33 +797,19 @@ export default function HomePage() {
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             </div>
           ) : (
-            <FxExpandCard data={data} />
-          )}
-
-          {/* Streamlit — link to legacy app */}
-          <a
-            href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-transform hover:scale-[1.02] group"
-            style={{
-              background: "rgba(13,14,20,0.8)",
-              border: "1px solid rgba(255,75,75,0.15)",
-              boxShadow: "0 4px 20px rgba(255,75,75,0.04)",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/midias/streamlit-logo.svg"
-              alt="Streamlit"
-              width={28}
-              height={28}
-              className="mb-1.5 group-hover:brightness-125 transition-all"
+            <FxDollarButton
+              usdbrl={usdbrl}
+              usdDayChangePct={typeof data.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null}
+              expanded={fxExpanded}
+              onToggle={() => setFxExpanded(e => !e)}
             />
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider group-hover:text-zinc-400 transition-colors">Streamlit</span>
-            <ExternalLink size={9} className="text-zinc-700 mt-1 group-hover:text-red-400/70 transition-colors" />
-          </a>
+          )}
         </div>
+
+        {/* FX expand panel — full width below the grid */}
+        {!loading && data && (
+          <FxExpandPanel data={data} expanded={fxExpanded} />
+        )}
 
         {/* ── Ticker Tape ── */}
         {!loading && tickerItems.length > 0 && (
