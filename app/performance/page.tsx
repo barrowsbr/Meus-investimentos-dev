@@ -274,31 +274,6 @@ export default function PerformancePage() {
         description={`${formatDate(s.primeiraData)} → ${formatDate(s.ultimaData)} · ${formatDuracao(s.duracaoAnos)} · Metodologia GIPS`}
       />
 
-      {/* ── Window selector ── */}
-      <div className="flex items-center gap-1.5 mb-6 flex-wrap">
-        {WINDOWS.map(w => (
-          <button key={w.label} onClick={() => setLookback(w.days)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-              lookback === w.days
-                ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
-                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-            }`}>
-            {w.label}
-          </button>
-        ))}
-        <button onClick={() => setShowBenchmarks(v => !v)}
-          className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-            showBenchmarks
-              ? "bg-indigo-900/50 text-indigo-300 border-indigo-700/40"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
-          }`}>
-          {showBenchmarks ? "Ocultar benchmarks" : "Ver benchmarks"}
-        </button>
-        <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
-          <RefreshCw size={14} />
-        </button>
-      </div>
-
       {/* ── Top Metrics ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <MetricCard
@@ -373,7 +348,7 @@ export default function PerformancePage() {
       </div>
 
       {/* ── Sub-tabs ── */}
-      <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-6 flex-wrap border border-zinc-800/50">
+      <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-4 flex-wrap border border-zinc-800/50">
         {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -382,6 +357,31 @@ export default function PerformancePage() {
             {TAB_LABELS[tab]}
           </button>
         ))}
+      </div>
+
+      {/* ── Window selector (period filters) ── */}
+      <div className="flex items-center gap-1.5 mb-6 flex-wrap">
+        {WINDOWS.map(w => (
+          <button key={w.label} onClick={() => setLookback(w.days)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              lookback === w.days
+                ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+            }`}>
+            {w.label}
+          </button>
+        ))}
+        <button onClick={() => setShowBenchmarks(v => !v)}
+          className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+            showBenchmarks
+              ? "bg-indigo-900/50 text-indigo-300 border-indigo-700/40"
+              : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
+          }`}>
+          {showBenchmarks ? "Ocultar benchmarks" : "Ver benchmarks"}
+        </button>
+        <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+          <RefreshCw size={14} />
+        </button>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════════
