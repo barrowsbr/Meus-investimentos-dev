@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -179,6 +180,7 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
 function calcularDecomposicaoFX(
   points: TwrDayPoint[],
   fxHistory: Record<string, { USDBRL: number }>,
+  pmDolar?: number,
 ): {
   r_total: number;
   r_ativo: number;
@@ -187,12 +189,12 @@ function calcularDecomposicaoFX(
 } {
   if (points.length < 2) return { r_total: 0, r_ativo: 0, r_fx: 0, r_combinado: 0 };
   const r_total = points[points.length - 1].twr;
-  const firstFx = fxHistory[points[0].date]?.USDBRL;
+  const baseFx = pmDolar && pmDolar > 0 ? pmDolar : fxHistory[points[0].date]?.USDBRL;
   const lastFx = fxHistory[points[points.length - 1].date]?.USDBRL;
-  if (!firstFx || !lastFx || firstFx <= 0) {
+  if (!baseFx || !lastFx || baseFx <= 0) {
     return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
   }
-  const r_fx = (lastFx / firstFx) - 1;
+  const r_fx = (lastFx / baseFx) - 1;
   const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
   const r_combinado = (1 + r_ativo) * (1 + r_fx) - 1;
   return { r_total, r_ativo, r_fx, r_combinado };
@@ -236,9 +238,10 @@ export async function GET(request: Request) {
   const lookback = rawLookback <= 0 ? 0 : rawLookback;
 
   try {
-    const [transacoes, proventos] = await Promise.all([
+    const [transacoes, proventos, cambioRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
+      fetchTab("cambio").catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
@@ -281,7 +284,12 @@ export async function GET(request: Request) {
       return idx != null ? hist.ibov[idx] : null;
     });
 
-    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx });
+    // Compute PM FX rates from cambio data (investor's average remittance cost)
+    const lastFx = hist.fxHistory[dates[dates.length - 1]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
+    const cambioMetrics = calcularCambioMetrics(cambioRows, lastFx);
+    const pmFx = buildPmFxRates(cambioMetrics);
+
+    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx });
 
     // CDI and IBOV benchmarks
     const cdiPoints = buildCDIBenchmark(dates);
@@ -338,8 +346,8 @@ export async function GET(request: Request) {
     cashFlows.sort((a, b) => a.date.localeCompare(b.date));
     const mwr = twr.mwr ?? calcularMWR(cashFlows);
 
-    // FX decomposition
-    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx);
+    // FX decomposition (using PM dólar as base for "meu custo")
+    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx, cambioMetrics.pmDolar);
 
     // Attribution
     const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);

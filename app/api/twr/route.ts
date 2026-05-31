@@ -7,6 +7,7 @@ import {
   buildPriceBenchmark,
   type TwrDayPoint,
 } from "@/lib/twr-engine";
+import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -45,9 +46,10 @@ export async function GET(request: Request) {
 
   try {
     // ── 1. Load transaction + provento data ──────────────────────────────────
-    const [transacoes, proventos] = await Promise.all([
+    const [transacoes, proventos, cambioRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
+      fetchTab("cambio").catch(() => []),
     ]);
 
     if (transacoes.length === 0) {
@@ -111,13 +113,18 @@ export async function GET(request: Request) {
       return idx != null ? hist.ibov[idx] : null;
     });
 
-    // ── 5. Calculate TWR (with proventos) ────────────────────────────────────
+    // ── 5. Calculate TWR (with proventos & PM FX) ─────────────────────────────
+    const lastFx = hist.fxHistory[dates[dates.length - 1]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
+    const cambioMetrics = calcularCambioMetrics(cambioRows, lastFx);
+    const pmFx = buildPmFxRates(cambioMetrics);
+
     const twr = calcularTWR({
       transacoes,
       proventos,
       dates,
       prices: alignedPrices,
       fxHistory: alignedFx,
+      pmFx,
     });
 
     // ── 6. Benchmarks ────────────────────────────────────────────────────────
