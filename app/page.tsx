@@ -660,7 +660,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Live Metrics ── */}
-        <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
+        <div className="w-full grid grid-cols-4 gap-3 mb-4 animate-fade-in animate-delay-1">
           {/* Patrimônio Total */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
@@ -728,6 +728,29 @@ export default function HomePage() {
           ) : (
             <FxExpandCard data={data} />
           )}
+
+          {/* Streamlit — link to legacy app */}
+          <a
+            href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-transform hover:scale-[1.02] group"
+            style={{
+              background: "rgba(13,14,20,0.8)",
+              border: "1px solid rgba(255,75,75,0.15)",
+              boxShadow: "0 4px 20px rgba(255,75,75,0.04)",
+            }}
+          >
+            <Image
+              src="/midias/streamlit-logo.svg"
+              alt="Streamlit"
+              width={28}
+              height={28}
+              className="mb-1.5 group-hover:brightness-125 transition-all"
+            />
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider group-hover:text-zinc-400 transition-colors">Streamlit</span>
+            <ExternalLink size={9} className="text-zinc-700 mt-1 group-hover:text-red-400/70 transition-colors" />
+          </a>
         </div>
 
         {/* ── Ticker Tape ── */}
