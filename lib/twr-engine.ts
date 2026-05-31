@@ -282,21 +282,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
   const custody = buildDailyCustody(inRange, dates);
 
-  // Group flow events by business date
-  const flowsByDate = new Map<string, ParsedTx[]>();
-  for (const tx of inRange) {
-    const arr = flowsByDate.get(tx.bizDate) ?? [];
-    arr.push(tx);
-    flowsByDate.set(tx.bizDate, arr);
-  }
-
-  // Group income events by business date
-  const incomeByDate = new Map<string, ParsedIncome[]>();
-  for (const inc of incomeEvents) {
-    const arr = incomeByDate.get(inc.bizDate) ?? [];
-    arr.push(inc);
-    incomeByDate.set(inc.bizDate, arr);
-  }
+  // Sort transactions & income by bizDate for incremental processing (synced with custody)
+  const sortedTxs = [...inRange].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
+  let txIdx = 0;
+  const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
+  let incIdx = 0;
 
   const points: TwrDayPoint[] = [];
   let prevNav = 0;
@@ -326,12 +316,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
     const navRF = rfNavByDate?.[date] ?? 0;
     let nav = navRV + navRF;
 
-    // ── Flows: capital entering/leaving today ──
+    // ── Flows: capital entering/leaving (incremental, synced with custody) ──
     let flow = 0;
-    const dayTxs = flowsByDate.get(date) ?? [];
-    for (const tx of dayTxs) {
-      const marketPrice = getPrice(tx.ticker, i, prices);
-      if (marketPrice == null) continue;
+    while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate <= date) {
+      const tx = sortedTxs[txIdx++];
+      let marketPrice = getPrice(tx.ticker, i, prices);
+      if (marketPrice == null && i > 0) {
+        marketPrice = getPrice(tx.ticker, i - 1, prices);
+      }
+      if (marketPrice == null || marketPrice <= 0) continue;
       const txFx = fxFactor(tx.moeda, fx);
       const value = tx.quantidade * marketPrice * txFx;
       if (tx.tipo === "Compra") {
@@ -341,10 +334,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
         flow -= value;
       }
     }
-    // ── Income: dividends/JCP received today ──
+    // ── Income: dividends/JCP received (incremental, synced with custody) ──
     let income = 0;
-    const dayIncome = incomeByDate.get(date) ?? [];
-    for (const inc of dayIncome) {
+    while (incIdx < sortedInc.length && sortedInc[incIdx].bizDate <= date) {
+      const inc = sortedInc[incIdx++];
       income += inc.valor * fxFactor(inc.moeda, fx);
     }
 
@@ -392,6 +385,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
       }
     }
 
+    // Shock detection: large return + significant flow → likely data artifact
+    if (!forceZero && Math.abs(ret) > 0.25 && prevNav > 0 && Math.abs(flow) / prevNav > 0.10) {
+      forceZero = true;
+      ret = 0;
+    }
     // Guard against data anomalies
     ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);

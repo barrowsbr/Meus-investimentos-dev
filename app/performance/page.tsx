@@ -95,15 +95,22 @@ interface DecomposicaoResponse {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+function computeYTDDays(): number {
+  const now = new Date();
+  const jan1 = new Date(now.getFullYear(), 0, 1);
+  return Math.ceil((now.getTime() - jan1.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 const WINDOWS = [
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
   { label: "6M", days: 180 },
+  { label: "YTD", days: computeYTDDays() },
   { label: "1A", days: 365 },
   { label: "3A", days: 1095 },
   { label: "5A", days: 1825 },
-  { label: "Tudo", days: 3650 },
-] as const;
+  { label: "Tudo", days: 0 },
+];
 
 const TOOLTIP_STYLE = {
   background: "#09090b",
