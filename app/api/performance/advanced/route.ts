@@ -452,16 +452,23 @@ export async function GET(request: Request) {
         troughTwr: troughTwr === Infinity ? 0 : troughTwr,
       },
       chart: (() => {
-        // Merge benchmarks into chart points by date so the frontend doesn't
-        // need index-based alignment (which breaks after independent thinning).
-        // Only send meaningful points (NAV > 0) to avoid the flat 0% prefix.
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
-        const merged = meaningfulPoints.map(p => ({
-          date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
-          cdi_twr: cdiMap.get(p.date) ?? null,
-          ibov_twr: ibovMap.get(p.date) ?? null,
-        }));
+        const baseFx = cambioMetrics.pmDolar && cambioMetrics.pmDolar > 0
+          ? cambioMetrics.pmDolar
+          : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+        const merged = meaningfulPoints.map(p => {
+          const curFx = alignedFx[p.date]?.USDBRL;
+          const fx_twr = baseFx && curFx ? curFx / baseFx - 1 : null;
+          const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
+          return {
+            date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
+            cdi_twr: cdiMap.get(p.date) ?? null,
+            ibov_twr: ibovMap.get(p.date) ?? null,
+            fx_twr,
+            ativo_twr,
+          };
+        });
         return thinSeries(merged as any);
       })(),
       benchmarks: {
