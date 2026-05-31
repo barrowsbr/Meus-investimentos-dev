@@ -547,15 +547,64 @@ function businessDaysBetween(startStr: string, endStr: string): number {
   return Math.max(count - 1, 0);
 }
 
-// ─── CDI benchmark (SELIC proxy) ──────────────────────────────────────────────
+// ─── CDI benchmark (SELIC proxy with historical rates) ───────────────────────
 
-const SELIC_ANUAL = 0.1475; // 14.75% a.a. (SELIC vigente)
-const SELIC_DIARIA = Math.pow(1 + SELIC_ANUAL, 1 / 252) - 1;
+const SELIC_HISTORICO: [string, number][] = [
+  ["2018-01-01", 0.0700],
+  ["2018-03-22", 0.0650],
+  ["2018-07-01", 0.0650],
+  ["2019-02-07", 0.0650],
+  ["2019-04-01", 0.0650],
+  ["2019-06-20", 0.0650],
+  ["2019-08-01", 0.0600],
+  ["2019-09-19", 0.0550],
+  ["2019-10-31", 0.0500],
+  ["2019-12-12", 0.0450],
+  ["2020-02-06", 0.0425],
+  ["2020-03-19", 0.0375],
+  ["2020-05-07", 0.0300],
+  ["2020-06-18", 0.0225],
+  ["2020-08-06", 0.0200],
+  ["2021-03-18", 0.0275],
+  ["2021-05-06", 0.0350],
+  ["2021-06-17", 0.0425],
+  ["2021-08-05", 0.0525],
+  ["2021-09-23", 0.0625],
+  ["2021-10-28", 0.0775],
+  ["2021-12-09", 0.0925],
+  ["2022-02-03", 0.1075],
+  ["2022-03-17", 0.1175],
+  ["2022-05-05", 0.1275],
+  ["2022-06-16", 0.1325],
+  ["2022-08-04", 0.1375],
+  ["2023-08-03", 0.1325],
+  ["2023-09-21", 0.1275],
+  ["2023-11-02", 0.1225],
+  ["2023-12-14", 0.1175],
+  ["2024-01-31", 0.1125],
+  ["2024-03-21", 0.1075],
+  ["2024-05-09", 0.1050],
+  ["2024-09-19", 0.1075],
+  ["2024-11-07", 0.1125],
+  ["2024-12-12", 0.1225],
+  ["2025-01-30", 0.1325],
+  ["2025-03-20", 0.1425],
+  ["2025-05-08", 0.1475],
+];
+
+function getSelicDiaria(date: string): number {
+  let rate = SELIC_HISTORICO[0][1];
+  for (const [d, r] of SELIC_HISTORICO) {
+    if (date >= d) rate = r;
+    else break;
+  }
+  return Math.pow(1 + rate, 1 / 252) - 1;
+}
 
 export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {
   let cdi = 1.0;
   return dates.map((date, i) => {
-    const ret = i === 0 ? 0 : SELIC_DIARIA;
+    const ret = i === 0 ? 0 : getSelicDiaria(date);
     cdi *= 1 + ret;
     return { date, nav: cdi, flow: 0, income: 0, ret, twr: cdi - 1, forceZero: false };
   });
