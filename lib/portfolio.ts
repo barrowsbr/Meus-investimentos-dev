@@ -12,6 +12,7 @@ interface PosicaoInterna {
   ticker: string;
   lotes: Lote[];
   lucroRealizado: number;
+  custoVendido: number;
   moeda: string;
   corretora: string;
 }
@@ -131,7 +132,7 @@ export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInte
     const corretora = getCorretora(row);
 
     if (!portfolio.has(ticker)) {
-      portfolio.set(ticker, { ticker, lotes: [], lucroRealizado: 0, moeda, corretora });
+      portfolio.set(ticker, { ticker, lotes: [], lucroRealizado: 0, custoVendido: 0, moeda, corretora });
     }
     const pos = portfolio.get(ticker)!;
 
@@ -143,16 +144,19 @@ export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInte
       let qtdVender = quantidade;
       let lucroOp = 0;
 
+      let custoOp = 0;
       while (qtdVender > 0.000001 && pos.lotes.length > 0) {
         const lote = pos.lotes[0];
         const qtdConsumida = Math.min(lote.qty, qtdVender);
         lucroOp += (preco - lote.pm) * qtdConsumida;
+        custoOp += lote.pm * qtdConsumida;
         lote.qty -= qtdConsumida;
         qtdVender -= qtdConsumida;
         if (lote.qty < 0.000001) pos.lotes.shift();
       }
 
       pos.lucroRealizado += lucroOp;
+      pos.custoVendido += custoOp;
     }
   }
 

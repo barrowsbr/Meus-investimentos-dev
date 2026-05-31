@@ -40,7 +40,7 @@ interface TreeNode { name: string; value: number; pct: number; children?: TreeNo
 interface ComposicaoData {
   computed_at: string;
   fx: { USDBRL: number; EURBRL: number; CADBRL: number; GBPBRL: number };
-  resumo: { total_portfolio: number; rv_value: number; rf_value: number; total_proventos: number; top_performer: Performer | null; bottom_performer: Performer | null };
+  resumo: { total_portfolio: number; rv_value: number; rf_value: number; total_proventos: number; lucro_total_brl: number; top_performer: Performer | null; bottom_performer: Performer | null };
   estrutura_carteira: TreeNode[];
   exposicao_cambial: Record<string, number>;
   custodia: { brasil: number; exterior: number; brasil_pct: number; exterior_pct: number };
@@ -149,9 +149,14 @@ export default function ResumoPage() {
       : monthlyDividends.reduce((s, m) => s + m.total, 0) / monthlyDividends.length,
     [monthlyDividends]);
 
-  const sectorData = useMemo(() =>
-    Object.entries(data?.setorAlocacao ?? {}).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value),
-    [data]);
+  const RF_SECTORS_SET = useMemo(() => new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]), []);
+
+  const sectorData = useMemo(() => {
+    const raw = Object.entries(data?.setorAlocacao ?? {}).map(([name, value]) => ({ name, value: value as number }));
+    if (activeFilter === "Renda Variável") return raw.filter(s => !RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
+    if (activeFilter === "Renda Fixa") return raw.filter(s => RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
+    return raw.sort((a, b) => b.value - a.value);
+  }, [data, activeFilter, RF_SECTORS_SET]);
 
   const currencyData = useMemo(() =>
     Object.entries(data?.exposicaoCambial ?? {}).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value),
@@ -348,6 +353,12 @@ export default function ResumoPage() {
 
   const rvPositions = data.positions.filter(p => isRendaVariavel(p.setor));
   const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+
+  const filteredPositions = activeFilter === "Renda Fixa"
+    ? data.positions.filter(p => !isRendaVariavel(p.setor))
+    : activeFilter === "Renda Variável"
+      ? rvPositions
+      : data.positions.filter(p => p.valorAtualBRL > 1);
   const dayChange = data.dayChangeTotalBRL ?? 0;
   const dayChangePct = data.dayChangeTotalPct ?? 0;
 
@@ -364,7 +375,7 @@ export default function ResumoPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
            HERO — Big numbers
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-3">
         <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
           sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
           icon={<DollarSign size={17} />}
@@ -379,6 +390,16 @@ export default function ResumoPage() {
           icon={<TrendingUp size={17} />}
           trend={data.lucroBRL >= 0 ? "up" : "down"}
           glowColor={data.lucroBRL >= 0 ? "#34d399" : "#f87171"} />
+        {composicao?.resumo.lucro_total_brl !== undefined && (() => {
+          const lucroTotal = composicao.resumo.lucro_total_brl;
+          return (
+            <MetricCard label="Resultado Total" value={compactBRL(lucroTotal)}
+              sub={`RV + RF + Proventos`}
+              icon={lucroTotal >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
+              trend={lucroTotal >= 0 ? "up" : "down"}
+              glowColor={lucroTotal >= 0 ? "#34d399" : "#f87171"} />
+          );
+        })()}
       </div>
 
       {/* ── Secondary metrics + performers in a unified strip ── */}
@@ -1026,8 +1047,8 @@ export default function ResumoPage() {
         <div className="space-y-5 animate-fade-in">
           {/* Positions table */}
           <div className="glass-card p-5">
-            <h2 className="section-title mb-4"><Briefcase size={15} />Posições — Renda Variável</h2>
-            {rvPositions.length > 0 ? (
+            <h2 className="section-title mb-4"><Briefcase size={15} />Posições{activeFilter !== "global" ? ` — ${activeFilter}` : ""}</h2>
+            {filteredPositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1040,7 +1061,7 @@ export default function ResumoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rvPositions.map((p, i) => {
+                    {filteredPositions.map((p, i) => {
                       const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
                       const naoRealizadoBRL = p.lucroBRL ?? 0;
                       const realizadoBRL = p.lucroRealizadoBRL ?? 0;
