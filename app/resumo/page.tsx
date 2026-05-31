@@ -18,7 +18,7 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
-import { computeCountryAllocation } from "@/lib/ticker-country";
+import type { CountryAllocation } from "@/lib/ticker-country";
 import MetricCard from "@/components/MetricCard";
 import InvestmentWorldMap from "@/components/InvestmentWorldMap";
 import PageHeader from "@/components/PageHeader";
@@ -48,6 +48,7 @@ interface ComposicaoData {
   risco_retorno: RiscoRetornoItem[];
   pareto: ParetoItem[];
   look_through: { supported: string[]; unsupported: string[]; compositions: Record<string, LookThroughETF>; total_look_through_brl: number; sources?: Record<string, string>; updated_at?: string };
+  country_allocation?: CountryAllocation[];
   errors: string[];
 }
 
@@ -211,14 +212,7 @@ export default function ResumoPage() {
     return composicao.risco_retorno.filter(r => r.macro === activeFilter);
   }, [composicao, activeFilter]);
 
-  const countryAllocation = useMemo(() => {
-    if (!composicao?.look_through || !data?.positions) return [];
-    const lt = composicao.look_through;
-    const directPositions = data.positions
-      .filter(p => !["ETF USA", "ETF"].includes(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
-      .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL }));
-    return computeCountryAllocation(lt.compositions, directPositions);
-  }, [composicao, data]);
+  const countryAllocation = composicao?.country_allocation ?? [];
 
   const filteredExposicao = useMemo(() => {
     if (!composicao) return currencyData;
