@@ -220,6 +220,7 @@ export interface TwrInput {
   prices: PriceMatrix;
   fxHistory: FxHistory;
   rfNavByDate?: Record<string, number>;
+  pmFx?: FxRates;
 }
 
 // ─── MWR (Money-Weighted Return) via Newton-Raphson ──────────────────────────
@@ -262,7 +263,7 @@ function calculateMWR(
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
 
 export function calcularTWR(input: TwrInput): TwrResult {
-  const { dates, prices, fxHistory, rfNavByDate } = input;
+  const { dates, prices, fxHistory, rfNavByDate, pmFx } = input;
 
   const EMPTY: TwrResult = {
     points: [], twrTotal: 0, twrAnualizado: 0,
@@ -317,6 +318,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
     let nav = navRV + navRF;
 
     // ── Flows: capital entering/leaving (incremental, synced with custody) ──
+    // Use PM FX (investor's average remittance cost) for flows to avoid
+    // artificial spikes when spot FX differs from the investor's cost basis.
+    // NAV stays at spot FX (true market value).
+    const flowFx = pmFx ?? fx;
     let flow = 0;
     while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate <= date) {
       const tx = sortedTxs[txIdx++];
@@ -325,7 +330,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
         marketPrice = getPrice(tx.ticker, i - 1, prices);
       }
       if (marketPrice == null || marketPrice <= 0) continue;
-      const txFx = fxFactor(tx.moeda, fx);
+      const txFx = fxFactor(tx.moeda, flowFx);
       const value = tx.quantidade * marketPrice * txFx;
       if (tx.tipo === "Compra") {
         flow += value;
