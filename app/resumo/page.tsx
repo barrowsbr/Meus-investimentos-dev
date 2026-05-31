@@ -4,14 +4,16 @@ import React, { useMemo, useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
-  ComposedChart, Line, Scatter, ScatterChart, ZAxis, Treemap,
+  ComposedChart, Line, Scatter, ScatterChart, ZAxis,
   ReferenceLine,
 } from "recharts";
 import SunburstChart from "@/components/SunburstChart";
 import {
-  Wallet, TrendingUp, TrendingDown, Landmark, Coins, DollarSign,
-  BarChart3, ArrowUpRight, Globe, Home, Award, AlertTriangle,
-  Layers, Target, PieChart as PieIcon,
+  TrendingUp, TrendingDown, Coins, DollarSign,
+  BarChart3, ArrowUpRight, Globe,
+  Award, AlertTriangle,
+  Target, PieChart as PieIcon,
+  Briefcase, Layers,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
@@ -78,62 +80,23 @@ const TOOLTIP_STYLE = {
   color: "#fafafa", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
-// Card gradients removed — using uniform clean design
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+type Tab = "alocacao" | "evolucao" | "rentabilidade" | "posicoes";
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: "alocacao", label: "Alocação", icon: <PieIcon size={14} /> },
+  { id: "evolucao", label: "Evolução", icon: <ArrowUpRight size={14} /> },
+  { id: "rentabilidade", label: "Rentabilidade", icon: <Target size={14} /> },
+  { id: "posicoes", label: "Posições", icon: <Briefcase size={14} /> },
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getMacro(setor: string): string {
-  return MACRO_MAP[setor] || "Outros";
-}
 
 function formatComputedAt(iso: string): string {
   try {
     return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 }
-
-// ── Custom Treemap Content ─────────────────────────────────────────────────────
-
-const TreemapContent = (props: any) => {
-  const { depth, x, y, width, height, name, value } = props;
-  if (width < 2 || height < 2) return null;
-  const color = depth === 1 ? (MACRO_COLORS[name] || "#52525b")
-    : depth === 2 ? (SECTOR_COLORS[name] || "#3f3f46")
-      : "#1a1a2e";
-  const showLabel = width > 35 && height > 22;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height}
-        style={{ fill: color, stroke: "#0d0e11", strokeWidth: depth <= 2 ? 2 : 1, opacity: depth === 3 ? 0.75 : 1 }}
-      />
-      {showLabel && depth <= 2 && (
-        <>
-          <text x={x + width / 2} y={y + height / 2 - (depth === 1 && height > 40 ? 8 : 0)}
-            textAnchor="middle" dominantBaseline="middle"
-            style={{ fill: "#f4f4f5", fontSize: depth === 1 ? 12 : 10, fontWeight: depth === 1 ? 700 : 500, pointerEvents: "none" }}
-          >
-            {name}
-          </text>
-          {depth === 1 && height > 40 && (
-            <text x={x + width / 2} y={y + height / 2 + 10}
-              textAnchor="middle" style={{ fill: "rgba(255,255,255,0.45)", fontSize: 9, pointerEvents: "none" }}
-            >
-              {compactBRL(value)}
-            </text>
-          )}
-        </>
-      )}
-      {showLabel && depth === 3 && width > 50 && (
-        <text x={x + width / 2} y={y + height / 2}
-          textAnchor="middle" dominantBaseline="middle"
-          style={{ fill: "rgba(255,255,255,0.6)", fontSize: 9, pointerEvents: "none" }}
-        >
-          {name}
-        </text>
-      )}
-    </g>
-  );
-};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -142,16 +105,16 @@ export default function ResumoPage() {
   const [composicao, setComposicao] = useState<ComposicaoData | null>(null);
   const [compLoading, setCompLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("global");
-  const [hoveredNode, setHoveredNode] = useState<{ name: string; value: number; pct: number } | null>(null);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa">("por-etf");
+  const [activeTab, setActiveTab] = useState<Tab>("alocacao");
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
       .then(r => r.json())
       .then(setComposicao)
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setCompLoading(false));
   }, []);
 
@@ -220,11 +183,6 @@ export default function ResumoPage() {
     filteredExposicao.reduce((s, c) => s + c.value, 0),
     [filteredExposicao]);
 
-  const treemapData = useMemo(() => {
-    if (!composicao?.estrutura_carteira?.length) return [];
-    return composicao.estrutura_carteira;
-  }, [composicao]);
-
   const sunburstData = useMemo(() => {
     const sectorStyles: Record<string, { h: number; s: number; l: number }> = {
       "Ações EUA": { h: 260, s: 65, l: 48 },
@@ -250,7 +208,6 @@ export default function ResumoPage() {
     const RF_SECTORS = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]);
     const checkIsRendaFixa = (sector: string) => RF_SECTORS.has(sector);
 
-    // ── Source A: composicao API (preferred) ──
     if (composicao?.estrutura_carteira?.length) {
       const totalPortfolio = composicao.resumo.total_portfolio;
       const level1: any[] = [];
@@ -296,7 +253,6 @@ export default function ResumoPage() {
       return { level1, level2, level3 };
     }
 
-    // ── Source B: fallback from portfolio positions ──
     if (!data?.positions?.length) return null;
 
     const positions = data.positions.filter(p => p.valorAtualBRL > 1);
@@ -384,772 +340,837 @@ export default function ResumoPage() {
     <>
       <PageHeader
         title="Resumo"
-        description={composicao?.computed_at ? `Atualizado às ${formatComputedAt(composicao.computed_at)}` : "Visão geral dos seus investimentos"}
+        description={composicao?.computed_at ? `Atualizado ${formatComputedAt(composicao.computed_at)}` : "Visão geral dos seus investimentos"}
       />
 
-      {/* ── Metric Cards — uniform, clean ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
-        <div className="animate-fade-in">
-          <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
-            sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`} />
-        </div>
-        <div className="animate-fade-in animate-delay-1">
-          <MetricCard label="Variação Hoje" value={brl(dayChange)}
-            sub={`${pct(dayChangePct)} sobre patrimônio RV`}
-            trend={dayChange >= 0 ? "up" : "down"} />
-        </div>
-        <div className="animate-fade-in animate-delay-2">
-          <MetricCard label="Lucro Total RV" value={brl(data.lucroBRL)}
-            sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
-            trend={data.lucroBRL >= 0 ? "up" : "down"} />
-        </div>
-        <div className="animate-fade-in animate-delay-3">
-          <MetricCard label="Ganho Ativo vs Câmbio" value={compactBRL(data.ganhoAtivoTotalBRL)}
-            sub={`Câmbio ${brl(data.ganhoCambioTotalBRL)}`}
-            trend={data.ganhoAtivoTotalBRL >= 0 ? "up" : "down"} />
-        </div>
-        <div className="animate-fade-in animate-delay-4">
-          <MetricCard label="Proventos" value={compactBRL(data.totalProventosBRL)}
-            sub={`${rvPositions.length} ativos em carteira`} />
-        </div>
-        <div className="animate-fade-in animate-delay-5">
-          <MetricCard label="Dólar" value={`R$ ${data.usdbrl.toFixed(2)}`}
-            sub={`PM R$ ${data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ ${data.eurbrl.toFixed(2)}`} />
-        </div>
+      {/* ═══════════════════════════════════════════════════════════════════════
+           HERO — Big numbers
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
+          sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
+          icon={<DollarSign size={17} />}
+          glowColor="#d4a574" />
+        <MetricCard label="Variação Hoje" value={brl(dayChange)}
+          sub={`${pct(dayChangePct)} sobre patrimônio RV`}
+          icon={dayChange >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
+          trend={dayChange >= 0 ? "up" : "down"}
+          glowColor={dayChange >= 0 ? "#34d399" : "#f87171"} />
+        <MetricCard label="Lucro Total RV" value={brl(data.lucroBRL)}
+          sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
+          icon={<TrendingUp size={17} />}
+          trend={data.lucroBRL >= 0 ? "up" : "down"}
+          glowColor={data.lucroBRL >= 0 ? "#34d399" : "#f87171"} />
       </div>
 
-      {/* ── Top / Bottom Performer (se disponível) ── */}
-      {(top || bot) && (
-        <div className="grid grid-cols-2 gap-3 mb-6 animate-fade-in">
-          {top && (
-            <div className="glass-card p-4 flex items-center gap-4">
-              <span className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
-                <Award size={18} className="text-emerald-400" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Top Performer</p>
-                <p className="font-bold text-zinc-100">{top.ticker} <span className="text-emerald-400 font-semibold">+{top.lucro_pct.toFixed(1)}%</span></p>
-                <p className="text-[10px] text-zinc-600">{top.setor}</p>
-              </div>
-            </div>
-          )}
-          {bot && (
-            <div className="glass-card p-4 flex items-center gap-4">
-              <span className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
-                <AlertTriangle size={18} className="text-red-400" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Bottom Performer</p>
-                <p className="font-bold text-zinc-100">{bot.ticker} <span className="text-red-400 font-semibold">{bot.lucro_pct.toFixed(1)}%</span></p>
-                <p className="text-[10px] text-zinc-600">{bot.setor}</p>
-              </div>
-            </div>
-          )}
+      {/* ── Secondary metrics + performers in a unified strip ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="glass-card p-3.5">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Dólar</p>
+          <p className="text-lg font-bold text-zinc-100">R$ {data.usdbrl.toFixed(2)}</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ {data.eurbrl.toFixed(2)}</p>
         </div>
-      )}
-
-      {/* ── Evolução + Setor ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {evolutionData.length > 0 ? (
-          <div className="glass-card p-5 lg:col-span-2 animate-fade-in">
-            <h2 className="section-title mb-4"><ArrowUpRight size={15} />Evolução Patrimonial</h2>
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={evolutionData}>
-                <defs>
-                  <linearGradient id="gradRV" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradRF" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
-                <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "rv" ? "Renda Variável" : "Renda Fixa"]} />
-                <Area type="monotone" dataKey="rv" stroke="#3b82f6" fill="url(#gradRV)" strokeWidth={1.8} name="rv" />
-                <Area type="monotone" dataKey="rf" stroke="#8b5cf6" fill="url(#gradRF)" strokeWidth={1.8} name="rf" />
-                <Legend formatter={v => v === "rv" ? "Renda Variável" : "Renda Fixa"} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="glass-card p-5 lg:col-span-2 animate-fade-in">
-            <h2 className="section-title mb-4"><Coins size={15} />Proventos Mensais</h2>
-            {monthlyDividends.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={monthlyDividends} barCategoryGap="35%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
-                  <Bar dataKey="total" fill="#d4a574" radius={[5, 5, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p className="text-zinc-600 text-sm">Sem dados de proventos.</p>}
+        <div className="glass-card p-3.5">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Proventos</p>
+          <p className="text-lg font-bold text-amber-400">{compactBRL(data.totalProventosBRL)}</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5">{rvPositions.length} ativos · Média {compactBRL(avgMonthlyDividend)}/mês</p>
+        </div>
+        {top && (
+          <div className="glass-card p-3.5 flex items-center gap-3">
+            <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
+              <Award size={15} className="text-emerald-400" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Top</p>
+              <p className="text-sm font-bold text-zinc-100">{top.ticker} <span className="text-emerald-400">+{top.lucro_pct.toFixed(1)}%</span></p>
+            </div>
           </div>
         )}
-        <div className="glass-card p-5 animate-fade-in">
-          <h2 className="section-title mb-4"><Globe size={15} />Alocação por Setor</h2>
-          {sectorData.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={sectorData} cx="50%" cy="50%" innerRadius={48} outerRadius={78} dataKey="value" stroke="none" paddingAngle={1}>
-                    {sectorData.map(entry => <Cell key={entry.name} fill={SECTOR_COLORS[entry.name] || "#71717a"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {sectorData.map(s => (
-                  <span key={s.name} className="tag" style={{ backgroundColor: `${SECTOR_COLORS[s.name] || "#71717a"}18`, color: SECTOR_COLORS[s.name] || "#71717a" }}>
-                    {s.name}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
-        </div>
-      </div>
-
-      {/* ── Mapa Interativo da Carteira (Sunburst) ── */}
-      {sunburstData && sunburstData.level1.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title"><PieIcon size={15} />Mapa da Carteira</h2>
-            <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-              {selectedSector && (
-                <button onClick={() => setSelectedSector(null)}
-                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
-                  ← {selectedSector}
-                </button>
-              )}
-              {selectedClass && (
-                <button onClick={() => { setSelectedClass(null); setSelectedSector(null); }}
-                  className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
-                  ← Todos
-                </button>
-              )}
-              {!selectedClass && <span>Clique nos anéis para filtrar</span>}
+        {bot && (
+          <div className="glass-card p-3.5 flex items-center gap-3">
+            <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
+              <AlertTriangle size={15} className="text-red-400" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Bottom</p>
+              <p className="text-sm font-bold text-zinc-100">{bot.ticker} <span className="text-red-400">{bot.lucro_pct.toFixed(1)}%</span></p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 flex justify-center">
-              <SunburstChart
-                level1={sunburstData.level1}
-                level2={nestedMiddle}
-                level3={nestedOuter}
-                size={560}
-                selectedClass={selectedClass}
-                selectedSector={selectedSector}
-                onSelectClass={setSelectedClass}
-                onSelectSector={setSelectedSector}
-              />
-            </div>
-
-            {/* Legend panel */}
-            <div className="flex flex-col gap-5 pt-2">
-              <div>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">Classe</p>
-                <div className="space-y-2">
-                  {sunburstData.level1.map((s: any) => (
-                    <div key={s.name} className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => { setSelectedClass(selectedClass === s.name ? null : s.name); setSelectedSector(null); }}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
-                          style={{ backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }} />
-                        <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors"
-                          style={{ opacity: selectedClass && selectedClass !== s.name ? 0.35 : 1 }}>{s.name}</span>
-                      </div>
-                      <span className="text-xs font-mono font-semibold tabular-nums transition-opacity"
-                        style={{ color: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}>
-                        {s.pct.toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
-                  Setor{selectedClass ? ` · ${selectedClass === "Renda Variável" ? "RV" : "RF"}` : ""}
-                </p>
-                <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: 220 }}>
-                  {nestedMiddle.map((s: any) => (
-                    <div key={s.name} className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => { setSelectedClass(s.parentName); setSelectedSector(selectedSector === s.name ? null : s.name); }}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0 transition-opacity"
-                          style={{ backgroundColor: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }} />
-                        <span className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors"
-                          style={{ opacity: selectedSector && selectedSector !== s.name ? 0.35 : 1 }}>{s.name}</span>
-                      </div>
-                      <span className="text-[11px] font-mono tabular-nums transition-opacity"
-                        style={{ color: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}>
-                        {s.pct.toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {nestedOuter.length > 0 && (
-                <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
-                    Ativos{selectedSector ? ` · ${selectedSector}` : ""}
-                  </p>
-                  <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 180 }}>
-                    {nestedOuter.map((s: any, i: number) => (
-                      <div key={`leg-out-${i}`} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                          <span className="text-[10px] text-zinc-600">{s.name}</span>
-                        </div>
-                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">{s.pct.toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Proventos + Exposição Cambial ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {evolutionData.length > 0 && (
-          <div className="glass-card p-5 lg:col-span-2 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="section-title"><Coins size={15} />Proventos Mensais</h2>
-              {avgMonthlyDividend > 0 && (
-                <span className="text-[10px] px-2.5 py-1 rounded-full font-medium border"
-                  style={{ background: "rgba(212,165,116,0.08)", color: "#d4a574", borderColor: "rgba(212,165,116,0.22)" }}>
-                  Média: {compactBRL(avgMonthlyDividend)}/mês
-                </span>
-              )}
-            </div>
-            {monthlyDividends.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={monthlyDividends} barCategoryGap="35%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
-                  <Bar dataKey="total" fill="#d4a574" radius={[5, 5, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
           </div>
         )}
-        <div className={`glass-card p-5 animate-fade-in ${evolutionData.length === 0 ? "lg:col-span-3" : ""}`}>
-          <h2 className="section-title mb-4"><DollarSign size={15} />Exposição Cambial</h2>
-          {filteredExposicao.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={filteredExposicao} cx="50%" cy="50%" innerRadius={48} outerRadius={78} dataKey="value" stroke="none" paddingAngle={1}>
-                    {filteredExposicao.map(entry => <Cell key={entry.name} fill={CURRENCY_COLORS[entry.name] || "#71717a"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2 mt-3">
-                {filteredExposicao.map(c => {
-                  const pctVal = currencyTotal > 0 ? ((c.value / currencyTotal) * 100).toFixed(1) : "0";
-                  const color = CURRENCY_COLORS[c.name] || "#71717a";
-                  return (
-                    <div key={c.name} className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                        <span className="text-zinc-400 font-medium">{c.name}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-zinc-300">{compactBRL(c.value)}</span>
-                        <span className="text-zinc-500 w-12 text-right font-mono">{pctVal}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
-        </div>
+        {!top && (
+          <div className="glass-card p-3.5">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Ativo</p>
+            <p className="text-lg font-bold" style={{ color: data.ganhoAtivoTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{compactBRL(data.ganhoAtivoTotalBRL)}</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">Câmbio {brl(data.ganhoCambioTotalBRL)}</p>
+          </div>
+        )}
+        {!bot && (
+          <div className="glass-card p-3.5">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Cambial</p>
+            <p className="text-lg font-bold" style={{ color: data.ganhoCambioTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{brl(data.ganhoCambioTotalBRL)}</p>
+          </div>
+        )}
       </div>
 
-      {/* ── Custódia (Brasil vs Exterior) ── */}
-      {composicao?.custodia && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4"><Home size={15} />Custódia</h2>
-          <div className="grid grid-cols-2 gap-6">
-            {[
-              { label: "Brasil", value: composicao.custodia.brasil, pct: composicao.custodia.brasil_pct, color: "#3b82f6" },
-              { label: "Exterior", value: composicao.custodia.exterior, pct: composicao.custodia.exterior_pct, color: "#8b5cf6" },
-            ].map(c => (
-              <div key={c.label}>
-                <div className="flex justify-between items-baseline mb-2">
-                  <span className="text-sm font-semibold text-zinc-300">{c.label}</span>
-                  <span className="text-xs text-zinc-500 font-mono">{c.pct.toFixed(1)}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-zinc-800 overflow-hidden mb-2">
-                  <div className="h-full rounded-full" style={{ width: `${c.pct}%`, backgroundColor: c.color }} />
-                </div>
-                <span className="text-lg font-bold" style={{ color: c.color }}>{compactBRL(c.value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB NAVIGATION
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-6 border border-zinc-800/50">
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === tab.id
+                ? "bg-zinc-700/80 text-zinc-100 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+            }`}>
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {/* ── Estrutura da Carteira (Treemap) ── */}
-      {treemapData.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4"><Layers size={15} />Estrutura da Carteira</h2>
-          <ResponsiveContainer width="100%" height={320}>
-            <Treemap
-              data={treemapData}
-              dataKey="value"
-              aspectRatio={4 / 3}
-              stroke="#0d0e11"
-              content={<TreemapContent />}
-            >
-              <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [compactBRL(v), name]}
-              />
-            </Treemap>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-2 mt-4">
-            {treemapData.map(m => (
-              <span key={m.name} className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                style={{ background: `${MACRO_COLORS[m.name] || "#52525b"}18`, color: MACRO_COLORS[m.name] || "#71717a", border: `1px solid ${MACRO_COLORS[m.name] || "#52525b"}30` }}>
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: MACRO_COLORS[m.name] || "#71717a" }} />
-                {m.name} {m.pct.toFixed(1)}%
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Filtro por Macro ── */}
-      {composicao && macros.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6 animate-fade-in">
-          {["global", ...macros].map(f => (
-            <button key={f} onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
-                  ? "border-transparent text-zinc-900"
-                  : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                }`}
-              style={activeFilter === f ? {
-                background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
-              } : undefined}
-            >
-              {f === "global" ? "Global" : f}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── Rentabilidade por Ativo ── */}
-      {filteredRentabilidade.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4"><Target size={15} />Rentabilidade por Ativo</h2>
-          <ResponsiveContainer width="100%" height={Math.max(200, filteredRentabilidade.length * 32)}>
-            <BarChart layout="vertical" data={filteredRentabilidade} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
-              <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v.toFixed(0)}%`} />
-              <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-              <Tooltip contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [
-                  `${v.toFixed(2)}%`,
-                  name === "lucro_nao_realizado_brl" ? "Não realizado" : name === "lucro_realizado_brl" ? "Realizado" : "Retorno",
-                ]} />
-              <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-              <Bar dataKey="retorno_total_pct" radius={[0, 4, 4, 0]} maxBarSize={20}>
-                {filteredRentabilidade.map((entry, i) => (
-                  <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#10b981" : "#f87171"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-[10px] text-zinc-700 mt-2">* Inclui P&L não realizado + lucro de vendas anteriores (em BRL)</p>
-        </div>
-      )}
-
-      {/* ── Risco x Retorno ── */}
-      {filteredRiscoRetorno.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4"><PieIcon size={15} />Risco x Retorno</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
-              <XAxis dataKey="retorno_acumulado" name="Retorno" unit="%" type="number"
-                tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                label={{ value: "Retorno Acumulado (%)", position: "insideBottom", offset: -5, fill: "#52525b", fontSize: 10 }} />
-              <YAxis dataKey="valor_atual_brl" name="Valor" type="number"
-                tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => compactBRL(v)} />
-              <ZAxis dataKey="valor_atual_brl" range={[40, 600]} />
-              <Tooltip contentStyle={TOOLTIP_STYLE}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0]?.payload as RiscoRetornoItem;
-                  return (
-                    <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl">
-                      <p className="font-bold text-zinc-200">{d.ticker}</p>
-                      <p className="text-zinc-400 text-[11px]">{d.setor}</p>
-                      <p className="text-zinc-300 text-xs mt-1">{compactBRL(d.valor_atual_brl)}</p>
-                      <p className={`text-xs font-semibold ${d.retorno_acumulado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {d.retorno_acumulado >= 0 ? "+" : ""}{d.retorno_acumulado.toFixed(2)}%
-                      </p>
-                    </div>
-                  );
-                }} />
-              <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} strokeDasharray="4 4" />
-              <Scatter
-                data={filteredRiscoRetorno}
-                fill="#8b5cf6"
-              >
-                {filteredRiscoRetorno.map((entry, i) => (
-                  <Cell key={i} fill={SECTOR_COLORS[entry.setor] || "#8b5cf6"} fillOpacity={0.85} />
-                ))}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {[...new Set(filteredRiscoRetorno.map(r => r.setor))].map(s => (
-              <span key={s} className="tag" style={{ backgroundColor: `${SECTOR_COLORS[s] || "#71717a"}18`, color: SECTOR_COLORS[s] || "#71717a" }}>
-                {s}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Pareto Global ── */}
-      {filteredPareto.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4"><BarChart3 size={15} />Pareto — Concentração do Portfólio</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={filteredPareto} barCategoryGap="20%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-              <XAxis dataKey="ticker" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                interval={0} angle={-35} textAnchor="end" height={50} />
-              <YAxis yAxisId="left" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => compactBRL(v)} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 100]} />
-              <Tooltip contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [
-                  name === "valor_brl" ? compactBRL(v) : `${v.toFixed(1)}%`,
-                  name === "valor_brl" ? "Valor" : "Acumulado",
-                ]} />
-              <Bar yAxisId="left" dataKey="valor_brl" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                {filteredPareto.map((entry, i) => (
-                  <Cell key={i} fill={SECTOR_COLORS[entry.setor] || "#3b82f6"} fillOpacity={0.85} />
-                ))}
-              </Bar>
-              <Line yAxisId="right" type="monotone" dataKey="acumulado_pct" stroke="#d4a574" strokeWidth={2}
-                dot={{ fill: "#d4a574", r: 3 }} name="acumulado_pct" />
-              <ReferenceLine yAxisId="right" y={80} stroke="#d4a574" strokeDasharray="6 3" strokeOpacity={0.45}
-                label={{ value: "80%", position: "right", fontSize: 9, fill: "#d4a574" }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-          {composicao?.pareto && composicao.pareto.length > 0 && (
-            <p className="text-[10px] text-zinc-600 mt-2">
-              Top {Math.min(filteredPareto.length, 10)} ativos representam{" "}
-              <span className="text-zinc-400 font-semibold">
-                {filteredPareto[Math.min(9, filteredPareto.length - 1)]?.acumulado_pct.toFixed(1)}%
-              </span>{" "}
-              do portfólio
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ── Câmbio Summary ── */}
-      {data.cambio && data.cambio.operacoes > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4">Resumo Cambial</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            <div>
-              <span className="stat-label block mb-1">PM Dólar</span>
-              <span className="stat-value">R$ {data.cambio.pmDolar.toFixed(4)}</span>
-              <span className="text-xs text-zinc-500 block mt-0.5">Spot R$ {data.usdbrl.toFixed(4)}</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Total Enviado</span>
-              <span className="stat-value">{compactBRL(data.cambio.totalEnviadoBRL)}</span>
-              <span className="text-xs text-zinc-500 block mt-0.5">{data.cambio.operacoes} operações</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Total Recebido</span>
-              <span className="stat-value">$ {data.cambio.totalRecebidoUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Ganho Cambial</span>
-              <span className={`stat-value ${data.cambio.ganhoCambialUSD_BRL >= 0 ? "text-positive" : "text-negative"}`}>
-                {brl(data.cambio.ganhoCambialUSD_BRL)}
-              </span>
-              {data.ptax && <span className="text-xs text-zinc-500 block mt-0.5">PTAX R$ {data.ptax.USDBRL.toFixed(4)}</span>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Look-through ETFs (3 tabs) ── */}
-      {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
-        const lt = composicao.look_through;
-
-        // Tab 2: Aggregate by stock across all ETFs
-        const combined: Record<string, { ativo: string; valorBRL: number; etfs: string[] }> = {};
-        for (const etf of Object.values(lt.compositions)) {
-          for (const c of etf.components) {
-            if (!combined[c.ativo]) combined[c.ativo] = { ativo: c.ativo, valorBRL: 0, etfs: [] };
-            combined[c.ativo].valorBRL += etf.valor_brl * c.peso;
-            if (!combined[c.ativo].etfs.includes(etf.ticker)) combined[c.ativo].etfs.push(etf.ticker);
-          }
-        }
-        const combinedList = Object.values(combined).sort((a, b) => b.valorBRL - a.valorBRL);
-        const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
-
-        // Tab 3: All RV positions with ETFs expanded
-        const rvComplete: { ticker: string; valorBRL: number; source: string; isExpanded: boolean }[] = [];
-        for (const p of rvPositions) {
-          if (lt.compositions[p.ticker]) {
-            // Expand ETF
-            for (const c of lt.compositions[p.ticker].components) {
-              rvComplete.push({ ticker: c.ativo, valorBRL: p.valorAtualBRL * c.peso, source: p.ticker, isExpanded: true });
-            }
-          } else {
-            rvComplete.push({ ticker: p.ticker, valorBRL: p.valorAtualBRL, source: "", isExpanded: false });
-          }
-        }
-        // Merge same ticker across ETFs
-        const rvMerged: Record<string, { valorBRL: number; sources: string[] }> = {};
-        for (const item of rvComplete) {
-          if (!rvMerged[item.ticker]) rvMerged[item.ticker] = { valorBRL: 0, sources: [] };
-          rvMerged[item.ticker].valorBRL += item.valorBRL;
-          if (item.source && !rvMerged[item.ticker].sources.includes(item.source))
-            rvMerged[item.ticker].sources.push(item.source);
-        }
-        const rvCompleteList = Object.entries(rvMerged)
-          .map(([ticker, d]) => ({ ticker, valorBRL: d.valorBRL, via: d.sources.join(", ") }))
-          .sort((a, b) => b.valorBRL - a.valorBRL);
-        const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
-
-        return (
-          <div className="glass-card p-5 mb-6 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="section-title"><Layers size={15} />Look-through de ETFs</h2>
-              <span className="text-[10px] text-zinc-500">{compactBRL(lt.total_look_through_brl)} sujeito a look-through</span>
-            </div>
-
-            {/* Tab bar */}
-            <div className="flex gap-1 mb-4 bg-zinc-900/60 p-1 rounded-lg w-fit">
-              {([
-                ["por-etf", "Por ETF"],
-                ["combinada", "Visão Combinada"],
-                ["rv-completa", "RV Completa"],
-              ] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setLookThroughTab(id)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB: ALOCAÇÃO
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "alocacao" && (
+        <div className="space-y-5 animate-fade-in">
+          {/* Macro filter pills */}
+          {composicao && macros.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {["global", ...macros].map(f => (
+                <button key={f} onClick={() => setActiveFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
+                    ? "border-transparent text-zinc-900"
+                    : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  }`}
+                  style={activeFilter === f ? {
+                    background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
+                  } : undefined}
                 >
-                  {label}
+                  {f === "global" ? "Global" : f}
                 </button>
               ))}
             </div>
+          )}
 
-            {/* Tab: Por ETF */}
-            {lookThroughTab === "por-etf" && (
-              <div className="space-y-4">
-                {Object.values(lt.compositions).map(etf => (
-                  <div key={etf.ticker}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
-                      <span className="text-zinc-600 text-xs">{compactBRL(etf.valor_brl)}</span>
+          {/* Sunburst + Sidebar */}
+          {sunburstData && sunburstData.level1.length > 0 && (
+            <div className="glass-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-title"><PieIcon size={15} />Mapa da Carteira</h2>
+                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                  {selectedSector && (
+                    <button onClick={() => setSelectedSector(null)}
+                      className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
+                      ← {selectedSector}
+                    </button>
+                  )}
+                  {selectedClass && (
+                    <button onClick={() => { setSelectedClass(null); setSelectedSector(null); }}
+                      className="px-2 py-1 rounded-md border border-zinc-700 hover:text-zinc-300 transition-colors">
+                      ← Todos
+                    </button>
+                  )}
+                  {!selectedClass && <span>Clique nos anéis para filtrar</span>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-3 flex justify-center">
+                  <SunburstChart
+                    level1={sunburstData.level1}
+                    level2={nestedMiddle}
+                    level3={nestedOuter}
+                    size={560}
+                    selectedClass={selectedClass}
+                    selectedSector={selectedSector}
+                    onSelectClass={setSelectedClass}
+                    onSelectSector={setSelectedSector}
+                  />
+                </div>
+
+                {/* Unified sidebar: Class + Sector + Assets */}
+                <div className="lg:col-span-2 flex flex-col gap-5">
+                  {/* Class breakdown */}
+                  <div>
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2.5">Classe</p>
+                    <div className="space-y-2.5">
+                      {sunburstData.level1.map((s: any) => (
+                        <div key={s.name} className="cursor-pointer group"
+                          onClick={() => { setSelectedClass(selectedClass === s.name ? null : s.name); setSelectedSector(null); }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity"
+                                style={{ backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }} />
+                              <span className="text-xs text-zinc-300 group-hover:text-zinc-100 font-medium transition-colors"
+                                style={{ opacity: selectedClass && selectedClass !== s.name ? 0.35 : 1 }}>{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-zinc-400">{compactBRL(s.value)}</span>
+                              <span className="text-xs font-mono font-bold tabular-nums transition-opacity"
+                                style={{ color: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.25 : 1 }}>
+                                {s.pct.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="h-1 rounded-full bg-zinc-800/60 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${s.pct}%`, backgroundColor: s.color, opacity: selectedClass && selectedClass !== s.name ? 0.2 : 0.7 }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  </div>
+
+                  <div className="h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
+
+                  {/* Sector breakdown */}
+                  <div>
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
+                      Setores{selectedClass ? ` · ${selectedClass === "Renda Variável" ? "RV" : "RF"}` : ""}
+                    </p>
+                    <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: 200 }}>
+                      {nestedMiddle.map((s: any) => (
+                        <div key={s.name} className="flex items-center justify-between cursor-pointer group py-0.5"
+                          onClick={() => { setSelectedClass(s.parentName); setSelectedSector(selectedSector === s.name ? null : s.name); }}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0 transition-opacity"
+                              style={{ backgroundColor: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }} />
+                            <span className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors"
+                              style={{ opacity: selectedSector && selectedSector !== s.name ? 0.35 : 1 }}>{s.name}</span>
+                          </div>
+                          <span className="text-[11px] font-mono tabular-nums transition-opacity"
+                            style={{ color: s.color, opacity: selectedSector && selectedSector !== s.name ? 0.25 : 1 }}>
+                            {s.pct.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Assets */}
+                  {nestedOuter.length > 0 && (
+                    <>
+                      <div className="h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
+                      <div>
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-2">
+                          Ativos{selectedSector ? ` · ${selectedSector}` : ""}
+                        </p>
+                        <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 160 }}>
+                          {nestedOuter.map((s: any, i: number) => (
+                            <div key={`leg-out-${i}`} className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                                <span className="text-[10px] text-zinc-600">{s.name}</span>
+                              </div>
+                              <span className="text-[10px] font-mono text-zinc-500 tabular-nums">{s.pct.toFixed(1)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Currency + Custody row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Currency exposure */}
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><DollarSign size={15} />Exposição Cambial</h2>
+              {filteredExposicao.length > 0 ? (
+                <div className="flex items-start gap-6">
+                  <div className="flex-shrink-0 w-44">
+                    <ResponsiveContainer width="100%" height={160}>
+                      <PieChart>
+                        <Pie data={filteredExposicao} cx="50%" cy="50%" innerRadius={42} outerRadius={70} dataKey="value" stroke="none" paddingAngle={1}>
+                          {filteredExposicao.map(entry => <Cell key={entry.name} fill={CURRENCY_COLORS[entry.name] || "#71717a"} />)}
+                        </Pie>
+                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-2.5 pt-2">
+                    {filteredExposicao.map(c => {
+                      const pctVal = currencyTotal > 0 ? (c.value / currencyTotal) * 100 : 0;
+                      const color = CURRENCY_COLORS[c.name] || "#71717a";
+                      return (
+                        <div key={c.name}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                              <span className="text-xs text-zinc-300 font-medium">{c.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-zinc-400">{compactBRL(c.value)}</span>
+                              <span className="text-xs font-mono font-semibold tabular-nums" style={{ color }}>{pctVal.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                          <div className="h-0.5 rounded-full bg-zinc-800/60 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pctVal}%`, backgroundColor: color, opacity: 0.6 }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
+            </div>
+
+            {/* Sector pie */}
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><Globe size={15} />Setores</h2>
+              {sectorData.length > 0 ? (
+                <div className="flex items-start gap-6">
+                  <div className="flex-shrink-0 w-44">
+                    <ResponsiveContainer width="100%" height={160}>
+                      <PieChart>
+                        <Pie data={sectorData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} dataKey="value" stroke="none" paddingAngle={1}>
+                          {sectorData.map(entry => <Cell key={entry.name} fill={SECTOR_COLORS[entry.name] || "#71717a"} />)}
+                        </Pie>
+                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pt-2" style={{ maxHeight: 160 }}>
+                    <div className="space-y-1.5">
+                      {sectorData.map(s => {
+                        const total = sectorData.reduce((a, b) => a + b.value, 0);
+                        const p = total > 0 ? (s.value / total) * 100 : 0;
+                        return (
+                          <div key={s.name} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[s.name] || "#71717a" }} />
+                              <span className="text-[11px] text-zinc-500">{s.name}</span>
+                            </div>
+                            <span className="text-[11px] font-mono tabular-nums" style={{ color: SECTOR_COLORS[s.name] || "#71717a" }}>{p.toFixed(1)}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
+            </div>
+          </div>
+
+          {/* Custody (Brasil vs Exterior) */}
+          {composicao?.custodia && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><Globe size={15} />Custódia</h2>
+              <div className="grid grid-cols-2 gap-8">
+                {[
+                  { label: "Brasil", value: composicao.custodia.brasil, pct: composicao.custodia.brasil_pct, color: "#3b82f6", icon: "🇧🇷" },
+                  { label: "Exterior", value: composicao.custodia.exterior, pct: composicao.custodia.exterior_pct, color: "#8b5cf6", icon: "🌐" },
+                ].map(c => (
+                  <div key={c.label}>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="text-sm font-semibold text-zinc-300">{c.label}</span>
+                      <span className="text-xl font-bold" style={{ color: c.color }}>{c.pct.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-zinc-800/60 overflow-hidden mb-2">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${c.pct}%`, backgroundColor: c.color, boxShadow: `0 0 12px ${c.color}40` }} />
+                    </div>
+                    <span className="text-sm text-zinc-400">{compactBRL(c.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pareto */}
+          {filteredPareto.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><BarChart3 size={15} />Pareto — Concentração</h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={filteredPareto} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
+                  <XAxis dataKey="ticker" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    interval={0} angle={-35} textAnchor="end" height={50} />
+                  <YAxis yAxisId="left" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => compactBRL(v)} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 100]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                    formatter={(v: number, name: string) => [
+                      name === "valor_brl" ? compactBRL(v) : `${v.toFixed(1)}%`,
+                      name === "valor_brl" ? "Valor" : "Acumulado",
+                    ]} />
+                  <Bar yAxisId="left" dataKey="valor_brl" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                    {filteredPareto.map((entry, i) => (
+                      <Cell key={i} fill={SECTOR_COLORS[entry.setor] || "#3b82f6"} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
+                  <Line yAxisId="right" type="monotone" dataKey="acumulado_pct" stroke="#d4a574" strokeWidth={2}
+                    dot={{ fill: "#d4a574", r: 3 }} name="acumulado_pct" />
+                  <ReferenceLine yAxisId="right" y={80} stroke="#d4a574" strokeDasharray="6 3" strokeOpacity={0.45}
+                    label={{ value: "80%", position: "right", fontSize: 9, fill: "#d4a574" }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+              {composicao?.pareto && composicao.pareto.length > 0 && (
+                <p className="text-[10px] text-zinc-600 mt-2">
+                  Top {Math.min(filteredPareto.length, 10)} ativos representam{" "}
+                  <span className="text-zinc-400 font-semibold">
+                    {filteredPareto[Math.min(9, filteredPareto.length - 1)]?.acumulado_pct.toFixed(1)}%
+                  </span>{" "}
+                  do portfólio
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB: EVOLUÇÃO
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "evolucao" && (
+        <div className="space-y-5 animate-fade-in">
+          {/* Patrimônio evolution */}
+          {evolutionData.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><ArrowUpRight size={15} />Evolução Patrimonial</h2>
+              <ResponsiveContainer width="100%" height={340}>
+                <AreaChart data={evolutionData}>
+                  <defs>
+                    <linearGradient id="gradRV" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradRF" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
+                  <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "rv" ? "Renda Variável" : "Renda Fixa"]} />
+                  <Area type="monotone" dataKey="rv" stroke="#3b82f6" fill="url(#gradRV)" strokeWidth={2} name="rv" />
+                  <Area type="monotone" dataKey="rf" stroke="#8b5cf6" fill="url(#gradRF)" strokeWidth={2} name="rf" />
+                  <Legend formatter={v => v === "rv" ? "Renda Variável" : "Renda Fixa"} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Proventos + Câmbio side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="glass-card p-5 lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-title"><Coins size={15} />Proventos Mensais</h2>
+                {avgMonthlyDividend > 0 && (
+                  <span className="text-[10px] px-2.5 py-1 rounded-full font-medium border"
+                    style={{ background: "rgba(212,165,116,0.08)", color: "#d4a574", borderColor: "rgba(212,165,116,0.22)" }}>
+                    Média {compactBRL(avgMonthlyDividend)}/mês
+                  </span>
+                )}
+              </div>
+              {monthlyDividends.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={monthlyDividends} barCategoryGap="35%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
+                    <Bar dataKey="total" fill="#d4a574" radius={[5, 5, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <p className="text-zinc-600 text-sm">Sem dados de proventos.</p>}
+            </div>
+
+            {/* Câmbio summary */}
+            {data.cambio && data.cambio.operacoes > 0 && (
+              <div className="glass-card p-5">
+                <h2 className="section-title mb-4"><DollarSign size={15} />Câmbio</h2>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">PM Dólar</span>
+                    <span className="text-xl font-bold text-zinc-100">R$ {data.cambio.pmDolar.toFixed(4)}</span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">Spot R$ {data.usdbrl.toFixed(4)}</span>
+                  </div>
+                  <div className="h-px bg-zinc-800/50" />
+                  <div>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Enviado</span>
+                    <span className="text-lg font-bold text-zinc-100">{compactBRL(data.cambio.totalEnviadoBRL)}</span>
+                    <span className="text-[10px] text-zinc-500 block mt-0.5">{data.cambio.operacoes} operações</span>
+                  </div>
+                  <div className="h-px bg-zinc-800/50" />
+                  <div>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Recebido</span>
+                    <span className="text-lg font-bold text-zinc-100">$ {data.cambio.totalRecebidoUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="h-px bg-zinc-800/50" />
+                  <div>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Ganho Cambial</span>
+                    <span className={`text-lg font-bold ${data.cambio.ganhoCambialUSD_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {brl(data.cambio.ganhoCambialUSD_BRL)}
+                    </span>
+                    {data.ptax && <span className="text-[10px] text-zinc-500 block mt-0.5">PTAX R$ {data.ptax.USDBRL.toFixed(4)}</span>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB: RENTABILIDADE
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "rentabilidade" && (
+        <div className="space-y-5 animate-fade-in">
+          {/* Macro filter */}
+          {composicao && macros.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {["global", ...macros].map(f => (
+                <button key={f} onClick={() => setActiveFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
+                    ? "border-transparent text-zinc-900"
+                    : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  }`}
+                  style={activeFilter === f ? {
+                    background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
+                  } : undefined}
+                >
+                  {f === "global" ? "Global" : f}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Rentabilidade chart */}
+          {filteredRentabilidade.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><Target size={15} />Rentabilidade por Ativo</h2>
+              <ResponsiveContainer width="100%" height={Math.max(260, filteredRentabilidade.length * 34)}>
+                <BarChart layout="vertical" data={filteredRentabilidade} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => `${v.toFixed(0)}%`} />
+                  <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                    formatter={(v: number) => [`${v.toFixed(2)}%`, "Retorno"]} />
+                  <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
+                  <Bar dataKey="retorno_total_pct" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                    {filteredRentabilidade.map((entry, i) => (
+                      <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#10b981" : "#f87171"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-zinc-700 mt-2">* P&L não realizado + lucro de vendas anteriores (em BRL)</p>
+            </div>
+          )}
+
+          {/* Risco x Retorno */}
+          {filteredRiscoRetorno.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><PieIcon size={15} />Risco x Retorno</h2>
+              <ResponsiveContainer width="100%" height={340}>
+                <ScatterChart>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
+                  <XAxis dataKey="retorno_acumulado" name="Retorno" unit="%" type="number"
+                    tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    label={{ value: "Retorno Acumulado (%)", position: "insideBottom", offset: -5, fill: "#52525b", fontSize: 10 }} />
+                  <YAxis dataKey="valor_atual_brl" name="Valor" type="number"
+                    tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => compactBRL(v)} />
+                  <ZAxis dataKey="valor_atual_brl" range={[40, 600]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]?.payload as RiscoRetornoItem;
+                      return (
+                        <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl">
+                          <p className="font-bold text-zinc-200">{d.ticker}</p>
+                          <p className="text-zinc-400 text-[11px]">{d.setor}</p>
+                          <p className="text-zinc-300 text-xs mt-1">{compactBRL(d.valor_atual_brl)}</p>
+                          <p className={`text-xs font-semibold ${d.retorno_acumulado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {d.retorno_acumulado >= 0 ? "+" : ""}{d.retorno_acumulado.toFixed(2)}%
+                          </p>
+                        </div>
+                      );
+                    }} />
+                  <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} strokeDasharray="4 4" />
+                  <Scatter data={filteredRiscoRetorno} fill="#8b5cf6">
+                    {filteredRiscoRetorno.map((entry, i) => (
+                      <Cell key={i} fill={SECTOR_COLORS[entry.setor] || "#8b5cf6"} fillOpacity={0.85} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {[...new Set(filteredRiscoRetorno.map(r => r.setor))].map(s => (
+                  <span key={s} className="tag" style={{ backgroundColor: `${SECTOR_COLORS[s] || "#71717a"}18`, color: SECTOR_COLORS[s] || "#71717a" }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB: POSIÇÕES
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "posicoes" && (
+        <div className="space-y-5 animate-fade-in">
+          {/* Positions table */}
+          <div className="glass-card p-5">
+            <h2 className="section-title mb-4"><Briefcase size={15} />Posições — Renda Variável</h2>
+            {rvPositions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: "#1E2028" }}>
+                      {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Dividendos", "Retorno"].map((h, i) => (
+                        <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : "text-left"}`}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rvPositions.map((p, i) => {
+                      const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
+                      const naoRealizadoBRL = p.lucroBRL ?? 0;
+                      const realizadoBRL = p.lucroRealizadoBRL ?? 0;
+                      const totalBRL = naoRealizadoBRL + realizadoBRL + dividendosBRL;
+                      const naoRealizadoPct = p.lucroPct;
+                      const realizadoPct = p.custoTotalBRL > 0 ? (realizadoBRL / p.custoTotalBRL) * 100 : 0;
+                      const totalPct = p.lucroBRL !== null && p.custoTotalBRL > 0
+                        ? (totalBRL / p.custoTotalBRL) * 100
+                        : null;
+                      const corTotal = totalPct !== null ? (totalPct >= 0 ? "text-emerald-400" : "text-red-400") : "text-zinc-500";
+
+                      return (
+                        <tr key={p.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
+                          <td className="px-3 py-2.5">
+                            <span className="font-semibold text-zinc-200">{p.ticker}</span>
+                            <span className="text-zinc-600 text-[10px] ml-1.5">{p.moeda}</span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[p.setor] || "#71717a"}15`, color: SECTOR_COLORS[p.setor] || "#71717a" }}>
+                              {p.setor}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
+                            {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
+                            {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium text-zinc-200">
+                            {p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-xs">
+                            {dividendosBRL > 0 ? (
+                              <span className="text-amber-400 font-mono">{compactBRL(dividendosBRL)}</span>
+                            ) : (
+                              <span className="text-zinc-700">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <div className={`font-bold text-sm ${corTotal}`}>
+                              {totalPct !== null
+                                ? `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(1)}%`
+                                : "—"}
+                            </div>
+                            <div className="text-[9px] text-zinc-600 font-mono mt-0.5">
+                              <span title="Não realizado">
+                                {naoRealizadoPct !== null
+                                  ? `NR ${naoRealizadoPct >= 0 ? "+" : ""}${naoRealizadoPct.toFixed(1)}%`
+                                  : "NR —"}
+                              </span>
+                              {" · "}
+                              <span title="Realizado">
+                                {`R ${realizadoPct >= 0 ? "+" : ""}${realizadoPct.toFixed(1)}%`}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-zinc-600 text-sm">Nenhuma posição.</p>}
+          </div>
+
+          {/* Look-through ETFs */}
+          {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
+            const lt = composicao.look_through;
+
+            const combined: Record<string, { ativo: string; valorBRL: number; etfs: string[] }> = {};
+            for (const etf of Object.values(lt.compositions)) {
+              for (const c of etf.components) {
+                if (!combined[c.ativo]) combined[c.ativo] = { ativo: c.ativo, valorBRL: 0, etfs: [] };
+                combined[c.ativo].valorBRL += etf.valor_brl * c.peso;
+                if (!combined[c.ativo].etfs.includes(etf.ticker)) combined[c.ativo].etfs.push(etf.ticker);
+              }
+            }
+            const combinedList = Object.values(combined).sort((a, b) => b.valorBRL - a.valorBRL);
+            const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
+
+            const rvComplete: { ticker: string; valorBRL: number; source: string; isExpanded: boolean }[] = [];
+            for (const p of rvPositions) {
+              if (lt.compositions[p.ticker]) {
+                for (const c of lt.compositions[p.ticker].components) {
+                  rvComplete.push({ ticker: c.ativo, valorBRL: p.valorAtualBRL * c.peso, source: p.ticker, isExpanded: true });
+                }
+              } else {
+                rvComplete.push({ ticker: p.ticker, valorBRL: p.valorAtualBRL, source: "", isExpanded: false });
+              }
+            }
+            const rvMerged: Record<string, { valorBRL: number; sources: string[] }> = {};
+            for (const item of rvComplete) {
+              if (!rvMerged[item.ticker]) rvMerged[item.ticker] = { valorBRL: 0, sources: [] };
+              rvMerged[item.ticker].valorBRL += item.valorBRL;
+              if (item.source && !rvMerged[item.ticker].sources.includes(item.source))
+                rvMerged[item.ticker].sources.push(item.source);
+            }
+            const rvCompleteList = Object.entries(rvMerged)
+              .map(([ticker, d]) => ({ ticker, valorBRL: d.valorBRL, via: d.sources.join(", ") }))
+              .sort((a, b) => b.valorBRL - a.valorBRL);
+            const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
+
+            return (
+              <div className="glass-card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="section-title"><Layers size={15} />Look-through de ETFs</h2>
+                  <span className="text-[10px] text-zinc-500">{compactBRL(lt.total_look_through_brl)} sujeito a look-through</span>
+                </div>
+
+                <div className="flex gap-1 mb-4 bg-zinc-900/60 p-1 rounded-lg w-fit">
+                  {([
+                    ["por-etf", "Por ETF"],
+                    ["combinada", "Visão Combinada"],
+                    ["rv-completa", "RV Completa"],
+                  ] as const).map(([id, label]) => (
+                    <button key={id} onClick={() => setLookThroughTab(id)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {lookThroughTab === "por-etf" && (
+                  <div className="space-y-4">
+                    {Object.values(lt.compositions).map(etf => (
+                      <div key={etf.ticker}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
+                          <span className="text-zinc-600 text-xs">{compactBRL(etf.valor_brl)}</span>
+                        </div>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-zinc-800">
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {etf.components.map(c => (
+                              <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                <td className="py-1.5 px-2 text-zinc-300 font-medium">{c.ativo}</td>
+                                <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
+                                <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {lookThroughTab === "combinada" && (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
+                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% Total LT</th>
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {combinedList.slice(0, 30).map((c, i) => (
+                        <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                          <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                          <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
+                          <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                          <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                            {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
+                          </td>
+                          <td className="py-1.5 px-2 text-zinc-600">{c.etfs.join(", ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {lookThroughTab === "rv-completa" && (
+                  <>
+                    <p className="text-[10px] text-zinc-600 mb-3">
+                      Posições diretas + ETFs expandidos pelos seus componentes. ETFs não suportados mantidos como linha única.
+                    </p>
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-zinc-800">
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
                           <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
                           <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% RV</th>
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via ETF</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {etf.components.map(c => (
-                          <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                            <td className="py-1.5 px-2 text-zinc-300 font-medium">{c.ativo}</td>
-                            <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
-                            <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+                        {rvCompleteList.map((c, i) => (
+                          <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
+                            <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                            <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                              {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
+                            </td>
+                            <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                ))}
+                  </>
+                )}
+
+                {lt.unsupported.length > 0 && (
+                  <p className="text-[10px] text-zinc-600 mt-3">
+                    Sem composição: {lt.unsupported.join(", ")}
+                  </p>
+                )}
               </div>
-            )}
+            );
+          })()}
+        </div>
+      )}
 
-            {/* Tab: Visão Combinada */}
-            {lookThroughTab === "combinada" && (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
-                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                    <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                    <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% Total LT</th>
-                    <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {combinedList.slice(0, 30).map((c, i) => (
-                    <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                      <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                      <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
-                      <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
-                      <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
-                        {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
-                      </td>
-                      <td className="py-1.5 px-2 text-zinc-600">{c.etfs.join(", ")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {/* Tab: RV Completa */}
-            {lookThroughTab === "rv-completa" && (
-              <>
-                <p className="text-[10px] text-zinc-600 mb-3">
-                  Posições diretas + ETFs expandidos pelos seus componentes. ETFs não suportados mantidos como linha única.
-                </p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-zinc-800">
-                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
-                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                      <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                      <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% RV</th>
-                      <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via ETF</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rvCompleteList.map((c, i) => (
-                      <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
-                        <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                        <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
-                        <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
-                        <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
-                          {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
-                        </td>
-                        <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {lt.unsupported.length > 0 && (
-              <p className="text-[10px] text-zinc-600 mt-3">
-                Sem composição: {lt.unsupported.join(", ")}
-              </p>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* ── Posições RV ── */}
-      <div className="glass-card p-5 animate-fade-in">
-        <h2 className="section-title mb-4">Posições — Renda Variável</h2>
-        {rvPositions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left" style={{ borderColor: "#1E2028" }}>
-                  {["Ativo", "Setor", "Qtd", "Preço", "Valor", "Dividendos", "Retorno"].map((h, i) => (
-                    <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : ""}`}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rvPositions.map((p, i) => {
-                  const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
-                  const naoRealizadoBRL = p.lucroBRL ?? 0;
-                  const realizadoBRL = p.lucroRealizadoBRL ?? 0;
-                  const totalBRL = naoRealizadoBRL + realizadoBRL + dividendosBRL;
-                  const naoRealizadoPct = p.lucroPct;
-                  const realizadoPct = p.custoTotalBRL > 0 ? (realizadoBRL / p.custoTotalBRL) * 100 : 0;
-                  const totalPct = p.lucroBRL !== null && p.custoTotalBRL > 0
-                    ? (totalBRL / p.custoTotalBRL) * 100
-                    : null;
-                  const corTotal = totalPct !== null ? (totalPct >= 0 ? "text-positive" : "text-negative") : "text-zinc-500";
-
-                  return (
-                    <tr key={p.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
-                      <td className="px-3 py-2.5">
-                        <span className="font-semibold text-zinc-200">{p.ticker}</span>
-                        <span className="text-zinc-600 text-[10px] ml-1.5">{p.moeda}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[p.setor] || "#71717a"}15`, color: SECTOR_COLORS[p.setor] || "#71717a" }}>
-                          {p.setor}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
-                        {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
-                        {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">
-                        {p.valorAtual !== null ? currency(p.valorAtual, p.moeda) : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-xs">
-                        {dividendosBRL > 0 ? (
-                          <span className="text-amber-400 font-mono">{compactBRL(dividendosBRL)}</span>
-                        ) : (
-                          <span className="text-zinc-700">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <div className={`font-bold text-sm ${corTotal}`}>
-                          {totalPct !== null
-                            ? `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(1)}%`
-                            : "—"}
-                        </div>
-                        <div className="text-[9px] text-zinc-600 font-mono mt-0.5">
-                          <span title="Não realizado">
-                            {naoRealizadoPct !== null
-                              ? `NR ${naoRealizadoPct >= 0 ? "+" : ""}${naoRealizadoPct.toFixed(1)}%`
-                              : "NR —"}
-                          </span>
-                          {" · "}
-                          <span title="Realizado">
-                            {`R ${realizadoPct >= 0 ? "+" : ""}${realizadoPct.toFixed(1)}%`}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : <p className="text-zinc-600 text-sm">Nenhuma posição.</p>}
-      </div>
+      {/* ── Data quality warnings ── */}
+      {composicao?.errors && composicao.errors.length > 0 && (
+        <div className="glass-card p-4 border-l-2 border-yellow-600/40 mt-6">
+          <p className="text-xs font-semibold text-yellow-500 mb-1">Avisos</p>
+          <ul className="space-y-0.5">
+            {composicao.errors.map((e, i) => (
+              <li key={i} className="text-xs text-zinc-400">{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 }
