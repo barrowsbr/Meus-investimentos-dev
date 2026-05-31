@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
   ComposedChart, Line, Scatter, ScatterChart, ZAxis,
-  ReferenceLine, Treemap,
+  ReferenceLine,
 } from "recharts";
 import SunburstChart from "@/components/SunburstChart";
 import {
@@ -31,7 +31,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface Performer { ticker: string; lucro_pct: number; setor: string }
 interface ParetoItem { ticker: string; setor: string; macro: string; valor_brl: number; pct: number; acumulado_pct: number }
-interface RentabilidadeItem { ticker: string; setor: string; macro: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; retorno_total_pct: number }
+interface RentabilidadeItem { ticker: string; setor: string; macro: string; moeda: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; retorno_nao_realizado_pct: number; retorno_realizado_proventos_pct: number; retorno_total_pct: number }
 interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; retorno_acumulado: number }
 interface LookThroughComp { ativo: string; name?: string; peso: number }
 interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
@@ -100,31 +100,6 @@ function formatComputedAt(iso: string): string {
   try {
     return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TreemapCell(props: any) {
-  const { x, y, width, height, name, retorno } = props;
-  if (!width || !height || width < 2 || height < 2) return null;
-  const ret = (retorno as number) ?? 0;
-  const fill = ret >= 0
-    ? `hsl(${160 - Math.min(ret, 100) * 0.4}, ${60 + Math.min(ret, 100) * 0.3}%, ${28 + Math.min(ret, 50) * 0.3}%)`
-    : `hsl(${0 + Math.min(Math.abs(ret), 100) * 0.1}, ${60 + Math.min(Math.abs(ret), 100) * 0.3}%, ${28 + Math.min(Math.abs(ret), 50) * 0.3}%)`;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} stroke="#1E2028" strokeWidth={1.5} />
-      {width > 40 && height > 28 && (
-        <>
-          <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill="#fafafa" fontSize={11} fontWeight="bold">
-            {name}
-          </text>
-          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill={ret >= 0 ? "#6ee7b7" : "#fca5a5"} fontSize={10}>
-            {ret >= 0 ? "+" : ""}{ret.toFixed(1)}%
-          </text>
-        </>
-      )}
-    </g>
-  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -475,29 +450,31 @@ export default function ResumoPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
+           GLOBAL MACRO FILTER — applies to all tabs
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {composicao && macros.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {["global", ...macros].map(f => (
+            <button key={f} onClick={() => setActiveFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
+                ? "border-transparent text-zinc-900"
+                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+              }`}
+              style={activeFilter === f ? {
+                background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
+              } : undefined}
+            >
+              {f === "global" ? "Global" : f}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
            TAB: ALOCAÇÃO
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "alocacao" && (
         <div className="space-y-5 animate-fade-in">
-          {/* Macro filter pills */}
-          {composicao && macros.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {["global", ...macros].map(f => (
-                <button key={f} onClick={() => setActiveFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
-                    ? "border-transparent text-zinc-900"
-                    : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                  }`}
-                  style={activeFilter === f ? {
-                    background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
-                  } : undefined}
-                >
-                  {f === "global" ? "Global" : f}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Sunburst + Sidebar */}
           {sunburstData && sunburstData.level1.length > 0 && (
             <div className="glass-card p-5">
@@ -868,25 +845,6 @@ export default function ResumoPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "rentabilidade" && (
         <div className="space-y-5 animate-fade-in">
-          {/* Macro filter */}
-          {composicao && macros.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {["global", ...macros].map(f => (
-                <button key={f} onClick={() => setActiveFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
-                    ? "border-transparent text-zinc-900"
-                    : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                  }`}
-                  style={activeFilter === f ? {
-                    background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
-                  } : undefined}
-                >
-                  {f === "global" ? "Global" : f}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Status filter */}
           <div className="flex gap-1.5">
             {(["Todos", "Ativo", "Vendido"] as const).map(s => (
@@ -900,26 +858,59 @@ export default function ResumoPage() {
             ))}
           </div>
 
-          {/* Treemap colored by return */}
-          {filteredRentabilidade.length > 0 && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><Target size={15} />Mapa de Rentabilidade</h2>
-              <ResponsiveContainer width="100%" height={360}>
-                <Treemap
-                  data={filteredRentabilidade.map(r => ({
-                    name: r.ticker,
-                    size: Math.abs(r.resultado_total_brl) || 1,
-                    retorno: r.retorno_total_pct,
-                    valor: r.resultado_total_brl,
-                  }))}
-                  dataKey="size"
-                  stroke="#1E2028"
-                  content={<TreemapCell />}
-                />
-              </ResponsiveContainer>
-              <p className="text-[10px] text-zinc-600 mt-2">Tamanho = |resultado total BRL|. Cor: verde = lucro, vermelho = prejuízo.</p>
-            </div>
-          )}
+          {/* Horizontal bar chart — stacked unrealized + realized/proventos */}
+          {filteredRentabilidade.filter(r => r.status === "Ativo").length > 0 && (() => {
+            const activeItems = filteredRentabilidade
+              .filter(r => r.status === "Ativo" && r.retorno_total_pct !== 0)
+              .sort((a, b) => b.retorno_total_pct - a.retorno_total_pct);
+            const chartHeight = Math.max(320, activeItems.length * 28);
+            return (
+              <div className="glass-card p-5">
+                <h2 className="section-title mb-4"><Target size={15} />Rentabilidade por Ativo</h2>
+                <ResponsiveContainer width="100%" height={chartHeight}>
+                  <BarChart layout="vertical" data={activeItems} barCategoryGap="18%" margin={{ left: 10, right: 50 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                      tickFormatter={v => `${v.toFixed(0)}%`} />
+                    <YAxis type="category" dataKey="ticker" width={70} tick={{ fill: "#a1a1aa", fontSize: 11, fontWeight: 600 }}
+                      axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE}
+                      formatter={(v: number, name: string) => [
+                        `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
+                        name === "retorno_nao_realizado_pct" ? "Não Realizado" : "Realiz. + Prov.",
+                      ]}
+                      labelFormatter={(label) => {
+                        const item = activeItems.find(r => r.ticker === label);
+                        return item ? `${label} (${item.moeda})` : label;
+                      }}
+                    />
+                    <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
+                    <Bar dataKey="retorno_nao_realizado_pct" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={18} name="retorno_nao_realizado_pct">
+                      {activeItems.map((entry, i) => (
+                        <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.85} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="retorno_realizado_proventos_pct" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} name="retorno_realizado_proventos_pct">
+                      {activeItems.map((entry, i) => (
+                        <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.3} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-4 mt-3 text-[10px] text-zinc-500">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-2 rounded-sm" style={{ background: "#34d399", opacity: 0.85 }} />
+                    Não Realizado
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-2 rounded-sm" style={{ background: "#34d399", opacity: 0.3 }} />
+                    Realizado + Proventos
+                  </div>
+                  <span className="text-zinc-600 ml-auto">Retorno em moeda nativa</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Detailed P&L table */}
           {filteredRentabilidade.length > 0 && (
@@ -929,7 +920,7 @@ export default function ResumoPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b" style={{ borderColor: "#1E2028" }}>
-                      {["Ativo", "Setor", "Status", "Custo", "Não Real.", "Realiz.", "Proventos", "Total", "Ret %"].map((h, i) => (
+                      {["Ativo", "Setor", "Status", "Valor Atual", "Não Real.", "Real.+Prov.", "Ret %"].map((h, i) => (
                         <th key={h} className={`px-2 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : "text-left"}`}>
                           {h}
                         </th>
@@ -941,6 +932,7 @@ export default function ResumoPage() {
                       <tr key={r.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
                         <td className="px-2 py-2">
                           <span className="font-semibold text-zinc-200">{r.ticker}</span>
+                          <span className="text-zinc-600 text-[9px] ml-1">{r.moeda}</span>
                         </td>
                         <td className="px-2 py-2">
                           <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#71717a"}15`, color: SECTOR_COLORS[r.setor] || "#71717a" }}>
@@ -952,18 +944,12 @@ export default function ResumoPage() {
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-2 py-2 text-right text-zinc-400 font-mono">{compactBRL(r.custo_brl)}</td>
-                        <td className={`px-2 py-2 text-right font-mono ${r.lucro_nao_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {compactBRL(r.lucro_nao_realizado_brl)}
+                        <td className="px-2 py-2 text-right text-zinc-400 font-mono">{compactBRL(r.valor_atual_brl)}</td>
+                        <td className={`px-2 py-2 text-right font-mono ${r.retorno_nao_realizado_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {r.retorno_nao_realizado_pct >= 0 ? "+" : ""}{r.retorno_nao_realizado_pct.toFixed(1)}%
                         </td>
-                        <td className={`px-2 py-2 text-right font-mono ${r.lucro_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {compactBRL(r.lucro_realizado_brl)}
-                        </td>
-                        <td className="px-2 py-2 text-right font-mono text-amber-400">
-                          {r.proventos_brl > 0 ? compactBRL(r.proventos_brl) : "—"}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {compactBRL(r.resultado_total_brl)}
+                        <td className={`px-2 py-2 text-right font-mono ${r.retorno_realizado_proventos_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {r.retorno_realizado_proventos_pct !== 0 ? `${r.retorno_realizado_proventos_pct >= 0 ? "+" : ""}${r.retorno_realizado_proventos_pct.toFixed(1)}%` : "—"}
                         </td>
                         <td className={`px-2 py-2 text-right font-bold ${r.retorno_total_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                           {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
@@ -974,11 +960,8 @@ export default function ResumoPage() {
                   <tfoot>
                     <tr className="border-t" style={{ borderColor: "#3f3f46" }}>
                       <td className="px-2 py-2 font-bold text-zinc-200" colSpan={3}>Total</td>
-                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.custo_brl, 0))}</td>
-                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0))}</td>
-                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.lucro_realizado_brl, 0))}</td>
-                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.proventos_brl, 0))}</td>
-                      <td className="px-2 py-2 text-right font-bold text-zinc-100">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.resultado_total_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.valor_atual_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right text-zinc-500" colSpan={2}>—</td>
                       <td className="px-2 py-2 text-right text-zinc-500">—</td>
                     </tr>
                   </tfoot>
