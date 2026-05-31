@@ -349,6 +349,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
+  // Pre-window transactions establish the OPENING position only. The custody
+  // snapshot already folds them into navInicial, so they must NOT be replayed
+  // as in-window cash flows. Otherwise a windowed view (YTD/1M/…) dumps the
+  // entire historical portfolio as a giant day-1 inflow — inflating
+  // totalInvestido (e.g. R$177k on YTD) and collapsing MWR to nonsense
+  // (e.g. −89%). This mirrors Python's approach of slicing a pre-computed
+  // NAV/flow series: only flows that fall inside the window count.
+  while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate < firstDate) txIdx++;
+
   for (let i = 0; i < dates.length; i++) {
     const date = dates[i];
     const snap = custody[i];
