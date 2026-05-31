@@ -38,34 +38,53 @@ function calcularMWR(cashFlows: Array<{ date: string; amount: number }>): number
   const totalDays = (tN - t0) / (1000 * 60 * 60 * 24);
   if (totalDays <= 0) return 0;
 
-  // Each flow: CF_i * (1 + r)^(t_i / 365) = 0
+  const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+  const cf = cashFlows.map(c => ({
+    t: (new Date(c.date).getTime() - t0) / MS_PER_YEAR,
+    amt: c.amount,
+  }));
+
   function npv(rate: number): number {
-    return cashFlows.reduce((sum, cf) => {
-      const t = (new Date(cf.date).getTime() - t0) / (1000 * 60 * 60 * 24 * 365);
-      return sum + cf.amount * Math.pow(1 + rate, -t);
-    }, 0);
+    if (rate <= -1) return Infinity;
+    return cf.reduce((s, { t, amt }) => s + amt / Math.pow(1 + rate, t), 0);
+  }
+  function npvDeriv(rate: number): number {
+    if (rate <= -1) return Infinity;
+    return cf.reduce((s, { t, amt }) => s - t * amt / Math.pow(1 + rate, t + 1), 0);
   }
 
-  function npvPrime(rate: number): number {
-    return cashFlows.reduce((sum, cf) => {
-      const t = (new Date(cf.date).getTime() - t0) / (1000 * 60 * 60 * 24 * 365);
-      return sum - t * cf.amount * Math.pow(1 + rate, -(t + 1));
-    }, 0);
+  let r = 0.05;
+  let converged = false;
+  for (const guess of [0.05, 0.0, 0.1, 0.2, -0.3, 0.5]) {
+    r = guess;
+    for (let i = 0; i < 200; i++) {
+      const f = npv(r);
+      const df = npvDeriv(r);
+      if (Math.abs(df) < 1e-14) break;
+      let step = f / df;
+      if (Math.abs(step) > 1.0) step = Math.sign(step);
+      const rNew = Math.max(-0.999, Math.min(100, r - step));
+      if (Math.abs(rNew - r) < 1e-8) { r = rNew; converged = true; break; }
+      r = rNew;
+    }
+    if (converged) break;
   }
 
-  let r = 0.1; // initial guess
-  for (let i = 0; i < 100; i++) {
-    const f = npv(r);
-    const df = npvPrime(r);
-    if (Math.abs(df) < 1e-12) break;
-    const rNew = r - f / df;
-    if (Math.abs(rNew - r) < 1e-8) { r = rNew; break; }
-    r = rNew;
-    if (r < -0.99) r = -0.99;
-    if (r > 50) r = 50;
+  if (!converged) {
+    let low = -0.99, high = 10.0;
+    let fLow = npv(low);
+    if (fLow * npv(high) > 0) {
+      for (const h of [50, 100]) { if (fLow * npv(h) <= 0) { high = h; break; } }
+    }
+    for (let i = 0; i < 300; i++) {
+      const mid = (low + high) / 2;
+      const fMid = npv(mid);
+      if (Math.abs(fMid) < 1e-8 || Math.abs(high - low) < 1e-8) { r = mid; break; }
+      if (fLow * fMid < 0) { high = mid; } else { low = mid; fLow = fMid; }
+    }
   }
 
-  return isFinite(r) ? r : 0;
+  return (isFinite(r) && Math.abs(r) <= 10) ? r : 0;
 }
 
 // ── Drawdown series ───────────────────────────────────────────────────────────

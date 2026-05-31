@@ -109,7 +109,7 @@ const WINDOWS = [
   { label: "1A", days: 365 },
   { label: "3A", days: 1095 },
   { label: "5A", days: 1825 },
-  { label: "Tudo", days: 0 },
+  { label: "Início", days: 0 },
 ];
 
 const TOOLTIP_STYLE = {
@@ -185,7 +185,7 @@ export default function PerformancePage() {
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lookback, setLookback] = useState(1825);
+  const [lookback, setLookback] = useState(0);
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
