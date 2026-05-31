@@ -445,11 +445,14 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
   const twrTotal = cleanCum - 1;
 
-  const bizDaysCount = points.length - firstIdx;
-  const duracaoAnos = bizDaysCount / BUSINESS_DAYS_PER_YEAR;
+  // Annualize using calendar days / 365 (matching Streamlit calculator.py line 401)
+  const startD = new Date(firstMeaningful.date + "T12:00:00Z");
+  const endD = new Date(last.date + "T12:00:00Z");
+  const calendarDays = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24));
+  const duracaoAnos = calendarDays / 365;
 
-  const twrAnualizado = duracaoAnos > (20 / BUSINESS_DAYS_PER_YEAR)
-    ? Math.pow(1 + twrTotal, 1 / duracaoAnos) - 1
+  const twrAnualizado = calendarDays > 20 && (1 + twrTotal) > 0
+    ? Math.pow(1 + twrTotal, 365 / calendarDays) - 1
     : twrTotal;
 
   const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows;

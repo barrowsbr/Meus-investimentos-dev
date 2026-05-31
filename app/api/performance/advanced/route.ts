@@ -155,16 +155,17 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
   const stdDev = Math.sqrt(variance);
   const volatility = stdDev * Math.sqrt(annualize);
 
-  const SELIC_DAILY = Math.pow(1.1375, 1 / 252) - 1;
-  const excessMean = mean - SELIC_DAILY;
-  const sharpe = stdDev > 0 ? (excessMean / stdDev) * Math.sqrt(annualize) : 0;
+  // Sharpe: annualized return vs risk-free (10% a.a. — matching Streamlit)
+  const RISK_FREE_ANNUAL = 0.10;
+  const annualReturn = Math.pow(1 + mean, annualize) - 1;
+  const sharpe = volatility > 0 ? (annualReturn - RISK_FREE_ANNUAL) / volatility : 0;
 
-  const downside = dailyReturns.filter(r => r < SELIC_DAILY);
-  const downsideVariance = downside.length > 1
-    ? downside.reduce((s, r) => s + Math.pow(r - SELIC_DAILY, 2), 0) / (downside.length - 1)
-    : variance;
-  const downsideStd = Math.sqrt(downsideVariance);
-  const sortino = downsideStd > 0 ? (excessMean / downsideStd) * Math.sqrt(annualize) : 0;
+  // Sortino: downside = returns below zero (matching Streamlit)
+  const downside = dailyReturns.filter(r => r < 0);
+  const downsideStd = downside.length > 0
+    ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) * Math.sqrt(annualize)
+    : 0;
+  const sortino = downsideStd > 0 ? (annualReturn - RISK_FREE_ANNUAL) / downsideStd : 0;
 
   const sorted = [...dailyReturns].sort((a, b) => a - b);
   const var95 = sorted[Math.floor(n * 0.05)] ?? 0;
@@ -175,7 +176,10 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
 
 // ── FX decomposition: R_total = (1 + R_ativo)(1 + R_fx) - 1 ─────────────────
 
-function calcularDecomposicaoFX(points: TwrDayPoint[]): {
+function calcularDecomposicaoFX(
+  points: TwrDayPoint[],
+  fxHistory: Record<string, { USDBRL: number }>,
+): {
   r_total: number;
   r_ativo: number;
   r_fx: number;
@@ -183,10 +187,13 @@ function calcularDecomposicaoFX(points: TwrDayPoint[]): {
 } {
   if (points.length < 2) return { r_total: 0, r_ativo: 0, r_fx: 0, r_combinado: 0 };
   const r_total = points[points.length - 1].twr;
-  // Simplified: without per-currency breakdown from the TWR engine
-  // Use approximate USD/BRL change as FX component
-  const r_ativo = r_total * 0.7; // approximate
-  const r_fx = r_total * 0.3;     // approximate
+  const firstFx = fxHistory[points[0].date]?.USDBRL;
+  const lastFx = fxHistory[points[points.length - 1].date]?.USDBRL;
+  if (!firstFx || !lastFx || firstFx <= 0) {
+    return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
+  }
+  const r_fx = (lastFx / firstFx) - 1;
+  const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
   const r_combinado = (1 + r_ativo) * (1 + r_fx) - 1;
   return { r_total, r_ativo, r_fx, r_combinado };
 }
@@ -296,8 +303,9 @@ export async function GET(request: Request) {
     const dailyReturns = twr.points.map(p => p.ret).filter(r => isFinite(r));
     const riskMetrics = calcularMetricasRisco(dailyReturns);
 
-    // Drawdown series
-    const meaningfulPoints = twr.points.filter(p => p.nav >= 100);
+    // Drawdown series — start from first day with NAV > 0
+    const firstIdx = twr.points.findIndex(p => p.nav > 0);
+    const meaningfulPoints = firstIdx >= 0 ? twr.points.slice(firstIdx) : twr.points;
     const drawdownSeries = calcularDrawdown(meaningfulPoints);
     const maxDrawdown = drawdownSeries.length > 0
       ? Math.min(...drawdownSeries.map(d => d.drawdown))
@@ -327,7 +335,7 @@ export async function GET(request: Request) {
     const mwr = twr.mwr ?? calcularMWR(cashFlows);
 
     // FX decomposition
-    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints);
+    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx);
 
     // Attribution
     const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
@@ -346,15 +354,19 @@ export async function GET(request: Request) {
     }
 
     // Monthly returns
-    const monthlyMap: Record<string, { startFactor: number; endFactor: number }> = {};
+    const monthlyMap: Record<string, { startFactor: number; endFactor: number; startDate: string }> = {};
     for (const p of meaningfulPoints) {
       const month = p.date.slice(0, 7);
       const factor = 1 + p.twr;
-      if (!monthlyMap[month] || p.date < monthlyMap[month].startFactor.toString()) {
-        if (!monthlyMap[month]) monthlyMap[month] = { startFactor: factor, endFactor: factor };
-        else monthlyMap[month].startFactor = factor;
+      if (!monthlyMap[month]) {
+        monthlyMap[month] = { startFactor: factor, endFactor: factor, startDate: p.date };
+      } else {
+        if (p.date < monthlyMap[month].startDate) {
+          monthlyMap[month].startFactor = factor;
+          monthlyMap[month].startDate = p.date;
+        }
+        monthlyMap[month].endFactor = factor;
       }
-      monthlyMap[month].endFactor = factor;
     }
     const monthlyReturns = Object.entries(monthlyMap)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -384,7 +396,7 @@ export async function GET(request: Request) {
         sortino: riskMetrics.sortino,
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
-        ganhoEconomico: twr.navFinal - twr.navInicial - twr.totalInvestido,
+        ganhoEconomico: twr.ganhoEconomico,
         peakDate,
         troughDate,
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
