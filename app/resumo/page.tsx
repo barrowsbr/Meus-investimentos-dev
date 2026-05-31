@@ -18,7 +18,9 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
+import { computeCountryAllocation } from "@/lib/ticker-country";
 import MetricCard from "@/components/MetricCard";
+import InvestmentWorldMap from "@/components/InvestmentWorldMap";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -208,6 +210,15 @@ export default function ResumoPage() {
     if (activeFilter === "global") return composicao.risco_retorno;
     return composicao.risco_retorno.filter(r => r.macro === activeFilter);
   }, [composicao, activeFilter]);
+
+  const countryAllocation = useMemo(() => {
+    if (!composicao?.look_through || !data?.positions) return [];
+    const lt = composicao.look_through;
+    const directPositions = data.positions
+      .filter(p => !["ETF USA", "ETF"].includes(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
+      .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL }));
+    return computeCountryAllocation(lt.compositions, directPositions);
+  }, [composicao, data]);
 
   const filteredExposicao = useMemo(() => {
     if (!composicao) return currencyData;
@@ -1162,6 +1173,14 @@ export default function ResumoPage() {
               {etfRefreshing ? "Atualizando…" : "Atualizar ao Vivo"}
             </button>
           </div>
+
+          {/* World Map — geographic distribution */}
+          {countryAllocation.length > 0 && (
+            <div className="glass-card p-4 sm:p-5">
+              <h2 className="section-title mb-3"><Globe size={15} />Distribuição Geográfica</h2>
+              <InvestmentWorldMap data={countryAllocation} totalBRL={composicao?.resumo.total_portfolio ?? 0} />
+            </div>
+          )}
 
           {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
             const lt = composicao.look_through;
