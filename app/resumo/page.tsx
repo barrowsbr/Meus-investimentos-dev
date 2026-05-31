@@ -11,7 +11,7 @@ import SunburstChart from "@/components/SunburstChart";
 import {
   TrendingUp, TrendingDown, Coins, DollarSign,
   BarChart3, ArrowUpRight, Globe,
-  Award, AlertTriangle,
+  Award, AlertTriangle, RefreshCw,
   Target, PieChart as PieIcon,
   Briefcase, Layers,
 } from "lucide-react";
@@ -31,7 +31,7 @@ interface Performer { ticker: string; lucro_pct: number; setor: string }
 interface ParetoItem { ticker: string; setor: string; macro: string; valor_brl: number; pct: number; acumulado_pct: number }
 interface RentabilidadeItem { ticker: string; setor: string; macro: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; retorno_total_pct: number }
 interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; retorno_acumulado: number }
-interface LookThroughComp { ativo: string; peso: number }
+interface LookThroughComp { ativo: string; name?: string; peso: number }
 interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
 interface TreeNode { name: string; value: number; pct: number; children?: TreeNode[] }
 
@@ -45,7 +45,7 @@ interface ComposicaoData {
   rentabilidade: RentabilidadeItem[];
   risco_retorno: RiscoRetornoItem[];
   pareto: ParetoItem[];
-  look_through: { supported: string[]; unsupported: string[]; compositions: Record<string, LookThroughETF>; total_look_through_brl: number };
+  look_through: { supported: string[]; unsupported: string[]; compositions: Record<string, LookThroughETF>; total_look_through_brl: number; sources?: Record<string, string>; updated_at?: string };
   errors: string[];
 }
 
@@ -86,9 +86,9 @@ type Tab = "alocacao" | "evolucao" | "rentabilidade" | "posicoes" | "composicao-
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "alocacao", label: "Alocação", icon: <PieIcon size={14} /> },
   { id: "evolucao", label: "Evolução", icon: <ArrowUpRight size={14} /> },
-  { id: "rentabilidade", label: "Rentabilidade", icon: <Target size={14} /> },
+  { id: "rentabilidade", label: "Rentab.", icon: <Target size={14} /> },
   { id: "posicoes", label: "Posições", icon: <Briefcase size={14} /> },
-  { id: "composicao-etf", label: "Composição ETF", icon: <Layers size={14} /> },
+  { id: "composicao-etf", label: "ETFs", icon: <Layers size={14} /> },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -136,6 +136,7 @@ export default function ResumoPage() {
   const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa">("por-etf");
   const [activeTab, setActiveTab] = useState<Tab>("alocacao");
   const [rentStatusFilter, setRentStatusFilter] = useState<"Todos" | "Ativo" | "Vendido">("Todos");
+  const [etfRefreshing, setEtfRefreshing] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
@@ -383,7 +384,7 @@ export default function ResumoPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
            HERO — Big numbers
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 mb-3">
         <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
           sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
           icon={<DollarSign size={17} />}
@@ -401,50 +402,50 @@ export default function ResumoPage() {
       </div>
 
       {/* ── Secondary metrics + performers in a unified strip ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="glass-card p-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-5">
+        <div className="glass-card p-3">
           <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Dólar</p>
-          <p className="text-lg font-bold text-zinc-100">R$ {data.usdbrl.toFixed(2)}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ {data.eurbrl.toFixed(2)}</p>
+          <p className="text-base sm:text-lg font-bold text-zinc-100">R$ {data.usdbrl.toFixed(2)}</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ {data.eurbrl.toFixed(2)}</p>
         </div>
-        <div className="glass-card p-3.5">
+        <div className="glass-card p-3">
           <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Proventos</p>
-          <p className="text-lg font-bold text-amber-400">{compactBRL(data.totalProventosBRL)}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">{rvPositions.length} ativos · Média {compactBRL(avgMonthlyDividend)}/mês</p>
+          <p className="text-base sm:text-lg font-bold text-amber-400">{compactBRL(data.totalProventosBRL)}</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{rvPositions.length} ativos · Média {compactBRL(avgMonthlyDividend)}/mês</p>
         </div>
         {top && (
-          <div className="glass-card p-3.5 flex items-center gap-3">
-            <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
-              <Award size={15} className="text-emerald-400" />
+          <div className="glass-card p-3 flex items-center gap-2">
+            <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
+              <Award size={14} className="text-emerald-400" />
             </span>
             <div className="min-w-0">
               <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Top</p>
-              <p className="text-sm font-bold text-zinc-100">{top.ticker} <span className="text-emerald-400">+{top.lucro_pct.toFixed(1)}%</span></p>
+              <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate">{top.ticker} <span className="text-emerald-400">+{top.lucro_pct.toFixed(1)}%</span></p>
             </div>
           </div>
         )}
         {bot && (
-          <div className="glass-card p-3.5 flex items-center gap-3">
-            <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
-              <AlertTriangle size={15} className="text-red-400" />
+          <div className="glass-card p-3 flex items-center gap-2">
+            <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
+              <AlertTriangle size={14} className="text-red-400" />
             </span>
             <div className="min-w-0">
               <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Bottom</p>
-              <p className="text-sm font-bold text-zinc-100">{bot.ticker} <span className="text-red-400">{bot.lucro_pct.toFixed(1)}%</span></p>
+              <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate">{bot.ticker} <span className="text-red-400">{bot.lucro_pct.toFixed(1)}%</span></p>
             </div>
           </div>
         )}
         {!top && (
-          <div className="glass-card p-3.5">
+          <div className="glass-card p-3">
             <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Ativo</p>
-            <p className="text-lg font-bold" style={{ color: data.ganhoAtivoTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{compactBRL(data.ganhoAtivoTotalBRL)}</p>
+            <p className="text-base sm:text-lg font-bold" style={{ color: data.ganhoAtivoTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{compactBRL(data.ganhoAtivoTotalBRL)}</p>
             <p className="text-[10px] text-zinc-500 mt-0.5">Câmbio {brl(data.ganhoCambioTotalBRL)}</p>
           </div>
         )}
         {!bot && (
-          <div className="glass-card p-3.5">
+          <div className="glass-card p-3">
             <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Cambial</p>
-            <p className="text-lg font-bold" style={{ color: data.ganhoCambioTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{brl(data.ganhoCambioTotalBRL)}</p>
+            <p className="text-base sm:text-lg font-bold" style={{ color: data.ganhoCambioTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{brl(data.ganhoCambioTotalBRL)}</p>
           </div>
         )}
       </div>
@@ -452,18 +453,20 @@ export default function ResumoPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
            TAB NAVIGATION
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-6 border border-zinc-800/50">
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === tab.id
-                ? "bg-zinc-700/80 text-zinc-100 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-            }`}>
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto -mx-4 px-4 mb-6 scrollbar-hide">
+        <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 border border-zinc-800/50 min-w-fit">
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-zinc-700/80 text-zinc-100 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+              }`}>
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -1122,14 +1125,51 @@ export default function ResumoPage() {
            TAB: COMPOSIÇÃO ETF
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "composicao-etf" && (
-        <div className="space-y-5 animate-fade-in">
+        <div className="space-y-4 animate-fade-in">
+          {/* Header with refresh button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-zinc-200">Composição Look-Through</h2>
+              {composicao?.look_through?.updated_at && (
+                <p className="text-[10px] text-zinc-600 mt-0.5">
+                  Atualizado {formatComputedAt(composicao.look_through.updated_at)}
+                  {composicao.look_through.sources && Object.values(composicao.look_through.sources).length > 0 && (
+                    <> · Fontes: {[...new Set(Object.values(composicao.look_through.sources))].join(", ")}</>
+                  )}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={async () => {
+                setEtfRefreshing(true);
+                try {
+                  const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
+                  if (res.ok) {
+                    const fresh = await fetch(`${API_URL}/api/composicao/resumo`);
+                    if (fresh.ok) setComposicao(await fresh.json());
+                  }
+                } catch { /* ignore */ }
+                setEtfRefreshing(false);
+              }}
+              disabled={etfRefreshing}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                etfRefreshing
+                  ? "border-zinc-700 text-zinc-600 cursor-wait"
+                  : "border-emerald-700/50 text-emerald-400 hover:bg-emerald-600/10"
+              }`}
+            >
+              <RefreshCw size={13} className={etfRefreshing ? "animate-spin" : ""} />
+              {etfRefreshing ? "Atualizando…" : "Atualizar ao Vivo"}
+            </button>
+          </div>
+
           {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
             const lt = composicao.look_through;
 
-            const combined: Record<string, { ativo: string; valorBRL: number; etfs: string[] }> = {};
+            const combined: Record<string, { ativo: string; name?: string; valorBRL: number; etfs: string[] }> = {};
             for (const etf of Object.values(lt.compositions)) {
               for (const c of etf.components) {
-                if (!combined[c.ativo]) combined[c.ativo] = { ativo: c.ativo, valorBRL: 0, etfs: [] };
+                if (!combined[c.ativo]) combined[c.ativo] = { ativo: c.ativo, name: c.name, valorBRL: 0, etfs: [] };
                 combined[c.ativo].valorBRL += etf.valor_brl * c.peso;
                 if (!combined[c.ativo].etfs.includes(etf.ticker)) combined[c.ativo].etfs.push(etf.ticker);
               }
@@ -1160,23 +1200,31 @@ export default function ResumoPage() {
             const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
 
             return (
-              <div className="glass-card p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="section-title"><Layers size={15} />Look-through de ETFs</h2>
-                  <span className="text-[10px] text-zinc-500">{compactBRL(lt.total_look_through_brl)} sujeito a look-through</span>
+              <div className="glass-card p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {lt.supported.map(etf => (
+                      <span key={etf} className="tag text-[10px] px-2 py-0.5" style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8" }}>
+                        {etf} {lt.sources?.[etf] && <span className="text-zinc-600 ml-1">({lt.sources[etf]})</span>}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-zinc-500 whitespace-nowrap ml-2">{compactBRL(lt.total_look_through_brl)}</span>
                 </div>
 
-                <div className="flex gap-1 mb-4 bg-zinc-900/60 p-1 rounded-lg w-fit">
-                  {([
-                    ["por-etf", "Por ETF"],
-                    ["combinada", "Visão Combinada"],
-                    ["rv-completa", "RV Completa"],
-                  ] as const).map(([id, label]) => (
-                    <button key={id} onClick={() => setLookThroughTab(id)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
-                      {label}
-                    </button>
-                  ))}
+                <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 mb-3">
+                  <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
+                    {([
+                      ["por-etf", "Por ETF"],
+                      ["combinada", "Combinada"],
+                      ["rv-completa", "RV Completa"],
+                    ] as const).map(([id, label]) => (
+                      <button key={id} onClick={() => setLookThroughTab(id)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {lookThroughTab === "por-etf" && (
@@ -1187,85 +1235,94 @@ export default function ResumoPage() {
                           <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
                           <span className="text-zinc-600 text-xs">{compactBRL(etf.valor_brl)}</span>
                         </div>
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-zinc-800">
-                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
-                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {etf.components.map(c => (
-                              <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                                <td className="py-1.5 px-2 text-zinc-300 font-medium">{c.ativo}</td>
-                                <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
-                                <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-zinc-800">
+                                <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                                <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Peso</th>
+                                <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {etf.components.map(c => (
+                                <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                  <td className="py-1.5 px-2 text-zinc-300 font-medium">
+                                    {c.ativo}
+                                    {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1 text-[10px] hidden sm:inline">{c.name}</span>}
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
+                                  <td className="py-1.5 px-2 text-right text-zinc-400">{compactBRL(etf.valor_brl * c.peso)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {lookThroughTab === "combinada" && (
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
-                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% Total LT</th>
-                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {combinedList.slice(0, 30).map((c, i) => (
-                        <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                          <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                          <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
-                          <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
-                          <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
-                            {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
-                          </td>
-                          <td className="py-1.5 px-2 text-zinc-600">{c.etfs.join(", ")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                {lookThroughTab === "rv-completa" && (
-                  <>
-                    <p className="text-[10px] text-zinc-600 mb-3">
-                      Posições diretas + ETFs expandidos pelos seus componentes. ETFs não suportados mantidos como linha única.
-                    </p>
+                  <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-zinc-800">
                           <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
                           <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
-                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor BRL</th>
-                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">% RV</th>
-                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via ETF</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">%</th>
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rvCompleteList.map((c, i) => (
-                          <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
+                        {combinedList.slice(0, 30).map((c, i) => (
+                          <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                             <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                            <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                            <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
                             <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
                             <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
-                              {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
+                              {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
                             </td>
-                            <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                            <td className="py-1.5 px-2 text-zinc-600">{c.etfs.join(", ")}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {lookThroughTab === "rv-completa" && (
+                  <>
+                    <p className="text-[10px] text-zinc-600 mb-3">
+                      Posições diretas + ETFs expandidos. ETFs sem composição mantidos como linha única.
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-zinc-800">
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                            <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor</th>
+                            <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">%</th>
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rvCompleteList.map((c, i) => (
+                            <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
+                              <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                              <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                              <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                              <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                                {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
+                              </td>
+                              <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </>
                 )}
 
@@ -1279,8 +1336,26 @@ export default function ResumoPage() {
           })()}
 
           {(!composicao?.look_through || composicao.look_through.supported.length === 0) && (
-            <div className="glass-card p-5">
-              <p className="text-zinc-500 text-sm">Nenhuma composição de ETF disponível. Verifique a aba &quot;composicao&quot; da planilha.</p>
+            <div className="glass-card p-5 text-center">
+              <p className="text-zinc-500 text-sm mb-3">Nenhuma composição de ETF disponível.</p>
+              <button
+                onClick={async () => {
+                  setEtfRefreshing(true);
+                  try {
+                    const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
+                    if (res.ok) {
+                      const fresh = await fetch(`${API_URL}/api/composicao/resumo`);
+                      if (fresh.ok) setComposicao(await fresh.json());
+                    }
+                  } catch { /* ignore */ }
+                  setEtfRefreshing(false);
+                }}
+                disabled={etfRefreshing}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold border border-emerald-700/50 text-emerald-400 hover:bg-emerald-600/10 transition-all"
+              >
+                <RefreshCw size={13} className={etfRefreshing ? "animate-spin" : ""} />
+                {etfRefreshing ? "Buscando composições…" : "Buscar Composições ao Vivo"}
+              </button>
             </div>
           )}
         </div>

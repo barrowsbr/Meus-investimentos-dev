@@ -22,6 +22,10 @@ body {
 ::-webkit-scrollbar-thumb { background: #2D2F3A; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #3D3F4E; }
 
+/* Hide scrollbar for tab bars */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
 @layer components {
   /* Base glass card for charts and content sections */
   .glass-card {
