@@ -20,13 +20,15 @@ const FX_DEFAULT: FxRates = { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6
 // ─── Yahoo range helper ───────────────────────────────────────────────────────
 
 function daysToRange(days: number): string {
+  if (days <= 0) return "max";
   if (days <= 35) return "1mo";
   if (days <= 95) return "3mo";
   if (days <= 190) return "6mo";
   if (days <= 380) return "1y";
   if (days <= 740) return "2y";
   if (days <= 1900) return "5y";
-  return "10y";
+  if (days <= 3700) return "10y";
+  return "max";
 }
 
 // ─── Method 1: yahoo-finance2 library ────────────────────────────────────────
@@ -145,7 +147,11 @@ export async function fetchHistoricalData(
 
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - lookbackDays - 10);
+  if (lookbackDays > 0) {
+    start.setDate(start.getDate() - lookbackDays - 10);
+  } else {
+    start.setFullYear(2000, 0, 1);
+  }
   const startStr = start.toISOString().split("T")[0];
   const endStr = end.toISOString().split("T")[0];
 

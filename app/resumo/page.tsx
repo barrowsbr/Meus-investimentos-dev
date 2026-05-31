@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
   ComposedChart, Line, Scatter, ScatterChart, ZAxis,
-  ReferenceLine,
+  ReferenceLine, Treemap,
 } from "recharts";
 import SunburstChart from "@/components/SunburstChart";
 import {
@@ -29,7 +29,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface Performer { ticker: string; lucro_pct: number; setor: string }
 interface ParetoItem { ticker: string; setor: string; macro: string; valor_brl: number; pct: number; acumulado_pct: number }
-interface RentabilidadeItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; retorno_total_pct: number }
+interface RentabilidadeItem { ticker: string; setor: string; macro: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; retorno_total_pct: number }
 interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; retorno_acumulado: number }
 interface LookThroughComp { ativo: string; peso: number }
 interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
@@ -82,12 +82,13 @@ const TOOLTIP_STYLE = {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = "alocacao" | "evolucao" | "rentabilidade" | "posicoes";
+type Tab = "alocacao" | "evolucao" | "rentabilidade" | "posicoes" | "composicao-etf";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "alocacao", label: "Alocação", icon: <PieIcon size={14} /> },
   { id: "evolucao", label: "Evolução", icon: <ArrowUpRight size={14} /> },
   { id: "rentabilidade", label: "Rentabilidade", icon: <Target size={14} /> },
   { id: "posicoes", label: "Posições", icon: <Briefcase size={14} /> },
+  { id: "composicao-etf", label: "Composição ETF", icon: <Layers size={14} /> },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -96,6 +97,31 @@ function formatComputedAt(iso: string): string {
   try {
     return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TreemapCell(props: any) {
+  const { x, y, width, height, name, retorno } = props;
+  if (!width || !height || width < 2 || height < 2) return null;
+  const ret = (retorno as number) ?? 0;
+  const fill = ret >= 0
+    ? `hsl(${160 - Math.min(ret, 100) * 0.4}, ${60 + Math.min(ret, 100) * 0.3}%, ${28 + Math.min(ret, 50) * 0.3}%)`
+    : `hsl(${0 + Math.min(Math.abs(ret), 100) * 0.1}, ${60 + Math.min(Math.abs(ret), 100) * 0.3}%, ${28 + Math.min(Math.abs(ret), 50) * 0.3}%)`;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} stroke="#1E2028" strokeWidth={1.5} />
+      {width > 40 && height > 28 && (
+        <>
+          <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill="#fafafa" fontSize={11} fontWeight="bold">
+            {name}
+          </text>
+          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill={ret >= 0 ? "#6ee7b7" : "#fca5a5"} fontSize={10}>
+            {ret >= 0 ? "+" : ""}{ret.toFixed(1)}%
+          </text>
+        </>
+      )}
+    </g>
+  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -109,6 +135,7 @@ export default function ResumoPage() {
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa">("por-etf");
   const [activeTab, setActiveTab] = useState<Tab>("alocacao");
+  const [rentStatusFilter, setRentStatusFilter] = useState<"Todos" | "Ativo" | "Vendido">("Todos");
 
   useEffect(() => {
     fetch(`${API_URL}/api/composicao/resumo`)
@@ -117,6 +144,16 @@ export default function ResumoPage() {
       .catch(() => {})
       .finally(() => setCompLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (activeFilter === "Renda Variável" || activeFilter === "Renda Fixa") {
+      setSelectedClass(activeFilter);
+      setSelectedSector(null);
+    } else if (activeFilter === "global") {
+      setSelectedClass(null);
+      setSelectedSector(null);
+    }
+  }, [activeFilter]);
 
   const loading = portLoading || compLoading;
 
@@ -159,11 +196,11 @@ export default function ResumoPage() {
 
   const filteredRentabilidade = useMemo(() => {
     if (!composicao?.rentabilidade) return [];
-    const items = activeFilter === "global"
-      ? composicao.rentabilidade
-      : composicao.rentabilidade.filter(r => r.macro === activeFilter);
-    return items.slice(0, 15);
-  }, [composicao, activeFilter]);
+    let items = composicao.rentabilidade as RentabilidadeItem[];
+    if (activeFilter !== "global") items = items.filter(r => r.macro === activeFilter);
+    if (rentStatusFilter !== "Todos") items = items.filter(r => r.status === rentStatusFilter);
+    return items;
+  }, [composicao, activeFilter, rentStatusFilter]);
 
   const filteredRiscoRetorno = useMemo(() => {
     if (!composicao?.risco_retorno) return [];
@@ -842,27 +879,103 @@ export default function ResumoPage() {
             </div>
           )}
 
-          {/* Rentabilidade chart */}
+          {/* Status filter */}
+          <div className="flex gap-1.5">
+            {(["Todos", "Ativo", "Vendido"] as const).map(s => (
+              <button key={s} onClick={() => setRentStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${rentStatusFilter === s
+                  ? "border-emerald-600/50 bg-emerald-600/15 text-emerald-400"
+                  : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                }`}>
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Treemap colored by return */}
           {filteredRentabilidade.length > 0 && (
             <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><Target size={15} />Rentabilidade por Ativo</h2>
-              <ResponsiveContainer width="100%" height={Math.max(260, filteredRentabilidade.length * 34)}>
-                <BarChart layout="vertical" data={filteredRentabilidade} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => `${v.toFixed(0)}%`} />
-                  <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
-                    formatter={(v: number) => [`${v.toFixed(2)}%`, "Retorno"]} />
-                  <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-                  <Bar dataKey="retorno_total_pct" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                    {filteredRentabilidade.map((entry, i) => (
-                      <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#10b981" : "#f87171"} />
-                    ))}
-                  </Bar>
-                </BarChart>
+              <h2 className="section-title mb-4"><Target size={15} />Mapa de Rentabilidade</h2>
+              <ResponsiveContainer width="100%" height={360}>
+                <Treemap
+                  data={filteredRentabilidade.map(r => ({
+                    name: r.ticker,
+                    size: Math.abs(r.resultado_total_brl) || 1,
+                    retorno: r.retorno_total_pct,
+                    valor: r.resultado_total_brl,
+                  }))}
+                  dataKey="size"
+                  stroke="#1E2028"
+                  content={<TreemapCell />}
+                />
               </ResponsiveContainer>
-              <p className="text-[10px] text-zinc-700 mt-2">* P&L não realizado + lucro de vendas anteriores (em BRL)</p>
+              <p className="text-[10px] text-zinc-600 mt-2">Tamanho = |resultado total BRL|. Cor: verde = lucro, vermelho = prejuízo.</p>
+            </div>
+          )}
+
+          {/* Detailed P&L table */}
+          {filteredRentabilidade.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><BarChart3 size={15} />Detalhamento P&L</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: "#1E2028" }}>
+                      {["Ativo", "Setor", "Status", "Custo", "Não Real.", "Realiz.", "Proventos", "Total", "Ret %"].map((h, i) => (
+                        <th key={h} className={`px-2 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : "text-left"}`}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRentabilidade.map((r, i) => (
+                      <tr key={r.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
+                        <td className="px-2 py-2">
+                          <span className="font-semibold text-zinc-200">{r.ticker}</span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#71717a"}15`, color: SECTOR_COLORS[r.setor] || "#71717a" }}>
+                            {r.setor}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <span className={`text-[10px] font-semibold ${r.status === "Ativo" ? "text-emerald-500" : "text-zinc-600"}`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-right text-zinc-400 font-mono">{compactBRL(r.custo_brl)}</td>
+                        <td className={`px-2 py-2 text-right font-mono ${r.lucro_nao_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {compactBRL(r.lucro_nao_realizado_brl)}
+                        </td>
+                        <td className={`px-2 py-2 text-right font-mono ${r.lucro_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {compactBRL(r.lucro_realizado_brl)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-mono text-amber-400">
+                          {r.proventos_brl > 0 ? compactBRL(r.proventos_brl) : "—"}
+                        </td>
+                        <td className={`px-2 py-2 text-right font-bold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {compactBRL(r.resultado_total_brl)}
+                        </td>
+                        <td className={`px-2 py-2 text-right font-bold ${r.retorno_total_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t" style={{ borderColor: "#3f3f46" }}>
+                      <td className="px-2 py-2 font-bold text-zinc-200" colSpan={3}>Total</td>
+                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.custo_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.lucro_realizado_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.proventos_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right font-bold text-zinc-100">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.resultado_total_brl, 0))}</td>
+                      <td className="px-2 py-2 text-right text-zinc-500">—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
 
@@ -1002,7 +1115,14 @@ export default function ResumoPage() {
             ) : <p className="text-zinc-600 text-sm">Nenhuma posição.</p>}
           </div>
 
-          {/* Look-through ETFs */}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           TAB: COMPOSIÇÃO ETF
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "composicao-etf" && (
+        <div className="space-y-5 animate-fade-in">
           {composicao?.look_through && composicao.look_through.supported.length > 0 && (() => {
             const lt = composicao.look_through;
 
@@ -1157,6 +1277,12 @@ export default function ResumoPage() {
               </div>
             );
           })()}
+
+          {(!composicao?.look_through || composicao.look_through.supported.length === 0) && (
+            <div className="glass-card p-5">
+              <p className="text-zinc-500 text-sm">Nenhuma composição de ETF disponível. Verifique a aba &quot;composicao&quot; da planilha.</p>
+            </div>
+          )}
         </div>
       )}
 

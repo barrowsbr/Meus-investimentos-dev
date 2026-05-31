@@ -232,7 +232,8 @@ function buildFlowLedger(points: TwrDayPoint[], maxEntries = 50): FlowEntry[] {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const lookback = Math.min(parseInt(searchParams.get("lookback") ?? "1825", 10), 3650);
+  const rawLookback = parseInt(searchParams.get("lookback") ?? "1825", 10);
+  const lookback = rawLookback <= 0 ? 0 : rawLookback;
 
   try {
     const [transacoes, proventos] = await Promise.all([
@@ -256,13 +257,14 @@ export async function GET(request: Request) {
     }
 
     const tickerList = [...tickerMeta.entries()].map(([ticker, info]) => ({ ticker, ...info }));
-    const hist = await fetchHistoricalData(tickerList, lookback + 10);
+    const hist = await fetchHistoricalData(tickerList, lookback > 0 ? lookback + 10 : 0);
     if (hist.dates.length === 0) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
 
-    const windowStart = startDateFromLookback(lookback);
-    const dates = hist.dates.filter(d => d >= windowStart && d <= today());
+    const dates = lookback > 0
+      ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
+      : hist.dates.filter(d => d <= today());
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
     const dateIdxMap = new Map(hist.dates.map((d, i) => [d, i]));
