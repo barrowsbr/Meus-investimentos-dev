@@ -296,8 +296,9 @@ export async function GET(request: Request) {
     const dailyReturns = twr.points.map(p => p.ret).filter(r => isFinite(r));
     const riskMetrics = calcularMetricasRisco(dailyReturns);
 
-    // Drawdown series
-    const meaningfulPoints = twr.points.filter(p => p.nav >= 100);
+    // Drawdown series — start from first day with NAV > 0
+    const firstIdx = twr.points.findIndex(p => p.nav > 0);
+    const meaningfulPoints = firstIdx >= 0 ? twr.points.slice(firstIdx) : twr.points;
     const drawdownSeries = calcularDrawdown(meaningfulPoints);
     const maxDrawdown = drawdownSeries.length > 0
       ? Math.min(...drawdownSeries.map(d => d.drawdown))
@@ -346,15 +347,19 @@ export async function GET(request: Request) {
     }
 
     // Monthly returns
-    const monthlyMap: Record<string, { startFactor: number; endFactor: number }> = {};
+    const monthlyMap: Record<string, { startFactor: number; endFactor: number; startDate: string }> = {};
     for (const p of meaningfulPoints) {
       const month = p.date.slice(0, 7);
       const factor = 1 + p.twr;
-      if (!monthlyMap[month] || p.date < monthlyMap[month].startFactor.toString()) {
-        if (!monthlyMap[month]) monthlyMap[month] = { startFactor: factor, endFactor: factor };
-        else monthlyMap[month].startFactor = factor;
+      if (!monthlyMap[month]) {
+        monthlyMap[month] = { startFactor: factor, endFactor: factor, startDate: p.date };
+      } else {
+        if (p.date < monthlyMap[month].startDate) {
+          monthlyMap[month].startFactor = factor;
+          monthlyMap[month].startDate = p.date;
+        }
+        monthlyMap[month].endFactor = factor;
       }
-      monthlyMap[month].endFactor = factor;
     }
     const monthlyReturns = Object.entries(monthlyMap)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -384,7 +389,7 @@ export async function GET(request: Request) {
         sortino: riskMetrics.sortino,
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
-        ganhoEconomico: twr.navFinal - twr.navInicial - twr.totalInvestido,
+        ganhoEconomico: twr.ganhoEconomico,
         peakDate,
         troughDate,
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
