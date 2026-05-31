@@ -49,6 +49,19 @@ export async function GET() {
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;
 
+    // Fetch FX day change from Yahoo quotes for BRL=X
+    let fxDayChange: Record<string, { change: number; changePct: number }> = {};
+    try {
+      const { fetchQuotes } = await import("@/lib/cotacoes");
+      const fxQuoteResult = await fetchQuotes(["BRL=X"]);
+      const usdQ = fxQuoteResult.quotes["BRL=X"];
+      if (usdQ) {
+        fxDayChange = { USD: { change: usdQ.change, changePct: usdQ.changePercent } };
+      }
+    } catch {
+      // non-critical
+    }
+
     return NextResponse.json({
       ...snapshot,
       fx: fxAtual,
@@ -92,6 +105,7 @@ export async function GET() {
       },
       ptax,
       lbHistoric,
+      fxDayChange,
       timestamp: cotacoes.timestamp,
       quotesFound,
       quotesTotal,

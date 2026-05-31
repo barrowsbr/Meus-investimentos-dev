@@ -155,11 +155,11 @@ export default function HomePage() {
   const totalBRL = data?.totalPatrimonioBRL ?? null;
   const usdbrl = data?.usdbrl ?? null;
   const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
-  const lucroPct = data?.lucroPct ?? null;
   const dayChangeBRL = data?.dayChangeTotalBRL ?? null;
   const dayChangePct = data?.dayChangeTotalPct ?? null;
-  const isUp = (lucroPct ?? 0) >= 0;
   const isDayUp = (dayChangeBRL ?? 0) >= 0;
+  const usdDayChangePct = data?.fxDayChange?.USD?.changePct ?? null;
+  const isUsdUp = (usdDayChangePct ?? 0) >= 0;
 
   return (
     <div className="relative min-h-screen flex flex-col items-center">
@@ -225,37 +225,45 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Retorno total */}
+          {/* Retorno dia */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
             style={{
               background: "rgba(13,14,20,0.8)",
-              border: `1px solid ${isUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}`,
-              boxShadow: `0 4px 20px ${isUp ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)"}`,
+              border: `1px solid ${isDayUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}`,
+              boxShadow: `0 4px 20px ${isDayUp ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)"}`,
             }}
           >
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Retorno Total</span>
-            {loading || lucroPct === null ? (
+            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
+            {loading || dayChangePct === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
-              <div className="flex items-center gap-1">
-                {isUp
-                  ? <TrendingUp size={12} className="text-emerald-400" />
-                  : <TrendingDown size={12} className="text-red-400" />}
-                <span className={`text-sm font-bold ${isUp ? "text-emerald-400" : "text-red-400"}`}>
-                  {pct(lucroPct)}
-                </span>
-              </div>
+              <>
+                <div className="flex items-center gap-1">
+                  {isDayUp
+                    ? <TrendingUp size={12} className="text-emerald-400" />
+                    : <TrendingDown size={12} className="text-red-400" />}
+                  <span className={`text-sm font-bold ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                    {pct(dayChangePct)}
+                  </span>
+                </div>
+                {dayChangeBRL !== null && (
+                  <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400/70" : "text-red-400/70"}`}>
+                    {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
+                  </span>
+                )}
+              </>
             )}
           </div>
 
-          {/* Dólar */}
-          <div
-            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+          {/* Dólar — links to currencies page */}
+          <Link
+            href="/moedas"
+            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer"
             style={{
               background: "rgba(13,14,20,0.8)",
-              border: `1px solid ${isDayUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
-              boxShadow: `0 4px 20px ${isDayUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
+              border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+              boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
             }}
           >
             <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
@@ -264,12 +272,12 @@ export default function HomePage() {
             ) : (
               <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
             )}
-            {!loading && dayChangePct !== null && (
-              <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
-                {isDayUp ? "+" : ""}{dayChangePct.toFixed(2)}% hoje
+            {!loading && usdDayChangePct !== null && (
+              <span className={`text-[9px] font-semibold mt-1 ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
+                {isUsdUp ? "+" : ""}{usdDayChangePct.toFixed(2)}%
               </span>
             )}
-          </div>
+          </Link>
         </div>
 
         {/* ── Navigation Groups ── */}
