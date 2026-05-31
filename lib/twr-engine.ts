@@ -176,10 +176,10 @@ function fxFactor(moeda: string, fx: FxRates): number {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
-const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
+const FLOW_THRESHOLD = 0.005; // 0.5% of NAV — triggers SoD timing
+const LARGE_FLOW_FORCE_ZERO = 0.50; // 50% — flow is too large, skip day
 const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50%
+const MAX_DAILY_RETURN = 0.15; // Cap daily return at ±15%
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -318,25 +318,21 @@ export function calcularTWR(input: TwrInput): TwrResult {
     let nav = navRV + navRF;
 
     // ── Flows: capital entering/leaving (incremental, synced with custody) ──
-    // Use PM FX (investor's average remittance cost) for flows to avoid
-    // artificial spikes when spot FX differs from the investor's cost basis.
-    // NAV stays at spot FX (true market value).
+    // Use actual transaction prices (not market close estimates) for flows.
+    // Convert foreign-currency flows using PM FX (investor's average
+    // remittance cost) to avoid artificial spikes from spot FX divergence.
     const flowFx = pmFx ?? fx;
     let flow = 0;
     while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate <= date) {
       const tx = sortedTxs[txIdx++];
-      let marketPrice = getPrice(tx.ticker, i, prices);
-      if (marketPrice == null && i > 0) {
-        marketPrice = getPrice(tx.ticker, i - 1, prices);
-      }
-      if (marketPrice == null || marketPrice <= 0) continue;
       const txFx = fxFactor(tx.moeda, flowFx);
-      const value = tx.quantidade * marketPrice * txFx;
       if (tx.tipo === "Compra") {
+        const value = (tx.preco * tx.quantidade + tx.taxas) * txFx;
         flow += value;
         totalInvestido += value;
       } else {
-        flow -= value;
+        const value = (tx.preco * tx.quantidade - tx.taxas) * txFx;
+        flow -= Math.max(0, value);
       }
     }
     // ── Income: dividends/JCP received (incremental, synced with custody) ──
@@ -391,7 +387,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     }
 
     // Shock detection: large return + significant flow → likely data artifact
-    if (!forceZero && Math.abs(ret) > 0.25 && prevNav > 0 && Math.abs(flow) / prevNav > 0.10) {
+    if (!forceZero && Math.abs(ret) > 0.10 && prevNav > 0 && Math.abs(flow) / prevNav > 0.05) {
       forceZero = true;
       ret = 0;
     }
