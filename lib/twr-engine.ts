@@ -176,10 +176,11 @@ function fxFactor(moeda: string, fx: FxRates): number {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const FLOW_THRESHOLD = 0.005; // 0.5% of NAV — triggers SoD timing
-const LARGE_FLOW_FORCE_ZERO = 0.50; // 50% — flow is too large, skip day
+const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
+const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
 const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MAX_DAILY_RETURN = 0.15; // Cap daily return at ±15%
+const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50% (matching Python canonical engine)
+const MAX_UNEXPLAINED_CHANGE = 0.40; // 40% NAV variation without flow → smooth
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -223,41 +224,77 @@ export interface TwrInput {
   pmFx?: FxRates;
 }
 
-// ─── MWR (Money-Weighted Return) via Newton-Raphson ──────────────────────────
+// ─── MWR (Money-Weighted Return / XIRR) — matches Python mwr.py ─────────────
+// Uses year fractions (days / 365.25) and Newton-Raphson with bisection fallback.
+// Convention: aporte (purchase) = negative (investor outflow), NAV final = positive.
 
 function calculateMWR(
-  flows: { day: number; amount: number }[],
+  flows: { date: string; amount: number }[],
   navFinal: number,
-  totalDays: number,
+  lastDate: string,
+  navInicial: number,
+  firstDate: string,
 ): number | null {
-  if (totalDays <= 0 || flows.length === 0) return null;
+  const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+  const baseMs = new Date(firstDate + "T12:00:00Z").getTime();
+  const lastMs = new Date(lastDate + "T12:00:00Z").getTime();
+  const tFinal = (lastMs - baseMs) / MS_PER_YEAR;
+  if (tFinal <= 0) return null;
 
-  // NPV function: Σ(-flow / (1+r)^day) + navFinal / (1+r)^totalDays = 0
-  let r = 0.0001; // daily rate initial guess
+  // Build cashflow vector: [yearFraction, amount]
+  const cf: [number, number][] = [];
+  if (navInicial > 0) cf.push([0, -navInicial]);
+  for (const f of flows) {
+    const t = (new Date(f.date + "T12:00:00Z").getTime() - baseMs) / MS_PER_YEAR;
+    cf.push([t, -f.amount]);
+  }
+  cf.push([tFinal, navFinal]);
+  cf.sort((a, b) => a[0] - b[0]);
+  if (cf.length < 2) return null;
 
-  for (let iter = 0; iter < 200; iter++) {
-    let npv = navFinal / Math.pow(1 + r, totalDays);
-    let dnpv = -totalDays * navFinal / Math.pow(1 + r, totalDays + 1);
-
-    for (const f of flows) {
-      npv -= f.amount / Math.pow(1 + r, f.day);
-      dnpv += f.day * f.amount / Math.pow(1 + r, f.day + 1);
-    }
-
-    if (Math.abs(npv) < 1e-6) break;
-    if (Math.abs(dnpv) < 1e-12) return null;
-
-    const step = npv / dnpv;
-    r -= step;
-
-    if (r <= -1) r = -0.99;
-    if (r > 1) r = 1.0;
+  function npv(rate: number): number {
+    if (rate <= -1) return Infinity;
+    return cf.reduce((s, [t, amt]) => s + amt / Math.pow(1 + rate, t), 0);
+  }
+  function npvDeriv(rate: number): number {
+    if (rate <= -1) return Infinity;
+    return cf.reduce((s, [t, amt]) => s - t * amt / Math.pow(1 + rate, t + 1), 0);
   }
 
-  // Annualise: (1 + daily_rate)^252 - 1
-  const annual = Math.pow(1 + r, BUSINESS_DAYS_PER_YEAR) - 1;
-  if (!isFinite(annual) || Math.abs(annual) > 10) return null;
-  return annual;
+  let r = 0.05;
+  let converged = false;
+  for (const guess of [0.05, 0.0, 0.2, -0.3, 0.5]) {
+    r = guess;
+    for (let i = 0; i < 200; i++) {
+      const f = npv(r);
+      const df = npvDeriv(r);
+      if (Math.abs(df) < 1e-14) break;
+      let step = f / df;
+      if (Math.abs(step) > 1.0) step = Math.sign(step);
+      const rNew = Math.max(-0.999, Math.min(100, r - step));
+      if (Math.abs(rNew - r) < 1e-8) { r = rNew; converged = true; break; }
+      r = rNew;
+    }
+    if (converged) break;
+  }
+
+  if (!converged) {
+    let low = -0.99, high = 10.0;
+    let fLow = npv(low);
+    if (fLow * npv(high) > 0) {
+      for (const h of [50, 100]) { if (fLow * npv(h) <= 0) { high = h; break; } }
+    }
+    for (let i = 0; i < 300; i++) {
+      const mid = (low + high) / 2;
+      const fMid = npv(mid);
+      if (Math.abs(fMid) < 1e-8 || Math.abs(high - low) < 1e-8) { r = mid; converged = true; break; }
+      if (fLow * fMid < 0) { high = mid; } else { low = mid; fLow = fMid; }
+    }
+    if (!converged) r = (low + high) / 2;
+  }
+
+  if (!isFinite(r) || Math.abs(r) > 10) return null;
+  return r;
 }
 
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
@@ -281,9 +318,24 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const inRange = txs.filter(tx => tx.date <= lastDate);
   if (inRange.length === 0) return EMPTY;
 
+  // ── Pre-fill price matrix: ffill + bfill (matching Python engine) ──
+  // Without this, tickers with >5 day price gaps disappear from NAV.
+  for (const ticker of Object.keys(prices)) {
+    const arr = prices[ticker];
+    let lastKnown: number | null = null;
+    for (let j = 0; j < arr.length; j++) {
+      if (arr[j] != null) lastKnown = arr[j];
+      else if (lastKnown != null) arr[j] = lastKnown;
+    }
+    let firstKnown: number | null = null;
+    for (let j = arr.length - 1; j >= 0; j--) {
+      if (arr[j] != null) firstKnown = arr[j];
+      else if (firstKnown != null) arr[j] = firstKnown;
+    }
+  }
+
   const custody = buildDailyCustody(inRange, dates);
 
-  // Sort transactions & income by bizDate for incremental processing (synced with custody)
   const sortedTxs = [...inRange].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
   let txIdx = 0;
   const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
@@ -294,7 +346,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
   let cumTwr = 1.0;
   let totalInvestido = 0;
   let totalFlows = 0;
-  const mwrFlows: { day: number; amount: number }[] = [];
+  const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
   for (let i = 0; i < dates.length; i++) {
@@ -317,22 +369,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
     const navRF = rfNavByDate?.[date] ?? 0;
     let nav = navRV + navRF;
 
-    // ── Flows: capital entering/leaving (incremental, synced with custody) ──
-    // Use actual transaction prices (not market close estimates) for flows.
-    // Convert foreign-currency flows using PM FX (investor's average
-    // remittance cost) to avoid artificial spikes from spot FX divergence.
-    const flowFx = pmFx ?? fx;
+    // ── Flows: use MARKET prices (consistent with NAV) — Python engine v10.0 ──
+    // Fall back to transaction price if no market price available.
+    // Use SPOT FX for flows (same as NAV) to avoid flow/NAV mismatch.
     let flow = 0;
     while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate <= date) {
       const tx = sortedTxs[txIdx++];
-      const txFx = fxFactor(tx.moeda, flowFx);
+      let marketPrice = getPrice(tx.ticker, i, prices);
+      if (marketPrice == null && i > 0) marketPrice = getPrice(tx.ticker, i - 1, prices);
+      const price = (marketPrice != null && marketPrice > 0) ? marketPrice : tx.preco;
+      const txFx = fxFactor(tx.moeda, fx);
+      const value = tx.quantidade * price * txFx;
       if (tx.tipo === "Compra") {
-        const value = (tx.preco * tx.quantidade + tx.taxas) * txFx;
         flow += value;
-        totalInvestido += value;
+        totalInvestido += tx.preco * tx.quantidade * txFx;
       } else {
-        const value = (tx.preco * tx.quantidade - tx.taxas) * txFx;
-        flow -= Math.max(0, value);
+        flow -= value;
       }
     }
     // ── Income: dividends/JCP received (incremental, synced with custody) ──
@@ -342,17 +394,39 @@ export function calcularTWR(input: TwrInput): TwrResult {
       income += inc.valor * fxFactor(inc.moeda, fx);
     }
 
-    // NAV forward-fill: if NAV dropped to 0/NaN but previous was valid
-    if (i > 0 && (nav <= 0 || !isFinite(nav)) && prevNav > 0) {
-      nav = Math.max(0, prevNav + flow);
+    // ── NAV gap handling (Python engine v3.1–v3.3) ──
+    if (i > 0 && prevNav > 0) {
+      // v3.2: Forward-fill NAV if it drops to 0/NaN but previous was valid
+      if (nav <= 0 || !isFinite(nav)) {
+        nav = Math.max(0, prevNav + flow);
+      }
+      // v3.3: Smooth unexplained NAV jumps (>40%) when no flow present
+      else if (Math.abs(flow) < 1.0) {
+        const navExpected = prevNav + flow;
+        if (navExpected > 0) {
+          const variation = (nav - navExpected) / navExpected;
+          if (Math.abs(variation) > MAX_UNEXPLAINED_CHANGE) {
+            nav = 0.8 * navExpected + 0.2 * nav;
+          }
+        }
+      }
+    }
+
+    // ── v9.0: Flow-NAV consistency correction ──
+    // On purchase days, if flow doesn't match NAV delta (>10% tolerance),
+    // adjust flow to match. Prevents artificial returns from price mismatches.
+    if (flow > 0 && prevNav > 0) {
+      const navDelta = nav - prevNav;
+      if (Math.abs(navDelta - flow) > Math.abs(flow) * 0.10) {
+        flow = navDelta;
+      }
     }
 
     totalFlows += flow;
 
-    // ── MWR flow tracking (purchases = outflows from investor) ──
+    // ── MWR flow tracking ──
     if (Math.abs(flow) > 0.01) {
-      const dayNum = businessDaysBetween(firstDate, date);
-      mwrFlows.push({ day: dayNum, amount: flow });
+      mwrFlows.push({ date, amount: flow });
     }
 
     // ── Flow timing & force_zero logic (from Streamlit engine) ──
@@ -386,12 +460,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       }
     }
 
-    // Shock detection: large return + significant flow → likely data artifact
-    if (!forceZero && Math.abs(ret) > 0.10 && prevNav > 0 && Math.abs(flow) / prevNav > 0.05) {
-      forceZero = true;
-      ret = 0;
-    }
-    // Guard against data anomalies
+    // Guard against data anomalies — clip to ±50% (matching Python canonical engine)
     ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);
 
@@ -431,10 +500,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ? Math.pow(1 + twrTotal, 365 / calendarDays) - 1
     : twrTotal;
 
-  const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows;
+  // Python formula: total_pnl = nav_final - nav_inicial - total_flow + first_flow
+  // This avoids double-counting the initial capital (nav_inicial ≈ first_flow)
+  const firstMeaningfulFlow = points[firstIdx].flow;
+  const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows + firstMeaningfulFlow;
 
-  const totalBizDays = businessDaysBetween(firstMeaningful.date, last.date);
-  const mwr = calculateMWR(mwrFlows, last.nav, totalBizDays);
+  const mwr = calculateMWR(
+    mwrFlows, last.nav, last.date,
+    firstMeaningful.nav, firstMeaningful.date,
+  );
 
   return {
     points,
