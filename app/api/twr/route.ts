@@ -39,10 +39,8 @@ function thinSeries(points: TwrDayPoint[], maxPoints = 500): TwrDayPoint[] {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const lookback = Math.min(
-    parseInt(searchParams.get("lookback") ?? "1825", 10),
-    3650
-  );
+  const rawLookback = parseInt(searchParams.get("lookback") ?? "1825", 10);
+  const lookback = rawLookback <= 0 ? 0 : Math.min(rawLookback, 3650);
 
   try {
     // ── 1. Load transaction + provento data ──────────────────────────────────
@@ -77,7 +75,7 @@ export async function GET(request: Request) {
 
     // ── 3. Fetch historical price data ───────────────────────────────────────
     console.log(`[TWR] Fetching history for ${tickerList.length} tickers, lookback=${lookback}`);
-    const hist = await fetchHistoricalData(tickerList, lookback + 10);
+    const hist = await fetchHistoricalData(tickerList, lookback > 0 ? lookback + 10 : 0);
     console.log(`[TWR] History result: ${hist.dates.length} dates, errors: ${hist.errors.join("; ") || "none"}`);
 
     if (hist.dates.length === 0) {
@@ -88,9 +86,10 @@ export async function GET(request: Request) {
     }
 
     // ── 4. Restrict to lookback window ───────────────────────────────────────
-    const windowStart = startDateFromLookback(lookback);
     const windowEnd = today();
-    const dates = hist.dates.filter(d => d >= windowStart && d <= windowEnd);
+    const dates = lookback > 0
+      ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= windowEnd)
+      : hist.dates.filter(d => d <= windowEnd);
 
     if (dates.length === 0) {
       return NextResponse.json({ error: "Janela de datas sem dados" }, { status: 422 });
