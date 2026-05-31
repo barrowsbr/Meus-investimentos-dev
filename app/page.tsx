@@ -111,6 +111,7 @@ function cleanTicker(t: string): string {
 }
 
 function fmtPrice(price: number, moeda: string): string {
+  if (!isFinite(price)) return "—";
   if (moeda === "BRL") {
     return `R$${price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
@@ -302,40 +303,51 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
   const best = tickerItems[0] ?? null;
   const worst = tickerItems.length > 0 ? tickerItems[tickerItems.length - 1] : null;
 
+  const bestTicker = best?.ticker ?? "";
+  const worstTicker = worst?.ticker ?? "";
+
   useEffect(() => {
-    const tickers: string[] = [];
-    if (best) tickers.push(best.ticker);
-    if (worst && worst.ticker !== best?.ticker) tickers.push(worst.ticker);
-    if (tickers.length === 0) return;
+    if (!bestTicker && !worstTicker) return;
+    const tickers = [bestTicker, worstTicker].filter((t, i, a) => t && a.indexOf(t) === i);
 
     fetch(`/api/noticias?tickers=${tickers.join(",")}`)
       .then(r => r.json())
       .then(d => {
         const articles: NewsArticle[] = d.articles ?? [];
-        const bestNews = best ? articles.find(a => a.ticker === best.ticker) ?? null : null;
-        const worstNews = worst ? articles.find(a => a.ticker === worst.ticker) ?? null : null;
-        setNews({ best: bestNews, worst: worstNews });
+        setNews({
+          best: bestTicker ? articles.find(a => a.ticker === bestTicker) ?? null : null,
+          worst: worstTicker ? articles.find(a => a.ticker === worstTicker) ?? null : null,
+        });
       })
       .catch(() => {});
-  }, [best, worst]);
+  }, [bestTicker, worstTicker]);
+
+  const positionTickers = useMemo(
+    () => (data.positions ?? []).map(p => p.ticker).join(","),
+    [data.positions]
+  );
 
   useEffect(() => {
-    import("@/lib/polymarket").then(({ fetchPolymarket }) => {
-      const tickers = data.positions?.map(p => p.ticker) ?? [];
-      fetchPolymarket(tickers)
-        .then(resp => {
-          const all = Object.values(resp.categories).flat();
-          const filtered = all.filter(e => e.odds.length > 0 && (e.volume ?? 0) >= 100);
-          const shuffled = filtered.sort(() => Math.random() - 0.5).slice(0, 12);
-          setPolyEvents(shuffled);
-        })
-        .catch(() => {})
-        .finally(() => setPolyLoading(false));
-    });
-  }, [data.positions]);
+    let cancelled = false;
+    import("@/lib/polymarket")
+      .then(({ fetchPolymarket }) => {
+        const tickers = positionTickers ? positionTickers.split(",") : [];
+        return fetchPolymarket(tickers);
+      })
+      .then(resp => {
+        if (cancelled) return;
+        const all = Object.values(resp.categories).flat();
+        const filtered = all.filter(e => e.odds.length > 0 && (e.volume ?? 0) >= 100);
+        const shuffled = filtered.sort(() => Math.random() - 0.5).slice(0, 12);
+        setPolyEvents(shuffled);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPolyLoading(false); });
+    return () => { cancelled = true; };
+  }, [positionTickers]);
 
   const nextPoly = useCallback(() => {
-    setPolyIdx(i => (i + 1) % polyEvents.length);
+    setPolyIdx(i => polyEvents.length > 0 ? (i + 1) % polyEvents.length : 0);
   }, [polyEvents.length]);
 
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
@@ -749,13 +761,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Ticker scroll animation */}
-      <style jsx global>{`
-        @keyframes tickerScroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }
