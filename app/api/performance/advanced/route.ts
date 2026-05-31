@@ -289,6 +289,24 @@ export async function GET(request: Request) {
       : hist.dates.filter(d => d <= today());
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
+    // Pre-fill the FULL price matrix (ffill + bfill) BEFORE slicing to the
+    // window. This way windowed views (YTD/1M/…) inherit the last known
+    // price from before the window boundary. Without this, holdings carried
+    // into the window get null prices → NAV is understated on day 1.
+    for (const ticker of Object.keys(hist.prices)) {
+      const arr = hist.prices[ticker];
+      let lastKnown: number | null = null;
+      for (let j = 0; j < arr.length; j++) {
+        if (arr[j] != null && arr[j]! > 0) lastKnown = arr[j];
+        else if (lastKnown != null) arr[j] = lastKnown;
+      }
+      let firstKnown: number | null = null;
+      for (let j = arr.length - 1; j >= 0; j--) {
+        if (arr[j] != null && arr[j]! > 0) firstKnown = arr[j];
+        else if (firstKnown != null) arr[j] = firstKnown;
+      }
+    }
+
     const dateIdxMap = new Map(hist.dates.map((d, i) => [d, i]));
     const alignedPrices: Record<string, (number | null)[]> = {};
     for (const [ticker, arr] of Object.entries(hist.prices)) {
