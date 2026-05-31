@@ -15,8 +15,10 @@
     "next": "^14.2.18",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^9.1.0",
     "react-simple-maps": "^3.0.0",
     "recharts": "^2.12.7",
+    "remark-gfm": "^4.0.1",
     "yahoo-finance2": "^3.14.1"
   },
   "devDependencies": {
