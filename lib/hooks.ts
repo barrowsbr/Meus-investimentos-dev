@@ -119,6 +119,7 @@ export interface PortfolioResponse extends PortfolioSnapshot {
   fx: FxRates;
   fxSource: string;
   fxCusto: FxRates;
+  fxDayChange: Record<string, { change: number; changePct: number }>;
   cambio: CambioInfo;
   ptax: PtaxInfo | null;
   lbHistoric: LbHistoricPoint[];
@@ -182,6 +183,7 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     fx: data.fx ?? { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 },
     fxSource: data.fxSource ?? data.fx_source ?? "unknown",
     fxCusto: data.fxCusto ?? data.fx_custo ?? { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 },
+    fxDayChange: data.fxDayChange ?? {},
     cambio: {
       pmDolar: cambio.pmDolar ?? cambio.pm_dolar ?? 0,
       pmEuro: cambio.pmEuro ?? cambio.pm_euro ?? 0,
