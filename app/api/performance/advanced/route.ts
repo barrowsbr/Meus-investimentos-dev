@@ -155,16 +155,17 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
   const stdDev = Math.sqrt(variance);
   const volatility = stdDev * Math.sqrt(annualize);
 
-  const SELIC_DAILY = Math.pow(1.1375, 1 / 252) - 1;
-  const excessMean = mean - SELIC_DAILY;
-  const sharpe = stdDev > 0 ? (excessMean / stdDev) * Math.sqrt(annualize) : 0;
+  // Sharpe: annualized return vs risk-free (10% a.a. — matching Streamlit)
+  const RISK_FREE_ANNUAL = 0.10;
+  const annualReturn = Math.pow(1 + mean, annualize) - 1;
+  const sharpe = volatility > 0 ? (annualReturn - RISK_FREE_ANNUAL) / volatility : 0;
 
-  const downside = dailyReturns.filter(r => r < SELIC_DAILY);
-  const downsideVariance = downside.length > 1
-    ? downside.reduce((s, r) => s + Math.pow(r - SELIC_DAILY, 2), 0) / (downside.length - 1)
-    : variance;
-  const downsideStd = Math.sqrt(downsideVariance);
-  const sortino = downsideStd > 0 ? (excessMean / downsideStd) * Math.sqrt(annualize) : 0;
+  // Sortino: downside = returns below zero (matching Streamlit)
+  const downside = dailyReturns.filter(r => r < 0);
+  const downsideStd = downside.length > 0
+    ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) * Math.sqrt(annualize)
+    : 0;
+  const sortino = downsideStd > 0 ? (annualReturn - RISK_FREE_ANNUAL) / downsideStd : 0;
 
   const sorted = [...dailyReturns].sort((a, b) => a - b);
   const var95 = sorted[Math.floor(n * 0.05)] ?? 0;
