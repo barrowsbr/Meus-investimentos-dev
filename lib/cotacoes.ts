@@ -156,10 +156,22 @@ async function fetchQuotesYF2(yahooTickers: string[]): Promise<Record<string, Qu
       try {
         const q = await yahooFinance.quote(ticker);
         if (q && q.regularMarketPrice != null) {
-          results[q.symbol ?? ticker] = {
-            price: q.regularMarketPrice,
-            change: q.regularMarketChange ?? 0,
-            changePercent: q.regularMarketChangePercent ?? 0,
+          const price = q.regularMarketPrice;
+          const prevClose = q.regularMarketPreviousClose ?? q.previousClose ?? q.chartPreviousClose;
+
+          let change = q.regularMarketChange;
+          let changePct = q.regularMarketChangePercent;
+
+          if ((change == null || change === 0) && prevClose && prevClose > 0) {
+            change = price - prevClose;
+            changePct = ((price / prevClose) - 1) * 100;
+          }
+
+          // Store under the requested ticker to guarantee lookup consistency
+          results[ticker] = {
+            price,
+            change: change ?? 0,
+            changePercent: changePct ?? 0,
             currency: q.currency ?? "USD",
             name: q.shortName ?? q.longName ?? ticker,
           };
@@ -189,12 +201,12 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
       const data = await res.json();
       const meta = data.chart?.result?.[0]?.meta;
       if (meta?.regularMarketPrice) {
-        results[meta.symbol ?? ticker] = {
-          price: meta.regularMarketPrice,
-          change: (meta.regularMarketPrice - (meta.previousClose ?? meta.regularMarketPrice)),
-          changePercent: meta.previousClose
-            ? ((meta.regularMarketPrice / meta.previousClose - 1) * 100)
-            : 0,
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.previousClose ?? meta.chartPreviousClose;
+        results[ticker] = {
+          price,
+          change: prevClose ? price - prevClose : 0,
+          changePercent: prevClose ? ((price / prevClose) - 1) * 100 : 0,
           currency: meta.currency ?? "USD",
           name: ticker,
         };
