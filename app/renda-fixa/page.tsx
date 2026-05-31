@@ -1,324 +1,527 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import { Landmark, PiggyBank, TrendingUp, Globe, Zap } from "lucide-react";
-import { useSheetData, usePortfolio } from "@/lib/hooks";
-import { toNumber, brl, currency, formatDate, compactBRL, pct } from "@/lib/format";
+import {
+  PiggyBank, TrendingUp, TrendingDown,
+  ChevronDown, ChevronUp, Wallet,
+} from "lucide-react";
+import { usePortfolio } from "@/lib/hooks";
+import { brl, compactBRL, pct, currency, formatDate } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import type { Position } from "@/lib/portfolio";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
-import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
-interface RFPosicao {
+interface RFOpenPos {
   ticker: string;
   moeda: string;
+  atual: number;
+  investido: number;
+  lucro: number;
+  rentabilidade: number;
+  proventos: number;
+  resultadoTotal: number;
+  isCaixa: boolean;
+}
+
+interface RFClosedPos {
+  ticker: string;
+  moeda: string;
+  compra: number;
+  venda: number;
+  imposto: number;
+  lucro: number;
+  rentabilidade: number;
+  proventos: number;
+  resultadoTotal: number;
+}
+
+interface RFTx {
+  date: string;
+  ticker: string;
   tipo: string;
-  valor_original: number;
-  valor_capitalizado: number;
-  valor_brl: number;
-  data_referencia: string | null;
-  dias_passados: number;
-  rendimento_estimado_pct: number;
+  valor: number;
+  moeda: string;
+}
+
+interface RFData {
+  abertas: RFOpenPos[];
+  caixa: RFOpenPos[];
+  encerradas: RFClosedPos[];
+  transacoes: RFTx[];
+  totalAtual: number;
+  totalCaixa: number;
+  totalInvestidoAberto: number;
+  lucroNaoRealizado: number;
+  lucroRealizado: number;
+  totalProventosRF: number;
+  rentMedia: number;
+  patrimonio: number;
+}
+
+type SortKey = "ticker" | "investido" | "atual" | "lucro" | "rentabilidade" | "resultadoTotal" | "compra" | "venda";
+type SortDir = "asc" | "desc";
+
+function sortBy<T extends Record<string, unknown>>(arr: T[], key: string, dir: SortDir): T[] {
+  return [...arr].sort((a, b) => {
+    const av = a[key] ?? 0;
+    const bv = b[key] ?? 0;
+    if (typeof av === "string" && typeof bv === "string")
+      return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    return dir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
 }
 
 export default function RendaFixaPage() {
-  const transacoes = useSheetData("renda_fixa");
-  const posicoes = useSheetData("fixa_aberta");
   const { data: portfolio, loading: portLoading } = usePortfolio();
-  const [rfSelic, setRfSelic] = useState<{ totalBrl: number; posicoes: RFPosicao[] } | null>(null);
+  const [rfData, setRfData] = useState<RFData | null>(null);
+  const [rfLoading, setRfLoading] = useState(true);
+  const [rfError, setRfError] = useState<string | null>(null);
+  const [sortKeyOpen, setSortKeyOpen] = useState<SortKey>("atual");
+  const [sortDirOpen, setSortDirOpen] = useState<SortDir>("desc");
+  const [sortKeyClosed, setSortKeyClosed] = useState<SortKey>("resultadoTotal");
+  const [sortDirClosed, setSortDirClosed] = useState<SortDir>("desc");
+  const [showClosed, setShowClosed] = useState(true);
+  const [showTx, setShowTx] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/renda-fixa/posicoes`)
-      .then(r => r.json())
-      .then(body => setRfSelic(body))
-      .catch(() => {});
+      .then(async r => {
+        const body = await r.json();
+        if (!r.ok || body.error) throw new Error(body.error || `HTTP ${r.status}`);
+        return body;
+      })
+      .then(setRfData)
+      .catch(e => setRfError(e.message))
+      .finally(() => setRfLoading(false));
   }, []);
 
-  const loading = transacoes.loading || posicoes.loading || portLoading;
+  const loading = portLoading || rfLoading;
 
-  const errors = [
-    transacoes.error && `renda_fixa: ${transacoes.error}`,
-    posicoes.error && `fixa_aberta: ${posicoes.error}`,
-  ].filter((x): x is string => Boolean(x));
-
-  // ── Posições RF de meus_ativos (SHV, BIL, etc.) ───────────────────────────
   const rfDeAtivos = useMemo((): Position[] => {
     if (!portfolio?.positions) return [];
     return portfolio.positions.filter((p: Position) => isRendaFixa(p.setor));
   }, [portfolio]);
 
-  // ── Métricas ───────────────────────────────────────────────────────────────
   const metrics = useMemo(() => {
-    const totalAtivosBRL = rfDeAtivos.reduce((s: number, p: Position) => s + p.valorAtualBRL, 0);
-    // Prefer SELIC-capitalized total from API, fall back to raw sum
-    const totalManualBRL = rfSelic?.totalBrl ?? posicoes.data.reduce((sum: number, r) => {
-      const usdbrl = portfolio?.usdbrl ?? 5.7;
-      const eurbrl = portfolio?.eurbrl ?? 6.4;
-      const val = toNumber(r["atual"] || r["valor_atual"] || r["saldo"] || r["valor atual"]) ?? 0;
-      const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
-      const fx = moeda === "USD" ? usdbrl : moeda === "EUR" ? eurbrl : 1;
-      return sum + val * fx;
-    }, 0);
+    if (!rfData) return null;
+    const totalAtivosBRL = rfDeAtivos.reduce((s, p) => s + p.valorAtualBRL, 0);
+    const lucroAtivos = rfDeAtivos.reduce((s, p) => s + (p.lucroBRL ?? 0), 0);
+    const totalRF = rfData.patrimonio + totalAtivosBRL;
+    const lucroTotal = rfData.lucroNaoRealizado + rfData.lucroRealizado + rfData.totalProventosRF + lucroAtivos;
+    const investidoAtivos = rfDeAtivos.reduce((s, p) => s + p.custoTotalBRL, 0);
 
-    const totalCompras = transacoes.data.reduce((sum: number, r) => {
-      const tipo = String(r["tipo"] || r["movimentacao"] || "").toLowerCase();
-      if (tipo.includes("compra") || tipo.includes("aplica")) {
-        return sum + Math.abs(toNumber(r["valor"]) ?? 0);
-      }
-      return sum;
-    }, 0);
+    return {
+      totalRF,
+      totalAtivosBRL,
+      totalManualBRL: rfData.patrimonio,
+      lucroTotal,
+      lucroNaoRealizado: rfData.lucroNaoRealizado + lucroAtivos,
+      lucroRealizado: rfData.lucroRealizado,
+      totalProventosRF: rfData.totalProventosRF,
+      totalInvestido: rfData.totalInvestidoAberto + investidoAtivos,
+      rentMedia: rfData.rentMedia,
+    };
+  }, [rfData, rfDeAtivos]);
 
-    const totalRF = totalManualBRL + totalAtivosBRL;
-    const lucro = totalRF - totalCompras;
-    const rent = totalCompras > 0 ? (lucro / totalCompras) * 100 : 0;
+  const sortedOpen = useMemo(() => {
+    if (!rfData) return [];
+    return sortBy(rfData.abertas as unknown as Record<string, unknown>[], sortKeyOpen, sortDirOpen) as unknown as RFOpenPos[];
+  }, [rfData, sortKeyOpen, sortDirOpen]);
 
-    return { totalManualBRL, totalAtivosBRL, totalRF, totalCompras, lucro, rent };
-  }, [posicoes.data, transacoes.data, rfDeAtivos, portfolio, rfSelic]);
+  const sortedClosed = useMemo(() => {
+    if (!rfData) return [];
+    return sortBy(rfData.encerradas as unknown as Record<string, unknown>[], sortKeyClosed, sortDirClosed) as unknown as RFClosedPos[];
+  }, [rfData, sortKeyClosed, sortDirClosed]);
 
-  // ── Colunas de posições manuais ───────────────────────────────────────────
-  const posColumns = [
-    {
-      key: "ticker",
-      label: "Título",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["ticker"] || row["ativo"] || "—"),
-    },
-    {
-      key: "atual",
-      label: "Valor Atual",
-      align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        currency(
-          row["atual"] || row["valor_atual"] || row["saldo"] || row["valor atual"],
-          String(row["moeda"] || "BRL")
-        ),
-    },
-    {
-      key: "tipo",
-      label: "Tipo",
-      render: (_v: unknown, row: Record<string, unknown>) => String(row["tipo"] || "—"),
-    },
-    {
-      key: "moeda",
-      label: "Moeda",
-      render: (_v: unknown, row: Record<string, unknown>) => String(row["moeda"] || "BRL"),
-    },
-    {
-      key: "data",
-      label: "Atualizado",
-      render: (_v: unknown, row: Record<string, unknown>) => formatDate(row["data"] || ""),
-    },
-  ];
-
-  // ── Colunas de ativos RF (SHV/BIL) ────────────────────────────────────────
-  const ativoRFCols = [
-    { key: "ticker", label: "Ticker" },
-    { key: "setor", label: "Setor" },
-    {
-      key: "quantidade",
-      label: "Qtd",
-      align: "right" as const,
-      render: (v: unknown) =>
-        Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 4 }),
-    },
-    {
-      key: "precoAtual",
-      label: "Preço",
-      align: "right" as const,
-      render: (v: unknown, row: Record<string, unknown>) =>
-        v != null ? `${row["moeda"]} ${Number(v).toFixed(2)}` : "—",
-    },
-    {
-      key: "valorAtualBRL",
-      label: "Valor (R$)",
-      align: "right" as const,
-      render: (v: unknown) => compactBRL(Number(v)),
-    },
-    {
-      key: "lucroBRL",
-      label: "P&L",
-      align: "right" as const,
-      render: (v: unknown): React.ReactNode => {
-        const n = Number(v);
-        if (!isFinite(n)) return "—";
-        return React.createElement(
-          "span",
-          { className: n >= 0 ? "text-positive" : "text-negative" },
-          brl(n)
-        );
-      },
-    },
-    {
-      key: "lucroPct",
-      label: "%",
-      align: "right" as const,
-      render: (v: unknown): React.ReactNode => {
-        const n = Number(v);
-        if (!isFinite(n)) return "—";
-        return React.createElement(
-          "span",
-          { className: n >= 0 ? "text-positive" : "text-negative" },
-          pct(n)
-        );
-      },
-    },
-  ];
-
-  // ── Colunas de transações ──────────────────────────────────────────────────
-  const txColumns = [
-    {
-      key: "compra",
-      label: "Data",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        formatDate(row["compra"] || row["data"]),
-    },
-    {
-      key: "ticker",
-      label: "Título",
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["ticker"] || row["ativo"] || "—"),
-    },
-    { key: "tipo", label: "Tipo" },
-    {
-      key: "valor",
-      label: "Valor",
-      align: "right" as const,
-      render: (v: unknown, row: Record<string, unknown>) =>
-        currency(v, String(row["moeda"] || "BRL")),
-    },
-    {
-      key: "moeda",
-      label: "Moeda",
-      render: (_v: unknown, row: Record<string, unknown>) => String(row["moeda"] || "BRL"),
-    },
-  ];
+  const txSorted = useMemo(() => {
+    if (!rfData) return [];
+    return [...rfData.transacoes].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+  }, [rfData]);
 
   if (loading) return <LoadingSpinner />;
+  if (rfError && !rfData) return <ErrorAlert message={rfError} />;
+  if (!rfData || !metrics) return <ErrorAlert message="Dados de renda fixa não disponíveis" />;
+
+  function handleSortOpen(key: SortKey) {
+    if (sortKeyOpen === key) setSortDirOpen(d => d === "asc" ? "desc" : "asc");
+    else { setSortKeyOpen(key); setSortDirOpen("desc"); }
+  }
+  function handleSortClosed(key: SortKey) {
+    if (sortKeyClosed === key) setSortDirClosed(d => d === "asc" ? "desc" : "asc");
+    else { setSortKeyClosed(key); setSortDirClosed("desc"); }
+  }
+
+  function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+    if (!active) return <span className="text-zinc-700 ml-0.5">↕</span>;
+    return dir === "asc"
+      ? <ChevronUp size={10} className="inline ml-0.5 text-accent" />
+      : <ChevronDown size={10} className="inline ml-0.5 text-accent" />;
+  }
 
   return (
     <>
-      <PageHeader title="Renda Fixa" description="Posições em RF nacional, internacional e caixa" />
+      <PageHeader title="Renda Fixa" description="Posições abertas, encerradas, proventos e transações" />
 
-      {errors.length > 0 && (
-        <div className="mb-6 flex flex-col gap-2">
-          {errors.map((err, i) => <ErrorAlert key={i} message={err} />)}
-        </div>
-      )}
-
-      {/* Métricas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+      {/* ── Metric Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div className="animate-fade-in">
           <MetricCard
             label="Total RF"
             value={compactBRL(metrics.totalRF)}
-            sub={`Manual ${compactBRL(metrics.totalManualBRL)} + Ativos ${compactBRL(metrics.totalAtivosBRL)}`}
+            sub={`Manual ${compactBRL(metrics.totalManualBRL)} + Bolsa ${compactBRL(metrics.totalAtivosBRL)}`}
             icon={<PiggyBank size={18} />}
             glowColor="#8b5cf6"
           />
         </div>
         <div className="animate-fade-in animate-delay-1">
           <MetricCard
-            label="Total Investido"
-            value={compactBRL(metrics.totalCompras)}
-            sub={`${transacoes.data.length} transações`}
-            icon={<Landmark size={18} />}
-            glowColor="#d4a574"
+            label="Lucro Não Realizado"
+            value={brl(metrics.lucroNaoRealizado)}
+            sub="Posições abertas"
+            icon={metrics.lucroNaoRealizado >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+            trend={metrics.lucroNaoRealizado >= 0 ? "up" : "down"}
+            glowColor={metrics.lucroNaoRealizado >= 0 ? "#34d399" : "#f87171"}
           />
         </div>
         <div className="animate-fade-in animate-delay-2">
           <MetricCard
-            label="P&L RF"
-            value={brl(metrics.lucro)}
-            icon={<TrendingUp size={18} />}
-            trend={metrics.lucro >= 0 ? "up" : "down"}
-            glowColor={metrics.lucro >= 0 ? "#34d399" : "#f87171"}
+            label="Lucro Realizado"
+            value={brl(metrics.lucroRealizado)}
+            sub={`${rfData.encerradas.length} títulos encerrados`}
+            icon={metrics.lucroRealizado >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+            trend={metrics.lucroRealizado >= 0 ? "up" : "down"}
+            glowColor={metrics.lucroRealizado >= 0 ? "#34d399" : "#f87171"}
           />
         </div>
         <div className="animate-fade-in animate-delay-3">
           <MetricCard
-            label="Rentabilidade"
-            value={pct(metrics.rent)}
-            sub="desde o investimento"
-            icon={<Globe size={18} />}
-            trend={metrics.rent >= 0 ? "up" : "down"}
-            glowColor={metrics.rent >= 0 ? "#34d399" : "#f87171"}
+            label="Proventos RF"
+            value={brl(metrics.totalProventosRF)}
+            sub="Juros, cupons e rendimentos"
+            icon={<Wallet size={18} />}
+            glowColor="#f59e0b"
           />
         </div>
       </div>
 
-      {/* Ativos RF de meus_ativos (SHV, BIL, etc.) */}
-      {rfDeAtivos.length > 0 && (
-        <div className="mb-6 animate-fade-in">
-          <h2 className="section-title mb-3">Renda Fixa Internacional (via carteira RV)</h2>
-          <DataTable
-            data={rfDeAtivos as unknown as Record<string, unknown>[]}
-            columns={ativoRFCols}
-          />
+      {/* ── Secondary metrics ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+        <div className="glass-card p-3">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Resultado Total</p>
+          <p className={`text-base font-bold ${metrics.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {brl(metrics.lucroTotal)}
+          </p>
+          <p className="text-[10px] text-zinc-600 mt-0.5">NR + Realizado + Proventos</p>
         </div>
-      )}
+        <div className="glass-card p-3">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Rentab. Média</p>
+          <p className={`text-base font-bold ${metrics.rentMedia >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {pct(metrics.rentMedia)}
+          </p>
+          <p className="text-[10px] text-zinc-600 mt-0.5">Posições abertas</p>
+        </div>
+        <div className="glass-card p-3">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Caixa</p>
+          <p className="text-base font-bold text-zinc-200">{compactBRL(rfData.totalCaixa)}</p>
+          <p className="text-[10px] text-zinc-600 mt-0.5">{rfData.caixa.length} posição(ões)</p>
+        </div>
+        <div className="glass-card p-3">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Total Investido</p>
+          <p className="text-base font-bold text-zinc-200">{compactBRL(metrics.totalInvestido)}</p>
+          <p className="text-[10px] text-zinc-600 mt-0.5">{txSorted.length} transações</p>
+        </div>
+      </div>
 
-      {/* Posições manuais — SELIC capitalizado */}
-      {rfSelic && rfSelic.posicoes.length > 0 ? (
-        <div className="mb-6 animate-fade-in">
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="section-title">Posições Abertas</h2>
-            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-700/30">
-              <Zap size={10} />
-              SELIC capitalizado
-            </span>
-          </div>
-          <div className="glass-card overflow-x-auto">
+      {/* ── Posições Abertas ── */}
+      {sortedOpen.length > 0 && (
+        <div className="glass-card p-5 mb-5 animate-fade-in">
+          <h2 className="section-title mb-4">Posições Abertas</h2>
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/30">
-                  {["Título", "Tipo", "Moeda", "Atualizado", "Valor Orig.", "Valor Capitalizado", "Rendimento Est."].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{h}</th>
-                  ))}
+                  <SortTh label="Título" sortKey="ticker" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} />
+                  <th className="px-3 py-2.5 text-left text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Moeda</th>
+                  <SortTh label="Investido" sortKey="investido" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
+                  <SortTh label="Valor Atual" sortKey="atual" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
+                  <SortTh label="Lucro" sortKey="lucro" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
+                  <SortTh label="Rent. %" sortKey="rentabilidade" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
+                  <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Proventos</th>
+                  <SortTh label="Resultado" sortKey="resultadoTotal" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
                 </tr>
               </thead>
               <tbody>
-                {rfSelic.posicoes.map((p, i) => (
-                  <tr key={i} className="border-b border-border/10 hover:bg-white/[0.02]">
-                    <td className="px-4 py-2.5 text-zinc-200 font-medium text-xs">{p.ticker}</td>
-                    <td className="px-4 py-2.5 text-zinc-500 text-xs">{p.tipo || "—"}</td>
-                    <td className="px-4 py-2.5 text-zinc-500 text-xs">{p.moeda}</td>
-                    <td className="px-4 py-2.5 text-zinc-500 text-xs">
-                      {p.data_referencia ? formatDate(p.data_referencia) : "—"}
-                      {p.dias_passados > 0 && <span className="text-zinc-700 ml-1">({p.dias_passados}d)</span>}
+                {sortedOpen.map((p, i) => (
+                  <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
+                    <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker}</td>
+                    <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.moeda}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
+                      {p.investido > 0 ? currency(p.investido, p.moeda) : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-zinc-400">{compactBRL(p.valor_original)}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-zinc-200">{compactBRL(p.valor_capitalizado)}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-400">
-                      +{p.rendimento_estimado_pct.toFixed(2)}%
+                    <td className="px-3 py-2.5 text-right text-zinc-200 font-medium text-xs">{currency(p.atual, p.moeda)}</td>
+                    <td className={`px-3 py-2.5 text-right font-semibold text-xs ${p.lucro >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {p.investido > 0 ? currency(p.lucro, p.moeda) : "—"}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-semibold text-xs ${p.rentabilidade >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {p.investido > 0 ? pct(p.rentabilidade) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-xs">
+                      {p.proventos > 0 ? <span className="text-amber-400">{brl(p.proventos)}</span> : <span className="text-zinc-700">—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-bold text-xs ${p.resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {p.investido > 0 ? currency(p.resultadoTotal, p.moeda) : "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border/30 bg-white/[0.02]">
-                  <td colSpan={5} className="px-4 py-2.5 text-xs font-bold text-zinc-400">Total capitalizado</td>
-                  <td className="px-4 py-2.5 text-right text-xs font-bold text-zinc-100">{compactBRL(rfSelic.totalBrl)}</td>
-                  <td />
+                <tr className="border-t-2 border-border font-semibold">
+                  <td className="px-3 py-3 text-zinc-300 text-xs" colSpan={2}>Total Abertas</td>
+                  <td className="px-3 py-3 text-right text-zinc-400 text-xs">{brl(rfData.totalInvestidoAberto)}</td>
+                  <td className="px-3 py-3 text-right text-zinc-200 text-xs">{brl(rfData.totalAtual)}</td>
+                  <td className={`px-3 py-3 text-right text-xs ${rfData.lucroNaoRealizado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {brl(rfData.lucroNaoRealizado)}
+                  </td>
+                  <td className={`px-3 py-3 text-right text-xs ${rfData.rentMedia >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {pct(rfData.rentMedia)}
+                  </td>
+                  <td className="px-3 py-3 text-right text-xs text-amber-400">
+                    {brl(sortedOpen.reduce((s, p) => s + p.proventos, 0))}
+                  </td>
+                  <td className={`px-3 py-3 text-right text-xs font-bold ${sortedOpen.reduce((s, p) => s + p.resultadoTotal, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {brl(sortedOpen.reduce((s, p) => s + p.resultadoTotal, 0))}
+                  </td>
                 </tr>
               </tfoot>
             </table>
           </div>
         </div>
-      ) : posicoes.data.length > 0 && (
-        <div className="mb-6 animate-fade-in">
-          <h2 className="section-title mb-3">Posições Abertas</h2>
-          <DataTable data={posicoes.data} columns={posColumns} />
+      )}
+
+      {/* ── Caixa/Liquidez ── */}
+      {rfData.caixa.length > 0 && (
+        <div className="glass-card p-5 mb-5 animate-fade-in">
+          <h2 className="section-title mb-3">Caixa / Liquidez</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="px-3 py-2.5 text-left text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Título</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Moeda</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rfData.caixa.map((p, i) => (
+                  <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
+                    <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker}</td>
+                    <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.moeda}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-200 font-medium text-xs">{currency(p.atual, p.moeda)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border font-semibold">
+                  <td className="px-3 py-3 text-zinc-300 text-xs" colSpan={2}>Total Caixa</td>
+                  <td className="px-3 py-3 text-right text-zinc-200 text-xs">{brl(rfData.totalCaixa)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Transações */}
-      <h2 className="section-title mb-3">Histórico de Transações</h2>
-      <DataTable data={transacoes.data} columns={txColumns} />
+      {/* ── RF via Bolsa (SHV, BIL, etc.) ── */}
+      {rfDeAtivos.length > 0 && (
+        <div className="glass-card p-5 mb-5 animate-fade-in">
+          <h2 className="section-title mb-3">Renda Fixa Internacional (via carteira RV)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  {["Ticker", "Setor", "Qtd", "PM", "Preço", "Investido", "Valor Atual", "Lucro", "%"].map(h => (
+                    <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${h !== "Ticker" && h !== "Setor" ? "text-right" : "text-left"}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rfDeAtivos.map((p, i) => {
+                  const cor = (p.lucroPct ?? 0) >= 0 ? "text-emerald-400" : "text-red-400";
+                  return (
+                    <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
+                      <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker} <span className="text-zinc-600 text-[10px]">{p.moeda}</span></td>
+                      <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.setor}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">{p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.custoMedio, p.moeda)}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
+                        {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{brl(p.custoTotalBRL)}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-200 font-medium text-xs">{brl(p.valorAtualBRL)}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Posições Encerradas ── */}
+      {sortedClosed.length > 0 && (
+        <div className="glass-card p-5 mb-5 animate-fade-in">
+          <button
+            onClick={() => setShowClosed(v => !v)}
+            className="flex items-center gap-2 w-full text-left mb-3"
+          >
+            <h2 className="section-title">Posições Encerradas</h2>
+            <span className="text-[10px] text-zinc-500 font-medium">{sortedClosed.length} títulos</span>
+            {showClosed ? <ChevronUp size={14} className="text-zinc-500" /> : <ChevronDown size={14} className="text-zinc-500" />}
+          </button>
+          {showClosed && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/30">
+                    <SortTh label="Título" sortKey="ticker" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} />
+                    <th className="px-3 py-2.5 text-left text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Moeda</th>
+                    <SortTh label="Compra" sortKey="compra" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                    <SortTh label="Venda" sortKey="venda" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                    <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Imposto</th>
+                    <SortTh label="Lucro" sortKey="lucro" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                    <SortTh label="Rent. %" sortKey="rentabilidade" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                    <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Proventos</th>
+                    <SortTh label="Total" sortKey="resultadoTotal" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedClosed.map((p, i) => (
+                    <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
+                      <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker}</td>
+                      <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.moeda}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.compra, p.moeda)}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-300 text-xs">{currency(p.venda, p.moeda)}</td>
+                      <td className="px-3 py-2.5 text-right text-amber-400/70 text-xs">
+                        {p.imposto > 0 ? currency(p.imposto, p.moeda) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${p.lucro >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {currency(p.lucro, p.moeda)}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${p.rentabilidade >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {pct(p.rentabilidade)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {p.proventos > 0 ? <span className="text-amber-400">{brl(p.proventos)}</span> : <span className="text-zinc-700">—</span>}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-bold text-xs ${p.resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {currency(p.resultadoTotal, p.moeda)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border font-semibold">
+                    <td className="px-3 py-3 text-zinc-300 text-xs" colSpan={2}>Total Encerradas</td>
+                    <td className="px-3 py-3 text-right text-zinc-400 text-xs">{brl(rfData.encerradas.reduce((s, p) => s + p.compra, 0))}</td>
+                    <td className="px-3 py-3 text-right text-zinc-300 text-xs">{brl(rfData.encerradas.reduce((s, p) => s + p.venda, 0))}</td>
+                    <td className="px-3 py-3 text-right text-amber-400/70 text-xs">{brl(rfData.encerradas.reduce((s, p) => s + p.imposto, 0))}</td>
+                    <td className={`px-3 py-3 text-right text-xs ${rfData.lucroRealizado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {brl(rfData.lucroRealizado)}
+                    </td>
+                    <td />
+                    <td className="px-3 py-3 text-right text-xs text-amber-400">
+                      {brl(sortedClosed.reduce((s, p) => s + p.proventos, 0))}
+                    </td>
+                    <td className={`px-3 py-3 text-right text-xs font-bold ${sortedClosed.reduce((s, p) => s + p.resultadoTotal, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {brl(sortedClosed.reduce((s, p) => s + p.resultadoTotal, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Histórico de Transações ── */}
+      {txSorted.length > 0 && (
+        <div className="glass-card p-5 animate-fade-in">
+          <button
+            onClick={() => setShowTx(v => !v)}
+            className="flex items-center gap-2 w-full text-left mb-3"
+          >
+            <h2 className="section-title">Histórico de Transações</h2>
+            <span className="text-[10px] text-zinc-500 font-medium">{txSorted.length} registros</span>
+            {showTx ? <ChevronUp size={14} className="text-zinc-500" /> : <ChevronDown size={14} className="text-zinc-500" />}
+          </button>
+          {showTx && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/30">
+                    {["Data", "Título", "Tipo", "Valor", "Moeda"].map(h => (
+                      <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {txSorted.map((tx, i) => {
+                    const isCompra = tx.tipo.toLowerCase().includes("compra");
+                    const isImposto = tx.tipo.toLowerCase().includes("imposto");
+                    return (
+                      <tr key={i} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
+                        <td className="px-3 py-2 text-zinc-400 text-xs font-mono">{formatDate(tx.date)}</td>
+                        <td className="px-3 py-2 text-zinc-200 text-xs font-medium">{tx.ticker}</td>
+                        <td className="px-3 py-2 text-xs">
+                          <span className={isCompra ? "text-emerald-400" : isImposto ? "text-amber-400" : "text-red-400"}>
+                            {tx.tipo}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs text-zinc-300 font-mono">{currency(tx.valor, tx.moeda)}</td>
+                        <td className="px-3 py-2 text-zinc-500 text-xs">{tx.moeda}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
+}
+
+function SortTh({ label, sortKey, currentKey, dir, onSort, right }: {
+  label: string; sortKey: SortKey; currentKey: SortKey; dir: SortDir;
+  onSort: (key: SortKey) => void; right?: boolean;
+}) {
+  return (
+    <th
+      className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider cursor-pointer hover:text-zinc-300 select-none ${right ? "text-right" : "text-left"}`}
+      onClick={() => onSort(sortKey)}
+    >
+      {label}
+      {currentKey === sortKey
+        ? (dir === "asc" ? <ChevronUp size={10} className="inline ml-0.5 text-accent" /> : <ChevronDown size={10} className="inline ml-0.5 text-accent" />)
+        : <span className="text-zinc-700 ml-0.5">↕</span>
+      }
+    </th>
+  );
+}
+
+function parseDate(raw: string): number {
+  if (!raw) return 0;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(raw).getTime();
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return new Date(`${br[3]}-${br[2]}-${br[1]}`).getTime();
+  return 0;
 }
