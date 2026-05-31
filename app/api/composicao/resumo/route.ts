@@ -289,17 +289,22 @@ export async function GET() {
       const proventosAtivo = proventosPorTicker[ticker] ?? 0;
       if (Math.abs(pos.lucroRealizado) < 0.01 && proventosAtivo < 0.01) continue;
       const setor = identificarSetor(ticker);
-      const lucroRealizadoBRL = pos.lucroRealizado * fxFactor(pos.moeda, fxAtual);
+      const nativeFx = fxFactor(pos.moeda, fxAtual);
+      const lucroRealizadoBRL = pos.lucroRealizado * nativeFx;
       const resultadoTotal = lucroRealizadoBRL + proventosAtivo;
+      const custoNativo = pos.custoVendido;
+      const nativeProventos = nativeFx > 0 ? proventosAtivo / nativeFx : 0;
+      const retRealizadoProventosPct = custoNativo > 0 ? ((pos.lucroRealizado + nativeProventos) / custoNativo) * 100 : 0;
+      const custoBRL = custoNativo * nativeFx;
       rentabilidade.push({
         ticker, setor, moeda: pos.moeda,
         macro: classificarCamadas(ticker, setor).macro,
-        status: "Vendido", valor_atual_brl: 0, custo_brl: 0,
+        status: "Vendido", valor_atual_brl: 0, custo_brl: custoBRL,
         lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizadoBRL,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
         retorno_nao_realizado_pct: 0,
-        retorno_realizado_proventos_pct: 0,
-        retorno_total_pct: 0,
+        retorno_realizado_proventos_pct: retRealizadoProventosPct,
+        retorno_total_pct: retRealizadoProventosPct,
       });
     }
 
@@ -326,6 +331,45 @@ export async function GET() {
         retorno_nao_realizado_pct: retNaoRealizadoPct,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
+      });
+    }
+
+    // Sold RF positions from renda_fixa transactions (CDBs, Tesouro, etc.)
+    const rfTickersInRent = new Set(rentabilidade.map(r => r.ticker));
+    const rfAgg: Record<string, { compra: number; venda: number; imposto: number; moeda: string }> = {};
+    for (const row of rfTransacoes) {
+      const ticker = String(row["ticker"] ?? "").trim();
+      if (!ticker) continue;
+      const tipo = String(row["tipo"] ?? "").toLowerCase();
+      const valorRaw = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
+      if (valorRaw <= 0 && !tipo.includes("imposto")) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      if (!rfAgg[ticker]) rfAgg[ticker] = { compra: 0, venda: 0, imposto: 0, moeda };
+      if (tipo.includes("compra") || tipo.includes("aporte")) {
+        rfAgg[ticker].compra += valorRaw;
+      } else if (tipo.includes("venda") || tipo.includes("resgate")) {
+        rfAgg[ticker].venda += valorRaw;
+      } else if (tipo.includes("imposto")) {
+        rfAgg[ticker].imposto += Math.abs(valorRaw);
+      }
+    }
+    for (const [ticker, agg] of Object.entries(rfAgg)) {
+      if (rfTickersInRent.has(ticker)) continue;
+      if (agg.venda <= 0) continue;
+      const lucroRealizado = agg.venda - agg.compra - agg.imposto;
+      const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
+      const resultadoTotal = lucroRealizado + proventosAtivo;
+      const nativeFx = fxFactor(agg.moeda, fxAtual);
+      const retRealizadoProventosPct = agg.compra > 0 ? ((lucroRealizado + (nativeFx > 0 ? proventosAtivo / nativeFx : 0)) / agg.compra) * 100 : 0;
+      const { macro, sub } = classificarCamadas(ticker, "Renda Fixa");
+      rentabilidade.push({
+        ticker, setor: sub, macro, moeda: agg.moeda,
+        status: "Vendido", valor_atual_brl: 0, custo_brl: agg.compra * nativeFx,
+        lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado * nativeFx,
+        proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal * nativeFx,
+        retorno_nao_realizado_pct: 0,
+        retorno_realizado_proventos_pct: retRealizadoProventosPct,
+        retorno_total_pct: retRealizadoProventosPct,
       });
     }
 
