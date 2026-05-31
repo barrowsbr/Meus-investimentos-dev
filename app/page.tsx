@@ -152,12 +152,31 @@ function HologramPanel({ active, onClose }: { active: boolean; onClose: () => vo
   const videoRef = useRef<HTMLVideoElement>(null);
   const [exiting, setExiting] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [videos, setVideos] = useState<string[]>([]);
+  const [currentVideo, setCurrentVideo] = useState("/midias/video2.mp4");
+
+  useEffect(() => {
+    fetch("/api/videos")
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d.videos) && d.videos.length > 0) setVideos(d.videos);
+      })
+      .catch(() => {});
+  }, []);
+
+  const pickRandomVideo = useCallback(() => {
+    if (videos.length <= 1) return;
+    const others = videos.filter(v => v !== currentVideo);
+    const next = others[Math.floor(Math.random() * others.length)];
+    setCurrentVideo(next);
+  }, [videos, currentVideo]);
 
   useEffect(() => {
     if (active) {
+      if (videos.length > 1) pickRandomVideo();
       setVisible(true);
       setExiting(false);
-      videoRef.current?.play().catch(() => {});
+      setTimeout(() => videoRef.current?.play().catch(() => {}), 100);
     } else if (visible) {
       setExiting(true);
       const t = setTimeout(() => {
@@ -168,28 +187,37 @@ function HologramPanel({ active, onClose }: { active: boolean; onClose: () => vo
       }, 500);
       return () => clearTimeout(t);
     }
-  }, [active, visible]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  const handleVideoEnded = useCallback(() => {
+    if (videos.length > 1) {
+      pickRandomVideo();
+      setTimeout(() => videoRef.current?.play().catch(() => {}), 50);
+    }
+  }, [videos.length, pickRandomVideo]);
 
   if (!visible) return null;
 
   return (
-    <div className="flex flex-col items-center w-full mt-2 mb-4">
-      {/* Beam from logo */}
+    <div className="flex flex-col items-center w-full">
+      {/* Projection beam from logo */}
       <div
-        className="w-px h-6 mx-auto"
+        className="w-[2px] h-4 mx-auto rounded-full"
         style={{
-          background: "linear-gradient(180deg, rgba(0,255,255,0.5), rgba(0,255,255,0.05))",
+          background: "linear-gradient(180deg, rgba(0,255,255,0.6), rgba(0,255,255,0.08))",
           animation: "holoBeam 2s ease-in-out infinite",
+          boxShadow: "0 0 8px rgba(0,255,255,0.3)",
         }}
       />
 
       {/* Holographic panel */}
       <div
-        className={`relative w-full max-w-md rounded-xl overflow-hidden holo-scanlines ${exiting ? "holo-panel-exit" : "holo-panel-enter"}`}
+        className={`relative w-full max-w-sm rounded-lg overflow-hidden holo-scanlines ${exiting ? "holo-panel-exit" : "holo-panel-enter"}`}
         style={{
-          background: "rgba(0, 20, 30, 0.75)",
+          background: "rgba(0, 20, 30, 0.7)",
           border: "1px solid rgba(0, 255, 255, 0.25)",
-          boxShadow: "0 0 40px rgba(0, 255, 255, 0.12), 0 0 80px rgba(0, 255, 255, 0.06), inset 0 0 30px rgba(0, 255, 255, 0.04)",
+          boxShadow: "0 0 30px rgba(0, 255, 255, 0.1), 0 0 60px rgba(0, 255, 255, 0.05), inset 0 0 20px rgba(0, 255, 255, 0.03)",
           animation: exiting
             ? "holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards, holoFlicker 0.3s linear infinite"
             : "holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards, holoFlicker 4s ease-in-out infinite",
@@ -198,25 +226,23 @@ function HologramPanel({ active, onClose }: { active: boolean; onClose: () => vo
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 z-10 p-1.5 rounded-full transition-colors"
-          style={{ background: "rgba(0,255,255,0.1)", border: "1px solid rgba(0,255,255,0.2)" }}
+          className="absolute top-1.5 right-1.5 z-10 p-1 rounded-full transition-colors hover:bg-cyan-400/20"
+          style={{ background: "rgba(0,255,255,0.08)", border: "1px solid rgba(0,255,255,0.2)" }}
         >
-          <X size={12} className="text-cyan-400" />
+          <X size={10} className="text-cyan-400" />
         </button>
 
         {/* Hologram label */}
-        <div
-          className="absolute top-2 left-3 z-10 flex items-center gap-1.5"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-[8px] font-extrabold tracking-[2px] uppercase text-cyan-400/70">HOLO · LIVE</span>
+        <div className="absolute top-1.5 left-2.5 z-10 flex items-center gap-1">
+          <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-[7px] font-extrabold tracking-[1.5px] uppercase text-cyan-400/60">HOLO</span>
         </div>
 
         {/* Cyan tint overlay */}
         <div
           className="absolute inset-0 z-[1] pointer-events-none"
           style={{
-            background: "linear-gradient(135deg, rgba(0,255,255,0.06) 0%, transparent 50%, rgba(0,180,255,0.04) 100%)",
+            background: "linear-gradient(135deg, rgba(0,255,255,0.05) 0%, transparent 50%, rgba(0,180,255,0.03) 100%)",
             mixBlendMode: "screen",
           }}
         />
@@ -224,26 +250,26 @@ function HologramPanel({ active, onClose }: { active: boolean; onClose: () => vo
         {/* Video */}
         <video
           ref={videoRef}
-          src="/midias/video2.mp4"
+          src={currentVideo}
           muted
-          loop
           playsInline
+          onEnded={handleVideoEnded}
           className="w-full aspect-video object-cover relative z-0"
-          style={{ filter: "brightness(0.8) contrast(1.1) saturate(0.7) hue-rotate(10deg)" }}
+          style={{ filter: "brightness(0.75) contrast(1.1) saturate(0.65) hue-rotate(10deg)" }}
         />
 
         {/* Bottom edge glow */}
         <div
-          className="absolute bottom-0 left-0 right-0 h-8 z-[4] pointer-events-none"
-          style={{ background: "linear-gradient(to top, rgba(0,255,255,0.08), transparent)" }}
+          className="absolute bottom-0 left-0 right-0 h-6 z-[4] pointer-events-none"
+          style={{ background: "linear-gradient(to top, rgba(0,255,255,0.06), transparent)" }}
         />
       </div>
 
-      {/* Beam reflection */}
+      {/* Ground reflection */}
       <div
-        className="w-24 h-1 mx-auto rounded-full"
+        className="w-20 h-[3px] mx-auto rounded-full mt-0.5"
         style={{
-          background: "radial-gradient(ellipse, rgba(0,255,255,0.2), transparent)",
+          background: "radial-gradient(ellipse, rgba(0,255,255,0.15), transparent)",
           filter: "blur(2px)",
         }}
       />
@@ -824,39 +850,41 @@ export default function HomePage() {
       <div className="relative z-10 w-full max-w-lg px-4 py-10 flex flex-col items-center">
 
         {/* ── Hero ── */}
-        <div className="text-center mb-6 pt-16 animate-fade-in">
+        <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center">
           {/* Clickable logo with tilt */}
-          <div className="flex justify-center mb-5">
-            <button
-              onClick={handleLogoClick}
-              className={`relative group cursor-pointer transition-all duration-300 ${holoActive ? "logo-tilted" : "logo-idle"}`}
-              style={{ transformStyle: "preserve-3d" }}
-              aria-label="Ativar holograma"
-            >
-              <Image
-                src="/midias/carregamento.png"
-                alt="Meus Investimentos"
-                width={96}
-                height={96}
-                className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(212,165,116,0.3)]"
-                priority
+          <button
+            onClick={handleLogoClick}
+            className={`relative group cursor-pointer transition-all duration-300 mb-1 ${holoActive ? "logo-tilted" : "logo-idle"}`}
+            style={{ transformStyle: "preserve-3d" }}
+            aria-label="Ativar holograma"
+          >
+            <Image
+              src="/midias/carregamento.png"
+              alt="Meus Investimentos"
+              width={96}
+              height={96}
+              className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(212,165,116,0.3)]"
+              priority
+            />
+            {holoActive && (
+              <div
+                className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-3 h-3 rounded-full"
+                style={{
+                  background: "radial-gradient(circle, rgba(0,255,255,0.5), transparent)",
+                  filter: "blur(2px)",
+                  animation: "holoBeam 2s ease-in-out infinite",
+                }}
               />
-              {/* Eye beam when active */}
-              {holoActive && (
-                <div
-                  className="absolute -right-1 top-1/2 w-12 h-[2px] -translate-y-1/2"
-                  style={{
-                    background: "linear-gradient(90deg, rgba(0,255,255,0.6), rgba(0,255,255,0))",
-                    filter: "blur(1px)",
-                    animation: "holoBeam 2s ease-in-out infinite",
-                  }}
-                />
-              )}
-            </button>
-          </div>
+            )}
+          </button>
+
+          {/* ── Hologram — projected right below logo ── */}
+          <ErrorBoundary>
+            <HologramPanel active={holoActive} onClose={() => setHoloActive(false)} />
+          </ErrorBoundary>
 
           <h1
-            className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight"
+            className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
             style={{
               background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 50%, #a1a1aa 100%)",
               WebkitBackgroundClip: "text",
@@ -886,11 +914,6 @@ export default function HomePage() {
             </a>
           </div>
         </div>
-
-        {/* ── Hologram ── */}
-        <ErrorBoundary>
-          <HologramPanel active={holoActive} onClose={() => setHoloActive(false)} />
-        </ErrorBoundary>
 
         {/* ── Live Metrics ── */}
         <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
