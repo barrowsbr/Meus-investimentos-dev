@@ -1,13 +1,18 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, memo } from "react";
 import Link from "next/link";
 import {
+  ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
+} from "react-simple-maps";
+import {
   ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
-  ArrowUpDown, DollarSign, Filter,
+  ArrowUpDown, DollarSign, Filter, ZoomIn, ZoomOut, Maximize2,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+
+const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface CurrencyData {
   code: string;
@@ -28,42 +33,6 @@ interface MoedasResponse {
   error?: string;
 }
 
-// ── Simplified world map SVG paths (continents) ──────────────────────────────
-
-const WORLD_PATHS = [
-  // North America
-  "M 50,95 L 55,80 60,75 70,65 90,60 110,55 120,58 135,55 145,60 155,72 160,80 155,90 145,105 140,115 135,120 120,125 115,130 110,130 100,125 90,120 80,115 70,110 60,105 Z",
-  // South America
-  "M 115,130 L 120,135 125,140 130,150 135,160 140,175 142,190 140,200 135,210 128,218 120,220 115,215 112,205 110,195 108,185 105,170 108,155 110,145 112,135 Z",
-  // Europe
-  "M 185,55 L 195,52 210,50 225,52 230,58 235,55 240,58 235,65 230,70 225,72 218,75 210,78 205,75 200,72 195,68 190,65 185,60 Z",
-  // Africa
-  "M 190,80 L 200,78 210,80 220,82 225,90 228,100 230,115 228,130 225,145 220,155 215,162 210,168 200,170 195,165 190,155 185,140 183,125 182,110 183,100 185,90 Z",
-  // Asia
-  "M 235,50 L 250,45 270,42 290,40 310,42 325,48 340,52 350,55 355,62 350,68 345,75 340,80 330,82 320,85 310,88 295,85 285,80 275,78 265,75 255,72 245,70 240,65 238,58 Z",
-  // Middle East
-  "M 225,72 L 235,68 245,72 255,75 250,82 245,88 240,85 235,82 230,78 Z",
-  // Oceania
-  "M 320,155 L 335,150 350,152 360,158 365,165 360,175 350,180 338,178 328,172 322,165 Z",
-  // Australia
-  "M 310,145 L 320,140 332,142 340,148 345,155 342,165 335,172 325,175 315,170 308,162 305,155 Z",
-  // Japan/Korea islands
-  "M 340,55 L 345,52 348,55 350,62 348,65 345,63 342,58 Z",
-  // UK/Ireland
-  "M 188,52 L 192,50 195,52 194,56 190,55 Z",
-  // New Zealand
-  "M 365,180 L 368,177 370,180 369,185 366,184 Z",
-  // Indonesia/SE Asia islands
-  "M 300,100 L 308,98 315,100 325,105 330,110 325,115 315,112 305,108 300,105 Z",
-];
-
-// Equirectangular projection: lng → x, lat → y
-function project(lat: number, lng: number): [number, number] {
-  const x = ((lng + 180) / 360) * 400 + 10;
-  const y = ((90 - lat) / 180) * 240 + 10;
-  return [x, y];
-}
-
 const REGION_COLORS: Record<string, string> = {
   Americas: "#3b82f6",
   Europe: "#8b5cf6",
@@ -74,6 +43,182 @@ const REGION_COLORS: Record<string, string> = {
 };
 
 type SortKey = "code" | "rate" | "changePct" | "region";
+
+// ── World Map component (memoized for performance) ───────────────────────────
+
+const WorldMap = memo(function WorldMap({
+  currencies,
+  selectedRegion,
+  hoveredCurrency,
+  selectedCurrency,
+  onHover,
+  onSelect,
+}: {
+  currencies: CurrencyData[];
+  selectedRegion: string | null;
+  hoveredCurrency: string | null;
+  selectedCurrency: CurrencyData | null;
+  onHover: (code: string | null) => void;
+  onSelect: (c: CurrencyData | null) => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [center, setCenter] = useState<[number, number]>([10, 20]);
+
+  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 1.5, 8)), []);
+  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
+  const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
+
+  return (
+    <div className="relative">
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+        {[
+          { icon: ZoomIn, action: handleZoomIn, label: "Zoom in" },
+          { icon: ZoomOut, action: handleZoomOut, label: "Zoom out" },
+          { icon: Maximize2, action: handleReset, label: "Reset" },
+        ].map(({ icon: Icon, action, label }) => (
+          <button
+            key={label}
+            onClick={action}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
+            style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+            title={label}
+          >
+            <Icon size={13} className="text-zinc-400" />
+          </button>
+        ))}
+      </div>
+
+      <ComposableMap
+        projection="geoMercator"
+        projectionConfig={{ scale: 130, center: [0, 30] }}
+        style={{ width: "100%", height: "auto" }}
+        width={800}
+        height={450}
+      >
+        <ZoomableGroup
+          zoom={zoom}
+          center={center}
+          onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
+          maxZoom={8}
+        >
+          {/* Graticule-like background */}
+          <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.6)" />
+
+          {/* Country shapes */}
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map((geo) => (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill="rgba(255,255,255,0.04)"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth={0.4}
+                  style={{
+                    default: { outline: "none" },
+                    hover: { fill: "rgba(255,255,255,0.08)", outline: "none" },
+                    pressed: { outline: "none" },
+                  }}
+                />
+              ))
+            }
+          </Geographies>
+
+          {/* Currency markers */}
+          {currencies.map((c) => {
+            const regionColor = REGION_COLORS[c.region] ?? "#888";
+            const isHovered = hoveredCurrency === c.code;
+            const isSelected = selectedCurrency?.code === c.code;
+            const active = isHovered || isSelected;
+            const dimmed = selectedRegion ? c.region !== selectedRegion : false;
+            const changeColor = c.changePct >= 0 ? "#4ade80" : "#f87171";
+            const markerR = active ? 7 : 4.5;
+
+            return (
+              <Marker
+                key={c.code}
+                coordinates={[c.lng, c.lat]}
+                onMouseEnter={() => onHover(c.code)}
+                onMouseLeave={() => onHover(null)}
+                onClick={() => onSelect(isSelected ? null : c)}
+              >
+                <g style={{ opacity: dimmed ? 0.12 : 1, cursor: "pointer" }}>
+                  {/* Glow ring */}
+                  {active && (
+                    <>
+                      <circle r={markerR + 8} fill="none" stroke={changeColor} strokeWidth={0.6} opacity={0.3}>
+                        <animate attributeName="r" from={markerR + 4} to={markerR + 14} dur="1.8s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" from="0.4" to="0" dur="1.8s" repeatCount="indefinite" />
+                      </circle>
+                      <circle r={markerR + 4} fill={`${regionColor}15`} stroke={regionColor} strokeWidth={0.4} opacity={0.5} />
+                    </>
+                  )}
+
+                  {/* Shadow */}
+                  <circle r={markerR} fill="rgba(0,0,0,0.4)" cx={0.5} cy={0.5} />
+
+                  {/* Main circle */}
+                  <circle
+                    r={markerR}
+                    fill={regionColor}
+                    stroke={active ? "#fff" : `${regionColor}80`}
+                    strokeWidth={active ? 1.8 : 0.6}
+                    style={{ filter: active ? `drop-shadow(0 0 6px ${regionColor})` : undefined }}
+                  />
+
+                  {/* Inner change-color dot */}
+                  <circle r={markerR * 0.4} fill={changeColor} opacity={0.9} />
+
+                  {/* Label */}
+                  {!dimmed && (
+                    <text
+                      y={-markerR - 4}
+                      textAnchor="middle"
+                      fill={active ? "#fff" : "rgba(255,255,255,0.6)"}
+                      fontSize={active ? 11 : 8}
+                      fontWeight={active ? 700 : 500}
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                      style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}
+                    >
+                      {c.code}
+                    </text>
+                  )}
+
+                  {/* Tooltip */}
+                  {active && (
+                    <g>
+                      <rect
+                        x={-68} y={markerR + 6}
+                        width={136} height={42}
+                        rx={6}
+                        fill="rgba(0,0,0,0.92)"
+                        stroke="rgba(255,255,255,0.15)"
+                        strokeWidth={0.5}
+                        style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+                      />
+                      <text x={0} y={markerR + 21} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={600} fontFamily="system-ui">
+                        {c.flag} {c.name}
+                      </text>
+                      <text x={-28} y={markerR + 36} textAnchor="start" fill="#94a3b8" fontSize={9} fontFamily="system-ui">
+                        1 USD = {fmtRate(c.rate)}
+                      </text>
+                      <text x={28} y={markerR + 36} textAnchor="end" fill={changeColor} fontSize={9} fontWeight={600} fontFamily="system-ui">
+                        {c.changePct >= 0 ? "+" : ""}{c.changePct.toFixed(2)}%
+                      </text>
+                    </g>
+                  )}
+                </g>
+              </Marker>
+            );
+          })}
+        </ZoomableGroup>
+      </ComposableMap>
+    </div>
+  );
+});
+
+// ── Main page ────────────────────────────────────────────────────────────────
 
 export default function MoedasPage() {
   const [data, setData] = useState<MoedasResponse | null>(null);
@@ -136,14 +281,16 @@ export default function MoedasPage() {
     const cs = data.currencies;
     const strongest = cs.reduce((a, b) => a.changePct < b.changePct ? a : b);
     const weakest = cs.reduce((a, b) => a.changePct > b.changePct ? a : b);
-    const avgChange = cs.reduce((s, c) => s + c.changePct, 0) / cs.length;
-    return { strongest, weakest, avgChange };
+    return { strongest, weakest };
   }, [data]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(key === "code" || key === "region"); }
   };
+
+  const handleHover = useCallback((code: string | null) => setHoveredCurrency(code), []);
+  const handleSelect = useCallback((c: CurrencyData | null) => setSelectedCurrency(c), []);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
@@ -200,29 +347,29 @@ export default function MoedasPage() {
 
         {/* ── World Map ── */}
         <div
-          className="rounded-2xl p-4 md:p-6 overflow-hidden"
+          className="rounded-2xl p-3 md:p-5 overflow-hidden"
           style={{
             background: "rgba(13,14,20,0.8)",
             border: "1px solid rgba(255,255,255,0.06)",
             boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           }}
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
               <Globe size={16} className="text-cyan-400" />
               Mapa de Cotações
             </h2>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap">
               {regions.map(r => (
                 <button
                   key={r}
                   onClick={() => setSelectedRegion(selectedRegion === r ? null : r)}
-                  className="text-[10px] px-2 py-0.5 rounded-full transition-all"
+                  className="text-[10px] px-2.5 py-1 rounded-full transition-all"
                   style={{
                     background: selectedRegion === r
                       ? (REGION_COLORS[r] ?? "#888") + "30"
-                      : "rgba(255,255,255,0.05)",
-                    border: `1px solid ${selectedRegion === r ? (REGION_COLORS[r] ?? "#888") + "60" : "rgba(255,255,255,0.08)"}`,
+                      : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${selectedRegion === r ? (REGION_COLORS[r] ?? "#888") + "60" : "rgba(255,255,255,0.06)"}`,
                     color: selectedRegion === r ? REGION_COLORS[r] ?? "#ddd" : "#888",
                   }}
                 >
@@ -232,163 +379,22 @@ export default function MoedasPage() {
             </div>
           </div>
 
-          <div className="relative w-full" style={{ paddingBottom: "60%" }}>
-            <svg
-              viewBox="0 0 420 260"
-              className="absolute inset-0 w-full h-full"
-              style={{ filter: "drop-shadow(0 0 20px rgba(6,182,212,0.05))" }}
-            >
-              {/* Grid lines */}
-              {[...Array(7)].map((_, i) => (
-                <line
-                  key={`h${i}`}
-                  x1="10" y1={10 + i * 40}
-                  x2="410" y2={10 + i * 40}
-                  stroke="rgba(255,255,255,0.03)"
-                  strokeWidth="0.5"
-                />
-              ))}
-              {[...Array(9)].map((_, i) => (
-                <line
-                  key={`v${i}`}
-                  x1={10 + i * 50} y1="10"
-                  x2={10 + i * 50} y2="250"
-                  stroke="rgba(255,255,255,0.03)"
-                  strokeWidth="0.5"
-                />
-              ))}
-
-              {/* Continent shapes */}
-              {WORLD_PATHS.map((d, i) => (
-                <path
-                  key={i}
-                  d={d}
-                  fill="rgba(255,255,255,0.03)"
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeWidth="0.5"
-                />
-              ))}
-
-              {/* Currency markers */}
-              {data.currencies.map(c => {
-                const [cx, cy] = project(c.lat, c.lng);
-                const regionColor = REGION_COLORS[c.region] ?? "#888";
-                const isHovered = hoveredCurrency === c.code;
-                const isSelected = selectedCurrency?.code === c.code;
-                const dimmed = selectedRegion && c.region !== selectedRegion;
-                const changeColor = c.changePct >= 0 ? "#4ade80" : "#f87171";
-                const pulseSize = Math.min(Math.abs(c.changePct) * 3 + 4, 12);
-
-                return (
-                  <g
-                    key={c.code}
-                    className="cursor-pointer transition-all duration-200"
-                    style={{ opacity: dimmed ? 0.15 : 1 }}
-                    onMouseEnter={() => setHoveredCurrency(c.code)}
-                    onMouseLeave={() => setHoveredCurrency(null)}
-                    onClick={() => setSelectedCurrency(isSelected ? null : c)}
-                  >
-                    {/* Pulse ring */}
-                    <circle
-                      cx={cx} cy={cy} r={pulseSize}
-                      fill="none"
-                      stroke={changeColor}
-                      strokeWidth="0.5"
-                      opacity={isHovered || isSelected ? 0.6 : 0.15}
-                    >
-                      {(isHovered || isSelected) && (
-                        <animate
-                          attributeName="r"
-                          from={pulseSize}
-                          to={pulseSize + 6}
-                          dur="1.5s"
-                          repeatCount="indefinite"
-                        />
-                      )}
-                      {(isHovered || isSelected) && (
-                        <animate
-                          attributeName="opacity"
-                          from="0.6"
-                          to="0"
-                          dur="1.5s"
-                          repeatCount="indefinite"
-                        />
-                      )}
-                    </circle>
-
-                    {/* Main dot */}
-                    <circle
-                      cx={cx} cy={cy}
-                      r={isHovered || isSelected ? 5 : 3.5}
-                      fill={regionColor}
-                      stroke={isHovered || isSelected ? "#fff" : regionColor}
-                      strokeWidth={isHovered || isSelected ? 1.5 : 0.5}
-                      opacity={0.9}
-                    />
-
-                    {/* Change indicator dot */}
-                    <circle
-                      cx={cx + 4} cy={cy - 4}
-                      r={1.5}
-                      fill={changeColor}
-                    />
-
-                    {/* Label (always visible for non-dimmed) */}
-                    {!dimmed && (
-                      <text
-                        x={cx} y={cy - 7}
-                        textAnchor="middle"
-                        fill={isHovered || isSelected ? "#fff" : "rgba(255,255,255,0.5)"}
-                        fontSize={isHovered || isSelected ? "7" : "5.5"}
-                        fontWeight={isHovered || isSelected ? "600" : "400"}
-                        fontFamily="system-ui, sans-serif"
-                      >
-                        {c.code}
-                      </text>
-                    )}
-
-                    {/* Tooltip on hover */}
-                    {(isHovered || isSelected) && (
-                      <g>
-                        <rect
-                          x={cx - 40} y={cy + 8}
-                          width="80" height="34"
-                          rx="4"
-                          fill="rgba(0,0,0,0.85)"
-                          stroke="rgba(255,255,255,0.15)"
-                          strokeWidth="0.5"
-                        />
-                        <text x={cx} y={cy + 20} textAnchor="middle" fill="#fff" fontSize="6.5" fontWeight="600" fontFamily="system-ui">
-                          {c.flag} {c.name}
-                        </text>
-                        <text x={cx - 18} y={cy + 30} textAnchor="start" fill="#94a3b8" fontSize="5.5" fontFamily="system-ui">
-                          1 USD = {c.rate.toFixed(4)}
-                        </text>
-                        <text x={cx + 18} y={cy + 30} textAnchor="end" fill={changeColor} fontSize="5.5" fontWeight="600" fontFamily="system-ui">
-                          {c.changePct >= 0 ? "+" : ""}{c.changePct.toFixed(2)}%
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* Equator line */}
-              <line
-                x1="10" y1={10 + (90 / 180) * 240}
-                x2="410" y2={10 + (90 / 180) * 240}
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth="0.5"
-                strokeDasharray="4 4"
-              />
-            </svg>
+          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)" }}>
+            <WorldMap
+              currencies={data.currencies}
+              selectedRegion={selectedRegion}
+              hoveredCurrency={hoveredCurrency}
+              selectedCurrency={selectedCurrency}
+              onHover={handleHover}
+              onSelect={handleSelect}
+            />
           </div>
 
           {/* Region legend */}
           <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
             {Object.entries(REGION_COLORS).map(([region, color]) => (
               <div key={region} className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}50` }} />
                 <span className="text-[10px] text-zinc-500">{region}</span>
               </div>
             ))}
@@ -414,13 +420,7 @@ export default function MoedasPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-zinc-100">
-                  {selectedCurrency.rate < 1
-                    ? selectedCurrency.rate.toFixed(6)
-                    : selectedCurrency.rate < 100
-                      ? selectedCurrency.rate.toFixed(4)
-                      : selectedCurrency.rate.toFixed(2)}
-                </p>
+                <p className="text-lg font-bold text-zinc-100">{fmtRate(selectedCurrency.rate)}</p>
                 <p className="text-xs text-zinc-500">1 USD = {selectedCurrency.code}</p>
               </div>
             </div>
@@ -560,13 +560,7 @@ export default function MoedasPage() {
 
                   {/* Rate */}
                   <div className="col-span-3 md:col-span-3">
-                    <p className="text-xs font-mono text-zinc-300">
-                      {c.rate < 1
-                        ? c.rate.toFixed(6)
-                        : c.rate < 100
-                          ? c.rate.toFixed(4)
-                          : c.rate.toFixed(2)}
-                    </p>
+                    <p className="text-xs font-mono text-zinc-300">{fmtRate(c.rate)}</p>
                   </div>
 
                   {/* Change */}
@@ -582,11 +576,7 @@ export default function MoedasPage() {
                   {/* Vs BRL */}
                   <div className="col-span-2 text-right hidden md:block">
                     <p className="text-xs font-mono text-zinc-400">
-                      R$ {vsBrl < 0.01
-                        ? vsBrl.toFixed(6)
-                        : vsBrl < 1
-                          ? vsBrl.toFixed(4)
-                          : vsBrl.toFixed(2)}
+                      R$ {vsBrl < 0.01 ? vsBrl.toFixed(6) : vsBrl < 1 ? vsBrl.toFixed(4) : vsBrl.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -603,7 +593,7 @@ export default function MoedasPage() {
 
         {/* ── Strongest / Weakest bars ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <BarChart_
+          <ChangeBar
             title="Mais Fortes vs USD (dia)"
             currencies={data.currencies
               .filter(c => c.changePct < 0)
@@ -611,7 +601,7 @@ export default function MoedasPage() {
               .slice(0, 8)}
             color="#4ade80"
           />
-          <BarChart_
+          <ChangeBar
             title="Mais Fracas vs USD (dia)"
             currencies={data.currencies
               .filter(c => c.changePct > 0)
@@ -630,7 +620,13 @@ export default function MoedasPage() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Helpers & Sub-components ─────────────────────────────────────────────────
+
+function fmtRate(rate: number): string {
+  if (rate < 1) return rate.toFixed(6);
+  if (rate < 100) return rate.toFixed(4);
+  return rate.toFixed(2);
+}
 
 function SummaryCard({ label, value, sub, subColor, icon }: {
   label: string; value: string; sub?: string; subColor?: string;
@@ -671,7 +667,7 @@ function SortHeader({ label, colSpan, sortKey: sk, current, asc, onClick }: {
   const active = current === sk;
   return (
     <button
-      className={`col-span-${colSpan} text-left flex items-center gap-1 hover:text-zinc-400 transition-colors`}
+      className="text-left flex items-center gap-1 hover:text-zinc-400 transition-colors"
       style={{ gridColumn: `span ${colSpan}` }}
       onClick={() => onClick(sk)}
     >
@@ -681,10 +677,11 @@ function SortHeader({ label, colSpan, sortKey: sk, current, asc, onClick }: {
   );
 }
 
-function BarChart_({ title, currencies, color }: {
+function ChangeBar({ title, currencies, color }: {
   title: string; currencies: CurrencyData[]; color: string;
 }) {
   if (currencies.length === 0) return null;
+  const maxAbs = Math.max(...currencies.map(x => Math.abs(x.changePct)), 0.01);
   return (
     <div
       className="rounded-2xl p-4 md:p-5"
@@ -696,7 +693,6 @@ function BarChart_({ title, currencies, color }: {
       <h3 className="text-xs font-semibold text-zinc-300 mb-3">{title}</h3>
       <div className="space-y-2">
         {currencies.map(c => {
-          const maxAbs = Math.max(...currencies.map(x => Math.abs(x.changePct)), 0.01);
           const width = (Math.abs(c.changePct) / maxAbs) * 100;
           return (
             <div key={c.code} className="flex items-center gap-2">

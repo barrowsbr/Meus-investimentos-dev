@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,10 +8,16 @@ import {
   LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
-  ArrowRight, TrendingDown,
+  ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
+import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
+import { isRendaFixa } from "@/lib/sectors";
+import type { PolyEvent } from "@/lib/polymarket";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface NavItem { href: string; label: string; icon: ElementType }
 interface NavGroup {
@@ -22,6 +28,26 @@ interface NavGroup {
   accentColor: string;
   items: NavItem[];
 }
+
+interface TickerItem {
+  ticker: string;
+  label: string;
+  price: number;
+  changePct: number;
+  moeda: string;
+}
+
+interface NewsArticle {
+  titulo: string;
+  link: string;
+  data: string;
+  fonte: string;
+  ticker: string;
+  categoria: string;
+  imagem?: string;
+}
+
+// ── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -71,11 +97,27 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/noticias",       label: "Notícias",       icon: Newspaper },
       { href: "/polymarket",     label: "Polymarket",     icon: BarChart2 },
+      { href: "/moedas",         label: "Moedas",         icon: Globe },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
       { href: "/configuracoes",  label: "Configurações",  icon: Settings },
     ],
   },
 ];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function cleanTicker(t: string): string {
+  return t.replace(/\.SA$/, "").replace(/-USD$/, "").replace(/-BRL$/, "").replace(/=X$/, "");
+}
+
+function fmtPrice(price: number, moeda: string): string {
+  if (moeda === "BRL") {
+    return `R$${price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: price < 1000 ? 2 : 0 })}`;
+}
+
+// ── AccordionGroup ───────────────────────────────────────────────────────────
 
 function AccordionGroup({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
@@ -91,7 +133,6 @@ function AccordionGroup({ group }: { group: NavGroup }) {
         boxShadow: open ? `0 12px 40px ${c}12` : "none",
       }}
     >
-      {/* Header */}
       <button
         className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
         style={{ background: open ? `${c}08` : "transparent" }}
@@ -114,7 +155,6 @@ function AccordionGroup({ group }: { group: NavGroup }) {
         />
       </button>
 
-      {/* Sub-items */}
       <div
         className="overflow-hidden transition-all duration-300"
         style={{ maxHeight: open ? `${group.items.length * 56}px` : "0px" }}
@@ -149,6 +189,396 @@ function AccordionGroup({ group }: { group: NavGroup }) {
   );
 }
 
+// ── TickerTape ───────────────────────────────────────────────────────────────
+
+function TickerTape({ items }: { items: TickerItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const best5 = useMemo(() => items.slice(0, 5), [items]);
+  const worst5 = useMemo(() => [...items].reverse().slice(0, 5), [items]);
+  const duration = Math.max(18, items.length * 4);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="w-full max-w-lg">
+      {/* Scrolling tape */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-stretch overflow-hidden h-[44px] transition-all"
+        style={{
+          background: "rgba(15,23,42,0.55)",
+          backdropFilter: "blur(16px)",
+          border: `1px solid ${expanded ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.12)"}`,
+          borderRadius: expanded ? "16px 16px 0 0" : "16px",
+          boxShadow: expanded ? "0 12px 40px -8px rgba(99,102,241,0.2)" : "0 8px 32px rgba(0,0,0,0.35)",
+        }}
+      >
+        {/* Badge */}
+        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r border-white/[0.07]"
+          style={{ background: "rgba(99,102,241,0.08)" }}>
+          <span className="w-[5px] h-[5px] rounded-full bg-indigo-400 animate-pulse" />
+          <span className="text-[0.52rem] font-extrabold tracking-[2px] text-indigo-400 whitespace-nowrap">AO VIVO</span>
+        </div>
+
+        {/* Viewport */}
+        <div className="flex-1 overflow-hidden flex items-center"
+          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)" }}>
+          <div
+            className="inline-flex items-center whitespace-nowrap"
+            style={{ animation: `tickerScroll ${duration}s linear infinite` }}
+          >
+            {[...items, ...items].map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-4">
+                <span className="text-[0.73rem] font-extrabold text-zinc-200 tracking-[0.5px]">{p.label}</span>
+                <span className="text-[0.66rem] font-medium text-zinc-600">{fmtPrice(p.price, p.moeda)}</span>
+                <span className={`text-[0.7rem] font-bold ${p.changePct > 0 ? "text-emerald-400" : p.changePct < 0 ? "text-red-400" : "text-zinc-500"}`}>
+                  {p.changePct > 0 ? "▲" : p.changePct < 0 ? "▼" : "▬"} {p.changePct >= 0 ? "+" : ""}{p.changePct.toFixed(2)}%
+                </span>
+                {i < items.length * 2 - 1 && <span className="text-white/[0.07] text-[0.85rem] pl-1">|</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="shrink-0 flex items-center pr-3">
+          <ChevronDown size={11} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {/* Expandable performers grid */}
+      <div
+        className="overflow-hidden transition-all duration-400"
+        style={{
+          maxHeight: expanded ? "400px" : "0px",
+          background: "rgba(15,23,42,0.55)",
+          backdropFilter: "blur(16px)",
+          border: expanded ? "1px solid rgba(99,102,241,0.15)" : "1px solid transparent",
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+        }}
+      >
+        <div className="p-3 grid grid-cols-2 gap-2">
+          {/* Best */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="px-3 py-2 text-[0.57rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.05)" }}>
+              ▲ MELHORES
+            </div>
+            {best5.map(p => (
+              <div key={p.ticker} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-[7px] border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] transition-colors">
+                <span className="text-[0.77rem] font-bold text-zinc-200">{p.label}</span>
+                <span className="text-[0.68rem] font-medium text-zinc-600 text-right min-w-[64px]">{fmtPrice(p.price, p.moeda)}</span>
+                <span className="text-[0.72rem] font-bold text-emerald-400 text-right min-w-[60px]">▲ +{p.changePct.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+          {/* Worst */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="px-3 py-2 text-[0.57rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.05)" }}>
+              ▼ PIORES
+            </div>
+            {worst5.map(p => (
+              <div key={p.ticker} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-[7px] border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] transition-colors">
+                <span className="text-[0.77rem] font-bold text-zinc-200">{p.label}</span>
+                <span className="text-[0.68rem] font-medium text-zinc-600 text-right min-w-[64px]">{fmtPrice(p.price, p.moeda)}</span>
+                <span className="text-[0.72rem] font-bold text-red-400 text-right min-w-[60px]">▼ {p.changePct.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── RadarDoDia ───────────────────────────────────────────────────────────────
+
+function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItems: TickerItem[] }) {
+  const [news, setNews] = useState<{ best: NewsArticle | null; worst: NewsArticle | null }>({ best: null, worst: null });
+  const [polyEvents, setPolyEvents] = useState<PolyEvent[]>([]);
+  const [polyIdx, setPolyIdx] = useState(0);
+  const [polyLoading, setPolyLoading] = useState(true);
+
+  const best = tickerItems[0] ?? null;
+  const worst = tickerItems.length > 0 ? tickerItems[tickerItems.length - 1] : null;
+
+  useEffect(() => {
+    const tickers: string[] = [];
+    if (best) tickers.push(best.ticker);
+    if (worst && worst.ticker !== best?.ticker) tickers.push(worst.ticker);
+    if (tickers.length === 0) return;
+
+    fetch(`/api/noticias?tickers=${tickers.join(",")}`)
+      .then(r => r.json())
+      .then(d => {
+        const articles: NewsArticle[] = d.articles ?? [];
+        const bestNews = best ? articles.find(a => a.ticker === best.ticker) ?? null : null;
+        const worstNews = worst ? articles.find(a => a.ticker === worst.ticker) ?? null : null;
+        setNews({ best: bestNews, worst: worstNews });
+      })
+      .catch(() => {});
+  }, [best, worst]);
+
+  useEffect(() => {
+    import("@/lib/polymarket").then(({ fetchPolymarket }) => {
+      const tickers = data.positions?.map(p => p.ticker) ?? [];
+      fetchPolymarket(tickers)
+        .then(resp => {
+          const all = Object.values(resp.categories).flat();
+          const filtered = all.filter(e => e.odds.length > 0 && (e.volume ?? 0) >= 100);
+          const shuffled = filtered.sort(() => Math.random() - 0.5).slice(0, 12);
+          setPolyEvents(shuffled);
+        })
+        .catch(() => {})
+        .finally(() => setPolyLoading(false));
+    });
+  }, [data.positions]);
+
+  const nextPoly = useCallback(() => {
+    setPolyIdx(i => (i + 1) % polyEvents.length);
+  }, [polyEvents.length]);
+
+  const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+
+  return (
+    <div className="w-full max-w-lg rounded-[20px] overflow-hidden" style={{
+      background: "rgba(9,14,25,0.82)",
+      backdropFilter: "blur(16px)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      boxShadow: "0 14px 48px -10px rgba(0,0,0,0.55)",
+    }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/[0.05]">
+        <div className="flex items-center gap-2">
+          <span className="w-[7px] h-[7px] rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-500">Radar do Dia</span>
+        </div>
+        <span className="text-[0.63rem] text-zinc-800">{today}</span>
+      </div>
+
+      {/* News row: best vs worst */}
+      {(best || worst) && (
+        <div className="grid grid-cols-2 h-[120px] border-b border-white/[0.05]">
+          <NewsCard article={news.best} ticker={best?.label ?? ""} changePct={best?.changePct ?? 0} isBest />
+          <NewsCard article={news.worst} ticker={worst?.label ?? ""} changePct={worst?.changePct ?? 0} isBest={false} />
+        </div>
+      )}
+
+      {/* Polymarket section */}
+      <div className="flex items-center gap-2.5 px-4 py-2 border-b border-white/[0.04]">
+        <div className="flex-1 h-px bg-white/[0.05]" />
+        <span className="text-[0.6rem] font-extrabold tracking-[1.2px] uppercase text-sky-400 whitespace-nowrap">📊 Mercado Preditivo</span>
+        <div className="flex-1 h-px bg-white/[0.05]" />
+      </div>
+
+      {polyLoading ? (
+        <div className="px-4 py-6 text-center">
+          <span className="text-[0.75rem] text-zinc-600 animate-pulse">Carregando eventos...</span>
+        </div>
+      ) : polyEvents.length === 0 ? (
+        <div className="px-4 py-4 flex items-center gap-3 opacity-55">
+          <span className="text-xl">🔌</span>
+          <div>
+            <p className="text-[0.78rem] font-semibold text-zinc-400">Polymarket indisponível</p>
+            <p className="text-[0.68rem] text-zinc-600">Dados voltarão automaticamente</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {polyEvents.map((ev, i) => (
+            <a
+              key={ev.id}
+              href={ev.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-3 border-b border-white/[0.04] hover:bg-sky-400/[0.04] transition-colors"
+              style={{ display: i === polyIdx ? "block" : "none" }}
+            >
+              <p className="text-[0.87rem] font-semibold text-zinc-200 leading-[1.42] mb-2.5">{ev.title}</p>
+              <div className="flex flex-col gap-[5px] mb-2">
+                {ev.odds.slice(0, 3).map((o, j) => {
+                  const cls = j === 0 ? "yes" : j === 1 ? "no" : "other";
+                  const barColors = {
+                    yes: { bg: "rgba(34,211,238,0.16)", border: "rgba(34,211,238,0.4)", text: "text-cyan-400" },
+                    no: { bg: "rgba(251,146,60,0.14)", border: "rgba(251,146,60,0.35)", text: "text-orange-400" },
+                    other: { bg: "rgba(167,139,250,0.13)", border: "rgba(167,139,250,0.3)", text: "text-violet-400" },
+                  }[cls];
+                  return (
+                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-[7px]" style={{ background: "rgba(255,255,255,0.04)" }}>
+                      <div className="absolute left-0 top-0 bottom-0 rounded-[7px]" style={{
+                        width: `${o.percent}%`,
+                        background: barColors.bg,
+                        borderRight: `2px solid ${barColors.border}`,
+                      }} />
+                      <span className={`relative z-[1] text-[0.75rem] text-zinc-300 flex-1 truncate ${j === 0 ? "font-bold" : ""}`}>
+                        {o.outcome.slice(0, 35)}
+                      </span>
+                      <span className={`relative z-[1] text-[0.77rem] font-bold shrink-0 ${barColors.text}`}>
+                        {o.percent.toFixed(0)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-[0.67rem] text-zinc-600">
+                <span>
+                  Vol <b className="text-zinc-500">
+                    {(ev.volume ?? 0) >= 1_000_000 ? `$${((ev.volume ?? 0) / 1_000_000).toFixed(1)}M`
+                      : (ev.volume ?? 0) >= 1_000 ? `$${((ev.volume ?? 0) / 1_000).toFixed(0)}k`
+                      : `$${ev.volume ?? 0}`}
+                  </b>
+                  {ev.days_left != null && (
+                    ev.days_left === 0 ? " · resolve hoje"
+                      : ev.days_left <= 7 ? ` · ⏳ ${ev.days_left}d restantes`
+                      : ` · resolve em ${ev.days_left}d`
+                  )}
+                </span>
+                <span className="text-sky-400 font-semibold">Ver no Polymarket →</span>
+              </div>
+            </a>
+          ))}
+
+          {/* Nav */}
+          <div className="flex items-center justify-between px-4 py-[7px]">
+            <span className="text-[0.63rem] text-zinc-600">{polyIdx + 1} / {polyEvents.length}</span>
+            <button
+              onClick={nextPoly}
+              className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:text-sky-400 hover:border-sky-400/30 hover:bg-sky-400/[0.06]"
+              style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}
+            >
+              <ChevronRight size={11} />
+              Próximo
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function NewsCard({ article, ticker, changePct, isBest }: {
+  article: NewsArticle | null; ticker: string; changePct: number; isBest: boolean;
+}) {
+  const badge = isBest ? "bg-emerald-400/[0.18] text-emerald-400 border-emerald-400/[0.28]" : "bg-red-400/[0.18] text-red-400 border-red-400/[0.28]";
+  const arr = isBest ? "▲" : "▼";
+  const sign = changePct >= 0 ? "+" : "";
+  const overlay = isBest
+    ? "linear-gradient(to top,rgba(4,14,8,0.96) 0%,rgba(4,14,8,0.55) 55%,rgba(4,14,8,0.15) 100%)"
+    : "linear-gradient(to top,rgba(20,4,4,0.96) 0%,rgba(20,4,4,0.55) 55%,rgba(20,4,4,0.15) 100%)";
+
+  const inner = (
+    <div className="relative h-full flex flex-col justify-end overflow-hidden group">
+      {article?.imagem && (
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.06]"
+          style={{ backgroundImage: `url(${article.imagem})`, filter: "brightness(0.38) saturate(0.6)" }}
+        />
+      )}
+      <div className="absolute inset-0" style={{ background: overlay }} />
+      <div className="relative z-[2] p-[10px_12px] flex flex-col gap-1">
+        <span className={`inline-flex items-center gap-1 self-start text-[0.6rem] font-extrabold uppercase tracking-[0.8px] px-1.5 py-0.5 rounded-[5px] border ${badge}`}>
+          {arr} {ticker} {sign}{changePct.toFixed(1)}%
+        </span>
+        {article?.titulo && (
+          <p className="text-[0.76rem] font-semibold text-zinc-100 leading-[1.35] line-clamp-2" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {article.titulo}
+          </p>
+        )}
+        {article?.fonte && (
+          <p className="text-[0.6rem] text-zinc-600 font-medium">{article.fonte}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  if (article?.link) {
+    return (
+      <a href={article.link} target="_blank" rel="noopener noreferrer"
+        className={`block h-full transition-all ${!isBest ? "" : "border-r border-white/[0.05]"}`}>
+        {inner}
+      </a>
+    );
+  }
+  return <div className={`h-full ${!isBest ? "" : "border-r border-white/[0.05]"}`}>{inner}</div>;
+}
+
+// ── FxExpandCard (Dollar) ────────────────────────────────────────────────────
+
+function FxExpandCard({ data }: { data: PortfolioResponse }) {
+  const [expanded, setExpanded] = useState(false);
+  const usdbrl = data.usdbrl ?? null;
+  const usdDayChangePct = data.fxDayChange?.USD?.changePct ?? null;
+  const isUsdUp = (usdDayChangePct ?? 0) >= 0;
+
+  const fxPairs = useMemo(() => {
+    const fx = data.fx ?? {};
+    const pairs: { label: string; value: number; prefix: string; decimals: number }[] = [];
+    if (fx.EURBRL) pairs.push({ label: "EUR/BRL", value: fx.EURBRL, prefix: "R$", decimals: 4 });
+    if (fx.CADBRL) pairs.push({ label: "CAD/BRL", value: fx.CADBRL, prefix: "R$", decimals: 4 });
+    if (fx.GBPBRL) pairs.push({ label: "GBP/BRL", value: fx.GBPBRL, prefix: "R$", decimals: 4 });
+    return pairs;
+  }, [data.fx]);
+
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer"
+        style={{
+          background: "rgba(13,14,20,0.8)",
+          border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+          boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
+          borderRadius: expanded ? "16px 16px 0 0" : "16px",
+        }}
+      >
+        <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+        {usdbrl === null ? (
+          <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+        ) : (
+          <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
+        )}
+        {usdDayChangePct !== null && (
+          <div className="flex items-center gap-1 mt-1">
+            <span className={`text-[9px] font-semibold ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
+              {isUsdUp ? "+" : ""}{usdDayChangePct.toFixed(2)}%
+            </span>
+            <ChevronDown size={9} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+          </div>
+        )}
+      </button>
+
+      {/* FX grid expandable */}
+      <div
+        className="overflow-hidden transition-all duration-300"
+        style={{
+          maxHeight: expanded ? "200px" : "0px",
+          background: "rgba(13,14,20,0.8)",
+          border: expanded ? "1px solid rgba(255,255,255,0.08)" : "none",
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+        }}
+      >
+        <div className="grid grid-cols-1 divide-y divide-white/[0.06]">
+          {fxPairs.map(pair => (
+            <div key={pair.label} className="flex items-center justify-between px-3 py-2">
+              <span className="text-[0.58rem] font-bold text-zinc-500 uppercase tracking-[1px]">{pair.label}</span>
+              <span className="text-[0.85rem] font-bold text-zinc-200">
+                {pair.prefix} {pair.value.toFixed(pair.decimals)}
+              </span>
+            </div>
+          ))}
+          <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 hover:bg-white/[0.03] transition-colors">
+            <Globe size={11} className="text-cyan-400" />
+            <span className="text-[0.6rem] font-semibold text-cyan-400">Ver todas as moedas</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+
 export default function HomePage() {
   const { data, loading } = usePortfolio();
 
@@ -158,8 +588,26 @@ export default function HomePage() {
   const dayChangeBRL = data?.dayChangeTotalBRL ?? null;
   const dayChangePct = data?.dayChangeTotalPct ?? null;
   const isDayUp = (dayChangeBRL ?? 0) >= 0;
-  const usdDayChangePct = data?.fxDayChange?.USD?.changePct ?? null;
-  const isUsdUp = (usdDayChangePct ?? 0) >= 0;
+
+  const tickerItems = useMemo<TickerItem[]>(() => {
+    if (!data?.positions) return [];
+    const items: TickerItem[] = [];
+    for (const p of data.positions) {
+      if (p.quantidade <= 0) continue;
+      if (isRendaFixa(p.setor)) continue;
+      if (!p.precoAtual || p.precoAtual <= 0) continue;
+      if (p.dayChangePct == null) continue;
+      items.push({
+        ticker: p.ticker,
+        label: cleanTicker(p.ticker),
+        price: p.precoAtual,
+        changePct: p.dayChangePct,
+        moeda: p.moeda,
+      });
+    }
+    items.sort((a, b) => b.changePct - a.changePct);
+    return items;
+  }, [data?.positions]);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center">
@@ -200,7 +648,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Live Metrics ── */}
-        <div className="w-full grid grid-cols-3 gap-3 mb-7 animate-fade-in animate-delay-1">
+        <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
           {/* Patrimônio Total */}
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
@@ -256,29 +704,33 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Dólar — links to currencies page */}
-          <Link
-            href="/moedas"
-            className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer"
-            style={{
-              background: "rgba(13,14,20,0.8)",
-              border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
-              boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.04)" : "rgba(248,113,113,0.04)"}`,
-            }}
-          >
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
-            {loading || usdbrl === null ? (
+          {/* Dólar — expandable with FX grid */}
+          {loading || !data ? (
+            <div
+              className="rounded-2xl p-4 flex flex-col items-center text-center"
+              style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
-            ) : (
-              <span className="text-sm font-bold text-zinc-100">R$ {usdbrl.toFixed(3)}</span>
-            )}
-            {!loading && usdDayChangePct !== null && (
-              <span className={`text-[9px] font-semibold mt-1 ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
-                {isUsdUp ? "+" : ""}{usdDayChangePct.toFixed(2)}%
-              </span>
-            )}
-          </Link>
+            </div>
+          ) : (
+            <FxExpandCard data={data} />
+          )}
         </div>
+
+        {/* ── Ticker Tape ── */}
+        {!loading && tickerItems.length > 0 && (
+          <div className="w-full flex justify-center mb-4 animate-fade-in animate-delay-1">
+            <TickerTape items={tickerItems} />
+          </div>
+        )}
+
+        {/* ── Radar do Dia ── */}
+        {!loading && data && tickerItems.length > 0 && (
+          <div className="w-full flex justify-center mb-5 animate-fade-in animate-delay-2">
+            <RadarDoDia data={data} tickerItems={tickerItems} />
+          </div>
+        )}
 
         {/* ── Navigation Groups ── */}
         <div className="w-full flex flex-col gap-3 animate-fade-in animate-delay-2">
@@ -296,6 +748,14 @@ export default function HomePage() {
           <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2d2f3a, transparent)" }} />
         </div>
       </div>
+
+      {/* Ticker scroll animation */}
+      <style jsx global>{`
+        @keyframes tickerScroll {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+      `}</style>
     </div>
   );
 }
