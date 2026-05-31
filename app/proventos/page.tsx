@@ -5,10 +5,11 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line, Cell, PieChart, Pie, Legend,
 } from "recharts";
-import { Coins, Calendar, TrendingUp, Filter, X } from "lucide-react";
+import { Coins, Calendar, TrendingUp, Filter, X, Layers } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, compactBRL, currency, formatDate, shortMonth } from "@/lib/format";
+import { identificarSetor } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
@@ -233,6 +234,64 @@ export default function ProventosPage() {
       .map(([tipo, total]) => ({ tipo, total }));
   }, [filteredData, fx]);
 
+  // By origin (sector) — monthly stacked
+  const ORIGIN_COLORS: Record<string, string> = {
+    "FIIs": "#f59e0b",
+    "Ações Brasil": "#3b82f6",
+    "Ações Internacional": "#8b5cf6",
+    "ETF USA": "#06b6d4",
+    "ETF": "#10b981",
+    "BDRs": "#ec4899",
+    "Cripto": "#f97316",
+    "Renda Fixa": "#0f766e",
+    "Renda Fixa USD": "#1d4ed8",
+  };
+
+  const byOriginChart = useMemo(() => {
+    const byMonth: Record<string, Record<string, number>> = {};
+    const originsSet = new Set<string>();
+
+    filteredData.forEach(r => {
+      const key = rowMonth(r);
+      if (!key) return;
+      const ticker = String(r["ticker"] ?? "").toUpperCase().trim();
+      const origin = ticker ? identificarSetor(ticker) : "Outro";
+      originsSet.add(origin);
+      if (!byMonth[key]) byMonth[key] = {};
+      byMonth[key][origin] = (byMonth[key][origin] ?? 0) + rowValueBRL(r, fx);
+    });
+
+    const origins = [...originsSet].sort((a, b) => {
+      const totalA = Object.values(byMonth).reduce((s, m) => s + (m[a] ?? 0), 0);
+      const totalB = Object.values(byMonth).reduce((s, m) => s + (m[b] ?? 0), 0);
+      return totalB - totalA;
+    });
+
+    const data = Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-24)
+      .map(([month, values]) => {
+        const entry: Record<string, unknown> = { month: shortMonth(month) };
+        for (const o of origins) entry[o] = values[o] ?? 0;
+        return entry;
+      });
+
+    return { data, origins };
+  }, [filteredData, fx]);
+
+  // By origin totals (for the horizontal bar)
+  const byOriginTotals = useMemo(() => {
+    const acc: Record<string, number> = {};
+    filteredData.forEach(r => {
+      const ticker = String(r["ticker"] ?? "").toUpperCase().trim();
+      const origin = ticker ? identificarSetor(ticker) : "Outro";
+      acc[origin] = (acc[origin] ?? 0) + rowValueBRL(r, fx);
+    });
+    return Object.entries(acc)
+      .sort((a, b) => b[1] - a[1])
+      .map(([origin, total]) => ({ origin, total }));
+  }, [filteredData, fx]);
+
   // Cumulative line
   const cumulativeChart = useMemo(() => {
     const sorted = [...filteredData]
@@ -339,7 +398,50 @@ export default function ProventosPage() {
         </div>
       </div>
 
-      {/* Charts row 2: By ticker + By type */}
+      {/* Charts row 2: By origin stacked + By origin totals */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="glass-card p-5 lg:col-span-2">
+          <h2 className="section-title mb-4"><Layers size={15} /> Fluxo por Origem (mensal)</h2>
+          {byOriginChart.data.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={byOriginChart.data} margin={{ top: 2, right: 4, bottom: 2, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
+                <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v: number, name: string) => [brl(v), name]}
+                />
+                <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+                {byOriginChart.origins.map((origin, i) => (
+                  <Bar key={origin} dataKey={origin} stackId="origin" fill={ORIGIN_COLORS[origin] || COLORS[i % COLORS.length]} radius={i === 0 ? [4, 4, 0, 0] : undefined} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
+        </div>
+
+        <div className="glass-card p-5">
+          <h2 className="section-title mb-4">Total por Origem</h2>
+          {byOriginTotals.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={byOriginTotals} layout="vertical" margin={{ top: 2, right: 16, bottom: 2, left: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" horizontal={false} />
+                <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
+                <YAxis type="category" dataKey="origin" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
+                <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                  {byOriginTotals.map((e, i) => (
+                    <Cell key={i} fill={ORIGIN_COLORS[e.origin] || COLORS[i % COLORS.length]} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
+        </div>
+      </div>
+
+      {/* Charts row 3: By ticker + By type */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* By ticker — takes 2 cols */}
         <div className="glass-card p-5 lg:col-span-2">
