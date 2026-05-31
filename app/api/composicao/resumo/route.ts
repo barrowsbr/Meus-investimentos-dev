@@ -5,6 +5,7 @@ import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
+import { computeCountryAllocation } from "@/lib/ticker-country";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
 
@@ -375,6 +376,12 @@ export async function GET() {
       };
     }
 
+    // ── Country allocation (geographic map) ──────────────────────────────────
+    const directForGeo = positions
+      .filter(p => !["ETF USA", "ETF"].includes(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
+      .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL }));
+    const countryAllocation = await computeCountryAllocation(lookThroughCompositions, directForGeo);
+
     return NextResponse.json(
       {
         computed_at: new Date().toISOString(),
@@ -406,6 +413,7 @@ export async function GET() {
           sources: ltResult.sources,
           updated_at: ltResult.updated_at,
         },
+        country_allocation: countryAllocation,
         errors,
       },
       {
