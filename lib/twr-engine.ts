@@ -348,32 +348,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
       income += inc.valor * fxFactor(inc.moeda, fx);
     }
 
-    // ── Corrections (ported from Streamlit engine.py) ──
-
     // NAV forward-fill: if NAV dropped to 0/NaN but previous was valid
     if (i > 0 && (nav <= 0 || !isFinite(nav)) && prevNav > 0) {
       nav = Math.max(0, prevNav + flow);
-    }
-
-    // Flow correction for purchases: if NAV change differs from flow by >10%,
-    // set flow = NAV change (assumes ~0% return on transaction day)
-    if (i > 0 && flow > 0 && prevNav > 0) {
-      const navChange = nav - prevNav;
-      if (Math.abs(navChange - flow) > Math.abs(flow) * 0.10) {
-        flow = navChange;
-      }
-    }
-
-    // Unexplained change: large NAV move (>20%) without flow (<5% of NAV)
-    // → treat the unexplained portion as a hidden flow
-    if (i > 0 && prevNav > 0 && Math.abs(flow) < prevNav * 0.05) {
-      const navExpected = prevNav + flow;
-      if (navExpected > 0) {
-        const variation = (nav - navExpected) / navExpected;
-        if (Math.abs(variation) > 0.20) {
-          flow += nav - navExpected;
-        }
-      }
     }
 
     totalFlows += flow;
@@ -490,7 +467,7 @@ function businessDaysBetween(startStr: string, endStr: string): number {
 
 // ─── CDI benchmark (SELIC proxy) ──────────────────────────────────────────────
 
-const SELIC_ANUAL = 0.1375; // 13.75% a.a.
+const SELIC_ANUAL = 0.1475; // 14.75% a.a. (SELIC vigente)
 const SELIC_DIARIA = Math.pow(1 + SELIC_ANUAL, 1 / 252) - 1;
 
 export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {

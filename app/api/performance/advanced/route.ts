@@ -300,12 +300,14 @@ export async function GET(request: Request) {
     const ibovTotal = ibovNorm.length > 0 ? ibovNorm[ibovNorm.length - 1].twr : 0;
 
     // ── Advanced metrics ──────────────────────────────────────────────────────
-    const dailyReturns = twr.points.map(p => p.ret).filter(r => isFinite(r));
-    const riskMetrics = calcularMetricasRisco(dailyReturns);
-
     // Drawdown series — start from first day with NAV > 0
     const firstIdx = twr.points.findIndex(p => p.nav > 0);
     const meaningfulPoints = firstIdx >= 0 ? twr.points.slice(firstIdx) : twr.points;
+
+    const dailyReturns = meaningfulPoints
+      .filter(p => !p.forceZero && isFinite(p.ret))
+      .map(p => p.ret);
+    const riskMetrics = calcularMetricasRisco(dailyReturns);
     const drawdownSeries = calcularDrawdown(meaningfulPoints);
     const maxDrawdown = drawdownSeries.length > 0
       ? Math.min(...drawdownSeries.map(d => d.drawdown))
