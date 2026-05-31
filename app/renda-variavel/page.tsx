@@ -1,15 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell, PieChart, Pie, ReferenceLine,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight,
-  DollarSign, BarChart2, ChevronUp, ChevronDown,
+  DollarSign, BarChart2, ChevronUp, ChevronDown, ChevronRight,
 } from "lucide-react";
-import { usePortfolio } from "@/lib/hooks";
+import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { brl, compactBRL, pct, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
@@ -52,10 +52,54 @@ function sortPositions(positions: Position[], key: SortKey, dir: SortDir): Posit
   });
 }
 
+interface Transaction {
+  data: string;
+  tipo: string;
+  ticker: string;
+  quantidade: number;
+  preco: number;
+  valorBruto: number;
+  moeda: string;
+  corretora: string;
+}
+
+function parseTransactions(rows: Record<string, unknown>[]): Transaction[] {
+  return rows.map(row => {
+    const dataRaw = String(row["data"] ?? row["Data"] ?? "");
+    const tipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo_transacao"] ?? row["Tipo de transação"] ?? "");
+    const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? row["Símbolo"] ?? "").toUpperCase().trim();
+    const quantidade = Number(String(row["quantidade"] ?? row["Quantidade"] ?? "0").replace(",", ".")) || 0;
+    const preco = Number(String(row["preço"] ?? row["preco"] ?? row["Preço"] ?? "0").replace(",", ".")) || 0;
+    const valorBruto = Number(String(row["valor bruto"] ?? row["valor_bruto"] ?? row["Valor bruto"] ?? "0").replace(",", ".")) || 0;
+    const moeda = String(row["moeda"] ?? row["Moeda"] ?? "BRL").toUpperCase().trim();
+    const corretora = String(row["corretora"] ?? row["Corretora"] ?? "");
+    return { data: dataRaw, tipo, ticker, quantidade, preco, valorBruto: valorBruto || quantidade * preco, moeda, corretora };
+  }).filter(t => t.ticker && t.quantidade > 0);
+}
+
+function formatTxDate(raw: string): string {
+  if (!raw) return "—";
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return raw.slice(0, 10);
+  return raw.slice(0, 10);
+}
+
+function parseDateSort(raw: string): number {
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(raw).getTime();
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return new Date(`${br[3]}-${br[2]}-${br[1]}`).getTime();
+  return 0;
+}
+
 export default function RendaVariavelPage() {
   const { data, loading, error } = usePortfolio();
+  const { data: rawTx } = useSheetData("meus_ativos");
   const [sortKey, setSortKey] = useState<SortKey>("valorAtualBRL");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
 
   const metrics = useMemo(() => {
     if (!data) return null;
@@ -100,6 +144,18 @@ export default function RendaVariavelPage() {
     if (!metrics) return [];
     return sortPositions(metrics.rv, sortKey, sortDir);
   }, [metrics, sortKey, sortDir]);
+
+  const txByTicker = useMemo(() => {
+    const map: Record<string, Transaction[]> = {};
+    for (const tx of parseTransactions(rawTx)) {
+      if (!map[tx.ticker]) map[tx.ticker] = [];
+      map[tx.ticker].push(tx);
+    }
+    for (const arr of Object.values(map)) {
+      arr.sort((a, b) => parseDateSort(b.data) - parseDateSort(a.data));
+    }
+    return map;
+  }, [rawTx]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -325,50 +381,113 @@ export default function RendaVariavelPage() {
                 const corDia = (p.dayChangePct ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                const isExpanded = expandedTicker === p.ticker;
+                const txs = txByTicker[p.ticker] ?? [];
+                const colCount = 10 + (hasUSD ? 2 : 0);
                 return (
-                  <tr key={p.ticker} className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
-                    <td className="px-3 py-2.5">
-                      <span className="font-semibold text-zinc-200">{p.ticker}</span>
-                      <span className="text-zinc-600 text-[10px] ml-1">{p.moeda}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[p.setor] || "#71717a"}15`, color: SECTOR_COLORS[p.setor] || "#71717a" }}>
-                        {p.setor}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
-                      {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.custoMedio, p.moeda)}</td>
-                    <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
-                      {p.precoAtual !== null
-                        ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(p.valorAtualBRL)}</td>
-                    <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
-                      {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
-                      {p.lucroPct !== null ? pct(p.lucroPct) : "—"}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right text-xs font-semibold ${p.dayChangePct !== null ? corDia : "text-zinc-600"}`}>
-                      {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right text-xs ${p.dayChangeBRL !== null ? corDia : "text-zinc-600"}`}>
-                      {p.dayChangeBRL !== null ? brl(p.dayChangeBRL) : "—"}
-                    </td>
-                    {hasUSD && (
-                      <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoAtivoBRL !== null ? corAtivo : "text-zinc-600"}`}>
-                        {p.ganhoAtivoBRL !== null ? brl(p.ganhoAtivoBRL) : "—"}
+                  <React.Fragment key={p.ticker}>
+                    <tr
+                      className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors cursor-pointer ${i % 2 === 1 ? "bg-white/[0.01]" : ""} ${isExpanded ? "bg-white/[0.03]" : ""}`}
+                      onClick={() => setExpandedTicker(isExpanded ? null : p.ticker)}
+                    >
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1">
+                          <ChevronRight size={12} className={`text-zinc-600 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                          <span className="font-semibold text-zinc-200">{p.ticker}</span>
+                        </span>
+                        <span className="text-zinc-600 text-[10px] ml-1">{p.moeda}</span>
                       </td>
-                    )}
-                    {hasUSD && (
-                      <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? corCambio : "text-zinc-600"}`}>
-                        {p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? brl(p.ganhoCambioBRL) : "—"}
+                      <td className="px-3 py-2.5">
+                        <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[p.setor] || "#71717a"}15`, color: SECTOR_COLORS[p.setor] || "#71717a" }}>
+                          {p.setor}
+                        </span>
                       </td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
+                        {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.custoMedio, p.moeda)}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
+                        {p.precoAtual !== null
+                          ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(p.valorAtualBRL)}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
+                        {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
+                        {p.lucroPct !== null ? pct(p.lucroPct) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right text-xs font-semibold ${p.dayChangePct !== null ? corDia : "text-zinc-600"}`}>
+                        {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right text-xs ${p.dayChangeBRL !== null ? corDia : "text-zinc-600"}`}>
+                        {p.dayChangeBRL !== null ? brl(p.dayChangeBRL) : "—"}
+                      </td>
+                      {hasUSD && (
+                        <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoAtivoBRL !== null ? corAtivo : "text-zinc-600"}`}>
+                          {p.ganhoAtivoBRL !== null ? brl(p.ganhoAtivoBRL) : "—"}
+                        </td>
+                      )}
+                      {hasUSD && (
+                        <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? corCambio : "text-zinc-600"}`}>
+                          {p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? brl(p.ganhoCambioBRL) : "—"}
+                        </td>
+                      )}
+                    </tr>
+                    {isExpanded && txs.length > 0 && (
+                      <tr>
+                        <td colSpan={colCount} className="p-0">
+                          <div className="bg-zinc-900/60 border-l-2 border-indigo-500/40 mx-3 mb-2 rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-zinc-800">
+                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Data</th>
+                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Tipo</th>
+                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Qtd</th>
+                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Preço</th>
+                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Total</th>
+                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Corretora</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {txs.map((tx, j) => {
+                                  const isCompra = tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy");
+                                  return (
+                                    <tr key={j} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
+                                      <td className="px-3 py-1.5 text-zinc-400 font-mono">{formatTxDate(tx.data)}</td>
+                                      <td className="px-3 py-1.5">
+                                        <span className={`font-semibold ${isCompra ? "text-emerald-400" : "text-red-400"}`}>
+                                          {tx.tipo || (isCompra ? "Compra" : "Venda")}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">
+                                        {tx.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right text-zinc-400">
+                                        {currency(tx.preco, tx.moeda)}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right text-zinc-300 font-medium">
+                                        {currency(tx.valorBruto, tx.moeda)}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-zinc-500">{tx.corretora}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                    {isExpanded && txs.length === 0 && (
+                      <tr>
+                        <td colSpan={colCount} className="px-6 py-3 text-xs text-zinc-600 italic">
+                          Nenhuma transação encontrada para {p.ticker}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
