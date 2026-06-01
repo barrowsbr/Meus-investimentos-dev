@@ -376,31 +376,75 @@ export default function ResumoPage() {
            HERO — Big numbers
          ═══════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-3">
-        <MetricCard label="Patrimônio Total" value={compactBRL(data.totalPatrimonioBRL)}
+        <MetricCard label="Patrimônio Atual" value={compactBRL(data.totalPatrimonioBRL)}
           sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
           icon={<DollarSign size={17} />}
           glowColor="#d4a574" />
+        <MetricCard label="Total Investido" value={compactBRL(totalInvestidoRV + (data.rfPatrimonioBRL - (composicao ? (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").reduce((s, r) => s + r.lucro_nao_realizado_brl, 0) : 0)))}
+          sub={`RV ${compactBRL(totalInvestidoRV)} · RF ${compactBRL(data.rfPatrimonioBRL - (composicao ? (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").reduce((s, r) => s + r.lucro_nao_realizado_brl, 0) : 0))}`}
+          icon={<Briefcase size={17} />}
+          glowColor="#6366f1" />
         <MetricCard label="Variação Hoje" value={brl(dayChange)}
           sub={`${pct(dayChangePct)} sobre patrimônio RV`}
           icon={dayChange >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
           trend={dayChange >= 0 ? "up" : "down"}
           glowColor={dayChange >= 0 ? "#34d399" : "#f87171"} />
-        <MetricCard label="Lucro Total RV" value={brl(data.lucroBRL)}
-          sub={`${pct(data.lucroPct)} · Investido ${compactBRL(totalInvestidoRV)}`}
-          icon={<TrendingUp size={17} />}
-          trend={data.lucroBRL >= 0 ? "up" : "down"}
-          glowColor={data.lucroBRL >= 0 ? "#34d399" : "#f87171"} />
         {composicao?.resumo.lucro_total_brl !== undefined && (() => {
           const lucroTotal = composicao.resumo.lucro_total_brl;
           return (
             <MetricCard label="Resultado Total" value={compactBRL(lucroTotal)}
-              sub={`RV + RF + Proventos`}
+              sub={`${pct(data.totalPatrimonioBRL > 0 ? (lucroTotal / (data.totalPatrimonioBRL - lucroTotal)) * 100 : 0)} sobre investido`}
               icon={lucroTotal >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
               trend={lucroTotal >= 0 ? "up" : "down"}
               glowColor={lucroTotal >= 0 ? "#34d399" : "#f87171"} />
           );
         })()}
       </div>
+
+      {/* ── Results breakdown: RV + Proventos + RF ── */}
+      {composicao && (() => {
+        const rvGanho = data.lucroBRL;
+        const proventosTotal = data.totalProventosBRL;
+        const rfGanho = (composicao.rentabilidade ?? [])
+          .filter(r => r.macro === "Renda Fixa")
+          .reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+        const resultadoTotal = rvGanho + proventosTotal + rfGanho;
+        const items = [
+          { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: "Valorização renda variável" },
+          { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos" },
+          { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
+        ];
+        const maxAbs = Math.max(...items.map(i => Math.abs(i.value)), 1);
+        return (
+          <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Resultado por Fonte</h2>
+              <span className={`text-sm font-bold ${resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                Total {compactBRL(resultadoTotal)}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {items.map(item => (
+                <div key={item.label} className="text-center">
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{item.label}</p>
+                  <p className="text-lg sm:text-xl font-bold mb-1.5" style={{ color: item.value >= 0 ? item.color : "#f87171" }}>
+                    {item.value >= 0 ? "+" : ""}{compactBRL(item.value)}
+                  </p>
+                  <div className="h-1.5 rounded-full mx-auto overflow-hidden" style={{ background: "rgba(255,255,255,0.05)", maxWidth: 120 }}>
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min((Math.abs(item.value) / maxAbs) * 100, 100)}%`,
+                        backgroundColor: item.value >= 0 ? item.color : "#f87171",
+                        opacity: 0.7,
+                      }} />
+                  </div>
+                  <p className="text-[9px] text-zinc-700 mt-1">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Secondary metrics + performers in a unified strip ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-5">

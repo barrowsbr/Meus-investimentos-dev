@@ -385,19 +385,8 @@ export async function GET(request: Request) {
     ];
     const rollingReturns = calcularRollingReturns(meaningfulPoints, ROLLING_WINDOWS);
 
-    // MWR/IRR — build cash flow series
-    const cashFlows: Array<{ date: string; amount: number }> = [];
-    for (const p of twr.points) {
-      if (Math.abs(p.flow) > 1) {
-        cashFlows.push({ date: p.date, amount: -p.flow }); // negative = outflow
-      }
-    }
-    if (twr.points.length > 0) {
-      const last = twr.points[twr.points.length - 1];
-      cashFlows.push({ date: last.date, amount: last.nav }); // final NAV = inflow
-    }
-    cashFlows.sort((a, b) => a.date.localeCompare(b.date));
-    const mwr = twr.mwr ?? calcularMWR(cashFlows);
+    // MWR/IRR — use engine-calculated value (includes initial NAV, correct thresholds)
+    const mwr = twr.mwr ?? 0;
 
     // FX decomposition (using PM dólar as base for "meu custo")
     const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx, cambioMetrics.pmDolar);

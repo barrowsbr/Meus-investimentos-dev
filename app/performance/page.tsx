@@ -80,6 +80,13 @@ interface PerformanceResponse {
   lookback: number;
 }
 
+interface ResultadoFonte {
+  rv_ganho: number;
+  proventos: number;
+  rf_ganho: number;
+  total: number;
+}
+
 interface DecomposicaoBucket {
   currency: string;
   valor_brl: number;
@@ -202,6 +209,7 @@ export default function PerformancePage() {
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
+  const [resultadoFonte, setResultadoFonte] = useState<ResultadoFonte | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
 
   const isUsd = currencyView === "USD";
@@ -234,6 +242,18 @@ export default function PerformancePage() {
     fetch(`${API_URL}/api/twr/decomposicao`)
       .then(r => r.json())
       .then(body => setDecomp(body))
+      .catch(() => {});
+    fetch(`${API_URL}/api/composicao/resumo`)
+      .then(r => r.json())
+      .then(body => {
+        if (body.resumo && body.rentabilidade) {
+          const rent = body.rentabilidade as Array<{ macro: string; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number }>;
+          const rvGanho = rent.filter(r => r.macro === "Renda Variável").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+          const rfGanho = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+          const proventos = body.resumo.total_proventos ?? 0;
+          setResultadoFonte({ rv_ganho: rvGanho, proventos, rf_ganho: rfGanho, total: rvGanho + proventos + rfGanho });
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -335,55 +355,59 @@ export default function PerformancePage() {
         </span>
       </div>
 
-      {/* ── Top Metrics ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-        <MetricCard
-          label="TWR Total"
-          value={pct(twrPct)}
-          sub={`Anualizado: ${pct(s.twrAnualizado * 100)}`}
-          icon={isPositive ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
-          trend={isPositive ? "up" : "down"}
-          glowColor={trendColor}
-        />
-        <MetricCard
-          label="MWR / IRR"
-          value={pct(mwrPct)}
-          sub="Retorno ponderado por capital"
-          icon={<Scale size={17} />}
-          trend={mwrPct >= 0 ? "up" : "down"}
-          glowColor={mwrPct >= 0 ? "#34d399" : "#f87171"}
-        />
-        <MetricCard
-          label={`NAV Atual (${currSymbol})`}
-          value={compactCurr(s.navFinal)}
-          sub={`Investido ${compactCurr(s.totalInvestido)}`}
-          icon={<DollarSign size={17} />}
-          glowColor="#d4a574"
-        />
-        <MetricCard
-          label={isUsd ? "vs S&P 500" : "vs CDI"}
-          value={pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100)}
-          sub={isUsd ? `S&P 500 ${pct((s.sp500Total ?? 0) * 100)}` : `CDI período ${pct(s.cdiTotal * 100)}`}
-          icon={<Target size={17} />}
-          trend={(isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "up" : "down"}
-          glowColor={(isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171"}
-        />
-        <MetricCard
-          label="vs IBOV"
-          value={pct(s.vsIBOV * 100)}
-          sub={`IBOV período ${pct(s.ibovTotal * 100)}`}
-          icon={<Landmark size={17} />}
-          trend={s.vsIBOV >= 0 ? "up" : "down"}
-          glowColor={s.vsIBOV >= 0 ? "#34d399" : "#f87171"}
-        />
-        <MetricCard
-          label="Ganho Econômico"
-          value={compactCurr(s.ganhoEconomico)}
-          sub={`NAV final − inicial − aportes (${currSymbol})`}
-          icon={<BarChart2 size={17} />}
-          trend={s.ganhoEconomico >= 0 ? "up" : "down"}
-          glowColor={s.ganhoEconomico >= 0 ? "#34d399" : "#f87171"}
-        />
+      {/* ── Hero Performance Card ── */}
+      <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5">
+          {/* Left: TWR headline */}
+          <div>
+            <div className="flex items-baseline gap-3 mb-1">
+              <span className="text-4xl sm:text-5xl font-extrabold tracking-tight" style={{ color: trendColor }}>
+                {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
+              </span>
+              <span className="text-sm text-zinc-500 font-medium">TWR acumulado</span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4">
+              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong></span>
+              <span className="text-zinc-700">·</span>
+              <span>MWR <strong className={mwrPct >= 0 ? "text-purple-400" : "text-red-400"}>{pct(mwrPct)}</strong> a.a.</span>
+              <span className="text-zinc-700">·</span>
+              <span>{formatDuracao(s.duracaoAnos)}</span>
+            </div>
+            {/* Benchmark comparison pills */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
+                { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
+                ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
+              ].map(b => (
+                <div key={b.label} className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: `${b.color}10`, border: `1px solid ${b.color}20` }}>
+                  <span className="text-[10px] text-zinc-500">{b.label}</span>
+                  <span className="text-xs font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
+                  <span className={`text-[10px] font-semibold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    α {b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: NAV + Ganho */}
+          <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
+            <div>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio RV</p>
+              <p className="text-xl font-bold text-zinc-100">{compactCurr(s.navFinal)}</p>
+              <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)}</p>
+            </div>
+            <div className="h-px bg-zinc-800/50" />
+            <div>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
+              <p className={`text-xl font-bold ${s.ganhoEconomico >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {s.ganhoEconomico >= 0 ? "+" : ""}{compactCurr(s.ganhoEconomico)}
+              </p>
+              <p className="text-[10px] text-zinc-500">NAV − investido ({currSymbol})</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Risk Metrics ── */}
@@ -657,6 +681,49 @@ export default function PerformancePage() {
               )}
             </div>
           </div>
+
+          {/* ── Results breakdown by source ── */}
+          {!isUsd && resultadoFonte && (
+            <div className="glass-card p-5">
+              <h2 className="section-title mb-4"><BarChart2 size={15} />Resultado por Fonte</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {[
+                  { label: "Ganho RV", value: resultadoFonte.rv_ganho, color: "#3b82f6", icon: <TrendingUp size={16} />, desc: "Valorização renda variável" },
+                  { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574", icon: <DollarSign size={16} />, desc: "Dividendos, JCP, rendimentos" },
+                  { label: "Ganho RF", value: resultadoFonte.rf_ganho, color: "#10b981", icon: <Landmark size={16} />, desc: "Rendimento renda fixa" },
+                  { label: "Resultado Total", value: resultadoFonte.total, color: resultadoFonte.total >= 0 ? "#34d399" : "#f87171", icon: <Zap size={16} />, desc: "Soma de todas as fontes" },
+                ].map(item => (
+                  <div key={item.label} className="rounded-xl p-4" style={{ background: `${item.color}08`, border: `1px solid ${item.color}18` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span style={{ color: item.color }}>{item.icon}</span>
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{item.label}</span>
+                    </div>
+                    <p className="text-xl font-bold mb-0.5" style={{ color: item.value >= 0 ? item.color : "#f87171" }}>
+                      {item.value >= 0 ? "+" : ""}{compactBRL(item.value)}
+                    </p>
+                    <p className="text-[9px] text-zinc-600">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+              {resultadoFonte.total !== 0 && (
+                <div className="mt-4 flex items-center gap-2">
+                  {[
+                    { label: "RV", value: resultadoFonte.rv_ganho, color: "#3b82f6" },
+                    { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574" },
+                    { label: "RF", value: resultadoFonte.rf_ganho, color: "#10b981" },
+                  ].map(seg => {
+                    const pctVal = resultadoFonte.total !== 0 ? (Math.abs(seg.value) / Math.abs(resultadoFonte.total)) * 100 : 0;
+                    return (
+                      <div key={seg.label} className="group relative" style={{ flex: Math.max(pctVal, 3) }}>
+                        <div className="h-3 rounded-full transition-all" style={{ backgroundColor: seg.color, opacity: 0.7 }} />
+                        <span className="text-[9px] text-zinc-500 block text-center mt-1">{seg.label} {pctVal.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Currency decomposition (BRL only) */}
           {!isUsd && decomp && decomp.buckets.length > 1 && (
