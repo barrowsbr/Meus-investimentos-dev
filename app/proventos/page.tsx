@@ -119,29 +119,67 @@ function FilterBar({
 
 // ── Custom Sankey renderers ──────────────────────────────────────────────────
 
-const SANKEY_NODE_COLORS = {
-  ticker: "#6366f1",
+const SANKEY_NODE_COLORS: Record<string, string> = {
+  ticker: "#818cf8",
   setor: "#34d399",
-  moeda: "#f59e0b",
+  moeda: "#fbbf24",
 };
 
 function SankeyNodeRenderer(props: any) {
   const { x, y, width, height, payload } = props;
-  const level = payload?.level ?? "ticker";
-  const color = SANKEY_NODE_COLORS[level as keyof typeof SANKEY_NODE_COLORS] ?? "#6366f1";
+  const level: string = payload?.level ?? "ticker";
+  const color = SANKEY_NODE_COLORS[level] ?? "#818cf8";
+  const name: string = payload?.name ?? "";
+  const value: number = payload?.value ?? 0;
+
+  const isLeft = level === "ticker";
+  const isRight = level === "moeda";
+
+  const labelX = isLeft ? x - 4 : x + width + 4;
+  const anchor = isLeft ? "end" : "start";
+  const labelY = y + height / 2;
+
   return (
-    <Rectangle
-      x={x} y={y} width={width} height={height}
-      fill={color} fillOpacity={0.85}
-      radius={[3, 3, 3, 3]}
-    />
+    <g>
+      <Rectangle
+        x={x} y={y} width={width} height={height}
+        fill={color} fillOpacity={0.9}
+        radius={[3, 3, 3, 3]}
+      />
+      {height >= 8 && (
+        <>
+          <text
+            x={labelX} y={labelY - 1}
+            textAnchor={anchor}
+            dominantBaseline="middle"
+            fill="#e4e4e7"
+            fontSize={11}
+            fontWeight={600}
+          >
+            {name}
+          </text>
+          {(isLeft || isRight) && height >= 16 && (
+            <text
+              x={labelX} y={labelY + 12}
+              textAnchor={anchor}
+              dominantBaseline="middle"
+              fill="#71717a"
+              fontSize={9}
+            >
+              {compactBRL(value)}
+            </text>
+          )}
+        </>
+      )}
+    </g>
   );
 }
 
 function SankeyLinkRenderer(props: any) {
   const { sourceX, sourceY, sourceControlX, targetX, targetY, targetControlX, linkWidth } = props;
   const sourceLevel = props?.payload?.source?.level ?? "ticker";
-  const color = sourceLevel === "ticker" ? "99,102,241" : "52,211,153";
+  const rgb = sourceLevel === "ticker" ? "129,140,248" : "52,211,153";
+  const opacity = Math.min(0.45, 0.15 + linkWidth / 100);
   return (
     <path
       d={`M${sourceX},${sourceY + linkWidth / 2}
@@ -153,8 +191,8 @@ function SankeyLinkRenderer(props: any) {
            ${sourceControlX},${sourceY - linkWidth / 2}
            ${sourceX},${sourceY - linkWidth / 2}
           Z`}
-      fill={`rgba(${color},0.25)`}
-      stroke={`rgba(${color},0.4)`}
+      fill={`rgba(${rgb},${opacity})`}
+      stroke={`rgba(${rgb},0.5)`}
       strokeWidth={0.5}
     />
   );
@@ -416,7 +454,9 @@ export default function ProventosPage() {
         <MetricCard label="Média Mensal" value={compactBRL(metrics.avgMonth)} icon={<Calendar size={17} />} glowColor="#34d399" />
         <MetricCard label="Ativos Pagadores" value={String(metrics.tickers)} icon={<TrendingUp size={17} />} glowColor="#06b6d4" />
         <MetricCard label="Maior Pagador" value={metrics.topTicker} sub={compactBRL(metrics.topValue)} icon={<Award size={17} />} glowColor="#f59e0b" />
-        <MetricCard label="Melhor Mês" value={metrics.bestMonth} sub={compactBRL(metrics.bestMonthValue)} icon={<Calendar size={17} />} glowColor="#a78bfa" />
+        <div className="col-span-2 lg:col-span-1">
+          <MetricCard label="Melhor Mês" value={metrics.bestMonth} sub={compactBRL(metrics.bestMonthValue)} icon={<Calendar size={17} />} glowColor="#a78bfa" />
+        </div>
       </div>
 
       {/* ── Evolução Mensal (bars + cumulative line) ── */}
@@ -507,28 +547,40 @@ export default function ProventosPage() {
         <div className="glass-card p-5 mb-4">
           <h2 className="section-title mb-2"><Layers size={15} /> Fluxo de Capital — Ativo → Setor → Moeda</h2>
           <p className="text-xs text-zinc-600 mb-4">Visualização do fluxo de proventos dos ativos individuais, passando por seus setores, até a moeda de origem.</p>
-          <ResponsiveContainer width="100%" height={Math.max(400, sankeyData.nodes.length * 22)}>
+
+          {/* Column headers */}
+          <div className="flex justify-between px-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#818cf8" }} />
+              <span className="text-[11px] font-semibold text-zinc-400">Ativos</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#34d399" }} />
+              <span className="text-[11px] font-semibold text-zinc-400">Setores</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#fbbf24" }} />
+              <span className="text-[11px] font-semibold text-zinc-400">Moedas</span>
+            </div>
+          </div>
+
+          <ResponsiveContainer width="100%" height={Math.max(400, sankeyData.nodes.length * 24)}>
             <Sankey
               data={sankeyData}
-              nodeWidth={16}
-              nodePadding={14}
+              nodeWidth={12}
+              nodePadding={16}
               linkCurvature={0.5}
               iterations={64}
-              margin={{ top: 10, right: 120, bottom: 10, left: 10 }}
+              margin={{ top: 8, right: 80, bottom: 8, left: 80 }}
               node={<SankeyNodeRenderer />}
               link={<SankeyLinkRenderer />}
             >
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                formatter={(value: number) => [brl(value), "Valor"]}
+                formatter={(value: number) => [brl(value), "Proventos"]}
               />
             </Sankey>
           </ResponsiveContainer>
-          <div className="flex items-center gap-4 mt-3 text-[10px] text-zinc-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block" style={{ background: "#6366f1" }} /> Ativos</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block" style={{ background: "#34d399" }} /> Setores</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block" style={{ background: "#f59e0b" }} /> Moedas</span>
-          </div>
         </div>
       )}
 
