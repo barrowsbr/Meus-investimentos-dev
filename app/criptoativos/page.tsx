@@ -26,7 +26,6 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   ReferenceLine,
-  Customized,
   Cell,
 } from "recharts";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
@@ -132,49 +131,42 @@ function formatTxDate(d: string): string {
   return d;
 }
 
-// ─── Candlestick renderer via Customized ───────────────────────────────────────
+// ─── Candlestick shape for Bar component ─────────────────────────────────────
 
-function CandlestickSeries(props: any) {
-  const { yAxisMap, formattedGraphicalItems } = props;
-  const yAxis = yAxisMap && (Object.values(yAxisMap)[0] as any);
-  if (!yAxis || !formattedGraphicalItems) return null;
+function makeCandleShape(yDomain: [number, number]) {
+  return function CandleShape(props: any) {
+    const { x, width, payload, background } = props;
+    if (!payload || payload.open == null || payload.close == null) return <g />;
+    if (!background) return <g />;
 
-  const yScale = yAxis.scale;
-  const firstItem = formattedGraphicalItems[0];
-  if (!firstItem) return null;
+    const plotTop = background.y;
+    const plotH = background.height;
+    const domMin = yDomain[0];
+    const domMax = yDomain[1];
+    const domRange = domMax - domMin;
+    if (domRange <= 0 || plotH <= 0) return <g />;
 
-  const points: any[] = firstItem.props?.points ?? [];
-  if (points.length === 0) return null;
+    const toY = (v: number) => plotTop + plotH - ((v - domMin) / domRange) * plotH;
+    const cx = x + width / 2;
+    const barW = Math.max(2, Math.min(10, width * 0.8));
 
-  const barWidth = Math.max(2, Math.min(10, points.length > 1
-    ? Math.abs(points[1].x - points[0].x) * 0.65
-    : 6));
+    const isUp = payload.close >= payload.open;
+    const color = isUp ? "#22c55e" : "#ef4444";
+    const yHigh = toY(payload.high);
+    const yLow = toY(payload.low);
+    const yOpen = toY(payload.open);
+    const yClose = toY(payload.close);
+    const bodyTop = Math.min(yOpen, yClose);
+    const bodyH = Math.max(1, Math.abs(yOpen - yClose));
 
-  return (
-    <g className="candlestick-series">
-      {points.map((pt: any, i: number) => {
-        const d: CandleData = pt.payload;
-        if (!d || d.open == null || d.close == null) return null;
-        const x = pt.x;
-        if (isNaN(x)) return null;
-        const isUp = d.close >= d.open;
-        const color = isUp ? "#22c55e" : "#ef4444";
-        const yHigh = yScale(d.high);
-        const yLow = yScale(d.low);
-        const yOpen = yScale(d.open);
-        const yClose = yScale(d.close);
-        const bodyTop = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
-        return (
-          <g key={`candle-${i}`}>
-            <line x1={x} x2={x} y1={yHigh} y2={yLow} stroke={color} strokeWidth={1} opacity={0.7} />
-            <rect x={x - barWidth / 2} y={bodyTop} width={barWidth} height={bodyHeight} fill={color} stroke={color} strokeWidth={0.5} rx={1} />
-            <rect x={x - barWidth / 2 - 1} y={bodyTop - 1} width={barWidth + 2} height={bodyHeight + 2} fill="none" stroke={color} strokeWidth={0.3} rx={2} opacity={0.3} />
-          </g>
-        );
-      })}
-    </g>
-  );
+    return (
+      <g>
+        <line x1={cx} x2={cx} y1={yHigh} y2={yLow} stroke={color} strokeWidth={1} opacity={0.7} />
+        <rect x={cx - barW / 2} y={bodyTop} width={barW} height={bodyH} fill={color} stroke={color} strokeWidth={0.5} rx={1} />
+        <rect x={cx - barW / 2 - 1} y={bodyTop - 1} width={barW + 2} height={bodyH + 2} fill="none" stroke={color} strokeWidth={0.3} rx={2} opacity={0.3} />
+      </g>
+    );
+  };
 }
 
 // ─── Custom tooltip ────────────────────────────────────────────────────────────
@@ -625,8 +617,10 @@ export default function CriptoativosPage() {
                     <ReferenceLine y={custoMedio} stroke="#f59e0b" strokeDasharray="8 4" strokeWidth={1.5} strokeOpacity={0.7}
                       label={{ value: `PM $${custoMedio.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, position: "right", fill: "#f59e0b", fontSize: 11, fontWeight: 700 }} />
                   )}
-                  <Bar dataKey="close" fill="transparent" isAnimationActive={false} />
-                  <Customized component={CandlestickSeries} />
+                  <Bar dataKey="close" fill="transparent" isAnimationActive={false}
+                    shape={makeCandleShape(yDomain as [number, number])}
+                    background={{ fill: "transparent" }}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
