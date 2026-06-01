@@ -426,9 +426,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
     }
 
     // ── v9.0: Flow-NAV consistency correction ──
-    // Only trigger when the inflow IS the portfolio (>50% of prior NAV),
-    // e.g., initial purchase or near-total reinvestment.
-    if (flow > 0 && prevNav > 0 && flow / prevNav > 0.5) {
+    // Aligns flow with actual NAV delta to prevent phantom returns from
+    // price/FX mismatches between flow valuation and NAV valuation.
+    if (flow > 0 && prevNav > 0) {
       const navDelta = nav - prevNav;
       if (Math.abs(navDelta - flow) > Math.abs(flow) * 0.10) {
         flow = navDelta;
