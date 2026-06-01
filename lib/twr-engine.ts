@@ -336,6 +336,12 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
   const custody = buildDailyCustody(inRange, dates);
 
+  // Build ticker → moeda map so NAV uses the same currency as flows
+  const tickerMoeda = new Map<string, string>();
+  for (const tx of inRange) {
+    if (!tickerMoeda.has(tx.ticker)) tickerMoeda.set(tx.ticker, tx.moeda);
+  }
+
   const sortedTxs = [...inRange].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
   let txIdx = 0;
   const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
@@ -368,8 +374,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       if (qty < 0.000001) continue;
       const price = getPrice(ticker, i, prices);
       if (price == null) continue;
-      const setor = identificarSetor(ticker);
-      const moeda = getMoedaEfetiva(ticker, "BRL", setor);
+      const moeda = tickerMoeda.get(ticker) ?? getMoedaEfetiva(ticker, "BRL", identificarSetor(ticker));
       navRV += qty * price * fxFactor(moeda, fx);
     }
 
@@ -426,11 +431,12 @@ export function calcularTWR(input: TwrInput): TwrResult {
     }
 
     // ── v9.0: Flow-NAV consistency correction ──
-    // Only trigger when the inflow IS the portfolio (>50% of prior NAV),
-    // e.g., initial purchase or near-total reinvestment.
-    if (flow > 0 && prevNav > 0 && flow / prevNav > 0.5) {
+    // Aligns flow with actual NAV delta to prevent phantom returns from
+    // price/FX mismatches between flow valuation and NAV valuation.
+    // Applies to ALL flows (buys and sells).
+    if (Math.abs(flow) > 0 && prevNav > 0) {
       const navDelta = nav - prevNav;
-      if (Math.abs(navDelta - flow) > Math.abs(flow) * 0.10) {
+      if (Math.abs(navDelta - flow) > Math.max(Math.abs(flow), 1) * 0.10) {
         flow = navDelta;
       }
     }
