@@ -33,8 +33,12 @@ interface Summary {
   ultimaData: string;
   vsCDI: number;
   vsIBOV: number;
+  vsSP500BRL?: number;
+  vsSP500?: number;
   cdiTotal: number;
   ibovTotal: number;
+  sp500BrlTotal?: number;
+  sp500Total?: number;
   maxDrawdown: number;
   volatility: number;
   sharpe: number;
@@ -42,29 +46,36 @@ interface Summary {
   var95: number;
   var99: number;
   ganhoEconomico: number;
-  peakDate: string;
-  troughDate: string;
-  peakTwr: number;
-  troughTwr: number;
+  peakDate?: string;
+  troughDate?: string;
+  peakTwr?: number;
+  troughTwr?: number;
 }
 
-interface ChartPoint { date: string; nav: number; flow: number; ret: number; twr: number; cdi_twr?: number | null; ibov_twr?: number | null }
+interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null }
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
 interface FlowEntry { date: string; flow: number; nav: number; nav_before: number; daily_return: number; cumulative_twr: number }
 interface AttributionEntry { setor: string; macro: string; contrib_pct: number; nav_medio: number }
 
+interface UsdView {
+  summary: Summary;
+  chart: ChartPoint[];
+  monthlyReturns: MonthlyReturn[];
+}
+
 interface PerformanceResponse {
   summary: Summary;
   chart: ChartPoint[];
-  benchmarks: { cdi: ChartPoint[]; ibov: ChartPoint[] };
+  benchmarks: { cdi: ChartPoint[]; ibov: ChartPoint[]; sp500brl?: ChartPoint[] };
   drawdownData: DrawdownPoint[];
   rolling: RollingPoint[];
   monthlyReturns: MonthlyReturn[];
   flowLedger: FlowEntry[];
   attribution: AttributionEntry[];
   fxDecomposition: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
+  usdView: UsdView | null;
   errors: string[];
   lookback: number;
 }
@@ -181,6 +192,8 @@ const TAB_LABELS: Record<Tab, string> = {
   attribution: "Atribuição",
 };
 
+type CurrencyView = "BRL" | "USD";
+
 export default function PerformancePage() {
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -189,6 +202,17 @@ export default function PerformancePage() {
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
+  const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
+
+  const isUsd = currencyView === "USD";
+  const currSymbol = isUsd ? "US$" : "R$";
+  const fmtCurr = isUsd ? (v: number) => `US$ ${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : brl;
+  const compactCurr = isUsd ? (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1e6) return `US$ ${(v / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `US$ ${(v / 1e3).toFixed(1)}k`;
+    return `US$ ${v.toFixed(0)}`;
+  } : compactBRL;
 
   useEffect(() => {
     let cancelled = false;
@@ -213,17 +237,35 @@ export default function PerformancePage() {
       .catch(() => {});
   }, []);
 
-  const chartData = useMemo(() => {
+  // Active summary/chart based on currency view
+  const activeSummary = useMemo(() => {
+    if (!data) return null;
+    return isUsd && data.usdView ? data.usdView.summary : data.summary;
+  }, [data, isUsd]);
+
+  const activeChart = useMemo(() => {
     if (!data) return [];
-    return data.chart.map(p => ({
+    return isUsd && data.usdView ? data.usdView.chart : data.chart;
+  }, [data, isUsd]);
+
+  const activeMonthly = useMemo(() => {
+    if (!data) return [];
+    return isUsd && data.usdView ? data.usdView.monthlyReturns : data.monthlyReturns;
+  }, [data, isUsd]);
+
+  const chartData = useMemo(() => {
+    return activeChart.map(p => ({
       date: p.date.slice(5),
       fullDate: p.date,
       portfolio: +(p.twr * 100).toFixed(2),
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
       ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
+      sp500: p.sp500_twr != null ? +(p.sp500_twr * 100).toFixed(2) : null,
       nav: p.nav,
+      fx: p.fx_twr != null ? +(p.fx_twr * 100).toFixed(2) : null,
+      ativo: p.ativo_twr != null ? +(p.ativo_twr * 100).toFixed(2) : null,
     }));
-  }, [data]);
+  }, [activeChart]);
 
   const drawdownData = useMemo(() =>
     (data?.drawdownData ?? []).map(d => ({ date: formatDateShort(d.date), drawdown: d.drawdown })),
@@ -237,16 +279,16 @@ export default function PerformancePage() {
   [data]);
 
   const monthlyGrid = useMemo(() => {
-    if (!data?.monthlyReturns) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, number>> };
+    if (activeMonthly.length === 0) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, number>> };
     const byYearMonth: Record<number, Record<number, number>> = {};
-    for (const m of data.monthlyReturns) {
+    for (const m of activeMonthly) {
       const [y, mo] = m.month.split("-").map(Number);
       if (!byYearMonth[y]) byYearMonth[y] = {};
       byYearMonth[y][mo] = m.return_pct;
     }
     const years = Object.keys(byYearMonth).map(Number).sort((a, b) => a - b);
     return { years, byYearMonth };
-  }, [data]);
+  }, [activeMonthly]);
 
   const handleRefresh = () => {
     setLoading(true);
@@ -259,9 +301,9 @@ export default function PerformancePage() {
 
   if (loading) return (<><PageHeader title="Performance" description="Carregando dados..." /><LoadingSpinner /></>);
   if (error) return (<><PageHeader title="Performance" description="" /><ErrorAlert message={error} /></>);
-  if (!data) return null;
+  if (!data || !activeSummary) return null;
 
-  const s = data.summary;
+  const s = activeSummary;
   const twrPct = s.twrTotal * 100;
   const mwrPct = s.mwr * 100;
   const isPositive = twrPct >= 0;
@@ -273,6 +315,25 @@ export default function PerformancePage() {
         title="Performance"
         description={`${formatDate(s.primeiraData)} → ${formatDate(s.ultimaData)} · ${formatDuracao(s.duracaoAnos)} · Metodologia GIPS`}
       />
+
+      {/* ── Currency View Toggle ── */}
+      <div className="flex items-center gap-1 mb-6 bg-zinc-900/60 rounded-xl p-1 w-fit border border-zinc-800/50">
+        {(["BRL", "USD"] as CurrencyView[]).map(cv => (
+          <button key={cv} onClick={() => setCurrencyView(cv)}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              currencyView === cv
+                ? cv === "BRL"
+                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+                  : "bg-blue-500/20 border border-blue-500/40 text-blue-300"
+                : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+            }`}>
+            {cv === "BRL" ? "R$ Real" : "US$ Dólar"}
+          </button>
+        ))}
+        <span className="text-[10px] text-zinc-600 px-2">
+          {isUsd ? "Patrimônio em dólar" : "Patrimônio em real"}
+        </span>
+      </div>
 
       {/* ── Top Metrics ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
@@ -293,19 +354,19 @@ export default function PerformancePage() {
           glowColor={mwrPct >= 0 ? "#34d399" : "#f87171"}
         />
         <MetricCard
-          label="NAV Atual"
-          value={compactBRL(s.navFinal)}
-          sub={`Investido ${compactBRL(s.totalInvestido)}`}
+          label={`NAV Atual (${currSymbol})`}
+          value={compactCurr(s.navFinal)}
+          sub={`Investido ${compactCurr(s.totalInvestido)}`}
           icon={<DollarSign size={17} />}
           glowColor="#d4a574"
         />
         <MetricCard
-          label="vs CDI"
-          value={pct(s.vsCDI * 100)}
-          sub={`CDI período ${pct(s.cdiTotal * 100)}`}
+          label={isUsd ? "vs S&P 500" : "vs CDI"}
+          value={pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100)}
+          sub={isUsd ? `S&P 500 ${pct((s.sp500Total ?? 0) * 100)}` : `CDI período ${pct(s.cdiTotal * 100)}`}
           icon={<Target size={17} />}
-          trend={s.vsCDI >= 0 ? "up" : "down"}
-          glowColor={s.vsCDI >= 0 ? "#34d399" : "#f87171"}
+          trend={(isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "up" : "down"}
+          glowColor={(isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171"}
         />
         <MetricCard
           label="vs IBOV"
@@ -317,8 +378,8 @@ export default function PerformancePage() {
         />
         <MetricCard
           label="Ganho Econômico"
-          value={compactBRL(s.ganhoEconomico)}
-          sub="NAV final − inicial − aportes"
+          value={compactCurr(s.ganhoEconomico)}
+          sub={`NAV final − inicial − aportes (${currSymbol})`}
           icon={<BarChart2 size={17} />}
           trend={s.ganhoEconomico >= 0 ? "up" : "down"}
           glowColor={s.ganhoEconomico >= 0 ? "#34d399" : "#f87171"}
@@ -416,6 +477,10 @@ export default function PerformancePage() {
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1} />
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="gradSP500" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ec4899" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                   <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
@@ -425,10 +490,10 @@ export default function PerformancePage() {
                   <Tooltip contentStyle={TOOLTIP_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Portfólio" : name === "cdi" ? "CDI" : "IBOV",
+                      name === "portfolio" ? "Portfólio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Portfólio" : v === "cdi" ? "CDI" : "IBOV"}
+                  <Legend formatter={v => v === "portfolio" ? "Portfólio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
                     wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
                   <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
                     strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
@@ -437,6 +502,8 @@ export default function PerformancePage() {
                       <Area type="monotone" dataKey="cdi" stroke="#6366f1" fill="url(#gradCDI)"
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
                       <Area type="monotone" dataKey="ibov" stroke="#f59e0b" fill="url(#gradIBOV)"
+                        strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+                      <Area type="monotone" dataKey="sp500" stroke="#ec4899" fill="url(#gradSP500)"
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
                     </>
                   )}
@@ -450,7 +517,7 @@ export default function PerformancePage() {
           {/* NAV + Summary */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="glass-card p-5">
-              <h2 className="section-title mb-4">Evolução do Patrimônio RV</h2>
+              <h2 className="section-title mb-4">Evolução do Patrimônio RV ({currSymbol})</h2>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={chartData}>
@@ -462,8 +529,8 @@ export default function PerformancePage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                     <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "NAV BRL"]} />
+                    <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
                     <Area type="monotone" dataKey="nav" stroke="#d4a574" fill="url(#gradNav)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -473,7 +540,7 @@ export default function PerformancePage() {
             </div>
 
             <div className="glass-card p-5">
-              <h2 className="section-title mb-4">Resumo do Período</h2>
+              <h2 className="section-title mb-4">Resumo do Período ({currSymbol})</h2>
               <div className="space-y-2">
                 {[
                   { label: "TWR acumulado", value: pct(twrPct), color: trendColor },
@@ -481,11 +548,15 @@ export default function PerformancePage() {
                   { label: "MWR / TIR anualizado", value: pct(mwrPct), color: mwrPct >= 0 ? "#a78bfa" : "#f87171" },
                   { label: "CDI no período", value: pct(s.cdiTotal * 100), color: "#6366f1" },
                   { label: "IBOV no período", value: pct(s.ibovTotal * 100), color: "#f59e0b" },
-                  { label: "Alpha vs CDI", value: pct(s.vsCDI * 100), color: s.vsCDI >= 0 ? "#34d399" : "#f87171" },
-                  { label: "Patrimônio inicial", value: compactBRL(s.navInicial) },
-                  { label: "Total aportado", value: compactBRL(s.totalInvestido) },
-                  { label: "Patrimônio final", value: compactBRL(s.navFinal) },
-                  { label: "Ganho econômico", value: compactBRL(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" },
+                  ...(isUsd
+                    ? [{ label: "S&P 500 no período", value: pct((s.sp500Total ?? 0) * 100), color: "#ec4899" }]
+                    : [{ label: "S&P 500 (BRL)", value: pct((s.sp500BrlTotal ?? 0) * 100), color: "#ec4899" }]
+                  ),
+                  { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
+                  { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
+                  { label: "Total aportado", value: compactCurr(s.totalInvestido) },
+                  { label: "Patrimônio final", value: compactCurr(s.navFinal) },
+                  { label: "Ganho econômico", value: compactCurr(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" },
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                 ].map(row => (
@@ -498,10 +569,56 @@ export default function PerformancePage() {
             </div>
           </div>
 
+          {/* FX Decomposition time-series chart (BRL only) */}
+          {!isUsd && chartData.length > 0 && chartData.some(p => p.fx != null) && (
+            <div className="glass-card p-5">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="section-title"><DollarSign size={15} />Retorno: Total vs Ativo vs Câmbio</h2>
+              </div>
+              <p className="text-[10px] text-zinc-600 mb-4">
+                R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>câmbio</sub>) − 1 — mostra o peso do câmbio e do ativo no retorno ao longo do tempo
+              </p>
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                  <defs>
+                    <linearGradient id="gradFxTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradFxAtivo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradFxCambio" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
+                  <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
+                  <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                    formatter={(v: number, name: string) => [
+                      `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
+                      name === "portfolio" ? "Total" : name === "ativo" ? "Ativo" : "Câmbio",
+                    ]}
+                    labelFormatter={label => `Data: ${label}`} />
+                  <Legend formatter={v => v === "portfolio" ? "Total" : v === "ativo" ? "Ativo" : "Câmbio"}
+                    wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+                  <Area type="monotone" dataKey="portfolio" stroke="#60a5fa" fill="url(#gradFxTotal)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradFxAtivo)" strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFxCambio)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           {/* TWR vs MWR + FX Decomposition */}
           <div className="glass-card p-5">
-            <h2 className="section-title mb-4"><Activity size={15} />TWR vs MWR — Comparação</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="section-title mb-4"><Activity size={15} />TWR vs MWR — Comparação ({currSymbol})</h2>
+            <div className={`grid grid-cols-1 ${!isUsd ? "md:grid-cols-2" : ""} gap-6`}>
               <div className="space-y-3">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
                   <p className="text-xs font-bold text-blue-400 mb-1">TWR — Time-Weighted Return</p>
@@ -514,33 +631,35 @@ export default function PerformancePage() {
                   <p className="text-sm font-bold text-purple-300 mt-2">{pct(mwrPct)} a.a.</p>
                 </div>
               </div>
-              <div>
-                <h3 className="text-xs font-semibold text-zinc-400 mb-3">
-                  <DollarSign size={13} className="inline" /> Decomposição: Ativo vs Cambial
-                </h3>
-                <p className="text-[10px] text-zinc-600 mb-3">
-                  R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>fx</sub>) − 1
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: "R. Total", value: data.fxDecomposition.r_total * 100, color: "#60a5fa" },
-                    { label: "C. Ativo", value: data.fxDecomposition.r_ativo * 100, color: "#34d399" },
-                    { label: "C. Cambial", value: data.fxDecomposition.r_fx * 100, color: "#f59e0b" },
-                  ].map(item => (
-                    <div key={item.label} className="text-center p-3 rounded-xl bg-zinc-900/50">
-                      <p className="text-[10px] text-zinc-500 mb-1">{item.label}</p>
-                      <p className="text-lg font-bold" style={{ color: item.color }}>
-                        {item.value >= 0 ? "+" : ""}{item.value.toFixed(2)}%
-                      </p>
-                    </div>
-                  ))}
+              {!isUsd && (
+                <div>
+                  <h3 className="text-xs font-semibold text-zinc-400 mb-3">
+                    <DollarSign size={13} className="inline" /> Decomposição: Ativo vs Cambial
+                  </h3>
+                  <p className="text-[10px] text-zinc-600 mb-3">
+                    R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>fx</sub>) − 1
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "R. Total", value: data.fxDecomposition.r_total * 100, color: "#60a5fa" },
+                      { label: "C. Ativo", value: data.fxDecomposition.r_ativo * 100, color: "#34d399" },
+                      { label: "C. Cambial", value: data.fxDecomposition.r_fx * 100, color: "#f59e0b" },
+                    ].map(item => (
+                      <div key={item.label} className="text-center p-3 rounded-xl bg-zinc-900/50">
+                        <p className="text-[10px] text-zinc-500 mb-1">{item.label}</p>
+                        <p className="text-lg font-bold" style={{ color: item.color }}>
+                          {item.value >= 0 ? "+" : ""}{item.value.toFixed(2)}%
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Currency decomposition */}
-          {decomp && decomp.buckets.length > 1 && (
+          {/* Currency decomposition (BRL only) */}
+          {!isUsd && decomp && decomp.buckets.length > 1 && (
             <div className="glass-card p-5">
               <h2 className="section-title mb-4"><BarChart2 size={15} />Decomposição por Moeda</h2>
               <div className="overflow-x-auto">
@@ -626,8 +745,8 @@ export default function PerformancePage() {
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: "Máximo Drawdown", value: `${s.maxDrawdown.toFixed(2)}%`, color: "text-red-400", desc: "Maior recuo observado" },
-              { label: "Data do Pico", value: formatDateShort(s.peakDate), color: "text-emerald-400", desc: `TWR máximo: +${(s.peakTwr * 100).toFixed(2)}%` },
-              { label: "Data do Vale", value: formatDateShort(s.troughDate), color: "text-amber-400", desc: `TWR mínimo: ${(s.troughTwr * 100).toFixed(2)}%` },
+              { label: "Data do Pico", value: formatDateShort(s.peakDate ?? ""), color: "text-emerald-400", desc: `TWR máximo: +${((s.peakTwr ?? 0) * 100).toFixed(2)}%` },
+              { label: "Data do Vale", value: formatDateShort(s.troughDate ?? ""), color: "text-amber-400", desc: `TWR mínimo: ${((s.troughTwr ?? 0) * 100).toFixed(2)}%` },
             ].map(item => (
               <div key={item.label} className="glass-card p-4">
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{item.label}</p>
