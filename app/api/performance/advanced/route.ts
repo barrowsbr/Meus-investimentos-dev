@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
-import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, parseRVTransactions, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
@@ -363,26 +363,16 @@ export async function GET(request: Request) {
     // MWR/IRR — use engine-calculated value (includes initial NAV, correct thresholds)
     const mwr = twr.mwr ?? 0;
 
-    // FX decomposition (summary box) — exposure-weighted: accumulate the real
-    // FX gain on foreign holdings only, so the currency effect reflects actual
-    // USD/EUR/etc. exposure instead of a full-portfolio dollar assumption.
+    // FX decomposition (summary box) — uses PM dólar as base FX rate
     const fxDecomp = (() => {
-      let cumFx = 1.0;
-      let cumAtivo = 1.0;
-      let prevNav = 0;
-      for (let i = 0; i < meaningfulPoints.length; i++) {
-        const p = meaningfulPoints[i];
-        if (i > 0) {
-          const rFxDaily = prevNav > 0 ? (p.fxGain ?? 0) / prevNav : 0;
-          const rTotalDaily = p.forceZero ? 0 : p.ret;
-          cumFx *= (1 + rFxDaily);
-          cumAtivo *= (1 + rTotalDaily) / (1 + rFxDaily);
-        }
-        prevNav = p.nav;
-      }
-      const r_fx = cumFx - 1;
-      const r_ativo = cumAtivo - 1;
-      const r_total = meaningfulPoints.length > 0 ? meaningfulPoints[meaningfulPoints.length - 1].twr : 0;
+      const baseFx = cambioMetrics.pmDolar > 0
+        ? cambioMetrics.pmDolar
+        : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+      const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
+      const curFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
+      const r_total = lastPt ? lastPt.twr : 0;
+      const r_fx = baseFx && curFx ? curFx / baseFx - 1 : 0;
+      const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
       return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
     })();
 
@@ -582,30 +572,21 @@ export async function GET(request: Request) {
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
 
-        // Exposure-weighted FX decomposition. Each day the FX contribution is
-        // the REAL BRL gain from currency moves on the foreign sleeve only
-        // (p.fxGain), divided by the prior NAV — NOT a hypothetical move on the
-        // whole portfolio. So câmbio stays flat while the portfolio is 100% BRL
-        // and only grows in proportion to actual USD/EUR/etc. exposure.
-        let cumFx = 1.0;
-        let cumAtivo = 1.0;
-        let prevNav = 0;
-        const merged = meaningfulPoints.map((p, idx) => {
-          let fx_twr: number | null = null;
-          let ativo_twr: number | null = null;
-          if (idx === 0) {
-            fx_twr = 0;
-            ativo_twr = 0;
-          } else {
-            const rFxDaily = prevNav > 0 ? (p.fxGain ?? 0) / prevNav : 0;
-            const rTotalDaily = p.forceZero ? 0 : p.ret;
-            const rAtivoDaily = (1 + rTotalDaily) / (1 + rFxDaily) - 1;
-            cumFx *= (1 + rFxDaily);
-            cumAtivo *= (1 + rAtivoDaily);
-            fx_twr = cumFx - 1;
-            ativo_twr = cumAtivo - 1;
-          }
-          prevNav = p.nav;
+        // PM dólar-based FX decomposition: fx_twr = spotFx / pmDolar - 1
+        // Only show from the first USD transaction date to avoid false early divergence
+        const baseFx = cambioMetrics.pmDolar > 0
+          ? cambioMetrics.pmDolar
+          : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+
+        // Find first USD transaction date
+        const parsedTxs = parseRVTransactions(transacoes);
+        const firstUsdDate = parsedTxs.find(tx => tx.moeda === "USD")?.date ?? null;
+
+        const merged = meaningfulPoints.map(p => {
+          const curFx = alignedFx[p.date]?.USDBRL;
+          const showFx = firstUsdDate && p.date >= firstUsdDate && baseFx && curFx;
+          const fx_twr = showFx ? curFx / baseFx - 1 : null;
+          const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
             cdi_twr: cdiMap.get(p.date) ?? null,
