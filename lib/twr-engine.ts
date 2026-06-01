@@ -198,6 +198,7 @@ export interface TwrDayPoint {
   ret: number;
   twr: number;
   forceZero: boolean;
+  fxGain?: number; // BRL gain purely from FX moves on foreign holdings that day
 }
 
 export interface TwrResult {
@@ -364,7 +365,13 @@ export function calcularTWR(input: TwrInput): TwrResult {
     const fx = fxHistory[date] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
 
     // ── RV NAV ──
+    // Also track the BRL gain that comes purely from FX moves on the foreign
+    // holdings actually held today (qty * price * ΔfxFactor). This lets the
+    // decomposition weight the currency effect by REAL exposure instead of
+    // pretending the whole portfolio is dollar-denominated.
+    const fxPrev = i > 0 ? (fxHistory[dates[i - 1]] ?? fx) : fx;
     let navRV = 0;
+    let fxGain = 0;
     for (const [ticker, qty] of Object.entries(snap)) {
       if (qty < 0.000001) continue;
       const price = getPrice(ticker, i, prices);
@@ -372,6 +379,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
       const setor = identificarSetor(ticker);
       const moeda = getMoedaEfetiva(ticker, "BRL", setor);
       navRV += qty * price * fxFactor(moeda, fx);
+      if (i > 0 && moeda !== "BRL") {
+        fxGain += qty * price * (fxFactor(moeda, fx) - fxFactor(moeda, fxPrev));
+      }
     }
 
     // ── RF NAV ──
@@ -473,7 +483,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);
 
-    points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero });
+    points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero, fxGain });
     prevNav = nav;
   }
 
