@@ -50,11 +50,13 @@ const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
 export function yahooTicker(ticker: string, _moeda: string, _corretora: string): string {
   const t = ticker.toUpperCase().trim();
   if (t.includes(".")) return t;
-  if (t === "BTC" || t === "BTC-USD") return "BTC-USD";
-  if (t === "ETH" || t === "ETH-USD") return "ETH-USD";
   const tClean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "");
   if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
   const setor = identificarSetor(t);
+  if (setor === "Cripto") {
+    if (t.endsWith("-USD")) return t;
+    return `${t}-USD`;
+  }
   if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) return `${t}.SA`;
   return t;
 }

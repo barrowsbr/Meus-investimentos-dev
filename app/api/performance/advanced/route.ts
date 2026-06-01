@@ -388,8 +388,21 @@ export async function GET(request: Request) {
     // MWR/IRR — use engine-calculated value (includes initial NAV, correct thresholds)
     const mwr = twr.mwr ?? 0;
 
-    // FX decomposition (using PM dólar as base for "meu custo")
-    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx, cambioMetrics.pmDolar);
+    // FX decomposition — use FX rate at first USD transaction, not PM dólar
+    let firstUsdTxDate: string | null = null;
+    for (const row of transacoes) {
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+      if (moeda !== "USD") continue;
+      const rawDate = String(row["data"] ?? row["Data"] ?? "");
+      let isoDate = rawDate;
+      if (rawDate.includes("/")) {
+        const parts = rawDate.split("/");
+        isoDate = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}` : rawDate;
+      }
+      if (isoDate && (!firstUsdTxDate || isoDate < firstUsdTxDate)) firstUsdTxDate = isoDate;
+    }
+    const fxDecompBase = firstUsdTxDate ? alignedFx[firstUsdTxDate]?.USDBRL : cambioMetrics.pmDolar;
+    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx, fxDecompBase);
 
     // Attribution
     const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
@@ -586,12 +599,26 @@ export async function GET(request: Request) {
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
-        const baseFx = cambioMetrics.pmDolar && cambioMetrics.pmDolar > 0
-          ? cambioMetrics.pmDolar
-          : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+
+        // Find the first USD transaction date to only show FX decomposition from that point
+        let firstUsdDate: string | null = null;
+        for (const row of transacoes) {
+          const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
+          if (moeda !== "USD") continue;
+          const rawDate = String(row["data"] ?? row["Data"] ?? "");
+          let isoDate = rawDate;
+          if (rawDate.includes("/")) {
+            const parts = rawDate.split("/");
+            isoDate = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}` : rawDate;
+          }
+          if (isoDate && (!firstUsdDate || isoDate < firstUsdDate)) firstUsdDate = isoDate;
+        }
+
         const merged = meaningfulPoints.map(p => {
+          const beforeUsd = firstUsdDate && p.date < firstUsdDate;
           const curFx = alignedFx[p.date]?.USDBRL;
-          const fx_twr = baseFx && curFx ? curFx / baseFx - 1 : null;
+          const fxBaseFx = firstUsdDate ? alignedFx[firstUsdDate]?.USDBRL : null;
+          const fx_twr = !beforeUsd && fxBaseFx && curFx ? curFx / fxBaseFx - 1 : null;
           const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
