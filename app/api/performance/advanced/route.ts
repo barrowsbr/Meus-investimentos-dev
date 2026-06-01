@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
-import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, parseRVTransactions, type TwrDayPoint } from "@/lib/twr-engine";
-import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
+import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -304,6 +304,7 @@ export async function GET(request: Request) {
     const lastFx = hist.fxHistory[dates[dates.length - 1]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
     const cambioMetrics = calcularCambioMetrics(cambioRows, lastFx);
     const pmFx = buildPmFxRates(cambioMetrics);
+    const runningPm = buildRunningPmDolar(cambioRows);
 
     const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx });
 
@@ -363,11 +364,11 @@ export async function GET(request: Request) {
     // MWR/IRR — use engine-calculated value (includes initial NAV, correct thresholds)
     const mwr = twr.mwr ?? 0;
 
-    // FX decomposition (summary box) — uses PM dólar as base FX rate
+    // FX decomposition (summary box) — uses final PM dólar as base FX rate
     const fxDecomp = (() => {
       const baseFx = cambioMetrics.pmDolar > 0
         ? cambioMetrics.pmDolar
-        : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+        : null;
       const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
       const curFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
       const r_total = lastPt ? lastPt.twr : 0;
@@ -572,20 +573,27 @@ export async function GET(request: Request) {
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
 
-        // PM dólar-based FX decomposition: fx_twr = spotFx / pmDolar - 1
-        // Only show from the first USD transaction date to avoid false early divergence
-        const baseFx = cambioMetrics.pmDolar > 0
-          ? cambioMetrics.pmDolar
-          : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+        // PM dólar-based FX decomposition using RUNNING PM at each epoch.
+        // Before first remittance: fx_twr = null (no USD exposure yet).
+        // After: fx_twr = spotFx / PM(t) - 1, where PM(t) is the weighted
+        // average remittance cost up to date t.
+        const pmTimeline = runningPm;
+        const firstPmDate = pmTimeline.length > 0 ? pmTimeline[0].date : null;
 
-        // Find first USD transaction date
-        const parsedTxs = parseRVTransactions(transacoes);
-        const firstUsdDate = parsedTxs.find(tx => tx.moeda === "USD")?.date ?? null;
+        function getPmAtDate(date: string): number | null {
+          if (pmTimeline.length === 0) return null;
+          let pm: number | null = null;
+          for (const entry of pmTimeline) {
+            if (entry.date <= date) pm = entry.pm;
+            else break;
+          }
+          return pm;
+        }
 
         const merged = meaningfulPoints.map(p => {
           const curFx = alignedFx[p.date]?.USDBRL;
-          const showFx = firstUsdDate && p.date >= firstUsdDate && baseFx && curFx;
-          const fx_twr = showFx ? curFx / baseFx - 1 : null;
+          const pm = firstPmDate && p.date >= firstPmDate ? getPmAtDate(p.date) : null;
+          const fx_twr = pm && curFx ? curFx / pm - 1 : null;
           const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,

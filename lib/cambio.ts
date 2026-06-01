@@ -362,6 +362,36 @@ function normalizeDate(s: string): string {
   return "";
 }
 
+export function buildRunningPmDolar(cambioRows: Row[]): { date: string; pm: number }[] {
+  const ops: { date: string; brl: number; usd: number }[] = [];
+
+  for (const row of cambioRows) {
+    const moedaOrig = String(fuzzyGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase().trim();
+    const moedaDest = String(fuzzyGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase().trim();
+    if (!((moedaOrig === "BRL" || moedaOrig === "") && (moedaDest === "USD" || moedaDest === ""))) continue;
+
+    const valorOrig = Math.abs(toNumber(fuzzyGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl")) ?? 0);
+    const valorDest = Math.abs(toNumber(fuzzyGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd")) ?? 0);
+    if (valorOrig === 0 && valorDest === 0) continue;
+
+    const data = String(fuzzyGet(row, "data", "date") ?? "");
+    const dateISO = normalizeDate(data);
+    if (!dateISO) continue;
+
+    ops.push({ date: dateISO, brl: valorOrig, usd: valorDest });
+  }
+
+  ops.sort((a, b) => a.date.localeCompare(b.date));
+
+  let cumBrl = 0;
+  let cumUsd = 0;
+  return ops.map(op => {
+    cumBrl += op.brl;
+    cumUsd += op.usd;
+    return { date: op.date, pm: cumUsd > 0 ? cumBrl / cumUsd : 0 };
+  });
+}
+
 export function parseLbHistoric(rows: Row[]): { data: string; patrimonio: number; rv: number; rf: number }[] {
   const result: { data: string; patrimonio: number; rv: number; rf: number }[] = [];
 
