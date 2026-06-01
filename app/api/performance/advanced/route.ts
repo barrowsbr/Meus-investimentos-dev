@@ -320,6 +320,10 @@ export async function GET(request: Request) {
       const idx = dateIdxMap.get(d);
       return idx != null ? hist.ibov[idx] : null;
     });
+    const alignedSP500 = dates.map(d => {
+      const idx = dateIdxMap.get(d);
+      return idx != null ? hist.sp500[idx] : null;
+    });
 
     // Compute PM FX rates from cambio data (investor's average remittance cost)
     const lastFx = hist.fxHistory[dates[dates.length - 1]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
@@ -328,9 +332,18 @@ export async function GET(request: Request) {
 
     const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx });
 
-    // CDI and IBOV benchmarks
+    // CDI, IBOV, S&P 500 benchmarks
     const cdiPoints = buildCDIBenchmark(dates);
     const ibovPoints = buildPriceBenchmark("IBOV", dates, alignedIbov);
+    const sp500UsdPoints = buildPriceBenchmark("SP500", dates, alignedSP500);
+
+    // S&P 500 in BRL: multiply USD price by USDBRL at each date
+    const sp500BrlPrices = alignedSP500.map((p, i) => {
+      if (p == null) return null;
+      const fx = alignedFx[dates[i]]?.USDBRL ?? 5.7;
+      return p * fx;
+    });
+    const sp500BrlPoints = buildPriceBenchmark("SP500BRL", dates, sp500BrlPrices);
 
     const benchStart = twr.primeiraData || dates[0];
     function normalizeBenchmark(bench: TwrDayPoint[], from: string): TwrDayPoint[] {
@@ -342,9 +355,12 @@ export async function GET(request: Request) {
 
     const cdiNorm = normalizeBenchmark(cdiPoints, benchStart);
     const ibovNorm = normalizeBenchmark(ibovPoints, benchStart);
+    const sp500BrlNorm = normalizeBenchmark(sp500BrlPoints, benchStart);
+    const sp500UsdNorm = normalizeBenchmark(sp500UsdPoints, benchStart);
 
     const cdiTotal = cdiNorm.length > 0 ? cdiNorm[cdiNorm.length - 1].twr : 0;
     const ibovTotal = ibovNorm.length > 0 ? ibovNorm[ibovNorm.length - 1].twr : 0;
+    const sp500BrlTotal = sp500BrlNorm.length > 0 ? sp500BrlNorm[sp500BrlNorm.length - 1].twr : 0;
 
     // ── Advanced metrics ──────────────────────────────────────────────────────
     // Drawdown series — start from first day with NAV > 0
@@ -424,6 +440,130 @@ export async function GET(request: Request) {
         return_pct: startFactor > 0 ? ((endFactor / startFactor) - 1) * 100 : 0,
       }));
 
+    // ── USD view: convert NAV/flows by USDBRL, recompute TWR/MWR ──────────────
+    const usdView = (() => {
+      if (meaningfulPoints.length < 2) return null;
+      const pts = meaningfulPoints.map(p => {
+        const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
+        return { date: p.date, nav: p.nav / fx, flow: p.flow / fx };
+      });
+
+      // Compute TWR from USD NAV series
+      let cumTwr = 1.0;
+      const usdTwrPoints: Array<{ date: string; nav: number; twr: number; ret: number }> = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (i === 0) {
+          usdTwrPoints.push({ date: pts[i].date, nav: pts[i].nav, twr: 0, ret: 0 });
+          continue;
+        }
+        const prevNav = pts[i - 1].nav;
+        const flow = pts[i].flow;
+        const navBefore = prevNav + flow;
+        const ret = navBefore > 0 ? (pts[i].nav - navBefore) / navBefore : 0;
+        cumTwr *= (1 + ret);
+        usdTwrPoints.push({ date: pts[i].date, nav: pts[i].nav, twr: cumTwr - 1, ret });
+      }
+      const twrTotalUsd = usdTwrPoints.length > 0 ? usdTwrPoints[usdTwrPoints.length - 1].twr : 0;
+      const daysUsd = usdTwrPoints.length;
+      const yearsUsd = daysUsd / 252;
+      const twrAnualizadoUsd = yearsUsd > 0.01 ? Math.pow(1 + twrTotalUsd, 1 / yearsUsd) - 1 : twrTotalUsd;
+
+      // MWR in USD
+      const cfUsd: Array<{ date: string; amount: number }> = [];
+      for (const p of pts) {
+        if (Math.abs(p.flow) > 0.5) cfUsd.push({ date: p.date, amount: -p.flow });
+      }
+      if (pts.length > 0) cfUsd.push({ date: pts[pts.length - 1].date, amount: pts[pts.length - 1].nav });
+      cfUsd.sort((a, b) => a.date.localeCompare(b.date));
+      const mwrUsd = calcularMWR(cfUsd);
+
+      // USD risk metrics
+      const usdDailyReturns = usdTwrPoints.filter(p => isFinite(p.ret)).map(p => p.ret);
+      const usdRisk = calcularMetricasRisco(usdDailyReturns);
+
+      // USD drawdown
+      let peak = 0;
+      let maxDd = 0;
+      for (const p of usdTwrPoints) {
+        const f = 1 + p.twr;
+        if (f > peak) peak = f;
+        const dd = peak > 0 ? (f / peak) - 1 : 0;
+        if (dd < maxDd) maxDd = dd;
+      }
+
+      // USD benchmarks: S&P 500 (raw USD), CDI in USD, IBOV in USD
+      function convertBenchToUsd(bench: TwrDayPoint[]): TwrDayPoint[] {
+        if (bench.length === 0) return bench;
+        const firstFx = alignedFx[bench[0].date]?.USDBRL ?? 5.7;
+        return bench.map(p => {
+          const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
+          const brlReturn = p.twr;
+          const fxChange = fx / firstFx - 1;
+          const usdReturn = (1 + brlReturn) / (1 + fxChange) - 1;
+          return { ...p, twr: usdReturn };
+        });
+      }
+
+      const cdiUsd = convertBenchToUsd(cdiNorm);
+      const ibovUsd = convertBenchToUsd(ibovNorm);
+
+      const sp500Total = sp500UsdNorm.length > 0 ? sp500UsdNorm[sp500UsdNorm.length - 1].twr : 0;
+      const cdiUsdTotal = cdiUsd.length > 0 ? cdiUsd[cdiUsd.length - 1].twr : 0;
+      const ibovUsdTotal = ibovUsd.length > 0 ? ibovUsd[ibovUsd.length - 1].twr : 0;
+
+      // Build chart with merged benchmarks
+      const sp500Map = new Map(sp500UsdNorm.map(p => [p.date, p.twr]));
+      const cdiUsdMap = new Map(cdiUsd.map(p => [p.date, p.twr]));
+      const ibovUsdMap = new Map(ibovUsd.map(p => [p.date, p.twr]));
+
+      const chart = usdTwrPoints.map(p => ({
+        date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
+        sp500_twr: sp500Map.get(p.date) ?? null,
+        cdi_twr: cdiUsdMap.get(p.date) ?? null,
+        ibov_twr: ibovUsdMap.get(p.date) ?? null,
+      }));
+
+      // Monthly returns in USD
+      const usdMonthlyMap: Record<string, { sf: number; ef: number; sd: string }> = {};
+      for (const p of usdTwrPoints) {
+        const m = p.date.slice(0, 7);
+        const f = 1 + p.twr;
+        if (!usdMonthlyMap[m]) usdMonthlyMap[m] = { sf: f, ef: f, sd: p.date };
+        else { if (p.date < usdMonthlyMap[m].sd) { usdMonthlyMap[m].sf = f; usdMonthlyMap[m].sd = p.date; } usdMonthlyMap[m].ef = f; }
+      }
+      const usdMonthly = Object.entries(usdMonthlyMap).sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, { sf, ef }]) => ({ month, return_pct: sf > 0 ? ((ef / sf) - 1) * 100 : 0 }));
+
+      return {
+        summary: {
+          twrTotal: twrTotalUsd,
+          twrAnualizado: twrAnualizadoUsd,
+          mwr: mwrUsd,
+          navFinal: pts[pts.length - 1].nav,
+          navInicial: pts[0].nav,
+          totalInvestido: pts.reduce((s, p) => s + Math.max(0, p.flow), 0),
+          duracaoAnos: twr.duracaoAnos,
+          primeiraData: twr.primeiraData,
+          ultimaData: twr.ultimaData,
+          vsSP500: twrTotalUsd - sp500Total,
+          vsCDI: twrTotalUsd - cdiUsdTotal,
+          vsIBOV: twrTotalUsd - ibovUsdTotal,
+          sp500Total,
+          cdiTotal: cdiUsdTotal,
+          ibovTotal: ibovUsdTotal,
+          maxDrawdown: maxDd * 100,
+          volatility: usdRisk.volatility,
+          sharpe: usdRisk.sharpe,
+          sortino: usdRisk.sortino,
+          var95: usdRisk.var95,
+          var99: usdRisk.var99,
+          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow),
+        },
+        chart: thinSeries(chart as any),
+        monthlyReturns: usdMonthly,
+      };
+    })();
+
     return NextResponse.json({
       summary: {
         twrTotal: twr.twrTotal,
@@ -437,8 +577,10 @@ export async function GET(request: Request) {
         ultimaData: twr.ultimaData,
         vsCDI: twr.twrTotal - cdiTotal,
         vsIBOV: twr.twrTotal - ibovTotal,
+        vsSP500BRL: twr.twrTotal - sp500BrlTotal,
         cdiTotal,
         ibovTotal,
+        sp500BrlTotal,
         maxDrawdown,
         volatility: riskMetrics.volatility,
         sharpe: riskMetrics.sharpe,
@@ -454,6 +596,7 @@ export async function GET(request: Request) {
       chart: (() => {
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
+        const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
         const baseFx = cambioMetrics.pmDolar && cambioMetrics.pmDolar > 0
           ? cambioMetrics.pmDolar
           : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
@@ -465,6 +608,7 @@ export async function GET(request: Request) {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
             cdi_twr: cdiMap.get(p.date) ?? null,
             ibov_twr: ibovMap.get(p.date) ?? null,
+            sp500_twr: sp500Map.get(p.date) ?? null,
             fx_twr,
             ativo_twr,
           };
@@ -474,7 +618,9 @@ export async function GET(request: Request) {
       benchmarks: {
         cdi: thinSeries(cdiNorm),
         ibov: thinSeries(ibovNorm),
+        sp500brl: thinSeries(sp500BrlNorm),
       },
+      usdView,
       drawdown: thinSeries(drawdownSeries.map((d, i) => ({
         date: d.date,
         nav: d.nav,
