@@ -156,7 +156,8 @@ export function calcularCarteiraFIFO(
     const pos = portfolio.get(ticker)!;
 
     const isCrypto = setor === "Cripto";
-    const lotFx = isCrypto && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
+    const isUsdAsset = moeda === "USD";
+    const lotFx = isUsdAsset && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
 
     if (tipo === "Compra") {
       const custoTotal = quantidade * preco + taxas;
@@ -240,10 +241,10 @@ export function enriquecerPosicoes(
       valorAtualBRL = custoTotal * fatorAtual;
     }
 
-    // For crypto: use per-lot PTAX/USDBRL rates at purchase date
-    // (bitcoin isn't dollars, it's just bought with dollars — cost = BRL spent that day)
+    // For USD assets: use per-lot PTAX rate at purchase date for accurate BRL cost
     const isCrypto = setor === "Cripto";
-    const hasPerLotFx = isCrypto && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
+    const isUsdAsset = moeda === "USD";
+    const hasPerLotFx = isUsdAsset && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
     const custoTotalBRL = hasPerLotFx
       ? pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0)
       : custoTotal * fatorCusto;
@@ -257,6 +258,15 @@ export function enriquecerPosicoes(
     if (isCrypto && precoAtual !== null) {
       ganhoAtivoBRL = lucroBRL;
       ganhoCambioBRL = 0;
+    } else if (precoAtual !== null && moeda !== "BRL" && hasPerLotFx) {
+      // USD asset with per-lot FX: decompose into asset gain vs FX gain using per-lot rates
+      const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
+      const custoNativeBRL = pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0);
+      const valorNativeBRL = (precoAtual * qtdTotal) * fatorQuote;
+      const custoNativeUSD = custoTotal;
+      const valorNativeUSD = precoAtual * qtdTotal;
+      ganhoAtivoBRL = (valorNativeUSD - custoNativeUSD) * fatorAtual;
+      ganhoCambioBRL = valorNativeBRL - custoNativeBRL - ganhoAtivoBRL;
     } else if (precoAtual !== null && moeda !== "BRL") {
       const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
       ganhoAtivoBRL = (precoAtual - custoMedio) * qtdTotal * fatorQuote;
