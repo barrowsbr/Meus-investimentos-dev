@@ -329,6 +329,39 @@ export function parsePtax(ptaxRows: Row[]): PtaxRates | null {
   return { USDBRL: latestUSD, EURBRL: latestEUR || latestUSD * 1.08, data: latestDate };
 }
 
+export function buildFxDateMap(ptaxRows: Row[], cambioOps: CambioOp[]): Map<string, number> {
+  const map = new Map<string, number>();
+
+  for (const row of ptaxRows) {
+    const data = String(fuzzyGet(row, "data", "date", "data cotação", "data cotacao") ?? "");
+    const moeda = String(fuzzyGet(row, "moeda", "currency", "par") ?? "USD").toUpperCase();
+    const venda = toNumber(fuzzyGet(row, "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
+    if (!data || venda === 0) continue;
+    if (moeda.includes("EUR")) continue;
+    const dateISO = normalizeDate(data);
+    if (dateISO) map.set(dateISO, venda);
+  }
+
+  for (const op of cambioOps) {
+    if (op.taxa <= 0) continue;
+    if (op.moedaOrigem === "BRL" && (op.moedaDestino === "USD" || op.moedaDestino === "")) {
+      const dateISO = normalizeDate(op.data);
+      if (dateISO && !map.has(dateISO)) map.set(dateISO, op.taxa);
+    }
+  }
+
+  return new Map([...map.entries()].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function normalizeDate(s: string): string {
+  if (!s) return "";
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) return `${brMatch[3]}-${brMatch[2].padStart(2, "0")}-${brMatch[1].padStart(2, "0")}`;
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return isoMatch[0];
+  return "";
+}
+
 export function parseLbHistoric(rows: Row[]): { data: string; patrimonio: number; rv: number; rf: number }[] {
   const result: { data: string; patrimonio: number; rv: number; rf: number }[] = [];
 

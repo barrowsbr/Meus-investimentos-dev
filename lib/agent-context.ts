@@ -2,7 +2,7 @@ import { fetchTab } from "./gsheets";
 import { fetchCotacoes, yahooTicker } from "./cotacoes";
 import { calcularSnapshot, type Position, type PortfolioSnapshot } from "./portfolio";
 import { calcularRF, type RFSummary } from "./fixed-income-engine";
-import { calcularCambioMetrics, buildPmFxRates } from "./cambio";
+import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "./cambio";
 import { toNumber } from "./format";
 import { isRendaFixa } from "./sectors";
 
@@ -275,12 +275,13 @@ function buildMarketSnapshot(
 }
 
 export async function buildAgentContext(): Promise<string> {
-  const [transacoes, fixaAberta, rendaFixaHist, proventos, cambioRows] = await Promise.all([
+  const [transacoes, fixaAberta, rendaFixaHist, proventos, cambioRows, ptaxRows] = await Promise.all([
     fetchTab("meus_ativos").catch(() => []),
     fetchTab("fixa_aberta").catch(() => []),
     fetchTab("renda_fixa").catch(() => []),
     fetchTab("meus_proventos").catch(() => []),
     fetchTab("cambio").catch(() => []),
+    fetchTab("p_tax").catch(() => []),
   ]);
 
   const portfolioCtx = buildPortfolioContext(transacoes, fixaAberta, rendaFixaHist, proventos);
@@ -310,7 +311,8 @@ export async function buildAgentContext(): Promise<string> {
     const fxAtual = cotacoes.fx;
     const cambio = calcularCambioMetrics(cambioRows, fxAtual);
     const fxCusto = buildPmFxRates(cambio);
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
     const rfSummary = calcularRF(rendaFixaHist, fixaAberta);
     marketCtx = buildMarketSnapshot(snapshot, rfSummary);
   } catch (e) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
-import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric } from "@/lib/cambio";
+import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -44,7 +44,8 @@ export async function GET() {
     const ptax = parsePtax(ptaxRows);
     const lbHistoric = parseLbHistoric(lbRows);
 
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
 
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
-import { calcularCambioMetrics, buildPmFxRates, parsePtax } from "@/lib/cambio";
+import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
@@ -113,7 +113,8 @@ export async function GET() {
     const fxCusto = buildPmFxRates(cambio);
     const ptax = parsePtax(ptaxRows);
 
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
     const positions = snapshot.positions;
 
     // ── 3. Top / Bottom performers (native currency return) ──────────────────
@@ -228,7 +229,7 @@ export async function GET() {
 
     // ── 8. Rentabilidade por ativo (all positions: active, sold, RF) ─────────
     const proventosPorTicker = snapshot.proventosPorTicker;
-    const rawPortfolio = calcularCarteiraFIFO(transacoes);
+    const rawPortfolio = calcularCarteiraFIFO(transacoes, fxByDate);
     const activeTickerSet = new Set(positions.map(p => p.ticker));
 
     // RF cost basis from renda_fixa transactions
