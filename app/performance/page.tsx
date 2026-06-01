@@ -414,9 +414,9 @@ export default function PerformancePage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {[
           { label: "Volatilidade", value: `${(s.volatility * 100).toFixed(1)}%`,
-            badge: <RatingBadge value={s.volatility * 100} thresholds={[30, 20, 10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} /> },
+            badge: <RatingBadge value={-(s.volatility * 100)} thresholds={[-30, -20, -10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} /> },
           { label: "Max Drawdown", value: `${s.maxDrawdown.toFixed(1)}%`,
-            badge: <RatingBadge value={-s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} /> },
+            badge: <RatingBadge value={s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} /> },
           { label: "Sharpe Ratio", value: s.sharpe.toFixed(2),
             badge: <RatingBadge value={s.sharpe} thresholds={[0, 0.5, 1]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} /> },
           { label: "Sortino Ratio", value: s.sortino.toFixed(2),

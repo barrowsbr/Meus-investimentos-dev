@@ -25,7 +25,7 @@ const UNITS_ACOES = new Set([
 
 export function identificarSetor(ticker: string): string {
   const t = ticker.toUpperCase().trim();
-  const tClean = t.replace(".SA", "").replace(".L", "");
+  const tClean = t.replace(/\.(SA|L|DE|TO|AS)$/i, "");
 
   if (CRIPTO.has(tClean)) return "Cripto";
   if ((tClean.startsWith("BTC") || tClean.startsWith("ETH")) && tClean.length < 8) return "Cripto";
@@ -42,11 +42,11 @@ export function identificarSetor(ticker: string): string {
 
   const lastChar = tClean[tClean.length - 1];
   if (lastChar >= "0" && lastChar <= "9") {
-    if (/[3456]$/.test(tClean)) return "Ações Brasil";
     if (tClean.endsWith("11")) {
       return UNITS_ACOES.has(tClean) ? "Ações Brasil" : "FIIs";
     }
-    if (/3[234]$/.test(tClean)) return "BDRs";
+    if (/3[2-5]$/.test(tClean)) return "BDRs";
+    if (/[3456]$/.test(tClean)) return "Ações Brasil";
   }
 
   return "Ações Internacional";
