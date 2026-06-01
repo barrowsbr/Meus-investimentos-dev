@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine,
+  CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers } from "lucide-react";
+import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
@@ -31,6 +31,7 @@ const FX_COLORS: Record<string, string> = {
 export default function CambioPage() {
   const { data: portfolio, loading: portLoading } = usePortfolio();
   const { data: rawData, loading: sheetLoading, error } = useSheetData("cambio");
+  const [stressCustom, setStressCustom] = useState<number>(0);
 
   const loading = portLoading || sheetLoading;
 
@@ -372,6 +373,119 @@ export default function CambioPage() {
               </ResponsiveContainer>
             </div>
           )}
+
+          {/* ── Stress Test ── */}
+          {(() => {
+            const totalForeignBRL = cambio.totalValBRL;
+            const custoBRL = cambio.totalCustoBRL;
+            const scenarios = [
+              { label: "-20%", pct: -20 },
+              { label: "-10%", pct: -10 },
+              { label: "-5%", pct: -5 },
+              { label: "Atual", pct: 0 },
+              { label: "+5%", pct: 5 },
+              { label: "+10%", pct: 10 },
+              { label: "+20%", pct: 20 },
+              ...(stressCustom !== 0 ? [{ label: `${stressCustom > 0 ? "+" : ""}${stressCustom}%`, pct: stressCustom }] : []),
+            ].sort((a, b) => a.pct - b.pct);
+
+            const stressData = scenarios.map(s => {
+              const newVal = totalForeignBRL * (1 + s.pct / 100);
+              const impactBRL = newVal - totalForeignBRL;
+              const newUSD = spot * (1 + s.pct / 100);
+              return {
+                label: s.label,
+                pct: s.pct,
+                newVal,
+                impactBRL,
+                impactPct: totalForeignBRL > 0 ? (impactBRL / totalForeignBRL) * 100 : 0,
+                newUSD,
+                ganhoPct: custoBRL > 0 ? ((newVal - custoBRL) / custoBRL) * 100 : 0,
+              };
+            });
+
+            return (
+              <div className="glass-card p-5 mb-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="section-title"><Zap size={15} />Teste de Estresse Cambial</h2>
+                  <span className="text-[10px] text-zinc-600">
+                    Base: {compactBRL(totalForeignBRL)} em moeda estrangeira
+                  </span>
+                </div>
+                <p className="text-[10px] text-zinc-600 mb-4">
+                  Impacto de variações cambiais sobre <strong className="text-zinc-400">todo o patrimônio em moeda estrangeira</strong> (não só remessas).
+                </p>
+
+                <div className="mb-5">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={stressData} barCategoryGap="18%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                        tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip contentStyle={{
+                        background: "#18181b", border: "1px solid #27272a",
+                        borderRadius: 12, color: "#fafafa", fontSize: 12,
+                      }}
+                        formatter={(v: number, name: string) => [
+                          name === "impactBRL" ? brl(v) : `${v.toFixed(2)}%`,
+                          name === "impactBRL" ? "Impacto BRL" : "Ganho vs Custo",
+                        ]}
+                        labelFormatter={l => `Cenário: ${l}`} />
+                      <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+                      <Bar dataKey="impactBRL" radius={[4, 4, 0, 0]} maxBarSize={32}>
+                        {stressData.map((entry, i) => (
+                          <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.impactBRL >= 0 ? "#34d399" : "#f87171"} fillOpacity={entry.pct === 0 ? 0.9 : 0.75} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        {["Cenário", "USD/BRL", "Patrimônio", "Impacto", "vs Custo"].map(h => (
+                          <th key={h} className="px-3 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider text-right first:text-left">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stressData.map((s, i) => (
+                        <tr key={i} className={`border-b border-zinc-900 ${s.pct === 0 ? "bg-indigo-500/5" : "hover:bg-white/[0.02]"}`}>
+                          <td className={`px-3 py-2 font-semibold ${s.pct === 0 ? "text-indigo-400" : "text-zinc-400"}`}>{s.label}</td>
+                          <td className="px-3 py-2 text-right text-zinc-300 font-mono">R$ {s.newUSD.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-zinc-200 font-mono">{compactBRL(s.newVal)}</td>
+                          <td className={`px-3 py-2 text-right font-mono font-semibold ${s.impactBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {s.pct === 0 ? "—" : `${s.impactBRL >= 0 ? "+" : ""}${compactBRL(s.impactBRL)}`}
+                          </td>
+                          <td className={`px-3 py-2 text-right font-mono ${s.ganhoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {s.ganhoPct >= 0 ? "+" : ""}{s.ganhoPct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-zinc-500">Cenário customizado:</span>
+                  <input
+                    type="range"
+                    min={-50} max={50} step={5}
+                    value={stressCustom}
+                    onChange={e => setStressCustom(Number(e.target.value))}
+                    className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
+                    style={{ background: `linear-gradient(to right, #f87171, #3f3f46 50%, #34d399)` }}
+                  />
+                  <span className={`text-xs font-bold w-12 text-right ${stressCustom >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {stressCustom > 0 ? "+" : ""}{stressCustom}%
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Summary ── */}
           <div className="glass-card p-5 mb-6 animate-fade-in">
