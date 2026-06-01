@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
-import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, parseRVTransactions, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
@@ -194,31 +194,6 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
   return { volatility, sharpe, sortino, var95: var95 * 100, var99: var99 * 100 };
 }
 
-// ── FX decomposition: R_total = (1 + R_ativo)(1 + R_fx) - 1 ─────────────────
-
-function calcularDecomposicaoFX(
-  points: TwrDayPoint[],
-  fxHistory: Record<string, { USDBRL: number }>,
-  pmDolar?: number,
-): {
-  r_total: number;
-  r_ativo: number;
-  r_fx: number;
-  r_combinado: number;
-} {
-  if (points.length < 2) return { r_total: 0, r_ativo: 0, r_fx: 0, r_combinado: 0 };
-  const r_total = points[points.length - 1].twr;
-  const baseFx = pmDolar && pmDolar > 0 ? pmDolar : fxHistory[points[0].date]?.USDBRL;
-  const lastFx = fxHistory[points[points.length - 1].date]?.USDBRL;
-  if (!baseFx || !lastFx || baseFx <= 0) {
-    return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
-  }
-  const r_fx = (lastFx / baseFx) - 1;
-  const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
-  const r_combinado = (1 + r_ativo) * (1 + r_fx) - 1;
-  return { r_total, r_ativo, r_fx, r_combinado };
-}
-
 // ── Flow ledger ───────────────────────────────────────────────────────────────
 
 interface FlowEntry {
@@ -235,7 +210,7 @@ function buildFlowLedger(points: TwrDayPoint[], maxEntries = 50): FlowEntry[] {
     .filter((p, i) => i > 0 && Math.abs(p.flow) > 100)
     .slice(-maxEntries);
 
-  return significantFlows.map((p, i) => {
+  return significantFlows.map((p) => {
     const prevIdx = points.findIndex(pp => pp.date === p.date) - 1;
     const prev = prevIdx >= 0 ? points[prevIdx] : null;
     return {
@@ -388,21 +363,18 @@ export async function GET(request: Request) {
     // MWR/IRR — use engine-calculated value (includes initial NAV, correct thresholds)
     const mwr = twr.mwr ?? 0;
 
-    // FX decomposition — use FX rate at first USD transaction, not PM dólar
-    let firstUsdTxDate: string | null = null;
-    for (const row of transacoes) {
-      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
-      if (moeda !== "USD") continue;
-      const rawDate = String(row["data"] ?? row["Data"] ?? "");
-      let isoDate = rawDate;
-      if (rawDate.includes("/")) {
-        const parts = rawDate.split("/");
-        isoDate = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}` : rawDate;
-      }
-      if (isoDate && (!firstUsdTxDate || isoDate < firstUsdTxDate)) firstUsdTxDate = isoDate;
-    }
-    const fxDecompBase = firstUsdTxDate ? alignedFx[firstUsdTxDate]?.USDBRL : cambioMetrics.pmDolar;
-    const fxDecomp = calcularDecomposicaoFX(meaningfulPoints, alignedFx, fxDecompBase);
+    // FX decomposition (summary box) — uses PM dólar as base FX rate
+    const fxDecomp = (() => {
+      const baseFx = cambioMetrics.pmDolar > 0
+        ? cambioMetrics.pmDolar
+        : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+      const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
+      const curFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
+      const r_total = lastPt ? lastPt.twr : 0;
+      const r_fx = baseFx && curFx ? curFx / baseFx - 1 : 0;
+      const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
+      return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
+    })();
 
     // Attribution
     const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
@@ -600,25 +572,20 @@ export async function GET(request: Request) {
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
 
-        // Find the first USD transaction date to only show FX decomposition from that point
-        let firstUsdDate: string | null = null;
-        for (const row of transacoes) {
-          const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
-          if (moeda !== "USD") continue;
-          const rawDate = String(row["data"] ?? row["Data"] ?? "");
-          let isoDate = rawDate;
-          if (rawDate.includes("/")) {
-            const parts = rawDate.split("/");
-            isoDate = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}` : rawDate;
-          }
-          if (isoDate && (!firstUsdDate || isoDate < firstUsdDate)) firstUsdDate = isoDate;
-        }
+        // PM dólar-based FX decomposition: fx_twr = spotFx / pmDolar - 1
+        // Only show from the first USD transaction date to avoid false early divergence
+        const baseFx = cambioMetrics.pmDolar > 0
+          ? cambioMetrics.pmDolar
+          : alignedFx[meaningfulPoints[0]?.date]?.USDBRL;
+
+        // Find first USD transaction date
+        const parsedTxs = parseRVTransactions(transacoes);
+        const firstUsdDate = parsedTxs.find(tx => tx.moeda === "USD")?.date ?? null;
 
         const merged = meaningfulPoints.map(p => {
-          const beforeUsd = firstUsdDate && p.date < firstUsdDate;
           const curFx = alignedFx[p.date]?.USDBRL;
-          const fxBaseFx = firstUsdDate ? alignedFx[firstUsdDate]?.USDBRL : null;
-          const fx_twr = !beforeUsd && fxBaseFx && curFx ? curFx / fxBaseFx - 1 : null;
+          const showFx = firstUsdDate && p.date >= firstUsdDate && baseFx && curFx;
+          const fx_twr = showFx ? curFx / baseFx - 1 : null;
           const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
