@@ -19,10 +19,10 @@ function startDateFromLookback(days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-function thinSeries(points: TwrDayPoint[], maxPts = 400): TwrDayPoint[] {
+function thinSeries<T>(points: T[], maxPts = 400): T[] {
   if (points.length <= maxPts) return points;
   const step = Math.ceil(points.length / maxPts);
-  const out: TwrDayPoint[] = [];
+  const out: T[] = [];
   for (let i = 0; i < points.length; i += step) out.push(points[i]);
   if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1]);
   return out;
@@ -206,22 +206,19 @@ interface FlowEntry {
 }
 
 function buildFlowLedger(points: TwrDayPoint[], maxEntries = 50): FlowEntry[] {
-  const significantFlows = points
-    .filter((p, i) => i > 0 && Math.abs(p.flow) > 100)
+  const indexed = points
+    .map((p, i) => ({ p, i }))
+    .filter(({ p, i }) => i > 0 && Math.abs(p.flow) > 100)
     .slice(-maxEntries);
 
-  return significantFlows.map((p) => {
-    const prevIdx = points.findIndex(pp => pp.date === p.date) - 1;
-    const prev = prevIdx >= 0 ? points[prevIdx] : null;
-    return {
-      date: p.date,
-      flow: p.flow,
-      nav: p.nav,
-      nav_before: prev?.nav ?? 0,
-      daily_return: p.ret * 100,
-      cumulative_twr: p.twr * 100,
-    };
-  });
+  return indexed.map(({ p, i }) => ({
+    date: p.date,
+    flow: p.flow,
+    nav: p.nav,
+    nav_before: points[i - 1]?.nav ?? 0,
+    daily_return: p.ret * 100,
+    cumulative_twr: p.twr * 100,
+  }));
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -349,7 +346,7 @@ export async function GET(request: Request) {
     const riskMetrics = calcularMetricasRisco(dailyReturns);
     const drawdownSeries = calcularDrawdown(meaningfulPoints);
     const maxDrawdown = drawdownSeries.length > 0
-      ? Math.min(...drawdownSeries.map(d => d.drawdown))
+      ? drawdownSeries.reduce((min, d) => d.drawdown < min ? d.drawdown : min, 0)
       : 0;
 
     // Rolling returns
@@ -393,18 +390,14 @@ export async function GET(request: Request) {
       if (p.twr < troughTwr) { troughTwr = p.twr; troughDate = p.date; }
     }
 
-    // Monthly returns
-    const monthlyMap: Record<string, { startFactor: number; endFactor: number; startDate: string }> = {};
+    // Monthly returns (points are already sorted by date)
+    const monthlyMap: Record<string, { startFactor: number; endFactor: number }> = {};
     for (const p of meaningfulPoints) {
       const month = p.date.slice(0, 7);
       const factor = 1 + p.twr;
       if (!monthlyMap[month]) {
-        monthlyMap[month] = { startFactor: factor, endFactor: factor, startDate: p.date };
+        monthlyMap[month] = { startFactor: factor, endFactor: factor };
       } else {
-        if (p.date < monthlyMap[month].startDate) {
-          monthlyMap[month].startFactor = factor;
-          monthlyMap[month].startDate = p.date;
-        }
         monthlyMap[month].endFactor = factor;
       }
     }
@@ -439,12 +432,15 @@ export async function GET(request: Request) {
         usdTwrPoints.push({ date: pts[i].date, nav: pts[i].nav, twr: cumTwr - 1, ret });
       }
       const twrTotalUsd = usdTwrPoints.length > 0 ? usdTwrPoints[usdTwrPoints.length - 1].twr : 0;
-      const daysUsd = usdTwrPoints.length;
-      const yearsUsd = daysUsd / 252;
-      const twrAnualizadoUsd = yearsUsd > 0.01 ? Math.pow(1 + twrTotalUsd, 1 / yearsUsd) - 1 : twrTotalUsd;
+      const startDUsd = new Date(pts[0].date + "T12:00:00Z");
+      const endDUsd = new Date(pts[pts.length - 1].date + "T12:00:00Z");
+      const calDaysUsd = Math.round((endDUsd.getTime() - startDUsd.getTime()) / (1000 * 60 * 60 * 24));
+      const twrAnualizadoUsd = calDaysUsd > 20 && (1 + twrTotalUsd) > 0
+        ? Math.pow(1 + twrTotalUsd, 365 / calDaysUsd) - 1 : twrTotalUsd;
 
-      // MWR in USD
+      // MWR in USD — include initial NAV as outflow at t=0
       const cfUsd: Array<{ date: string; amount: number }> = [];
+      if (pts[0].nav > 0) cfUsd.push({ date: pts[0].date, amount: -pts[0].nav });
       for (const p of pts) {
         if (Math.abs(p.flow) > 0.5) cfUsd.push({ date: p.date, amount: -p.flow });
       }
@@ -452,8 +448,8 @@ export async function GET(request: Request) {
       cfUsd.sort((a, b) => a.date.localeCompare(b.date));
       const mwrUsd = calcularMWR(cfUsd);
 
-      // USD risk metrics
-      const usdDailyReturns = usdTwrPoints.filter(p => isFinite(p.ret)).map(p => p.ret);
+      // USD risk metrics (skip first point's zero-return)
+      const usdDailyReturns = usdTwrPoints.slice(1).filter(p => isFinite(p.ret)).map(p => p.ret);
       const usdRisk = calcularMetricasRisco(usdDailyReturns);
 
       // USD drawdown
@@ -534,7 +530,7 @@ export async function GET(request: Request) {
           var99: usdRisk.var99,
           ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow),
         },
-        chart: thinSeries(chart as any),
+        chart: thinSeries(chart),
         monthlyReturns: usdMonthly,
       };
     })();
@@ -574,25 +570,19 @@ export async function GET(request: Request) {
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
 
         // PM dólar-based FX decomposition using RUNNING PM at each epoch.
-        // Before first remittance: fx_twr = null (no USD exposure yet).
-        // After: fx_twr = spotFx / PM(t) - 1, where PM(t) is the weighted
-        // average remittance cost up to date t.
+        // Advancing pointer: O(n + m) instead of O(n * m).
         const pmTimeline = runningPm;
         const firstPmDate = pmTimeline.length > 0 ? pmTimeline[0].date : null;
-
-        function getPmAtDate(date: string): number | null {
-          if (pmTimeline.length === 0) return null;
-          let pm: number | null = null;
-          for (const entry of pmTimeline) {
-            if (entry.date <= date) pm = entry.pm;
-            else break;
-          }
-          return pm;
-        }
+        let pmIdx = 0;
+        let currentPm: number | null = null;
 
         const merged = meaningfulPoints.map(p => {
+          while (pmIdx < pmTimeline.length && pmTimeline[pmIdx].date <= p.date) {
+            currentPm = pmTimeline[pmIdx].pm;
+            pmIdx++;
+          }
           const curFx = alignedFx[p.date]?.USDBRL;
-          const pm = firstPmDate && p.date >= firstPmDate ? getPmAtDate(p.date) : null;
+          const pm = firstPmDate && p.date >= firstPmDate ? currentPm : null;
           const fx_twr = pm && curFx ? curFx / pm - 1 : null;
           const ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
           return {
@@ -604,7 +594,7 @@ export async function GET(request: Request) {
             ativo_twr,
           };
         });
-        return thinSeries(merged as any);
+        return thinSeries(merged);
       })(),
       benchmarks: {
         cdi: thinSeries(cdiNorm),
@@ -615,11 +605,11 @@ export async function GET(request: Request) {
       drawdown: thinSeries(drawdownSeries.map((d, i) => ({
         date: d.date,
         nav: d.nav,
-        flow: twr.points[i]?.flow ?? 0,
-        income: twr.points[i]?.income ?? 0,
-        ret: twr.points[i]?.ret ?? 0,
+        flow: meaningfulPoints[i]?.flow ?? 0,
+        income: meaningfulPoints[i]?.income ?? 0,
+        ret: meaningfulPoints[i]?.ret ?? 0,
         twr: d.drawdown / 100,
-        forceZero: twr.points[i]?.forceZero ?? false,
+        forceZero: meaningfulPoints[i]?.forceZero ?? false,
       }))),
       drawdownData: drawdownSeries.filter((_, i) => i % Math.max(1, Math.floor(drawdownSeries.length / 400)) === 0),
       rolling: rollingReturns.filter((_, i) => i % Math.max(1, Math.floor(rollingReturns.length / 400)) === 0),

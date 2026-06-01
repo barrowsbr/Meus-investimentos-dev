@@ -37,13 +37,15 @@ export function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return value;
   const s = String(value).trim();
+  let v: number;
   if (s.includes(",") && !s.includes(".")) {
-    return parseFloat(s.replace(",", ".")) || null;
+    v = parseFloat(s.replace(",", "."));
+  } else if (s.includes(",") && s.includes(".")) {
+    v = parseFloat(s.replace(/\./g, "").replace(",", "."));
+  } else {
+    v = parseFloat(s);
   }
-  if (s.includes(",") && s.includes(".")) {
-    return parseFloat(s.replace(/\./g, "").replace(",", ".")) || null;
-  }
-  return parseFloat(s) || null;
+  return isNaN(v) ? null : v;
 }
 
 export function formatDate(value: unknown): string {

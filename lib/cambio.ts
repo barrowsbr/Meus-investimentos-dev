@@ -229,7 +229,8 @@ export function calcularCambioMetrics(cambioRows: Row[], fxAtual: FxRates): Camb
   // ── Totals (matching Streamlit lines 2962-2965) ────────────────────────────
 
   const totalValBRL = valorUsdHoje + fx2.reduce((s, c) => s + c.valBRL, 0);
-  const totalCustoBRL = brlGastoUSD;
+  const brlDirectOther = Object.values(brlToOther).reduce((s, d) => s + d.brlGasto, 0);
+  const totalCustoBRL = brlGastoUSD + brlDirectOther;
   const ganhoTotal_BRL = totalValBRL - totalCustoBRL;
   const ganhoTotalPct = totalCustoBRL > 0 ? (ganhoTotal_BRL / totalCustoBRL) * 100 : 0;
   const numMoedas = 1 + fx2.length;
@@ -317,11 +318,13 @@ export function parsePtax(ptaxRows: Row[]): PtaxRates | null {
     const venda = toNumber(fuzzyGet(row, "venda", "ptax_venda", "cotacao", "cotação", "valor", "ptax")) ?? 0;
 
     if (!data || venda === 0) continue;
+    const dataISO = normalizeDate(data);
+    if (!dataISO) continue;
 
-    if (data >= latestDate) {
-      latestDate = data;
-      if (moeda.includes("USD") || !moeda.includes("EUR")) latestUSD = venda;
-      if (moeda.includes("EUR")) latestEUR = venda;
+    if (dataISO >= latestDate) {
+      latestDate = dataISO;
+      if (moeda.includes("USD")) latestUSD = venda;
+      else if (moeda.includes("EUR")) latestEUR = venda;
     }
   }
 

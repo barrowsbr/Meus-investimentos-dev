@@ -300,7 +300,7 @@ function calculateMWR(
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
 
 export function calcularTWR(input: TwrInput): TwrResult {
-  const { dates, prices, fxHistory, rfNavByDate, pmFx } = input;
+  const { dates, prices, fxHistory, rfNavByDate } = input;
 
   const EMPTY: TwrResult = {
     points: [], twrTotal: 0, twrAnualizado: 0,
@@ -345,7 +345,6 @@ export function calcularTWR(input: TwrInput): TwrResult {
   let prevNav = 0;
   let cumTwr = 1.0;
   let totalInvestido = 0;
-  let totalFlows = 0;
   const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
@@ -421,21 +420,19 @@ export function calcularTWR(input: TwrInput): TwrResult {
       }
     }
 
+    // ── MWR flow tracking (before any flow correction, so MWR sees real cashflows) ──
+    if (Math.abs(flow) > 0.01) {
+      mwrFlows.push({ date, amount: flow });
+    }
+
     // ── v9.0: Flow-NAV consistency correction ──
-    // On purchase days, if flow doesn't match NAV delta (>10% tolerance),
-    // adjust flow to match. Prevents artificial returns from price mismatches.
-    if (flow > 0 && prevNav > 0) {
+    // Only trigger when the inflow IS the portfolio (>50% of prior NAV),
+    // e.g., initial purchase or near-total reinvestment.
+    if (flow > 0 && prevNav > 0 && flow / prevNav > 0.5) {
       const navDelta = nav - prevNav;
       if (Math.abs(navDelta - flow) > Math.abs(flow) * 0.10) {
         flow = navDelta;
       }
-    }
-
-    totalFlows += flow;
-
-    // ── MWR flow tracking ──
-    if (Math.abs(flow) > 0.01) {
-      mwrFlows.push({ date, amount: flow });
     }
 
     // ── Flow timing & force_zero logic (from Streamlit engine) ──
@@ -509,10 +506,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ? Math.pow(1 + twrTotal, 365 / calendarDays) - 1
     : twrTotal;
 
-  // Python formula: total_pnl = nav_final - nav_inicial - total_flow + first_flow
-  // This avoids double-counting the initial capital (nav_inicial ≈ first_flow)
+  // total_pnl = nav_final - nav_inicial - sum(flows from firstIdx onward) + first_flow
+  let flowsFromFirst = 0;
+  for (let i = firstIdx; i < points.length; i++) flowsFromFirst += points[i].flow;
   const firstMeaningfulFlow = points[firstIdx].flow;
-  const ganhoEconomico = last.nav - firstMeaningful.nav - totalFlows + firstMeaningfulFlow;
+  const ganhoEconomico = last.nav - firstMeaningful.nav - flowsFromFirst + firstMeaningfulFlow;
 
   const mwr = calculateMWR(
     mwrFlows, last.nav, last.date,
@@ -532,19 +530,6 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ganhoEconomico,
     mwr,
   };
-}
-
-// ─── Business days counter ───────────────────────────────────────────────────
-
-function businessDaysBetween(startStr: string, endStr: string): number {
-  let count = 0;
-  const cur = new Date(startStr + "T12:00:00Z");
-  const end = new Date(endStr + "T12:00:00Z");
-  while (cur <= end) {
-    if (cur.getDay() !== 0 && cur.getDay() !== 6) count++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return Math.max(count - 1, 0);
 }
 
 // ─── CDI benchmark (SELIC proxy with historical rates) ───────────────────────
