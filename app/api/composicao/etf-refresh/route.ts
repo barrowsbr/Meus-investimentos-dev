@@ -4,7 +4,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { isRendaVariavel } from "@/lib/sectors";
-import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
+import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -12,11 +12,12 @@ export const maxDuration = 60;
 export async function POST() {
   try {
     // ── 1. Fetch portfolio data (same pattern as composicao/resumo) ───────────
-    const [transacoes, proventos, fixaAberta, cambioRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos"),
       fetchTab("fixa_aberta"),
       fetchTab("cambio").catch(() => []),
+      fetchTab("p_tax").catch(() => []),
     ]);
 
     // ── 2. Build tickers and fetch cotacoes ──────────────────────────────────
@@ -44,7 +45,8 @@ export async function POST() {
     const cambio = calcularCambioMetrics(cambioRows, fxAtual);
     const fxCusto = buildPmFxRates(cambio);
 
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto);
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
 
     // ── 3. Map positions for computeLookThrough ──────────────────────────────
     const positions = snapshot.positions.map((p) => ({

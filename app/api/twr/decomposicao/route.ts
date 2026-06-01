@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
-import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
+import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
 import { isRendaVariavel } from "@/lib/sectors";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +10,12 @@ export const maxDuration = 30;
 
 export async function GET() {
   try {
-    const [transacoes, proventos, fixaAberta, cambioRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos"),
       fetchTab("fixa_aberta"),
       fetchTab("cambio").catch(() => []),
+      fetchTab("p_tax").catch(() => []),
     ]);
 
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();
@@ -40,8 +41,9 @@ export async function GET() {
     const cambio = calcularCambioMetrics(cambioRows, fxAtual);
     const fxCusto = buildPmFxRates(cambio);
 
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
     const snapshot = calcularSnapshot(
-      transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto
+      transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate
     );
 
     // Group RV positions by currency

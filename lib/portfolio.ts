@@ -6,6 +6,8 @@ import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaEfetiva, getMoe
 interface Lote {
   qty: number;
   pm: number;
+  date?: string;
+  fxBRL?: number;
 }
 
 interface PosicaoInterna {
@@ -110,7 +112,23 @@ function getData(row: Row): number {
   return new Date(s).getTime() || 0;
 }
 
-export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInterna> {
+function getDataISO(row: Row): string {
+  const val = getVal(row, "data", "date", "compra");
+  if (val === null) return "";
+  if (typeof val === "number") {
+    return new Date((val - 25569) * 86400 * 1000).toISOString().split("T")[0];
+  }
+  const s = String(val).trim();
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) return `${brMatch[3]}-${brMatch[2].padStart(2, "0")}-${brMatch[1].padStart(2, "0")}`;
+  const ts = new Date(s).getTime();
+  return ts ? new Date(ts).toISOString().split("T")[0] : "";
+}
+
+export function calcularCarteiraFIFO(
+  transacoes: Row[],
+  fxByDate?: Map<string, number>,
+): Map<string, PosicaoInterna> {
   const portfolio = new Map<string, PosicaoInterna>();
   const sorted = [...transacoes].sort((a, b) => getData(a) - getData(b));
 
@@ -130,16 +148,20 @@ export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInte
     const setor = identificarSetor(ticker);
     const moeda = getMoedaEfetiva(ticker, moedaRaw, setor);
     const corretora = getCorretora(row);
+    const dateISO = getDataISO(row);
 
     if (!portfolio.has(ticker)) {
       portfolio.set(ticker, { ticker, lotes: [], lucroRealizado: 0, custoVendido: 0, moeda, corretora });
     }
     const pos = portfolio.get(ticker)!;
 
+    const isCrypto = setor === "Cripto";
+    const lotFx = isCrypto && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
+
     if (tipo === "Compra") {
       const custoTotal = quantidade * preco + taxas;
       const pmLote = custoTotal / quantidade;
-      pos.lotes.push({ qty: quantidade, pm: pmLote });
+      pos.lotes.push({ qty: quantidade, pm: pmLote, date: dateISO || undefined, fxBRL: lotFx });
     } else if (tipo === "Venda") {
       let qtdVender = quantidade;
       let lucroOp = 0;
@@ -161,6 +183,18 @@ export function calcularCarteiraFIFO(transacoes: Row[]): Map<string, PosicaoInte
   }
 
   return portfolio;
+}
+
+function lookupFx(fxMap: Map<string, number>, date: string): number | undefined {
+  if (!date) return undefined;
+  const exact = fxMap.get(date);
+  if (exact) return exact;
+  let best: number | undefined;
+  for (const [d, rate] of fxMap) {
+    if (d <= date) best = rate;
+    else break;
+  }
+  return best;
 }
 
 export function enriquecerPosicoes(
@@ -206,7 +240,13 @@ export function enriquecerPosicoes(
       valorAtualBRL = custoTotal * fatorAtual;
     }
 
-    const custoTotalBRL = custoTotal * fatorCusto;
+    // For crypto: use per-lot PTAX/USDBRL rates at purchase date
+    // (bitcoin isn't dollars, it's just bought with dollars — cost = BRL spent that day)
+    const isCrypto = setor === "Cripto";
+    const hasPerLotFx = isCrypto && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
+    const custoTotalBRL = hasPerLotFx
+      ? pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0)
+      : custoTotal * fatorCusto;
     const lucroBRL = precoAtual !== null ? valorAtualBRL - custoTotalBRL : null;
     const lucroPct = lucroBRL !== null && custoTotalBRL > 0
       ? (lucroBRL / custoTotalBRL) * 100
@@ -214,7 +254,10 @@ export function enriquecerPosicoes(
 
     let ganhoAtivoBRL: number | null = null;
     let ganhoCambioBRL: number | null = null;
-    if (precoAtual !== null && moeda !== "BRL") {
+    if (isCrypto && precoAtual !== null) {
+      ganhoAtivoBRL = lucroBRL;
+      ganhoCambioBRL = 0;
+    } else if (precoAtual !== null && moeda !== "BRL") {
       const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
       ganhoAtivoBRL = (precoAtual - custoMedio) * qtdTotal * fatorQuote;
       ganhoCambioBRL = custoTotal * (fatorAtual - fatorCusto);
@@ -305,9 +348,10 @@ export function calcularSnapshot(
   fixaAberta: Row[],
   quotes: Record<string, Quote>,
   fxAtual: FxRates,
-  fxCusto: FxRates
+  fxCusto: FxRates,
+  fxByDate?: Map<string, number>,
 ): PortfolioSnapshot {
-  const portfolio = calcularCarteiraFIFO(transacoes);
+  const portfolio = calcularCarteiraFIFO(transacoes, fxByDate);
   const positions = enriquecerPosicoes(portfolio, quotes, fxAtual, fxCusto);
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);

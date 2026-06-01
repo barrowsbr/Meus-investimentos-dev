@@ -135,26 +135,27 @@ function formatTxDate(d: string): string {
 // ─── Candlestick renderer via Customized ───────────────────────────────────────
 
 function CandlestickSeries(props: any) {
-  const { xAxisMap, yAxisMap, formattedGraphicalItems } = props;
-  const xAxis = xAxisMap && (Object.values(xAxisMap)[0] as any);
+  const { yAxisMap, formattedGraphicalItems } = props;
   const yAxis = yAxisMap && (Object.values(yAxisMap)[0] as any);
-  if (!xAxis || !yAxis || !formattedGraphicalItems) return null;
+  if (!yAxis || !formattedGraphicalItems) return null;
 
   const yScale = yAxis.scale;
-  const xScale = xAxis.scale;
-  const bandWidth = xAxis.bandSize || xScale.bandwidth?.() || 6;
   const firstItem = formattedGraphicalItems[0];
   if (!firstItem) return null;
 
-  const data: CandleData[] = firstItem.props?.points?.map((pt: any) => pt.payload) ?? [];
-  if (data.length === 0) return null;
+  const points: any[] = firstItem.props?.points ?? [];
+  if (points.length === 0) return null;
 
-  const barWidth = Math.max(2, Math.min(10, bandWidth * 0.7));
+  const barWidth = Math.max(2, Math.min(10, points.length > 1
+    ? Math.abs(points[1].x - points[0].x) * 0.65
+    : 6));
 
   return (
     <g className="candlestick-series">
-      {data.map((d, i) => {
-        const x = xScale(i) + bandWidth / 2;
+      {points.map((pt: any, i: number) => {
+        const d: CandleData = pt.payload;
+        if (!d || d.open == null || d.close == null) return null;
+        const x = pt.x;
         if (isNaN(x)) return null;
         const isUp = d.close >= d.open;
         const color = isUp ? "#22c55e" : "#ef4444";
@@ -478,9 +479,9 @@ export default function CriptoativosPage() {
           glowColor="#f97316"
         />
         <MetricCard
-          label="Custo Total"
+          label="Custo Total (R$)"
           value={compactBRL(custoBRL)}
-          sub={`PM dolar aplicado`}
+          sub="BRL gasto na compra (PTAX)"
           icon={<DollarSign size={18} />}
           glowColor="#d97706"
         />
