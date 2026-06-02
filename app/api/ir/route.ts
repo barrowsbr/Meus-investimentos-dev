@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { toNumber } from "@/lib/format";
-import { apurarGanhos, type RawTx, type CorpEvent, type PtaxLookup } from "@/lib/tax/engine";
+import { processarVendas, type RawTx, type CorpEvent, type PtaxLookup } from "@/lib/tax/engine";
 import { apurar } from "@/lib/tax/apurador";
+import { regra } from "@/lib/tax/rules";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -27,7 +28,7 @@ function buildPtaxLookup(ptaxRows: Row[]): PtaxLookup {
     const data = parseDate(row["data"] ?? row["date"] ?? row["data cotação"] ?? row["data cotacao"]);
     const moeda = String(row["moeda"] ?? row["currency"] ?? "USD").toUpperCase();
     if (moeda.includes("EUR")) continue; // p_tax pode misturar; priorizamos USD
-    const venda = num(row["venda"] ?? row["ptax_venda"] ?? row["cotação"] ?? row["cotacao"] ?? row["valor"] ?? row["ptax"]);
+    const venda = num(row["taxa"] ?? row["venda"] ?? row["ptax_venda"] ?? row["cotação"] ?? row["cotacao"] ?? row["valor"] ?? row["ptax"]);
     if (!data || venda <= 0) continue;
     map.set(data, venda);
   }
@@ -105,8 +106,35 @@ export async function GET(request: Request) {
 
     // Apura SEMPRE com o histórico completo (preço médio depende de todas as
     // compras anteriores); o filtro por ano é aplicado depois, sobre os eventos.
-    const realizados = apurarGanhos(txs, eventos, ptax);
+    const { eventos: realizados, posicoes } = processarVendas(txs, eventos, ptax);
     const apuracao = apurar(realizados);
+
+    // Enriquece posições com bucket/alíquota/isenção (para o simulador).
+    const hoje = new Date().toISOString().slice(0, 10);
+    const mesAtual = hoje.slice(0, 7);
+    const fxHoje = ptax("USD", hoje);
+    const posicoesEnriquecidas = posicoes.map(p => {
+      const r = regra(p.modalidade, hoje);
+      return {
+        ...p,
+        bucket: r.offsetBucket,
+        aliquota: r.aliquota,
+        isentavel: r.isentavel ?? false,
+        valorAtualBRL: p.moeda === "BRL" ? p.qty * p.pmBRL : p.qty * p.pmNative * fxHoje,
+      };
+    });
+    // Vendas de ações já realizadas no mês corrente (contam para o limite de R$20k).
+    const acoesVendasMesAtual = realizados
+      .filter(e => e.modalidade === "acoes_swing" && e.month === mesAtual)
+      .reduce((s, e) => s + e.proceedsBRL, 0);
+
+    const extras = {
+      posicoes: posicoesEnriquecidas,
+      fxHoje,
+      mesAtual,
+      acoesVendasMesAtual,
+      limiteIsencaoAcoes: regra("acoes_swing", hoje).isencaoMensalVendas ?? 20000,
+    };
 
     if (year) {
       const ys = String(year);
@@ -115,7 +143,10 @@ export async function GET(request: Request) {
         meses: apuracao.meses.filter(m => m.mes.startsWith(ys)),
         exterior: apuracao.exterior.filter(a => a.ano === ys),
         prejuizoFinal: apuracao.prejuizoFinal,
+        irTotalMensal: apuracao.meses.filter(m => m.mes.startsWith(ys)).reduce((s, m) => s + m.irTotal, 0),
+        irTotalExterior: apuracao.exterior.filter(a => a.ano === ys).reduce((s, a) => s + a.irDevido, 0),
         eventosRealizados: realizados.filter(e => e.year === ys),
+        ...extras,
       });
     }
 
@@ -123,6 +154,7 @@ export async function GET(request: Request) {
       year: null,
       ...apuracao,
       eventosRealizados: realizados,
+      ...extras,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

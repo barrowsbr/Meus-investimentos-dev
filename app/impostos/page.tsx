@@ -2,161 +2,128 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Receipt, TrendingUp, TrendingDown, AlertCircle, Check,
-  ChevronDown, ChevronUp, Calendar, Scale, Loader2,
+  Receipt, TrendingUp, TrendingDown, AlertCircle, Calendar,
+  Scale, ChevronDown, ChevronUp, Globe, Calculator,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Cell, ReferenceLine,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import PageHeader from "@/components/PageHeader";
 import MetricCard from "@/components/MetricCard";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { brl, compactBRL } from "@/lib/format";
-import type { ImpostosResult, MonthSummary } from "@/app/api/impostos/route";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Tipos (espelham /api/ir) ──────────────────────────────────────────────────
+type OffsetBucket = "swing" | "day" | "fii" | "exterior" | "rf";
+interface BucketResult {
+  bucket: OffsetBucket; resultado: number; isento: boolean;
+  prejuizoAcumIni: number; baseTributavel: number; prejuizoAcumFim: number;
+  aliquota: number; irDevido: number;
+}
+interface MesApuracao {
+  mes: string; acoesVendas: number; acoesResultado: number; etfBdrResultado: number;
+  fiiResultado: number; dayResultado: number; isencaoAcoes: boolean;
+  buckets: BucketResult[]; irTotal: number; darfCodigo: string; vencimento: string;
+  irrfDedoDuro: number;
+}
+interface AnoExterior {
+  ano: string; resultado: number; prejuizoAcumIni: number; baseTributavel: number;
+  prejuizoAcumFim: number; aliquota: number; irDevido: number;
+}
+interface Posicao {
+  ticker: string; assetClass: string; modalidade: string; moeda: string;
+  qty: number; pmNative: number; pmBRL: number; bucket: OffsetBucket;
+  aliquota: number; isentavel: boolean; valorAtualBRL: number;
+}
+interface IrResponse {
+  year: number | null; meses: MesApuracao[]; exterior: AnoExterior[];
+  prejuizoFinal: Record<OffsetBucket, number>; irTotalMensal: number; irTotalExterior: number;
+  posicoes: Posicao[]; fxHoje: number; mesAtual: string;
+  acoesVendasMesAtual: number; limiteIsencaoAcoes: number;
+}
 
 const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-
 function shortMonth(m: string): string {
-  const parts = m.split("-");
-  if (parts.length === 2) {
-    const idx = parseInt(parts[1], 10) - 1;
-    return `${MONTHS_PT[idx]}/${parts[0].slice(2)}`;
-  }
-  return m;
+  const p = m.split("-");
+  return p.length === 2 ? `${MONTHS_PT[parseInt(p[1], 10) - 1]}/${p[0].slice(2)}` : m;
 }
-
-function pctFmt(v: number): string {
-  return `${(v * 100).toFixed(0)}%`;
-}
-
+const pctFmt = (v: number) => `${(v * 100).toFixed(0)}%`;
+const BUCKET_LABEL: Record<OffsetBucket, string> = {
+  swing: "Ações/ETF/BDR", day: "Day trade", fii: "FIIs", exterior: "Exterior", rf: "Renda Fixa",
+};
 const TOOLTIP_STYLE = {
-  background: "rgba(15,23,42,0.95)",
-  border: "1px solid rgba(99,102,241,0.25)",
-  borderRadius: "12px",
-  color: "#e2e8f0",
-  fontSize: "12px",
+  background: "rgba(15,23,42,0.95)", border: "1px solid rgba(99,102,241,0.25)",
+  borderRadius: "12px", color: "#e2e8f0", fontSize: "12px",
 };
 
-// ─── Year selector ────────────────────────────────────────────────────────────
-
 function YearSelector({ year, onChange }: { year: number | null; onChange: (y: number | null) => void }) {
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
-
+  const cur = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => cur - i);
   return (
     <div className="flex gap-1.5">
-      <button
-        onClick={() => onChange(null)}
-        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-          year === null
-            ? "bg-accent/15 text-accent"
-            : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
-        }`}
-      >
-        Todos
-      </button>
+      <button onClick={() => onChange(null)}
+        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${year === null ? "bg-accent/15 text-accent" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"}`}>Todos</button>
       {years.map(y => (
-        <button
-          key={y}
-          onClick={() => onChange(y)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            year === y
-              ? "bg-accent/15 text-accent"
-              : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          {y}
-        </button>
+        <button key={y} onClick={() => onChange(y)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${year === y ? "bg-accent/15 text-accent" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"}`}>{y}</button>
       ))}
     </div>
   );
 }
 
-// ─── Monthly row ─────────────────────────────────────────────────────────────
-
-function MonthRow({ s, defaultOpen = false }: { s: MonthSummary; defaultOpen?: boolean }) {
+// ─── Linha mensal expansível ──────────────────────────────────────────────────
+function MonthRow({ m, defaultOpen }: { m: MesApuracao; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
-  const hasActivity = Math.abs(s.gain_bruto) > 0.01 || s.acoes_sales > 0;
+  const resultado = m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado;
+  const hasActivity = Math.abs(resultado) > 0.01 || m.acoesVendas > 0;
   if (!hasActivity) return null;
-
-  const gainCls = s.gain_bruto >= 0 ? "text-emerald-400" : "text-red-400";
+  const gainCls = resultado >= 0 ? "text-emerald-400" : "text-red-400";
 
   return (
     <div className="border-b border-white/[0.04] last:border-0">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 py-3 px-4 hover:bg-white/[0.02] transition-colors text-left"
-      >
-        <div className="w-20 text-sm font-semibold text-zinc-300">{shortMonth(s.month)}</div>
-
-        {/* Sales */}
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-3 py-3 px-4 hover:bg-white/[0.02] transition-colors text-left">
+        <div className="w-20 text-sm font-semibold text-zinc-300">{shortMonth(m.mes)}</div>
         <div className="flex-1 text-xs text-zinc-500">
-          {s.acoes_sales > 0 && (
-            <span>
-              Vendas: <span className="text-zinc-400">{brl(s.acoes_sales)}</span>
-            </span>
-          )}
+          {m.acoesVendas > 0 && <span>Vendas ações: <span className="text-zinc-400">{brl(m.acoesVendas)}</span></span>}
         </div>
-
-        {/* Gain/Loss */}
-        <div className={`w-28 text-right text-sm font-bold ${gainCls}`}>
-          {s.gain_bruto >= 0 ? "+" : ""}{brl(s.gain_bruto)}
-        </div>
-
-        {/* IR */}
+        <div className={`w-28 text-right text-sm font-bold ${gainCls}`}>{resultado >= 0 ? "+" : ""}{brl(resultado)}</div>
         <div className="w-28 text-right">
-          {s.ir_devido > 0.01 ? (
-            <span className="text-sm font-bold text-red-400">{brl(s.ir_devido)}</span>
-          ) : s.isenta ? (
-            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Isenta</span>
-          ) : (
-            <span className="text-sm text-zinc-700">—</span>
-          )}
+          {m.irTotal > 0.01 ? <span className="text-sm font-bold text-red-400">{brl(m.irTotal)}</span>
+            : m.isencaoAcoes ? <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Isenta</span>
+            : <span className="text-sm text-zinc-700">—</span>}
         </div>
-
-        {/* Expand */}
-        <div className="w-6 flex-shrink-0 flex justify-end">
-          {open ? <ChevronUp size={13} className="text-zinc-600" /> : <ChevronDown size={13} className="text-zinc-600" />}
-        </div>
+        <div className="w-6 flex justify-end">{open ? <ChevronUp size={13} className="text-zinc-600" /> : <ChevronDown size={13} className="text-zinc-600" />}</div>
       </button>
-
       {open && (
-        <div className="px-4 pb-3 grid grid-cols-2 md:grid-cols-4 gap-3 bg-white/[0.01]">
-          {[
-            { label: "Ações B3", value: s.acoes_gain, cat: true },
-            { label: "FIIs", value: s.fiis_gain, cat: false },
-            { label: "Internacional", value: s.intl_gain, cat: false },
-            { label: "ETFs", value: s.etfs_gain, cat: false },
-          ].filter(item => Math.abs(item.value) > 0.01).map(item => (
-            <div key={item.label} className="bg-white/[0.03] rounded-xl p-3">
-              <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{item.label}</div>
-              <div className={`text-sm font-bold mt-1 ${item.value >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {item.value >= 0 ? "+" : ""}{brl(item.value)}
+        <div className="px-4 pb-3 bg-white/[0.01] space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+            {[
+              { label: "Ações", value: m.acoesResultado },
+              { label: "ETF/BDR", value: m.etfBdrResultado },
+              { label: "FIIs", value: m.fiiResultado },
+              { label: "Day trade", value: m.dayResultado },
+            ].filter(i => Math.abs(i.value) > 0.01).map(i => (
+              <div key={i.label} className="bg-white/[0.03] rounded-xl p-3">
+                <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{i.label}</div>
+                <div className={`text-sm font-bold mt-1 ${i.value >= 0 ? "text-emerald-400" : "text-red-400"}`}>{i.value >= 0 ? "+" : ""}{brl(i.value)}</div>
+              </div>
+            ))}
+          </div>
+          {/* Buckets tributáveis */}
+          {m.buckets.filter(b => b.baseTributavel > 0.01 || b.prejuizoAcumIni > 0.01 || b.irDevido > 0.01).map(b => (
+            <div key={b.bucket} className="flex items-center justify-between text-xs bg-white/[0.02] rounded-lg px-3 py-2">
+              <span className="text-zinc-400 font-medium">{BUCKET_LABEL[b.bucket]}</span>
+              <div className="flex items-center gap-4 text-zinc-600">
+                {b.prejuizoAcumIni > 0.01 && <span>compensou prej. <span className="text-amber-400">{brl(Math.min(b.prejuizoAcumIni, Math.max(0, b.resultado)))}</span></span>}
+                <span>base <span className="text-zinc-400">{brl(b.baseTributavel)}</span></span>
+                <span>× {pctFmt(b.aliquota)}</span>
+                <span className="text-red-400 font-semibold">{brl(b.irDevido)}</span>
               </div>
             </div>
           ))}
-          {s.acc_loss_inicio > 0.01 && (
-            <div className="col-span-2 md:col-span-4 bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 flex items-center gap-3">
-              <Scale size={14} className="text-amber-400 flex-shrink-0" />
-              <div>
-                <div className="text-[10px] text-zinc-600">Prejuízo compensado</div>
-                <div className="text-xs font-semibold text-amber-400">
-                  {brl(Math.min(s.acc_loss_inicio, s.gain_bruto > 0 ? s.gain_bruto : 0))} de {brl(s.acc_loss_inicio)} de saldo anterior
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="col-span-2 md:col-span-4 flex items-center justify-between text-xs">
-            <span className="text-zinc-600">
-              Alíquota: <span className="text-zinc-400 font-semibold">{pctFmt(s.ir_aliquota)}</span>
-              {s.isenta && " · Isenta (vendas ≤ R$20k)"}
-            </span>
-            <span className="text-zinc-600">
-              Prejuízo acumulado após mês: <span className="text-zinc-400 font-semibold">{brl(s.acc_loss_fim)}</span>
-            </span>
+          <div className="flex items-center justify-between text-xs pt-1">
+            <span className="text-zinc-600">DARF {m.darfCodigo} · venc. <span className="text-zinc-400">{m.vencimento}</span></span>
+            {m.irrfDedoDuro > 0.01 && <span className="text-zinc-600">IRRF day-trade (dedutível): <span className="text-zinc-400">{brl(m.irrfDedoDuro)}</span></span>}
           </div>
         </div>
       )}
@@ -164,220 +131,220 @@ function MonthRow({ s, defaultOpen = false }: { s: MonthSummary; defaultOpen?: b
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Simulador de venda ─────────────────────────────────────────────────────────
+function Simulador({ data }: { data: IrResponse }) {
+  const posicoes = data.posicoes ?? [];
+  const [tk, setTk] = useState(posicoes[0]?.ticker ?? "");
+  const sel = posicoes.find(p => p.ticker === tk) ?? posicoes[0];
+  const [qtd, setQtd] = useState<string>("");
+  const [preco, setPreco] = useState<string>("");
 
+  // defaults ao trocar de ativo
+  useEffect(() => {
+    if (sel) { setQtd(String(sel.qty)); setPreco(sel.pmNative.toFixed(sel.moeda === "BRL" ? 2 : 4)); }
+  }, [tk]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sim = useMemo(() => {
+    if (!sel) return null;
+    const q = Math.min(parseFloat(qtd) || 0, sel.qty);
+    const p = parseFloat(preco) || 0;
+    if (q <= 0 || p <= 0) return null;
+    const proceedsBRL = sel.moeda === "BRL" ? q * p : q * p * data.fxHoje;
+    const costBRL = q * sel.pmBRL;
+    const gainBRL = proceedsBRL - costBRL;
+    const prejDisp = data.prejuizoFinal?.[sel.bucket] ?? 0;
+
+    // Isenção R$20k: só ações swing, considerando vendas de ações já feitas no mês
+    const isAcoes = sel.modalidade === "acoes_swing";
+    const vendasProjetadas = data.acoesVendasMesAtual + (isAcoes ? proceedsBRL : 0);
+    const isento = sel.isentavel && isAcoes && vendasProjetadas > 0 && vendasProjetadas <= data.limiteIsencaoAcoes;
+
+    let base = 0, ir = 0, prejUsado = 0;
+    if (!isento && gainBRL > 0) {
+      prejUsado = Math.min(prejDisp, gainBRL);
+      base = gainBRL - prejUsado;
+      ir = base * sel.aliquota;
+    }
+    return { q, proceedsBRL, costBRL, gainBRL, isento, prejDisp, prejUsado, base, ir, vendasProjetadas, isAcoes };
+  }, [sel, qtd, preco, data]);
+
+  if (posicoes.length === 0) return null;
+
+  return (
+    <div className="glass-card p-5 mb-5 border-purple-500/15 animate-fade-in">
+      <h2 className="text-sm font-semibold text-zinc-200 mb-4 flex items-center gap-2"><Calculator size={15} className="text-purple-400" />Simulador — quanto pago se vender agora?</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="text-[10px] text-zinc-600 uppercase tracking-wide">Ativo</label>
+          <select value={tk} onChange={e => setTk(e.target.value)} className="w-full mt-1 bg-white/[0.04] rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none border border-white/[0.06]">
+            {posicoes.map(p => <option key={p.ticker} value={p.ticker} className="bg-zinc-900">{p.ticker} · {p.qty.toLocaleString("pt-BR")} un · PM {p.moeda === "BRL" ? brl(p.pmBRL) : `$${p.pmNative.toFixed(2)}`}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-zinc-600 uppercase tracking-wide">Quantidade</label>
+          <input value={qtd} onChange={e => setQtd(e.target.value)} type="number" className="w-full mt-1 bg-white/[0.04] rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none border border-white/[0.06]" />
+        </div>
+        <div>
+          <label className="text-[10px] text-zinc-600 uppercase tracking-wide">Preço de venda {sel?.moeda !== "BRL" ? `(${sel?.moeda})` : "(R$)"}</label>
+          <input value={preco} onChange={e => setPreco(e.target.value)} type="number" step="0.01" className="w-full mt-1 bg-white/[0.04] rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none border border-white/[0.06]" />
+        </div>
+      </div>
+      {sim && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white/[0.03] rounded-xl p-3">
+            <div className="text-[10px] text-zinc-600 uppercase">Resultado</div>
+            <div className={`text-base font-bold mt-1 ${sim.gainBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{sim.gainBRL >= 0 ? "+" : ""}{brl(sim.gainBRL)}</div>
+          </div>
+          <div className="bg-white/[0.03] rounded-xl p-3">
+            <div className="text-[10px] text-zinc-600 uppercase">Prej. compensável</div>
+            <div className="text-base font-bold mt-1 text-amber-400">{brl(sim.prejUsado)}<span className="text-[10px] text-zinc-600"> / {brl(sim.prejDisp)}</span></div>
+          </div>
+          <div className="bg-white/[0.03] rounded-xl p-3">
+            <div className="text-[10px] text-zinc-600 uppercase">Base × {sel ? pctFmt(sel.aliquota) : ""}</div>
+            <div className="text-base font-bold mt-1 text-zinc-300">{brl(sim.base)}</div>
+          </div>
+          <div className={`rounded-xl p-3 ${sim.isento ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-red-500/10 border border-red-500/20"}`}>
+            <div className="text-[10px] text-zinc-600 uppercase">IR estimado</div>
+            <div className={`text-base font-bold mt-1 ${sim.isento ? "text-emerald-400" : "text-red-400"}`}>{sim.isento ? "Isento" : brl(sim.ir)}</div>
+          </div>
+          <div className="col-span-2 md:col-span-4 text-[11px] text-zinc-600">
+            {sim.isAcoes
+              ? `Vendas de ações no mês projetadas: ${brl(sim.vendasProjetadas)} ${sim.isento ? `(≤ ${compactBRL(data.limiteIsencaoAcoes)} → isento)` : `(> ${compactBRL(data.limiteIsencaoAcoes)} → tributado)`}.`
+              : `${BUCKET_LABEL[sel!.bucket]} não goza da isenção de R$20k.`}
+            {sel?.moeda !== "BRL" && ` Conversão PTAX hoje: R$ ${data.fxHoje.toFixed(4)} (Lei 14.754/23, apuração anual).`}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Página ─────────────────────────────────────────────────────────────────────
 export default function ImpostosPage() {
-  const [data, setData] = useState<ImpostosResult | null>(null);
+  const [data, setData] = useState<IrResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(new Date().getFullYear());
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const url = year ? `/api/impostos?year=${year}` : "/api/impostos";
-    fetch(url)
+    setLoading(true); setError(null);
+    fetch(year ? `/api/ir?year=${year}` : "/api/ir")
       .then(r => r.json())
-      .then(d => {
-        if (d.error) throw new Error(d.error);
-        setData(d as ImpostosResult);
-      })
-      .catch(err => setError(err.message))
+      .then(d => { if (d.error) throw new Error(d.error); setData(d as IrResponse); })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [year]);
 
-  // Chart data
   const chartData = useMemo(() => {
     if (!data) return [];
-    return data.summaries
-      .filter(s => Math.abs(s.gain_bruto) > 0.01 || s.ir_devido > 0.01)
-      .map(s => ({
-        month: shortMonth(s.month),
-        ganho: s.gain_bruto > 0 ? s.gain_bruto : 0,
-        perda: s.gain_bruto < 0 ? s.gain_bruto : 0,
-        ir: s.ir_devido,
-      }));
+    return data.meses
+      .map(m => ({ mes: m.mes, resultado: m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado, ir: m.irTotal }))
+      .filter(x => Math.abs(x.resultado) > 0.01 || x.ir > 0.01)
+      .map(x => ({ month: shortMonth(x.mes), ganho: x.resultado > 0 ? x.resultado : 0, perda: x.resultado < 0 ? x.resultado : 0, ir: x.ir }));
   }, [data]);
 
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const currentMonthSummary = data?.summaries.find(s => s.month === currentMonth);
+  const mesAtual = data?.mesAtual ?? new Date().toISOString().slice(0, 7);
+  const darfMes = data?.meses.find(m => m.mes === mesAtual && m.irTotal > 0.01);
+  const prejTotal = data ? Object.values(data.prejuizoFinal ?? {}).reduce((s, v) => s + v, 0) : 0;
+  const patrimonioPos = data ? (data.posicoes ?? []).reduce((s, p) => s + p.valorAtualBRL, 0) : 0;
 
   return (
     <>
       <div className="flex items-start justify-between mb-5">
-        <PageHeader
-          title="Impostos"
-          description="Controle de IR sobre investimentos — ganho de capital, isenções e DARFs"
-        />
-        <div className="mt-1">
-          <YearSelector year={year} onChange={setYear} />
-        </div>
+        <PageHeader title="Impostos" description="IR sobre ganho de capital — preço médio, dia-trade, FII, exterior (Lei 14.754) e compensação por modalidade" />
+        <div className="mt-1"><YearSelector year={year} onChange={setYear} /></div>
       </div>
 
-      {/* Rule reminder */}
       <div className="glass-card p-3 mb-5 flex items-start gap-3 border-indigo-500/15">
         <AlertCircle size={15} className="text-indigo-400 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-zinc-500 leading-relaxed">
           <span className="text-zinc-300 font-medium">Regras aplicadas:</span>{" "}
-          Ações B3: 15% sobre ganhos em meses com vendas acima de R$20k (isenção para ≤ R$20k).
-          {" "}FIIs: 20% sobre ganhos sem isenção. Internacional: 15%.
-          {" "}Prejuízos compensam ganhos nos meses seguintes.
+          Custo por <strong>preço médio ponderado</strong>. Ações 15% (isenção se vendas ≤ R$20k/mês); ETF/BDR 15% sem isenção; FII e day-trade 20%; exterior 15% anual com PTAX (Lei 14.754/23).
+          Prejuízo compensa só dentro da mesma modalidade (swing ≠ day ≠ FII ≠ exterior).
         </div>
       </div>
 
       {loading && <LoadingSpinner />}
-
-      {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400 flex items-center gap-2 mb-4">
-          <AlertCircle size={14} />{error}
-        </div>
-      )}
+      {error && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400 flex items-center gap-2 mb-4"><AlertCircle size={14} />{error}</div>}
 
       {!loading && data && (
         <>
-          {/* Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="animate-fade-in">
-              <MetricCard
-                label="IR Total Devido"
-                value={brl(data.total_ir)}
-                sub={year ? `${year}` : "todos os anos"}
-                icon={<Receipt size={18} />}
-                glowColor="#6366f1"
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-1">
-              <MetricCard
-                label="Ganho de Capital"
-                value={compactBRL(data.total_gain)}
-                sub="total bruto"
-                icon={<TrendingUp size={18} />}
-                trend="up"
-                glowColor="#34d399"
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-2">
-              <MetricCard
-                label="Prejuízo Realizado"
-                value={compactBRL(data.total_loss)}
-                sub="para compensação"
-                icon={<TrendingDown size={18} />}
-                glowColor="#f87171"
-              />
-            </div>
-            <div className="animate-fade-in animate-delay-3">
-              <MetricCard
-                label="Prejuízo Acumulado"
-                value={compactBRL(data.acc_loss_atual)}
-                sub="saldo a compensar"
-                icon={<Scale size={18} />}
-                glowColor="#fbbf24"
-              />
-            </div>
+            <div className="animate-fade-in"><MetricCard label="IR Mensal (B3)" value={brl(data.irTotalMensal ?? 0)} sub={year ? `${year} · DARF 6015` : "todos · DARF 6015"} icon={<Receipt size={18} />} glowColor="#6366f1" /></div>
+            <div className="animate-fade-in animate-delay-1"><MetricCard label="IR Exterior (anual)" value={brl(data.irTotalExterior ?? 0)} sub="Lei 14.754/23 · 15%" icon={<Globe size={18} />} glowColor="#ec4899" /></div>
+            <div className="animate-fade-in animate-delay-2"><MetricCard label="Prejuízo a Compensar" value={compactBRL(prejTotal)} sub="saldo (todos os buckets)" icon={<Scale size={18} />} glowColor="#fbbf24" /></div>
+            <div className="animate-fade-in animate-delay-3"><MetricCard label="Posições Abertas" value={String((data.posicoes ?? []).length)} sub={`${compactBRL(patrimonioPos)} a custo`} icon={<TrendingUp size={18} />} glowColor="#34d399" /></div>
           </div>
 
-          {/* DARF do mês atual */}
-          {currentMonthSummary && currentMonthSummary.ir_devido > 0.01 && (
+          {darfMes && (
             <div className="glass-card p-4 mb-5 border-red-500/15 animate-fade-in">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                <span className="text-sm font-semibold text-zinc-200">DARF a recolher — {shortMonth(currentMonthSummary.month)}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                  Código 6015
-                </span>
+                <span className="text-sm font-semibold text-zinc-200">DARF a recolher — {shortMonth(darfMes.mes)}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">Código {darfMes.darfCodigo}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-zinc-600">
-                    Vencimento: último dia útil do mês seguinte
-                  </div>
-                  <div className="text-2xl font-black text-red-400 mt-1">
-                    {brl(currentMonthSummary.ir_devido)}
-                  </div>
+                  <div className="text-xs text-zinc-600">Vencimento: {darfMes.vencimento}</div>
+                  <div className="text-2xl font-black text-red-400 mt-1">{brl(darfMes.irTotal)}</div>
                 </div>
                 <div className="text-right text-xs text-zinc-600 space-y-1">
-                  <div>Ganho tributável: <span className="text-zinc-400">{brl(currentMonthSummary.gain_bruto)}</span></div>
-                  <div>Alíquota: <span className="text-zinc-400">{pctFmt(currentMonthSummary.ir_aliquota)}</span></div>
+                  {darfMes.buckets.filter(b => b.irDevido > 0.01).map(b => (
+                    <div key={b.bucket}>{BUCKET_LABEL[b.bucket]}: <span className="text-zinc-400">{brl(b.irDevido)}</span></div>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Chart */}
+          <Simulador data={data} />
+
           {chartData.length > 0 && (
             <div className="glass-card p-5 mb-5">
-              <h2 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-                <Calendar size={14} />
-                Ganho/Perda por Mês
-              </h2>
+              <h2 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2"><Calendar size={14} />Ganho/Perda por Mês</h2>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fill: "#52525b", fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "#52525b", fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={v => v >= 1000 || v <= -1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))}
-                    width={40}
-                  />
+                  <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))} width={40} />
                   <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
-                  <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    formatter={(v: number, name: string) => [
-                      brl(Math.abs(v)),
-                      name === "ganho" ? "Ganho" : name === "perda" ? "Perda" : "IR Devido",
-                    ]}
-                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(Math.abs(v)), n === "ganho" ? "Ganho" : n === "perda" ? "Perda" : "IR"]} />
                   <Bar dataKey="ganho" fill="#34d399" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
                   <Bar dataKey="perda" fill="#f87171" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
                   <Bar dataKey="ir" fill="#6366f1" radius={[3, 3, 0, 0]} fillOpacity={0.9} />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="flex items-center justify-center gap-5 mt-2 text-xs text-zinc-600">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" /> Ganho</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" /> Perda</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-indigo-500 inline-block" /> IR Devido</span>
-              </div>
             </div>
           )}
 
-          {/* Monthly table */}
-          {data.summaries.length > 0 ? (
-            <div className="glass-card overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
-                <h2 className="text-sm font-semibold text-zinc-300">Detalhamento Mensal</h2>
-                <div className="hidden md:grid grid-cols-4 gap-3 text-[10px] font-semibold text-zinc-600 uppercase tracking-wide text-right">
-                  <span className="w-20" />
-                  <span className="w-32">Vendas Ações</span>
-                  <span className="w-28">Ganho/Perda</span>
-                  <span className="w-28">IR Devido</span>
-                  <span className="w-6" />
-                </div>
-              </div>
-              {[...data.summaries].reverse().map(s => (
-                <MonthRow
-                  key={s.month}
-                  s={s}
-                  defaultOpen={s.month === currentMonth}
-                />
-              ))}
+          {data.meses.length > 0 ? (
+            <div className="glass-card overflow-hidden mb-5">
+              <div className="px-4 py-3 border-b border-white/[0.05]"><h2 className="text-sm font-semibold text-zinc-300">Apuração Mensal (B3)</h2></div>
+              {[...data.meses].reverse().map(m => <MonthRow key={m.mes} m={m} defaultOpen={m.mes === mesAtual} />)}
             </div>
           ) : (
-            <div className="glass-card p-8 text-center text-zinc-600 text-sm">
-              Nenhuma venda registrada{year ? ` em ${year}` : ""}. Registre transações em <span className="text-zinc-400">Portfólio → meus_ativos</span>.
+            <div className="glass-card p-8 text-center text-zinc-600 text-sm mb-5">Nenhuma venda registrada{year ? ` em ${year}` : ""}.</div>
+          )}
+
+          {(data.exterior ?? []).length > 0 && (
+            <div className="glass-card overflow-hidden mb-5">
+              <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2"><Globe size={14} className="text-pink-400" /><h2 className="text-sm font-semibold text-zinc-300">Apuração Anual — Exterior (Lei 14.754/23)</h2></div>
+              {data.exterior.map(a => (
+                <div key={a.ano} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0 text-sm">
+                  <span className="font-semibold text-zinc-300">{a.ano}</span>
+                  <div className="flex items-center gap-5 text-xs text-zinc-600">
+                    <span>resultado <span className={a.resultado >= 0 ? "text-emerald-400" : "text-red-400"}>{brl(a.resultado)}</span></span>
+                    {a.prejuizoAcumIni > 0.01 && <span>prej. ant. <span className="text-amber-400">{brl(a.prejuizoAcumIni)}</span></span>}
+                    <span>base <span className="text-zinc-400">{brl(a.baseTributavel)}</span> × 15%</span>
+                    <span className="text-red-400 font-semibold text-sm">{brl(a.irDevido)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Disclaimer */}
           <p className="text-xs text-zinc-800 text-center mt-6">
-            Cálculo estimado com base em FIFO. Consulte um contador para declaração oficial.
-            Não considera day-trade, operações no exterior com variação cambial, nem IR na fonte (IRRF).
+            Cálculo por preço médio ponderado, dia-trade, compensação por modalidade e conversão PTAX no exterior.
+            Estimativa de apoio — confirme com seu contador antes de recolher/declarar.
           </p>
         </>
       )}

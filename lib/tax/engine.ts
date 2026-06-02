@@ -59,6 +59,18 @@ export interface RealizedEvent {
 /** Função de conversão: retorna o fator moeda→BRL na data (PTAX para exterior). */
 export type PtaxLookup = (moeda: string, dateISO: string) => number;
 
+/** Posição em aberto (após processar todo o histórico) — base para simulação
+ *  e para "Bens e Direitos". */
+export interface Posicao {
+  ticker: string;
+  assetClass: AssetClass;
+  modalidade: Modalidade;
+  moeda: string;
+  qty: number;
+  pmNative: number;   // preço médio na moeda do ativo
+  pmBRL: number;      // custo médio em reais (PTAX das aquisições)
+}
+
 // ─── Classificação do ativo ──────────────────────────────────────────────────
 //
 // O REGIME tributário é definido pela MOEDA/natureza do ativo, NÃO pela
@@ -115,14 +127,25 @@ interface Inventory {
 }
 
 /**
- * Apura todos os eventos de ganho/perda realizados (vendas), aplicando preço
- * médio, eventos corporativos e split dia-trade/swing.
+ * Apura ganhos realizados (vendas) — wrapper que descarta as posições.
  */
 export function apurarGanhos(
   txs: RawTx[],
   corpEvents: CorpEvent[],
   ptax: PtaxLookup,
 ): RealizedEvent[] {
+  return processarVendas(txs, corpEvents, ptax).eventos;
+}
+
+/**
+ * Processa todo o histórico aplicando preço médio, eventos corporativos e
+ * split dia-trade/swing. Retorna os eventos realizados E as posições em aberto.
+ */
+export function processarVendas(
+  txs: RawTx[],
+  corpEvents: CorpEvent[],
+  ptax: PtaxLookup,
+): { eventos: RealizedEvent[]; posicoes: Posicao[] } {
   // Agrupa por ticker normalizado.
   const norm = (t: string) => t.toUpperCase().replace(".SA", "").trim();
   const byTicker = new Map<string, { txs: RawTx[]; events: CorpEvent[] }>();
@@ -138,6 +161,7 @@ export function apurarGanhos(
   }
 
   const out: RealizedEvent[] = [];
+  const posicoes: Posicao[] = [];
 
   for (const [ticker, grp] of byTicker) {
     const sample = grp.txs[0];
@@ -209,9 +233,19 @@ export function apurarGanhos(
         if (inv.qty < 1e-9) { inv.qty = 0; inv.pmNative = 0; inv.custoTotalBRL = 0; }
       }
     }
+
+    if (inv.qty > 1e-6) {
+      posicoes.push({
+        ticker, assetClass: cls, modalidade: classToModalidade(cls), moeda,
+        qty: inv.qty, pmNative: inv.pmNative, pmBRL: inv.custoTotalBRL / inv.qty,
+      });
+    }
   }
 
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    eventos: out.sort((a, b) => a.date.localeCompare(b.date)),
+    posicoes: posicoes.sort((a, b) => a.ticker.localeCompare(b.ticker)),
+  };
 }
 
 function aplicarEventoCorporativo(inv: Inventory, ev: CorpEvent, ptaxDia: number) {
