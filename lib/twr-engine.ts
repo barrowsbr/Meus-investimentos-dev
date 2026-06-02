@@ -120,6 +120,175 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ─── RF (renda fixa) timeline for TWR integration ────────────────────────────
+
+const SELIC_ANNUAL_RATE = 0.1375;
+const RF_BIZ_DAYS_YEAR = 252;
+const SELIC_DAILY_RATE = Math.pow(1 + SELIC_ANNUAL_RATE, 1 / RF_BIZ_DAYS_YEAR) - 1;
+const CASH_TICKERS_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
+
+interface RfParsedTx {
+  date: string;
+  bizDate: string;
+  ticker: string;
+  tipo: "compra" | "venda";
+  valor: number;
+  moeda: string;
+}
+
+function parseRfTxs(rows: Row[]): RfParsedTx[] {
+  const result: RfParsedTx[] = [];
+  for (const row of rows) {
+    const ticker = String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? "").trim();
+    if (!ticker || CASH_TICKERS_RF.has(ticker.toUpperCase())) continue;
+    const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
+    let tipo: "compra" | "venda" | null = null;
+    if (tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte")) tipo = "compra";
+    else if (tipoRaw.includes("venda") || tipoRaw.includes("resgate") || tipoRaw.includes("vencimento")) tipo = "venda";
+    if (!tipo) continue;
+    const valor = Math.abs(toNumber(row["valor"]) ?? 0);
+    if (valor < 0.01) continue;
+    const date = toYMD(row["compra"] ?? row["data"] ?? row["date"]);
+    if (!date) continue;
+    const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+    result.push({ date, bizDate: nextBusinessDay(date), ticker, tipo, valor, moeda });
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function rfBizDays(startStr: string, endStr: string): number {
+  const ms = new Date(endStr + "T12:00:00Z").getTime() - new Date(startStr + "T12:00:00Z").getTime();
+  return Math.max(0, Math.round((ms / (24 * 60 * 60 * 1000)) * RF_BIZ_DAYS_YEAR / 365));
+}
+
+function solveImpliedRate(
+  lots: { invested: number; bizDays: number }[],
+  targetValue: number
+): number {
+  if (lots.length === 0 || targetValue <= 0) return SELIC_DAILY_RATE;
+  const totalInvested = lots.reduce((s, l) => s + l.invested, 0);
+  if (totalInvested <= 0) return SELIC_DAILY_RATE;
+  if (targetValue < totalInvested * 0.5) return 0;
+  let r = SELIC_DAILY_RATE;
+  for (let iter = 0; iter < 20; iter++) {
+    let f = -targetValue;
+    let df = 0;
+    for (const l of lots) {
+      const factor = Math.pow(1 + r, l.bizDays);
+      f += l.invested * factor;
+      df += l.invested * l.bizDays * Math.pow(1 + r, l.bizDays - 1);
+    }
+    if (Math.abs(df) < 1e-12) break;
+    const step = f / df;
+    r -= step;
+    r = Math.max(0, Math.min(r, 0.002));
+    if (Math.abs(step) < 1e-9) break;
+  }
+  return r;
+}
+
+export function buildRfTimeline(
+  rfTransacoes: Row[],
+  fixaAberta: Row[],
+  dates: string[],
+  fxHistory: FxHistory
+): { navByDate: Record<string, number>; flowByDate: Record<string, number> } {
+  const navByDate: Record<string, number> = {};
+  const flowByDate: Record<string, number> = {};
+  if (dates.length === 0) return { navByDate, flowByDate };
+
+  const txs = parseRfTxs(rfTransacoes);
+  const lastDate = dates[dates.length - 1];
+
+  const manualValues = new Map<string, { atual: number; moeda: string }>();
+  for (const row of fixaAberta) {
+    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+    if (!ticker || CASH_TICKERS_RF.has(ticker.toUpperCase())) continue;
+    const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
+    const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+    if (atual > 0) manualValues.set(ticker, { atual, moeda });
+  }
+
+  const byTicker = new Map<string, RfParsedTx[]>();
+  for (const tx of txs) {
+    if (!byTicker.has(tx.ticker)) byTicker.set(tx.ticker, []);
+    byTicker.get(tx.ticker)!.push(tx);
+  }
+
+  interface TickerInfo {
+    compras: { date: string; valor: number }[];
+    closedDate: string | null;
+    dailyRate: number;
+    moeda: string;
+  }
+  const tickerInfos: TickerInfo[] = [];
+  const allTickerNames = new Set([...manualValues.keys(), ...byTicker.keys()]);
+
+  for (const ticker of allTickerNames) {
+    const txList = byTicker.get(ticker) ?? [];
+    const manual = manualValues.get(ticker);
+    const compras = txList.filter(t => t.tipo === "compra");
+    const vendas = txList.filter(t => t.tipo === "venda");
+    if (compras.length === 0) continue;
+    const moeda = manual?.moeda ?? compras[0]?.moeda ?? "BRL";
+    const isActive = manual != null;
+
+    let dailyRate = SELIC_DAILY_RATE;
+    if (isActive && manual.atual > 0) {
+      const lots = compras.map(c => ({
+        invested: c.valor,
+        bizDays: rfBizDays(c.date, lastDate),
+      }));
+      dailyRate = solveImpliedRate(lots, manual.atual);
+    } else if (!isActive && vendas.length > 0) {
+      const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
+      const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
+      const holdingDays = rfBizDays(compras[0].date, vendas[vendas.length - 1].date);
+      if (holdingDays > 0 && totalInvested > 0 && totalRedeemed > totalInvested * 0.3) {
+        dailyRate = Math.pow(totalRedeemed / totalInvested, 1 / holdingDays) - 1;
+        dailyRate = Math.max(0, Math.min(dailyRate, 0.002));
+      }
+    }
+
+    tickerInfos.push({
+      compras: compras.map(c => ({ date: c.date, valor: c.valor })),
+      closedDate: !isActive && vendas.length > 0 ? vendas[vendas.length - 1].bizDate : null,
+      dailyRate,
+      moeda,
+    });
+  }
+
+  const sortedRfTxs = [...txs].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
+  let rfTxIdx = 0;
+  while (rfTxIdx < sortedRfTxs.length && sortedRfTxs[rfTxIdx].bizDate < dates[0]) rfTxIdx++;
+
+  for (const date of dates) {
+    let dayFlow = 0;
+    const fx = fxHistory[date] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    while (rfTxIdx < sortedRfTxs.length && sortedRfTxs[rfTxIdx].bizDate <= date) {
+      const rtx = sortedRfTxs[rfTxIdx++];
+      const fxF = fxFactor(rtx.moeda, fx);
+      if (rtx.tipo === "compra") dayFlow += rtx.valor * fxF;
+      else dayFlow -= rtx.valor * fxF;
+    }
+    if (Math.abs(dayFlow) > 0.01) flowByDate[date] = dayFlow;
+
+    let dayNav = 0;
+    for (const info of tickerInfos) {
+      if (info.closedDate && date >= info.closedDate) continue;
+      const fxF = fxFactor(info.moeda, fx);
+      for (const compra of info.compras) {
+        if (compra.date > date) continue;
+        const bd = rfBizDays(compra.date, date);
+        dayNav += compra.valor * Math.pow(1 + info.dailyRate, bd) * fxF;
+      }
+    }
+    navByDate[date] = dayNav;
+  }
+
+  return { navByDate, flowByDate };
+}
+
 // ─── Daily custody reconstruction (FIFO cumulative) ───────────────────────────
 
 type CustodySnapshot = Record<string, number>;
@@ -221,6 +390,7 @@ export interface TwrInput {
   prices: PriceMatrix;
   fxHistory: FxHistory;
   rfNavByDate?: Record<string, number>;
+  rfFlowByDate?: Record<string, number>;
   pmFx?: FxRates;
 }
 
@@ -300,7 +470,7 @@ function calculateMWR(
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
 
 export function calcularTWR(input: TwrInput): TwrResult {
-  const { dates, prices, fxHistory, rfNavByDate } = input;
+  const { dates, prices, fxHistory, rfNavByDate, rfFlowByDate } = input;
 
   const EMPTY: TwrResult = {
     points: [], twrTotal: 0, twrAnualizado: 0,
@@ -316,7 +486,8 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
   const lastDate = dates[dates.length - 1];
   const inRange = txs.filter(tx => tx.date <= lastDate);
-  if (inRange.length === 0) return EMPTY;
+  const hasRf = rfNavByDate && Object.keys(rfNavByDate).length > 0;
+  if (inRange.length === 0 && !hasRf) return EMPTY;
 
   // ── Pre-fill price matrix: ffill + bfill (matching Python engine) ──
   // Without this, tickers with >5 day price gaps disappear from NAV.
@@ -406,6 +577,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
       const inc = sortedInc[incIdx++];
       income += inc.valor * fxFactor(inc.moeda, fx);
     }
+
+    // ── RF flows (compra/venda of renda fixa) ──
+    const rfFlow = rfFlowByDate?.[date] ?? 0;
+    flow += rfFlow;
+    if (rfFlow > 0) totalInvestido += rfFlow;
 
     // ── NAV gap handling (Python engine v3.1–v3.3) ──
     if (i > 0 && prevNav > 0) {
