@@ -607,13 +607,17 @@ export function calcularTWR(input: TwrInput): TwrResult {
     }
 
     // ── v9.0: Flow-NAV consistency correction ──
-    // Aligns flow with actual NAV delta to prevent phantom returns from
-    // price/FX mismatches between flow valuation and NAV valuation.
-    // Applies to ALL flows (buys and sells).
-    if (Math.abs(flow) > 0 && prevNav > 0) {
+    // Only correct the RV portion — RF flows are consistent with RF NAV by construction.
+    // Comparing total navDelta vs total flow would false-trigger on RF transaction days
+    // (RV appreciation looks like a "mismatch" relative to the large RF flow).
+    const rvFlowPart = flow - rfFlow;
+    if (Math.abs(rvFlowPart) > 0 && prevNav > 0) {
       const navDelta = nav - prevNav;
-      if (Math.abs(navDelta - flow) > Math.max(Math.abs(flow), 1) * 0.10) {
-        flow = navDelta;
+      const prevRfNav = i > 0 ? (rfNavByDate?.[dates[i - 1]] ?? 0) : 0;
+      const rfNavDelta = (rfNavByDate?.[date] ?? 0) - prevRfNav;
+      const rvNavDelta = navDelta - rfNavDelta;
+      if (Math.abs(rvNavDelta - rvFlowPart) > Math.max(Math.abs(rvFlowPart), 1) * 0.10) {
+        flow = rfFlow + rvNavDelta;
       }
     }
 
