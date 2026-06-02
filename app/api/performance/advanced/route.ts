@@ -130,7 +130,8 @@ function calcularRollingReturns(
 
 function calcularAttributionBySector(
   points: TwrDayPoint[],
-  transacoes: Row[]
+  transacoes: Row[],
+  rfTransacoes: Row[] = []
 ): Array<{ setor: string; macro: string; contrib_pct: number; nav_medio: number }> {
   // Simplified attribution using transaction weights
   // Full Brinson-Hood-Beebower requires per-asset prices
@@ -146,6 +147,23 @@ function calcularAttributionBySector(
       sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
       totalCost += valor;
     }
+  }
+
+  // Renda fixa: include RF buy cost basis so attribution reflects RF too.
+  // RF txs live in a separate sheet (renda_fixa) without a "setor" column,
+  // so they bucket into "Renda Fixa" / "Renda Fixa USD". CASH tickers excluded.
+  const CASH_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
+  for (const tx of rfTransacoes) {
+    const tipoRaw = String(tx["tipo"] ?? tx["movimentacao"] ?? "").toLowerCase();
+    if (!(tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte"))) continue;
+    const ticker = String(tx["ticker"] ?? tx["ativo"] ?? tx["papel"] ?? "").trim().toUpperCase();
+    if (!ticker || CASH_RF.has(ticker)) continue;
+    const valor = Math.abs(parseFloat(String(tx["valor"] ?? "0").replace(",", ".")) || 0);
+    if (valor <= 0) continue;
+    const moeda = String(tx["moeda"] ?? "BRL").toUpperCase().trim();
+    const setor = moeda === "USD" ? "Renda Fixa USD" : "Renda Fixa";
+    sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
+    totalCost += valor;
   }
 
   const twrTotal = points.length > 0 ? points[points.length - 1].twr * 100 : 0;
@@ -381,7 +399,7 @@ export async function GET(request: Request) {
     })();
 
     // Attribution
-    const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
+    const attribution = calcularAttributionBySector(meaningfulPoints, transacoes, rfTransacoes);
 
     // Flow ledger
     const flowLedger = buildFlowLedger(twr.points);
