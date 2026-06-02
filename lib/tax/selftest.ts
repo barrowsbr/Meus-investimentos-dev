@@ -2,6 +2,8 @@
 // Rodar: npx tsx lib/tax/selftest.ts
 import { apurarGanhos, type RawTx, type CorpEvent, type PtaxLookup } from "./engine";
 import { apurar } from "./apurador";
+import { rfAliquotaRegressiva } from "./rules";
+import { apurarRf } from "./rf";
 
 let falhas = 0;
 function check(nome: string, got: number, exp: number, tol = 0.01) {
@@ -89,6 +91,25 @@ const tx = (date: string, tipo: string, ticker: string, q: number, p: number, mo
   const ap = apurar(evs);
   check("8a. Exterior ganho BRL (6600-5000)", evs.find(e => e.modalidade === "exterior")!.gainBRL, 1600);
   check("8b. Exterior IR anual 15%", ap.irTotalExterior, 240);
+}
+
+// 9) Tabela regressiva da renda fixa
+{
+  check("9a. RF ≤180d → 22,5%", rfAliquotaRegressiva(100), 0.225);
+  check("9b. RF 181-360d → 20%", rfAliquotaRegressiva(300), 0.20);
+  check("9c. RF 361-720d → 17,5%", rfAliquotaRegressiva(500), 0.175);
+  check("9d. RF >720d → 15%", rfAliquotaRegressiva(800), 0.15);
+}
+
+// 10) RF: rendimento e IRRF retido (compra 10k, resgate 11k após ~2 anos → 17,5%)
+{
+  const rows = [
+    { ticker: "CDB-X", tipo: "compra", valor: "10000", moeda: "BRL", compra: "2023-01-02" },
+    { ticker: "CDB-X", tipo: "resgate", valor: "11000", moeda: "BRL", compra: "2024-12-20" }, // ~718d → 17,5%
+  ];
+  const r = apurarRf(rows)[0];
+  check("10a. RF rendimento (11000-10000)", r.rendimento, 1000);
+  check("10b. RF IRRF retido (1000 × 17,5%)", r.irRetido, 175);
 }
 
 console.log(falhas === 0 ? "\n✅ TODOS OS TESTES PASSARAM" : `\n❌ ${falhas} TESTE(S) FALHARAM`);

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Receipt, TrendingUp, TrendingDown, AlertCircle, Calendar,
-  Scale, ChevronDown, ChevronUp, Globe, Calculator,
+  Receipt, TrendingUp, AlertCircle, Calendar,
+  Scale, ChevronDown, ChevronUp, Globe, Calculator, FileText,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -40,6 +40,21 @@ interface IrResponse {
   prejuizoFinal: Record<OffsetBucket, number>; irTotalMensal: number; irTotalExterior: number;
   posicoes: Posicao[]; fxHoje: number; mesAtual: string;
   acoesVendasMesAtual: number; limiteIsencaoAcoes: number;
+}
+
+interface BemDireito {
+  ticker: string; assetClass: string; grupo: string; codigo: string; descricao: string;
+  localizacao: "Brasil" | "Exterior"; qty: number; custoAno: number; custoAnoAnterior: number; moeda: string;
+}
+interface RendimentosAno {
+  ano: string; isentosDividendosBR: number; isentosRendimentoFII: number;
+  exclusivaJCP: number; tributavelExterior: number; irrfRetido: number;
+}
+interface RfRend { ticker: string; ano: string; rendimento: number; diasCorridos: number; aliquota: number; irRetido: number; moeda: string; }
+interface DirpfResponse {
+  year: number; bensDireitos: BemDireito[]; rendimentos: RendimentosAno | null;
+  rfRendimentos: RfRend[]; rfPosicoes: { ticker: string; investido: number; atual: number; moeda: string }[];
+  totais: { bensDireitosCusto: number; rfIrRetido: number };
 }
 
 const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -219,6 +234,108 @@ function Simulador({ data }: { data: IrResponse }) {
   );
 }
 
+// ─── Declaração anual (DIRPF) ─────────────────────────────────────────────────
+function Declaracao({ ano }: { ano: number }) {
+  const [d, setD] = useState<DirpfResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/ir/dirpf?year=${ano}`).then(r => r.json())
+      .then(x => { if (!x.error) setD(x as DirpfResponse); })
+      .finally(() => setLoading(false));
+  }, [ano]);
+
+  if (loading) return <div className="glass-card p-5 mb-5 text-sm text-zinc-600">Carregando declaração {ano}…</div>;
+  if (!d) return null;
+  const r = d.rendimentos;
+
+  return (
+    <div className="glass-card overflow-hidden mb-5">
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
+        <FileText size={14} className="text-indigo-400" />
+        <h2 className="text-sm font-semibold text-zinc-300">Declaração anual (DIRPF) — ano-base {ano}</h2>
+      </div>
+
+      {/* Rendimentos */}
+      {r && (
+        <div className="p-4 border-b border-white/[0.04]">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Rendimentos</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {[
+              { l: "Dividendos BR (isento)", v: r.isentosDividendosBR, c: "#34d399" },
+              { l: "Rend. FII (isento)", v: r.isentosRendimentoFII, c: "#34d399" },
+              { l: "JCP (excl. fonte)", v: r.exclusivaJCP, c: "#a78bfa" },
+              { l: "Dividendos exterior", v: r.tributavelExterior, c: "#ec4899" },
+              { l: "IRRF retido", v: r.irrfRetido, c: "#f59e0b" },
+            ].map(x => (
+              <div key={x.l} className="bg-white/[0.03] rounded-xl p-2.5">
+                <div className="text-[9px] text-zinc-600 leading-tight">{x.l}</div>
+                <div className="text-sm font-bold mt-1" style={{ color: x.c }}>{brl(x.v)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bens e Direitos */}
+      <div className="p-4 border-b border-white/[0.04]">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-wide">Bens e Direitos (a custo)</div>
+          <div className="text-[10px] text-zinc-600">Total {compactBRL(d.totais.bensDireitosCusto)}</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="text-[10px] text-zinc-600 uppercase">
+              <th className="text-left font-semibold py-1">Ativo</th>
+              <th className="text-left font-semibold">Gr/Cód</th>
+              <th className="text-left font-semibold">Local</th>
+              <th className="text-right font-semibold">31/12/{ano - 1}</th>
+              <th className="text-right font-semibold">31/12/{ano}</th>
+            </tr></thead>
+            <tbody>
+              {d.bensDireitos.map(b => (
+                <tr key={b.ticker} className="border-t border-white/[0.03]">
+                  <td className="py-1.5 text-zinc-300 font-medium">{b.ticker}</td>
+                  <td className="text-zinc-500">{b.grupo}/{b.codigo}</td>
+                  <td className="text-zinc-500">{b.localizacao === "Exterior" ? "🌐" : "🇧🇷"}</td>
+                  <td className="text-right text-zinc-500">{b.custoAnoAnterior > 0 ? brl(b.custoAnoAnterior) : "—"}</td>
+                  <td className="text-right text-zinc-300 font-medium">{b.custoAno > 0 ? brl(b.custoAno) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Renda fixa */}
+      {(d.rfRendimentos.length > 0 || d.rfPosicoes.length > 0) && (
+        <div className="p-4">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Renda fixa (tributação exclusiva na fonte)</div>
+          {d.rfRendimentos.map(r => (
+            <div key={r.ticker} className="flex items-center justify-between text-xs py-1">
+              <span className="text-zinc-400">{r.ticker}</span>
+              <div className="flex gap-4 text-zinc-600">
+                <span>rend. <span className="text-emerald-400">{brl(r.rendimento)}</span></span>
+                <span>{r.diasCorridos}d · {(r.aliquota * 100).toFixed(1)}%</span>
+                <span>IRRF <span className="text-amber-400">{brl(r.irRetido)}</span></span>
+              </div>
+            </div>
+          ))}
+          {d.rfPosicoes.length > 0 && (
+            <div className="text-[11px] text-zinc-600 mt-2">
+              {d.rfPosicoes.length} posição(ões) de RF em aberto — declarar em Bens e Direitos pelo valor aplicado.
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[11px] text-zinc-700 px-4 pb-3">
+        Grupo/código são orientação (leiaute varia por ano-base). RF retida na fonte é estimativa.
+      </p>
+    </div>
+  );
+}
+
 // ─── Página ─────────────────────────────────────────────────────────────────────
 export default function ImpostosPage() {
   const [data, setData] = useState<IrResponse | null>(null);
@@ -341,6 +458,8 @@ export default function ImpostosPage() {
               ))}
             </div>
           )}
+
+          <Declaracao ano={year ?? new Date().getFullYear() - 1} />
 
           <p className="text-xs text-zinc-800 text-center mt-6">
             Cálculo por preço médio ponderado, dia-trade, compensação por modalidade e conversão PTAX no exterior.
