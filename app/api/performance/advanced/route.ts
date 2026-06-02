@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
-import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, type TwrDayPoint } from "@/lib/twr-engine";
+import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
@@ -229,10 +229,12 @@ export async function GET(request: Request) {
   const lookback = rawLookback <= 0 ? 0 : rawLookback;
 
   try {
-    const [transacoes, proventos, cambioRows] = await Promise.all([
+    const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
       fetchTab("cambio").catch(() => []),
+      fetchTab("renda_fixa").catch(() => []),
+      fetchTab("fixa_aberta").catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
@@ -303,7 +305,11 @@ export async function GET(request: Request) {
     const pmFx = buildPmFxRates(cambioMetrics);
     const runningPm = buildRunningPmDolar(cambioRows);
 
-    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx });
+    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate } = buildRfTimeline(
+      rfTransacoes, fixaAberta, dates, alignedFx
+    );
+
+    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
 
     // CDI, IBOV, S&P 500 benchmarks
     const cdiPoints = buildCDIBenchmark(dates);
