@@ -238,23 +238,28 @@ export function buildRfTimeline(
       // Solve implied rate so the modeled NAV reaches manual.atual at lastDate.
       // Include vendas as negative lots — they reduced the principal.
       const lots = [
-        ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.date, lastDate) })),
-        ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.date, lastDate) })),
+        ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.bizDate, lastDate) })),
+        ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.bizDate, lastDate) })),
       ];
       dailyRate = solveImpliedRate(lots, manual.atual);
     } else if (!isActive && vendas.length > 0) {
       const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
       const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
-      const holdingDays = rfBizDays(compras[0].date, vendas[vendas.length - 1].date);
+      const holdingDays = rfBizDays(compras[0].bizDate, vendas[vendas.length - 1].bizDate);
       if (holdingDays > 0 && totalInvested > 0 && totalRedeemed > totalInvested * 0.3) {
         dailyRate = Math.pow(totalRedeemed / totalInvested, 1 / holdingDays) - 1;
         dailyRate = Math.max(0, Math.min(dailyRate, 0.002));
       }
     }
 
+    // Use bizDate (not the raw date) so the NAV recognizes each transaction on
+    // the SAME grid day the flow series does. The flow loop keys off bizDate;
+    // if the NAV keyed off the raw date, a weekend transaction (with crypto
+    // putting weekend dates in the grid) would move the NAV on Sat/Sun while
+    // the flow landed on Monday — producing a spurious spike + reversal.
     tickerInfos.push({
-      compras: compras.map(c => ({ date: c.date, valor: c.valor })),
-      vendas: vendas.map(v => ({ date: v.date, valor: v.valor })),
+      compras: compras.map(c => ({ date: c.bizDate, valor: c.valor })),
+      vendas: vendas.map(v => ({ date: v.bizDate, valor: v.valor })),
       dailyRate,
       moeda,
     });
