@@ -217,7 +217,7 @@ export function buildRfTimeline(
 
   interface TickerInfo {
     compras: { date: string; valor: number }[];
-    closedDate: string | null;
+    vendas: { date: string; valor: number }[];
     dailyRate: number;
     moeda: string;
   }
@@ -235,10 +235,12 @@ export function buildRfTimeline(
 
     let dailyRate = SELIC_DAILY_RATE;
     if (isActive && manual.atual > 0) {
-      const lots = compras.map(c => ({
-        invested: c.valor,
-        bizDays: rfBizDays(c.date, lastDate),
-      }));
+      // Solve implied rate so the modeled NAV reaches manual.atual at lastDate.
+      // Include vendas as negative lots — they reduced the principal.
+      const lots = [
+        ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.date, lastDate) })),
+        ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.date, lastDate) })),
+      ];
       dailyRate = solveImpliedRate(lots, manual.atual);
     } else if (!isActive && vendas.length > 0) {
       const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
@@ -252,7 +254,7 @@ export function buildRfTimeline(
 
     tickerInfos.push({
       compras: compras.map(c => ({ date: c.date, valor: c.valor })),
-      closedDate: !isActive && vendas.length > 0 ? vendas[vendas.length - 1].bizDate : null,
+      vendas: vendas.map(v => ({ date: v.date, valor: v.valor })),
       dailyRate,
       moeda,
     });
@@ -273,15 +275,26 @@ export function buildRfTimeline(
     }
     if (Math.abs(dayFlow) > 0.01) flowByDate[date] = dayFlow;
 
+    // NAV = Σ compras compounded − Σ vendas compounded (each from its own date).
+    // Modeling vendas as negative compounding terms keeps NAV consistent with
+    // the flow series: on a venda day NAV drops by exactly the venda amount
+    // (the term starts at valor × (1+r)^0), so the daily return stays ~0
+    // instead of producing a spurious spike.
     let dayNav = 0;
     for (const info of tickerInfos) {
-      if (info.closedDate && date >= info.closedDate) continue;
       const fxF = fxFactor(info.moeda, fx);
+      let balanceNative = 0;
       for (const compra of info.compras) {
         if (compra.date > date) continue;
         const bd = rfBizDays(compra.date, date);
-        dayNav += compra.valor * Math.pow(1 + info.dailyRate, bd) * fxF;
+        balanceNative += compra.valor * Math.pow(1 + info.dailyRate, bd);
       }
+      for (const venda of info.vendas) {
+        if (venda.date > date) continue;
+        const bd = rfBizDays(venda.date, date);
+        balanceNative -= venda.valor * Math.pow(1 + info.dailyRate, bd);
+      }
+      if (balanceNative > 0) dayNav += balanceNative * fxF;
     }
     navByDate[date] = dayNav;
   }
@@ -348,7 +361,7 @@ function fxFactor(moeda: string, fx: FxRates): number {
 const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
 const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
 const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MAX_DAILY_RETURN = 0.15; // Cap daily return at ±15% — diversified portfolio safety net
+const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50% (matching Python canonical engine)
 const MAX_UNEXPLAINED_CHANGE = 0.40; // 40% NAV variation without flow → forceZero
 
 // ─── Public types ─────────────────────────────────────────────────────────────
