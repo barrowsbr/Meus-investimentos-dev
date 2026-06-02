@@ -611,10 +611,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
     // Comparing total navDelta vs total flow would false-trigger on RF transaction days
     // (RV appreciation looks like a "mismatch" relative to the large RF flow).
     const rvFlowPart = flow - rfFlow;
+    const prevDateRfNav = i > 0 ? (rfNavByDate?.[dates[i - 1]] ?? 0) : 0;
     if (Math.abs(rvFlowPart) > 0 && prevNav > 0) {
       const navDelta = nav - prevNav;
-      const prevRfNav = i > 0 ? (rfNavByDate?.[dates[i - 1]] ?? 0) : 0;
-      const rfNavDelta = (rfNavByDate?.[date] ?? 0) - prevRfNav;
+      const rfNavDelta = (rfNavByDate?.[date] ?? 0) - prevDateRfNav;
       const rvNavDelta = navDelta - rfNavDelta;
       if (Math.abs(rvNavDelta - rvFlowPart) > Math.max(Math.abs(rvFlowPart), 1) * 0.10) {
         flow = rfFlow + rvNavDelta;
@@ -633,13 +633,24 @@ export function calcularTWR(input: TwrInput): TwrResult {
     else if (Math.abs(flow) / prevNav > LARGE_FLOW_FORCE_ZERO) {
       forceZero = true;
     }
-    // Rule 3: Large inflow (>1% of NAV) — use SoD to prevent inflation
-    else if (flow > 0 && flow / prevNav > FLOW_THRESHOLD) {
-      isSoD = true;
+    // Rule 2b: Large RV flow relative to RV-only NAV — RF dilution must not
+    // bypass forceZero for flows that would have triggered it without RF.
+    else if (Math.abs(rvFlowPart) > 0) {
+      const prevRvNav = prevNav - prevDateRfNav;
+      if (prevRvNav > 0 && Math.abs(rvFlowPart) / prevRvNav > LARGE_FLOW_FORCE_ZERO) {
+        forceZero = true;
+      }
     }
-    // Rule 4: Large outflow (>1% of NAV) — use SoD to prevent deflation
-    else if (flow < 0 && Math.abs(flow) / prevNav > FLOW_THRESHOLD) {
-      isSoD = true;
+
+    if (!forceZero) {
+      // Rule 3: Large inflow (>1% of NAV) — use SoD to prevent inflation
+      if (flow > 0 && flow / prevNav > FLOW_THRESHOLD) {
+        isSoD = true;
+      }
+      // Rule 4: Large outflow (>1% of NAV) — use SoD to prevent deflation
+      else if (flow < 0 && Math.abs(flow) / prevNav > FLOW_THRESHOLD) {
+        isSoD = true;
+      }
     }
 
     // ── Modified Dietz daily return ──
