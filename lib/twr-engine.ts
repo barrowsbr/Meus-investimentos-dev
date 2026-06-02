@@ -589,18 +589,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
       if (nav <= 0 || !isFinite(nav)) {
         nav = Math.max(0, prevNav + flow);
       }
-      // v3.3: Smooth unexplained RV NAV jumps when no RV flow present.
+      // v3.3: Smooth unexplained NAV jumps when no RV flow present.
       // Use (flow - rfFlow) so RF-only transaction days still get smoothing —
-      // RF flows are modeled, not market-driven, and shouldn't mask RV anomalies.
+      // RF flows are modeled, not market-driven, and shouldn't mask anomalies.
       else if (Math.abs(flow - rfFlow) < 1.0) {
-        const curRfNavVal = rfNavByDate?.[date] ?? 0;
-        const prevRfNavSmooth = rfNavByDate?.[dates[i - 1]] ?? 0;
-        const rvNow = nav - curRfNavVal;
-        const rvPrev = prevNav - prevRfNavSmooth;
-        if (rvPrev > 0) {
-          const rvVariation = (rvNow - rvPrev) / rvPrev;
-          if (Math.abs(rvVariation) > MAX_UNEXPLAINED_CHANGE) {
-            nav = (0.8 * rvPrev + 0.2 * rvNow) + curRfNavVal;
+        const navExpected = prevNav + flow;
+        if (navExpected > 0) {
+          const variation = (nav - navExpected) / navExpected;
+          if (Math.abs(variation) > MAX_UNEXPLAINED_CHANGE) {
+            nav = 0.8 * navExpected + 0.2 * nav;
           }
         }
       }
@@ -668,12 +665,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       }
     }
 
-    // Guard against data anomalies.
-    // Flow days: tighter ±10% cap — residual returns should be modest after
-    // subtracting the flow; anything larger is likely a price/FX mismatch.
-    // No-flow days: ±50% (matching Python canonical engine).
-    const dailyCap = Math.abs(flow) > 0.01 ? 0.10 : MAX_DAILY_RETURN;
-    ret = Math.max(-dailyCap, Math.min(dailyCap, ret));
+    ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);
 
     points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero });
