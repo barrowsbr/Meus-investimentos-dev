@@ -718,10 +718,18 @@ export function calcularTWR(input: TwrInput): TwrResult {
     : twrTotal;
 
   // total_pnl = nav_final - nav_inicial - sum(flows from firstIdx onward) + first_flow
+  //           + sum(income). Dividends/JCP are received as cash (not held in NAV),
+  //           so the NAV delta alone understates the gain. Adding accumulated income
+  //           makes the total consistent with the daily Modified Dietz economic gain
+  //           ((nav + income) − prevNav − flow) and with the Resumo's "Resultado Total".
   let flowsFromFirst = 0;
-  for (let i = firstIdx; i < points.length; i++) flowsFromFirst += points[i].flow;
+  let incomeFromFirst = 0;
+  for (let i = firstIdx; i < points.length; i++) {
+    flowsFromFirst += points[i].flow;
+    incomeFromFirst += points[i].income;
+  }
   const firstMeaningfulFlow = points[firstIdx].flow;
-  const ganhoEconomico = last.nav - firstMeaningful.nav - flowsFromFirst + firstMeaningfulFlow;
+  const ganhoEconomico = last.nav - firstMeaningful.nav - flowsFromFirst + firstMeaningfulFlow + incomeFromFirst;
 
   const mwr = calculateMWR(
     mwrFlows, last.nav, last.date,

@@ -404,7 +404,7 @@ export default function PerformancePage() {
               <p className={`text-xl font-bold ${s.ganhoEconomico >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {s.ganhoEconomico >= 0 ? "+" : ""}{compactCurr(s.ganhoEconomico)}
               </p>
-              <p className="text-[10px] text-zinc-500">NAV − investido ({currSymbol})</p>
+              <p className="text-[10px] text-zinc-500">NAV − investido + proventos ({currSymbol})</p>
             </div>
           </div>
         </div>

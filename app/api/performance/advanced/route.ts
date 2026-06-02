@@ -437,7 +437,7 @@ export async function GET(request: Request) {
       if (meaningfulPoints.length < 2) return null;
       const pts = meaningfulPoints.map(p => {
         const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
-        return { date: p.date, nav: p.nav / fx, flow: p.flow / fx };
+        return { date: p.date, nav: p.nav / fx, flow: p.flow / fx, income: p.income / fx };
       });
 
       // Compute TWR from USD NAV series
@@ -552,7 +552,7 @@ export async function GET(request: Request) {
           sortino: usdRisk.sortino,
           var95: usdRisk.var95,
           var99: usdRisk.var99,
-          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow),
+          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow) + pts.reduce((s, p) => s + p.income, 0),
         },
         chart: thinSeries(chart),
         monthlyReturns: usdMonthly,
