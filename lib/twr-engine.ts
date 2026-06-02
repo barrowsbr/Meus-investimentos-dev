@@ -348,8 +348,8 @@ function fxFactor(moeda: string, fx: FxRates): number {
 const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
 const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
 const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50% (matching Python canonical engine)
-const MAX_UNEXPLAINED_CHANGE = 0.40; // 40% NAV variation without flow → smooth
+const MAX_DAILY_RETURN = 0.15; // Cap daily return at ±15% — diversified portfolio safety net
+const MAX_UNEXPLAINED_CHANGE = 0.40; // 40% NAV variation without flow → forceZero
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -584,20 +584,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
     if (rfFlow > 0) totalInvestido += rfFlow;
 
     // ── NAV gap handling (Python engine v3.1–v3.3) ──
+    let dataAnomaly = false;
     if (i > 0 && prevNav > 0) {
       // v3.2: Forward-fill NAV if it drops to 0/NaN but previous was valid
       if (nav <= 0 || !isFinite(nav)) {
         nav = Math.max(0, prevNav + flow);
       }
-      // v3.3: Smooth unexplained NAV jumps when no RV flow present.
-      // Use (flow - rfFlow) so RF-only transaction days still get smoothing —
-      // RF flows are modeled, not market-driven, and shouldn't mask anomalies.
+      // v3.3: Flag anomalous NAV jumps (>40% unexplained variation with no RV flow).
+      // Instead of modifying NAV (which creates catch-up spikes the next day),
+      // we flag the day for forceZero — the return is unreliable, but NAV stays
+      // accurate so subsequent days compute correctly.
       else if (Math.abs(flow - rfFlow) < 1.0) {
         const navExpected = prevNav + flow;
         if (navExpected > 0) {
           const variation = (nav - navExpected) / navExpected;
           if (Math.abs(variation) > MAX_UNEXPLAINED_CHANGE) {
-            nav = 0.8 * navExpected + 0.2 * nav;
+            dataAnomaly = true;
           }
         }
       }
@@ -608,27 +610,20 @@ export function calcularTWR(input: TwrInput): TwrResult {
       mwrFlows.push({ date, amount: flow });
     }
 
-    // ── v9.0: Flow-NAV consistency correction ──
-    // Only correct the RV portion — RF flows are consistent with RF NAV by construction.
-    // Comparing total navDelta vs total flow would false-trigger on RF transaction days
-    // (RV appreciation looks like a "mismatch" relative to the large RF flow).
+    // RV/RF flow decomposition for forceZero check
     const rvFlowPart = flow - rfFlow;
     const prevDateRfNav = i > 0 ? (rfNavByDate?.[dates[i - 1]] ?? 0) : 0;
-    if (Math.abs(rvFlowPart) > 0 && prevNav > 0) {
-      const navDelta = nav - prevNav;
-      const rfNavDelta = (rfNavByDate?.[date] ?? 0) - prevDateRfNav;
-      const rvNavDelta = navDelta - rfNavDelta;
-      if (Math.abs(rvNavDelta - rvFlowPart) > Math.max(Math.abs(rvFlowPart), 1) * 0.10) {
-        flow = rfFlow + rvNavDelta;
-      }
-    }
 
     // ── Flow timing & force_zero logic (from Streamlit engine) ──
     let forceZero = false;
     let isSoD = false;
 
+    // Rule 0: Data anomaly detected (>40% unexplained NAV variation with no flow)
+    if (dataAnomaly) {
+      forceZero = true;
+    }
     // Rule 1: Previous NAV ≤ 0 — no capital base, return undefined
-    if (prevNav <= 0) {
+    else if (prevNav <= 0) {
       forceZero = true;
     }
     // Rule 2: Enormous flow (>90% of NAV) — return is meaningless
