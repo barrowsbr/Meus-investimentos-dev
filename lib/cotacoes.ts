@@ -248,6 +248,74 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
   return { quotes: {}, source: "none" };
 }
 
+// --- Historical series via Yahoo v8 chart API (with query1/query2 fallback) ---
+
+export interface HistoryPoint {
+  date: string;
+  close: number;
+}
+
+async function fetchHistoryHost(
+  ticker: string,
+  range: string,
+  interval: string,
+  host: string
+): Promise<HistoryPoint[]> {
+  const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/json, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) throw new Error(`v8/${host} HTTP ${res.status}`);
+  const json = await res.json();
+  const result = json?.chart?.result?.[0];
+  if (!result) throw new Error(`v8/${host} no result`);
+
+  const timestamps: number[] = result.timestamp ?? [];
+  const closes: (number | null)[] =
+    result.indicators?.quote?.[0]?.close ??
+    result.indicators?.adjclose?.[0]?.adjclose ??
+    [];
+
+  const points: HistoryPoint[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const c = closes[i];
+    if (c == null || !isFinite(c)) continue;
+    points.push({
+      date: new Date(timestamps[i] * 1000).toISOString().split("T")[0],
+      close: c,
+    });
+  }
+  return points;
+}
+
+export async function fetchHistory(
+  ticker: string,
+  range = "1y",
+  interval = "1d"
+): Promise<HistoryPoint[]> {
+  for (const host of ["query1", "query2"]) {
+    try {
+      const rows = await fetchHistoryHost(ticker, range, interval, host);
+      if (rows.length > 0) return rows;
+    } catch {
+      // try next host
+    }
+  }
+  return [];
+}
+
 export function fxToBRL(currency: string, fx: FxRates): number {
   const cur = (currency || "BRL").toUpperCase();
   if (cur === "BRL") return 1;

@@ -6,8 +6,12 @@ import {
   ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
 } from "react-simple-maps";
 import {
+  Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, YAxis,
+} from "recharts";
+import {
   ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
   ArrowUpDown, DollarSign, Filter, ZoomIn, ZoomOut, Maximize2,
+  Gauge, Activity,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -26,12 +30,43 @@ interface CurrencyData {
   lng: number;
 }
 
+type PeriodKey = "1S" | "1M" | "3M" | "6M" | "1A" | "YTD";
+
+interface DxyData {
+  value: number;
+  change: number;
+  changePct: number;
+  source: "yahoo" | "sintetico";
+  periods: Record<PeriodKey, number | null> | null;
+  history: { date: string; close: number }[];
+}
+
+interface Verdict {
+  label: string;
+  tone: "forte" | "neutro" | "fraco";
+  score: number;
+  reason: string;
+}
+
 interface MoedasResponse {
   currencies: CurrencyData[];
   usdBrl: number;
   lastUpdate: string;
+  dxy: DxyData | null;
+  breadth: { up: number; down: number; total: number };
+  verdict: Verdict;
   error?: string;
 }
+
+const TONE_COLORS: Record<Verdict["tone"], { color: string; bg: string; label: string }> = {
+  forte:  { color: "#34d399", bg: "rgba(16,185,129,0.12)", label: "Dólar forte" },
+  neutro: { color: "#fbbf24", bg: "rgba(245,158,11,0.12)", label: "Neutro" },
+  fraco:  { color: "#f87171", bg: "rgba(239,68,68,0.12)",  label: "Dólar fraco" },
+};
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+  "1S": "1 sem", "1M": "1 mês", "3M": "3 meses", "6M": "6 meses", "1A": "1 ano", YTD: "Ano (YTD)",
+};
 
 const REGION_COLORS: Record<string, string> = {
   Americas: "#3b82f6",
@@ -345,6 +380,11 @@ export default function MoedasPage() {
           />
         </div>
 
+        {/* ── Termômetro do Dólar (DXY) ── */}
+        {data.dxy && (
+          <DollarThermometer dxy={data.dxy} verdict={data.verdict} breadth={data.breadth} />
+        )}
+
         {/* ── World Map ── */}
         <div
           className="rounded-2xl p-3 md:p-5 overflow-hidden"
@@ -613,8 +653,184 @@ export default function MoedasPage() {
 
         {/* ── Footer ── */}
         <p className="text-center text-[10px] text-zinc-700 pt-4">
-          Dados: Open Exchange Rates API · Cotações em relação ao dólar americano (USD)
+          Cotações via Yahoo Finance · DXY = ICE U.S. Dollar Index · Variações em relação ao dólar americano (USD)
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Dollar Thermometer (DXY) ─────────────────────────────────────────────────
+
+const ALL_PERIODS: PeriodKey[] = ["1S", "1M", "3M", "6M", "1A", "YTD"];
+const CHART_RANGES: { key: PeriodKey; days: number }[] = [
+  { key: "1M", days: 30 }, { key: "3M", days: 90 },
+  { key: "6M", days: 180 }, { key: "1A", days: 365 },
+];
+
+function DollarThermometer({ dxy, verdict, breadth }: {
+  dxy: DxyData; verdict: Verdict; breadth: { up: number; down: number; total: number };
+}) {
+  const [chartRange, setChartRange] = useState<PeriodKey>("3M");
+  const tone = TONE_COLORS[verdict.tone];
+  const dxyUp = dxy.changePct >= 0;
+
+  // Gauge: score -100..100 → ângulo 0..180
+  const angle = ((verdict.score + 100) / 200) * 180;
+
+  const chartData = useMemo(() => {
+    if (dxy.history.length === 0) return [];
+    const cfg = CHART_RANGES.find(r => r.key === chartRange) ?? CHART_RANGES[1];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - cfg.days);
+    const cutoffStr = cutoff.toISOString().split("T")[0];
+    return dxy.history.filter(p => p.date >= cutoffStr);
+  }, [dxy.history, chartRange]);
+
+  const chartMin = useMemo(() => Math.min(...chartData.map(d => d.close)), [chartData]);
+  const chartMax = useMemo(() => Math.max(...chartData.map(d => d.close)), [chartData]);
+  const chartRangePct = chartData.length > 1
+    ? ((chartData[chartData.length - 1].close / chartData[0].close) - 1) * 100
+    : 0;
+
+  return (
+    <div
+      className="rounded-2xl p-4 md:p-6"
+      style={{
+        background: "rgba(13,14,20,0.8)",
+        border: `1px solid ${tone.color}25`,
+        boxShadow: `0 8px 32px ${tone.color}08`,
+      }}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <Gauge size={16} style={{ color: tone.color }} />
+        <h2 className="text-sm font-semibold text-zinc-200">Termômetro do Dólar (DXY)</h2>
+        <span className="text-[10px] text-zinc-600 ml-auto">
+          {dxy.source === "sintetico" ? "índice sintético" : "ICE U.S. Dollar Index"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Coluna 1 — Veredito + gauge */}
+        <div className="flex flex-col items-center justify-center text-center">
+          {/* Gauge semicircular */}
+          <svg viewBox="0 0 200 110" className="w-full max-w-[220px]">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#f87171" />
+                <stop offset="50%" stopColor="#fbbf24" />
+                <stop offset="100%" stopColor="#34d399" />
+              </linearGradient>
+            </defs>
+            {/* Arco de fundo */}
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={12} strokeLinecap="round" />
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#gaugeGrad)" strokeWidth={12} strokeLinecap="round" opacity={0.85} />
+            {/* Ponteiro */}
+            <g transform={`rotate(${angle - 90} 100 100)`}>
+              <line x1={100} y1={100} x2={100} y2={28} stroke="#fff" strokeWidth={2.5} strokeLinecap="round" />
+              <circle cx={100} cy={100} r={6} fill="#fff" />
+            </g>
+            <text x={15} y={108} fill="#71717a" fontSize={8} textAnchor="middle">fraco</text>
+            <text x={185} y={108} fill="#71717a" fontSize={8} textAnchor="middle">forte</text>
+          </svg>
+
+          <span
+            className="text-[11px] px-2.5 py-1 rounded-full font-semibold mt-1"
+            style={{ background: tone.bg, color: tone.color, border: `1px solid ${tone.color}40` }}
+          >
+            {verdict.label}
+          </span>
+          <p className="text-[11px] text-zinc-500 mt-2 leading-relaxed max-w-[260px]">{verdict.reason}</p>
+        </div>
+
+        {/* Coluna 2 — DXY atual + períodos */}
+        <div className="flex flex-col justify-center">
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Índice DXY</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-zinc-100">{dxy.value.toFixed(2)}</span>
+            <span className={`text-sm font-semibold flex items-center gap-1 ${dxyUp ? "text-emerald-400" : "text-red-400"}`}>
+              {dxyUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+              {dxyUp ? "+" : ""}{dxy.changePct.toFixed(2)}% hoje
+            </span>
+          </div>
+
+          {dxy.periods && (
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              {ALL_PERIODS.map(p => {
+                const v = dxy.periods![p];
+                if (v == null) return null;
+                const up = v >= 0;
+                return (
+                  <div key={p} className="rounded-lg px-2 py-1.5 text-center" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <p className="text-[9px] text-zinc-600 uppercase">{PERIOD_LABELS[p]}</p>
+                    <p className={`text-xs font-bold font-mono ${up ? "text-emerald-400" : "text-red-400"}`}>
+                      {up ? "+" : ""}{v.toFixed(1)}%
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Coluna 3 — Sparkline */}
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+              <Activity size={11} /> Histórico DXY
+            </span>
+            <div className="flex gap-1">
+              {CHART_RANGES.map(r => (
+                <button
+                  key={r.key}
+                  onClick={() => setChartRange(r.key)}
+                  className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+                  style={{
+                    background: chartRange === r.key ? `${tone.color}25` : "rgba(255,255,255,0.04)",
+                    color: chartRange === r.key ? tone.color : "#71717a",
+                  }}
+                >
+                  {r.key}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {chartData.length > 1 ? (
+            <>
+              <div className="flex-1 min-h-[120px]">
+                <ResponsiveContainer width="100%" height={120}>
+                  <AreaChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="dxyArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <YAxis domain={[chartMin, chartMax]} hide />
+                    <RTooltip
+                      contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: "#a1a1aa" }}
+                      formatter={(v: number) => [v.toFixed(2), "DXY"]}
+                    />
+                    <Area
+                      type="monotone" dataKey="close"
+                      stroke={chartRangePct >= 0 ? "#34d399" : "#f87171"}
+                      strokeWidth={1.5} fill="url(#dxyArea)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-[10px] text-zinc-600 text-center">
+                {chartRangePct >= 0 ? "+" : ""}{chartRangePct.toFixed(2)}% no período · {breadth.up}/{breadth.total} moedas perderam p/ USD hoje
+              </p>
+            </>
+          ) : (
+            <div className="flex-1 min-h-[120px] flex items-center justify-center text-[11px] text-zinc-600">
+              Histórico indisponível
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
