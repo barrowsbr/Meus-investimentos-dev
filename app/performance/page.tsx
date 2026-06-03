@@ -364,12 +364,12 @@ export default function PerformancePage() {
               <span className="text-4xl sm:text-5xl font-extrabold tracking-tight" style={{ color: trendColor }}>
                 {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
               </span>
-              <span className="text-sm text-zinc-500 font-medium">TWR acumulado</span>
+              <span className="text-sm text-zinc-500 font-medium" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices (CDI/IBOV/S&P). Difere do 'retorno simples' (lucro÷investido) mostrado no Resumo.">TWR acumulado ⓘ</span>
             </div>
             <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4">
               <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong></span>
               <span className="text-zinc-700">·</span>
-              <span>MWR <strong className={mwrPct >= 0 ? "text-purple-400" : "text-red-400"}>{pct(mwrPct)}</strong> a.a.</span>
+              <span title="Money-Weighted Return (TIR): ponderado pelo dinheiro investido — é o primo próximo do 'retorno simples' do Resumo.">MWR <strong className={mwrPct >= 0 ? "text-purple-400" : "text-red-400"}>{pct(mwrPct)}</strong> a.a.</span>
               <span className="text-zinc-700">·</span>
               <span>{formatDuracao(s.duracaoAnos)}</span>
             </div>
@@ -394,9 +394,9 @@ export default function PerformancePage() {
           {/* Right: NAV + Ganho */}
           <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
             <div>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio RV</p>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio Total</p>
               <p className="text-xl font-bold text-zinc-100">{compactCurr(s.navFinal)}</p>
-              <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)}</p>
+              <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)} · inclui RV + RF</p>
             </div>
             <div className="h-px bg-zinc-800/50" />
             <div>
@@ -404,7 +404,7 @@ export default function PerformancePage() {
               <p className={`text-xl font-bold ${s.ganhoEconomico >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {s.ganhoEconomico >= 0 ? "+" : ""}{compactCurr(s.ganhoEconomico)}
               </p>
-              <p className="text-[10px] text-zinc-500">NAV − investido ({currSymbol})</p>
+              <p className="text-[10px] text-zinc-500">NAV − investido + proventos ({currSymbol})</p>
             </div>
           </div>
         </div>
@@ -541,7 +541,7 @@ export default function PerformancePage() {
           {/* NAV + Summary */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="glass-card p-5">
-              <h2 className="section-title mb-4">Evolução do Patrimônio RV ({currSymbol})</h2>
+              <h2 className="section-title mb-4">Evolução do Patrimônio ({currSymbol})</h2>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={chartData}>

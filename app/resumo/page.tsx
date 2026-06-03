@@ -393,7 +393,7 @@ export default function ResumoPage() {
           const lucroTotal = composicao.resumo.lucro_total_brl;
           return (
             <MetricCard label="Resultado Total" value={compactBRL(lucroTotal)}
-              sub={`${pct(data.totalPatrimonioBRL > 0 ? (lucroTotal / (data.totalPatrimonioBRL - lucroTotal)) * 100 : 0)} sobre investido`}
+              sub={`${pct(data.totalPatrimonioBRL > 0 ? (lucroTotal / (data.totalPatrimonioBRL - lucroTotal)) * 100 : 0)} retorno simples (lucro÷investido)`}
               icon={lucroTotal >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
               trend={lucroTotal >= 0 ? "up" : "down"}
               glowColor={lucroTotal >= 0 ? "#34d399" : "#f87171"} />

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchQuotes } from "@/lib/cotacoes";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -50,46 +51,32 @@ const CURRENCIES: Omit<CurrencyData, "rate" | "change" | "changePct">[] = [
 
 export async function GET() {
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
-      next: { revalidate: 900 },
-    });
-
-    if (!res.ok) throw new Error(`API HTTP ${res.status}`);
-    const json = await res.json();
-    const rates: Record<string, number> = json.rates ?? {};
-
-    let prevRates: Record<string, number> = {};
-    try {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yStr = yesterday.toISOString().split("T")[0];
-      const prevRes = await fetch(
-        `https://open.er-api.com/v6/historical/${yStr}?base=USD`,
-        { next: { revalidate: 3600 } }
-      );
-      if (prevRes.ok) {
-        const prevJson = await prevRes.json();
-        prevRates = prevJson.rates ?? {};
-      }
-    } catch {
-      // no historical data — changePct will be 0
-    }
+    const tickers = CURRENCIES.filter(c => c.code !== "USD").map(c => `${c.code}=X`);
+    const { quotes, source } = await fetchQuotes(tickers);
 
     const currencies: CurrencyData[] = CURRENCIES.map((c) => {
-      const rate = rates[c.code] ?? 0;
-      const prev = prevRates[c.code] ?? rate;
-      const change = rate - prev;
-      const changePct = prev > 0 ? ((rate / prev) - 1) * 100 : 0;
-      return { ...c, rate, change, changePct };
-    }).filter((c) => c.rate > 0);
+      if (c.code === "USD") return { ...c, rate: 1, change: 0, changePct: 0 };
+      const q = quotes[`${c.code}=X`];
+      if (!q || q.price <= 0) return null;
+      return {
+        ...c,
+        rate: q.price,
+        change: q.change,
+        changePct: q.changePercent,
+      };
+    }).filter((c): c is CurrencyData => c !== null);
 
-    const usdBrl = rates["BRL"] ?? 5.7;
+    if (currencies.length <= 1) {
+      return NextResponse.json({ error: "Nenhuma fonte de cotação disponível" }, { status: 502 });
+    }
+
+    const usdBrl = quotes["BRL=X"]?.price ?? 5.7;
 
     return NextResponse.json({
       currencies,
-      usdIndex: json.rates?.["DXY"] ?? null,
       usdBrl,
-      lastUpdate: json.time_last_update_utc ?? new Date().toISOString(),
+      source,
+      lastUpdate: new Date().toISOString(),
     }, {
       headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=300" },
     });

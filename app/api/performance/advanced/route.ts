@@ -130,7 +130,8 @@ function calcularRollingReturns(
 
 function calcularAttributionBySector(
   points: TwrDayPoint[],
-  transacoes: Row[]
+  transacoes: Row[],
+  rfTransacoes: Row[] = []
 ): Array<{ setor: string; macro: string; contrib_pct: number; nav_medio: number }> {
   // Simplified attribution using transaction weights
   // Full Brinson-Hood-Beebower requires per-asset prices
@@ -146,6 +147,23 @@ function calcularAttributionBySector(
       sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
       totalCost += valor;
     }
+  }
+
+  // Renda fixa: include RF buy cost basis so attribution reflects RF too.
+  // RF txs live in a separate sheet (renda_fixa) without a "setor" column,
+  // so they bucket into "Renda Fixa" / "Renda Fixa USD". CASH tickers excluded.
+  const CASH_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
+  for (const tx of rfTransacoes) {
+    const tipoRaw = String(tx["tipo"] ?? tx["movimentacao"] ?? "").toLowerCase();
+    if (!(tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte"))) continue;
+    const ticker = String(tx["ticker"] ?? tx["ativo"] ?? tx["papel"] ?? "").trim().toUpperCase();
+    if (!ticker || CASH_RF.has(ticker)) continue;
+    const valor = Math.abs(parseFloat(String(tx["valor"] ?? "0").replace(",", ".")) || 0);
+    if (valor <= 0) continue;
+    const moeda = String(tx["moeda"] ?? "BRL").toUpperCase().trim();
+    const setor = moeda === "USD" ? "Renda Fixa USD" : "Renda Fixa";
+    sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
+    totalCost += valor;
   }
 
   const twrTotal = points.length > 0 ? points[points.length - 1].twr * 100 : 0;
@@ -381,7 +399,7 @@ export async function GET(request: Request) {
     })();
 
     // Attribution
-    const attribution = calcularAttributionBySector(meaningfulPoints, transacoes);
+    const attribution = calcularAttributionBySector(meaningfulPoints, transacoes, rfTransacoes);
 
     // Flow ledger
     const flowLedger = buildFlowLedger(twr.points);
@@ -419,7 +437,7 @@ export async function GET(request: Request) {
       if (meaningfulPoints.length < 2) return null;
       const pts = meaningfulPoints.map(p => {
         const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
-        return { date: p.date, nav: p.nav / fx, flow: p.flow / fx };
+        return { date: p.date, nav: p.nav / fx, flow: p.flow / fx, income: p.income / fx };
       });
 
       // Compute TWR from USD NAV series
@@ -534,7 +552,7 @@ export async function GET(request: Request) {
           sortino: usdRisk.sortino,
           var95: usdRisk.var95,
           var99: usdRisk.var99,
-          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow),
+          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow) + pts.reduce((s, p) => s + p.income, 0),
         },
         chart: thinSeries(chart),
         monthlyReturns: usdMonthly,

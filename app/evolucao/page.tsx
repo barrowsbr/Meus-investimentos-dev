@@ -1,557 +1,186 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, BarChart, Bar, Cell, ReferenceLine,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
-import { Activity, TrendingUp, Landmark, Zap, TrendingDown, ArrowDown } from "lucide-react";
-import { usePortfolio } from "@/lib/hooks";
-import { brl, compactBRL, pct } from "@/lib/format";
-import MetricCard from "@/components/MetricCard";
+import { TrendingUp, Landmark, Globe, Bitcoin, Wallet, Users } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import MetricCard from "@/components/MetricCard";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import { brl, compactBRL, pct } from "@/lib/format";
 
-/* ── Shared chart styles ────────────────────────────────────────────────────── */
+interface ContaPatrimonio {
+  nome: string; instituicao: string; pessoa: string; tipo: string; valores: Record<string, number>;
+}
+interface Evolucao {
+  anos: string[];
+  totalPorAno: { ano: string; valor: number }[];
+  contas: ContaPatrimonio[];
+  porTipo: Record<string, Record<string, number>>;
+  porPessoa: Record<string, Record<string, number>>;
+  porInstituicao: Record<string, Record<string, number>>;
+}
 
-const TOOLTIP_STYLE = {
-  background: "#13141A",
-  border: "1px solid #1E2028",
-  borderRadius: 12,
-  color: "#fafafa",
-  fontSize: 12,
-  padding: "8px 12px",
+const TOOLTIP_STYLE = { background: "#13141A", border: "1px solid #1E2028", borderRadius: 12, color: "#fafafa", fontSize: 12, padding: "8px 12px" };
+const AXIS = { fill: "#52525b", fontSize: 10 };
+const TIPO_COR: Record<string, string> = {
+  "Banco/Caixa": "#64748b", "Investimentos BR": "#6366f1", "Exterior": "#ec4899", "Cripto": "#f59e0b", "Outros": "#a1a1aa",
 };
-
-const AXIS_TICK = { fill: "#52525b", fontSize: 10 };
-const GRID_STROKE = "#1E2028";
-
-/* ── Helpers ────────────────────────────────────────────────────────────────── */
-
-function shortLabel(data: string) {
-  const m = data.match(/^(\d{4})-(\d{2})/);
-  if (!m) return data;
-  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  return `${meses[parseInt(m[2]) - 1]}/${m[1].slice(2)}`;
-}
-
-/** Fewer ticks on narrow screens so labels don't overlap */
-function smartTickInterval(dataLength: number): number {
-  if (dataLength <= 6) return 0;
-  if (dataLength <= 12) return 1;
-  if (dataLength <= 24) return 3;
-  if (dataLength <= 48) return 5;
-  return Math.floor(dataLength / 7);
-}
-
-/* ── Main page ──────────────────────────────────────────────────────────────── */
+const TIPO_ICON: Record<string, React.ReactNode> = {
+  "Banco/Caixa": <Wallet size={14} />, "Investimentos BR": <Landmark size={14} />, "Exterior": <Globe size={14} />, "Cripto": <Bitcoin size={14} />,
+};
+const PESSOA_COR: Record<string, string> = { Lucas: "#34d399", Maria: "#a78bfa", "—": "#71717a" };
+const fmtK = (v: number) => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v));
 
 export default function EvolucaoPage() {
-  const { data: portfolio, loading, error } = usePortfolio();
+  const [d, setD] = useState<Evolucao | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  /* ── Derived data ────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    fetch("/api/evolucao").then(r => r.json())
+      .then(x => { if (x.error) throw new Error(x.error); setD(x as Evolucao); })
+      .catch(e => setError(e.message)).finally(() => setLoading(false));
+  }, []);
 
-  const historico = portfolio?.lbHistoric ?? [];
+  const m = useMemo(() => {
+    if (!d || d.anos.length === 0) return null;
+    const totais = d.totalPorAno.filter(t => t.valor > 0);
+    if (totais.length === 0) return null;
+    const ultimo = totais[totais.length - 1];
+    const primeiro = totais[0];
+    const anosDecorridos = parseInt(ultimo.ano) - parseInt(primeiro.ano) || 1;
+    const cagr = primeiro.valor > 0 ? Math.pow(ultimo.valor / primeiro.valor, 1 / anosDecorridos) - 1 : 0;
+    const anoAnterior = totais[totais.length - 2];
+    const yoy = anoAnterior && anoAnterior.valor > 0 ? ultimo.valor / anoAnterior.valor - 1 : 0;
+    const crescTotal = primeiro.valor > 0 ? ultimo.valor / primeiro.valor - 1 : 0;
 
-  const computed = useMemo(() => {
-    if (historico.length === 0) return null;
+    const tipos = ["Banco/Caixa", "Investimentos BR", "Exterior", "Cripto", "Outros"]
+      .filter(t => d.anos.some(a => (d.porTipo[a]?.[t] ?? 0) > 0));
+    const stackedTipo = d.anos.map(a => ({ ano: a.slice(2), ...d.porTipo[a] }));
+    const stackedPessoa = d.anos.map(a => ({ ano: a.slice(2), ...d.porPessoa[a] }));
+    const donutTipo = Object.entries(d.porTipo[ultimo.ano] ?? {}).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
+    const areaTotal = d.totalPorAno.map(t => ({ ano: t.ano.slice(2), valor: t.valor }));
 
-    const chartData = historico.map((p) => ({
-      label: shortLabel(p.data),
-      data: p.data,
-      patrimonio: p.patrimonio,
-      rv: p.rv,
-      rf: p.rf,
-    }));
-
-    const first = historico[0];
-    const last = historico[historico.length - 1];
-    const crescimento = first.patrimonio > 0
-      ? (last.patrimonio / first.patrimonio - 1) * 100
-      : 0;
-    const peakValue = Math.max(...historico.map((p) => p.patrimonio));
-    const totalMonths = historico.length;
-    const totalYears = totalMonths / 12;
-    const cagr =
-      first.patrimonio > 0 && last.patrimonio > 0 && totalYears > 0
-        ? (Math.pow(last.patrimonio / first.patrimonio, 1 / totalYears) - 1) * 100
-        : 0;
-    const multiplier = first.patrimonio > 0 ? last.patrimonio / first.patrimonio : 1;
-
-    // Drawdown from peak
-    const drawdownFromPeak = peakValue > 0
-      ? ((last.patrimonio - peakValue) / peakValue) * 100
-      : 0;
-
-    // Monthly variation (month-over-month % change)
-    const monthlyVariation = historico.slice(1).map((p, i) => {
-      const prev = historico[i];
-      const varPct = prev.patrimonio > 0
-        ? ((p.patrimonio - prev.patrimonio) / prev.patrimonio) * 100
-        : 0;
-      return {
-        label: shortLabel(p.data),
-        data: p.data,
-        variacao: +varPct.toFixed(2),
-      };
-    });
-
-    // Annual returns
-    const byYear: Record<string, number[]> = {};
-    historico.forEach((p) => {
-      const ano = p.data.slice(0, 4);
-      if (!byYear[ano]) byYear[ano] = [];
-      byYear[ano].push(p.patrimonio);
-    });
-    const anuais: { ano: string; retorno: number; multiplier: number }[] = [];
-    Object.entries(byYear).forEach(([ano, vals]) => {
-      if (vals.length < 2) return;
-      const ret = (vals[vals.length - 1] / vals[0] - 1) * 100;
-      const mult = vals[0] > 0 ? vals[vals.length - 1] / vals[0] : 1;
-      anuais.push({ ano, retorno: +ret.toFixed(1), multiplier: +mult.toFixed(2) });
-    });
-
-    return {
-      chartData,
-      first,
-      last,
-      crescimento,
-      peakValue,
-      totalMonths,
-      totalYears,
-      cagr,
-      multiplier,
-      drawdownFromPeak,
-      monthlyVariation,
-      anuais,
-    };
-  }, [historico]);
-
-  /* ── Loading / Error / Empty states ──────────────────────────────────────── */
+    return { ultimo, primeiro, cagr, yoy, crescTotal, tipos, stackedTipo, stackedPessoa, donutTipo, areaTotal };
+  }, [d]);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
+  if (!d || !m) return <div className="glass-card p-8 text-center text-zinc-600 text-sm">Sem histórico patrimonial na aba <span className="text-zinc-400">lb_historic</span>.</div>;
 
-  if (!computed) {
-    return (
-      <>
-        <PageHeader title="Evolucao Patrimonial" description="Historico de patrimonio ao longo do tempo" />
-        <div className="glass-card p-8 text-center">
-          <Activity size={32} className="text-zinc-600 mx-auto mb-3" />
-          <p className="text-zinc-400 text-sm">Sem dados historicos.</p>
-          <p className="text-zinc-600 text-xs mt-1">Preencha a aba <code>lb_historic</code> na planilha gdados.</p>
-        </div>
-      </>
-    );
-  }
-
-  const {
-    chartData, first, last, crescimento, peakValue,
-    totalMonths, totalYears, cagr, multiplier,
-    drawdownFromPeak, monthlyVariation, anuais,
-  } = computed;
-
-  const tickInterval = smartTickInterval(chartData.length);
-  const monthlyTickInterval = smartTickInterval(monthlyVariation.length);
-
-  /* ── Render ──────────────────────────────────────────────────────────────── */
+  const ultimoAno = m.ultimo.ano;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
-      {/* ─ Sticky header: current patrimony ─────────────────────────────────── */}
-      <div className="sticky top-0 z-30 -mx-4 px-4 py-3 bg-[#0b0c10]/92 backdrop-blur-xl border-b border-zinc-800/40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-none sm:py-0 sm:-mx-0 sm:px-0">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs text-zinc-500 uppercase tracking-wider font-medium">
-              Patrimonio Atual
-            </p>
-            <p className="text-[1.65rem] sm:text-3xl font-bold tracking-tight text-zinc-50 truncate">
-              {brl(last.patrimonio)}
-            </p>
-          </div>
-          <div className="flex flex-col items-end shrink-0">
-            <span
-              className={`inline-flex items-center gap-1 text-sm sm:text-base font-semibold ${
-                crescimento >= 0 ? "text-emerald-400" : "text-red-400"
-              }`}
-            >
-              {crescimento >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-              {pct(crescimento)}
-            </span>
-            <p className="text-[10px] text-zinc-600">desde {shortLabel(first.data)}</p>
-          </div>
-        </div>
+    <>
+      <PageHeader title="Evolução Patrimonial" description="Histórico do patrimônio por ano, instituição, tipo e titular" />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 mt-4">
+        <div className="animate-fade-in"><MetricCard label={`Patrimônio ${ultimoAno}`} value={compactBRL(m.ultimo.valor)} sub={`${m.yoy >= 0 ? "+" : ""}${pct(m.yoy * 100)} vs ${parseInt(ultimoAno) - 1}`} icon={<TrendingUp size={18} />} trend={m.yoy >= 0 ? "up" : "down"} glowColor="#34d399" /></div>
+        <div className="animate-fade-in animate-delay-1"><MetricCard label="Crescimento total" value={`${m.crescTotal >= 0 ? "+" : ""}${pct(m.crescTotal * 100)}`} sub={`desde ${m.primeiro.ano}`} icon={<TrendingUp size={18} />} glowColor="#6366f1" /></div>
+        <div className="animate-fade-in animate-delay-2"><MetricCard label="CAGR" value={pct(m.cagr * 100)} sub="ao ano (composto)" icon={<TrendingUp size={18} />} glowColor="#a78bfa" /></div>
+        <div className="animate-fade-in animate-delay-3"><MetricCard label="Variação total" value={compactBRL(m.ultimo.valor - m.primeiro.valor)} sub={`${m.primeiro.ano}–${ultimoAno}`} icon={<Wallet size={18} />} glowColor="#ec4899" /></div>
       </div>
 
-      {/* Hide PageHeader on mobile (info is already in sticky bar) */}
-      <div className="hidden sm:block">
-        <PageHeader title="Evolucao Patrimonial" description="Historico completo do patrimonio" />
+      <div className="glass-card p-5 mb-4">
+        <h2 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2"><TrendingUp size={14} />Patrimônio total por ano</h2>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={m.areaTotal}>
+            <defs><linearGradient id="gTot" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient></defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
+            <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
+            <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Patrimônio"]} labelFormatter={l => `20${l}`} />
+            <Area type="monotone" dataKey="valor" stroke="#34d399" fill="url(#gTot)" strokeWidth={2.5} dot={{ r: 3, fill: "#34d399" }} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
 
-      {/* ─ Metric cards: 2x2 mobile, row of 5 on lg ────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-        <div className="animate-fade-in">
-          <MetricCard
-            label="Patrimonio"
-            value={compactBRL(last.patrimonio)}
-            sub={`Desde ${shortLabel(first.data)}`}
-            icon={<Landmark size={16} />}
-            glowColor="#d4a574"
-            compact
-          />
-        </div>
-        <div className="animate-fade-in animate-delay-1">
-          <MetricCard
-            label="Crescimento"
-            value={pct(crescimento)}
-            sub={`${multiplier.toFixed(2)}x em ${totalMonths}m`}
-            icon={<TrendingUp size={16} />}
-            trend={crescimento >= 0 ? "up" : "down"}
-            glowColor={crescimento >= 0 ? "#4ade80" : "#f87171"}
-            compact
-          />
-        </div>
-        <div className="animate-fade-in animate-delay-2">
-          <MetricCard
-            label="CAGR"
-            value={`${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}%`}
-            sub={`${totalYears.toFixed(1)} anos`}
-            icon={<Zap size={16} />}
-            trend={cagr >= 0 ? "up" : "down"}
-            glowColor="#06b6d4"
-            compact
-          />
-        </div>
-        <div className="animate-fade-in animate-delay-3">
-          <MetricCard
-            label="Pico (ATH)"
-            value={compactBRL(peakValue)}
-            sub="All-time high"
-            icon={<Activity size={16} />}
-            glowColor="#6366f1"
-            compact
-          />
-        </div>
-        <div className="animate-fade-in animate-delay-4 col-span-2 lg:col-span-1">
-          <MetricCard
-            label="Drawdown"
-            value={drawdownFromPeak === 0 ? "No topo" : `${drawdownFromPeak.toFixed(1)}%`}
-            sub={
-              drawdownFromPeak === 0
-                ? "Patrimonio no ATH"
-                : `${compactBRL(last.patrimonio - peakValue)} do pico`
-            }
-            icon={<ArrowDown size={16} />}
-            trend={drawdownFromPeak === 0 ? "up" : "down"}
-            glowColor={drawdownFromPeak === 0 ? "#4ade80" : "#f87171"}
-            compact
-          />
-        </div>
-      </div>
-
-      {/* ─ Patrimonio total chart ────────────────────────────────────────────── */}
-      <div className="glass-card p-3 sm:p-5 animate-fade-in">
-        <h2 className="section-title mb-3">Patrimonio Total</h2>
-        <div className="w-full" style={{ minHeight: 260 }}>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-              <defs>
-                <linearGradient id="gradPatr" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#d4a574" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#d4a574" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-              <XAxis
-                dataKey="label"
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                interval={tickInterval}
-                angle={-35}
-                dy={8}
-                height={45}
-              />
-              <YAxis
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => compactBRL(v)}
-                width={58}
-              />
-              <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number) => [brl(v), "Patrimonio"]}
-              />
-              <Area
-                type="monotone"
-                dataKey="patrimonio"
-                stroke="#d4a574"
-                fill="url(#gradPatr)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 6, strokeWidth: 0, fill: "#d4a574" }}
-              />
-            </AreaChart>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="glass-card p-5 lg:col-span-2">
+          <h2 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2"><Landmark size={14} />Composição por tipo ao longo dos anos</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={m.stackedTipo}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
+              <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {m.tipos.map(t => <Bar key={t} dataKey={t} stackId="a" fill={TIPO_COR[t]} />)}
+            </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
-
-      {/* ─ RV vs RF chart (full width, stacks below patrimonio) ──────────────── */}
-      <div className="glass-card p-3 sm:p-5 animate-fade-in">
-        <h2 className="section-title mb-3">RV vs RF</h2>
-        <div className="w-full" style={{ minHeight: 220 }}>
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-              <defs>
-                <linearGradient id="gradRV" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradRF" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-              <XAxis
-                dataKey="label"
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                interval={tickInterval}
-                angle={-35}
-                dy={8}
-                height={45}
-              />
-              <YAxis
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => compactBRL(v)}
-                width={58}
-              />
-              <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [
-                  brl(v),
-                  name === "rv" ? "Renda Variavel" : "Renda Fixa",
-                ]}
-              />
-              <Legend
-                formatter={(v) => (v === "rv" ? "RV" : "RF")}
-                wrapperStyle={{ fontSize: 11, color: "#71717a", paddingTop: 4 }}
-                iconSize={10}
-              />
-              <Area
-                type="monotone"
-                dataKey="rv"
-                stroke="#06b6d4"
-                fill="url(#gradRV)"
-                strokeWidth={2}
-                dot={false}
-                stackId="rvrf"
-                activeDot={{ r: 5, strokeWidth: 0 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="rf"
-                stroke="#8b5cf6"
-                fill="url(#gradRF)"
-                strokeWidth={2}
-                dot={false}
-                stackId="rvrf"
-                activeDot={{ r: 5, strokeWidth: 0 }}
-              />
-            </AreaChart>
+        <div className="glass-card p-5">
+          <h2 className="text-sm font-semibold text-zinc-300 mb-2">Composição {ultimoAno}</h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={m.donutTipo} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {m.donutTipo.map(e => <Cell key={e.name} fill={TIPO_COR[e.name] ?? "#a1a1aa"} />)}
+              </Pie>
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => brl(v)} />
+            </PieChart>
           </ResponsiveContainer>
+          <div className="space-y-1.5 mt-2">
+            {[...m.donutTipo].sort((a, b) => b.value - a.value).map(e => (
+              <div key={e.name} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-2 text-zinc-400"><span className="w-2 h-2 rounded-sm" style={{ background: TIPO_COR[e.name] }} />{e.name}</span>
+                <span className="text-zinc-300 font-medium">{compactBRL(e.value)} <span className="text-zinc-600">{pct(e.value / m.ultimo.valor * 100)}</span></span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ─ Monthly variation bar chart ───────────────────────────────────────── */}
-      {monthlyVariation.length > 0 && (
-        <div className="glass-card p-3 sm:p-5 animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="section-title">Variacao Mensal</h2>
-            {/* Show last month's variation as a quick badge */}
-            {(() => {
-              const lastVar = monthlyVariation[monthlyVariation.length - 1];
-              return (
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    lastVar.variacao >= 0
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-red-500/15 text-red-400"
-                  }`}
-                >
-                  {lastVar.variacao >= 0 ? "+" : ""}
-                  {lastVar.variacao.toFixed(2)}%
-                </span>
-              );
-            })()}
-          </div>
-          <div className="w-full" style={{ minHeight: 200 }}>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={monthlyVariation} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-                <XAxis
-                  dataKey="label"
-                  tick={AXIS_TICK}
-                  axisLine={false}
-                  tickLine={false}
-                  interval={monthlyTickInterval}
-                  angle={-35}
-                  dy={8}
-                  height={45}
-                />
-                <YAxis
-                  tick={AXIS_TICK}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
-                  width={42}
-                />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  formatter={(v: number) => [
-                    `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`,
-                    "Variacao",
-                  ]}
-                  labelFormatter={(label) => label}
-                />
-                <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-                <Bar dataKey="variacao" radius={[3, 3, 0, 0]} maxBarSize={18}>
-                  {monthlyVariation.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={entry.variacao >= 0 ? "#4ade80" : "#f87171"}
-                      fillOpacity={0.85}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+      <div className="glass-card p-5 mb-4">
+        <h2 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2"><Users size={14} />Patrimônio por titular</h2>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={m.stackedPessoa}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
+            <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
+            <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {Object.keys(PESSOA_COR).filter(p => d.anos.some(a => (d.porPessoa[a]?.[p] ?? 0) > 0)).map(p => (
+              <Bar key={p} dataKey={p} stackId="p" fill={PESSOA_COR[p]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* ─ Annual returns chart + table ──────────────────────────────────────── */}
-      {anuais.length > 0 && (
-        <div className="glass-card p-3 sm:p-5 animate-fade-in">
-          <h2 className="section-title mb-3">Retorno Anual</h2>
-
-          {/* Bar chart */}
-          <div className="w-full" style={{ minHeight: 200 }}>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={anuais} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-                <XAxis
-                  dataKey="ano"
-                  tick={{ ...AXIS_TICK, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={AXIS_TICK}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
-                  width={42}
-                />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload as {
-                      ano: string;
-                      retorno: number;
-                      multiplier: number;
-                    };
-                    return (
-                      <div style={TOOLTIP_STYLE} className="px-3 py-2 rounded-xl">
-                        <p className="font-bold text-zinc-200">{d.ano}</p>
-                        <p
-                          className={`text-sm font-semibold ${
-                            d.retorno >= 0 ? "text-emerald-400" : "text-red-400"
-                          }`}
-                        >
-                          {d.retorno >= 0 ? "+" : ""}
-                          {d.retorno}%
-                        </p>
-                        <p className="text-xs text-zinc-500">{d.multiplier.toFixed(2)}x</p>
-                      </div>
-                    );
-                  }}
-                />
-                <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-                <Bar dataKey="retorno" radius={[4, 4, 0, 0]} maxBarSize={44}>
-                  {anuais.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={entry.retorno >= 0 ? "#4ade80" : "#f87171"}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Scrollable summary table */}
-          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 mt-4 scrollbar-hide">
-            <table className="w-full text-xs min-w-[320px]">
-              <thead>
-                <tr className="border-b border-zinc-800">
-                  <th className="py-2 text-left text-zinc-600 font-semibold uppercase tracking-wider sticky left-0 bg-[#13141a]/95 backdrop-blur-sm pr-2 z-10">
-                    Ano
-                  </th>
-                  {anuais.map((a) => (
-                    <th
-                      key={a.ano}
-                      className="py-2 px-2.5 text-right text-zinc-600 font-semibold uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {a.ano}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-zinc-900">
-                  <td className="py-2 text-zinc-500 sticky left-0 bg-[#13141a]/95 backdrop-blur-sm pr-2 z-10">
-                    Retorno
+      <div className="glass-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/[0.05]"><h2 className="text-sm font-semibold text-zinc-300">Detalhe por conta</h2></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="text-[10px] text-zinc-600 uppercase">
+              <th className="text-left font-semibold py-2 px-4">Conta</th>
+              <th className="text-left font-semibold">Instituição</th>
+              {d.anos.map(a => <th key={a} className="text-right font-semibold px-2">{a.slice(2)}</th>)}
+            </tr></thead>
+            <tbody>
+              {d.contas.map(c => (
+                <tr key={c.nome} className="border-t border-white/[0.03] hover:bg-white/[0.02]">
+                  <td className="py-2 px-4 text-zinc-300 font-medium whitespace-nowrap">
+                    {c.nome}<span className="ml-2 text-[10px]" style={{ color: PESSOA_COR[c.pessoa] }}>{c.pessoa}</span>
                   </td>
-                  {anuais.map((a) => (
-                    <td
-                      key={a.ano}
-                      className={`py-2 px-2.5 text-right font-semibold font-mono tabular-nums whitespace-nowrap ${
-                        a.retorno >= 0 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
-                      {a.retorno >= 0 ? "+" : ""}
-                      {a.retorno}%
-                    </td>
+                  <td><span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${TIPO_COR[c.tipo]}18`, color: TIPO_COR[c.tipo] }}>{TIPO_ICON[c.tipo]}{c.instituicao}</span></td>
+                  {d.anos.map(a => (
+                    <td key={a} className={`text-right px-2 ${c.valores[a] > 0 ? "text-zinc-400" : "text-zinc-700"}`}>{c.valores[a] > 0 ? compactBRL(c.valores[a]) : "—"}</td>
                   ))}
                 </tr>
-                <tr>
-                  <td className="py-2 text-zinc-500 sticky left-0 bg-[#13141a]/95 backdrop-blur-sm pr-2 z-10">
-                    Mult.
-                  </td>
-                  {anuais.map((a) => (
-                    <td
-                      key={a.ano}
-                      className={`py-2 px-2.5 text-right font-mono tabular-nums whitespace-nowrap ${
-                        a.multiplier >= 1 ? "text-zinc-300" : "text-red-400"
-                      }`}
-                    >
-                      {a.multiplier.toFixed(2)}x
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              ))}
+              <tr className="border-t border-white/[0.08] font-semibold">
+                <td className="py-2 px-4 text-zinc-200" colSpan={2}>Total</td>
+                {d.totalPorAno.map(t => <td key={t.ano} className="text-right px-2 text-zinc-200">{t.valor > 0 ? compactBRL(t.valor) : "—"}</td>)}
+              </tr>
+            </tbody>
+          </table>
         </div>
-      )}
-    </div>
+      </div>
+
+      <p className="text-xs text-zinc-700 text-center mt-6">Fonte: aba lb_historic (snapshot anual por conta). Totais recalculados pela soma das contas.</p>
+    </>
   );
 }
