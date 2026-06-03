@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
-import { Bot, Send, User, Trash2, Loader2, Sparkles } from "lucide-react";
+import { Bot, Send, User, Trash2, Loader2, Sparkles, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PageHeader from "@/components/PageHeader";
@@ -125,18 +125,34 @@ function MessageBubble({ msg }: { msg: Message }) {
   );
 }
 
+interface ModelStatus {
+  model: string;
+  label: string;
+  provider: string;
+  hasKey: boolean;
+  cooldown: number;
+}
+
 export default function AgenteIAPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingModel, setStreamingModel] = useState("");
+  const [modelStatus, setModelStatus] = useState<{ available: number; total: number; models: ModelStatus[] } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, streamingContent]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/chat`)
+      .then((r) => r.json())
+      .then(setModelStatus)
+      .catch(() => {});
+  }, []);
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -265,6 +281,34 @@ export default function AgenteIAPage() {
                   </button>
                 ))}
               </div>
+              {modelStatus && (
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
+                  <Zap size={10} className="text-zinc-600" />
+                  <span className="text-[10px] text-zinc-600 mr-1">Modelos:</span>
+                  {modelStatus.models.map((m) => (
+                    <span
+                      key={m.model}
+                      className="text-[9px] px-1.5 py-0.5 rounded-full border"
+                      style={{
+                        background: m.hasKey
+                          ? m.cooldown > 0 ? "rgba(251,146,60,0.08)" : "rgba(74,222,128,0.06)"
+                          : "rgba(255,255,255,0.02)",
+                        borderColor: m.hasKey
+                          ? m.cooldown > 0 ? "rgba(251,146,60,0.2)" : "rgba(74,222,128,0.15)"
+                          : "rgba(255,255,255,0.05)",
+                        color: m.hasKey
+                          ? m.cooldown > 0 ? "#fb923c" : "#86efac"
+                          : "#52525b",
+                      }}
+                      title={m.hasKey
+                        ? m.cooldown > 0 ? `Cooldown: ${m.cooldown}s` : "Disponível"
+                        : `Configure ${m.provider === "gemini" ? "GEMINI_API_KEY" : m.label.includes("GPT") ? "OPENAI_API_KEY" : m.label.includes("Groq") ? "GROQ_API_KEY" : "DEEPSEEK_API_KEY"}`}
+                    >
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

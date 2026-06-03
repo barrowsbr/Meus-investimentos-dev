@@ -3,8 +3,8 @@
 import { useState, useRef, useCallback } from "react";
 import {
   Settings, Lock, Upload, CheckCircle2, XCircle, AlertCircle,
-  FileText, RefreshCw, Eye, EyeOff, Shield, Database, Info,
-  ChevronDown, ChevronUp,
+  FileText, RefreshCw, Eye, EyeOff, Shield, Info,
+  ChevronDown, ChevronUp, ArrowUpDown,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
@@ -12,31 +12,31 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface SyncResult {
-  total_csv?: number;
-  faltantes?: number;
-  inserted?: number;
-  preview?: Record<string, unknown>[];
+interface PreviewItem {
+  ticker: string;
+  data: string;
+  tipo: string;
+  valor: string;
+  moeda: string;
+  corretora: string;
+  categoria: "provento" | "trade";
+  detalhe: string;
+  status: "novo" | "existente" | "split";
+}
+
+interface ImportResult {
+  source?: string;
+  items?: PreviewItem[];
+  resumo?: {
+    proventos: { total: number; novos: number; existentes: number };
+    trades: { total: number; novos: number; existentes: number };
+  };
+  inserted?: { proventos: number; trades: number };
   error?: string;
   hint?: string;
-  parsed?: { proventos: number; trades: number };
-  proventos?: { total_csv: number; faltantes: number; inserted?: number };
-  trades?: { total_csv: number; faltantes: number; inserted?: number; potential_splits?: number };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function StatusBadge({ ok, text }: { ok: boolean; text: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-      ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-         : "bg-red-500/10 text-red-400 border border-red-500/20"
-    }`}>
-      {ok ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
-      {text}
-    </span>
-  );
-}
 
 function SectionCard({ title, icon, children, defaultOpen = true }: {
   title: string;
@@ -103,7 +103,6 @@ function PasswordSection() {
       <p className="text-xs text-zinc-500 leading-relaxed">
         A senha é gerenciada via variável de ambiente{" "}
         <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">APP_PASSWORD</code> no painel da Vercel.
-        Após a troca, atualize a variável para que a nova senha persista entre deploys.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -170,20 +169,33 @@ function PasswordSection() {
   );
 }
 
-// ── IBKR Sync Section ─────────────────────────────────────────────────────────
+// ── Unified Import Section ──────────────────────────────────────────────────
 
-function IBKRSyncSection() {
+const STATUS_COLORS = {
+  novo: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", label: "Novo" },
+  existente: { bg: "bg-zinc-500/10", text: "text-zinc-500", border: "border-zinc-700", label: "Existente" },
+  split: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", label: "Split?" },
+};
+
+const SOURCE_BADGE: Record<string, { color: string; label: string }> = {
+  ibkr: { color: "text-red-400 bg-red-500/10 border-red-500/20", label: "IBKR" },
+  b3: { color: "text-blue-400 bg-blue-500/10 border-blue-500/20", label: "B3" },
+  desconhecido: { color: "text-zinc-400 bg-zinc-500/10 border-zinc-700", label: "?" },
+};
+
+function ImportSection() {
   const [file, setFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<"proventos" | "trades" | "both">("proventos");
   const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SyncResult | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [filter, setFilter] = useState<"todos" | "novo" | "existente">("todos");
+  const [sortBy, setSortBy] = useState<"data" | "ticker">("data");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const f = e.dataTransfer.files[0];
-    if (f?.name.endsWith(".csv")) setFile(f);
+    if (f) { setFile(f); setResult(null); }
   }, []);
 
   async function handleSync() {
@@ -192,11 +204,10 @@ function IBKRSyncSection() {
     setResult(null);
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("mode", mode);
     fd.append("dry_run", String(dryRun));
 
     try {
-      const res = await fetch(`${API_URL}/api/sync/ibkr`, { method: "POST", body: fd });
+      const res = await fetch(`${API_URL}/api/sync/import`, { method: "POST", body: fd });
       const data = await res.json();
       setResult(data);
     } catch (e) {
@@ -206,10 +217,22 @@ function IBKRSyncSection() {
     }
   }
 
+  const filtered = (result?.items ?? []).filter(item => {
+    if (filter === "todos") return true;
+    return item.status === filter;
+  }).sort((a, b) => {
+    if (sortBy === "data") return a.data.localeCompare(b.data);
+    return a.ticker.localeCompare(b.ticker);
+  });
+
+  const resumo = result?.resumo;
+  const source = result?.source;
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-zinc-500 leading-relaxed">
-        Importe o CSV do Interactive Brokers para sincronizar dividendos, impostos retidos e operações de compra/venda.
+        Importe arquivos CSV do <strong className="text-zinc-400">IBKR</strong> ou da <strong className="text-zinc-400">B3</strong>.
+        O sistema detecta automaticamente a origem e compara com os dados existentes na planilha.
         A importação é <strong className="text-zinc-400">idempotente</strong> — pode rodar múltiplas vezes sem duplicar dados.
       </p>
 
@@ -221,7 +244,11 @@ function IBKRSyncSection() {
         onDragOver={e => e.preventDefault()}
         onClick={() => fileRef.current?.click()}
       >
-        <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+        <input
+          ref={fileRef} type="file" accept=".csv,.txt"
+          className="hidden"
+          onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
+        />
         {file ? (
           <div className="flex items-center justify-center gap-2 text-emerald-400">
             <FileText size={18} />
@@ -231,27 +258,16 @@ function IBKRSyncSection() {
         ) : (
           <div className="text-zinc-500">
             <Upload size={24} className="mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Arraste o CSV do IBKR ou clique para selecionar</p>
-            <p className="text-xs mt-1 opacity-60">Arquivo &quot;Histórico de transações&quot;</p>
+            <p className="text-sm">Arraste o arquivo ou clique para selecionar</p>
+            <p className="text-xs mt-1 opacity-60">CSV do IBKR (PT/EN) · CSV/TXT da B3</p>
           </div>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex gap-1 bg-zinc-900 rounded-lg p-1">
-          {(["proventos", "trades", "both"] as const).map(m => (
-            <button key={m} onClick={() => setMode(m)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === m ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-              }`}>
-              {m === "proventos" ? "Dividendos" : m === "trades" ? "Operações" : "Tudo"}
-            </button>
-          ))}
-        </div>
-
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <div
-            className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${dryRun ? "bg-amber-500" : "bg-zinc-600"}`}
+            className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${dryRun ? "bg-amber-500" : "bg-emerald-500"}`}
             onClick={() => setDryRun(v => !v)}
           >
             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${dryRun ? "left-0.5" : "left-4"}`} />
@@ -271,165 +287,131 @@ function IBKRSyncSection() {
         </button>
       </div>
 
-      {result && (
-        <div className={`rounded-xl p-4 text-sm ${result.error ? "bg-red-500/10 border border-red-500/20" : "bg-zinc-900/60 border border-zinc-800"}`}>
-          {result.error ? (
-            <div>
-              <p className="text-red-400 flex items-center gap-2 mb-1"><XCircle size={15} />{result.error}</p>
-              {result.error.includes("SERVICE_ACCOUNT") && (
-                <p className="text-xs text-zinc-500 mt-1">Configure <code className="bg-zinc-800 px-1 rounded">GOOGLE_SERVICE_ACCOUNT_JSON</code> nas env vars da Vercel para habilitar escrita.</p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {result.parsed && (
-                <p className="text-zinc-400 text-xs">CSV: <strong className="text-zinc-200">{result.parsed.proventos}</strong> dividendos + <strong className="text-zinc-200">{result.parsed.trades}</strong> operações reconhecidas</p>
-              )}
-              {result.proventos && (
-                <StatusBadge ok={(result.proventos.faltantes === 0 || (result.proventos.inserted ?? 0) > 0)} text={
-                  result.proventos.inserted !== undefined
-                    ? `${result.proventos.inserted} proventos adicionados`
-                    : `${result.proventos.faltantes} proventos a adicionar (${result.proventos.total_csv} no CSV)`
-                } />
-              )}
-              {result.trades && (
-                <>
-                  <StatusBadge ok={(result.trades.faltantes === 0 || (result.trades.inserted ?? 0) > 0)} text={
-                    result.trades.inserted !== undefined
-                      ? `${result.trades.inserted} operações adicionadas`
-                      : `${result.trades.faltantes} operações a adicionar (${result.trades.total_csv} no CSV)`
-                  } />
-                  {(result.trades.potential_splits ?? 0) > 0 && (
-                    <p className="text-xs text-amber-400/80 flex items-center gap-1">
-                      <AlertCircle size={11} />
-                      {result.trades.potential_splits} possível(is) split/ajuste detectado(s) — valor total bate mas qtd/preço diferem
-                    </p>
-                  )}
-                </>
-              )}
-              {dryRun && ((result.proventos?.faltantes ?? 0) + (result.trades?.faltantes ?? 0)) > 0 && (
-                <p className="text-xs text-amber-400 flex items-center gap-1 mt-1">
-                  <AlertCircle size={12} />Simulação — desative &quot;Simular&quot; e clique &quot;Importar&quot; para aplicar
-                </p>
-              )}
-            </div>
+      {/* Error */}
+      {result?.error && (
+        <div className="rounded-xl p-4 text-sm bg-red-500/10 border border-red-500/20">
+          <p className="text-red-400 flex items-center gap-2 mb-1"><XCircle size={15} />{result.error}</p>
+          {result.hint && <p className="text-xs text-zinc-500 mt-1">{result.hint}</p>}
+          {result.error.includes("SERVICE_ACCOUNT") && (
+            <p className="text-xs text-zinc-500 mt-1">Configure <code className="bg-zinc-800 px-1 rounded">GOOGLE_SERVICE_ACCOUNT_JSON</code> nas env vars da Vercel.</p>
           )}
         </div>
       )}
-    </div>
-  );
-}
 
-// ── B3 Sync Section ───────────────────────────────────────────────────────────
+      {/* Summary */}
+      {resumo && source && (
+        <div className="space-y-3">
+          {/* Source + counts */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SOURCE_BADGE[source]?.color ?? SOURCE_BADGE.desconhecido.color}`}>
+              {SOURCE_BADGE[source]?.label ?? source.toUpperCase()}
+            </span>
 
-function B3SyncSection() {
-  const [file, setFile] = useState<File | null>(null);
-  const [dryRun, setDryRun] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SyncResult | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+            {resumo.proventos.total > 0 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-zinc-500">Proventos:</span>
+                <span className="text-emerald-400 font-semibold">{resumo.proventos.novos} novos</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-500">{resumo.proventos.existentes} existentes</span>
+              </div>
+            )}
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const f = e.dataTransfer.files[0];
-    if (f) setFile(f);
-  }, []);
-
-  async function handleSync() {
-    if (!file) return;
-    setLoading(true);
-    setResult(null);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("dry_run", String(dryRun));
-
-    try {
-      const res = await fetch(`${API_URL}/api/sync/b3`, { method: "POST", body: fd });
-      const data = await res.json();
-      setResult(data);
-    } catch (e) {
-      setResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-zinc-500 leading-relaxed">
-        Importe o relatório de proventos da B3 (CSV ou TXT) para sincronizar dividendos, JCP e rendimentos de FIIs.
-        Formatos suportados: exportação da área logada da B3 e relatórios de corretoras.
-      </p>
-
-      <div
-        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-          file ? "border-emerald-500/40 bg-emerald-500/5" : "border-zinc-700 hover:border-zinc-500"
-        }`}
-        onDrop={handleDrop}
-        onDragOver={e => e.preventDefault()}
-        onClick={() => fileRef.current?.click()}
-      >
-        <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
-        {file ? (
-          <div className="flex items-center justify-center gap-2 text-emerald-400">
-            <FileText size={18} />
-            <span className="font-medium text-sm">{file.name}</span>
-            <span className="text-xs text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
+            {resumo.trades.total > 0 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-zinc-500">Operações:</span>
+                <span className="text-emerald-400 font-semibold">{resumo.trades.novos} novas</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-500">{resumo.trades.existentes} existentes</span>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="text-zinc-500">
-            <Upload size={24} className="mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Arraste o arquivo da B3 ou clique para selecionar</p>
-            <p className="text-xs mt-1 opacity-60">CSV ou TXT do relatório de proventos</p>
-          </div>
-        )}
-      </div>
 
-      <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <div
-            className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${dryRun ? "bg-amber-500" : "bg-zinc-600"}`}
-            onClick={() => setDryRun(v => !v)}
-          >
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${dryRun ? "left-0.5" : "left-4"}`} />
-          </div>
-          <span className="text-xs text-zinc-400">{dryRun ? "Simular (não escreve)" : "Aplicar em produção"}</span>
-        </label>
-
-        <button
-          onClick={handleSync}
-          disabled={!file || loading}
-          className="btn-primary text-sm px-4 py-2 disabled:opacity-40 ml-auto"
-        >
-          {loading
-            ? <><RefreshCw size={14} className="animate-spin inline mr-1" />Processando...</>
-            : <><Upload size={14} className="inline mr-1" />{dryRun ? "Simular" : "Importar"}</>
-          }
-        </button>
-      </div>
-
-      {result && (
-        <div className={`rounded-xl p-4 text-sm ${result.error ? "bg-red-500/10 border border-red-500/20" : "bg-zinc-900/60 border border-zinc-800"}`}>
-          {result.error ? (
-            <div>
-              <p className="text-red-400 flex items-center gap-2 mb-1"><XCircle size={15} />{result.error}</p>
-              {result.hint && <p className="text-xs text-zinc-500 mt-1">{result.hint}</p>}
-              {result.error.includes("SERVICE_ACCOUNT") && (
-                <p className="text-xs text-zinc-500 mt-1">Configure <code className="bg-zinc-800 px-1 rounded">GOOGLE_SERVICE_ACCOUNT_JSON</code> nas env vars da Vercel.</p>
-              )}
+          {/* Inserted confirmation */}
+          {result?.inserted && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <CheckCircle2 size={14} />
+              {result.inserted.proventos > 0 && <span>{result.inserted.proventos} proventos inseridos</span>}
+              {result.inserted.proventos > 0 && result.inserted.trades > 0 && <span>·</span>}
+              {result.inserted.trades > 0 && <span>{result.inserted.trades} operações inseridas</span>}
             </div>
-          ) : (
-            <div className="space-y-2">
-              <StatusBadge ok={(result.faltantes === 0 || (result.inserted ?? 0) > 0)} text={
-                result.inserted !== undefined
-                  ? `${result.inserted} proventos adicionados com sucesso`
-                  : `${result.faltantes} proventos a adicionar (de ${result.total_csv} no arquivo)`
-              } />
-              {dryRun && (result.faltantes ?? 0) > 0 && (
-                <p className="text-xs text-amber-400 flex items-center gap-1 mt-1">
-                  <AlertCircle size={12} />Simulação — desative &quot;Simular&quot; para aplicar
-                </p>
-              )}
+          )}
+
+          {/* Dry run hint */}
+          {dryRun && (resumo.proventos.novos + resumo.trades.novos) > 0 && !result?.inserted && (
+            <p className="text-xs text-amber-400 flex items-center gap-1">
+              <AlertCircle size={12} />
+              Simulação — desative &quot;Simular&quot; e clique &quot;Importar&quot; para aplicar
+            </p>
+          )}
+
+          {/* Filter + sort */}
+          {(result?.items?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="flex gap-1 bg-zinc-900 rounded-lg p-0.5">
+                {(["todos", "novo", "existente"] as const).map(f => (
+                  <button key={f} onClick={() => setFilter(f)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                      filter === f ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                    }`}>
+                    {f === "todos" ? `Todos (${result?.items?.length})` : f === "novo" ? `Novos (${(result?.items ?? []).filter(i => i.status === "novo").length})` : `Existentes (${(result?.items ?? []).filter(i => i.status === "existente").length})`}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setSortBy(s => s === "data" ? "ticker" : "data")}
+                className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <ArrowUpDown size={11} />
+                {sortBy === "data" ? "Por data" : "Por ticker"}
+              </button>
+            </div>
+          )}
+
+          {/* Preview table */}
+          {filtered.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-zinc-800 max-h-[400px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-zinc-800 bg-zinc-900/95 backdrop-blur">
+                    <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Status</th>
+                    <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Tipo</th>
+                    <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Ticker</th>
+                    <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Data</th>
+                    <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Detalhe</th>
+                    <th className="text-right py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Valor</th>
+                    <th className="text-center py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Moeda</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item, i) => {
+                    const st = STATUS_COLORS[item.status];
+                    return (
+                      <tr key={i} className={`border-b border-zinc-900 ${item.status === "novo" ? "bg-emerald-500/[0.02]" : ""} hover:bg-white/[0.02]`}>
+                        <td className="py-1.5 px-2.5">
+                          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${st.bg} ${st.text} ${st.border}`}>
+                            {item.status === "novo" ? <CheckCircle2 size={9} /> : item.status === "split" ? <AlertCircle size={9} /> : null}
+                            {st.label}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                            item.categoria === "trade"
+                              ? item.tipo === "Compra" ? "bg-blue-500/10 text-blue-400" : "bg-orange-500/10 text-orange-400"
+                              : "bg-violet-500/10 text-violet-400"
+                          }`}>
+                            {item.tipo}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2.5 font-semibold text-zinc-200">{item.ticker}</td>
+                        <td className="py-1.5 px-2.5 text-zinc-400 font-mono">{item.data}</td>
+                        <td className="py-1.5 px-2.5 text-zinc-500">{item.detalhe}</td>
+                        <td className="py-1.5 px-2.5 text-right text-zinc-300 font-mono">{item.valor}</td>
+                        <td className="py-1.5 px-2.5 text-center text-zinc-500">{item.moeda}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -442,17 +424,20 @@ function B3SyncSection() {
 
 function EnvSection() {
   const vars = [
-    { key: "SPREADSHEET_ID",              desc: "ID da planilha Google Sheets (gdados)",   required: true },
-    { key: "GOOGLE_API_KEY",              desc: "API Key Google — leitura da planilha",     required: true },
-    { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: "Service Account JSON — escrita/sync IBKR",required: false },
-    { key: "APP_PASSWORD",                desc: "Senha de acesso ao dashboard",            required: false },
-    { key: "GEMINI_API_KEY",              desc: "Google Gemini — Agente IA e Notícias",    required: false },
-    { key: "NEXT_PUBLIC_API_URL",         desc: "URL base da API (vazio = mesmo domínio)", required: false },
+    { key: "SPREADSHEET_ID",              desc: "ID da planilha Google Sheets (gdados)",          required: true },
+    { key: "GOOGLE_API_KEY",              desc: "API Key Google — leitura da planilha",            required: true },
+    { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: "Service Account JSON — escrita/sync",             required: false },
+    { key: "APP_PASSWORD",                desc: "Senha de acesso ao dashboard",                   required: false },
+    { key: "GEMINI_API_KEY",              desc: "Google Gemini — Agente IA (tier 1)",              required: false },
+    { key: "OPENAI_API_KEY",              desc: "OpenAI GPT-4o — Agente IA (fallback tier 1)",    required: false },
+    { key: "DEEPSEEK_API_KEY",            desc: "DeepSeek V3 — Agente IA (fallback tier 2)",      required: false },
+    { key: "GROQ_API_KEY",               desc: "Groq/Llama — Agente IA (fallback tier 3, free)", required: false },
+    { key: "NEXT_PUBLIC_API_URL",         desc: "URL base da API (vazio = mesmo domínio)",        required: false },
   ];
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-zinc-500">Configure no painel da Vercel em <strong className="text-zinc-400">Settings → Environment Variables</strong>.</p>
+      <p className="text-xs text-zinc-500">Configure no painel da Vercel em <strong className="text-zinc-400">Settings &rarr; Environment Variables</strong>.</p>
       <div className="overflow-x-auto rounded-lg border border-zinc-800">
         <table className="w-full text-xs">
           <thead>
@@ -491,20 +476,16 @@ export default function ConfiguracoesPage() {
     <>
       <PageHeader
         title="Configurações"
-        description="Gerencie senha de acesso, sincronização com corretoras e variáveis de ambiente."
+        description="Gerencie senha de acesso, importação de dados e variáveis de ambiente."
       />
 
-      <div className="max-w-3xl">
+      <div className="max-w-4xl">
         <SectionCard title="Segurança — Senha de Acesso" icon={<Lock size={16} />}>
           <PasswordSection />
         </SectionCard>
 
-        <SectionCard title="Sincronizar IBKR (Interactive Brokers)" icon={<Database size={16} />}>
-          <IBKRSyncSection />
-        </SectionCard>
-
-        <SectionCard title="Sincronizar Proventos B3" icon={<Upload size={16} />}>
-          <B3SyncSection />
+        <SectionCard title="Importar Dados (IBKR / B3)" icon={<Upload size={16} />}>
+          <ImportSection />
         </SectionCard>
 
         <SectionCard title="Variáveis de Ambiente" icon={<Settings size={16} />} defaultOpen={false}>
@@ -515,11 +496,15 @@ export default function ConfiguracoesPage() {
           <div className="space-y-3 text-xs text-zinc-500 leading-relaxed">
             <div className="flex items-start gap-2">
               <Shield size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-              <p>Dados lidos via API Key (somente leitura). Sincronizações de escrita requerem Service Account com permissão de Editora na planilha <code className="bg-zinc-800 px-1 rounded text-zinc-300">gdados</code>.</p>
+              <p>Dados lidos via API Key (somente leitura). Importações de escrita requerem Service Account com permissão de Editora na planilha <code className="bg-zinc-800 px-1 rounded text-zinc-300">gdados</code>.</p>
             </div>
             <div className="flex items-start gap-2">
               <FileText size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-              <p>As importações IBKR e B3 são idempotentes — podem ser executadas múltiplas vezes sem criar duplicatas. Use sempre &quot;Simular&quot; antes de &quot;Importar&quot;.</p>
+              <p>As importações são idempotentes — podem ser executadas múltiplas vezes sem criar duplicatas. Use sempre &quot;Simular&quot; antes de &quot;Importar&quot;.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <Upload size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+              <p>Formatos suportados: CSV do IBKR (português e inglês, incluindo Activity Statements), CSV/TXT de proventos da B3. O sistema detecta automaticamente a origem.</p>
             </div>
           </div>
         </SectionCard>
