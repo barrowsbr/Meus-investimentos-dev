@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as XLSX from "xlsx";
 import { fetchTab, appendRows } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
@@ -359,50 +360,133 @@ function parseB3(content: string): { proventos: ProventoRow[]; trades: TradeRow[
   return { proventos, trades: [] };
 }
 
+// ── B3 Excel Parser (.xlsx "Movimentação") ──────────────────────────────────
+
+// Extrai ticker do campo "Produto" da B3: texto antes de " - ".
+// Ex.: "KNCR11 - KINEA RENDIMENTOS..." → "KNCR11"
+function extractTickerB3(produto: string): string {
+  if (typeof produto !== "string") return "";
+  const s = produto.trim();
+  if (s.includes(" - ")) {
+    const candidate = s.split(" - ")[0].trim().toUpperCase();
+    if (/^[A-Z]{3,6}[0-9]{1,2}[A-Z]?$/.test(candidate)) return candidate;
+  }
+  return s.toUpperCase();
+}
+
+// Normaliza a coluna Data: pode vir como Date (cellDates:true) ou string BR.
+function normalizeExcelDate(v: unknown): string {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.toISOString().split("T")[0];
+  }
+  return normalizeDate(String(v ?? ""));
+}
+
+// Lê um valor de coluna do objeto-linha de forma case/acento-insensível.
+function getField(row: Record<string, unknown>, ...names: string[]): unknown {
+  for (const name of names) {
+    if (name in row) return row[name];
+  }
+  // Fallback: comparação normalizada (lowercase, sem espaços extras)
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  const target = names.map(norm);
+  for (const key of Object.keys(row)) {
+    if (target.includes(norm(key))) return row[key];
+  }
+  return "";
+}
+
+function parseB3Excel(rows: Record<string, unknown>[]): { proventos: ProventoRow[]; trades: TradeRow[] } {
+  const proventos: ProventoRow[] = [];
+  const trades: TradeRow[] = [];
+
+  const PROVENTO_TIPOS = ["dividendo", "juros sobre capital próprio", "rendimento"];
+  const futuresPattern = /^(WIN|WDO|IND|DOL|WSP|BGI)/;
+
+  for (const row of rows) {
+    const entradaSaida = String(getField(row, "Entrada/Saída", "Entrada/Saida")).trim().toLowerCase();
+    const movimentacao = String(getField(row, "Movimentação", "Movimentacao")).trim();
+    const movLower = movimentacao.toLowerCase();
+    const produto = String(getField(row, "Produto"));
+    const data = normalizeExcelDate(getField(row, "Data"));
+    const ticker = extractTickerB3(produto);
+
+    // ── Proventos: Crédito + (Dividendo / JCP / Rendimento) ──
+    if (entradaSaida === "credito" && PROVENTO_TIPOS.includes(movLower)) {
+      if (!ticker || !/^[A-Z]{3,6}[0-9]{1,2}[A-Z]?$/.test(ticker)) continue;
+      if (!data.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+      const valor = parseValor(getField(row, "Valor da Operação", "Valor da Operacao") as string | number);
+      if (valor <= 0) continue;
+
+      const lancamento = movLower === "juros sobre capital próprio" ? "JCP" : "Dividendo";
+      const categoria = /^[A-Z]{4}11[B]?$/.test(ticker) ? "FIIs" : "Ações Brasil";
+      proventos.push(makeProvento(ticker, data, lancamento, valor, "BRL", categoria));
+      continue;
+    }
+
+    // ── Trades: Transferência - Liquidação ──
+    if (movLower === "transferência - liquidação" || movLower === "transferencia - liquidacao") {
+      if (!ticker) continue;
+      if (futuresPattern.test(ticker)) continue;
+      if (!data.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+
+      const tipo = entradaSaida === "debito" ? "Venda" : "Compra";
+      const qtd = Math.abs(parseValor(getField(row, "Quantidade") as string | number));
+      const preco = Math.abs(parseValor(getField(row, "Preço unitário", "Preco unitario") as string | number));
+      const valorBruto = Math.abs(parseValor(getField(row, "Valor da Operação", "Valor da Operacao") as string | number));
+      const corretora = String(getField(row, "Instituição", "Instituicao")).trim() || "B3";
+
+      trades.push({
+        Data: data,
+        "Tipo de transação": tipo,
+        Símbolo: ticker,
+        Quantidade: String(qtd).replace(".", ","),
+        Preço: String(preco).replace(".", ","),
+        "Valor bruto": formatValorBR(valorBruto),
+        "Taxa de corretagem": "0,00",
+        "Valor líquido": formatValorBR(valorBruto),
+        Moeda: "BRL",
+        Corretora: corretora,
+      });
+    }
+  }
+
+  return { proventos, trades };
+}
+
 // ── Dedup ────────────────────────────────────────────────────────────────────
 
-function getDecisao(row: Record<string, unknown>): string {
-  const v = row["decisao"] ?? row["decisão"] ?? row["lancamento"] ?? row["lançamento"] ?? "";
-  return String(v).trim().toUpperCase();
+// Assinatura de provento: YYYYMMDD|TICKER_normalizado|round(valor*100).
+// NÃO inclui o tipo/decisão na chave — o GSheets usa "Dividendo" para tudo,
+// enquanto a B3 usa Dividendo/JCP/Rendimento; incluir o tipo causaria
+// falso-negativo. data+ticker+valor identifica um provento unicamente (e
+// distingue dividendo de imposto no IBKR, pois o valor difere). Data exata,
+// sem janela de ±dias.
+function sigProvento(data: string, ticker: string, valor: number): string {
+  const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
+  const t = normalizeTicker(ticker);
+  const v = Math.round(valor * 100);
+  return `${d}|${t}|${v}`;
 }
 
 function dedupProventos(
   existing: Record<string, unknown>[],
   incoming: ProventoRow[],
 ): Map<number, "novo" | "existente"> {
-  const exactKeys = new Set<string>();
-  const looseKeys = new Set<string>();
+  const existingKeys = new Set<string>();
 
   for (const row of existing) {
-    const ticker = normalizeTicker(String(row["ticker"] ?? ""));
-    const data = normalizeDate(String(row["data"] ?? ""));
-    const decisao = getDecisao(row);
-    const valor = Math.round(parseValor(String(row["valor"] ?? "0")) * 10);
-    const tipo = (decisao.includes("IMPOSTO") || decisao.includes("TAX")) ? "IMPOSTO" : "DIVIDENDO";
-
-    try {
-      const d = new Date(data + "T12:00:00Z");
-      for (let offset = -3; offset <= 3; offset++) {
-        const dd = new Date(d.getTime() + offset * 86400000);
-        const ds = dd.toISOString().split("T")[0];
-        exactKeys.add(`${ds}|${ticker}|${tipo}|${valor}`);
-        looseKeys.add(`${ds}|${ticker}|${valor}`);
-      }
-    } catch {
-      exactKeys.add(`${data}|${ticker}|${tipo}|${valor}`);
-      looseKeys.add(`${data}|${ticker}|${valor}`);
-    }
+    const ticker = String(row["ticker"] ?? "");
+    const data = String(row["data"] ?? "");
+    const valor = parseValor(String(row["valor"] ?? "0"));
+    existingKeys.add(sigProvento(data, ticker, valor));
   }
 
   const statuses = new Map<number, "novo" | "existente">();
   for (let i = 0; i < incoming.length; i++) {
     const ev = incoming[i];
-    const ticker = normalizeTicker(ev.ticker);
-    const tipo = ev.decisao === "IMPOSTO" ? "IMPOSTO" : "DIVIDENDO";
-    const valor = Math.round(parseValor(ev.valor) * 10);
-    const keyExact = `${ev.data}|${ticker}|${tipo}|${valor}`;
-    const keyLoose = `${ev.data}|${ticker}|${valor}`;
-    statuses.set(i, (exactKeys.has(keyExact) || looseKeys.has(keyLoose)) ? "existente" : "novo");
+    const key = sigProvento(ev.data, ev.ticker, parseValor(ev.valor));
+    statuses.set(i, existingKeys.has(key) ? "existente" : "novo");
   }
   return statuses;
 }
@@ -424,15 +508,18 @@ function dedupTrades(
     if (ticker) existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
+  // Assinatura de trade (alinhada ao Python): TICKER|TIPO|round(qty)|round(preco).
+  // Quantidade e preço arredondados para inteiro.
   function findMatch(ticker: string, tipo: string, qty: number, preco: number): typeof existingTrades[0] | null {
+    const q = Math.round(qty);
+    const p = Math.round(preco);
     for (const t of existingTrades) {
       if (t.matched) continue;
       if (t.ticker !== ticker) continue;
       if (t.tipo !== tipo) continue;
-      if (Math.abs(t.qty - qty) > 0.01) continue;
-      const pDiff = Math.abs(t.preco - preco);
-      const pPct = pDiff / Math.max(t.preco, preco, 1) * 100;
-      if (pPct <= 2 || pDiff <= 1) return t;
+      if (Math.round(t.qty) !== q) continue;
+      if (Math.round(t.preco) !== p) continue;
+      return t;
     }
     return null;
   }
@@ -518,12 +605,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Arquivo não encontrado" }, { status: 400 });
     }
 
-    const content = await file.text();
-    let source = detectSource(content);
-
     // Parse based on detected source
     let proventos: ProventoRow[] = [];
     let trades: TradeRow[] = [];
+
+    // Detecta Excel pela extensão ou mimetype.
+    const name = (file.name ?? "").toLowerCase();
+    const isExcel =
+      name.endsWith(".xlsx") ||
+      name.endsWith(".xls") ||
+      file.type.includes("spreadsheetml") ||
+      file.type === "application/vnd.ms-excel";
+
+    if (isExcel) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const excelRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
+        defval: "",
+        raw: false,
+      });
+      const parsed = parseB3Excel(excelRows);
+      proventos = parsed.proventos;
+      trades = parsed.trades;
+
+      if (proventos.length === 0 && trades.length === 0) {
+        return NextResponse.json({
+          error: "Nenhum dado reconhecido no arquivo Excel da B3.",
+          hint: "Use o relatório 'Movimentação' da B3 (.xlsx) com as colunas Entrada/Saída, Data, Movimentação, Produto, Valor da Operação, Quantidade, Preço unitário, Instituição.",
+          source: "b3",
+        }, { status: 422 });
+      }
+
+      return await buildResponse("b3", proventos, trades, dryRun);
+    }
+
+    const content = await file.text();
+    let source = detectSource(content);
 
     if (source === "ibkr") {
       const parsed = parseIBKR(content);
@@ -556,85 +674,95 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    // Fetch existing data for dedup
-    const [existingProventos, existingTrades] = await Promise.all([
-      proventos.length > 0 ? fetchTab("meus_proventos").catch(() => []) : Promise.resolve([]),
-      trades.length > 0 ? fetchTab("meus_ativos").catch(() => []) : Promise.resolve([]),
-    ]);
-
-    const proventoStatuses = proventos.length > 0 ? dedupProventos(existingProventos, proventos) : new Map();
-    const tradeStatuses = trades.length > 0 ? dedupTrades(existingTrades, trades) : new Map();
-
-    // Build preview items
-    const items: PreviewItem[] = [];
-
-    for (let i = 0; i < proventos.length; i++) {
-      const p = proventos[i];
-      items.push({
-        ticker: p.ticker,
-        data: p.data,
-        tipo: p.lancamento,
-        valor: p.valor,
-        moeda: p.moeda,
-        corretora: source === "ibkr" ? "IBKR" : "B3",
-        categoria: "provento",
-        detalhe: p.categoria,
-        status: proventoStatuses.get(i) ?? "novo",
-      });
-    }
-
-    for (let i = 0; i < trades.length; i++) {
-      const t = trades[i];
-      items.push({
-        ticker: t.Símbolo,
-        data: t.Data,
-        tipo: t["Tipo de transação"],
-        valor: t["Valor bruto"],
-        moeda: t.Moeda,
-        corretora: t.Corretora,
-        categoria: "trade",
-        detalhe: `${t.Quantidade} × ${t.Preço}`,
-        status: tradeStatuses.get(i) ?? "novo",
-      });
-    }
-
-    const novosProventos = proventos.filter((_, i) => proventoStatuses.get(i) === "novo");
-    const novosTrades = trades.filter((_, i) => tradeStatuses.get(i) === "novo");
-
-    const result: Record<string, unknown> = {
-      source,
-      items,
-      resumo: {
-        proventos: { total: proventos.length, novos: novosProventos.length, existentes: proventos.length - novosProventos.length },
-        trades: { total: trades.length, novos: novosTrades.length, existentes: trades.length - novosTrades.length },
-      },
-    };
-
-    // Insert if not dry run
-    if (!dryRun) {
-      let insertedProventos = 0;
-      let insertedTrades = 0;
-
-      if (novosProventos.length > 0) {
-        const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
-        const rows = novosProventos.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
-        await appendRows("meus_proventos", rows);
-        insertedProventos = novosProventos.length;
-      }
-
-      if (novosTrades.length > 0) {
-        const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
-        const rows = novosTrades.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
-        await appendRows("meus_ativos", rows);
-        insertedTrades = novosTrades.length;
-      }
-
-      result.inserted = { proventos: insertedProventos, trades: insertedTrades };
-    }
-
-    return NextResponse.json(result);
+    return await buildResponse(source, proventos, trades, dryRun);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+// Dedup + preview + (opcional) inserção. Compartilhado entre CSV e Excel.
+async function buildResponse(
+  source: Source,
+  proventos: ProventoRow[],
+  trades: TradeRow[],
+  dryRun: boolean,
+): Promise<NextResponse> {
+  // Fetch existing data for dedup
+  const [existingProventos, existingTrades] = await Promise.all([
+    proventos.length > 0 ? fetchTab("meus_proventos").catch(() => []) : Promise.resolve([]),
+    trades.length > 0 ? fetchTab("meus_ativos").catch(() => []) : Promise.resolve([]),
+  ]);
+
+  const proventoStatuses = proventos.length > 0 ? dedupProventos(existingProventos, proventos) : new Map();
+  const tradeStatuses = trades.length > 0 ? dedupTrades(existingTrades, trades) : new Map();
+
+  // Build preview items
+  const items: PreviewItem[] = [];
+
+  for (let i = 0; i < proventos.length; i++) {
+    const p = proventos[i];
+    items.push({
+      ticker: p.ticker,
+      data: p.data,
+      tipo: p.lancamento,
+      valor: p.valor,
+      moeda: p.moeda,
+      corretora: source === "ibkr" ? "IBKR" : "B3",
+      categoria: "provento",
+      detalhe: p.categoria,
+      status: proventoStatuses.get(i) ?? "novo",
+    });
+  }
+
+  for (let i = 0; i < trades.length; i++) {
+    const t = trades[i];
+    items.push({
+      ticker: t.Símbolo,
+      data: t.Data,
+      tipo: t["Tipo de transação"],
+      valor: t["Valor bruto"],
+      moeda: t.Moeda,
+      corretora: t.Corretora,
+      categoria: "trade",
+      detalhe: `${t.Quantidade} × ${t.Preço}`,
+      status: tradeStatuses.get(i) ?? "novo",
+    });
+  }
+
+  const novosProventos = proventos.filter((_, i) => proventoStatuses.get(i) === "novo");
+  const novosTrades = trades.filter((_, i) => tradeStatuses.get(i) === "novo");
+
+  const result: Record<string, unknown> = {
+    source,
+    items,
+    resumo: {
+      proventos: { total: proventos.length, novos: novosProventos.length, existentes: proventos.length - novosProventos.length },
+      trades: { total: trades.length, novos: novosTrades.length, existentes: trades.length - novosTrades.length },
+    },
+  };
+
+  // Insert if not dry run
+  if (!dryRun) {
+    let insertedProventos = 0;
+    let insertedTrades = 0;
+
+    if (novosProventos.length > 0) {
+      const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
+      const rows = novosProventos.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
+      await appendRows("meus_proventos", rows);
+      insertedProventos = novosProventos.length;
+    }
+
+    if (novosTrades.length > 0) {
+      const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
+      const rows = novosTrades.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
+      await appendRows("meus_ativos", rows);
+      insertedTrades = novosTrades.length;
+    }
+
+    result.inserted = { proventos: insertedProventos, trades: insertedTrades };
+  }
+
+  return NextResponse.json(result);
 }
