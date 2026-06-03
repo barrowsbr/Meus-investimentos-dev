@@ -137,8 +137,9 @@ export async function POST(request: Request) {
     const tickerSet = new Set<string>();
     const dateSet = new Set<string>();
 
-    // Carry forward existing data (if backfill, we rebuild; if update, we keep)
-    if (action === "update" && !existingStatus.empty) {
+    // Always carry forward existing data so a failed fetch (or a backfill
+    // re-run) NEVER wipes already-verified columns. New data is overlaid on top.
+    if (!existingStatus.empty) {
       for (const date of existing.dates) {
         dateSet.add(date);
         prices[date] = { ...existing.prices[date] };
@@ -146,7 +147,8 @@ export async function POST(request: Request) {
       existing.tickers.forEach(t => tickerSet.add(t));
     }
 
-    // Overlay new data
+    // Overlay new data (Yahoo value wins for dates it returns; missing dates
+    // keep whatever was already in the golden source).
     let newPoints = 0;
     const tickerErrors: string[] = [];
     for (const res of fetchResults) {

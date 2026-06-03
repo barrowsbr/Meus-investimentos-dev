@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Settings, Lock, Upload, CheckCircle2, XCircle, AlertCircle,
   FileText, RefreshCw, Eye, EyeOff, Shield, Info,
@@ -510,7 +510,7 @@ function GoldenSourceSection() {
   }, []);
 
   // load on mount
-  useState(() => { fetchStatus(); });
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   return (
     <div className="space-y-4">
