@@ -28,6 +28,7 @@ interface Summary {
   navFinal: number;
   navInicial: number;
   totalInvestido: number;
+  patrimonio?: { total: number; rv: number; rf: number; caixa: number };
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
@@ -395,8 +396,14 @@ export default function PerformancePage() {
           <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
             <div>
               <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio Total</p>
-              <p className="text-xl font-bold text-zinc-100">{compactCurr(s.navFinal)}</p>
-              <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)} · inclui RV + RF</p>
+              <p className="text-xl font-bold text-zinc-100">{compactCurr(s.patrimonio?.total ?? s.navFinal)}</p>
+              {s.patrimonio ? (
+                <p className="text-[10px] text-zinc-500">
+                  RV+RF+cripto+caixa{s.patrimonio.caixa > 0 ? ` · sendo ${compactCurr(s.patrimonio.caixa)} em caixa` : ""}
+                </p>
+              ) : (
+                <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)} · inclui RV + RF</p>
+              )}
             </div>
             <div className="h-px bg-zinc-800/50" />
             <div>
