@@ -210,6 +210,9 @@ export default function PerformancePage() {
   const [lookback, setLookback] = useState(0);
   const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
   const [setor, setSetor] = useState("");
+  const [customMode, setCustomMode] = useState(false);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
@@ -230,7 +233,11 @@ export default function PerformancePage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`${API_URL}/api/performance/advanced?lookback=${lookback}&classe=${classe}&setor=${encodeURIComponent(setor)}`)
+    const useCustom = customMode && customFrom && customTo;
+    const rangeQuery = useCustom
+      ? `from=${customFrom}&to=${customTo}`
+      : `lookback=${lookback}`;
+    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -240,7 +247,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback, classe, setor]);
+  }, [lookback, classe, setor, customMode, customFrom, customTo]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/twr/decomposicao`)
@@ -493,17 +500,25 @@ export default function PerformancePage() {
       </div>
 
       {/* ── Window selector (period filters) ── */}
-      <div className="flex items-center gap-1.5 mb-6 flex-wrap">
+      <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         {WINDOWS.map(w => (
-          <button key={w.label} onClick={() => setLookback(w.days)}
+          <button key={w.label} onClick={() => { setCustomMode(false); setLookback(w.days); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-              lookback === w.days
+              !customMode && lookback === w.days
                 ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
                 : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
             }`}>
             {w.label}
           </button>
         ))}
+        <button onClick={() => setCustomMode(v => !v)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border inline-flex items-center gap-1.5 ${
+            customMode
+              ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+              : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+          }`}>
+          <Calendar size={12} /> Personalizado
+        </button>
         <button onClick={() => setShowBenchmarks(v => !v)}
           className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
             showBenchmarks
@@ -516,6 +531,31 @@ export default function PerformancePage() {
           <RefreshCw size={14} />
         </button>
       </div>
+
+      {/* ── Intervalo personalizado ── */}
+      {customMode && (
+        <div className="flex flex-wrap items-end gap-3 mb-6 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/50 animate-fade-in">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">De</span>
+            <input type="date" value={customFrom} max={customTo || undefined}
+              onChange={e => setCustomFrom(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Até</span>
+            <input type="date" value={customTo} min={customFrom || undefined}
+              onChange={e => setCustomTo(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
+          </label>
+          {data?.summary.filtros && (
+            <span className="text-[10px] text-zinc-600 pb-2">
+              {customFrom && customTo
+                ? `Intervalo aplicado · ${formatDate(s.primeiraData)} → ${formatDate(s.ultimaData)}`
+                : "Escolha as datas de início e fim"}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════════
            TAB: RETORNO (overview)
