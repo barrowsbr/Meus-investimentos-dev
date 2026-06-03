@@ -5,7 +5,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 const API_KEY = process.env.GOOGLE_API_KEY!;
 
 // ── Service account auth (required for writes) ────────────────────────────────
-function getServiceAccountAuth(): JWT | null {
+export function getServiceAccountAuth(): JWT | null {
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!saJson) return null;
   try {
@@ -62,6 +62,10 @@ function serialToDate(serial: number): string {
 }
 
 let _sheetNamesCache: string[] | null = null;
+
+export function resetSheetNamesCache(): void {
+  _sheetNamesCache = null;
+}
 
 export async function listSheetNames(): Promise<string[]> {
   if (_sheetNamesCache) return _sheetNamesCache;

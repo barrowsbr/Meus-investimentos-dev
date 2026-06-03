@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Settings, Lock, Upload, CheckCircle2, XCircle, AlertCircle,
   FileText, RefreshCw, Eye, EyeOff, Shield, Info,
-  ChevronDown, ChevronUp, ArrowUpDown,
+  ChevronDown, ChevronUp, ArrowUpDown, Database,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
@@ -471,6 +471,150 @@ function EnvSection() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// ── Golden Source (db_cotacoes) Section ──────────────────────────────────────
+
+interface GsAnomaly { ticker: string; date: string; type: string; detail: string }
+interface GsStatus { empty?: boolean; firstDate?: string; lastDate?: string; tickerCount?: number; dateCount?: number; points?: number; coverage?: number; tickers?: string[] }
+interface GsResult { action: string; status: GsStatus; newPoints: number; tickerErrors?: string[]; anomalies?: GsAnomaly[]; anomalyCount?: number }
+
+function GoldenSourceSection() {
+  const [status, setStatus] = useState<GsStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<GsResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await fetch("/api/sync/cotacoes").then(r => r.json());
+      setStatus(d);
+    } catch { setStatus(null); }
+    finally { setLoading(false); }
+  }, []);
+
+  const runAction = useCallback(async (action: "backfill" | "update") => {
+    setRunning(true); setError(null); setResult(null);
+    try {
+      const res = await fetch("/api/sync/cotacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, lookback_years: action === "backfill" ? 5 : 1 }),
+      });
+      const d = await res.json();
+      if (d.error) { setError(d.error); return; }
+      setResult(d);
+      setStatus(d.status);
+    } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
+    finally { setRunning(false); }
+  }, []);
+
+  // load on mount
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-zinc-500">
+        Base própria de cotações históricas (preço bruto de fechamento). Fonte de verdade para performance/TWR — elimina dependência do Yahoo em tempo real.
+      </p>
+
+      {/* Status */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-zinc-500"><RefreshCw size={12} className="animate-spin" /> Carregando...</div>
+      ) : status?.empty !== false ? (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
+          Aba <code className="bg-zinc-800 px-1 rounded">db_cotacoes</code> vazia. Execute o backfill para popular com dados históricos.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { label: "Período", value: `${status.firstDate} → ${status.lastDate}` },
+            { label: "Ativos", value: String(status.tickerCount ?? 0) },
+            { label: "Datas", value: String(status.dateCount ?? 0) },
+            { label: "Cobertura", value: `${status.coverage ?? 0}%` },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg bg-zinc-800/40 px-3 py-2">
+              <p className="text-[10px] text-zinc-600 uppercase">{s.label}</p>
+              <p className="text-xs text-zinc-300 font-mono">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tickers */}
+      {status?.tickers && status.tickers.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {status.tickers.map(t => (
+            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-400 font-mono">{t}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => runAction("backfill")}
+          disabled={running}
+          className="px-4 py-2 text-xs rounded-lg font-semibold transition-colors bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50"
+        >
+          {running ? <RefreshCw size={12} className="inline animate-spin mr-1" /> : <Database size={12} className="inline mr-1" />}
+          Backfill Completo (5 anos)
+        </button>
+        <button
+          onClick={() => runAction("update")}
+          disabled={running || status?.empty !== false}
+          className="px-4 py-2 text-xs rounded-lg font-semibold transition-colors bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-50"
+        >
+          <RefreshCw size={12} className="inline mr-1" />
+          Atualizar até Hoje
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400 flex items-start gap-2">
+          <XCircle size={13} className="mt-0.5 flex-shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400 flex items-start gap-2">
+            <CheckCircle2 size={13} className="mt-0.5 flex-shrink-0" />
+            <span>
+              {result.action === "backfill" ? "Backfill concluído" : "Atualização concluída"}.
+              {" "}{result.newPoints.toLocaleString()} novos pontos inseridos.
+              {result.tickerErrors && result.tickerErrors.length > 0 && (
+                <span className="text-amber-400"> Sem dados para: {result.tickerErrors.join(", ")}.</span>
+              )}
+            </span>
+          </div>
+
+          {/* Anomalies */}
+          {result.anomalies && result.anomalies.length > 0 && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <p className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1">
+                <AlertCircle size={12} /> {result.anomalyCount} anomalia{(result.anomalyCount ?? 0) > 1 ? "s" : ""} detectada{(result.anomalyCount ?? 0) > 1 ? "s" : ""}
+              </p>
+              <div className="max-h-[200px] overflow-y-auto space-y-1">
+                {result.anomalies.map((a, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[11px]">
+                    <span className="font-mono text-zinc-400 w-16 flex-shrink-0">{a.ticker}</span>
+                    <span className="text-zinc-600 w-20 flex-shrink-0">{a.date}</span>
+                    <span className={a.type === "large_move" ? "text-amber-400" : a.type === "gap" ? "text-zinc-500" : "text-red-400"}>
+                      {a.detail}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ConfiguracoesPage() {
   return (
     <>
@@ -482,6 +626,10 @@ export default function ConfiguracoesPage() {
       <div className="max-w-4xl">
         <SectionCard title="Segurança — Senha de Acesso" icon={<Lock size={16} />}>
           <PasswordSection />
+        </SectionCard>
+
+        <SectionCard title="Base de Cotações (Golden Source)" icon={<Database size={16} />}>
+          <GoldenSourceSection />
         </SectionCard>
 
         <SectionCard title="Importar Dados (IBKR / B3)" icon={<Upload size={16} />}>
