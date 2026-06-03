@@ -16,6 +16,7 @@ import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import CandleChart from "@/components/CandleChart";
 import type { Position } from "@/lib/portfolio";
 
 const TOOLTIP_STYLE = {
@@ -476,6 +477,23 @@ export default function RendaVariavelPage() {
                                 })}
                               </tbody>
                             </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={colCount} className="p-0">
+                          <div className="mx-3 mb-3">
+                            <CandleChart
+                              ticker={p.ticker}
+                              moeda={p.moeda}
+                              corretora={txs[0]?.corretora ?? ""}
+                              precoAtual={p.precoAtual}
+                              purchases={txs
+                                .filter((tx) => tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy"))
+                                .map((tx) => ({ date: tx.data, price: tx.preco, quantidade: tx.quantidade, moeda: tx.moeda }))}
+                            />
                           </div>
                         </td>
                       </tr>

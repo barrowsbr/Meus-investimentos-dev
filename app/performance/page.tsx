@@ -447,7 +447,7 @@ export default function PerformancePage() {
               <p className="text-xl font-bold text-zinc-100">{compactCurr(s.patrimonio?.total ?? s.navFinal)}</p>
               {s.patrimonio ? (
                 <p className="text-[10px] text-zinc-500">
-                  RV+RF+cripto+caixa{s.patrimonio.caixa > 0 ? ` · sendo ${compactCurr(s.patrimonio.caixa)} em caixa` : ""}
+                  RV + RF + cripto{s.patrimonio.caixa > 0 ? `, incluindo ${compactCurr(s.patrimonio.caixa)} em caixa` : ""}
                 </p>
               ) : (
                 <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)} · inclui RV + RF</p>

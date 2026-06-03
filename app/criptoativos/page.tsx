@@ -26,6 +26,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   ReferenceLine,
+  ReferenceDot,
   Cell,
 } from "recharts";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
@@ -378,6 +379,24 @@ export default function CriptoativosPage() {
     ? [Math.min(...ohlcData.map((d) => d.low)) * 0.98, Math.max(...ohlcData.map((d) => d.high)) * 1.02]
     : [0, 1];
 
+  // Map each "Compra" to the nearest candle date <= purchase date (markers on chart)
+  const candleDates = ohlcData.map((d) => d.date);
+  const firstCandleDate = candleDates[0];
+  const buyMarkers = transactions
+    .filter((t) => t.tipo === "Compra")
+    .flatMap((t) => {
+      if (!firstCandleDate || t.data < firstCandleDate) return [];
+      let candleDate: string | null = null;
+      for (const cd of candleDates) {
+        if (cd <= t.data) candleDate = cd;
+        else break;
+      }
+      if (!candleDate) return [];
+      const precoNow = selectedPosition?.precoAtual ?? null;
+      const retornoPct = precoNow != null && t.preco > 0 ? ((precoNow - t.preco) / t.preco) * 100 : null;
+      return [{ candleDate, price: t.preco, quantidade: t.quantidade, retornoPct }];
+    });
+
   // Table columns
   const columns = [
     {
@@ -621,6 +640,34 @@ export default function CriptoativosPage() {
                     shape={makeCandleShape(yDomain as [number, number])}
                     background={{ fill: "transparent" }}
                   />
+                  {buyMarkers.map((m, i) => (
+                    <ReferenceDot
+                      key={`buy-${i}`}
+                      x={m.candleDate}
+                      y={m.price}
+                      r={5}
+                      fill="#fbbf24"
+                      stroke="#0a0a0a"
+                      strokeWidth={1.5}
+                      ifOverflow="extendDomain"
+                      isFront
+                      shape={(props: { cx?: number; cy?: number }) => {
+                        const { cx, cy } = props;
+                        if (cx == null || cy == null) return <g />;
+                        return (
+                          <g>
+                            <circle cx={cx} cy={cy} r={6} fill="#fbbf24" fillOpacity={0.18} />
+                            <path
+                              d={`M ${cx} ${cy - 6} L ${cx + 5} ${cy + 4} L ${cx - 5} ${cy + 4} Z`}
+                              fill="#fbbf24"
+                              stroke="#0a0a0a"
+                              strokeWidth={1}
+                            />
+                          </g>
+                        );
+                      }}
+                    />
+                  ))}
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -642,6 +689,12 @@ export default function CriptoativosPage() {
               <span className="inline-block w-1 h-0.5 bg-amber-500 rounded" />
               Preco Medio
             </span>
+            {buyMarkers.length > 0 && (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent border-b-amber-400" />
+                Compras
+              </span>
+            )}
           </div>
         )}
       </div>
