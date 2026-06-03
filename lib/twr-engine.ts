@@ -531,6 +531,24 @@ export function calcularTWR(input: TwrInput): TwrResult {
     if (!tickerMoeda.has(tx.ticker)) tickerMoeda.set(tx.ticker, tx.moeda);
   }
 
+  // Average purchase cost per ticker (in the ticker's currency). Used as a
+  // fallback NAV price when an asset has NO market price at all (e.g. cripto or
+  // RV tickers missing from the golden source / Yahoo). Without this the asset
+  // would silently vanish from NAV — the Resumo values it at cost, so we match
+  // that behaviour here instead of dropping it.
+  const tickerAvgCost = new Map<string, number>();
+  {
+    const acc = new Map<string, { val: number; qty: number }>();
+    for (const tx of inRange) {
+      if (tx.tipo !== "Compra") continue;
+      const a = acc.get(tx.ticker) ?? { val: 0, qty: 0 };
+      a.val += tx.preco * tx.quantidade;
+      a.qty += tx.quantidade;
+      acc.set(tx.ticker, a);
+    }
+    for (const [t, a] of acc) if (a.qty > 0) tickerAvgCost.set(t, a.val / a.qty);
+  }
+
   const sortedTxs = [...inRange].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
   let txIdx = 0;
   const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
@@ -561,7 +579,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
     let navRV = 0;
     for (const [ticker, qty] of Object.entries(snap)) {
       if (qty < 0.000001) continue;
-      const price = getPrice(ticker, i, prices);
+      // Market price first; fall back to average cost so the asset never
+      // disappears from NAV when it has no quote (cripto / missing tickers).
+      const price = getPrice(ticker, i, prices) ?? tickerAvgCost.get(ticker) ?? null;
       if (price == null) continue;
       const moeda = tickerMoeda.get(ticker) ?? getMoedaEfetiva(ticker, "BRL", identificarSetor(ticker));
       navRV += qty * price * fxFactor(moeda, fx);
