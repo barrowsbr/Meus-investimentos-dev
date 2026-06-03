@@ -1,5 +1,6 @@
 import { yahooTicker } from "./cotacoes";
 import { identificarSetor, isRendaFixa } from "./sectors";
+import { readGoldenSource } from "./db-cotacoes";
 import type { PriceMatrix, FxHistory } from "./twr-engine";
 import type { FxRates } from "./cotacoes";
 
@@ -49,7 +50,7 @@ async function fetchViaYF2(
     { validateResult: false }
   );
   return (rows ?? []).flatMap((r: Record<string, unknown>) => {
-    const close = (r.adjClose ?? r.close) as number | null;
+    const close = (r.close ?? r.adjClose) as number | null;
     if (close == null || !isFinite(close)) return [];
     const d = r.date instanceof Date ? r.date : new Date(r.date as string);
     return [{ date: d.toISOString().split("T")[0], price: close }];
@@ -95,7 +96,6 @@ async function fetchViaV8Chart(
   // Yahoo uses "timestamp" (singular) — not "timestamps"
   const timestamps: number[] = result.timestamp ?? [];
   const closes: (number | null)[] =
-    result.indicators?.adjclose?.[0]?.adjclose ??
     result.indicators?.quote?.[0]?.close ??
     [];
 
@@ -109,7 +109,7 @@ async function fetchViaV8Chart(
 
 // ─── Per-ticker fetch with fallback chain ─────────────────────────────────────
 
-async function fetchTicker(
+export async function fetchTicker(
   yt: string,
   startStr: string,
   endStr: string,
@@ -168,9 +168,24 @@ export async function fetchHistoricalData(
 
   const allYahoo = [...tickerMap.keys(), ...FX_TICKERS, IBOV_TICKER, SP500_TICKER];
 
-  // Parallel fetch — best-effort
+  // ── Golden source (db_cotacoes) — primary, deterministic ──
+  let golden: Awaited<ReturnType<typeof readGoldenSource>> | null = null;
+  try {
+    golden = await readGoldenSource();
+  } catch { /* fall through to Yahoo */ }
+
+  const goldenUpper = new Set(golden?.tickers.map(t => t.toUpperCase()) ?? []);
+  const coveredByGolden = new Set<string>();
+  for (const yt of allYahoo) {
+    const orig = tickerMap.get(yt) ?? yt;
+    if (goldenUpper.has(orig.toUpperCase())) coveredByGolden.add(yt);
+  }
+
+  const toFetch = allYahoo.filter(yt => !coveredByGolden.has(yt));
+
+  // Parallel fetch — only for tickers NOT in golden source
   const fetched = await Promise.allSettled(
-    allYahoo.map(async (yt) => {
+    toFetch.map(async (yt) => {
       const rows = await fetchTicker(yt, startStr, endStr, lookbackDays);
       return { yt, rows };
     })
@@ -179,6 +194,21 @@ export async function fetchHistoricalData(
   // Build date → ticker → price map
   const rawByDate = new Map<string, Map<string, number>>();
 
+  // 1) Golden source data (keyed by Yahoo ticker for compatibility)
+  if (golden) {
+    for (const yt of coveredByGolden) {
+      const orig = (tickerMap.get(yt) ?? yt).toUpperCase();
+      for (const date of golden.dates) {
+        if (date < startStr || date > endStr) continue;
+        const price = golden.prices[date]?.[orig];
+        if (price == null) continue;
+        if (!rawByDate.has(date)) rawByDate.set(date, new Map());
+        rawByDate.get(date)!.set(yt, price);
+      }
+    }
+  }
+
+  // 2) Yahoo data (for tickers not in golden source)
   for (const res of fetched) {
     if (res.status !== "fulfilled") continue;
     const { yt, rows } = res.value;
