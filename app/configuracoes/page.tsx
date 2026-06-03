@@ -245,7 +245,7 @@ function ImportSection() {
         onClick={() => fileRef.current?.click()}
       >
         <input
-          ref={fileRef} type="file" accept=".csv,.txt"
+          ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls"
           className="hidden"
           onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
         />
