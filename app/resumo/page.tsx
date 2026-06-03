@@ -401,20 +401,26 @@ export default function ResumoPage() {
         })()}
       </div>
 
-      {/* ── Results breakdown: RV + Proventos + RF ── */}
+      {/* ── Results breakdown: RV + Proventos + RF (inclui lucro realizado) ── */}
       {composicao && (() => {
-        const rvGanho = data.lucroBRL;
+        const rvItems = (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Variável");
+        const rvNaoReal = rvItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
+        const rvReal = rvItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
+        const rvGanho = rvNaoReal + rvReal;
         const proventosTotal = data.totalProventosBRL;
         const rfGanho = (composicao.rentabilidade ?? [])
           .filter(r => r.macro === "Renda Fixa")
           .reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
         const resultadoTotal = rvGanho + proventosTotal + rfGanho;
         const items = [
-          { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: "Valorização renda variável" },
-          { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos" },
+          { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)}` },
+          { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos (líq. IR)" },
           { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
         ];
         const maxAbs = Math.max(...items.map(i => Math.abs(i.value)), 1);
+        const vendidos = (composicao.rentabilidade ?? [])
+          .filter(r => r.status === "Vendido")
+          .sort((a, b) => b.resultado_total_brl - a.resultado_total_brl);
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
             <div className="flex items-center justify-between mb-3">
@@ -442,6 +448,47 @@ export default function ResumoPage() {
                 </div>
               ))}
             </div>
+
+            {/* ── Posições encerradas (vendidas) ── */}
+            {vendidos.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-zinc-800/50">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                    Posições encerradas ({vendidos.length})
+                  </h3>
+                  <span className="text-[10px] text-zinc-500">
+                    Realizado {compactBRL(vendidos.reduce((s, r) => s + r.resultado_total_brl, 0))}
+                  </span>
+                </div>
+                <div className="max-h-[180px] overflow-y-auto -mx-1 px-1">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-zinc-600">
+                      <tr className="border-b border-zinc-800/40">
+                        <th className="text-left font-medium py-1">Ativo</th>
+                        <th className="text-right font-medium py-1">Custo</th>
+                        <th className="text-right font-medium py-1">Resultado</th>
+                        <th className="text-right font-medium py-1">Retorno</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendidos.map(r => (
+                        <tr key={r.ticker} className="border-b border-zinc-900/40">
+                          <td className="text-left py-1 font-mono text-zinc-300">{r.ticker}</td>
+                          <td className="text-right py-1 text-zinc-500 font-mono">{compactBRL(r.custo_brl)}</td>
+                          <td className={`text-right py-1 font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {r.resultado_total_brl >= 0 ? "+" : ""}{compactBRL(r.resultado_total_brl)}
+                          </td>
+                          <td className={`text-right py-1 font-mono ${r.retorno_total_pct >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
+                            {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[9px] text-zinc-700 mt-1.5">Resultado = lucro realizado na venda + proventos recebidos enquanto teve a posição</p>
+              </div>
+            )}
           </div>
         );
       })()}
