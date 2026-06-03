@@ -7,6 +7,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/cotacoes",
+      "schedule": "0 23 * * 1-5"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/portfolio",
