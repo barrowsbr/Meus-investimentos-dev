@@ -9,7 +9,7 @@ import { usePortfolio } from "@/lib/hooks";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import type { NewsItem } from "@/app/api/noticias/route";
-import type { RedditPost } from "@/app/api/reddit/route";
+import { type RedditPost, fetchRedditFromBrowser } from "@/lib/reddit";
 
 // ─── Ticker Tape ──────────────────────────────────────────────────────────────
 
@@ -166,15 +166,34 @@ export default function NoticiasPage() {
       .finally(() => setNewsLoading(false));
   }, [portfolioTickers.join(","), refreshKey]); // eslint-disable-line
 
-  // Load Reddit lazily
+  // Load Reddit lazily.
+  // 1) Try the server route (uses official OAuth API when credentials are set).
+  // 2) If the server is blocked (datacenter IP) and returns nothing, fetch
+  //    directly from the user's browser (residential IP isn't blocked by Reddit).
   useEffect(() => {
     if (tab !== "reddit" || reddit.length > 0) return;
+    let cancelled = false;
     setRedditLoading(true);
-    fetch("/api/reddit")
-      .then(r => r.json())
-      .then(d => setReddit(d.posts ?? []))
-      .catch(() => {})
-      .finally(() => setRedditLoading(false));
+
+    (async () => {
+      try {
+        const d = await fetch("/api/reddit").then(r => r.json());
+        if (!cancelled && (d.posts?.length ?? 0) > 0) {
+          setReddit(d.posts);
+          return;
+        }
+      } catch { /* fall through to client-side */ }
+
+      // Server returned nothing → try fetching from the browser directly.
+      try {
+        const posts = await fetchRedditFromBrowser();
+        if (!cancelled) setReddit(posts);
+      } catch {
+        if (!cancelled) setReddit([]);
+      }
+    })().finally(() => { if (!cancelled) setRedditLoading(false); });
+
+    return () => { cancelled = true; };
   }, [tab]); // eslint-disable-line
 
   // By-ticker grouping
@@ -284,7 +303,15 @@ export default function NoticiasPage() {
           <div>
             <p className="text-xs text-zinc-600 mb-4">Posts mais votados de r/investimentos, r/farialimabets, r/bolsa, r/stocks, r/wallstreetbets e r/dividends</p>
             {reddit.length === 0
-              ? <div className="text-center py-20 text-zinc-600"><MessageSquare size={40} className="mx-auto mb-3 opacity-30"/><p className="text-sm">Não foi possível carregar o Reddit.</p></div>
+              ? <div className="text-center py-20 text-zinc-600">
+                  <MessageSquare size={40} className="mx-auto mb-3 opacity-30"/>
+                  <p className="text-sm">Não foi possível carregar o Reddit.</p>
+                  <p className="text-xs text-zinc-700 mt-2 max-w-sm mx-auto">
+                    O Reddit bloqueia o servidor da Vercel. Para acesso garantido, configure
+                    <span className="font-mono text-zinc-500"> REDDIT_CLIENT_ID</span> e
+                    <span className="font-mono text-zinc-500"> REDDIT_CLIENT_SECRET</span> nas variáveis de ambiente.
+                  </p>
+                </div>
               : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {reddit.map(p => <RedditCard key={p.id} post={p} />)}
                 </div>
