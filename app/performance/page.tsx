@@ -29,6 +29,7 @@ interface Summary {
   navInicial: number;
   totalInvestido: number;
   patrimonio?: { total: number; rv: number; rf: number; caixa: number };
+  filtros?: { classe: string; setor: string; rvSetores: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
@@ -207,6 +208,8 @@ export default function PerformancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lookback, setLookback] = useState(0);
+  const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
+  const [setor, setSetor] = useState("");
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
@@ -227,7 +230,7 @@ export default function PerformancePage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`${API_URL}/api/performance/advanced?lookback=${lookback}`)
+    fetch(`${API_URL}/api/performance/advanced?lookback=${lookback}&classe=${classe}&setor=${encodeURIComponent(setor)}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -237,7 +240,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback]);
+  }, [lookback, classe, setor]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/twr/decomposicao`)
@@ -320,7 +323,7 @@ export default function PerformancePage() {
       .catch(e => { setError(e.message); setLoading(false); });
   };
 
-  if (loading) return (<><PageHeader title="Performance" description="Carregando dados..." /><LoadingSpinner /></>);
+  if (loading && !data) return (<><PageHeader title="Performance" description="Carregando dados..." /><LoadingSpinner /></>);
   if (error) return (<><PageHeader title="Performance" description="" /><ErrorAlert message={error} /></>);
   if (!data || !activeSummary) return null;
 
@@ -355,6 +358,44 @@ export default function PerformancePage() {
           {isUsd ? "Patrimônio em dólar" : "Patrimônio em real"}
         </span>
       </div>
+
+      {/* ── Filtro por classe / setor ── */}
+      {(() => {
+        const f = data?.summary.filtros;
+        if (!f) return null;
+        const classes: { id: typeof classe; label: string; show: boolean }[] = [
+          { id: "tudo", label: "Tudo", show: true },
+          { id: "rv", label: "Renda Variável", show: f.rvSetores.length > 0 },
+          { id: "rf", label: "Renda Fixa", show: f.temRF },
+          { id: "cripto", label: "Cripto", show: f.temCripto },
+        ];
+        return (
+          <div className="mb-6 space-y-2">
+            <div className="flex flex-wrap items-center gap-1">
+              {classes.filter(c => c.show).map(c => (
+                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    classe === c.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border border-zinc-800/50"
+                  }`}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {classe === "rv" && f.rvSetores.length > 1 && (
+              <div className="flex flex-wrap items-center gap-1">
+                {["", ...f.rvSetores].map(st => (
+                  <button key={st || "todos"} onClick={() => setSetor(st)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] transition-all ${
+                      setor === st ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-zinc-800/40 text-zinc-500 hover:text-zinc-300"
+                    }`}>
+                    {st || "Todos"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Hero Performance Card ── */}
       <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
