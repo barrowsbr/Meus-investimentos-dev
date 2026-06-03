@@ -361,28 +361,36 @@ function parseB3(content: string): { proventos: ProventoRow[]; trades: TradeRow[
 
 // ── Dedup ────────────────────────────────────────────────────────────────────
 
+function getDecisao(row: Record<string, unknown>): string {
+  const v = row["decisao"] ?? row["decisão"] ?? row["lancamento"] ?? row["lançamento"] ?? "";
+  return String(v).trim().toUpperCase();
+}
+
 function dedupProventos(
   existing: Record<string, unknown>[],
   incoming: ProventoRow[],
 ): Map<number, "novo" | "existente"> {
-  const existingKeys = new Set<string>();
+  const exactKeys = new Set<string>();
+  const looseKeys = new Set<string>();
 
   for (const row of existing) {
     const ticker = normalizeTicker(String(row["ticker"] ?? ""));
     const data = normalizeDate(String(row["data"] ?? ""));
-    const decisao = String(row["decisao"] ?? "").toUpperCase();
+    const decisao = getDecisao(row);
     const valor = Math.round(parseValor(String(row["valor"] ?? "0")) * 10);
-    const tipo = decisao.includes("IMPOSTO") ? "IMPOSTO" : "DIVIDENDO";
+    const tipo = (decisao.includes("IMPOSTO") || decisao.includes("TAX")) ? "IMPOSTO" : "DIVIDENDO";
 
     try {
       const d = new Date(data + "T12:00:00Z");
       for (let offset = -3; offset <= 3; offset++) {
         const dd = new Date(d.getTime() + offset * 86400000);
         const ds = dd.toISOString().split("T")[0];
-        existingKeys.add(`${ds}|${ticker}|${tipo}|${valor}`);
+        exactKeys.add(`${ds}|${ticker}|${tipo}|${valor}`);
+        looseKeys.add(`${ds}|${ticker}|${valor}`);
       }
     } catch {
-      existingKeys.add(`${data}|${ticker}|${tipo}|${valor}`);
+      exactKeys.add(`${data}|${ticker}|${tipo}|${valor}`);
+      looseKeys.add(`${data}|${ticker}|${valor}`);
     }
   }
 
@@ -392,8 +400,9 @@ function dedupProventos(
     const ticker = normalizeTicker(ev.ticker);
     const tipo = ev.decisao === "IMPOSTO" ? "IMPOSTO" : "DIVIDENDO";
     const valor = Math.round(parseValor(ev.valor) * 10);
-    const key = `${ev.data}|${ticker}|${tipo}|${valor}`;
-    statuses.set(i, existingKeys.has(key) ? "existente" : "novo");
+    const keyExact = `${ev.data}|${ticker}|${tipo}|${valor}`;
+    const keyLoose = `${ev.data}|${ticker}|${valor}`;
+    statuses.set(i, (exactKeys.has(keyExact) || looseKeys.has(keyLoose)) ? "existente" : "novo");
   }
   return statuses;
 }
