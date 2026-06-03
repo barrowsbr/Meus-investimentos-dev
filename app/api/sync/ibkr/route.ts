@@ -169,9 +169,9 @@ function findMissingProventos(
   for (const row of existing) {
     const ticker = normalizeTicker(String(row["ticker"] ?? ""));
     const data = normalizeDate(String(row["data"] ?? ""));
-    const decisao = String(row["decisao"] ?? "").toUpperCase();
+    const decisao = String(row["decisao"] ?? row["decisão"] ?? row["lancamento"] ?? row["lançamento"] ?? "").toUpperCase();
     const valor = Math.round(parseValor(String(row["valor"] ?? "0")) * 10);
-    const tipo = decisao.includes("IMPOSTO") ? "IMPOSTO" : "DIVIDENDO";
+    const tipo = (decisao.includes("IMPOSTO") || decisao.includes("TAX")) ? "IMPOSTO" : "DIVIDENDO";
 
     // ±3 day window
     try {
