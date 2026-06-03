@@ -3,6 +3,10 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
+import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
+import { identificarSetor, getMoedaEfetiva } from "@/lib/sectors";
+
+const CASH_TICKERS_PATRIMONIO = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -329,6 +333,40 @@ export async function GET(request: Request) {
 
     const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
 
+    // ── Patrimônio total (snapshot completo, preços da golden source) ──────────
+    // O TWR/Ganho Econômico mede RETORNO sobre o capital que rende (exclui caixa
+    // e RF de saldo manual). O PATRIMÔNIO é tudo que se possui: RV + RF + caixa.
+    // Usa o último preço conhecido da golden source por ticker (mesmo cálculo do
+    // Resumo), garantindo um único patrimônio consistente entre as páginas.
+    const goldenQuotes: Record<string, { price: number; change: number; changePercent: number; currency: string; name: string }> = {};
+    for (const [ticker, meta] of tickerMeta) {
+      const arr = hist.prices[ticker];
+      if (!arr) continue;
+      let last: number | null = null;
+      for (let j = arr.length - 1; j >= 0; j--) {
+        if (arr[j] != null && arr[j]! > 0) { last = arr[j]!; break; }
+      }
+      if (last == null) continue;
+      goldenQuotes[ticker] = {
+        price: last, change: 0, changePercent: 0,
+        currency: getMoedaEfetiva(ticker, meta.moeda, identificarSetor(ticker)),
+        name: ticker,
+      };
+    }
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, goldenQuotes, lastFx, pmFx);
+    // Caixa = linhas CAIXA/SALDO/CASH/RESERVA da fixa_aberta (que o NAV de retorno
+    // exclui de propósito). Precisa existir no patrimônio, mas não no retorno.
+    const caixaRows = fixaAberta.filter(r =>
+      CASH_TICKERS_PATRIMONIO.has(String(r["ticker"] ?? r["ativo"] ?? "").toUpperCase().trim())
+    );
+    const caixaBRL = calcularRendaFixaBRL(caixaRows, lastFx);
+    const patrimonio = {
+      total: snapshot.totalPatrimonioBRL,
+      rv: snapshot.rvPatrimonioBRL,
+      rf: snapshot.rfPatrimonioBRL,
+      caixa: caixaBRL,
+    };
+
     // CDI, IBOV, S&P 500 benchmarks
     const cdiPoints = buildCDIBenchmark(dates);
     const ibovPoints = buildPriceBenchmark("IBOV", dates, alignedIbov);
@@ -583,6 +621,7 @@ export async function GET(request: Request) {
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
         ganhoEconomico: twr.ganhoEconomico,
+        patrimonio,
         peakDate,
         troughDate,
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
