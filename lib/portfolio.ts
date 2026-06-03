@@ -316,11 +316,15 @@ export function calcularProventosBRL(
   const porTicker: Record<string, number> = {};
 
   for (const row of proventos) {
-    const valor = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
-    if (valor === 0) continue;
+    const valorAbs = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
+    if (valorAbs === 0) continue;
+
+    // IMPOSTO retido na fonte abate o provento (líquido = bruto − IR)
+    const decisao = String(getVal(row, "decisao", "decisão") ?? "").toLowerCase();
+    const sign = decisao.includes("imposto") ? -1 : 1;
 
     const moeda = getMoeda(row);
-    const valorBRL = valor * fxToBRL(moeda, fx);
+    const valorBRL = sign * valorAbs * fxToBRL(moeda, fx);
     totalBRL += valorBRL;
 
     const ticker = String(getVal(row, "ticker", "símbolo", "simbolo") ?? "").toUpperCase().trim();
