@@ -256,6 +256,9 @@ export async function GET(request: Request) {
   // Filtro por classe (tudo|rv|rf|cripto) e, dentro de RV, por setor.
   const classe = (searchParams.get("classe") ?? "tudo").toLowerCase();
   const setorFiltro = searchParams.get("setor") ?? "";
+  const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const fromParam = isYmd(searchParams.get("from")) ? searchParams.get("from")! : "";
+  const toParam = isYmd(searchParams.get("to")) ? searchParams.get("to")! : "";
 
   try {
     const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta] = await Promise.all([
@@ -282,14 +285,19 @@ export async function GET(request: Request) {
     }
 
     const tickerList = [...tickerMeta.entries()].map(([ticker, info]) => ({ ticker, ...info }));
-    const hist = await fetchHistoricalData(tickerList, lookback > 0 ? lookback + 10 : 0);
+    // Custom date range (from/to) overrides lookback. Fetch full history when a
+    // custom 'from' is given so the window is fully covered.
+    const fetchLookback = (fromParam || toParam) ? 0 : (lookback > 0 ? lookback + 10 : 0);
+    const hist = await fetchHistoricalData(tickerList, fetchLookback);
     if (hist.dates.length === 0) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
 
-    const dates = lookback > 0
-      ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
-      : hist.dates.filter(d => d <= today());
+    const dates = (fromParam || toParam)
+      ? hist.dates.filter(d => d >= (fromParam || "0000") && d <= (toParam || today()))
+      : lookback > 0
+        ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
+        : hist.dates.filter(d => d <= today());
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
     // Pre-fill the FULL price matrix (ffill + bfill) BEFORE slicing to the

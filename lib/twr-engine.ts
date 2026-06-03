@@ -105,11 +105,14 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
     const ticker = String(row["ticker"] ?? "").toUpperCase().trim();
     if (!ticker) continue;
 
+    // IMPOSTO = IR retido na fonte. Não ignorar: é custo, entra como income
+    // NEGATIVO (abate o provento bruto → retorno reflete o líquido recebido).
     const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
-    if (decisao.includes("imposto")) continue;
+    const isImposto = decisao.includes("imposto");
 
-    const valor = Math.abs(toNumber(row["valor"]) ?? 0);
-    if (valor < 0.01) continue;
+    const valorAbs = Math.abs(toNumber(row["valor"]) ?? 0);
+    if (valorAbs < 0.01) continue;
+    const valor = isImposto ? -valorAbs : valorAbs;
 
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
     const date = toYMD(row["data"] ?? row["date"]);
