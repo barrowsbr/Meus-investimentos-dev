@@ -26,18 +26,12 @@ const SUBREDDITS = [
   "dividends",
 ];
 
-const UA = "Mozilla/5.0 (compatible; InvestimentosBot/1.0; +https://github.com)";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
-async function fetchSubreddit(sub: string, limit = 8): Promise<RedditPost[]> {
-  const url = `https://www.reddit.com/r/${sub}/hot.json?limit=${limit}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA },
-    signal: AbortSignal.timeout(8000),
-    next: { revalidate: 1800 },
-  });
-  if (!res.ok) return [];
-  const json = await res.json();
-  const children: unknown[] = json?.data?.children ?? [];
+function parsePosts(json: Record<string, unknown>, sub: string): RedditPost[] {
+  const children: unknown[] =
+    (json?.data as Record<string, unknown>)?.children as unknown[] ?? [];
   return children
     .map((c: unknown) => {
       const d = (c as { data: Record<string, unknown> }).data;
@@ -55,23 +49,68 @@ async function fetchSubreddit(sub: string, limit = 8): Promise<RedditPost[]> {
         flair: String(d.link_flair_text ?? ""),
       } satisfies RedditPost;
     })
-    .filter(p => p.title && !p.title.startsWith("[deleted]"));
+    .filter((p) => p.title && !p.title.startsWith("[deleted]"));
+}
+
+async function fetchSubreddit(sub: string, limit = 8): Promise<RedditPost[]> {
+  const headers: Record<string, string> = {
+    "User-Agent": UA,
+    Accept: "application/json",
+  };
+
+  const urls = [
+    `https://www.reddit.com/r/${sub}/hot.json?limit=${limit}&raw_json=1`,
+    `https://old.reddit.com/r/${sub}/hot.json?limit=${limit}`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.status === 429) {
+        const wait = Math.min(Number(res.headers.get("retry-after") ?? "2"), 5);
+        await new Promise((r) => setTimeout(r, wait * 1000));
+        const retry = await fetch(url, {
+          headers,
+          signal: AbortSignal.timeout(8000),
+        });
+        if (retry.ok) {
+          return parsePosts(await retry.json(), sub);
+        }
+        continue;
+      }
+      if (!res.ok) continue;
+      return parsePosts(await res.json(), sub);
+    } catch {
+      continue;
+    }
+  }
+  return [];
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const subParam = searchParams.get("subs");
-  const subs = subParam ? subParam.split(",").map(s => s.trim()).filter(Boolean) : SUBREDDITS;
+  const subs = subParam
+    ? subParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : SUBREDDITS;
 
   try {
-    const results = await Promise.allSettled(subs.map(s => fetchSubreddit(s)));
     const posts: RedditPost[] = [];
-    for (const r of results) {
-      if (r.status === "fulfilled") posts.push(...r.value);
+
+    // Fetch sequentially to avoid Reddit rate-limiting
+    for (const sub of subs) {
+      const result = await fetchSubreddit(sub);
+      posts.push(...result);
     }
-    // Sort by score descending
+
     posts.sort((a, b) => b.score - a.score);
-    return NextResponse.json({ posts, count: posts.length });
+    return NextResponse.json(
+      { posts, count: posts.length },
+      { headers: { "Cache-Control": "s-maxage=1800, stale-while-revalidate=600" } }
+    );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro";
     return NextResponse.json({ error: message, posts: [] }, { status: 500 });
