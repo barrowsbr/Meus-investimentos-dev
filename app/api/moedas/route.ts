@@ -48,48 +48,132 @@ const CURRENCIES: Omit<CurrencyData, "rate" | "change" | "changePct">[] = [
   { code: "NGN", name: "Naira Nigeriana",     flag: "🇳🇬", region: "Africa",      lat: 9.1,   lng: 7.5   },
 ];
 
+type RateInfo = { rate: number; change: number; changePct: number };
+
+async function fetchRatesYahoo(): Promise<Record<string, RateInfo>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const YF: any = (await import("yahoo-finance2")).default;
+  const yahooFinance = typeof YF === "function" ? new YF() : YF;
+
+  const codes = CURRENCIES.filter(c => c.code !== "USD").map(c => c.code);
+  const tickers = codes.map(c => `${c}=X`);
+  const rates: Record<string, RateInfo> = {};
+
+  const batchSize = 8;
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map(t => yahooFinance.quote(t))
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const r = results[j];
+      if (r.status === "fulfilled" && r.value) {
+        const q = r.value;
+        const code = codes[i + j];
+        const price = q.regularMarketPrice ?? 0;
+        if (price > 0) {
+          rates[code] = {
+            rate: price,
+            change: q.regularMarketChange ?? 0,
+            changePct: q.regularMarketChangePercent ?? 0,
+          };
+        }
+      }
+    }
+  }
+
+  if (Object.keys(rates).length === 0) throw new Error("Yahoo: no FX rates");
+  return rates;
+}
+
+async function fetchRatesAwesome(): Promise<Record<string, RateInfo>> {
+  const supported = ["BRL","EUR","GBP","JPY","CHF","CAD","AUD","CNY","INR","MXN",
+    "KRW","SGD","HKD","NOK","SEK","ZAR","TRY","ARS","CLP","COP","THB","PLN",
+    "ILS","SAR","AED","NZD","TWD","RUB","DKK","NGN"];
+  const pairs = supported.map(c => `USD-${c}`).join(",");
+  const res = await fetch(`https://economia.awesomeapi.com.br/last/${pairs}`);
+  if (!res.ok) throw new Error(`AwesomeAPI HTTP ${res.status}`);
+  const data = await res.json();
+
+  const rates: Record<string, RateInfo> = {};
+  for (const code of supported) {
+    const entry = data[`USD${code}`];
+    if (entry) {
+      const rate = parseFloat(entry.bid) || 0;
+      if (rate > 0) {
+        rates[code] = {
+          rate,
+          change: parseFloat(entry.varBid) || 0,
+          changePct: parseFloat(entry.pctChange) || 0,
+        };
+      }
+    }
+  }
+
+  if (Object.keys(rates).length === 0) throw new Error("AwesomeAPI: no rates");
+  return rates;
+}
+
+async function fetchRatesOpenER(): Promise<Record<string, RateInfo>> {
+  const res = await fetch("https://open.er-api.com/v6/latest/USD");
+  if (!res.ok) throw new Error(`ExchangeRate-API HTTP ${res.status}`);
+  const json = await res.json();
+  const rawRates: Record<string, number> = json.rates ?? {};
+
+  const rates: Record<string, RateInfo> = {};
+  for (const c of CURRENCIES) {
+    if (c.code === "USD") continue;
+    const rate = rawRates[c.code];
+    if (rate && rate > 0) {
+      rates[c.code] = { rate, change: 0, changePct: 0 };
+    }
+  }
+
+  if (Object.keys(rates).length === 0) throw new Error("ExchangeRate-API: no rates");
+  return rates;
+}
+
 export async function GET() {
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
-      next: { revalidate: 900 },
-    });
+    const sources: [string, () => Promise<Record<string, RateInfo>>][] = [
+      ["yahoo", fetchRatesYahoo],
+      ["awesomeapi", fetchRatesAwesome],
+      ["exchangerate-api", fetchRatesOpenER],
+    ];
 
-    if (!res.ok) throw new Error(`API HTTP ${res.status}`);
-    const json = await res.json();
-    const rates: Record<string, number> = json.rates ?? {};
+    let rates: Record<string, RateInfo> = {};
+    let source = "none";
 
-    let prevRates: Record<string, number> = {};
-    try {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yStr = yesterday.toISOString().split("T")[0];
-      const prevRes = await fetch(
-        `https://open.er-api.com/v6/historical/${yStr}?base=USD`,
-        { next: { revalidate: 3600 } }
-      );
-      if (prevRes.ok) {
-        const prevJson = await prevRes.json();
-        prevRates = prevJson.rates ?? {};
+    for (const [name, fn] of sources) {
+      try {
+        rates = await fn();
+        source = name;
+        break;
+      } catch {
+        // try next source
       }
-    } catch {
-      // no historical data — changePct will be 0
+    }
+
+    if (Object.keys(rates).length === 0) {
+      return NextResponse.json({ error: "Nenhuma fonte de cotação disponível" }, { status: 502 });
     }
 
     const currencies: CurrencyData[] = CURRENCIES.map((c) => {
-      const rate = rates[c.code] ?? 0;
-      const prev = prevRates[c.code] ?? rate;
-      const change = rate - prev;
-      const changePct = prev > 0 ? ((rate / prev) - 1) * 100 : 0;
-      return { ...c, rate, change, changePct };
-    }).filter((c) => c.rate > 0);
+      if (c.code === "USD") {
+        return { ...c, rate: 1, change: 0, changePct: 0 };
+      }
+      const info = rates[c.code];
+      if (!info) return null;
+      return { ...c, rate: info.rate, change: info.change, changePct: info.changePct };
+    }).filter((c): c is CurrencyData => c !== null);
 
-    const usdBrl = rates["BRL"] ?? 5.7;
+    const usdBrl = rates["BRL"]?.rate ?? 5.7;
 
     return NextResponse.json({
       currencies,
-      usdIndex: json.rates?.["DXY"] ?? null,
       usdBrl,
-      lastUpdate: json.time_last_update_utc ?? new Date().toISOString(),
+      source,
+      lastUpdate: new Date().toISOString(),
     }, {
       headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=300" },
     });
