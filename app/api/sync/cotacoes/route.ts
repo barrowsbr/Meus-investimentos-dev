@@ -20,29 +20,39 @@ interface Anomaly {
 
 function detectAnomalies(data: GoldenSourceData): Anomaly[] {
   const anomalies: Anomaly[] = [];
+  const dayMs = 86400000;
   for (const ticker of data.tickers) {
+    const isFxOrIndex = ticker.includes("=") || ticker.startsWith("^");
+    // Walk only the dates this ticker actually has data for — comparing
+    // consecutive *present* values. This way weekends/holidays/cross-market
+    // calendar mismatches are NOT flagged as gaps (they aren't anomalies).
     let prevPrice: number | null = null;
     let prevDate = "";
     for (const date of data.dates) {
       const price = data.prices[date]?.[ticker];
-      if (price == null) {
-        if (prevPrice != null) {
-          anomalies.push({ ticker, date, type: "gap", detail: `Sem dado após ${prevDate}` });
-        }
-        continue;
-      }
+      if (price == null) continue;
+
       if (price < 0) {
         anomalies.push({ ticker, date, type: "negative", detail: `Preço negativo: ${price}` });
       }
+
       if (prevPrice != null && prevPrice > 0) {
+        // Large move between consecutive quotes — likely split/bonificação
         const pctChange = ((price - prevPrice) / prevPrice) * 100;
-        if (Math.abs(pctChange) > 25 && !ticker.includes("=") && !ticker.startsWith("^")) {
+        if (Math.abs(pctChange) > 25 && !isFxOrIndex) {
           anomalies.push({
             ticker, date, type: "large_move",
             detail: `${pctChange > 0 ? "+" : ""}${pctChange.toFixed(1)}% (${prevPrice.toFixed(2)} → ${price.toFixed(2)}). Possível split/bonificação.`,
           });
         }
+        // Real gap: more than 10 calendar days between two actual quotes
+        // (delisting, data outage) — normal weekends/holidays are < 10 days.
+        const gapDays = Math.round((new Date(date).getTime() - new Date(prevDate).getTime()) / dayMs);
+        if (gapDays > 10) {
+          anomalies.push({ ticker, date, type: "gap", detail: `${gapDays} dias sem cotação (${prevDate} → ${date})` });
+        }
       }
+
       prevPrice = price;
       prevDate = date;
     }
