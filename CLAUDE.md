@@ -165,3 +165,19 @@ Registro de entradas, saídas e gastos com cartão.
 - As datas podem estar em formato `dd/mm/yyyy` ou `yyyy-mm-dd`
 - O campo `moeda` assume `BRL` quando ausente ou vazio
 - A planilha é compartilhada com o service account via Google Drive
+
+---
+
+## Fluxo de trabalho (preferências do dono)
+
+- **Sempre abrir o PR automaticamente** quando uma alteração estiver pronta para produção, na **direção correta**: `base: main` ← `compare: claude/add-repo-description-AanfH` (branch → main). O dono só clica em "Merge". Nunca abrir na direção invertida (main → branch).
+- Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
+- Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
+
+## Base de cotações (golden source — `db_cotacoes`)
+
+- `db_cotacoes` é a **fonte de verdade** de preços para performance/TWR: matriz larga (1 linha/dia, 1 coluna/ativo), **preço bruto de fechamento** (não ajustado). FX e índices (`BRL=X`, `^BVSP`, `^GSPC`) são colunas normais.
+- A Performance lê dessa aba primeiro (`lib/market-history.ts`); só recorre ao Yahoo para tickers ausentes.
+- **Preço bruto + proventos somados separadamente** (motor TWR) = retorno correto. Usar `adjClose` causaria double-count de dividendos (foi o que inflava a rentabilidade antes).
+- Atualização automática via Vercel Cron (`/api/cron/cotacoes`, dias úteis 23h UTC). Botão manual em Configurações.
+- Auditoria: `GET /api/debug/auditoria?lookback=DIAS` mede bloqueios anti-outlier e decompõe preço × dividendos.
