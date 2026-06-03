@@ -4,7 +4,11 @@ import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
-import { identificarSetor, getMoedaEfetiva } from "@/lib/sectors";
+import { identificarSetor, getMoedaEfetiva, isRendaFixa } from "@/lib/sectors";
+
+function tickerOf(row: Record<string, unknown>): string {
+  return String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
+}
 
 const CASH_TICKERS_PATRIMONIO = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
@@ -249,6 +253,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawLookback = parseInt(searchParams.get("lookback") ?? "1825", 10);
   const lookback = rawLookback <= 0 ? 0 : rawLookback;
+  // Filtro por classe (tudo|rv|rf|cripto) e, dentro de RV, por setor.
+  const classe = (searchParams.get("classe") ?? "tudo").toLowerCase();
+  const setorFiltro = searchParams.get("setor") ?? "";
 
   try {
     const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta] = await Promise.all([
@@ -327,11 +334,44 @@ export async function GET(request: Request) {
     const pmFx = buildPmFxRates(cambioMetrics);
     const runningPm = buildRunningPmDolar(cambioRows);
 
-    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate } = buildRfTimeline(
-      rfTransacoes, fixaAberta, dates, alignedFx
-    );
+    // ── Filtro por classe/setor ────────────────────────────────────────────────
+    // Setores de RV presentes (para os sub-filtros da página) + flags de classe.
+    const rvSetores = new Set<string>();
+    let temCripto = false;
+    for (const row of transacoes) {
+      const tk = tickerOf(row);
+      if (!tk) continue;
+      const setor = identificarSetor(tk);
+      if (setor === "Cripto") { temCripto = true; continue; }
+      if (isRendaFixa(setor)) continue;
+      rvSetores.add(setor);
+    }
+    const temRF = rfTransacoes.length > 0 || fixaAberta.length > 0;
 
-    const twr = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
+    function keepRvTicker(tk: string): boolean {
+      const setor = identificarSetor(tk);
+      if (isRendaFixa(setor)) return false; // RF é tratado à parte
+      const isCripto = setor === "Cripto";
+      if (classe === "rf") return false;
+      if (classe === "cripto") return isCripto;
+      if (classe === "rv") return isCripto ? false : (setorFiltro ? setor === setorFiltro : true);
+      return setorFiltro ? setor === setorFiltro : true; // tudo
+    }
+
+    const includeRF = classe === "tudo" || classe === "rf";
+    const filtroAtivo = classe !== "tudo" || setorFiltro !== "";
+    const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
+    const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
+    const proventosF = filtroAtivo
+      ? proventos.filter(r => keptTickers.has(String(r["ticker"] ?? "").toUpperCase().trim()))
+      : proventos;
+    const fixaAbertaF = includeRF ? fixaAberta : [];
+
+    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate } = includeRF
+      ? buildRfTimeline(rfTransacoes, fixaAberta, dates, alignedFx)
+      : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number> };
+
+    const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
 
     // ── Patrimônio total (snapshot completo, preços da golden source) ──────────
     // O TWR/Ganho Econômico mede RETORNO sobre o capital que rende (exclui caixa
@@ -353,10 +393,10 @@ export async function GET(request: Request) {
         name: ticker,
       };
     }
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, goldenQuotes, lastFx, pmFx);
+    const snapshot = calcularSnapshot(transacoesF, proventosF, fixaAbertaF, goldenQuotes, lastFx, pmFx);
     // Caixa = linhas CAIXA/SALDO/CASH/RESERVA da fixa_aberta (que o NAV de retorno
     // exclui de propósito). Precisa existir no patrimônio, mas não no retorno.
-    const caixaRows = fixaAberta.filter(r =>
+    const caixaRows = fixaAbertaF.filter(r =>
       CASH_TICKERS_PATRIMONIO.has(String(r["ticker"] ?? r["ativo"] ?? "").toUpperCase().trim())
     );
     const caixaBRL = calcularRendaFixaBRL(caixaRows, lastFx);
@@ -622,6 +662,13 @@ export async function GET(request: Request) {
         var99: riskMetrics.var99,
         ganhoEconomico: twr.ganhoEconomico,
         patrimonio,
+        filtros: {
+          classe,
+          setor: setorFiltro,
+          rvSetores: [...rvSetores].sort(),
+          temCripto,
+          temRF,
+        },
         peakDate,
         troughDate,
         peakTwr: peakTwr === -Infinity ? 0 : peakTwr,
