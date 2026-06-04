@@ -11,7 +11,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#0D0E11",
+  themeColor: "#0E1016",
 };
 
 export const metadata: Metadata = {
@@ -49,11 +49,11 @@ export default function RootLayout({
           <div
             className="absolute animate-ambient"
             style={{
-              top: "-180px",
-              right: "-180px",
-              width: "560px",
-              height: "480px",
-              background: "radial-gradient(ellipse, rgba(20,184,166,0.055) 0%, transparent 68%)",
+              top: "-160px",
+              right: "-160px",
+              width: "600px",
+              height: "520px",
+              background: "radial-gradient(ellipse, rgba(20,184,166,0.07) 0%, transparent 68%)",
               filter: "blur(2px)",
             }}
           />
@@ -61,11 +61,11 @@ export default function RootLayout({
           <div
             className="absolute animate-ambient"
             style={{
-              bottom: "-160px",
-              left: "-120px",
-              width: "480px",
-              height: "380px",
-              background: "radial-gradient(ellipse, rgba(180,120,40,0.04) 0%, transparent 65%)",
+              bottom: "-140px",
+              left: "-100px",
+              width: "520px",
+              height: "420px",
+              background: "radial-gradient(ellipse, rgba(180,120,40,0.055) 0%, transparent 65%)",
               filter: "blur(2px)",
               animationDelay: "3s",
             }}
