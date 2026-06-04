@@ -902,6 +902,12 @@ const SELIC_HISTORICO: [string, number][] = [
   ["2025-05-08", 0.1475],
 ];
 
+function isWeekday(date: string): boolean {
+  const d = new Date(date + "T12:00:00Z");
+  const dow = d.getUTCDay();
+  return dow >= 1 && dow <= 5;
+}
+
 function getSelicDiaria(date: string): number {
   let rate = SELIC_HISTORICO[0][1];
   for (const [d, r] of SELIC_HISTORICO) {
@@ -914,7 +920,7 @@ function getSelicDiaria(date: string): number {
 export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {
   let cdi = 1.0;
   return dates.map((date, i) => {
-    const ret = i === 0 ? 0 : getSelicDiaria(date);
+    const ret = (i === 0 || !isWeekday(date)) ? 0 : getSelicDiaria(date);
     cdi *= 1 + ret;
     return { date, nav: cdi, flow: 0, income: 0, ret, twr: cdi - 1, forceZero: false };
   });
