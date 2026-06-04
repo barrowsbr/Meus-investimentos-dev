@@ -9,7 +9,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink, X,
+  ExternalLink, X, Target,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -100,6 +100,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/performance",  label: "Performance", icon: TrendingUp },
       { href: "/evolucao",     label: "Evolução",    icon: Activity },
       { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
+      { href: "/simulacoes",   label: "Simulações",  icon: Target },
     ],
   },
   {
