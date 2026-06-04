@@ -14,6 +14,7 @@ import {
   Award, AlertTriangle, RefreshCw,
   Target, PieChart as PieIcon,
   Briefcase, Layers,
+  Building2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
@@ -85,10 +86,10 @@ const TOOLTIP_STYLE = {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = "alocacao" | "evolucao" | "rentabilidade" | "posicoes" | "composicao-etf";
+type Tab = "alocacao" | "custodia" | "rentabilidade" | "posicoes" | "composicao-etf";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "alocacao", label: "Alocação", icon: <PieIcon size={14} /> },
-  { id: "evolucao", label: "Evolução", icon: <ArrowUpRight size={14} /> },
+  { id: "custodia", label: "Corretoras", icon: <Building2 size={14} /> },
   { id: "rentabilidade", label: "Rentab.", icon: <Target size={14} /> },
   { id: "posicoes", label: "Posições", icon: <Briefcase size={14} /> },
   { id: "composicao-etf", label: "ETFs", icon: <Layers size={14} /> },
@@ -160,10 +161,6 @@ export default function ResumoPage() {
 
   const currencyData = useMemo(() =>
     Object.entries(data?.exposicaoCambial ?? {}).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value),
-    [data]);
-
-  const evolutionData = useMemo(() =>
-    (data?.lbHistoric ?? []).slice(-24).map(p => ({ data: shortMonth(p.data), patrimonio: p.patrimonio, rv: p.rv, rf: p.rf })),
     [data]);
 
   // ── Derived from composicao API ───────────────────────────────────────────
@@ -859,96 +856,11 @@ export default function ResumoPage() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════
-           TAB: EVOLUÇÃO
+           TAB: CUSTÓDIA / CORRETORAS
          ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "evolucao" && (
+      {activeTab === "custodia" && (
         <div className="space-y-5 animate-fade-in">
-          {/* Patrimônio evolution */}
-          {evolutionData.length > 0 && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><ArrowUpRight size={15} />Evolução Patrimonial</h2>
-              <ResponsiveContainer width="100%" height={340}>
-                <AreaChart data={evolutionData}>
-                  <defs>
-                    <linearGradient id="gradRV" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradRF" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
-                  <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "rv" ? "Renda Variável" : "Renda Fixa"]} />
-                  <Area type="monotone" dataKey="rv" stroke="#3b82f6" fill="url(#gradRV)" strokeWidth={2} name="rv" />
-                  <Area type="monotone" dataKey="rf" stroke="#8b5cf6" fill="url(#gradRF)" strokeWidth={2} name="rf" />
-                  <Legend formatter={v => v === "rv" ? "Renda Variável" : "Renda Fixa"} wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Proventos + Câmbio side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="glass-card p-5 lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="section-title"><Coins size={15} />Proventos Mensais</h2>
-                {avgMonthlyDividend > 0 && (
-                  <span className="text-[10px] px-2.5 py-1 rounded-full font-medium border"
-                    style={{ background: "rgba(212,165,116,0.08)", color: "#d4a574", borderColor: "rgba(212,165,116,0.22)" }}>
-                    Média {compactBRL(avgMonthlyDividend)}/mês
-                  </span>
-                )}
-              </div>
-              {monthlyDividends.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={monthlyDividends} barCategoryGap="35%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#52525b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
-                    <Bar dataKey="total" fill="#d4a574" radius={[5, 5, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <p className="text-zinc-600 text-sm">Sem dados de proventos.</p>}
-            </div>
-
-            {/* Câmbio summary */}
-            {data.cambio && data.cambio.operacoes > 0 && (
-              <div className="glass-card p-5">
-                <h2 className="section-title mb-4"><DollarSign size={15} />Câmbio</h2>
-                <div className="space-y-4">
-                  <div>
-                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">PM Dólar</span>
-                    <span className="text-xl font-bold text-zinc-100">R$ {data.cambio.pmDolar.toFixed(4)}</span>
-                    <span className="text-[10px] text-zinc-500 block mt-0.5">Spot R$ {data.usdbrl.toFixed(4)}</span>
-                  </div>
-                  <div className="h-px bg-zinc-800/50" />
-                  <div>
-                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Enviado</span>
-                    <span className="text-lg font-bold text-zinc-100">{compactBRL(data.cambio.totalEnviadoBRL)}</span>
-                    <span className="text-[10px] text-zinc-500 block mt-0.5">{data.cambio.operacoes} operações</span>
-                  </div>
-                  <div className="h-px bg-zinc-800/50" />
-                  <div>
-                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Recebido</span>
-                    <span className="text-lg font-bold text-zinc-100">$ {data.cambio.totalRecebidoUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="h-px bg-zinc-800/50" />
-                  <div>
-                    <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Ganho Cambial</span>
-                    <span className={`text-lg font-bold ${data.cambio.ganhoCambialUSD_BRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {brl(data.cambio.ganhoCambialUSD_BRL)}
-                    </span>
-                    {data.ptax && <span className="text-[10px] text-zinc-500 block mt-0.5">PTAX R$ {data.ptax.USDBRL.toFixed(4)}</span>}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <CustodiaRisk positions={data.positions} patrimonioBRL={data.totalPatrimonioBRL} />
         </div>
       )}
 
@@ -1482,4 +1394,102 @@ export default function ResumoPage() {
       )}
     </>
   );
+}
+
+// ── Risco por Corretora & Jurisdição ────────────────────────────────────────
+
+function CustodiaRisk({ positions, patrimonioBRL }: {
+  positions: { ticker: string; valorAtualBRL: number; quantidade: number; moeda: string; corretora?: string }[];
+  patrimonioBRL: number;
+}) {
+  const byCorretora = useMemo(() => {
+    const map: Record<string, { valorBRL: number; moedas: Set<string>; tickers: string[]; count: number }> = {};
+    for (const p of positions) {
+      if (p.valorAtualBRL <= 0 || !p.quantidade) continue;
+      const corr = (p.corretora || "Não informada").trim();
+      if (!map[corr]) map[corr] = { valorBRL: 0, moedas: new Set(), tickers: [], count: 0 };
+      map[corr].valorBRL += p.valorAtualBRL;
+      map[corr].moedas.add(p.moeda || "BRL");
+      map[corr].tickers.push(p.ticker.replace(/\.SA$/, ""));
+      map[corr].count++;
+    }
+    return Object.entries(map)
+      .map(([nome, info]) => ({
+        nome,
+        valorBRL: info.valorBRL,
+        pct: patrimonioBRL > 0 ? (info.valorBRL / patrimonioBRL) * 100 : 0,
+        moedas: [...info.moedas].join(", "),
+        jurisdicao: inferJurisdicao(nome),
+        count: info.count,
+        topTickers: info.tickers.slice(0, 5),
+      }))
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+  }, [positions, patrimonioBRL]);
+
+  if (byCorretora.length === 0) return null;
+
+  const maxPct = Math.max(...byCorretora.map(c => c.pct));
+
+  return (
+    <div className="glass-card p-5 mb-6">
+      <h2 className="section-title mb-1"><Building2 size={15} />Risco por Corretora & Jurisdição</h2>
+      <p className="text-[10px] text-zinc-500 mb-5">
+        Concentração de patrimônio por corretora. Diversificar custódia reduz risco de contraparte.
+      </p>
+
+      <div className="space-y-3">
+        {byCorretora.map(c => {
+          const jColor = c.jurisdicao === "Brasil" ? "#22c55e" : c.jurisdicao === "EUA" ? "#3b82f6" : "#8b5cf6";
+          return (
+            <div key={c.nome} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${jColor}15` }}>
+                    <Building2 size={14} style={{ color: jColor }} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-zinc-100">{c.nome}</div>
+                    <div className="text-[10px] text-zinc-600">
+                      <span style={{ color: jColor }}>{c.jurisdicao}</span> · {c.count} ativos · {c.moedas}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-bold text-zinc-100">{compactBRL(c.valorBRL)}</div>
+                  <div className="text-[10px] text-zinc-500">{c.pct.toFixed(1)}% do patrimônio</div>
+                </div>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div className="h-full rounded-full transition-all duration-500" style={{
+                  width: `${Math.min((c.pct / Math.max(maxPct, 1)) * 100, 100)}%`,
+                  background: c.pct > 50 ? `linear-gradient(90deg, ${jColor}, #f87171)` : jColor,
+                  opacity: 0.7,
+                }} />
+              </div>
+              {c.pct > 60 && (
+                <div className="text-[10px] text-amber-400/80 mb-1">
+                  Concentração alta ({c.pct.toFixed(0)}%) — considere diversificar custódia
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1">
+                {c.topTickers.map(t => (
+                  <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-md text-zinc-500" style={{ background: "rgba(255,255,255,0.04)" }}>{t}</span>
+                ))}
+                {c.count > 5 && <span className="text-[9px] text-zinc-700">+{c.count - 5}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function inferJurisdicao(corretora: string): string {
+  const c = corretora.toLowerCase();
+  if (c.includes("ibkr") || c.includes("interactive") || c.includes("td ") || c.includes("schwab") || c.includes("robinhood") || c.includes("fidelity")) return "EUA";
+  if (c.includes("b3") || c.includes("xp") || c.includes("rico") || c.includes("btg") || c.includes("nuinvest") || c.includes("clear") || c.includes("inter") || c.includes("itaú") || c.includes("bradesco") || c.includes("avenue")) return "Brasil";
+  if (c.includes("degiro") || c.includes("saxo") || c.includes("etoro")) return "Europa";
+  if (c.includes("binance") || c.includes("coinbase") || c.includes("kraken") || c.includes("mercado bitcoin") || c.includes("bybit")) return "Cripto (global)";
+  return "Outro";
 }
