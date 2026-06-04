@@ -9,12 +9,16 @@ de ambiente e rodar a importação.
 
 ## ⚠️ Ponto de restauração (como voltar ao padrão)
 
-Antes de qualquer coisa, foi criada uma tag de restauração apontando para o
-projeto **100% Google Sheets**, antes da infraestrutura SQLite:
+Antes de qualquer coisa, foi criado um **branch de restauração** no GitHub
+apontando para o projeto **100% Google Sheets**, antes da infraestrutura SQLite:
 
 ```
-Tag: restauracao-pre-sqlite
+Branch (no GitHub):  restauracao-pre-sqlite   →  commit 55ff8a3
+Tag local (backup):  restauracao-pre-sqlite
 ```
+
+> O commit exato do ponto de restauração é `55ff8a3` (último estado antes da
+> migração). O branch `restauracao-pre-sqlite` no GitHub aponta para ele.
 
 Para voltar ao padrão, há dois caminhos:
 
@@ -25,9 +29,11 @@ Para voltar ao padrão, há dois caminhos:
 
 2. **Reverter o código** (volta o repositório ao estado anterior):
    ```bash
-   git checkout restauracao-pre-sqlite          # inspecionar o estado antigo
-   # ou, para reverter de fato na branch:
-   git revert <hash-do-commit-da-migracao>      # desfaz só a migração, preservando histórico
+   git checkout restauracao-pre-sqlite          # inspecionar o estado antigo (commit 55ff8a3)
+   # ou, para reverter de fato na branch de trabalho:
+   git revert 0c712fe                            # desfaz só a migração, preservando histórico
+   # ou resetar a branch direto ao ponto de restauração:
+   git reset --hard 55ff8a3
    ```
 
 > A tag é segura: nenhum dado da planilha é alterado em nenhum momento — a
