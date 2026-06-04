@@ -2,7 +2,7 @@ import { fetchTab } from "./gsheets";
 import { readGoldenSource, writeGoldenSource, goldenSourceStatus, type GoldenSourceData } from "./db-cotacoes";
 import { fetchTicker } from "./market-history";
 import { yahooTicker } from "./cotacoes";
-import { identificarSetor, isRendaFixa } from "./sectors";
+import { identificarSetor, isRendaFixaManual } from "./sectors";
 
 const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
 const INDEX_TICKERS = ["^BVSP", "^GSPC"];
@@ -85,7 +85,7 @@ export async function runCotacoesSync(
   // Map original → Yahoo ticker (skip renda fixa); FX + indices map to themselves
   const yahooMap = new Map<string, string>();
   for (const [ticker, meta] of tickerMeta) {
-    if (isRendaFixa(identificarSetor(ticker))) continue;
+    if (isRendaFixaManual(identificarSetor(ticker))) continue;
     yahooMap.set(ticker, yahooTicker(ticker, meta.moeda, meta.corretora));
   }
   for (const yt of [...FX_TICKERS, ...INDEX_TICKERS]) yahooMap.set(yt, yt);

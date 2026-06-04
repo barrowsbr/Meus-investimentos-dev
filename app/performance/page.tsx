@@ -28,6 +28,7 @@ interface Summary {
   navFinal: number;
   navInicial: number;
   totalInvestido: number;
+  custoPosicoesAtuais?: number;
   patrimonio?: { total: number; rv: number; rf: number; caixa: number };
   filtros?: { classe: string; setor: string; rvSetores: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
@@ -450,7 +451,7 @@ export default function PerformancePage() {
                   RV + RF + cripto{s.patrimonio.caixa > 0 ? `, incluindo ${compactCurr(s.patrimonio.caixa)} em caixa` : ""}
                 </p>
               ) : (
-                <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.totalInvestido)} · inclui RV + RF</p>
+                <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido)} · inclui RV + RF</p>
               )}
             </div>
             <div className="h-px bg-zinc-800/50" />
@@ -666,7 +667,7 @@ export default function PerformancePage() {
                   ),
                   { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
-                  { label: "Total aportado", value: compactCurr(s.totalInvestido) },
+                  { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   { label: "Ganho econômico", value: compactCurr(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" },
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
