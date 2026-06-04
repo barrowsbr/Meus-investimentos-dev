@@ -173,6 +173,8 @@ Registro de entradas, saídas e gastos com cartão.
 - **Sempre abrir o PR automaticamente** quando uma alteração estiver pronta para produção, na **direção correta**: `base: main` ← `compare: claude/add-repo-description-AanfH` (branch → main). O dono só clica em "Merge". Nunca abrir na direção invertida (main → branch).
 - Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
+- **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
+- **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
 
 ## Base de cotações (golden source — `db_cotacoes`)
 

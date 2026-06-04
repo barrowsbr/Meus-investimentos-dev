@@ -234,7 +234,22 @@ export function buildRfTimeline(
     const manual = manualValues.get(ticker);
     const compras = txList.filter(t => t.tipo === "compra");
     const vendas = txList.filter(t => t.tipo === "venda");
-    if (compras.length === 0) continue;
+    if (compras.length === 0) {
+      // fixa_aberta entry with no purchase history — pre-existing position.
+      // Model as constant NAV (0% daily rate) from window start.
+      if (manual && manual.atual > 0) {
+        tickerInfos.push({
+          compras: [{ date: dates[0], valor: manual.atual }],
+          vendas: [],
+          dailyRate: 0,
+          moeda: manual.moeda,
+        });
+        // Synthetic flow on first date so flow series matches NAV
+        const fx0 = fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+        flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + manual.atual * fxFactor(manual.moeda, fx0);
+      }
+      continue;
+    }
     const moeda = manual?.moeda ?? compras[0]?.moeda ?? "BRL";
     const isActive = manual != null;
 
@@ -402,8 +417,15 @@ export interface TwrResult {
   primeiraData: string;
   ultimaData: string;
   totalInvestido: number;
+  custoPosicoesAtuais: number;
   ganhoEconomico: number;
   mwr: number | null;
+  diagnostics: {
+    forceZeroDays: number;
+    cappedDays: number;
+    incomeTotal: number;
+    tickersAtCost: string[];
+  };
 }
 
 export interface TwrInput {
@@ -499,7 +521,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
     points: [], twrTotal: 0, twrAnualizado: 0,
     navInicial: 0, navFinal: 0, duracaoAnos: 0,
     primeiraData: "", ultimaData: "", totalInvestido: 0,
+    custoPosicoesAtuais: 0,
     ganhoEconomico: 0, mwr: null,
+    diagnostics: { forceZeroDays: 0, cappedDays: 0, incomeTotal: 0, tickersAtCost: [] },
   };
 
   if (dates.length === 0) return EMPTY;
@@ -559,6 +583,40 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
   let incIdx = 0;
 
+  // FIFO lot tracking for cost of current positions
+  const fifoLots = new Map<string, { qty: number; costBrl: number }[]>();
+  for (const tx of sortedTxs) {
+    const txFxRates = fxHistory[tx.bizDate] ?? fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    const fxF = fxFactor(tx.moeda, txFxRates);
+    if (tx.tipo === "Compra") {
+      const lots = fifoLots.get(tx.ticker) ?? [];
+      lots.push({ qty: tx.quantidade, costBrl: tx.preco * tx.quantidade * fxF });
+      fifoLots.set(tx.ticker, lots);
+    } else {
+      const lots = fifoLots.get(tx.ticker);
+      if (lots) {
+        let rem = tx.quantidade;
+        while (rem > 1e-6 && lots.length > 0) {
+          if (lots[0].qty <= rem + 1e-6) {
+            rem -= lots[0].qty;
+            lots.shift();
+          } else {
+            lots[0].costBrl *= (lots[0].qty - rem) / lots[0].qty;
+            lots[0].qty -= rem;
+            rem = 0;
+          }
+        }
+      }
+    }
+  }
+  let custoPosicoesAtuais = 0;
+  for (const lots of fifoLots.values()) {
+    for (const lot of lots) custoPosicoesAtuais += lot.costBrl;
+  }
+
+  // Track tickers at cost fallback (no market price available)
+  const tickersAtCostSet = new Set<string>();
+
   const points: TwrDayPoint[] = [];
   let prevNav = 0;
   let cumTwr = 1.0;
@@ -584,10 +642,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
     let navRV = 0;
     for (const [ticker, qty] of Object.entries(snap)) {
       if (qty < 0.000001) continue;
-      // Market price first; fall back to average cost so the asset never
-      // disappears from NAV when it has no quote (cripto / missing tickers).
-      const price = getPrice(ticker, i, prices) ?? tickerAvgCost.get(ticker) ?? null;
+      const mktPrice = getPrice(ticker, i, prices);
+      const price = mktPrice ?? tickerAvgCost.get(ticker) ?? null;
       if (price == null) continue;
+      if (mktPrice == null) tickersAtCostSet.add(ticker);
       const moeda = tickerMoeda.get(ticker) ?? getMoedaEfetiva(ticker, "BRL", identificarSetor(ticker));
       navRV += qty * price * fxFactor(moeda, fx);
     }
@@ -761,6 +819,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
     firstMeaningful.nav, firstMeaningful.date,
   );
 
+  // RF cost (net invested from rfFlowByDate)
+  let rfCostBasis = 0;
+  if (rfFlowByDate) {
+    for (const v of Object.values(rfFlowByDate)) rfCostBasis += v;
+  }
+  if (rfCostBasis > 0) custoPosicoesAtuais += rfCostBasis;
+
+  // Diagnostics
+  const forceZeroDays = points.filter(p => p.forceZero).length;
+  let cappedDays = 0;
+  let incomeTotal = 0;
+  for (const p of points) {
+    incomeTotal += p.income;
+    if (!p.forceZero && Math.abs(p.ret) >= MAX_DAILY_RETURN - 0.001) cappedDays++;
+  }
+
   return {
     points,
     twrTotal,
@@ -771,8 +845,15 @@ export function calcularTWR(input: TwrInput): TwrResult {
     primeiraData: firstMeaningful.date,
     ultimaData: last.date,
     totalInvestido,
+    custoPosicoesAtuais,
     ganhoEconomico,
     mwr,
+    diagnostics: {
+      forceZeroDays,
+      cappedDays,
+      incomeTotal: Math.round(incomeTotal),
+      tickersAtCost: [...tickersAtCostSet].sort(),
+    },
   };
 }
 

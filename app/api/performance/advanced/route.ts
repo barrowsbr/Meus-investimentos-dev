@@ -657,6 +657,7 @@ export async function GET(request: Request) {
         navFinal: twr.navFinal,
         navInicial: twr.navInicial,
         totalInvestido: twr.totalInvestido,
+        custoPosicoesAtuais: twr.custoPosicoesAtuais,
         duracaoAnos: twr.duracaoAnos,
         primeiraData: twr.primeiraData,
         ultimaData: twr.ultimaData,
@@ -739,6 +740,7 @@ export async function GET(request: Request) {
       flowLedger,
       attribution,
       fxDecomposition: fxDecomp,
+      diagnostics: twr.diagnostics,
       errors: hist.errors,
       lookback,
     }, {
