@@ -19,6 +19,7 @@ import {
   Bot,
   Newspaper,
   ListOrdered,
+  Target,
 } from "lucide-react";
 
 interface NavItem {
@@ -55,6 +56,7 @@ const navGroups: NavGroup[] = [
       { href: "/performance",          label: "Performance",   icon: TrendingUp, mobileShow: true },
       { href: "/evolucao",             label: "Evolução",       icon: Activity },
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
+      { href: "/simulacoes",           label: "Simulações",     icon: Target },
     ],
   },
   {
