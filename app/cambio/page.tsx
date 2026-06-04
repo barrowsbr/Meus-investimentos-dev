@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, Crosshair } from "lucide-react";
+import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, Crosshair, ShieldCheck, BarChart3, Building2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
@@ -940,6 +940,268 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           </p>
         </div>
       )}
+
+      {/* ── Seção 1: Custo de Oportunidade do Hedge ── */}
+      <HedgeOpportunity
+        remessaCusto={analysis.remessaCusto}
+        remessaValorHoje={analysis.remessaValorHoje}
+        ganhoCambial={analysis.ganhoCambialRemessa}
+        pmDolar={cambio?.pmDolar ?? 0}
+        spot={spot}
+      />
+
+      {/* ── Seção 2: Decomposição Ativo vs Câmbio por posição ── */}
+      <FxDecomposition positions={analysis.foreignPositions} total={analysis.totalExpostoAtualBRL} />
+
+      {/* ── Seção 3: Concentração por Corretora/Jurisdição ── */}
+      <CustodiaRisk positions={positions} patrimonioBRL={patrimonioBRL} />
     </div>
   );
+}
+
+// ── Seção 1: Hedge Opportunity ───────────────────────────────────────────────
+
+function HedgeOpportunity({ remessaCusto, remessaValorHoje, ganhoCambial, pmDolar, spot }: {
+  remessaCusto: number; remessaValorHoje: number; ganhoCambial: number; pmDolar: number; spot: number;
+}) {
+  if (remessaCusto <= 0 || pmDolar <= 0) return null;
+
+  const hedgeCost_pctYear = 4.5;
+  const years = 3;
+  const custoHedge = remessaCusto * (hedgeCost_pctYear / 100) * years;
+
+  const cenarioHedge = remessaCusto;
+  const cenarioAberto = remessaValorHoje;
+  const diferencaVsHedge = cenarioAberto - cenarioHedge;
+
+  const teriaPagoPct = remessaCusto > 0 ? (custoHedge / remessaCusto) * 100 : 0;
+
+  return (
+    <div className="glass-card p-5 mb-6" style={{ borderColor: "rgba(139,92,246,0.12)" }}>
+      <h2 className="section-title mb-1"><ShieldCheck size={15} />Hedge: valia a pena proteger?</h2>
+      <p className="text-[10px] text-zinc-500 mb-5">
+        Comparação entre manter exposição aberta (o que você fez) vs ter hedgeado 100% no PM.
+        Custo estimado do hedge: ~{hedgeCost_pctYear}% a.a. (NDF típico BRL/USD).
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="p-4 rounded-xl" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.12)" }}>
+          <div className="text-[10px] text-violet-400/80 uppercase tracking-wider mb-1">Se hedgeou 100% no PM</div>
+          <div className="text-lg font-bold text-zinc-300">{compactBRL(cenarioHedge)}</div>
+          <div className="text-[10px] text-zinc-500 mt-1">Travou no PM R$ {pmDolar.toFixed(2)}</div>
+          <div className="text-[10px] text-red-400/80 mt-0.5">Custo do hedge: −{compactBRL(custoHedge)} ({teriaPagoPct.toFixed(1)}%)</div>
+          <div className="text-xs font-bold text-zinc-400 mt-1">Líquido: {compactBRL(cenarioHedge - custoHedge)}</div>
+        </div>
+        <div className="p-4 rounded-xl" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.12)" }}>
+          <div className="text-[10px] text-blue-400/80 uppercase tracking-wider mb-1">Exposição aberta (o que fez)</div>
+          <div className="text-lg font-bold text-zinc-100">{compactBRL(cenarioAberto)}</div>
+          <div className="text-[10px] text-zinc-500 mt-1">Spot atual R$ {spot.toFixed(2)}</div>
+          <div className={`text-[10px] mt-0.5 ${ganhoCambial >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
+            Ganho cambial: {ganhoCambial >= 0 ? "+" : ""}{compactBRL(ganhoCambial)}
+          </div>
+          <div className="text-xs font-bold text-zinc-200 mt-1">Líquido: {compactBRL(cenarioAberto)}</div>
+        </div>
+        <div className="p-4 rounded-xl" style={{ background: diferencaVsHedge >= 0 ? "rgba(34,197,94,0.05)" : "rgba(248,113,113,0.05)", border: `1px solid ${diferencaVsHedge >= 0 ? "rgba(34,197,94,0.15)" : "rgba(248,113,113,0.15)"}` }}>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Veredito</div>
+          <div className={`text-lg font-bold ${diferencaVsHedge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {diferencaVsHedge >= 0 ? "+" : ""}{compactBRL(diferencaVsHedge)}
+          </div>
+          <div className="text-[10px] text-zinc-500 mt-1">
+            {diferencaVsHedge >= 0
+              ? "Manter aberto foi melhor que hedgear"
+              : "Teria sido melhor hedgear"}
+          </div>
+          <div className="text-[10px] text-zinc-600 mt-0.5">
+            vs hedge líquido: {compactBRL(cenarioAberto - (cenarioHedge - custoHedge))}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3 rounded-xl" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.08)" }}>
+        <p className="text-[10px] text-violet-300/70 leading-relaxed">
+          Um NDF (Non-Deliverable Forward) BRL/USD de ~{hedgeCost_pctYear}% a.a. reflete o diferencial de juros (CDI − Fed Funds).
+          Hedgear elimina o risco cambial mas custa caro. A decisão depende da sua visão de câmbio e tolerância ao risco.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Seção 2: Decomposição Ativo vs FX por posição ────────────────────────────
+
+function FxDecomposition({ positions, total }: {
+  positions: { ticker: string; valorAtualBRL: number; ganhoAtivoBRL: number | null; ganhoCambioBRL: number | null }[];
+  total: number;
+}) {
+  const sorted = useMemo(() =>
+    [...positions]
+      .filter(p => p.valorAtualBRL > 0)
+      .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
+      .slice(0, 12),
+    [positions]
+  );
+
+  if (sorted.length === 0) return null;
+
+  const chartData = sorted.map(p => ({
+    ticker: p.ticker.replace(/\.SA$/, "").replace(/-USD$/, ""),
+    ativo: p.ganhoAtivoBRL ?? 0,
+    cambio: p.ganhoCambioBRL ?? 0,
+    total: (p.ganhoAtivoBRL ?? 0) + (p.ganhoCambioBRL ?? 0),
+  }));
+
+  const totalAtivo = positions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
+  const totalCambio = positions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+
+  return (
+    <div className="glass-card p-5 mb-6">
+      <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição: Ativo vs Câmbio</h2>
+      <p className="text-[10px] text-zinc-500 mb-4">
+        Quanto de cada posição veio de valorização do ativo e quanto veio da variação cambial.
+      </p>
+
+      {/* Summary bar */}
+      <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-400" />
+            <span className="text-[10px] text-zinc-500">Ganho dos ativos</span>
+            <span className={`text-xs font-bold ml-auto ${totalAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {totalAtivo >= 0 ? "+" : ""}{compactBRL(totalAtivo)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="text-[10px] text-zinc-500">Efeito câmbio</span>
+            <span className={`text-xs font-bold ml-auto ${totalCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {totalCambio >= 0 ? "+" : ""}{compactBRL(totalCambio)}
+            </span>
+          </div>
+        </div>
+        <div className="text-right border-l border-white/5 pl-3">
+          <div className="text-[9px] text-zinc-600 uppercase">Total</div>
+          <div className={`text-sm font-bold ${totalAtivo + totalCambio >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {totalAtivo + totalCambio >= 0 ? "+" : ""}{compactBRL(totalAtivo + totalCambio)}
+          </div>
+        </div>
+      </div>
+
+      {/* Stacked bar chart */}
+      <ResponsiveContainer width="100%" height={Math.max(200, sorted.length * 28 + 40)}>
+        <BarChart data={chartData} layout="vertical" barCategoryGap="20%">
+          <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
+          <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+            tickFormatter={v => compactBRL(v)} />
+          <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
+          <Tooltip contentStyle={TOOLTIP_STYLE}
+            formatter={(v: number, name: string) => [
+              compactBRL(v),
+              name === "ativo" ? "Ganho ativo" : "Efeito câmbio",
+            ]} />
+          <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
+          <Bar dataKey="ativo" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} maxBarSize={18} />
+          <Bar dataKey="cambio" stackId="a" fill="#d4a574" radius={[0, 4, 4, 0]} maxBarSize={18} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Seção 3: Concentração por Corretora/Jurisdição ───────────────────────────
+
+function CustodiaRisk({ positions, patrimonioBRL }: {
+  positions: PortfolioResponse["positions"];
+  patrimonioBRL: number;
+}) {
+  const byCorretora = useMemo(() => {
+    const map: Record<string, { valorBRL: number; moedas: Set<string>; tickers: string[]; count: number }> = {};
+    for (const p of positions) {
+      if (p.valorAtualBRL <= 0 || !p.quantidade) continue;
+      const corr = (p.corretora || "Não informada").trim();
+      if (!map[corr]) map[corr] = { valorBRL: 0, moedas: new Set(), tickers: [], count: 0 };
+      map[corr].valorBRL += p.valorAtualBRL;
+      map[corr].moedas.add(p.moeda || "BRL");
+      map[corr].tickers.push(p.ticker.replace(/\.SA$/, ""));
+      map[corr].count++;
+    }
+    return Object.entries(map)
+      .map(([nome, info]) => ({
+        nome,
+        valorBRL: info.valorBRL,
+        pct: patrimonioBRL > 0 ? (info.valorBRL / patrimonioBRL) * 100 : 0,
+        moedas: [...info.moedas].join(", "),
+        jurisdicao: inferJurisdicao(nome),
+        count: info.count,
+        topTickers: info.tickers.slice(0, 5),
+      }))
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+  }, [positions, patrimonioBRL]);
+
+  if (byCorretora.length === 0) return null;
+
+  const maxPct = Math.max(...byCorretora.map(c => c.pct));
+
+  return (
+    <div className="glass-card p-5 mb-6">
+      <h2 className="section-title mb-1"><Building2 size={15} />Risco por Corretora & Jurisdição</h2>
+      <p className="text-[10px] text-zinc-500 mb-5">
+        Concentração de patrimônio por corretora. Diversificar custódia reduz risco de contraparte.
+      </p>
+
+      <div className="space-y-3">
+        {byCorretora.map(c => {
+          const jColor = c.jurisdicao === "Brasil" ? "#22c55e" : c.jurisdicao === "EUA" ? "#3b82f6" : "#8b5cf6";
+          return (
+            <div key={c.nome} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${jColor}15` }}>
+                    <Building2 size={14} style={{ color: jColor }} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-zinc-100">{c.nome}</div>
+                    <div className="text-[10px] text-zinc-600">
+                      <span style={{ color: jColor }}>{c.jurisdicao}</span> · {c.count} ativos · {c.moedas}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-bold text-zinc-100">{compactBRL(c.valorBRL)}</div>
+                  <div className="text-[10px] text-zinc-500">{c.pct.toFixed(1)}% do patrimônio</div>
+                </div>
+              </div>
+              {/* Concentration bar */}
+              <div className="h-2 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div className="h-full rounded-full transition-all duration-500" style={{
+                  width: `${Math.min((c.pct / Math.max(maxPct, 1)) * 100, 100)}%`,
+                  background: c.pct > 50 ? `linear-gradient(90deg, ${jColor}, #f87171)` : jColor,
+                  opacity: 0.7,
+                }} />
+              </div>
+              {c.pct > 60 && (
+                <div className="text-[10px] text-amber-400/80 mb-1">
+                  ⚠ Concentração alta ({c.pct.toFixed(0)}%) — considere diversificar custódia
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1">
+                {c.topTickers.map(t => (
+                  <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-md text-zinc-500" style={{ background: "rgba(255,255,255,0.04)" }}>{t}</span>
+                ))}
+                {c.count > 5 && <span className="text-[9px] text-zinc-700">+{c.count - 5}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function inferJurisdicao(corretora: string): string {
+  const c = corretora.toLowerCase();
+  if (c.includes("ibkr") || c.includes("interactive") || c.includes("td ") || c.includes("schwab") || c.includes("robinhood") || c.includes("fidelity")) return "EUA";
+  if (c.includes("b3") || c.includes("xp") || c.includes("rico") || c.includes("btg") || c.includes("nuinvest") || c.includes("clear") || c.includes("inter") || c.includes("itaú") || c.includes("bradesco") || c.includes("avenue")) return "Brasil";
+  if (c.includes("degiro") || c.includes("saxo") || c.includes("etoro")) return "Europa";
+  if (c.includes("binance") || c.includes("coinbase") || c.includes("kraken") || c.includes("mercado bitcoin") || c.includes("bybit")) return "Cripto (global)";
+  return "Outro";
 }
