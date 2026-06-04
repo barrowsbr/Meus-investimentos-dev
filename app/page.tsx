@@ -288,8 +288,8 @@ function AccordionGroup({ group }: { group: NavGroup }) {
     <div
       className="rounded-2xl overflow-hidden transition-all duration-300"
       style={{
-        background: "rgba(13,14,20,0.65)",
-        border: `1px solid ${open ? c + "30" : "rgba(255,255,255,0.05)"}`,
+        background: "rgba(17,19,28,0.72)",
+        border: `1px solid ${open ? c + "30" : "rgba(255,255,255,0.08)"}`,
         boxShadow: open ? `0 8px 32px ${c}10` : "none",
       }}
     >
@@ -306,11 +306,11 @@ function AccordionGroup({ group }: { group: NavGroup }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-zinc-100">{group.label}</p>
-          <p className="text-[11px] text-zinc-600 mt-0.5">{group.desc}</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{group.desc}</p>
         </div>
         <ChevronDown
           size={15}
-          className="shrink-0 transition-transform duration-300 text-zinc-600"
+          className="shrink-0 transition-transform duration-300 text-zinc-500"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", color: open ? c : undefined }}
         />
       </button>
@@ -326,21 +326,21 @@ function AccordionGroup({ group }: { group: NavGroup }) {
               href={href}
               className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
               style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.03)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.04)",
               }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.background = `${c}0a`;
                 (e.currentTarget as HTMLElement).style.borderColor = `${c}20`;
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)";
-                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
+                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.04)";
               }}
             >
               <SubIcon size={15} className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0" strokeWidth={1.6} />
               <span className="flex-1 text-[12px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">{label}</span>
-              <ArrowRight size={12} className="text-zinc-700 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+              <ArrowRight size={12} className="text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
             </Link>
           ))}
         </div>
@@ -367,9 +367,9 @@ function TickerTape({ items }: { items: TickerItem[] }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-stretch overflow-hidden h-[44px] transition-all"
         style={{
-          background: "rgba(13,14,20,0.65)",
+          background: "rgba(17,19,28,0.72)",
           backdropFilter: "blur(16px)",
-          border: `1px solid ${expanded ? "rgba(212,165,116,0.25)" : "rgba(255,255,255,0.07)"}`,
+          border: `1px solid ${expanded ? "rgba(212,165,116,0.25)" : "rgba(255,255,255,0.10)"}`,
           borderRadius: expanded ? "16px 16px 0 0" : "16px",
           boxShadow: expanded ? "0 8px 32px rgba(212,165,116,0.08)" : "0 4px 20px rgba(0,0,0,0.25)",
         }}
@@ -391,7 +391,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
             {[...items, ...items].map((p, i) => (
               <span key={i} className="inline-flex items-center gap-1 px-4">
                 <span className="text-[0.73rem] font-extrabold text-zinc-200 tracking-[0.5px]">{p.label}</span>
-                <span className="text-[0.66rem] font-medium text-zinc-600">{fmtPrice(p.price, p.moeda)}</span>
+                <span className="text-[0.66rem] font-medium text-zinc-500">{fmtPrice(p.price, p.moeda)}</span>
                 <span className={`text-[0.7rem] font-bold ${(p.changePct ?? 0) > 0 ? "text-emerald-400" : (p.changePct ?? 0) < 0 ? "text-red-400" : "text-zinc-500"}`}>
                   {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
                 </span>
@@ -411,7 +411,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
         className="overflow-hidden transition-all duration-400"
         style={{
           maxHeight: expanded ? "400px" : "0px",
-          background: "rgba(13,14,20,0.65)",
+          background: "rgba(17,19,28,0.72)",
           backdropFilter: "blur(16px)",
           border: expanded ? "1px solid rgba(212,165,116,0.12)" : "1px solid transparent",
           borderTop: "none",
@@ -420,7 +420,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
       >
         <div className="p-3 grid grid-cols-2 gap-2">
           {/* Best */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
             <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.04)" }}>
               ▲ MELHORES
             </div>
@@ -435,7 +435,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
             </div>
           </div>
           {/* Worst */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
             <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.04)" }}>
               ▼ PIORES
             </div>
@@ -526,18 +526,18 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
 
   return (
     <div className="w-full max-w-lg rounded-2xl overflow-hidden" style={{
-      background: "rgba(13,14,20,0.65)",
+      background: "rgba(17,19,28,0.72)",
       backdropFilter: "blur(16px)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.09)",
       boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
     }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/[0.05]">
         <div className="flex items-center gap-2">
           <span className="w-[6px] h-[6px] rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-500">Radar do Dia</span>
+          <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-400">Radar do Dia</span>
         </div>
-        <span className="text-[0.63rem] text-zinc-700">{today}</span>
+        <span className="text-[0.63rem] text-zinc-600">{today}</span>
       </div>
 
       {/* News row: best vs worst */}
@@ -590,7 +590,7 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
                   const barColors = colorMap[j as 0 | 1 | 2] ?? colorMap[2];
                   const pct = typeof o.percent === "number" ? o.percent : 0;
                   return (
-                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
                       <div className="absolute left-0 top-0 bottom-0 rounded-lg" style={{
                         width: `${pct}%`,
                         background: barColors.bg,
@@ -630,7 +630,7 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
             <button
               onClick={nextPoly}
               className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:border-[#d4a574]/30 hover:bg-[#d4a574]/[0.06]"
-              style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)", color: "rgba(212,165,116,0.7)" }}
+              style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)", color: "rgba(212,165,116,0.7)" }}
             >
               <ChevronRight size={11} />
               Próximo
@@ -699,14 +699,14 @@ function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
       onClick={onToggle}
       className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer w-full h-full"
       style={{
-        background: "rgba(13,14,20,0.7)",
-        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.12)" : "rgba(248,113,113,0.12)"}`,
-        boxShadow: `0 4px 20px ${isUsdUp ? "rgba(16,185,129,0.03)" : "rgba(248,113,113,0.03)"}`,
+        background: "rgba(17,19,28,0.75)",
+        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+        boxShadow: `0 4px 24px ${isUsdUp ? "rgba(16,185,129,0.06)" : "rgba(248,113,113,0.06)"}, inset 0 1px 0 rgba(255,255,255,0.04)`,
       }}
     >
-      <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+      <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
       {usdbrl === null ? (
-        <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+        <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
       ) : (
         <span className="text-sm font-bold text-zinc-100">R$ {Number(usdbrl).toFixed(3)}</span>
       )}
@@ -746,14 +746,14 @@ function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: 
       <div
         className="rounded-2xl overflow-hidden"
         style={{
-          background: "rgba(13,14,20,0.7)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(17,19,28,0.75)",
+          border: "1px solid rgba(255,255,255,0.09)",
         }}
       >
         <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
           {fxPairs.map(pair => (
             <div key={pair.label} className="flex flex-col items-center py-2.5 px-2">
-              <span className="text-[0.52rem] font-bold text-zinc-600 uppercase tracking-[1px] mb-1">{pair.label}</span>
+              <span className="text-[0.52rem] font-bold text-zinc-500 uppercase tracking-[1px] mb-1">{pair.label}</span>
               <span className="text-[0.8rem] font-bold text-zinc-200">
                 {pair.prefix} {Number(pair.value).toFixed(pair.decimals)}
               </span>
@@ -776,9 +776,9 @@ function MetricCard({ children, borderColor }: { children: React.ReactNode; bord
     <div
       className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
       style={{
-        background: "rgba(13,14,20,0.7)",
+        background: "rgba(17,19,28,0.75)",
         border: `1px solid ${borderColor}`,
-        boxShadow: `0 4px 20px ${borderColor.replace(/[^,]+\)$/, "0.03)")}`,
+        boxShadow: `0 4px 24px ${borderColor.replace(/[^,]+\)$/, "0.06)")}, inset 0 1px 0 rgba(255,255,255,0.04)`,
       }}
     >
       {children}
@@ -837,12 +837,12 @@ export default function HomePage() {
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div
           className="absolute inset-0"
-          style={{ background: "radial-gradient(ellipse at 50% 25%, rgba(22,24,38,0.6) 0%, rgba(10,11,15,0.98) 100%)" }}
+          style={{ background: "radial-gradient(ellipse at 50% 20%, rgba(28,32,50,0.7) 0%, rgba(12,14,20,0.97) 100%)" }}
         />
         <div
           className="absolute inset-0"
           style={{
-            background: "radial-gradient(ellipse at 30% 60%, rgba(212,165,116,0.02) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(99,102,241,0.02) 0%, transparent 50%)",
+            background: "radial-gradient(ellipse at 30% 60%, rgba(212,165,116,0.035) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(99,102,241,0.035) 0%, transparent 50%)",
           }}
         />
       </div>
@@ -886,7 +886,7 @@ export default function HomePage() {
           <h1
             className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
             style={{
-              background: "linear-gradient(135deg, #ffffff 0%, #d4d4d8 50%, #a1a1aa 100%)",
+              background: "linear-gradient(135deg, #ffffff 0%, #e4e4e7 45%, #b4b4bc 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -896,7 +896,7 @@ export default function HomePage() {
           </h1>
 
           <div className="flex items-center justify-center gap-2.5 mt-1.5">
-            <p className="text-zinc-600 text-sm">Gestão integrada de investimentos</p>
+            <p className="text-zinc-500 text-sm">Gestão integrada de investimentos</p>
             <a
               href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
               target="_blank"
@@ -918,15 +918,15 @@ export default function HomePage() {
         {/* ── Live Metrics ── */}
         <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
           {/* Patrimônio Total */}
-          <MetricCard borderColor="rgba(212,165,116,0.12)">
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
+          <MetricCard borderColor="rgba(212,165,116,0.15)">
+            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
             {loading || totalBRL === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
               <>
                 <span className="text-sm font-bold text-zinc-100">{compactBRL(totalBRL)}</span>
                 {totalUSD !== null && (
-                  <span className="text-[9px] text-zinc-600 mt-1">
+                  <span className="text-[9px] text-zinc-500 mt-1">
                     US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : Number(totalUSD).toFixed(0)}
                   </span>
                 )}
@@ -935,8 +935,8 @@ export default function HomePage() {
           </MetricCard>
 
           {/* Retorno dia */}
-          <MetricCard borderColor={isDayUp ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)"}>
-            <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
+          <MetricCard borderColor={isDayUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}>
+            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
             {loading || dayChangePct === null ? (
               <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
             ) : (
@@ -960,9 +960,9 @@ export default function HomePage() {
 
           {/* Dólar */}
           {loading || !data ? (
-            <MetricCard borderColor="rgba(255,255,255,0.05)">
-              <span className="text-[9px] text-zinc-600 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
-              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            <MetricCard borderColor="rgba(255,255,255,0.10)">
+              <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+              <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
             </MetricCard>
           ) : (
             <FxDollarButton
@@ -999,9 +999,9 @@ export default function HomePage() {
 
         {/* ── Section label ── */}
         <div className="w-full flex items-center gap-3 mb-3 animate-fade-in animate-delay-2">
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(212,165,116,0.15))" }} />
-          <span className="text-[9px] font-extrabold tracking-[2px] uppercase text-zinc-700">Navegação</span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(212,165,116,0.15), transparent)" }} />
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(212,165,116,0.22))" }} />
+          <span className="text-[9px] font-extrabold tracking-[2px] uppercase text-zinc-600">Navegação</span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(212,165,116,0.22), transparent)" }} />
         </div>
 
         {/* ── Navigation Groups ── */}
@@ -1014,7 +1014,7 @@ export default function HomePage() {
         {/* Footer */}
         <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
           <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(45,47,58,0.5))" }} />
-          <span className="text-[9px] text-zinc-700 font-medium tracking-widest uppercase">
+          <span className="text-[9px] text-zinc-600 font-medium tracking-widest uppercase">
             v1.0 · Personal
           </span>
           <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(45,47,58,0.5), transparent)" }} />

@@ -91,7 +91,7 @@ export default function Sidebar() {
         style={{
           borderRight: "1px solid",
           borderImageSource:
-            "linear-gradient(180deg, transparent 0%, #2D2F3A 20%, #2D2F3A 80%, transparent 100%)",
+            "linear-gradient(180deg, transparent 0%, #353748 20%, #353748 80%, transparent 100%)",
           borderImageSlice: 1,
         }}
       >
@@ -108,7 +108,7 @@ export default function Sidebar() {
           >
             Meus Investimentos
           </h1>
-          <p className="text-[10px] text-zinc-700 mt-0.5 tracking-widest uppercase">
+          <p className="text-[10px] text-zinc-600 mt-0.5 tracking-widest uppercase">
             Dashboard Pessoal
           </p>
         </div>
@@ -119,7 +119,7 @@ export default function Sidebar() {
             <div key={gi}>
               {/* Group label */}
               {group.label && (
-                <p className="px-3 mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-zinc-700">
+                <p className="px-3 mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-zinc-600">
                   {group.label}
                 </p>
               )}
@@ -128,7 +128,7 @@ export default function Sidebar() {
               {!group.label && gi > 0 && (
                 <div
                   className="mx-3 mb-3 h-px"
-                  style={{ background: "linear-gradient(90deg, transparent, #2D2F3A50, transparent)" }}
+                  style={{ background: "linear-gradient(90deg, transparent, #35374850, transparent)" }}
                 />
               )}
 
@@ -182,9 +182,9 @@ export default function Sidebar() {
         <div className="px-3 pt-4">
           <div
             className="h-px w-full mb-3"
-            style={{ background: "linear-gradient(90deg, transparent, #2D2F3A, transparent)" }}
+            style={{ background: "linear-gradient(90deg, transparent, #353748, transparent)" }}
           />
-          <p className="text-[9px] text-zinc-700 tracking-wider text-center uppercase">
+          <p className="text-[9px] text-zinc-600 tracking-wider text-center uppercase">
             v1.0 · Personal
           </p>
         </div>
@@ -194,8 +194,8 @@ export default function Sidebar() {
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-30 backdrop-blur-xl border-t flex justify-around py-1.5 px-1 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
         style={{
-          background: "rgba(13,14,17,0.95)",
-          borderColor: "rgba(30,32,40,0.8)",
+          background: "rgba(15,16,22,0.95)",
+          borderColor: "rgba(35,38,50,0.8)",
         }}
       >
         {mobileItems.map(({ href, label, icon: Icon }) => {
@@ -205,7 +205,7 @@ export default function Sidebar() {
               key={href}
               href={href}
               className={`flex flex-col items-center gap-0.5 text-[9px] px-2 py-1.5 rounded-lg transition-colors ${
-                active ? "text-accent" : "text-zinc-600"
+                active ? "text-accent" : "text-zinc-500"
               }`}
             >
               <Icon
