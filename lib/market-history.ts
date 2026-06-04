@@ -1,5 +1,5 @@
 import { yahooTicker } from "./cotacoes";
-import { identificarSetor, isRendaFixa } from "./sectors";
+import { identificarSetor, isRendaFixaManual } from "./sectors";
 import { readGoldenSource } from "./db-cotacoes";
 import type { PriceMatrix, FxHistory } from "./twr-engine";
 import type { FxRates } from "./cotacoes";
@@ -161,7 +161,7 @@ export async function fetchHistoricalData(
   const tickerMap = new Map<string, string>(); // yahooTicker → originalTicker
   for (const t of originalTickers) {
     const setor = identificarSetor(t.ticker);
-    if (isRendaFixa(setor)) continue;
+    if (isRendaFixaManual(setor)) continue;
     const yt = yahooTicker(t.ticker, t.moeda, t.corretora);
     if (!tickerMap.has(yt)) tickerMap.set(yt, t.ticker);
   }

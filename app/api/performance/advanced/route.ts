@@ -4,7 +4,7 @@ import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
-import { identificarSetor, getMoedaEfetiva, isRendaFixa } from "@/lib/sectors";
+import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 
 function tickerOf(row: Record<string, unknown>): string {
   return String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -346,21 +346,25 @@ export async function GET(request: Request) {
     // Setores de RV presentes (para os sub-filtros da página) + flags de classe.
     const rvSetores = new Set<string>();
     let temCripto = false;
+    let temPricedRF = false; // SHV/BIL — RF com cotação, na meus_ativos
     for (const row of transacoes) {
       const tk = tickerOf(row);
       if (!tk) continue;
       const setor = identificarSetor(tk);
       if (setor === "Cripto") { temCripto = true; continue; }
+      if (isRendaFixaPrecificavel(setor)) { temPricedRF = true; continue; }
       if (isRendaFixa(setor)) continue;
       rvSetores.add(setor);
     }
-    const temRF = rfTransacoes.length > 0 || fixaAberta.length > 0;
+    const temRF = rfTransacoes.length > 0 || fixaAberta.length > 0 || temPricedRF;
 
     function keepRvTicker(tk: string): boolean {
       const setor = identificarSetor(tk);
-      if (isRendaFixa(setor)) return false; // RF é tratado à parte
       const isCripto = setor === "Cripto";
-      if (classe === "rf") return false;
+      // Na aba RF, incluímos a RF precificável da meus_ativos (SHV/BIL); a RF
+      // manual (CDB/Tesouro) vem da timeline de RF (rfNavByDate).
+      if (classe === "rf") return isRendaFixaPrecificavel(setor);
+      if (isRendaFixa(setor)) return false; // RF não entra em RV/Cripto/Tudo-filtrado via meus_ativos
       if (classe === "cripto") return isCripto;
       if (classe === "rv") return isCripto ? false : (setorFiltro ? setor === setorFiltro : true);
       return setorFiltro ? setor === setorFiltro : true; // tudo

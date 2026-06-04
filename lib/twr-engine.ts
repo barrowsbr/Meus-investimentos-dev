@@ -1,5 +1,5 @@
 import { toNumber } from "./format";
-import { identificarSetor, getMoedaEfetiva, isRendaFixa } from "./sectors";
+import { identificarSetor, getMoedaEfetiva, isRendaFixaManual } from "./sectors";
 import type { FxRates } from "./cotacoes";
 
 type Row = Record<string, unknown>;
@@ -62,7 +62,9 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
     if (!ticker) continue;
 
     const setor = identificarSetor(ticker);
-    if (isRendaFixa(setor)) continue;
+    // RF precificável (SHV/BIL) é mantida e avaliada por preço de mercado;
+    // só a RF manual (CDB/Tesouro) é excluída (vem da timeline de RF).
+    if (isRendaFixaManual(setor)) continue;
 
     const tipoRaw = String(
       row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? ""

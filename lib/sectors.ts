@@ -56,6 +56,20 @@ export function isRendaFixa(setor: string): boolean {
   return RF_SETORES.has(setor);
 }
 
+// RF "precificável" = ETFs de renda fixa negociados (SHV, BIL) que vivem na
+// meus_ativos e TÊM cotação de mercado. Diferente da RF "manual" (CDB, Tesouro)
+// que é controlada por saldo nas abas renda_fixa/fixa_aberta e não tem cotação.
+// Continuam classificados como RF (proventos/atribuição), mas DEVEM ser
+// precificados pelo mercado no NAV.
+export function isRendaFixaPrecificavel(setor: string): boolean {
+  return setor === "Renda Fixa USD";
+}
+
+// RF manual = RF sem cotação de mercado (deve ser excluída da precificação).
+export function isRendaFixaManual(setor: string): boolean {
+  return isRendaFixa(setor) && !isRendaFixaPrecificavel(setor);
+}
+
 export function isRendaVariavel(setor: string): boolean {
   return !RF_SETORES.has(setor);
 }
