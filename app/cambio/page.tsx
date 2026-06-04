@@ -5,8 +5,9 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap } from "lucide-react";
+import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, Crosshair } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
+import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
 import MetricCard from "@/components/MetricCard";
@@ -28,10 +29,13 @@ const FX_COLORS: Record<string, string> = {
   USD: "#3b82f6", EUR: "#8b5cf6", CAD: "#f59e0b", GBP: "#10b981", CHF: "#06b6d4",
 };
 
+type Tab = "operacoes" | "exposicao";
+
 export default function CambioPage() {
   const { data: portfolio, loading: portLoading } = usePortfolio();
   const { data: rawData, loading: sheetLoading, error } = useSheetData("cambio");
   const [stressCustom, setStressCustom] = useState<number>(0);
+  const [tab, setTab] = useState<Tab>("operacoes");
 
   const loading = portLoading || sheetLoading;
 
@@ -107,7 +111,37 @@ export default function CambioPage() {
         description="Preço médio do dólar, PTAX e análise cambial"
       />
 
-      {cambio && (
+      {/* ── Tab selector ── */}
+      <div className="flex gap-1 p-1 rounded-xl mb-6 w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        {([
+          { id: "operacoes" as Tab, label: "Operações", icon: ArrowLeftRight },
+          { id: "exposicao" as Tab, label: "Exposição Cambial", icon: ShieldAlert },
+        ]).map(t => {
+          const active = tab === t.id;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                active ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+              }`}
+              style={active ? { background: "rgba(212,165,116,0.12)", boxShadow: "0 2px 8px rgba(212,165,116,0.08)" } : {}}
+            >
+              <Icon size={14} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Tab: Exposição Cambial ── */}
+      {tab === "exposicao" && portfolio && (
+        <ExposicaoCambialTab portfolio={portfolio} />
+      )}
+
+      {/* ── Tab: Operações (conteúdo original) ── */}
+      {tab === "operacoes" && cambio && (
         <>
           {/* ── Hero: Total em Reais ── */}
           <div className="glass-card p-6 mb-6 animate-fade-in">
@@ -512,8 +546,400 @@ export default function CambioPage() {
         </>
       )}
 
-      <h2 className="section-title mb-3">Histórico de Operações</h2>
-      <DataTable data={rawData} columns={columns} />
+      {tab === "operacoes" && (
+        <>
+          <h2 className="section-title mb-3">Histórico de Operações</h2>
+          <DataTable data={rawData} columns={columns} />
+        </>
+      )}
     </>
+  );
+}
+
+// ── Exposição Cambial Tab ────────────────────────────────────────────────────
+
+function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
+  const [stressCustom, setStressCustom] = useState(0);
+
+  const spot = portfolio.usdbrl ?? 0;
+  const cambio = portfolio.cambio;
+  const positions = portfolio.positions ?? [];
+
+  const analysis = useMemo(() => {
+    const foreignPositions = positions.filter(
+      p => p.moeda !== "BRL" && p.valorAtualBRL > 0
+    );
+
+    const byMoeda: Record<string, { valorAtualBRL: number; custoTotalBRL: number; valorAtualNativo: number; positions: typeof foreignPositions }> = {};
+    for (const p of foreignPositions) {
+      const m = p.moeda || "USD";
+      if (!byMoeda[m]) byMoeda[m] = { valorAtualBRL: 0, custoTotalBRL: 0, valorAtualNativo: 0, positions: [] };
+      byMoeda[m].valorAtualBRL += p.valorAtualBRL;
+      byMoeda[m].custoTotalBRL += p.custoTotalBRL;
+      byMoeda[m].valorAtualNativo += p.valorAtual ?? 0;
+      byMoeda[m].positions.push(p);
+    }
+
+    const totalExpostoAtualBRL = foreignPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
+    const totalCustoBRL = foreignPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+    const ganhoAtivo = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
+    const ganhoCambio = foreignPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+
+    const remessaCusto = cambio?.totalCustoBRL ?? 0;
+    const remessaValorHoje = cambio?.totalValBRL ?? 0;
+    const ganhoCambialRemessa = cambio?.ganhoTotal_BRL ?? 0;
+
+    return {
+      foreignPositions,
+      byMoeda,
+      totalExpostoAtualBRL,
+      totalCustoBRL,
+      ganhoAtivo,
+      ganhoCambio,
+      remessaCusto,
+      remessaValorHoje,
+      ganhoCambialRemessa,
+    };
+  }, [positions, cambio]);
+
+  const stressScenarios = useMemo(() => {
+    const scenarios = [
+      { label: "-30%", pct: -30 },
+      { label: "-20%", pct: -20 },
+      { label: "-10%", pct: -10 },
+      { label: "-5%", pct: -5 },
+      { label: "Atual", pct: 0 },
+      { label: "+5%", pct: 5 },
+      { label: "+10%", pct: 10 },
+      { label: "+20%", pct: 20 },
+      { label: "+30%", pct: 30 },
+      ...(stressCustom !== 0 ? [{ label: `${stressCustom > 0 ? "+" : ""}${stressCustom}%`, pct: stressCustom }] : []),
+    ].sort((a, b) => a.pct - b.pct);
+
+    return scenarios.map(s => {
+      const fxFactor = 1 + s.pct / 100;
+      const newSpot = spot * fxFactor;
+
+      const novoValorAtual = analysis.totalExpostoAtualBRL * fxFactor;
+      const impactoAtual = novoValorAtual - analysis.totalExpostoAtualBRL;
+
+      const novoValorRemessa = analysis.remessaValorHoje * fxFactor;
+      const impactoRemessa = novoValorRemessa - analysis.remessaValorHoje;
+      const ganhoPerdaVsCusto = novoValorRemessa - analysis.remessaCusto;
+
+      return {
+        label: s.label,
+        pct: s.pct,
+        newSpot,
+        novoValorAtual,
+        impactoAtual,
+        impactoRemessa,
+        ganhoPerdaVsCusto,
+        ganhoPerdaVsCustoPct: analysis.remessaCusto > 0 ? (ganhoPerdaVsCusto / analysis.remessaCusto) * 100 : 0,
+      };
+    });
+  }, [spot, analysis, stressCustom]);
+
+  const breakEvenSpot = analysis.remessaCusto > 0 && analysis.remessaValorHoje > 0
+    ? spot * (analysis.remessaCusto / analysis.remessaValorHoje)
+    : null;
+
+  const patrimonioBRL = portfolio.totalPatrimonioBRL ?? 0;
+  const pctExpostoFx = patrimonioBRL > 0 ? (analysis.totalExpostoAtualBRL / patrimonioBRL) * 100 : 0;
+
+  return (
+    <div className="animate-fade-in">
+      {/* ── Hero: Exposição Total ── */}
+      <div className="glass-card p-6 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <ShieldAlert size={16} className="text-amber-400" />
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Exposição a Moeda Estrangeira</span>
+        </div>
+        <div className="text-3xl font-extrabold text-zinc-100 mb-1">
+          {compactBRL(analysis.totalExpostoAtualBRL)}
+        </div>
+        <div className="text-xs text-zinc-500 mb-5">
+          {pctExpostoFx.toFixed(1)}% do patrimônio total ({compactBRL(patrimonioBRL)}) está exposto a variação cambial
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <span className="stat-label block mb-1">Custo em BRL</span>
+            <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
+          </div>
+          <div>
+            <span className="stat-label block mb-1">Ganho dos Ativos</span>
+            <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {analysis.ganhoAtivo >= 0 ? "+" : ""}{compactBRL(analysis.ganhoAtivo)}
+            </span>
+          </div>
+          <div>
+            <span className="stat-label block mb-1">Efeito Câmbio</span>
+            <span className={`text-sm font-bold ${analysis.ganhoCambio >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {analysis.ganhoCambio >= 0 ? "+" : ""}{compactBRL(analysis.ganhoCambio)}
+            </span>
+          </div>
+          <div>
+            <span className="stat-label block mb-1">Spot USD/BRL</span>
+            <span className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</span>
+            {breakEvenSpot && (
+              <span className="text-[10px] text-zinc-600 block">break-even R$ {breakEvenSpot.toFixed(2)}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Os dois conceitos ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Conceito 1: O que mandei */}
+        <div className="glass-card p-5" style={{ borderColor: "rgba(59,130,246,0.15)" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign size={16} className="text-blue-400" />
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Câmbio vs Remessas</div>
+              <div className="text-[10px] text-zinc-500">Quanto ganhei ou perdi sobre o dinheiro que enviei ao exterior</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-xs text-zinc-500">BRL enviado (custo remessas)</span>
+              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.remessaCusto)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-xs text-zinc-500">Valor hoje (FX spot)</span>
+              <span className="text-sm font-bold text-zinc-100">{compactBRL(analysis.remessaValorHoje)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-xs text-zinc-400 font-semibold">Resultado cambial</span>
+              <div className="text-right">
+                <span className={`text-base font-extrabold ${analysis.ganhoCambialRemessa >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {analysis.ganhoCambialRemessa >= 0 ? "+" : ""}{compactBRL(analysis.ganhoCambialRemessa)}
+                </span>
+                {analysis.remessaCusto > 0 && (
+                  <span className={`text-xs ml-2 ${analysis.ganhoCambialRemessa >= 0 ? "text-emerald-400/70" : "text-red-400/70"}`}>
+                    {analysis.ganhoCambialRemessa >= 0 ? "+" : ""}{((analysis.ganhoCambialRemessa / analysis.remessaCusto) * 100).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)" }}>
+            <p className="text-[10px] text-blue-300/80 leading-relaxed">
+              Este é o ganho/perda <strong>puro do câmbio</strong> sobre as remessas. Se o dólar sobe, você ganha aqui.
+              Se cai, perde — mas só sobre o que efetivamente mandou.
+            </p>
+          </div>
+        </div>
+
+        {/* Conceito 2: O que tenho hoje */}
+        <div className="glass-card p-5" style={{ borderColor: "rgba(212,165,116,0.15)" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Crosshair size={16} className="text-amber-400" />
+            <div>
+              <div className="text-sm font-bold text-zinc-100">Câmbio vs Valor Atual</div>
+              <div className="text-[10px] text-zinc-500">Quanto perco ou ganho sobre TUDO que tenho lá fora hoje</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-xs text-zinc-500">Custo BRL das posições</span>
+              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-xs text-zinc-500">Valor atual em BRL</span>
+              <span className="text-sm font-bold text-zinc-100">{compactBRL(analysis.totalExpostoAtualBRL)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-xs text-zinc-500">Lucro dos ativos em BRL</span>
+              <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {analysis.ganhoAtivo >= 0 ? "+" : ""}{compactBRL(analysis.ganhoAtivo)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-xs text-zinc-400 font-semibold">Exposição total ao FX</span>
+              <span className="text-base font-extrabold text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL)}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 rounded-xl" style={{ background: "rgba(212,165,116,0.06)", border: "1px solid rgba(212,165,116,0.12)" }}>
+            <p className="text-[10px] text-amber-300/80 leading-relaxed">
+              Seus ativos valorizaram e agora a <strong>exposição cambial é maior</strong> que o valor enviado.
+              Uma queda de 10% no dólar afeta {compactBRL(analysis.totalExpostoAtualBRL * 0.1)}, não apenas {compactBRL(analysis.remessaCusto * 0.1)}.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Exposição por moeda ── */}
+      {Object.keys(analysis.byMoeda).length > 0 && (
+        <div className="glass-card p-5 mb-6">
+          <h2 className="section-title mb-4"><Layers size={15} />Exposição por Moeda</h2>
+          <div className={`grid gap-4 ${Object.keys(analysis.byMoeda).length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
+            {Object.entries(analysis.byMoeda)
+              .sort((a, b) => b[1].valorAtualBRL - a[1].valorAtualBRL)
+              .map(([moeda, info]) => {
+                const color = FX_COLORS[moeda] ?? "#64748b";
+                const lucroBRL = info.valorAtualBRL - info.custoTotalBRL;
+                const pctPortfolio = patrimonioBRL > 0 ? (info.valorAtualBRL / patrimonioBRL) * 100 : 0;
+                return (
+                  <div key={moeda} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}20` }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{moeda === "USD" ? "🇺🇸" : moeda === "EUR" ? "🇪🇺" : moeda === "GBP" ? "🇬🇧" : moeda === "CAD" ? "🇨🇦" : "🌐"}</span>
+                        <div>
+                          <span className="text-sm font-bold" style={{ color }}>{moeda}</span>
+                          <span className="text-[10px] text-zinc-600 ml-2">{info.positions.length} ativos · {pctPortfolio.toFixed(1)}% do portfólio</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-zinc-100">{compactBRL(info.valorAtualBRL)}</div>
+                        <div className={`text-[10px] font-semibold ${lucroBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {lucroBRL >= 0 ? "+" : ""}{compactBRL(lucroBRL)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {info.positions
+                        .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
+                        .slice(0, 10)
+                        .map(p => (
+                          <span key={p.ticker} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: `${color}15`, color: `${color}cc`, border: `1px solid ${color}25` }}>
+                            {p.ticker.replace(/\.SA$/, "")} {compactBRL(p.valorAtualBRL)}
+                          </span>
+                        ))}
+                      {info.positions.length > 10 && (
+                        <span className="text-[10px] px-2 py-0.5 text-zinc-600">+{info.positions.length - 10}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Stress Test Comparativo ── */}
+      <div className="glass-card p-5 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="section-title"><Zap size={15} />Teste de Estresse — Dois Cenários</h2>
+          <span className="text-[10px] text-zinc-600">
+            Spot: R$ {spot.toFixed(2)} · Exposição: {compactBRL(analysis.totalExpostoAtualBRL)}
+          </span>
+        </div>
+        <p className="text-[10px] text-zinc-500 mb-5">
+          <strong className="text-blue-400">Azul</strong> = impacto sobre o <strong>valor atual</strong> (o que tenho) ·
+          <strong className="text-amber-400 ml-1">Dourado</strong> = resultado vs <strong>custo das remessas</strong> (o que mandei)
+        </p>
+
+        {/* Chart */}
+        <div className="mb-5">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={stressScenarios} barCategoryGap="12%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE}
+                formatter={(v: number, name: string) => [
+                  compactBRL(v),
+                  name === "impactoAtual" ? "Impacto no valor atual" : "Resultado vs custo",
+                ]}
+                labelFormatter={l => `Cenário: ${l}`} />
+              <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+              <Bar dataKey="impactoAtual" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                {stressScenarios.map((entry, i) => (
+                  <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.impactoAtual >= 0 ? "#3b82f6" : "#60a5fa"} fillOpacity={entry.pct === 0 ? 0.4 : 0.75} />
+                ))}
+              </Bar>
+              <Bar dataKey="ganhoPerdaVsCusto" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                {stressScenarios.map((entry, i) => (
+                  <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.ganhoPerdaVsCusto >= 0 ? "#d4a574" : "#f59e0b"} fillOpacity={entry.pct === 0 ? 0.4 : 0.65} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto mb-4">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                {["Cenário", "USD/BRL", "Valor Atual", "Δ Valor", "vs Custo Remessa", "vs Custo %"].map(h => (
+                  <th key={h} className="px-3 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider text-right first:text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stressScenarios.map((s, i) => (
+                <tr key={i} className={`border-b border-zinc-900 ${s.pct === 0 ? "bg-indigo-500/5" : "hover:bg-white/[0.02]"}`}>
+                  <td className={`px-3 py-2 font-semibold ${s.pct === 0 ? "text-indigo-400" : "text-zinc-400"}`}>{s.label}</td>
+                  <td className="px-3 py-2 text-right text-zinc-300 font-mono">R$ {s.newSpot.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-zinc-200 font-mono">{compactBRL(s.novoValorAtual)}</td>
+                  <td className={`px-3 py-2 text-right font-mono font-semibold ${s.impactoAtual >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {s.pct === 0 ? "—" : `${s.impactoAtual >= 0 ? "+" : ""}${compactBRL(s.impactoAtual)}`}
+                  </td>
+                  <td className={`px-3 py-2 text-right font-mono font-semibold ${s.ganhoPerdaVsCusto >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {s.ganhoPerdaVsCusto >= 0 ? "+" : ""}{compactBRL(s.ganhoPerdaVsCusto)}
+                  </td>
+                  <td className={`px-3 py-2 text-right font-mono ${s.ganhoPerdaVsCustoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {s.ganhoPerdaVsCustoPct >= 0 ? "+" : ""}{s.ganhoPerdaVsCustoPct.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Custom slider */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-zinc-500">Cenário customizado:</span>
+          <input
+            type="range"
+            min={-50} max={50} step={5}
+            value={stressCustom}
+            onChange={e => setStressCustom(Number(e.target.value))}
+            className="flex-1 h-1 rounded-full appearance-none cursor-pointer"
+            style={{ background: "linear-gradient(to right, #f87171, #3f3f46 50%, #34d399)" }}
+          />
+          <span className={`text-xs font-bold w-12 text-right ${stressCustom >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {stressCustom > 0 ? "+" : ""}{stressCustom}%
+          </span>
+        </div>
+      </div>
+
+      {/* ── Insight: diferença entre os dois ── */}
+      {analysis.totalExpostoAtualBRL > analysis.remessaCusto && (
+        <div className="glass-card p-5 mb-6" style={{ borderColor: "rgba(212,165,116,0.12)" }}>
+          <h2 className="section-title mb-3"><TrendingUp size={15} />Por que a exposição é maior que as remessas?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Remessas (custo BRL)</div>
+              <div className="text-lg font-bold text-zinc-300">{compactBRL(analysis.remessaCusto)}</div>
+            </div>
+            <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Valorização ativos + FX</div>
+              <div className={`text-lg font-bold ${analysis.totalExpostoAtualBRL - analysis.remessaCusto >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                +{compactBRL(analysis.totalExpostoAtualBRL - analysis.remessaCusto)}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl" style={{ background: "rgba(212,165,116,0.04)", border: "1px solid rgba(212,165,116,0.12)" }}>
+              <div className="text-[10px] text-amber-400/80 uppercase tracking-wider mb-1">Exposição real ao FX</div>
+              <div className="text-lg font-bold text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL)}</div>
+            </div>
+          </div>
+          <p className="text-[10px] text-zinc-500 leading-relaxed">
+            Você enviou <strong className="text-zinc-300">{compactBRL(analysis.remessaCusto)}</strong> ao exterior,
+            mas seus ativos cresceram para <strong className="text-zinc-300">{compactBRL(analysis.totalExpostoAtualBRL)}</strong>.
+            Uma variação de 10% no câmbio agora afeta <strong className="text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL * 0.1)}</strong> do
+            seu patrimônio — {analysis.remessaCusto > 0 ? ((analysis.totalExpostoAtualBRL / analysis.remessaCusto) * 100 - 100).toFixed(0) : "∞"}% a mais
+            do que afetaria sobre o valor remitido ({compactBRL(analysis.remessaCusto * 0.1)}).
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
