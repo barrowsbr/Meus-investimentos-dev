@@ -60,6 +60,8 @@ export interface PortfolioSnapshot {
   totalProventosBRL: number;
   proventosMensais: Record<string, number>;
   proventosPorTicker: Record<string, number>;
+  totalImpostoProventosBRL: number;
+  impostoProventosPorTicker: Record<string, number>;
   lucroBRL: number;
   lucroPct: number;
   ganhoAtivoTotalBRL: number;
@@ -337,10 +339,15 @@ export function enriquecerPosicoes(
 export function calcularProventosBRL(
   proventos: Row[],
   fx: FxRates
-): { totalBRL: number; porMes: Record<string, number>; porTicker: Record<string, number> } {
+): {
+  totalBRL: number; porMes: Record<string, number>; porTicker: Record<string, number>;
+  impostoBRL: number; impostoPorTicker: Record<string, number>;
+} {
   let totalBRL = 0;
+  let impostoBRL = 0; // custo total de IR retido (positivo)
   const porMes: Record<string, number> = {};
   const porTicker: Record<string, number> = {};
+  const impostoPorTicker: Record<string, number> = {};
 
   for (const row of proventos) {
     const valorAbs = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
@@ -348,14 +355,22 @@ export function calcularProventosBRL(
 
     // IMPOSTO retido na fonte abate o provento (líquido = bruto − IR)
     const decisao = String(getVal(row, "decisao", "decisão") ?? "").toLowerCase();
-    const sign = decisao.includes("imposto") ? -1 : 1;
+    const isImposto = decisao.includes("imposto");
+    const sign = isImposto ? -1 : 1;
 
     const moeda = getMoeda(row);
-    const valorBRL = sign * valorAbs * fxToBRL(moeda, fx);
+    const fator = fxToBRL(moeda, fx);
+    const valorBRL = sign * valorAbs * fator;
     totalBRL += valorBRL;
 
     const ticker = String(getVal(row, "ticker", "símbolo", "simbolo") ?? "").toUpperCase().trim();
     if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
+
+    if (isImposto) {
+      const impBRL = valorAbs * fator;
+      impostoBRL += impBRL;
+      if (ticker) impostoPorTicker[ticker] = (impostoPorTicker[ticker] ?? 0) + impBRL;
+    }
 
     const dataStr = String(getVal(row, "data", "date", "pagamento") ?? "");
     const isoMatch = dataStr.match(/^(\d{4})-(\d{2})/);
@@ -369,7 +384,7 @@ export function calcularProventosBRL(
     }
   }
 
-  return { totalBRL, porMes, porTicker };
+  return { totalBRL, porMes, porTicker, impostoBRL, impostoPorTicker };
 }
 
 export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
@@ -444,6 +459,8 @@ export function calcularSnapshot(
     totalProventosBRL: prov.totalBRL,
     proventosMensais: prov.porMes,
     proventosPorTicker: prov.porTicker,
+    totalImpostoProventosBRL: prov.impostoBRL,
+    impostoProventosPorTicker: prov.impostoPorTicker,
     lucroBRL,
     lucroPct,
     ganhoAtivoTotalBRL,
