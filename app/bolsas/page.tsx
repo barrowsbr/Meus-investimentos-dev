@@ -1280,6 +1280,7 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
   const [sectors, setSectors] = useState<SectorItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [available, setAvailable] = useState(true);
+  const [isRegional, setIsRegional] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(600);
   const treemapH = 280;
@@ -1292,7 +1293,11 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
       .then(d => {
         if (cancelled) return;
         if (!d.available || !d.sectors?.length) { setAvailable(false); setSectors([]); }
-        else { setAvailable(true); setSectors(d.sectors); }
+        else {
+          setAvailable(true);
+          setSectors(d.sectors);
+          setIsRegional(!!d.regional);
+        }
       })
       .catch(() => { if (!cancelled) setAvailable(false); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -1322,11 +1327,16 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
 
   return (
     <div className="mt-4">
-      <div className="flex items-center gap-2 mb-2 px-1">
+      <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
         <Flame size={13} className="text-orange-400" />
         <span className="text-[11px] font-semibold text-zinc-300">
           Setores — {indexName}
         </span>
+        {isRegional && (
+          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            proxy regional
+          </span>
+        )}
         <span className="text-[9px] text-zinc-600 ml-auto">tamanho = peso no índice · cor = variação do dia</span>
       </div>
       <div
