@@ -245,6 +245,13 @@ const WorldMap = memo(function WorldMap({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
+interface HistoryCache {
+  [symbol: string]: {
+    history: { date: string; close: number }[];
+    periods: Record<PeriodKey, number | null> | null;
+  };
+}
+
 export default function BolsasPage() {
   const [data, setData] = useState<BolsasResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -255,17 +262,47 @@ export default function BolsasPage() {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<IndexData | null>(null);
+  const [historyCache, setHistoryCache] = useState<HistoryCache>({});
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/bolsas")
       .then(r => r.json())
       .then(d => {
         if (d.error) setError(d.error);
-        else setData(d);
+        else {
+          setData(d);
+          if (d.spHistory) {
+            setHistoryCache(prev => ({
+              ...prev,
+              "^GSPC": { history: d.spHistory, periods: d.spPeriods },
+            }));
+          }
+        }
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const focusedSymbol = selectedIndex?.symbol ?? "^GSPC";
+
+  useEffect(() => {
+    if (!focusedSymbol || historyCache[focusedSymbol]) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    fetch(`/api/bolsas/history?symbol=${encodeURIComponent(focusedSymbol)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        setHistoryCache(prev => ({
+          ...prev,
+          [focusedSymbol]: { history: d.history ?? [], periods: d.periods ?? null },
+        }));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [focusedSymbol, historyCache]);
 
   const regions = useMemo(() => {
     if (!data) return [];
@@ -374,16 +411,23 @@ export default function BolsasPage() {
           />
         </div>
 
-        {/* ── VIX + S&P Thermometer ── */}
-        {sp && (
-          <SPThermometer
-            sp={sp}
-            vix={vix ?? null}
-            spHistory={data.spHistory}
-            spPeriods={data.spPeriods}
-            breadth={data.breadth}
-          />
-        )}
+        {/* ── Index Thermometer (dynamic) ── */}
+        {(() => {
+          const focusIdx = selectedIndex ?? sp;
+          if (!focusIdx) return null;
+          const cached = historyCache[focusIdx.symbol];
+          return (
+            <IndexThermometer
+              index={focusIdx}
+              vix={vix ?? null}
+              history={cached?.history ?? []}
+              periods={cached?.periods ?? null}
+              breadth={data.breadth}
+              historyLoading={historyLoading && !cached}
+              isDefault={!selectedIndex}
+            />
+          );
+        })()}
 
         {/* ── World Map ── */}
         <div
@@ -648,42 +692,46 @@ export default function BolsasPage() {
   );
 }
 
-// ── S&P 500 Thermometer ──────────────────────────────────────────────────
+// ── Index Thermometer (dynamic — updates when user selects an index) ─────
 
-function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
-  sp: IndexData;
+function IndexThermometer({ index, vix, history, periods, breadth, historyLoading, isDefault }: {
+  index: IndexData;
   vix: IndexData | null;
-  spHistory: { date: string; close: number }[];
-  spPeriods: Record<PeriodKey, number | null> | null;
+  history: { date: string; close: number }[];
+  periods: Record<PeriodKey, number | null> | null;
   breadth: { up: number; down: number; total: number };
+  historyLoading: boolean;
+  isDefault: boolean;
 }) {
   const [chartRange, setChartRange] = useState<PeriodKey>("3M");
-  const spUp = sp.changePct >= 0;
+  const isUp = index.changePct >= 0;
 
   const tone = useMemo(() => {
-    if (sp.changePct > 0.5) return { color: "#34d399", bg: "rgba(16,185,129,0.12)", label: "Bull" };
-    if (sp.changePct < -0.5) return { color: "#f87171", bg: "rgba(239,68,68,0.12)", label: "Bear" };
-    return { color: "#fbbf24", bg: "rgba(245,158,11,0.12)", label: "Neutro" };
-  }, [sp.changePct]);
+    if (index.changePct > 0.5) return { color: "#34d399", bg: "rgba(16,185,129,0.12)" };
+    if (index.changePct < -0.5) return { color: "#f87171", bg: "rgba(239,68,68,0.12)" };
+    return { color: "#fbbf24", bg: "rgba(245,158,11,0.12)" };
+  }, [index.changePct]);
 
   const chartData = useMemo(() => {
-    if (spHistory.length === 0) return [];
+    if (history.length === 0) return [];
     const cfg = CHART_RANGES.find(r => r.key === chartRange) ?? CHART_RANGES[1];
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - cfg.days);
     const cutoffStr = cutoff.toISOString().split("T")[0];
-    return spHistory.filter(p => p.date >= cutoffStr);
-  }, [spHistory, chartRange]);
+    return history.filter(p => p.date >= cutoffStr);
+  }, [history, chartRange]);
 
-  const chartMin = useMemo(() => Math.min(...chartData.map(d => d.close)), [chartData]);
-  const chartMax = useMemo(() => Math.max(...chartData.map(d => d.close)), [chartData]);
+  const chartMin = useMemo(() => chartData.length > 0 ? Math.min(...chartData.map(d => d.close)) : 0, [chartData]);
+  const chartMax = useMemo(() => chartData.length > 0 ? Math.max(...chartData.map(d => d.close)) : 0, [chartData]);
   const chartRangePct = chartData.length > 1
     ? ((chartData[chartData.length - 1].close / chartData[0].close) - 1) * 100
     : 0;
 
+  const gradientId = `idxArea-${index.symbol.replace(/[^a-zA-Z0-9]/g, "")}`;
+
   return (
     <div
-      className="rounded-2xl p-4 md:p-6"
+      className="rounded-2xl p-4 md:p-6 transition-all duration-300"
       style={{
         background: "rgba(13,14,20,0.8)",
         border: `1px solid ${tone.color}25`,
@@ -692,26 +740,35 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
     >
       <div className="flex items-center gap-2 mb-4">
         <Activity size={16} style={{ color: tone.color }} />
-        <h2 className="text-sm font-semibold text-zinc-200">Panorama de Mercado</h2>
+        <h2 className="text-sm font-semibold text-zinc-200">
+          {isDefault ? "Panorama de Mercado" : (
+            <span className="flex items-center gap-2">
+              <span>{index.flag}</span>
+              <span>{index.name}</span>
+              <span className="text-[10px] text-zinc-500 font-normal">({index.country})</span>
+            </span>
+          )}
+        </h2>
         <span className="text-[10px] text-zinc-600 ml-auto">
           {breadth.up}/{breadth.total} bolsas em alta
         </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Col 1: S&P + VIX key metrics */}
+        {/* Col 1: Index + VIX key metrics */}
         <div className="flex flex-col justify-center gap-4">
           <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">S&P 500</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{index.name}</p>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-zinc-100">{fmtPrice(sp.price)}</span>
-              <span className={`text-sm font-semibold flex items-center gap-1 ${spUp ? "text-emerald-400" : "text-red-400"}`}>
-                {spUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                {spUp ? "+" : ""}{sp.changePct.toFixed(2)}%
+              <span className="text-3xl font-bold text-zinc-100">{fmtPrice(index.price)}</span>
+              <span className={`text-sm font-semibold flex items-center gap-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                {isUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                {isUp ? "+" : ""}{index.changePct.toFixed(2)}%
               </span>
             </div>
+            <p className="text-[10px] text-zinc-600 mt-0.5">{index.currency}</p>
           </div>
-          {vix && (
+          {vix && isDefault && (
             <div>
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider">VIX (Medo &amp; Ganância)</p>
               <div className="flex items-baseline gap-2">
@@ -739,12 +796,16 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
 
         {/* Col 2: Periods */}
         <div className="flex flex-col justify-center">
-          {spPeriods && (
+          {historyLoading ? (
+            <div className="text-[11px] text-zinc-500 text-center animate-pulse">
+              Carregando períodos...
+            </div>
+          ) : periods ? (
             <>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">S&P 500 — Períodos</p>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">{index.name} — Períodos</p>
               <div className="grid grid-cols-3 gap-2">
                 {ALL_PERIODS.map(p => {
-                  const v = spPeriods[p];
+                  const v = periods[p];
                   if (v == null) return null;
                   const up = v >= 0;
                   return (
@@ -758,8 +819,7 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
                 })}
               </div>
             </>
-          )}
-          {!spPeriods && (
+          ) : (
             <div className="text-[11px] text-zinc-600 text-center">
               Dados de períodos indisponíveis
             </div>
@@ -770,7 +830,7 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
         <div className="flex flex-col">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-zinc-500 flex items-center gap-1">
-              <Activity size={11} /> Histórico S&P 500
+              <Activity size={11} /> Histórico {index.name}
             </span>
             <div className="flex gap-1">
               {CHART_RANGES.map(r => (
@@ -789,13 +849,17 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
             </div>
           </div>
 
-          {chartData.length > 1 ? (
+          {historyLoading ? (
+            <div className="flex-1 min-h-[120px] flex items-center justify-center text-[11px] text-zinc-500 animate-pulse">
+              Carregando gráfico...
+            </div>
+          ) : chartData.length > 1 ? (
             <>
               <div className="flex-1 min-h-[120px]">
                 <ResponsiveContainer width="100%" height={120}>
                   <AreaChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                     <defs>
-                      <linearGradient id="spArea" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
                         <stop offset="100%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
                       </linearGradient>
@@ -804,12 +868,12 @@ function SPThermometer({ sp, vix, spHistory, spPeriods, breadth }: {
                     <RTooltip
                       contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: "#a1a1aa" }}
-                      formatter={(v: number) => [fmtPrice(v), "S&P 500"]}
+                      formatter={(v: number) => [fmtPrice(v), index.name]}
                     />
                     <Area
                       type="monotone" dataKey="close"
                       stroke={chartRangePct >= 0 ? "#34d399" : "#f87171"}
-                      strokeWidth={1.5} fill="url(#spArea)"
+                      strokeWidth={1.5} fill={`url(#${gradientId})`}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
