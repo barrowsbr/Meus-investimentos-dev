@@ -27,6 +27,8 @@ export interface CountryInfo {
 export interface CountryAllocation {
   country: CountryInfo;
   value_brl: number;
+  rv_brl: number;
+  rf_brl: number;
   pct: number;
   tickers: string[];
 }
@@ -342,15 +344,18 @@ function inferCountryFromTicker(ticker: string): string | null {
 
 export async function computeCountryAllocation(
   etfHoldings: Record<string, { valor_brl: number; components: Array<{ ativo: string; peso: number }> }>,
-  directPositions: Array<{ ticker: string; setor: string; valorAtualBRL: number }>,
+  directPositions: Array<{ ticker: string; setor: string; valorAtualBRL: number; macro?: string; pais?: string }>,
 ): Promise<CountryAllocation[]> {
 
-  const countryAccum: Record<string, { value_brl: number; tickers: Set<string> }> = {};
+  const countryAccum: Record<string, { value_brl: number; rv_brl: number; rf_brl: number; tickers: Set<string> }> = {};
 
-  const addToCountry = (code: string, valueBRL: number, ticker: string) => {
+  // macro "Renda Fixa" soma em rf_brl; qualquer outra coisa (ETFs e ações) em rv_brl.
+  const addToCountry = (code: string, valueBRL: number, ticker: string, macro?: string) => {
     if (valueBRL <= 0 || !COUNTRIES[code]) return;
-    if (!countryAccum[code]) countryAccum[code] = { value_brl: 0, tickers: new Set() };
+    if (!countryAccum[code]) countryAccum[code] = { value_brl: 0, rv_brl: 0, rf_brl: 0, tickers: new Set() };
     countryAccum[code].value_brl += valueBRL;
+    if (macro === "Renda Fixa") countryAccum[code].rf_brl += valueBRL;
+    else countryAccum[code].rv_brl += valueBRL;
     countryAccum[code].tickers.add(ticker);
   };
 
@@ -386,6 +391,7 @@ export async function computeCountryAllocation(
     const etf = etfHoldings[r.etfTicker];
     if (!etf || etf.valor_brl <= 0) continue;
 
+    // ETFs negociados são sempre Renda Variável.
     if (r.type === "single") {
       addToCountry(r.country, etf.valor_brl, r.etfTicker);
     } else if (r.type === "fmp") {
@@ -410,17 +416,23 @@ export async function computeCountryAllocation(
   for (const pos of directPositions) {
     if (pos.valorAtualBRL <= 0) continue;
 
+    // País explícito (ex.: renda fixa manual) tem prioridade.
+    if (pos.pais) {
+      addToCountry(pos.pais, pos.valorAtualBRL, pos.ticker, pos.macro);
+      continue;
+    }
+
     const country = inferCountryFromTicker(pos.ticker);
     if (country) {
-      addToCountry(country, pos.valorAtualBRL, pos.ticker);
-    } else if (pos.ticker.endsWith(".SA") || ["Ações Brasil", "FIIs", "BDRs", "Renda Fixa", "Caixa/Liquidez"].includes(pos.setor)) {
-      addToCountry("BR", pos.valorAtualBRL, pos.ticker);
-    } else if (["Ações Internacional", "ETF USA", "Ações EUA"].includes(pos.setor)) {
-      addToCountry("US", pos.valorAtualBRL, pos.ticker);
+      addToCountry(country, pos.valorAtualBRL, pos.ticker, pos.macro);
+    } else if (pos.ticker.endsWith(".SA") || ["Ações Brasil", "FIIs", "BDRs", "Renda Fixa", "Caixa/Liquidez", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures", "Caixa"].includes(pos.setor)) {
+      addToCountry("BR", pos.valorAtualBRL, pos.ticker, pos.macro);
+    } else if (["Ações Internacional", "ETF USA", "Ações EUA", "Renda Fixa USD"].includes(pos.setor)) {
+      addToCountry("US", pos.valorAtualBRL, pos.ticker, pos.macro);
     } else if (pos.setor === "Cripto") {
       // skip crypto — no country
     } else {
-      addToCountry("US", pos.valorAtualBRL, pos.ticker);
+      addToCountry("US", pos.valorAtualBRL, pos.ticker, pos.macro);
     }
   }
 
@@ -431,6 +443,8 @@ export async function computeCountryAllocation(
     .map(([code, data]) => ({
       country: COUNTRIES[code],
       value_brl: data.value_brl,
+      rv_brl: data.rv_brl,
+      rf_brl: data.rf_brl,
       pct: total > 0 ? (data.value_brl / total) * 100 : 0,
       tickers: [...data.tickers].slice(0, 12),
     }))

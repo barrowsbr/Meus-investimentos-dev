@@ -453,11 +453,43 @@ export async function GET() {
       };
     }
 
+    // ── RF manual (fixa_aberta) com corretora — alimenta custódia e mapa ─────
+    // Inclui Tesouro, CDBs, caixa etc. Lê a coluna de corretora/instituição.
+    const rfPosicoes: Array<{
+      ticker: string; setor: string; macro: string; valor_brl: number;
+      moeda: string; corretora: string; pais: string; is_caixa: boolean;
+    }> = [];
+    for (const row of fixaAberta) {
+      const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+      if (!ticker) continue;
+      const valorRaw = parseFloat(
+        String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", ".")
+      );
+      if (valorRaw <= 0) continue;
+      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      const corretora = String(
+        row["corretora"] ?? row["instituição"] ?? row["instituicao"] ?? row["banco"] ?? row["custódia"] ?? row["custodia"] ?? ""
+      ).trim();
+      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
+      const { sub } = classificarCamadas(ticker, "Renda Fixa");
+      const isCaixa = sub === "Caixa";
+      rfPosicoes.push({
+        ticker, setor: sub, macro: "Renda Fixa", valor_brl: valorBRL, moeda,
+        corretora, pais: moeda === "BRL" ? "BR" : "US", is_caixa: isCaixa,
+      });
+    }
+
     // ── Country allocation (geographic map) ──────────────────────────────────
     const directForGeo = positions
       .filter(p => !["ETF USA", "ETF"].includes(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
-      .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL }));
-    const countryAllocation = await computeCountryAllocation(lookThroughCompositions, directForGeo);
+      .map(p => ({
+        ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL,
+        macro: isRendaVariavel(p.setor) ? "Renda Variável" : "Renda Fixa",
+      }));
+    const rfForGeo = rfPosicoes.map(r => ({
+      ticker: r.ticker, setor: r.setor, valorAtualBRL: r.valor_brl, macro: "Renda Fixa", pais: r.pais,
+    }));
+    const countryAllocation = await computeCountryAllocation(lookThroughCompositions, [...directForGeo, ...rfForGeo]);
 
     return NextResponse.json(
       {
@@ -492,6 +524,7 @@ export async function GET() {
           updated_at: ltResult.updated_at,
         },
         country_allocation: countryAllocation,
+        rf_posicoes: rfPosicoes,
         errors,
       },
       {
