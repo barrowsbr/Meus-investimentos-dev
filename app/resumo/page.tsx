@@ -875,7 +875,7 @@ export default function ResumoPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "custodia" && (
         <div className="space-y-5 animate-fade-in">
-          <CustodiaRisk positions={data.positions} patrimonioBRL={data.totalPatrimonioBRL} />
+          <CustodiaRisk positions={data.positions} patrimonioBRL={data.totalPatrimonioBRL} macroFilter={activeFilter} />
         </div>
       )}
 
@@ -907,7 +907,7 @@ export default function ResumoPage() {
               <div className="glass-card p-5">
                 <h2 className="section-title mb-4"><Target size={15} />Rentabilidade por Ativo</h2>
                 <ResponsiveContainer width="100%" height={chartHeight}>
-                  <BarChart layout="vertical" data={activeItems} barCategoryGap="18%" margin={{ left: 10, right: 50 }}>
+                  <BarChart layout="vertical" data={activeItems} barCategoryGap="18%" margin={{ left: 10, right: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
                     <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                       tickFormatter={v => `${v.toFixed(0)}%`} />
@@ -929,7 +929,29 @@ export default function ResumoPage() {
                         <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.85} />
                       ))}
                     </Bar>
-                    <Bar dataKey="retorno_realizado_proventos_pct" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} name="retorno_realizado_proventos_pct">
+                    <Bar dataKey="retorno_realizado_proventos_pct" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} name="retorno_realizado_proventos_pct"
+                      label={(props: Record<string, unknown>) => {
+                        const { x, y, width, height, index } = props as { x: number; y: number; width: number; height: number; index: number };
+                        const item = activeItems[index];
+                        if (!item) return <text />;
+                        const total = item.retorno_total_pct;
+                        const isRight = total >= 0;
+                        return (
+                          <text
+                            x={isRight ? x + width + 4 : x + width - 4}
+                            y={y + height / 2}
+                            textAnchor={isRight ? "start" : "end"}
+                            dominantBaseline="central"
+                            fill={total >= 0 ? "#34d399" : "#f87171"}
+                            fontSize={10}
+                            fontWeight={600}
+                            fontFamily="ui-monospace, monospace"
+                          >
+                            {total >= 0 ? "+" : ""}{total.toFixed(1)}%
+                          </text>
+                        );
+                      }}
+                    >
                       {activeItems.map((entry, i) => (
                         <Cell key={i} fill={entry.retorno_total_pct >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.3} />
                       ))}
@@ -959,7 +981,7 @@ export default function ResumoPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b" style={{ borderColor: "#1E2028" }}>
-                      {["Ativo", "Setor", "Status", "Valor Atual", "Não Real.", "Real.+Prov.", "Ret %"].map((h, i) => (
+                      {["Ativo", "Setor", "Status", "Valor Atual", "Não Real.", "Real.+Prov.", "Total", "Ret %"].map((h, i) => (
                         <th key={h} className={`px-2 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider ${i > 1 ? "text-right" : "text-left"}`}>
                           {h}
                         </th>
@@ -967,45 +989,56 @@ export default function ResumoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRentabilidade.map((r, i) => (
-                      <tr key={r.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
-                        <td className="px-2 py-2">
-                          <span className="font-semibold text-zinc-200">{r.ticker}</span>
-                          <span className="text-zinc-600 text-[9px] ml-1">{r.moeda}</span>
-                        </td>
-                        <td className="px-2 py-2">
-                          <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#71717a"}15`, color: SECTOR_COLORS[r.setor] || "#71717a" }}>
-                            {r.setor}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 text-right">
-                          <span className={`text-[10px] font-semibold ${r.status === "Ativo" ? "text-emerald-500" : "text-zinc-600"}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 text-right text-zinc-400 font-mono">{compactBRL(r.valor_atual_brl)}</td>
-                        <td className={`px-2 py-2 text-right font-mono ${r.retorno_nao_realizado_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {r.retorno_nao_realizado_pct >= 0 ? "+" : ""}{r.retorno_nao_realizado_pct.toFixed(1)}%
-                        </td>
-                        <td className={`px-2 py-2 text-right font-mono ${r.retorno_realizado_proventos_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {r.retorno_realizado_proventos_pct !== 0 ? `${r.retorno_realizado_proventos_pct >= 0 ? "+" : ""}${r.retorno_realizado_proventos_pct.toFixed(1)}%` : "—"}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${r.retorno_total_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredRentabilidade.map((r, i) => {
+                      const fmtVal = (v: number) => {
+                        if (r.moeda === "USD") return `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`;
+                        return compactBRL(v);
+                      };
+                      return (
+                        <tr key={r.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
+                          <td className="px-2 py-2">
+                            <span className="font-semibold text-zinc-200">{r.ticker}</span>
+                            <span className="text-zinc-600 text-[9px] ml-1">{r.moeda}</span>
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#71717a"}15`, color: SECTOR_COLORS[r.setor] || "#71717a" }}>
+                              {r.setor}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <span className={`text-[10px] font-semibold ${r.status === "Ativo" ? "text-emerald-500" : "text-zinc-600"}`}>
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-right text-zinc-400 font-mono">{fmtVal(r.valor_atual_brl)}</td>
+                          <td className={`px-2 py-2 text-right font-mono ${r.lucro_nao_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {r.lucro_nao_realizado_brl !== 0 ? `${r.lucro_nao_realizado_brl >= 0 ? "+" : ""}${fmtVal(r.lucro_nao_realizado_brl)}` : "—"}
+                          </td>
+                          <td className={`px-2 py-2 text-right font-mono ${(r.lucro_realizado_brl + r.proventos_brl) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {(Math.abs(r.lucro_realizado_brl) + r.proventos_brl) > 0.01 ? `${(r.lucro_realizado_brl + r.proventos_brl) >= 0 ? "+" : ""}${fmtVal(r.lucro_realizado_brl + r.proventos_brl)}` : "—"}
+                          </td>
+                          <td className={`px-2 py-2 text-right font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {r.resultado_total_brl >= 0 ? "+" : ""}{fmtVal(r.resultado_total_brl)}
+                          </td>
+                          <td className={`px-2 py-2 text-right font-bold ${r.retorno_total_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t" style={{ borderColor: "#3f3f46" }}>
                       <td className="px-2 py-2 font-bold text-zinc-200" colSpan={3}>Total</td>
                       <td className="px-2 py-2 text-right font-mono text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.valor_atual_brl, 0))}</td>
-                      <td className="px-2 py-2 text-right text-zinc-500" colSpan={2}>—</td>
+                      <td colSpan={2} className="px-2 py-2 text-right text-zinc-500">—</td>
+                      <td className="px-2 py-2 text-right font-mono font-semibold text-zinc-300">{compactBRL(filteredRentabilidade.reduce((s, r) => s + r.resultado_total_brl, 0))}</td>
                       <td className="px-2 py-2 text-right text-zinc-500">—</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
+              <p className="text-[9px] text-zinc-700 mt-2">Valores em moeda do ativo (USD ativos em dólar, demais em BRL). Retorno % calculado em moeda nativa.</p>
             </div>
           )}
 
@@ -1413,13 +1446,25 @@ export default function ResumoPage() {
 
 // ── Risco por Corretora & Jurisdição ────────────────────────────────────────
 
-function CustodiaRisk({ positions, patrimonioBRL }: {
-  positions: { ticker: string; valorAtualBRL: number; quantidade: number; moeda: string; corretora?: string }[];
+function CustodiaRisk({ positions, patrimonioBRL, macroFilter = "global" }: {
+  positions: { ticker: string; setor: string; valorAtualBRL: number; quantidade: number; moeda: string; corretora?: string }[];
   patrimonioBRL: number;
+  macroFilter?: string;
 }) {
+  const filteredPositions = useMemo(() => {
+    if (macroFilter === "global") return positions;
+    if (macroFilter === "Renda Variável") return positions.filter(p => isRendaVariavel(p.setor));
+    if (macroFilter === "Renda Fixa") return positions.filter(p => !isRendaVariavel(p.setor));
+    return positions;
+  }, [positions, macroFilter]);
+
+  const filteredTotal = useMemo(() =>
+    macroFilter === "global" ? patrimonioBRL : filteredPositions.reduce((s, p) => s + p.valorAtualBRL, 0),
+    [macroFilter, patrimonioBRL, filteredPositions]);
+
   const byCorretora = useMemo(() => {
     const map: Record<string, { valorBRL: number; moedas: Set<string>; tickers: string[]; count: number }> = {};
-    for (const p of positions) {
+    for (const p of filteredPositions) {
       if (p.valorAtualBRL <= 0 || !p.quantidade) continue;
       const corr = (p.corretora || "Não informada").trim();
       if (!map[corr]) map[corr] = { valorBRL: 0, moedas: new Set(), tickers: [], count: 0 };
@@ -1432,14 +1477,14 @@ function CustodiaRisk({ positions, patrimonioBRL }: {
       .map(([nome, info]) => ({
         nome,
         valorBRL: info.valorBRL,
-        pct: patrimonioBRL > 0 ? (info.valorBRL / patrimonioBRL) * 100 : 0,
+        pct: filteredTotal > 0 ? (info.valorBRL / filteredTotal) * 100 : 0,
         moedas: [...info.moedas].join(", "),
         jurisdicao: inferJurisdicao(nome),
         count: info.count,
         topTickers: info.tickers.slice(0, 5),
       }))
       .sort((a, b) => b.valorBRL - a.valorBRL);
-  }, [positions, patrimonioBRL]);
+  }, [filteredPositions, filteredTotal]);
 
   if (byCorretora.length === 0) return null;
 
