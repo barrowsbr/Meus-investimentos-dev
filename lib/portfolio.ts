@@ -38,6 +38,13 @@ export interface Position {
   lucroPct: number | null;
   ganhoAtivoBRL: number | null;
   ganhoCambioBRL: number | null;
+  // ── Decomposição analítica multimoeda (3 fatores) ──────────────────────────
+  // V0/V1 = capital na moeda funcional (USD); P0/P1 = câmbio de aquisição/atual.
+  ganhoAtivoPuroBRL: number | null;   // (V1−V0)·P0  — lucro do ativo ao câmbio de custo
+  ganhoFXPrincipalBRL: number | null; // V0·(P1−P0)  — câmbio sobre o capital aportado
+  ganhoCruzadoBRL: number | null;     // (V1−V0)·(P1−P0) — câmbio sobre o lucro do ativo
+  pmFxAquisicao: number | null;       // P0 efetivo (R$/USD médio de aquisição)
+  fxAtualBRL: number | null;          // P1 (R$/USD atual)
   dayChange: number | null;
   dayChangePct: number | null;
   dayChangeBRL: number | null;
@@ -57,6 +64,9 @@ export interface PortfolioSnapshot {
   lucroPct: number;
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
+  ganhoAtivoPuroTotalBRL: number;
+  ganhoFXPrincipalTotalBRL: number;
+  ganhoCruzadoTotalBRL: number;
   dayChangeTotalBRL: number;
   dayChangeTotalPct: number;
   usdbrl: number;
@@ -255,25 +265,37 @@ export function enriquecerPosicoes(
 
     let ganhoAtivoBRL: number | null = null;
     let ganhoCambioBRL: number | null = null;
-    if (isCrypto && precoAtual !== null) {
-      ganhoAtivoBRL = lucroBRL;
-      ganhoCambioBRL = 0;
-    } else if (precoAtual !== null && moeda !== "BRL" && hasPerLotFx) {
-      // USD asset with per-lot FX: decompose into asset gain vs FX gain using per-lot rates
+    // 3-way analytic decomposition (asset-pure / FX-on-principal / cross-product)
+    let ganhoAtivoPuroBRL: number | null = null;
+    let ganhoFXPrincipalBRL: number | null = null;
+    let ganhoCruzadoBRL: number | null = null;
+    let pmFxAquisicao: number | null = null;
+    let fxAtualBRL: number | null = null;
+
+    if (precoAtual !== null && moeda !== "BRL" && !isCrypto) {
+      // Capital na moeda funcional (V0 custo, V1 atual) e câmbios P0/P1.
+      const V0 = custoTotal;                                   // USD custo
+      const V1 = precoAtual * qtdTotal;                        // USD atual
+      const P0 = custoTotal > 0 ? custoTotalBRL / custoTotal : fatorCusto; // câmbio médio aquisição
       const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
-      const custoNativeBRL = pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0);
-      const valorNativeBRL = (precoAtual * qtdTotal) * fatorQuote;
-      const custoNativeUSD = custoTotal;
-      const valorNativeUSD = precoAtual * qtdTotal;
-      ganhoAtivoBRL = (valorNativeUSD - custoNativeUSD) * fatorAtual;
-      ganhoCambioBRL = valorNativeBRL - custoNativeBRL - ganhoAtivoBRL;
-    } else if (precoAtual !== null && moeda !== "BRL") {
-      const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
-      ganhoAtivoBRL = (precoAtual - custoMedio) * qtdTotal * fatorQuote;
-      ganhoCambioBRL = custoTotal * (fatorAtual - fatorCusto);
+      const P1 = fatorQuote;                                   // câmbio atual
+      pmFxAquisicao = P0;
+      fxAtualBRL = P1;
+      ganhoAtivoPuroBRL = (V1 - V0) * P0;
+      ganhoFXPrincipalBRL = V0 * (P1 - P0);
+      ganhoCruzadoBRL = (V1 - V0) * (P1 - P0);
+      // 2-way (compat): ativo = puro+cruzado (valorizado ao câmbio atual); câmbio = principal
+      ganhoAtivoBRL = ganhoAtivoPuroBRL + ganhoCruzadoBRL;
+      ganhoCambioBRL = ganhoFXPrincipalBRL;
     } else if (precoAtual !== null) {
+      // BRL ou cripto: sem efeito cambial separável
       ganhoAtivoBRL = lucroBRL;
       ganhoCambioBRL = 0;
+      ganhoAtivoPuroBRL = lucroBRL;
+      ganhoFXPrincipalBRL = 0;
+      ganhoCruzadoBRL = 0;
+      pmFxAquisicao = fatorCusto;
+      fxAtualBRL = fatorAtual;
     }
 
     positions.push({
@@ -295,6 +317,11 @@ export function enriquecerPosicoes(
       lucroPct,
       ganhoAtivoBRL,
       ganhoCambioBRL,
+      ganhoAtivoPuroBRL,
+      ganhoFXPrincipalBRL,
+      ganhoCruzadoBRL,
+      pmFxAquisicao,
+      fxAtualBRL,
       dayChange,
       dayChangePct,
       dayChangeBRL,
@@ -389,6 +416,9 @@ export function calcularSnapshot(
 
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
   const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+  const ganhoAtivoPuroTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoPuroBRL ?? 0), 0);
+  const ganhoFXPrincipalTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoFXPrincipalBRL ?? 0), 0);
+  const ganhoCruzadoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCruzadoBRL ?? 0), 0);
 
   const dayChangeTotalBRL = rvPositions.reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
   const dayChangeTotalPct = rvPatrimonioBRL > 0 ? (dayChangeTotalBRL / rvPatrimonioBRL) * 100 : 0;
@@ -418,6 +448,9 @@ export function calcularSnapshot(
     lucroPct,
     ganhoAtivoTotalBRL,
     ganhoCambioTotalBRL,
+    ganhoAtivoPuroTotalBRL,
+    ganhoFXPrincipalTotalBRL,
+    ganhoCruzadoTotalBRL,
     dayChangeTotalBRL,
     dayChangeTotalPct,
     usdbrl: fxAtual.USDBRL,

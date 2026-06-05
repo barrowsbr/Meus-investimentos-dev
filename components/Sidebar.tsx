@@ -20,6 +20,7 @@ import {
   Newspaper,
   ListOrdered,
   Target,
+  GraduationCap,
 } from "lucide-react";
 
 interface NavItem {
@@ -56,6 +57,7 @@ const navGroups: NavGroup[] = [
       { href: "/performance",          label: "Performance",   icon: TrendingUp, mobileShow: true },
       { href: "/evolucao",             label: "Evolução",       icon: Activity },
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
+      { href: "/entendimento",         label: "Entendimento",   icon: GraduationCap },
       { href: "/simulacoes",           label: "Simulações",     icon: Target },
     ],
   },
