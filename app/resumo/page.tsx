@@ -37,6 +37,7 @@ interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor
 interface LookThroughComp { ativo: string; name?: string; peso: number }
 interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
 interface TreeNode { name: string; value: number; pct: number; children?: TreeNode[] }
+interface RfPosicao { ticker: string; setor: string; macro: string; valor_brl: number; moeda: string; corretora: string; pais: string; is_caixa: boolean }
 
 interface ComposicaoData {
   computed_at: string;
@@ -50,6 +51,7 @@ interface ComposicaoData {
   pareto: ParetoItem[];
   look_through: { supported: string[]; unsupported: string[]; compositions: Record<string, LookThroughETF>; total_look_through_brl: number; sources?: Record<string, string>; updated_at?: string };
   country_allocation?: CountryAllocation[];
+  rf_posicoes?: RfPosicao[];
   errors: string[];
 }
 
@@ -112,7 +114,7 @@ export default function ResumoPage() {
   const [activeFilter, setActiveFilter] = useState<string>("global");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
-  const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa">("por-etf");
+  const [lookThroughTab, setLookThroughTab] = useState<"por-etf" | "combinada" | "rv-completa" | "portfolio-completo">("por-etf");
   const [activeTab, setActiveTab] = useState<Tab>("alocacao");
   const [rentStatusFilter, setRentStatusFilter] = useState<"Todos" | "Ativo" | "Vendido">("Todos");
   const [etfRefreshing, setEtfRefreshing] = useState(false);
@@ -177,7 +179,46 @@ export default function ResumoPage() {
     return composicao.risco_retorno.filter(r => r.macro === activeFilter);
   }, [composicao, activeFilter]);
 
-  const countryAllocation = composicao?.country_allocation ?? [];
+  // Mapa reage ao filtro macro: RV usa rv_brl, RF usa rf_brl, global usa o total.
+  const mapAllocation = useMemo(() => {
+    const raw = composicao?.country_allocation ?? [];
+    if (activeFilter === "global") return raw;
+    const pick = (c: CountryAllocation) => activeFilter === "Renda Fixa" ? c.rf_brl : c.rv_brl;
+    const filtered = raw
+      .map(c => ({ ...c, value_brl: pick(c) }))
+      .filter(c => c.value_brl > 0);
+    const total = filtered.reduce((s, c) => s + c.value_brl, 0);
+    return filtered
+      .map(c => ({ ...c, pct: total > 0 ? (c.value_brl / total) * 100 : 0 }))
+      .sort((a, b) => b.value_brl - a.value_brl);
+  }, [composicao, activeFilter]);
+
+  const mapTotal = useMemo(() => {
+    if (!composicao) return 0;
+    if (activeFilter === "Renda Variável") return composicao.resumo.rv_value;
+    if (activeFilter === "Renda Fixa") return composicao.resumo.rf_value;
+    return composicao.resumo.total_portfolio;
+  }, [composicao, activeFilter]);
+
+  // Custódia: junta posições da bolsa (meus_ativos) + RF manual/caixa (fixa_aberta).
+  const custodiaPositions = useMemo(() => {
+    const fromBolsa = (data?.positions ?? [])
+      .filter(p => p.valorAtualBRL > 0)
+      .map(p => ({
+        ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL,
+        quantidade: p.quantidade, moeda: p.moeda, corretora: p.corretora,
+        macro: isRendaVariavel(p.setor) ? "Renda Variável" : "Renda Fixa",
+      }));
+    const fromRF = (composicao?.rf_posicoes ?? []).map(r => ({
+      ticker: r.ticker, setor: r.setor, valorAtualBRL: r.valor_brl,
+      quantidade: 1, moeda: r.moeda, corretora: r.corretora, macro: "Renda Fixa",
+    }));
+    return [...fromBolsa, ...fromRF];
+  }, [data, composicao]);
+
+  const custodiaTotal = useMemo(() =>
+    custodiaPositions.reduce((s, p) => s + p.valorAtualBRL, 0),
+    [custodiaPositions]);
 
   const filteredExposicao = useMemo(() => {
     if (!composicao) return currencyData;
@@ -344,6 +385,29 @@ export default function ResumoPage() {
     : activeFilter === "Renda Variável"
       ? rvPositions
       : data.positions.filter(p => p.valorAtualBRL > 1);
+
+  // RF manual (Tesouro/NTN/CDB/caixa) vive só em fixa_aberta — nunca em
+  // meus_ativos. Entram nas Posições quando o filtro é global ou Renda Fixa.
+  const posicoesRFManual = (() => {
+    if (activeFilter === "Renda Variável") return [];
+    const rent = composicao?.rentabilidade ?? [];
+    const norm = (t: string) => t.trim().toUpperCase().replace(/\s+/g, " ");
+    const rentMap = new Map(
+      rent.filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").map(r => [norm(r.ticker), r])
+    );
+    return (composicao?.rf_posicoes ?? [])
+      .map(r => {
+        const m = rentMap.get(norm(r.ticker));
+        return {
+          ticker: r.ticker, setor: r.setor, moeda: r.moeda, valorBRL: r.valor_brl,
+          proventosBRL: m?.proventos_brl ?? 0,
+          retornoPct: m && m.custo_brl > 0 ? m.retorno_total_pct : null,
+          nrPct: m && m.custo_brl > 0 ? m.retorno_nao_realizado_pct : null,
+        };
+      })
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+  })();
+
   const dayChange = data.dayChangeTotalBRL ?? 0;
   const dayChangePct = data.dayChangeTotalPct ?? 0;
 
@@ -396,7 +460,6 @@ export default function ResumoPage() {
         const rvGanho = rvNaoReal + rvReal;
         const proventosTotal = rent.reduce((s, r) => s + r.proventos_brl, 0);
         const rfGanho = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
-        const resultadoTotal = rvGanho + proventosTotal + rfGanho;
         const items = [
           { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)}` },
           { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos (líq. IR)" },
@@ -410,11 +473,8 @@ export default function ResumoPage() {
         const hasImpostoRF = totalImpostoRF > 0.01;
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3">
               <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Resultado por Fonte</h2>
-              <span className={`text-sm font-bold ${resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                Total {compactBRL(resultadoTotal)}
-              </span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {items.map(item => (
@@ -853,7 +913,7 @@ export default function ResumoPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "custodia" && (
         <div className="space-y-5 animate-fade-in">
-          <CustodiaRisk positions={data.positions} patrimonioBRL={data.totalPatrimonioBRL} macroFilter={activeFilter} />
+          <CustodiaRisk positions={custodiaPositions} patrimonioBRL={custodiaTotal} macroFilter={activeFilter} />
         </div>
       )}
 
@@ -1077,7 +1137,7 @@ export default function ResumoPage() {
           {/* Positions table */}
           <div className="glass-card p-5">
             <h2 className="section-title mb-4"><Briefcase size={15} />Posições{activeFilter !== "global" ? ` — ${activeFilter}` : ""}</h2>
-            {filteredPositions.length > 0 ? (
+            {(filteredPositions.length + posicoesRFManual.length) > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1150,6 +1210,39 @@ export default function ResumoPage() {
                         </tr>
                       );
                     })}
+                    {/* RF manual (Tesouro/NTN/CDB/caixa) — só em fixa_aberta */}
+                    {posicoesRFManual.map((r, i) => (
+                      <tr key={`rf-${r.ticker}-${i}`} className={`border-b hover:bg-white/[0.025] transition-colors ${(filteredPositions.length + i) % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
+                        <td className="px-3 py-2.5">
+                          <span className="font-semibold text-zinc-200">{r.ticker}</span>
+                          <span className="text-zinc-600 text-[10px] ml-1.5">{r.moeda}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#0f766e"}15`, color: SECTOR_COLORS[r.setor] || "#0f766e" }}>
+                            {r.setor}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-zinc-700 font-mono text-xs">—</td>
+                        <td className="px-3 py-2.5 text-right text-zinc-700 text-xs">—</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(r.valorBRL)}</td>
+                        <td className="px-3 py-2.5 text-right text-xs">
+                          {r.proventosBRL > 0 ? (
+                            <span className="text-amber-400 font-mono">{compactBRL(r.proventosBRL)}</span>
+                          ) : (
+                            <span className="text-zinc-700">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {r.retornoPct !== null ? (
+                            <div className={`font-bold text-sm ${r.retornoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {r.retornoPct >= 0 ? "+" : ""}{r.retornoPct.toFixed(1)}%
+                            </div>
+                          ) : (
+                            <div className="text-sm text-zinc-600">—</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1201,11 +1294,14 @@ export default function ResumoPage() {
             </button>
           </div>
 
-          {/* World Map — geographic distribution */}
-          {countryAllocation.length > 0 && (
+          {/* World Map — geographic distribution (reage ao filtro RV/RF) */}
+          {mapAllocation.length > 0 && (
             <div className="glass-card p-4 sm:p-5">
-              <h2 className="section-title mb-3"><Globe size={15} />Distribuição Geográfica</h2>
-              <InvestmentWorldMap data={countryAllocation} totalBRL={composicao?.resumo.total_portfolio ?? 0} />
+              <h2 className="section-title mb-3">
+                <Globe size={15} />Distribuição Geográfica
+                {activeFilter !== "global" && <span className="text-[10px] text-zinc-500 font-normal ml-2">· {activeFilter}</span>}
+              </h2>
+              <InvestmentWorldMap data={mapAllocation} totalBRL={mapTotal} />
             </div>
           )}
 
@@ -1245,6 +1341,24 @@ export default function ResumoPage() {
               .sort((a, b) => b.valorBRL - a.valorBRL);
             const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
 
+            // Portfólio completo: RV (ETFs expandidos) + RF da bolsa (SHV/BIL) +
+            // RF manual (Tesouro, CDBs, caixa). Ranqueia tudo e respeita o filtro.
+            const rfBolsa = data.positions
+              .filter(p => !isRendaVariavel(p.setor) && p.valorAtualBRL > 0)
+              .map(p => ({ ticker: p.ticker, valorBRL: p.valorAtualBRL, via: p.setor, macro: "Renda Fixa" }));
+            const rfManual = (composicao.rf_posicoes ?? []).map(r => ({
+              ticker: r.ticker, valorBRL: r.valor_brl, via: r.is_caixa ? "Caixa" : r.setor, macro: "Renda Fixa",
+            }));
+            const portfolioItems = [
+              ...rvCompleteList.map(c => ({ ticker: c.ticker, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" })),
+              ...rfBolsa,
+              ...rfManual,
+            ];
+            const portfolioCompletoList = portfolioItems
+              .filter(i => activeFilter === "global" || i.macro === activeFilter)
+              .sort((a, b) => b.valorBRL - a.valorBRL);
+            const portfolioCompletoTotal = portfolioCompletoList.reduce((s, c) => s + c.valorBRL, 0);
+
             return (
               <div className="glass-card p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -1264,6 +1378,7 @@ export default function ResumoPage() {
                       ["por-etf", "Por ETF"],
                       ["combinada", "Combinada"],
                       ["rv-completa", "RV Completa"],
+                      ["portfolio-completo", "Portfólio Completo"],
                     ] as const).map(([id, label]) => (
                       <button key={id} onClick={() => setLookThroughTab(id)}
                         className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${lookThroughTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
@@ -1372,6 +1487,60 @@ export default function ResumoPage() {
                   </>
                 )}
 
+                {lookThroughTab === "portfolio-completo" && (
+                  <>
+                    <p className="text-[10px] text-zinc-600 mb-3">
+                      Tudo ranqueado: RV (ETFs expandidos) + renda fixa (ETFs de RF, Tesouro, CDBs) + caixa.
+                      {activeFilter !== "global" && <span className="text-zinc-500"> Filtro: {activeFilter}.</span>}
+                    </p>
+                    {portfolioCompletoList.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-zinc-800">
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">#</th>
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Ativo</th>
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Classe</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Valor</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">%</th>
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider">Via</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {portfolioCompletoList.map((c, i) => {
+                              const isRF = c.macro === "Renda Fixa";
+                              return (
+                                <tr key={`${c.ticker}-${i}`} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                  <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                                  <td className="py-1.5 px-2 font-semibold text-zinc-100">{c.ticker}</td>
+                                  <td className="py-1.5 px-2">
+                                    <span className="tag text-[9px] px-1.5 py-0.5" style={{ backgroundColor: isRF ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: isRF ? "#10b981" : "#3b82f6" }}>
+                                      {isRF ? "RF" : "RV"}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                                  <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                                    {portfolioCompletoTotal > 0 ? ((c.valorBRL / portfolioCompletoTotal) * 100).toFixed(2) : "0"}%
+                                  </td>
+                                  <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-zinc-800 font-semibold">
+                              <td className="py-2 px-2 text-zinc-300" colSpan={3}>Total ({portfolioCompletoList.length})</td>
+                              <td className="py-2 px-2 text-right text-zinc-200 font-mono">{compactBRL(portfolioCompletoTotal)}</td>
+                              <td className="py-2 px-2 text-right text-zinc-500 font-mono">100%</td>
+                              <td />
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : <p className="text-zinc-600 text-sm">Nenhuma posição para o filtro {activeFilter}.</p>}
+                  </>
+                )}
+
                 {lt.unsupported.length > 0 && (
                   <p className="text-[10px] text-zinc-600 mt-3">
                     Sem composição: {lt.unsupported.join(", ")}
@@ -1425,15 +1594,18 @@ export default function ResumoPage() {
 // ── Risco por Corretora & Jurisdição ────────────────────────────────────────
 
 function CustodiaRisk({ positions, patrimonioBRL, macroFilter = "global" }: {
-  positions: { ticker: string; setor: string; valorAtualBRL: number; quantidade: number; moeda: string; corretora?: string }[];
+  positions: { ticker: string; setor: string; valorAtualBRL: number; quantidade: number; moeda: string; corretora?: string; macro?: string }[];
   patrimonioBRL: number;
   macroFilter?: string;
 }) {
+  // Usa o macro explícito quando vem (RF manual/caixa têm subsetor que não está
+  // em RF_SETORES); senão deriva do setor.
+  const macroOf = (p: { setor: string; macro?: string }) =>
+    p.macro ?? (isRendaVariavel(p.setor) ? "Renda Variável" : "Renda Fixa");
+
   const filteredPositions = useMemo(() => {
     if (macroFilter === "global") return positions;
-    if (macroFilter === "Renda Variável") return positions.filter(p => isRendaVariavel(p.setor));
-    if (macroFilter === "Renda Fixa") return positions.filter(p => !isRendaVariavel(p.setor));
-    return positions;
+    return positions.filter(p => macroOf(p) === macroFilter);
   }, [positions, macroFilter]);
 
   const filteredTotal = useMemo(() =>

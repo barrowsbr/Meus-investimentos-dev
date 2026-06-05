@@ -16,7 +16,7 @@ const RENDA_FIXA_USD = new Set(["SHV", "BIL"]);
 
 const ETFS_USA = new Set(["SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT"]);
 
-const RF_TERMS = ["TESOURO", "NTN", "LCI", "LCA", "CDB", "LC", "DEBENTURE", "CASH", "CAIXA"];
+const RF_TERMS = ["TESOURO", "NTN", "NTB", "LFT", "LTN", "LCI", "LCA", "CDB", "LC", "DEBENTURE", "CASH", "CAIXA"];
 
 const UNITS_ACOES = new Set([
   "KLBN11", "SAPR11", "TAEE11", "ALUP11", "SANB11", "BPAC11",
