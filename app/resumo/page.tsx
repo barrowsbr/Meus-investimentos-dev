@@ -32,7 +32,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface Performer { ticker: string; lucro_pct: number; setor: string }
 interface ParetoItem { ticker: string; setor: string; macro: string; valor_brl: number; pct: number; acumulado_pct: number }
-interface RentabilidadeItem { ticker: string; setor: string; macro: string; moeda: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; retorno_nao_realizado_pct: number; retorno_realizado_proventos_pct: number; retorno_total_pct: number }
+interface RentabilidadeItem { ticker: string; setor: string; macro: string; moeda: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; imposto_brl: number; retorno_nao_realizado_pct: number; retorno_realizado_proventos_pct: number; retorno_total_pct: number }
 interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; retorno_acumulado: number }
 interface LookThroughComp { ativo: string; name?: string; peso: number }
 interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
@@ -400,14 +400,14 @@ export default function ResumoPage() {
 
       {/* ── Results breakdown: RV + Proventos + RF (inclui lucro realizado) ── */}
       {composicao && (() => {
-        const rvItems = (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Variável");
+        const rent = composicao.rentabilidade ?? [];
+        const rvItems = rent.filter(r => r.macro === "Renda Variável");
+        const rfItems = rent.filter(r => r.macro === "Renda Fixa");
         const rvNaoReal = rvItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
         const rvReal = rvItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
         const rvGanho = rvNaoReal + rvReal;
-        const proventosTotal = data.totalProventosBRL;
-        const rfGanho = (composicao.rentabilidade ?? [])
-          .filter(r => r.macro === "Renda Fixa")
-          .reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+        const proventosTotal = rent.reduce((s, r) => s + r.proventos_brl, 0);
+        const rfGanho = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
         const resultadoTotal = rvGanho + proventosTotal + rfGanho;
         const items = [
           { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)}` },
@@ -415,9 +415,11 @@ export default function ResumoPage() {
           { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
         ];
         const maxAbs = Math.max(...items.map(i => Math.abs(i.value)), 1);
-        const vendidos = (composicao.rentabilidade ?? [])
+        const vendidos = rent
           .filter(r => r.status === "Vendido")
           .sort((a, b) => b.resultado_total_brl - a.resultado_total_brl);
+        const totalImpostoRF = vendidos.reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
+        const hasImpostoRF = totalImpostoRF > 0.01;
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
             <div className="flex items-center justify-between mb-3">
@@ -453,9 +455,16 @@ export default function ResumoPage() {
                   <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                     Posições encerradas ({vendidos.length})
                   </h3>
-                  <span className="text-[10px] text-zinc-500">
-                    Realizado {compactBRL(vendidos.reduce((s, r) => s + r.resultado_total_brl, 0))}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {hasImpostoRF && (
+                      <span className="text-[10px] text-amber-500/70">
+                        IR RF {compactBRL(totalImpostoRF)}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-zinc-500">
+                      Realizado {compactBRL(vendidos.reduce((s, r) => s + r.resultado_total_brl, 0))}
+                    </span>
+                  </div>
                 </div>
                 <div className="max-h-[180px] overflow-y-auto -mx-1 px-1">
                   <table className="w-full text-[11px]">
@@ -463,6 +472,7 @@ export default function ResumoPage() {
                       <tr className="border-b border-zinc-800/40">
                         <th className="text-left font-medium py-1">Ativo</th>
                         <th className="text-right font-medium py-1">Custo</th>
+                        {hasImpostoRF && <th className="text-right font-medium py-1">IR retido</th>}
                         <th className="text-right font-medium py-1">Resultado</th>
                         <th className="text-right font-medium py-1">Retorno</th>
                       </tr>
@@ -472,6 +482,11 @@ export default function ResumoPage() {
                         <tr key={r.ticker} className="border-b border-zinc-900/40">
                           <td className="text-left py-1 font-mono text-zinc-300">{r.ticker}</td>
                           <td className="text-right py-1 text-zinc-500 font-mono">{compactBRL(r.custo_brl)}</td>
+                          {hasImpostoRF && (
+                            <td className="text-right py-1 text-amber-500/70 font-mono">
+                              {(r.imposto_brl ?? 0) > 0.01 ? `-${compactBRL(r.imposto_brl)}` : "—"}
+                            </td>
+                          )}
                           <td className={`text-right py-1 font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {r.resultado_total_brl >= 0 ? "+" : ""}{compactBRL(r.resultado_total_brl)}
                           </td>
@@ -483,7 +498,7 @@ export default function ResumoPage() {
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[9px] text-zinc-700 mt-1.5">Resultado = lucro realizado na venda + proventos recebidos enquanto teve a posição</p>
+                <p className="text-[9px] text-zinc-700 mt-1.5">Resultado = lucro realizado + proventos{hasImpostoRF ? " − IR retido na fonte (RF)" : ""}</p>
               </div>
             )}
           </div>
