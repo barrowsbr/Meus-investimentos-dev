@@ -17,7 +17,7 @@ import {
   Building2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
+import { brl, compactBRL, pct, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import type { CountryAllocation } from "@/lib/ticker-country";
 import MetricCard from "@/components/MetricCard";
@@ -138,18 +138,6 @@ export default function ResumoPage() {
   const loading = portLoading || compLoading;
 
   // ── Derived from portfolio hook ──────────────────────────────────────────
-  const monthlyDividends = useMemo(() => {
-    if (!data?.proventosMensais) return [];
-    return Object.entries(data.proventosMensais)
-      .sort(([a], [b]) => a.localeCompare(b)).slice(-12)
-      .map(([month, total]) => ({ month: shortMonth(month), total }));
-  }, [data]);
-
-  const avgMonthlyDividend = useMemo(() =>
-    monthlyDividends.length === 0 ? 0
-      : monthlyDividends.reduce((s, m) => s + m.total, 0) / monthlyDividends.length,
-    [monthlyDividends]);
-
   const RF_SECTORS_SET = useMemo(() => new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]), []);
 
   const sectorData = useMemo(() => {
@@ -506,17 +494,7 @@ export default function ResumoPage() {
       })()}
 
       {/* ── Secondary metrics + performers in a unified strip ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-5">
-        <div className="glass-card p-3">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Dólar</p>
-          <p className="text-base sm:text-lg font-bold text-zinc-100">R$ {data.usdbrl.toFixed(2)}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"} · EUR R$ {data.eurbrl.toFixed(2)}</p>
-        </div>
-        <div className="glass-card p-3">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Proventos</p>
-          <p className="text-base sm:text-lg font-bold text-amber-400">{compactBRL(data.totalProventosBRL)}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{rvPositions.length} ativos · Média {compactBRL(avgMonthlyDividend)}/mês</p>
-        </div>
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-5">
         {top && (
           <div className="glass-card p-3 flex items-center gap-2">
             <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
