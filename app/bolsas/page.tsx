@@ -8,7 +8,7 @@ import {
 import {
   ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ZoomIn, ZoomOut, Maximize2,
-  Activity, BarChart3, Maximize, Flame,
+  Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -1410,6 +1410,136 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
   );
 }
 
+// ── Top Constituents (expandable) ─────────────────────────────────────────
+
+interface ConstituentItem {
+  ticker: string;
+  name: string;
+  price: number;
+  changePct: number;
+  currency: string;
+}
+
+function TopConstituents({ symbol, indexName }: { symbol: string; indexName: string }) {
+  const [constituents, setConstituents] = useState<ConstituentItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [available, setAvailable] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+    setFetched(false);
+    setConstituents([]);
+    setAvailable(true);
+  }, [symbol]);
+
+  const handleToggle = useCallback(() => {
+    if (!fetched) {
+      setLoading(true);
+      fetch(`/api/bolsas/constituents?symbol=${encodeURIComponent(symbol)}`)
+        .then(r => r.json())
+        .then(d => {
+          setFetched(true);
+          if (!d.available || !d.constituents?.length) {
+            setAvailable(false);
+          } else {
+            setConstituents(d.constituents);
+            setAvailable(true);
+          }
+        })
+        .catch(() => { setAvailable(false); setFetched(true); })
+        .finally(() => setLoading(false));
+    }
+    setExpanded(e => !e);
+  }, [symbol, fetched]);
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all hover:bg-white/[0.03]"
+        style={{
+          background: expanded ? "rgba(255,255,255,0.03)" : "transparent",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <Crown size={13} className="text-amber-400" />
+        <span className="text-[11px] font-semibold text-zinc-300">
+          Top 20 ações — {indexName}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-zinc-500 ml-auto transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {expanded && (
+        <div
+          className="mt-1 rounded-xl overflow-hidden"
+          style={{
+            background: "rgba(5,7,14,0.5)",
+            border: "1px solid rgba(255,255,255,0.04)",
+          }}
+        >
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-[11px] text-zinc-500 animate-pulse">
+              Carregando ações...
+            </div>
+          ) : !available || constituents.length === 0 ? (
+            <div className="flex items-center justify-center py-6 text-[11px] text-zinc-600">
+              Dados de constituintes não disponíveis
+            </div>
+          ) : (
+            <div className="divide-y divide-zinc-800/30">
+              {constituents.map((c, i) => {
+                const up = c.changePct >= 0;
+                const barW = Math.min(Math.abs(c.changePct) / 5 * 100, 100);
+                return (
+                  <div
+                    key={c.ticker}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                  >
+                    <span className="text-[10px] text-zinc-600 w-5 text-right font-mono">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-zinc-200 truncate">{c.name}</span>
+                        <span className="text-[9px] text-zinc-600 shrink-0">{c.ticker}</span>
+                      </div>
+                      <div className="mt-0.5 h-1 rounded-full overflow-hidden bg-zinc-800/50 max-w-[120px]">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.max(barW, 2)}%`,
+                            background: up
+                              ? "linear-gradient(90deg, rgba(34,197,94,0.3), rgba(34,197,94,0.7))"
+                              : "linear-gradient(90deg, rgba(239,68,68,0.3), rgba(239,68,68,0.7))",
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-zinc-400 shrink-0">
+                      {fmtPrice(c.price)}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0 w-20 justify-end">
+                      {up
+                        ? <TrendingUp size={10} className="text-emerald-400" />
+                        : <TrendingDown size={10} className="text-red-400" />}
+                      <span className={`text-[11px] font-bold font-mono ${up ? "text-emerald-400" : "text-red-400"}`}>
+                        {up ? "+" : ""}{c.changePct.toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Index Thermometer (dynamic — updates when user selects an index) ─────
 
 function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefault, expanded, onToggleExpand }: {
@@ -1512,9 +1642,16 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
                   if (v == null) return null;
                   const up = v >= 0;
                   return (
-                    <div key={p} className="rounded-lg px-2 py-1.5 text-center" style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <p className="text-[9px] text-zinc-600 uppercase">{PERIOD_LABELS[p]}</p>
-                      <p className={`text-xs font-bold font-mono ${up ? "text-emerald-400" : "text-red-400"}`}>
+                    <div
+                      key={p}
+                      className="rounded-lg px-2 py-2 text-center"
+                      style={{
+                        background: up ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                        border: `1px solid ${up ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)"}`,
+                      }}
+                    >
+                      <p className="text-[9px] text-zinc-400 uppercase font-semibold">{PERIOD_LABELS[p]}</p>
+                      <p className={`text-sm font-bold font-mono ${up ? "text-emerald-400" : "text-red-400"}`}>
                         {up ? "+" : ""}{v.toFixed(1)}%
                       </p>
                     </div>
@@ -1553,6 +1690,9 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
 
       {/* Sector Treemap */}
       <SectorTreemap symbol={index.symbol} indexName={index.name} />
+
+      {/* Top Constituents */}
+      <TopConstituents symbol={index.symbol} indexName={index.name} />
     </div>
   );
 }
