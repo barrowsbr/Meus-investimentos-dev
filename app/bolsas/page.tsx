@@ -680,57 +680,324 @@ export default function BolsasPage() {
   );
 }
 
-// ── TradingView Advanced Chart (candlesticks + indicators + drawing) ─────
+// ── Lightweight Charts (candlestick + volume + indicators) ──────────────
 
-function TradingViewChart({ tvSymbol, height = 500 }: { tvSymbol: string; height?: number }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface OhlcPoint {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+type Indicator = "sma20" | "sma50" | "ema20" | "bb" | "vol";
+type TimeRange = "1M" | "3M" | "6M" | "1A" | "2A" | "5A";
+
+const TIME_RANGES: { key: TimeRange; label: string; range: string; interval: string }[] = [
+  { key: "1M", label: "1M", range: "1mo", interval: "1d" },
+  { key: "3M", label: "3M", range: "3mo", interval: "1d" },
+  { key: "6M", label: "6M", range: "6mo", interval: "1d" },
+  { key: "1A", label: "1A", range: "1y", interval: "1d" },
+  { key: "2A", label: "2A", range: "2y", interval: "1wk" },
+  { key: "5A", label: "5A", range: "5y", interval: "1wk" },
+];
+
+const INDICATORS: { key: Indicator; label: string }[] = [
+  { key: "sma20", label: "SMA 20" },
+  { key: "sma50", label: "SMA 50" },
+  { key: "ema20", label: "EMA 20" },
+  { key: "bb", label: "Bollinger" },
+  { key: "vol", label: "Volume" },
+];
+
+function computeSMA(data: OhlcPoint[], period: number): { time: string; value: number }[] {
+  const result: { time: string; value: number }[] = [];
+  for (let i = period - 1; i < data.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j].close;
+    result.push({ time: data[i].time, value: sum / period });
+  }
+  return result;
+}
+
+function computeEMA(data: OhlcPoint[], period: number): { time: string; value: number }[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += data[i].close;
+  let ema = sum / period;
+  const result: { time: string; value: number }[] = [{ time: data[period - 1].time, value: ema }];
+  for (let i = period; i < data.length; i++) {
+    ema = data[i].close * k + ema * (1 - k);
+    result.push({ time: data[i].time, value: ema });
+  }
+  return result;
+}
+
+function computeBollinger(data: OhlcPoint[], period = 20, mult = 2) {
+  const upper: { time: string; value: number }[] = [];
+  const lower: { time: string; value: number }[] = [];
+  for (let i = period - 1; i < data.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j].close;
+    const mean = sum / period;
+    let sqSum = 0;
+    for (let j = i - period + 1; j <= i; j++) sqSum += (data[j].close - mean) ** 2;
+    const std = Math.sqrt(sqSum / period);
+    upper.push({ time: data[i].time, value: mean + mult * std });
+    lower.push({ time: data[i].time, value: mean - mult * std });
+  }
+  return { upper, lower };
+}
+
+function CandlestickChart({ symbol, height }: { symbol: string; height: number }) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
+  const [ohlcData, setOhlcData] = useState<OhlcPoint[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<TimeRange>("1A");
+  const [activeIndicators, setActiveIndicators] = useState<Set<Indicator>>(new Set(["vol"]));
+  const [crosshairData, setCrosshairData] = useState<OhlcPoint | null>(null);
+
+  const toggleIndicator = useCallback((ind: Indicator) => {
+    setActiveIndicators(prev => {
+      const next = new Set(prev);
+      if (next.has(ind)) next.delete(ind); else next.add(ind);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.innerHTML = "";
+    let cancelled = false;
+    setDataLoading(true);
+    const cfg = TIME_RANGES.find(r => r.key === timeRange) ?? TIME_RANGES[3];
+    fetch(`/api/bolsas/ohlc?symbol=${encodeURIComponent(symbol)}&range=${cfg.range}&interval=${cfg.interval}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d.data) setOhlcData(d.data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setDataLoading(false); });
+    return () => { cancelled = true; };
+  }, [symbol, timeRange]);
 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.async = true;
-    script.type = "text/javascript";
-    script.textContent = JSON.stringify({
-      autosize: true,
-      symbol: tvSymbol,
-      interval: "D",
-      timezone: "America/Sao_Paulo",
-      theme: "dark",
-      style: "1",
-      locale: "br",
-      backgroundColor: "rgba(13, 14, 20, 0)",
-      gridColor: "rgba(255, 255, 255, 0.04)",
-      allow_symbol_change: true,
-      calendar: false,
-      support_host: "https://www.tradingview.com",
-      hide_top_toolbar: false,
-      hide_legend: false,
-      save_image: true,
-      hide_volume: false,
-      studies: ["STD;SMA"],
-      withdateranges: true,
+  useEffect(() => {
+    if (!chartContainerRef.current || ohlcData.length === 0) return;
+
+    let disposed = false;
+    let chart: ReturnType<typeof import("lightweight-charts").createChart> | null = null;
+
+    import("lightweight-charts").then((lc) => {
+      if (disposed || !chartContainerRef.current) return;
+
+      chartContainerRef.current.innerHTML = "";
+
+      chart = lc.createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height,
+        layout: {
+          background: { type: lc.ColorType.Solid, color: "transparent" },
+          textColor: "#71717a",
+          fontSize: 11,
+        },
+        grid: {
+          vertLines: { color: "rgba(255,255,255,0.03)" },
+          horzLines: { color: "rgba(255,255,255,0.03)" },
+        },
+        crosshair: {
+          mode: lc.CrosshairMode.Normal,
+          vertLine: { color: "rgba(255,255,255,0.15)", style: lc.LineStyle.Dashed, width: 1, labelBackgroundColor: "#2a2a3e" },
+          horzLine: { color: "rgba(255,255,255,0.15)", style: lc.LineStyle.Dashed, width: 1, labelBackgroundColor: "#2a2a3e" },
+        },
+        rightPriceScale: {
+          borderColor: "rgba(255,255,255,0.06)",
+          scaleMargins: { top: 0.1, bottom: activeIndicators.has("vol") ? 0.25 : 0.05 },
+        },
+        timeScale: {
+          borderColor: "rgba(255,255,255,0.06)",
+          timeVisible: false,
+        },
+        handleScroll: { vertTouchDrag: false },
+      });
+      chartRef.current = chart;
+
+      const candleSeries = chart.addSeries(lc.CandlestickSeries, {
+        upColor: "#22c55e",
+        downColor: "#ef4444",
+        borderDownColor: "#ef4444",
+        borderUpColor: "#22c55e",
+        wickDownColor: "#ef444480",
+        wickUpColor: "#22c55e80",
+      });
+      candleSeries.setData(ohlcData.map(d => ({
+        time: d.time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+      })));
+
+      if (activeIndicators.has("vol")) {
+        const volSeries = chart.addSeries(lc.HistogramSeries, {
+          priceFormat: { type: "volume" },
+          priceScaleId: "vol",
+        });
+        chart.priceScale("vol").applyOptions({
+          scaleMargins: { top: 0.8, bottom: 0 },
+        });
+        volSeries.setData(ohlcData.map(d => ({
+          time: d.time,
+          value: d.volume,
+          color: d.close >= d.open ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)",
+        })));
+      }
+
+      const lineOpts = (color: string, dashed = false) => ({
+        color,
+        lineWidth: 1 as const,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...(dashed ? { lineStyle: lc.LineStyle.Dashed } : {}),
+      });
+
+      if (activeIndicators.has("sma20")) {
+        const s = chart.addSeries(lc.LineSeries, lineOpts("#3b82f6"));
+        s.setData(computeSMA(ohlcData, 20));
+      }
+      if (activeIndicators.has("sma50")) {
+        const s = chart.addSeries(lc.LineSeries, lineOpts("#f59e0b"));
+        s.setData(computeSMA(ohlcData, 50));
+      }
+      if (activeIndicators.has("ema20")) {
+        const s = chart.addSeries(lc.LineSeries, lineOpts("#a855f7"));
+        s.setData(computeEMA(ohlcData, 20));
+      }
+      if (activeIndicators.has("bb")) {
+        const bb = computeBollinger(ohlcData);
+        const upperS = chart.addSeries(lc.LineSeries, lineOpts("rgba(6,182,212,0.5)", true));
+        const lowerS = chart.addSeries(lc.LineSeries, lineOpts("rgba(6,182,212,0.5)", true));
+        upperS.setData(bb.upper);
+        lowerS.setData(bb.lower);
+      }
+
+      chart.subscribeCrosshairMove((param) => {
+        if (!param.time) { setCrosshairData(null); return; }
+        const timeStr = String(param.time);
+        const pt = ohlcData.find(d => d.time === timeStr);
+        setCrosshairData(pt ?? null);
+      });
+
+      chart.timeScale().fitContent();
+
+      const el = chartContainerRef.current;
+      const resizeObserver = new ResizeObserver(entries => {
+        if (chart && entries[0]) {
+          chart.applyOptions({ width: entries[0].contentRect.width });
+        }
+      });
+      resizeObserver.observe(el);
+
+      return () => { resizeObserver.disconnect(); };
     });
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "tradingview-widget-container__widget";
-    wrapper.style.height = `calc(${height}px - 32px)`;
-    wrapper.style.width = "100%";
-    el.appendChild(wrapper);
-    el.appendChild(script);
+    return () => {
+      disposed = true;
+      if (chart) { chart.remove(); chartRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ohlcData, height, activeIndicators]);
 
-    return () => { el.innerHTML = ""; };
-  }, [tvSymbol, height]);
+  const last = ohlcData.length > 0 ? ohlcData[ohlcData.length - 1] : null;
+  const display = crosshairData ?? last;
 
   return (
-    <div
-      ref={containerRef}
-      className="tradingview-widget-container rounded-xl overflow-hidden"
-      style={{ height: `${height}px`, width: "100%" }}
-    />
+    <div>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 flex-wrap border-b border-white/[0.04]">
+        {/* Time ranges */}
+        <div className="flex gap-1">
+          {TIME_RANGES.map(r => (
+            <button
+              key={r.key}
+              onClick={() => setTimeRange(r.key)}
+              className="text-[10px] px-2 py-1 rounded transition-colors"
+              style={{
+                background: timeRange === r.key ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
+                color: timeRange === r.key ? "#3b82f6" : "#71717a",
+                border: `1px solid ${timeRange === r.key ? "rgba(59,130,246,0.3)" : "transparent"}`,
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Indicators */}
+        <div className="flex gap-1 flex-wrap">
+          {INDICATORS.map(ind => {
+            const active = activeIndicators.has(ind.key);
+            const colors: Record<Indicator, string> = {
+              sma20: "#3b82f6", sma50: "#f59e0b", ema20: "#a855f7", bb: "#06b6d4", vol: "#71717a",
+            };
+            const c = colors[ind.key];
+            return (
+              <button
+                key={ind.key}
+                onClick={() => toggleIndicator(ind.key)}
+                className="text-[9px] px-2 py-0.5 rounded-full transition-all"
+                style={{
+                  background: active ? `${c}20` : "rgba(255,255,255,0.03)",
+                  color: active ? c : "#52525b",
+                  border: `1px solid ${active ? `${c}40` : "rgba(255,255,255,0.05)"}`,
+                }}
+              >
+                {ind.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* OHLC values bar */}
+      {display && (
+        <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] border-b border-white/[0.04] flex-wrap">
+          <span className="text-zinc-500">O <span className="text-zinc-300 font-mono">{fmtPrice(display.open)}</span></span>
+          <span className="text-zinc-500">H <span className="text-emerald-400 font-mono">{fmtPrice(display.high)}</span></span>
+          <span className="text-zinc-500">L <span className="text-red-400 font-mono">{fmtPrice(display.low)}</span></span>
+          <span className="text-zinc-500">C <span className={`font-mono font-semibold ${display.close >= display.open ? "text-emerald-400" : "text-red-400"}`}>{fmtPrice(display.close)}</span></span>
+          {display.volume > 0 && (
+            <span className="text-zinc-600">Vol <span className="text-zinc-400 font-mono">
+              {display.volume >= 1e9 ? `${(display.volume / 1e9).toFixed(1)}B` :
+               display.volume >= 1e6 ? `${(display.volume / 1e6).toFixed(1)}M` :
+               display.volume >= 1e3 ? `${(display.volume / 1e3).toFixed(0)}K` :
+               display.volume.toFixed(0)}
+            </span></span>
+          )}
+        </div>
+      )}
+
+      {/* Chart */}
+      {dataLoading ? (
+        <div className="flex items-center justify-center text-[11px] text-zinc-500 animate-pulse" style={{ height }}>
+          Carregando dados...
+        </div>
+      ) : ohlcData.length === 0 ? (
+        <div className="flex items-center justify-center text-[11px] text-zinc-600" style={{ height }}>
+          Dados indisponíveis para este índice
+        </div>
+      ) : (
+        <div ref={chartContainerRef} style={{ height }} />
+      )}
+
+      {/* Legend */}
+      {activeIndicators.size > 0 && (
+        <div className="flex items-center gap-3 px-3 py-1.5 flex-wrap">
+          {activeIndicators.has("sma20") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#3b82f6" }} />SMA 20</span>}
+          {activeIndicators.has("sma50") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#f59e0b" }} />SMA 50</span>}
+          {activeIndicators.has("ema20") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#a855f7" }} />EMA 20</span>}
+          {activeIndicators.has("bb") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#06b6d4" }} />Bollinger</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -854,12 +1121,12 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         </div>
       </div>
 
-      {/* TradingView Chart */}
+      {/* Candlestick Chart */}
       <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
           <span className="text-[10px] text-zinc-500 flex items-center gap-1.5">
             <BarChart3 size={11} />
-            Candlestick &middot; Indicadores &middot; Desenho
+            {index.flag} {index.name}
           </span>
           <button
             onClick={onToggleExpand}
@@ -869,15 +1136,11 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             {expanded ? "Recolher" : "Expandir"}
           </button>
         </div>
-        <TradingViewChart
-          tvSymbol={index.tvSymbol}
-          height={expanded ? 700 : 480}
+        <CandlestickChart
+          symbol={index.symbol}
+          height={expanded ? 600 : 400}
         />
       </div>
-
-      <p className="text-[9px] text-zinc-700 text-center mt-2">
-        Powered by TradingView &middot; Candlesticks, SMA, EMA, RSI, MACD, Bollinger e mais &middot; Use a barra de ferramentas para desenhar
-      </p>
     </div>
   );
 }
