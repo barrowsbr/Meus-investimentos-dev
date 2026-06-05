@@ -1347,11 +1347,20 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
     );
   }
 
+  const [tmExpanded, setTmExpanded] = useState(false);
+
   if (!available || sectors.length === 0) return null;
 
   return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
+    <div className="mt-3">
+      <button
+        onClick={() => setTmExpanded(e => !e)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all hover:bg-white/[0.03]"
+        style={{
+          background: tmExpanded ? "rgba(255,255,255,0.03)" : "transparent",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
         <Flame size={13} className="text-orange-400" />
         <span className="text-[11px] font-semibold text-zinc-300">
           Setores — {indexName}
@@ -1361,75 +1370,87 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
             proxy regional
           </span>
         )}
-        <span className="text-[9px] text-zinc-600 ml-auto">tamanho = peso no índice · cor = variação do dia</span>
-      </div>
-      <div
-        ref={containerRef}
-        className="relative rounded-xl overflow-hidden"
-        style={{ height: treemapH, background: "rgba(5,7,14,0.5)" }}
-      >
-        {rects.map((r, i) => {
-          const color = heatColor(r.changePct);
-          const isSmall = r.w < 60 || r.h < 40;
-          const isTiny = r.w < 40 || r.h < 30;
-          return (
-            <div
-              key={i}
-              className="absolute flex flex-col items-center justify-center text-center transition-all group"
-              style={{
-                left: r.x,
-                top: r.y,
-                width: r.w,
-                height: r.h,
-                background: `${color}20`,
-                border: `1px solid ${color}35`,
-                padding: 2,
-              }}
-              title={`${r.name}: ${r.changePct >= 0 ? "+" : ""}${r.changePct.toFixed(2)}% · ${r.weight}% do índice`}
-            >
-              {!isTiny && (
-                <>
-                  <span
-                    className="font-bold leading-tight truncate w-full"
-                    style={{
-                      fontSize: isSmall ? 9 : r.w > 120 ? 13 : 11,
-                      color,
-                      textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                    }}
-                  >
-                    {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
-                  </span>
-                  <span
-                    className="truncate w-full leading-tight"
-                    style={{
-                      fontSize: isSmall ? 8 : r.w > 120 ? 11 : 9,
-                      color: "rgba(255,255,255,0.7)",
-                    }}
-                  >
-                    {r.name}
-                  </span>
-                  {!isSmall && (
-                    <span className="text-[8px] text-zinc-500 truncate w-full">
-                      {r.weight}% · {r.ticker}
-                    </span>
+        <ChevronDown
+          size={14}
+          className={`text-zinc-500 ml-auto transition-transform duration-200 ${tmExpanded ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {tmExpanded && (
+        <>
+          <div className="flex items-center justify-end px-1 mt-1 mb-1">
+            <span className="text-[9px] text-zinc-600">tamanho = peso no índice · cor = variação do dia</span>
+          </div>
+          <div
+            ref={containerRef}
+            className="relative rounded-xl overflow-hidden"
+            style={{ height: treemapH, background: "rgba(5,7,14,0.6)" }}
+          >
+            {rects.map((r, i) => {
+              const color = heatColor(r.changePct);
+              const isSmall = r.w < 60 || r.h < 40;
+              const isTiny = r.w < 40 || r.h < 30;
+              return (
+                <div
+                  key={i}
+                  className="absolute flex flex-col items-center justify-center text-center transition-all group"
+                  style={{
+                    left: r.x,
+                    top: r.y,
+                    width: r.w,
+                    height: r.h,
+                    background: `${color}38`,
+                    border: `1px solid ${color}55`,
+                    padding: 3,
+                  }}
+                  title={`${r.name}: ${r.changePct >= 0 ? "+" : ""}${r.changePct.toFixed(2)}% · ${r.weight}% do índice`}
+                >
+                  {!isTiny && (
+                    <>
+                      <span
+                        className="font-extrabold leading-tight truncate w-full"
+                        style={{
+                          fontSize: isSmall ? 10 : r.w > 120 ? 15 : 12,
+                          color: "#fff",
+                          textShadow: `0 0 8px ${color}, 0 1px 4px rgba(0,0,0,0.9)`,
+                        }}
+                      >
+                        {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
+                      </span>
+                      <span
+                        className="truncate w-full leading-tight font-semibold"
+                        style={{
+                          fontSize: isSmall ? 8 : r.w > 120 ? 11 : 9,
+                          color: "rgba(255,255,255,0.85)",
+                          textShadow: "0 1px 3px rgba(0,0,0,0.9)",
+                        }}
+                      >
+                        {r.name}
+                      </span>
+                      {!isSmall && (
+                        <span className="text-[8px] truncate w-full" style={{ color: "rgba(255,255,255,0.5)" }}>
+                          {r.weight}% · {r.ticker}
+                        </span>
+                      )}
+                    </>
                   )}
-                </>
-              )}
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center rounded"
-                style={{ background: "rgba(0,0,0,0.85)" }}
-              >
-                <span className="text-[11px] font-bold" style={{ color }}>{r.name}</span>
-                <span className="text-[12px] font-bold" style={{ color }}>
-                  {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
-                </span>
-                <span className="text-[9px] text-zinc-400">{r.weight}% do índice</span>
-                <span className="text-[8px] text-zinc-500">{r.ticker}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center rounded"
+                    style={{ background: "rgba(0,0,0,0.88)" }}
+                  >
+                    <span className="text-[11px] font-bold text-white">{r.name}</span>
+                    <span className="text-[13px] font-extrabold" style={{ color }}>
+                      {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
+                    </span>
+                    <span className="text-[9px] text-zinc-300">{r.weight}% do índice</span>
+                    <span className="text-[8px] text-zinc-400">{r.ticker}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1615,28 +1636,59 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
     return { color: "#fbbf24", bg: "rgba(245,158,11,0.12)" };
   }, [index.changePct]);
 
+  const [ohlcStats, setOhlcStats] = useState<{
+    dayOpen: number; dayHigh: number; dayLow: number;
+    week52High: number; week52Low: number; avgVol: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setOhlcStats(null);
+    fetch(`/api/bolsas/ohlc?symbol=${encodeURIComponent(index.symbol)}&range=1y&interval=1d`)
+      .then(r => r.json())
+      .then(d => {
+        if (!d.data || d.data.length < 2) return;
+        const pts: OhlcPoint[] = d.data;
+        const last = pts[pts.length - 1];
+        let high52 = -Infinity, low52 = Infinity, volSum = 0;
+        for (const p of pts) {
+          if (p.high > high52) high52 = p.high;
+          if (p.low < low52) low52 = p.low;
+          volSum += p.volume;
+        }
+        setOhlcStats({
+          dayOpen: last.open, dayHigh: last.high, dayLow: last.low,
+          week52High: high52, week52Low: low52,
+          avgVol: volSum / pts.length,
+        });
+      })
+      .catch(() => {});
+  }, [index.symbol]);
+
   return (
     <div
-      className="rounded-2xl p-4 md:p-6 transition-all duration-300"
+      className="rounded-2xl p-5 md:p-7 transition-all duration-300 relative overflow-hidden"
       style={{
-        background: "rgba(13,14,20,0.8)",
-        border: `1px solid ${tone.color}25`,
-        boxShadow: `0 8px 32px ${tone.color}08`,
+        background: `linear-gradient(135deg, rgba(13,14,20,0.95) 0%, ${tone.color}08 100%)`,
+        border: `1px solid ${tone.color}30`,
+        boxShadow: `0 4px 40px ${tone.color}12, 0 0 0 1px rgba(255,255,255,0.03) inset`,
       }}
     >
+      {/* Subtle accent bar at top */}
+      <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${tone.color}, transparent)` }} />
+
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
         {isCustom && (
           <button
             onClick={onClearCustom}
             className="text-zinc-500 hover:text-zinc-300 transition-colors"
             title="Voltar ao índice"
           >
-            <ArrowLeft size={14} />
+            <ArrowLeft size={16} />
           </button>
         )}
-        <Activity size={16} style={{ color: tone.color }} />
-        <h2 className="text-sm font-semibold text-zinc-200">
+        <Activity size={18} style={{ color: tone.color }} />
+        <h2 className="text-base md:text-lg font-bold text-zinc-100">
           {isDefault ? "Panorama de Mercado" : isCustom ? (
             <span className="flex items-center gap-2">
               <span>{index.name}</span>
@@ -1658,45 +1710,125 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         {/* Search box */}
         <form onSubmit={handleSearchSubmit} className="ml-auto flex items-center gap-1">
           <div className="relative">
-            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600" />
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600" />
             <input
               type="text"
-              placeholder="Ticker..."
+              placeholder="Buscar ticker..."
               value={tickerSearch}
               onChange={e => setTickerSearch(e.target.value)}
-              className="pl-7 pr-2 py-1 text-[10px] rounded-lg bg-zinc-900/60 border border-zinc-800 text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28"
+              className="pl-7 pr-3 py-1.5 text-[11px] rounded-lg bg-zinc-900/70 border border-zinc-700/50 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-32 md:w-40"
             />
           </div>
           <button
             type="submit"
             disabled={searchLoading || !tickerSearch.trim()}
-            className="text-[9px] px-2 py-1 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-colors disabled:opacity-40"
+            className="text-[10px] px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-40 font-semibold"
           >
             {searchLoading ? "..." : "Ir"}
           </button>
         </form>
       </div>
 
-      {/* Metrics row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-4">
-        {/* Col 1: Index + VIX key metrics */}
-        <div className="lg:col-span-4 flex flex-col justify-center gap-4">
+      {/* Main price + key metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
+        {/* Col 1: Price hero */}
+        <div className="lg:col-span-4 flex flex-col justify-center gap-3">
           <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{index.name}</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-zinc-100">{fmtPrice(index.price)}</span>
-              <span className={`text-sm font-semibold flex items-center gap-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
-                {isUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold"
+                style={{ background: `${tone.color}18`, color: tone.color, border: `1px solid ${tone.color}30` }}
+              >
+                {index.symbol.replace("^", "")}
+              </span>
+              {index.currency && <span className="text-[9px] text-zinc-500">{index.currency}</span>}
+            </div>
+            <div className="flex items-baseline gap-3">
+              <span className="text-4xl font-extrabold text-white tracking-tight">{fmtPrice(index.price)}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`text-base font-bold flex items-center gap-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                {isUp ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                 {isUp ? "+" : ""}{index.changePct.toFixed(2)}%
               </span>
+              <span className={`text-xs ${isUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
+                ({isUp ? "+" : ""}{fmtPrice(Math.abs(index.change))})
+              </span>
             </div>
-            <p className="text-[10px] text-zinc-600 mt-0.5">{index.currency}</p>
           </div>
+
+          {/* Day + 52w stats */}
+          {ohlcStats && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-[8px] text-zinc-500 uppercase">Abertura</p>
+                  <p className="text-[11px] font-bold text-zinc-200 font-mono">{fmtPrice(ohlcStats.dayOpen)}</p>
+                </div>
+                <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-[8px] text-zinc-500 uppercase">Vol. médio</p>
+                  <p className="text-[11px] font-bold text-zinc-200 font-mono">
+                    {ohlcStats.avgVol >= 1e9 ? `${(ohlcStats.avgVol / 1e9).toFixed(1)}B` :
+                     ohlcStats.avgVol >= 1e6 ? `${(ohlcStats.avgVol / 1e6).toFixed(1)}M` :
+                     ohlcStats.avgVol >= 1e3 ? `${(ohlcStats.avgVol / 1e3).toFixed(0)}K` :
+                     ohlcStats.avgVol.toFixed(0)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Day range bar */}
+              <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[8px] text-zinc-500 uppercase">Range do dia</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-red-400 font-mono shrink-0">{fmtPrice(ohlcStats.dayLow)}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-zinc-800 relative">
+                    <div
+                      className="absolute h-full rounded-full"
+                      style={{
+                        left: "0%",
+                        width: ohlcStats.dayHigh > ohlcStats.dayLow
+                          ? `${((index.price - ohlcStats.dayLow) / (ohlcStats.dayHigh - ohlcStats.dayLow)) * 100}%`
+                          : "50%",
+                        background: `linear-gradient(90deg, #ef4444, #fbbf24, #22c55e)`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-emerald-400 font-mono shrink-0">{fmtPrice(ohlcStats.dayHigh)}</span>
+                </div>
+              </div>
+
+              {/* 52-week range bar */}
+              <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[8px] text-zinc-500 uppercase">Range 52 semanas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-red-400 font-mono shrink-0">{fmtPrice(ohlcStats.week52Low)}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-zinc-800 relative">
+                    <div
+                      className="absolute h-full rounded-full"
+                      style={{
+                        left: "0%",
+                        width: ohlcStats.week52High > ohlcStats.week52Low
+                          ? `${((index.price - ohlcStats.week52Low) / (ohlcStats.week52High - ohlcStats.week52Low)) * 100}%`
+                          : "50%",
+                        background: `linear-gradient(90deg, #ef4444, #fbbf24, #22c55e)`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-emerald-400 font-mono shrink-0">{fmtPrice(ohlcStats.week52High)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {vix && isDefault && (
-            <div>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider">VIX (Medo &amp; Ganância)</p>
+            <div className="rounded-lg p-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="text-[8px] text-zinc-500 uppercase mb-1">VIX — Medo &amp; Ganância</p>
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-xl font-bold text-zinc-100">{vix.price.toFixed(2)}</span>
+                <span className="text-lg font-bold text-zinc-100">{vix.price.toFixed(2)}</span>
                 <span className={`text-xs font-semibold ${vix.changePct >= 0 ? "text-red-400" : "text-emerald-400"}`}>
                   {vix.changePct >= 0 ? "+" : ""}{vix.changePct.toFixed(2)}%
                 </span>
@@ -1726,7 +1858,7 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             </div>
           ) : periods ? (
             <>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">{index.name} — Períodos</p>
+              <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2 font-semibold">{index.name} — Rentabilidade</p>
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                 {ALL_PERIODS.map(p => {
                   const v = periods[p];
@@ -1735,14 +1867,14 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
                   return (
                     <div
                       key={p}
-                      className="rounded-lg px-2 py-2 text-center"
+                      className="rounded-lg px-2 py-2.5 text-center"
                       style={{
-                        background: up ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
-                        border: `1px solid ${up ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)"}`,
+                        background: up ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                        border: `1px solid ${up ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
                       }}
                     >
-                      <p className="text-[9px] text-zinc-400 uppercase font-semibold">{PERIOD_LABELS[p]}</p>
-                      <p className={`text-sm font-bold font-mono ${up ? "text-emerald-400" : "text-red-400"}`}>
+                      <p className="text-[9px] text-zinc-300 uppercase font-bold tracking-wide">{PERIOD_LABELS[p]}</p>
+                      <p className={`text-sm font-extrabold font-mono mt-0.5 ${up ? "text-emerald-400" : "text-red-400"}`}>
                         {up ? "+" : ""}{v.toFixed(1)}%
                       </p>
                     </div>
@@ -1753,6 +1885,26 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
           ) : (
             <div className="text-[11px] text-zinc-600 text-center">
               Dados de períodos indisponíveis
+            </div>
+          )}
+
+          {/* Breadth bar for default */}
+          {isDefault && (
+            <div className="mt-3 rounded-lg p-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[8px] text-zinc-500 uppercase font-semibold">Breadth do mercado</span>
+                <span className="text-[9px] text-zinc-400">{breadth.up} em alta · {breadth.down} em queda</span>
+              </div>
+              <div className="flex h-2 rounded-full overflow-hidden bg-zinc-800">
+                <div
+                  className="h-full rounded-l-full"
+                  style={{ width: `${(breadth.up / breadth.total) * 100}%`, background: "linear-gradient(90deg, #22c55e, #4ade80)" }}
+                />
+                <div
+                  className="h-full rounded-r-full"
+                  style={{ width: `${(breadth.down / breadth.total) * 100}%`, background: "linear-gradient(90deg, #f87171, #ef4444)" }}
+                />
+              </div>
             </div>
           )}
         </div>
