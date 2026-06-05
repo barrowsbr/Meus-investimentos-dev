@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   BarChart2,
+  BarChart3,
   Landmark,
   Coins,
   Bitcoin,
@@ -21,6 +22,7 @@ import {
   ListOrdered,
   Target,
   GraduationCap,
+  Globe,
 } from "lucide-react";
 
 interface NavItem {
@@ -72,6 +74,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Mais",
     items: [
+      { href: "/moedas",        label: "Moedas",        icon: Globe },
+      { href: "/bolsas",        label: "Bolsas",        icon: BarChart3 },
       { href: "/noticias",      label: "Notícias",     icon: Newspaper },
       { href: "/polymarket",    label: "Polymarket",   icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
