@@ -1,15 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
+
+const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
 import {
   LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink, X, Target,
+  ExternalLink, Target,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -45,12 +48,14 @@ class ErrorBoundary extends React.Component<
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface NavItem { href: string; label: string; icon: ElementType }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type IconComponent = React.ComponentType<any>;
+interface NavItem { href: string; label: string; icon: IconComponent }
 interface NavGroup {
   id: string;
   label: string;
   desc: string;
-  icon: ElementType;
+  icon: IconComponent;
   accentColor: string;
   items: NavItem[];
 }
@@ -146,137 +151,6 @@ function fmtPrice(price: number, moeda: string): string {
   }
   const decimals = price >= 1000 ? 0 : 2;
   return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
-}
-
-// ── Hologram Panel ──────────────────────────────────────────────────────────
-
-function HologramPanel({ active, onClose }: { active: boolean; onClose: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [exiting, setExiting] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [videos, setVideos] = useState<string[]>([]);
-  const [currentVideo, setCurrentVideo] = useState("/midias/video2.mp4");
-
-  useEffect(() => {
-    fetch("/api/videos")
-      .then(r => r.json())
-      .then(d => {
-        if (Array.isArray(d.videos) && d.videos.length > 0) setVideos(d.videos);
-      })
-      .catch(() => {});
-  }, []);
-
-  const pickRandomVideo = useCallback(() => {
-    if (videos.length <= 1) return;
-    const others = videos.filter(v => v !== currentVideo);
-    const next = others[Math.floor(Math.random() * others.length)];
-    setCurrentVideo(next);
-  }, [videos, currentVideo]);
-
-  useEffect(() => {
-    if (active) {
-      if (videos.length > 1) pickRandomVideo();
-      setVisible(true);
-      setExiting(false);
-      setTimeout(() => videoRef.current?.play().catch(() => {}), 100);
-    } else if (visible) {
-      setExiting(true);
-      const t = setTimeout(() => {
-        setVisible(false);
-        setExiting(false);
-        videoRef.current?.pause();
-        if (videoRef.current) videoRef.current.currentTime = 0;
-      }, 500);
-      return () => clearTimeout(t);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
-
-  const handleVideoEnded = useCallback(() => {
-    if (videos.length > 1) {
-      pickRandomVideo();
-      setTimeout(() => videoRef.current?.play().catch(() => {}), 50);
-    }
-  }, [videos.length, pickRandomVideo]);
-
-  if (!visible) return null;
-
-  return (
-    <div className="flex flex-col items-center w-full">
-      {/* Projection beam from logo */}
-      <div
-        className="w-[2px] h-4 mx-auto rounded-full"
-        style={{
-          background: "linear-gradient(180deg, rgba(0,255,255,0.6), rgba(0,255,255,0.08))",
-          animation: "holoBeam 2s ease-in-out infinite",
-          boxShadow: "0 0 8px rgba(0,255,255,0.3)",
-        }}
-      />
-
-      {/* Holographic panel */}
-      <div
-        className={`relative w-full max-w-sm rounded-lg overflow-hidden holo-scanlines ${exiting ? "holo-panel-exit" : "holo-panel-enter"}`}
-        style={{
-          background: "rgba(0, 20, 30, 0.7)",
-          border: "1px solid rgba(0, 255, 255, 0.25)",
-          boxShadow: "0 0 30px rgba(0, 255, 255, 0.1), 0 0 60px rgba(0, 255, 255, 0.05), inset 0 0 20px rgba(0, 255, 255, 0.03)",
-          animation: exiting
-            ? "holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards, holoFlicker 0.3s linear infinite"
-            : "holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards, holoFlicker 4s ease-in-out infinite",
-        }}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-1.5 right-1.5 z-10 p-1 rounded-full transition-colors hover:bg-cyan-400/20"
-          style={{ background: "rgba(0,255,255,0.08)", border: "1px solid rgba(0,255,255,0.2)" }}
-        >
-          <X size={10} className="text-cyan-400" />
-        </button>
-
-        {/* Hologram label */}
-        <div className="absolute top-1.5 left-2.5 z-10 flex items-center gap-1">
-          <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-[7px] font-extrabold tracking-[1.5px] uppercase text-cyan-400/60">HOLO</span>
-        </div>
-
-        {/* Cyan tint overlay */}
-        <div
-          className="absolute inset-0 z-[1] pointer-events-none"
-          style={{
-            background: "linear-gradient(135deg, rgba(0,255,255,0.05) 0%, transparent 50%, rgba(0,180,255,0.03) 100%)",
-            mixBlendMode: "screen",
-          }}
-        />
-
-        {/* Video */}
-        <video
-          ref={videoRef}
-          src={currentVideo}
-          muted
-          playsInline
-          onEnded={handleVideoEnded}
-          className="w-full aspect-video object-cover relative z-0"
-          style={{ filter: "brightness(0.75) contrast(1.1) saturate(0.65) hue-rotate(10deg)" }}
-        />
-
-        {/* Bottom edge glow */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-6 z-[4] pointer-events-none"
-          style={{ background: "linear-gradient(to top, rgba(0,255,255,0.06), transparent)" }}
-        />
-      </div>
-
-      {/* Ground reflection */}
-      <div
-        className="w-20 h-[3px] mx-auto rounded-full mt-0.5"
-        style={{
-          background: "radial-gradient(ellipse, rgba(0,255,255,0.15), transparent)",
-          filter: "blur(2px)",
-        }}
-      />
-    </div>
-  );
 }
 
 // ── AccordionGroup ───────────────────────────────────────────────────────────
@@ -880,9 +754,9 @@ export default function HomePage() {
             )}
           </button>
 
-          {/* ── Hologram — projected right below logo ── */}
+          {/* ── Holographic Globe — projected right below logo ── */}
           <ErrorBoundary>
-            <HologramPanel active={holoActive} onClose={() => setHoloActive(false)} />
+            <HoloGlobe active={holoActive} onClose={() => setHoloActive(false)} />
           </ErrorBoundary>
 
           <h1
