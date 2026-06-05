@@ -249,6 +249,7 @@ export async function GET() {
       valor_atual_brl: number; custo_brl: number;
       lucro_nao_realizado_brl: number; lucro_realizado_brl: number;
       proventos_brl: number; resultado_total_brl: number;
+      imposto_brl: number;
       retorno_nao_realizado_pct: number;
       retorno_realizado_proventos_pct: number;
       retorno_total_pct: number;
@@ -276,6 +277,7 @@ export async function GET() {
         status: "Ativo", valor_atual_brl: p.valorAtualBRL, custo_brl: p.custoTotalBRL,
         lucro_nao_realizado_brl: lucroNaoRealizadoBRL, lucro_realizado_brl: lucroRealizadoBRL,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        imposto_brl: 0,
         retorno_nao_realizado_pct: retNaoRealizadoPct,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
@@ -303,6 +305,7 @@ export async function GET() {
         status: "Vendido", valor_atual_brl: 0, custo_brl: custoBRL,
         lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizadoBRL,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        imposto_brl: 0,
         retorno_nao_realizado_pct: 0,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retRealizadoProventosPct,
@@ -329,6 +332,7 @@ export async function GET() {
         status: "Ativo", valor_atual_brl: valorBRL, custo_brl: custo,
         lucro_nao_realizado_brl: lucroNaoRealizado, lucro_realizado_brl: 0,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal,
+        imposto_brl: 0,
         retorno_nao_realizado_pct: retNaoRealizadoPct,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
@@ -368,6 +372,7 @@ export async function GET() {
         status: "Vendido", valor_atual_brl: 0, custo_brl: agg.compra * nativeFx,
         lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado * nativeFx,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal * nativeFx,
+        imposto_brl: agg.imposto * nativeFx,
         retorno_nao_realizado_pct: 0,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retRealizadoProventosPct,

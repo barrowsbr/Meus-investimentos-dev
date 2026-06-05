@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Receipt, TrendingUp, AlertCircle, Calendar,
+  Receipt, TrendingUp, AlertCircle, Calendar, RefreshCw,
   Scale, ChevronDown, ChevronUp, Globe, Calculator, FileText,
 } from "lucide-react";
 import {
@@ -342,14 +342,32 @@ export default function ImpostosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(new Date().getFullYear());
+  const [ptaxStatus, setPtaxStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true); setError(null);
-    fetch(year ? `/api/ir?year=${year}` : "/api/ir")
-      .then(r => r.json())
-      .then(d => { if (d.error) throw new Error(d.error); setData(d as IrResponse); })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    async function loadData() {
+      setLoading(true); setError(null);
+      try {
+        const ptaxRes = await fetch("/api/ptax/update", { method: "POST" }).catch(() => null);
+        if (!cancelled && ptaxRes?.ok) {
+          const ptaxJson = await ptaxRes.json().catch(() => null);
+          if (ptaxJson?.newRows > 0) setPtaxStatus(`PTAX atualizado (+${ptaxJson.newRows} dias até ${ptaxJson.latestDate})`);
+        }
+      } catch { /* non-blocking */ }
+      try {
+        const res = await fetch(year ? `/api/ir?year=${year}` : "/api/ir");
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        if (!cancelled) setData(d as IrResponse);
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Erro desconhecido");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
   }, [year]);
 
   const chartData = useMemo(() => {
@@ -380,6 +398,12 @@ export default function ImpostosPage() {
           Prejuízo compensa só dentro da mesma modalidade (swing ≠ day ≠ FII ≠ exterior).
         </div>
       </div>
+
+      {ptaxStatus && (
+        <div className="p-3 mb-4 bg-emerald-500/5 border border-emerald-500/15 rounded-2xl text-xs text-emerald-400 flex items-center gap-2 animate-fade-in">
+          <RefreshCw size={12} /> {ptaxStatus}
+        </div>
+      )}
 
       {loading && <LoadingSpinner />}
       {error && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-sm text-red-400 flex items-center gap-2 mb-4"><AlertCircle size={14} />{error}</div>}
