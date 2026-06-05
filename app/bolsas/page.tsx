@@ -8,7 +8,7 @@ import {
 import {
   ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ZoomIn, ZoomOut, Maximize2,
-  Activity, BarChart3, Maximize,
+  Activity, BarChart3, Maximize, Flame,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -78,7 +78,29 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// ── World Map ──────────────────────────────────────────────────────────────
+// ── Heatmap color helpers ──────────────────────────────────────────────────
+
+function heatColor(pct: number): string {
+  const clamped = Math.max(-4, Math.min(4, pct));
+  const t = (clamped + 4) / 8;
+  if (t < 0.5) {
+    const r = Math.round(239 + (250 - 239) * (t * 2));
+    const g = Math.round(68 + (204 - 68) * (t * 2));
+    const b = Math.round(68 + (21 - 68) * (t * 2));
+    return `rgb(${r},${g},${b})`;
+  }
+  const r = Math.round(250 + (34 - 250) * ((t - 0.5) * 2));
+  const g = Math.round(204 + (197 - 204) * ((t - 0.5) * 2));
+  const b = Math.round(21 + (94 - 21) * ((t - 0.5) * 2));
+  return `rgb(${r},${g},${b})`;
+}
+
+function heatRadius(pct: number, base: number): number {
+  const intensity = Math.min(Math.abs(pct), 5);
+  return base + intensity * 1.2;
+}
+
+// ── Heatmap World Map ─────────────────────────────────────────────────────
 
 const WorldMap = memo(function WorldMap({
   indices,
@@ -101,6 +123,15 @@ const WorldMap = memo(function WorldMap({
   const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 1.5, 8)), []);
   const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
   const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
+
+  const countryHeat = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const idx of indices) {
+      if (idx.symbol === "^VIX") continue;
+      map[idx.country] = idx.changePct;
+    }
+    return map;
+  }, [indices]);
 
   return (
     <div className="relative">
@@ -129,40 +160,61 @@ const WorldMap = memo(function WorldMap({
         width={800}
         height={450}
       >
+        <defs>
+          {indices.filter(i => i.symbol !== "^VIX").map(idx => {
+            const c = heatColor(idx.changePct);
+            return (
+              <radialGradient key={`glow-${idx.symbol}`} id={`glow-${idx.symbol.replace(/[^a-zA-Z0-9]/g, "_")}`}>
+                <stop offset="0%" stopColor={c} stopOpacity="0.6" />
+                <stop offset="50%" stopColor={c} stopOpacity="0.15" />
+                <stop offset="100%" stopColor={c} stopOpacity="0" />
+              </radialGradient>
+            );
+          })}
+        </defs>
         <ZoomableGroup
           zoom={zoom}
           center={center}
           onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
           maxZoom={8}
         >
-          <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.6)" />
+          <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.8)" />
           <Geographies geography={GEO_URL}>
             {({ geographies }) =>
-              geographies.map((geo) => (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill="rgba(255,255,255,0.04)"
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth={0.4}
-                  style={{
-                    default: { outline: "none" },
-                    hover: { fill: "rgba(255,255,255,0.08)", outline: "none" },
-                    pressed: { outline: "none" },
-                  }}
-                />
-              ))
+              geographies.map((geo) => {
+                const geoName: string = geo.properties?.name ?? "";
+                const pct = countryHeat[geoName];
+                const fillColor = pct !== undefined
+                  ? `${heatColor(pct)}18`
+                  : "rgba(255,255,255,0.03)";
+                return (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    fill={fillColor}
+                    stroke="rgba(255,255,255,0.08)"
+                    strokeWidth={0.4}
+                    style={{
+                      default: { outline: "none" },
+                      hover: { fill: pct !== undefined ? `${heatColor(pct)}30` : "rgba(255,255,255,0.06)", outline: "none" },
+                      pressed: { outline: "none" },
+                    }}
+                  />
+                );
+              })
             }
           </Geographies>
 
-          {indices.map((idx) => {
-            const regionColor = REGION_COLORS[idx.region] ?? "#888";
+          {indices.filter(i => i.symbol !== "^VIX").map((idx) => {
             const isHovered = hoveredIndex === idx.symbol;
             const isSelected = selectedIndex?.symbol === idx.symbol;
             const active = isHovered || isSelected;
             const dimmed = selectedRegion ? idx.region !== selectedRegion : false;
-            const changeColor = idx.changePct >= 0 ? "#4ade80" : "#f87171";
-            const markerR = active ? 7 : 4.5;
+            const color = heatColor(idx.changePct);
+            const baseR = heatRadius(idx.changePct, 3.5);
+            const markerR = active ? baseR + 2.5 : baseR;
+            const glowR = markerR * 3.5;
+            const glowId = `glow-${idx.symbol.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
             return (
               <Marker
@@ -172,56 +224,71 @@ const WorldMap = memo(function WorldMap({
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onSelect(isSelected ? null : idx)}
               >
-                <g style={{ opacity: dimmed ? 0.12 : 1, cursor: "pointer" }}>
+                <g style={{ opacity: dimmed ? 0.1 : 1, cursor: "pointer" }}>
+                  <circle r={glowR} fill={`url(#${glowId})`} opacity={active ? 1 : 0.7} />
+
                   {active && (
-                    <>
-                      <circle r={markerR + 8} fill="none" stroke={changeColor} strokeWidth={0.6} opacity={0.3}>
-                        <animate attributeName="r" from={markerR + 4} to={markerR + 14} dur="1.8s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" from="0.4" to="0" dur="1.8s" repeatCount="indefinite" />
-                      </circle>
-                      <circle r={markerR + 4} fill={`${regionColor}15`} stroke={regionColor} strokeWidth={0.4} opacity={0.5} />
-                    </>
+                    <circle r={markerR + 6} fill="none" stroke={color} strokeWidth={0.5} opacity={0.4}>
+                      <animate attributeName="r" from={markerR + 3} to={markerR + 12} dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
+                    </circle>
                   )}
-                  <circle r={markerR} fill="rgba(0,0,0,0.4)" cx={0.5} cy={0.5} />
+
+                  <circle r={markerR + 0.5} fill="rgba(0,0,0,0.5)" cx={0.3} cy={0.3} />
                   <circle
                     r={markerR}
-                    fill={regionColor}
-                    stroke={active ? "#fff" : `${regionColor}80`}
-                    strokeWidth={active ? 1.8 : 0.6}
-                    style={{ filter: active ? `drop-shadow(0 0 6px ${regionColor})` : undefined }}
+                    fill={color}
+                    stroke={active ? "#fff" : `${color}60`}
+                    strokeWidth={active ? 1.5 : 0.5}
+                    style={{ filter: `drop-shadow(0 0 ${active ? 8 : 4}px ${color})` }}
                   />
-                  <circle r={markerR * 0.4} fill={changeColor} opacity={0.9} />
-                  {!dimmed && (
+
+                  <text
+                    y={0}
+                    x={0}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="#fff"
+                    fontSize={markerR > 5 ? 7 : 5.5}
+                    fontWeight={700}
+                    fontFamily="system-ui, -apple-system, sans-serif"
+                    style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)", pointerEvents: "none" }}
+                  >
+                    {idx.changePct >= 0 ? "+" : ""}{idx.changePct.toFixed(1)}
+                  </text>
+
+                  {!dimmed && !active && (
                     <text
-                      y={-markerR - 4}
+                      y={-markerR - 3}
                       textAnchor="middle"
-                      fill={active ? "#fff" : "rgba(255,255,255,0.6)"}
-                      fontSize={active ? 10 : 7}
-                      fontWeight={active ? 700 : 500}
+                      fill="rgba(255,255,255,0.55)"
+                      fontSize={6.5}
+                      fontWeight={500}
                       fontFamily="system-ui, -apple-system, sans-serif"
-                      style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}
+                      style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", pointerEvents: "none" }}
                     >
-                      {idx.name.length > 14 ? idx.symbol.replace("^", "") : idx.name}
+                      {idx.name.length > 12 ? idx.symbol.replace("^", "") : idx.name}
                     </text>
                   )}
+
                   {active && (
                     <g>
                       <rect
-                        x={-72} y={markerR + 6}
-                        width={144} height={42}
-                        rx={6}
-                        fill="rgba(0,0,0,0.92)"
-                        stroke="rgba(255,255,255,0.15)"
-                        strokeWidth={0.5}
-                        style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+                        x={-74} y={markerR + 5}
+                        width={148} height={46}
+                        rx={8}
+                        fill="rgba(0,0,0,0.94)"
+                        stroke={`${color}50`}
+                        strokeWidth={0.8}
+                        style={{ filter: `drop-shadow(0 4px 16px ${color}30)` }}
                       />
-                      <text x={0} y={markerR + 21} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={600} fontFamily="system-ui">
+                      <text x={0} y={markerR + 20} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={600} fontFamily="system-ui">
                         {idx.flag} {idx.name}
                       </text>
-                      <text x={-32} y={markerR + 36} textAnchor="start" fill="#94a3b8" fontSize={9} fontFamily="system-ui">
-                        {fmtPrice(idx.price)}
+                      <text x={-36} y={markerR + 35} textAnchor="start" fill="#94a3b8" fontSize={9} fontFamily="system-ui">
+                        {fmtPrice(idx.price)} {idx.currency}
                       </text>
-                      <text x={32} y={markerR + 36} textAnchor="end" fill={changeColor} fontSize={9} fontWeight={600} fontFamily="system-ui">
+                      <text x={36} y={markerR + 35} textAnchor="end" fill={color} fontSize={9.5} fontWeight={700} fontFamily="system-ui">
                         {idx.changePct >= 0 ? "+" : ""}{idx.changePct.toFixed(2)}%
                       </text>
                     </g>
@@ -417,19 +484,20 @@ export default function BolsasPage() {
           );
         })()}
 
-        {/* ── World Map ── */}
+        {/* ── Heatmap World Map (sticky on desktop) ── */}
         <div
-          className="rounded-2xl p-3 md:p-5 overflow-hidden"
+          className="rounded-2xl p-3 md:p-5 overflow-hidden lg:sticky lg:top-4 z-20"
           style={{
-            background: "rgba(13,14,20,0.8)",
+            background: "rgba(13,14,20,0.92)",
             border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            backdropFilter: "blur(16px)",
           }}
         >
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-              <Globe size={16} className="text-blue-400" />
-              Mapa de Bolsas
+              <Flame size={16} className="text-orange-400" />
+              Mapa de Calor — Bolsas
             </h2>
             <div className="flex gap-1.5 flex-wrap">
               {regions.map(r => (
@@ -451,7 +519,7 @@ export default function BolsasPage() {
             </div>
           </div>
 
-          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)" }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.6)" }}>
             <WorldMap
               indices={data.indices}
               selectedRegion={selectedRegion}
@@ -462,13 +530,17 @@ export default function BolsasPage() {
             />
           </div>
 
-          <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-            {Object.entries(REGION_COLORS).map(([region, color]) => (
-              <div key={region} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}50` }} />
-                <span className="text-[10px] text-zinc-500">{region}</span>
-              </div>
-            ))}
+          {/* Heatmap gradient legend */}
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <span className="text-[9px] text-red-400 font-semibold">-4%</span>
+            <div
+              className="h-2 rounded-full flex-1 max-w-[200px]"
+              style={{
+                background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)",
+              }}
+            />
+            <span className="text-[9px] text-emerald-400 font-semibold">+4%</span>
+            <span className="text-[9px] text-zinc-600 ml-2">tamanho = intensidade</span>
           </div>
         </div>
 
@@ -691,7 +763,7 @@ interface OhlcPoint {
   volume: number;
 }
 
-type Indicator = "sma20" | "sma50" | "ema20" | "bb" | "vol";
+type Indicator = "sma20" | "sma50" | "ema20" | "bb" | "vol" | "macd" | "rsi";
 type TimeRange = "1M" | "3M" | "6M" | "1A" | "2A" | "5A";
 
 const TIME_RANGES: { key: TimeRange; label: string; range: string; interval: string }[] = [
@@ -709,6 +781,8 @@ const INDICATORS: { key: Indicator; label: string }[] = [
   { key: "ema20", label: "EMA 20" },
   { key: "bb", label: "Bollinger" },
   { key: "vol", label: "Volume" },
+  { key: "macd", label: "MACD" },
+  { key: "rsi", label: "RSI" },
 ];
 
 function computeSMA(data: OhlcPoint[], period: number): { time: string; value: number }[] {
@@ -751,6 +825,64 @@ function computeBollinger(data: OhlcPoint[], period = 20, mult = 2) {
   return { upper, lower };
 }
 
+function computeMACD(data: OhlcPoint[], fast = 12, slow = 26, signal = 9) {
+  const emaFast = computeEMA(data, fast);
+  const emaSlow = computeEMA(data, slow);
+  const slowStart = slow - fast;
+  const macdLine: { time: string; value: number }[] = [];
+  for (let i = 0; i < emaFast.length; i++) {
+    if (i < slowStart) continue;
+    const slowVal = emaSlow[i - slowStart];
+    if (!slowVal) continue;
+    macdLine.push({ time: emaFast[i].time, value: emaFast[i].value - slowVal.value });
+  }
+  const signalLine: { time: string; value: number }[] = [];
+  if (macdLine.length >= signal) {
+    const k = 2 / (signal + 1);
+    let ema = 0;
+    for (let i = 0; i < signal; i++) ema += macdLine[i].value;
+    ema /= signal;
+    signalLine.push({ time: macdLine[signal - 1].time, value: ema });
+    for (let i = signal; i < macdLine.length; i++) {
+      ema = macdLine[i].value * k + ema * (1 - k);
+      signalLine.push({ time: macdLine[i].time, value: ema });
+    }
+  }
+  const histogram: { time: string; value: number; color: string }[] = [];
+  const signalStart = macdLine.length - signalLine.length;
+  for (let i = 0; i < signalLine.length; i++) {
+    const diff = macdLine[signalStart + i].value - signalLine[i].value;
+    histogram.push({
+      time: signalLine[i].time,
+      value: diff,
+      color: diff >= 0 ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)",
+    });
+  }
+  return { macdLine: macdLine.slice(signalStart), signalLine, histogram };
+}
+
+function computeRSI(data: OhlcPoint[], period = 14): { time: string; value: number }[] {
+  if (data.length < period + 1) return [];
+  const result: { time: string; value: number }[] = [];
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = data[i].close - data[i - 1].close;
+    if (diff > 0) avgGain += diff; else avgLoss += -diff;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  result.push({ time: data[period].time, value: 100 - 100 / (1 + rs) });
+  for (let i = period + 1; i < data.length; i++) {
+    const diff = data[i].close - data[i - 1].close;
+    avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+    const r = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    result.push({ time: data[i].time, value: 100 - 100 / (1 + r) });
+  }
+  return result;
+}
+
 function CandlestickChart({ symbol, height }: { symbol: string; height: number }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
@@ -759,6 +891,10 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
   const [timeRange, setTimeRange] = useState<TimeRange>("1A");
   const [activeIndicators, setActiveIndicators] = useState<Set<Indicator>>(new Set(["vol"]));
   const [crosshairData, setCrosshairData] = useState<OhlcPoint | null>(null);
+
+  const hasSubPane = activeIndicators.has("macd") || activeIndicators.has("rsi");
+  const subPaneCount = (activeIndicators.has("macd") ? 1 : 0) + (activeIndicators.has("rsi") ? 1 : 0);
+  const totalHeight = height + subPaneCount * 120;
 
   const toggleIndicator = useCallback((ind: Indicator) => {
     setActiveIndicators(prev => {
@@ -793,7 +929,7 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
 
       chart = lc.createChart(chartContainerRef.current, {
         width: chartContainerRef.current.clientWidth,
-        height,
+        height: totalHeight,
         layout: {
           background: { type: lc.ColorType.Solid, color: "transparent" },
           textColor: "#71717a",
@@ -810,7 +946,12 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
         },
         rightPriceScale: {
           borderColor: "rgba(255,255,255,0.06)",
-          scaleMargins: { top: 0.1, bottom: activeIndicators.has("vol") ? 0.25 : 0.05 },
+          scaleMargins: {
+            top: 0.05,
+            bottom: hasSubPane
+              ? 0.02 + subPaneCount * (height > 0 ? (120 / totalHeight) : 0.15)
+              : activeIndicators.has("vol") ? 0.25 : 0.05,
+          },
         },
         timeScale: {
           borderColor: "rgba(255,255,255,0.06)",
@@ -841,8 +982,9 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
           priceFormat: { type: "volume" },
           priceScaleId: "vol",
         });
+        const volBottom = hasSubPane ? 0.02 + subPaneCount * (120 / totalHeight) : 0;
         chart.priceScale("vol").applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
+          scaleMargins: { top: hasSubPane ? 0.6 : 0.8, bottom: volBottom },
         });
         volSeries.setData(ohlcData.map(d => ({
           time: d.time,
@@ -879,6 +1021,83 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
         lowerS.setData(bb.lower);
       }
 
+      let subPaneBottom = 0;
+
+      if (activeIndicators.has("macd")) {
+        const macd = computeMACD(ohlcData);
+        const paneH = 120 / totalHeight;
+        const paneTop = 1 - paneH - subPaneBottom;
+        subPaneBottom += paneH + 0.01;
+
+        const macdHist = chart.addSeries(lc.HistogramSeries, {
+          priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+          priceScaleId: "macd",
+        });
+        chart.priceScale("macd").applyOptions({
+          scaleMargins: { top: paneTop, bottom: subPaneBottom - paneH },
+          borderVisible: false,
+        });
+        macdHist.setData(macd.histogram);
+
+        const macdLine = chart.addSeries(lc.LineSeries, {
+          color: "#3b82f6",
+          lineWidth: 1 as const,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: "macd",
+        });
+        macdLine.setData(macd.macdLine);
+
+        const sigLine = chart.addSeries(lc.LineSeries, {
+          color: "#f59e0b",
+          lineWidth: 1 as const,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: "macd",
+        });
+        sigLine.setData(macd.signalLine);
+      }
+
+      if (activeIndicators.has("rsi")) {
+        const rsi = computeRSI(ohlcData);
+        const paneH = 120 / totalHeight;
+        const paneTop = 1 - paneH - subPaneBottom;
+        subPaneBottom += paneH + 0.01;
+
+        const rsiSeries = chart.addSeries(lc.LineSeries, {
+          color: "#a855f7",
+          lineWidth: 2 as const,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: "rsi",
+        });
+        chart.priceScale("rsi").applyOptions({
+          scaleMargins: { top: paneTop, bottom: subPaneBottom - paneH },
+          borderVisible: false,
+        });
+        rsiSeries.setData(rsi);
+
+        const overbought = chart.addSeries(lc.LineSeries, {
+          color: "rgba(239,68,68,0.3)",
+          lineWidth: 1 as const,
+          lineStyle: lc.LineStyle.Dashed,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: "rsi",
+        });
+        overbought.setData(rsi.map(p => ({ time: p.time, value: 70 })));
+
+        const oversold = chart.addSeries(lc.LineSeries, {
+          color: "rgba(34,197,94,0.3)",
+          lineWidth: 1 as const,
+          lineStyle: lc.LineStyle.Dashed,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: "rsi",
+        });
+        oversold.setData(rsi.map(p => ({ time: p.time, value: 30 })));
+      }
+
       chart.subscribeCrosshairMove((param) => {
         if (!param.time) { setCrosshairData(null); return; }
         const timeStr = String(param.time);
@@ -904,7 +1123,7 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
       if (chart) { chart.remove(); chartRef.current = null; }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ohlcData, height, activeIndicators]);
+  }, [ohlcData, height, totalHeight, activeIndicators]);
 
   const last = ohlcData.length > 0 ? ohlcData[ohlcData.length - 1] : null;
   const display = crosshairData ?? last;
@@ -936,7 +1155,7 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
           {INDICATORS.map(ind => {
             const active = activeIndicators.has(ind.key);
             const colors: Record<Indicator, string> = {
-              sma20: "#3b82f6", sma50: "#f59e0b", ema20: "#a855f7", bb: "#06b6d4", vol: "#71717a",
+              sma20: "#3b82f6", sma50: "#f59e0b", ema20: "#a855f7", bb: "#06b6d4", vol: "#71717a", macd: "#f97316", rsi: "#a855f7",
             };
             const c = colors[ind.key];
             return (
@@ -977,24 +1196,26 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
 
       {/* Chart */}
       {dataLoading ? (
-        <div className="flex items-center justify-center text-[11px] text-zinc-500 animate-pulse" style={{ height }}>
+        <div className="flex items-center justify-center text-[11px] text-zinc-500 animate-pulse" style={{ height: totalHeight }}>
           Carregando dados...
         </div>
       ) : ohlcData.length === 0 ? (
-        <div className="flex items-center justify-center text-[11px] text-zinc-600" style={{ height }}>
+        <div className="flex items-center justify-center text-[11px] text-zinc-600" style={{ height: totalHeight }}>
           Dados indisponíveis para este índice
         </div>
       ) : (
-        <div ref={chartContainerRef} style={{ height }} />
+        <div ref={chartContainerRef} style={{ height: totalHeight }} />
       )}
 
       {/* Legend */}
       {activeIndicators.size > 0 && (
         <div className="flex items-center gap-3 px-3 py-1.5 flex-wrap">
-          {activeIndicators.has("sma20") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#3b82f6" }} />SMA 20</span>}
-          {activeIndicators.has("sma50") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#f59e0b" }} />SMA 50</span>}
-          {activeIndicators.has("ema20") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#a855f7" }} />EMA 20</span>}
-          {activeIndicators.has("bb") && <span className="text-[9px] flex items-center gap-1"><span className="w-3 h-0.5 rounded" style={{ background: "#06b6d4" }} />Bollinger</span>}
+          {activeIndicators.has("sma20") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#3b82f6" }} />SMA 20</span>}
+          {activeIndicators.has("sma50") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#f59e0b" }} />SMA 50</span>}
+          {activeIndicators.has("ema20") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#a855f7" }} />EMA 20</span>}
+          {activeIndicators.has("bb") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#06b6d4" }} />Bollinger</span>}
+          {activeIndicators.has("macd") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#f97316" }} />MACD (12,26,9)</span>}
+          {activeIndicators.has("rsi") && <span className="text-[9px] flex items-center gap-1 text-zinc-400"><span className="w-3 h-0.5 rounded" style={{ background: "#a855f7" }} />RSI 14</span>}
         </div>
       )}
     </div>
