@@ -385,6 +385,29 @@ export default function ResumoPage() {
     : activeFilter === "Renda Variável"
       ? rvPositions
       : data.positions.filter(p => p.valorAtualBRL > 1);
+
+  // RF manual (Tesouro/NTN/CDB/caixa) vive só em fixa_aberta — nunca em
+  // meus_ativos. Entram nas Posições quando o filtro é global ou Renda Fixa.
+  const posicoesRFManual = (() => {
+    if (activeFilter === "Renda Variável") return [];
+    const rent = composicao?.rentabilidade ?? [];
+    const norm = (t: string) => t.trim().toUpperCase().replace(/\s+/g, " ");
+    const rentMap = new Map(
+      rent.filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").map(r => [norm(r.ticker), r])
+    );
+    return (composicao?.rf_posicoes ?? [])
+      .map(r => {
+        const m = rentMap.get(norm(r.ticker));
+        return {
+          ticker: r.ticker, setor: r.setor, moeda: r.moeda, valorBRL: r.valor_brl,
+          proventosBRL: m?.proventos_brl ?? 0,
+          retornoPct: m && m.custo_brl > 0 ? m.retorno_total_pct : null,
+          nrPct: m && m.custo_brl > 0 ? m.retorno_nao_realizado_pct : null,
+        };
+      })
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+  })();
+
   const dayChange = data.dayChangeTotalBRL ?? 0;
   const dayChangePct = data.dayChangeTotalPct ?? 0;
 
@@ -1114,7 +1137,7 @@ export default function ResumoPage() {
           {/* Positions table */}
           <div className="glass-card p-5">
             <h2 className="section-title mb-4"><Briefcase size={15} />Posições{activeFilter !== "global" ? ` — ${activeFilter}` : ""}</h2>
-            {filteredPositions.length > 0 ? (
+            {(filteredPositions.length + posicoesRFManual.length) > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1187,6 +1210,39 @@ export default function ResumoPage() {
                         </tr>
                       );
                     })}
+                    {/* RF manual (Tesouro/NTN/CDB/caixa) — só em fixa_aberta */}
+                    {posicoesRFManual.map((r, i) => (
+                      <tr key={`rf-${r.ticker}-${i}`} className={`border-b hover:bg-white/[0.025] transition-colors ${(filteredPositions.length + i) % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
+                        <td className="px-3 py-2.5">
+                          <span className="font-semibold text-zinc-200">{r.ticker}</span>
+                          <span className="text-zinc-600 text-[10px] ml-1.5">{r.moeda}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[r.setor] || "#0f766e"}15`, color: SECTOR_COLORS[r.setor] || "#0f766e" }}>
+                            {r.setor}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-zinc-700 font-mono text-xs">—</td>
+                        <td className="px-3 py-2.5 text-right text-zinc-700 text-xs">—</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(r.valorBRL)}</td>
+                        <td className="px-3 py-2.5 text-right text-xs">
+                          {r.proventosBRL > 0 ? (
+                            <span className="text-amber-400 font-mono">{compactBRL(r.proventosBRL)}</span>
+                          ) : (
+                            <span className="text-zinc-700">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {r.retornoPct !== null ? (
+                            <div className={`font-bold text-sm ${r.retornoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {r.retornoPct >= 0 ? "+" : ""}{r.retornoPct.toFixed(1)}%
+                            </div>
+                          ) : (
+                            <div className="text-sm text-zinc-600">—</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
