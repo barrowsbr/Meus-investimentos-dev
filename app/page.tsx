@@ -5,7 +5,7 @@ import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
+  LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
@@ -125,6 +125,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/noticias",       label: "Notícias",       icon: Newspaper },
       { href: "/polymarket",     label: "Polymarket",     icon: BarChart2 },
       { href: "/moedas",         label: "Moedas",         icon: Globe },
+      { href: "/bolsas",         label: "Bolsas",         icon: BarChart3 },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
       { href: "/configuracoes",  label: "Configurações",  icon: Settings },
     ],
