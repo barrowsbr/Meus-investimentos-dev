@@ -28,7 +28,8 @@ import {
 interface NavItem {
   href: string;
   label: string;
-  icon: ElementType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: React.ComponentType<any>;
   mobileShow?: boolean;
 }
 
