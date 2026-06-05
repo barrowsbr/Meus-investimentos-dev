@@ -6,6 +6,7 @@ export const maxDuration = 25;
 
 interface IndexMeta {
   symbol: string;
+  tvSymbol: string;
   name: string;
   country: string;
   flag: string;
@@ -23,61 +24,61 @@ interface IndexData extends IndexMeta {
 
 const INDICES: IndexMeta[] = [
   // Americas
-  { symbol: "^GSPC",    name: "S&P 500",                country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -74.0 },
-  { symbol: "^DJI",     name: "Dow Jones",               country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -73.2 },
-  { symbol: "^IXIC",    name: "NASDAQ Composite",        country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -74.8 },
-  { symbol: "^RUT",     name: "Russell 2000",            country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 38.9,  lng: -77.0 },
-  { symbol: "^VIX",     name: "VIX (Volatilidade)",      country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 41.9,  lng: -87.6 },
-  { symbol: "^BVSP",    name: "Ibovespa",                country: "Brasil",        flag: "\u{1f1e7}\u{1f1f7}", region: "Americas",    lat: -23.5, lng: -46.6 },
-  { symbol: "^GSPTSE",  name: "S&P/TSX Composite",       country: "Canadá",   flag: "\u{1f1e8}\u{1f1e6}", region: "Americas",    lat: 43.7,  lng: -79.4 },
-  { symbol: "^MXX",     name: "IPC México",         country: "México",   flag: "\u{1f1f2}\u{1f1fd}", region: "Americas",    lat: 19.4,  lng: -99.1 },
-  { symbol: "^MERV",    name: "MERVAL",                  country: "Argentina",     flag: "\u{1f1e6}\u{1f1f7}", region: "Americas",    lat: -34.6, lng: -58.4 },
-  { symbol: "^IPSA",    name: "S&P CLX IPSA",            country: "Chile",         flag: "\u{1f1e8}\u{1f1f1}", region: "Americas",    lat: -33.4, lng: -70.6 },
+  { symbol: "^GSPC",    tvSymbol: "SP:SPX",              name: "S&P 500",                country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -74.0 },
+  { symbol: "^DJI",     tvSymbol: "DJ:DJI",              name: "Dow Jones",               country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -73.2 },
+  { symbol: "^IXIC",    tvSymbol: "NASDAQ:IXIC",         name: "NASDAQ Composite",        country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 40.7,  lng: -74.8 },
+  { symbol: "^RUT",     tvSymbol: "TVC:RUT",             name: "Russell 2000",            country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 38.9,  lng: -77.0 },
+  { symbol: "^VIX",     tvSymbol: "TVC:VIX",             name: "VIX (Volatilidade)",      country: "EUA",           flag: "\u{1f1fa}\u{1f1f8}", region: "Americas",    lat: 41.9,  lng: -87.6 },
+  { symbol: "^BVSP",    tvSymbol: "BMFBOVESPA:IBOV",     name: "Ibovespa",                country: "Brasil",        flag: "\u{1f1e7}\u{1f1f7}", region: "Americas",    lat: -23.5, lng: -46.6 },
+  { symbol: "^GSPTSE",  tvSymbol: "TSX:TSX",             name: "S&P/TSX Composite",       country: "Canadá",   flag: "\u{1f1e8}\u{1f1e6}", region: "Americas",    lat: 43.7,  lng: -79.4 },
+  { symbol: "^MXX",     tvSymbol: "BMV:ME",              name: "IPC México",         country: "México",   flag: "\u{1f1f2}\u{1f1fd}", region: "Americas",    lat: 19.4,  lng: -99.1 },
+  { symbol: "^MERV",    tvSymbol: "BCBA:IMV",            name: "MERVAL",                  country: "Argentina",     flag: "\u{1f1e6}\u{1f1f7}", region: "Americas",    lat: -34.6, lng: -58.4 },
+  { symbol: "^IPSA",    tvSymbol: "BCS:IPSA",            name: "S&P CLX IPSA",            country: "Chile",         flag: "\u{1f1e8}\u{1f1f1}", region: "Americas",    lat: -33.4, lng: -70.6 },
 
   // Europe
-  { symbol: "^STOXX50E", name: "Euro Stoxx 50",          country: "Europa",        flag: "\u{1f1ea}\u{1f1fa}", region: "Europe",      lat: 50.1,  lng: 8.7 },
-  { symbol: "^FTSE",     name: "FTSE 100",               country: "Reino Unido",   flag: "\u{1f1ec}\u{1f1e7}", region: "Europe",      lat: 51.5,  lng: -0.1 },
-  { symbol: "^GDAXI",    name: "DAX",                    country: "Alemanha",      flag: "\u{1f1e9}\u{1f1ea}", region: "Europe",      lat: 50.1,  lng: 8.7 },
-  { symbol: "^FCHI",     name: "CAC 40",                 country: "França",   flag: "\u{1f1eb}\u{1f1f7}", region: "Europe",      lat: 48.9,  lng: 2.3 },
-  { symbol: "^IBEX",     name: "IBEX 35",                country: "Espanha",       flag: "\u{1f1ea}\u{1f1f8}", region: "Europe",      lat: 40.4,  lng: -3.7 },
-  { symbol: "FTSEMIB.MI", name: "FTSE MIB",              country: "Itália",   flag: "\u{1f1ee}\u{1f1f9}", region: "Europe",      lat: 45.5,  lng: 9.2 },
-  { symbol: "^SSMI",     name: "SMI",                    country: "Suíça", flag: "\u{1f1e8}\u{1f1ed}", region: "Europe",    lat: 47.4,  lng: 8.5 },
-  { symbol: "^AEX",      name: "AEX",                    country: "Holanda",       flag: "\u{1f1f3}\u{1f1f1}", region: "Europe",      lat: 52.4,  lng: 4.9 },
-  { symbol: "^OMXS30",   name: "OMX Stockholm 30",       country: "Suécia",   flag: "\u{1f1f8}\u{1f1ea}", region: "Europe",      lat: 59.3,  lng: 18.1 },
-  { symbol: "^OMXC25",   name: "OMX Copenhagen 25",      country: "Dinamarca",     flag: "\u{1f1e9}\u{1f1f0}", region: "Europe",      lat: 55.7,  lng: 12.6 },
-  { symbol: "^OMXHPI",   name: "OMX Helsinki",           country: "Finlândia", flag: "\u{1f1eb}\u{1f1ee}", region: "Europe",     lat: 60.2,  lng: 24.9 },
-  { symbol: "^OSEAX",    name: "Oslo All Share",          country: "Noruega",       flag: "\u{1f1f3}\u{1f1f4}", region: "Europe",      lat: 59.9,  lng: 10.8 },
-  { symbol: "^ATX",      name: "ATX",                    country: "Áustria",  flag: "\u{1f1e6}\u{1f1f9}", region: "Europe",      lat: 48.2,  lng: 16.4 },
-  { symbol: "^BFX",      name: "BEL 20",                 country: "Bélgica",  flag: "\u{1f1e7}\u{1f1ea}", region: "Europe",      lat: 50.8,  lng: 4.4 },
-  { symbol: "PSI20.LS",  name: "PSI 20",                 country: "Portugal",      flag: "\u{1f1f5}\u{1f1f9}", region: "Europe",      lat: 38.7,  lng: -9.1 },
-  { symbol: "^WIG20",    name: "WIG 20",                 country: "Polônia",  flag: "\u{1f1f5}\u{1f1f1}", region: "Europe",      lat: 52.2,  lng: 21.0 },
-  { symbol: "XU100.IS",  name: "BIST 100",               country: "Turquia",       flag: "\u{1f1f9}\u{1f1f7}", region: "Europe",      lat: 41.0,  lng: 29.0 },
-  { symbol: "IMOEX.ME",  name: "MOEX Russia",            country: "Rússia",   flag: "\u{1f1f7}\u{1f1fa}", region: "Europe",      lat: 55.8,  lng: 37.6 },
+  { symbol: "^STOXX50E", tvSymbol: "TVC:SX5E",           name: "Euro Stoxx 50",          country: "Europa",        flag: "\u{1f1ea}\u{1f1fa}", region: "Europe",      lat: 50.1,  lng: 8.7 },
+  { symbol: "^FTSE",     tvSymbol: "TVC:UKX",            name: "FTSE 100",               country: "Reino Unido",   flag: "\u{1f1ec}\u{1f1e7}", region: "Europe",      lat: 51.5,  lng: -0.1 },
+  { symbol: "^GDAXI",    tvSymbol: "XETR:DAX",           name: "DAX",                    country: "Alemanha",      flag: "\u{1f1e9}\u{1f1ea}", region: "Europe",      lat: 50.1,  lng: 8.7 },
+  { symbol: "^FCHI",     tvSymbol: "TVC:CAC40",          name: "CAC 40",                 country: "França",   flag: "\u{1f1eb}\u{1f1f7}", region: "Europe",      lat: 48.9,  lng: 2.3 },
+  { symbol: "^IBEX",     tvSymbol: "TVC:IBEX35",         name: "IBEX 35",                country: "Espanha",       flag: "\u{1f1ea}\u{1f1f8}", region: "Europe",      lat: 40.4,  lng: -3.7 },
+  { symbol: "FTSEMIB.MI", tvSymbol: "MIL:FTSEMIB",       name: "FTSE MIB",              country: "Itália",   flag: "\u{1f1ee}\u{1f1f9}", region: "Europe",      lat: 45.5,  lng: 9.2 },
+  { symbol: "^SSMI",     tvSymbol: "TVC:SMI",            name: "SMI",                    country: "Suíça", flag: "\u{1f1e8}\u{1f1ed}", region: "Europe",    lat: 47.4,  lng: 8.5 },
+  { symbol: "^AEX",      tvSymbol: "TVC:AEX",            name: "AEX",                    country: "Holanda",       flag: "\u{1f1f3}\u{1f1f1}", region: "Europe",      lat: 52.4,  lng: 4.9 },
+  { symbol: "^OMXS30",   tvSymbol: "OMXSTO:OMXS30",      name: "OMX Stockholm 30",       country: "Suécia",   flag: "\u{1f1f8}\u{1f1ea}", region: "Europe",      lat: 59.3,  lng: 18.1 },
+  { symbol: "^OMXC25",   tvSymbol: "OMXCOP:OMXC25",      name: "OMX Copenhagen 25",      country: "Dinamarca",     flag: "\u{1f1e9}\u{1f1f0}", region: "Europe",      lat: 55.7,  lng: 12.6 },
+  { symbol: "^OMXHPI",   tvSymbol: "OMXHEX:OMXHPI",      name: "OMX Helsinki",           country: "Finlândia", flag: "\u{1f1eb}\u{1f1ee}", region: "Europe",     lat: 60.2,  lng: 24.9 },
+  { symbol: "^OSEAX",    tvSymbol: "OSL:OSEAX",           name: "Oslo All Share",          country: "Noruega",       flag: "\u{1f1f3}\u{1f1f4}", region: "Europe",      lat: 59.9,  lng: 10.8 },
+  { symbol: "^ATX",      tvSymbol: "TVC:ATX",             name: "ATX",                    country: "Áustria",  flag: "\u{1f1e6}\u{1f1f9}", region: "Europe",      lat: 48.2,  lng: 16.4 },
+  { symbol: "^BFX",      tvSymbol: "TVC:BFX",             name: "BEL 20",                 country: "Bélgica",  flag: "\u{1f1e7}\u{1f1ea}", region: "Europe",      lat: 50.8,  lng: 4.4 },
+  { symbol: "PSI20.LS",  tvSymbol: "EURONEXT:PSI20",      name: "PSI 20",                 country: "Portugal",      flag: "\u{1f1f5}\u{1f1f9}", region: "Europe",      lat: 38.7,  lng: -9.1 },
+  { symbol: "^WIG20",    tvSymbol: "GPW:WIG20",           name: "WIG 20",                 country: "Polônia",  flag: "\u{1f1f5}\u{1f1f1}", region: "Europe",      lat: 52.2,  lng: 21.0 },
+  { symbol: "XU100.IS",  tvSymbol: "BIST:XU100",          name: "BIST 100",               country: "Turquia",       flag: "\u{1f1f9}\u{1f1f7}", region: "Europe",      lat: 41.0,  lng: 29.0 },
+  { symbol: "IMOEX.ME",  tvSymbol: "MOEX:IMOEX",          name: "MOEX Russia",            country: "Rússia",   flag: "\u{1f1f7}\u{1f1fa}", region: "Europe",      lat: 55.8,  lng: 37.6 },
 
   // Asia
-  { symbol: "^N225",     name: "Nikkei 225",             country: "Japão",    flag: "\u{1f1ef}\u{1f1f5}", region: "Asia",        lat: 35.7,  lng: 139.7 },
-  { symbol: "^HSI",      name: "Hang Seng",              country: "Hong Kong",     flag: "\u{1f1ed}\u{1f1f0}", region: "Asia",        lat: 22.3,  lng: 114.2 },
-  { symbol: "000001.SS", name: "Shanghai Composite",     country: "China",         flag: "\u{1f1e8}\u{1f1f3}", region: "Asia",        lat: 31.2,  lng: 121.5 },
-  { symbol: "399001.SZ", name: "Shenzhen Component",     country: "China",         flag: "\u{1f1e8}\u{1f1f3}", region: "Asia",        lat: 22.5,  lng: 114.1 },
-  { symbol: "^KS11",     name: "KOSPI",                  country: "Coreia do Sul", flag: "\u{1f1f0}\u{1f1f7}", region: "Asia",        lat: 37.6,  lng: 127.0 },
-  { symbol: "^TWII",     name: "TAIEX",                  country: "Taiwan",        flag: "\u{1f1f9}\u{1f1fc}", region: "Asia",        lat: 25.0,  lng: 121.5 },
-  { symbol: "^BSESN",    name: "BSE Sensex",             country: "Índia",    flag: "\u{1f1ee}\u{1f1f3}", region: "Asia",        lat: 19.1,  lng: 72.9 },
-  { symbol: "^NSEI",     name: "Nifty 50",               country: "Índia",    flag: "\u{1f1ee}\u{1f1f3}", region: "Asia",        lat: 19.1,  lng: 73.7 },
-  { symbol: "^STI",      name: "Straits Times",          country: "Singapura",     flag: "\u{1f1f8}\u{1f1ec}", region: "Asia",        lat: 1.3,   lng: 103.8 },
-  { symbol: "^JKSE",     name: "Jakarta Composite",      country: "Indonésia", flag: "\u{1f1ee}\u{1f1e9}", region: "Asia",       lat: -6.2,  lng: 106.8 },
-  { symbol: "^KLSE",     name: "KLCI",                   country: "Malásia",  flag: "\u{1f1f2}\u{1f1fe}", region: "Asia",        lat: 3.1,   lng: 101.7 },
-  { symbol: "^SET.BK",   name: "SET (Tailândia)",   country: "Tailândia", flag: "\u{1f1f9}\u{1f1ed}", region: "Asia",       lat: 13.8,  lng: 100.5 },
-  { symbol: "^NZ50",     name: "NZX 50",                 country: "Nova Zelândia", flag: "\u{1f1f3}\u{1f1ff}", region: "Oceania",  lat: -36.8, lng: 174.8 },
+  { symbol: "^N225",     tvSymbol: "TVC:NI225",           name: "Nikkei 225",             country: "Japão",    flag: "\u{1f1ef}\u{1f1f5}", region: "Asia",        lat: 35.7,  lng: 139.7 },
+  { symbol: "^HSI",      tvSymbol: "TVC:HSI",             name: "Hang Seng",              country: "Hong Kong",     flag: "\u{1f1ed}\u{1f1f0}", region: "Asia",        lat: 22.3,  lng: 114.2 },
+  { symbol: "000001.SS", tvSymbol: "SSE:000001",          name: "Shanghai Composite",     country: "China",         flag: "\u{1f1e8}\u{1f1f3}", region: "Asia",        lat: 31.2,  lng: 121.5 },
+  { symbol: "399001.SZ", tvSymbol: "SZSE:399001",         name: "Shenzhen Component",     country: "China",         flag: "\u{1f1e8}\u{1f1f3}", region: "Asia",        lat: 22.5,  lng: 114.1 },
+  { symbol: "^KS11",     tvSymbol: "KRX:KOSPI",           name: "KOSPI",                  country: "Coreia do Sul", flag: "\u{1f1f0}\u{1f1f7}", region: "Asia",        lat: 37.6,  lng: 127.0 },
+  { symbol: "^TWII",     tvSymbol: "TWSE:TAIEX",          name: "TAIEX",                  country: "Taiwan",        flag: "\u{1f1f9}\u{1f1fc}", region: "Asia",        lat: 25.0,  lng: 121.5 },
+  { symbol: "^BSESN",    tvSymbol: "BSE:SENSEX",          name: "BSE Sensex",             country: "Índia",    flag: "\u{1f1ee}\u{1f1f3}", region: "Asia",        lat: 19.1,  lng: 72.9 },
+  { symbol: "^NSEI",     tvSymbol: "NSE:NIFTY",           name: "Nifty 50",               country: "Índia",    flag: "\u{1f1ee}\u{1f1f3}", region: "Asia",        lat: 19.1,  lng: 73.7 },
+  { symbol: "^STI",      tvSymbol: "TVC:STI",             name: "Straits Times",          country: "Singapura",     flag: "\u{1f1f8}\u{1f1ec}", region: "Asia",        lat: 1.3,   lng: 103.8 },
+  { symbol: "^JKSE",     tvSymbol: "IDX:COMPOSITE",       name: "Jakarta Composite",      country: "Indonésia", flag: "\u{1f1ee}\u{1f1e9}", region: "Asia",       lat: -6.2,  lng: 106.8 },
+  { symbol: "^KLSE",     tvSymbol: "MYX:FBMKLCI",         name: "KLCI",                   country: "Malásia",  flag: "\u{1f1f2}\u{1f1fe}", region: "Asia",        lat: 3.1,   lng: 101.7 },
+  { symbol: "^SET.BK",   tvSymbol: "SET:SET",             name: "SET (Tailândia)",   country: "Tailândia", flag: "\u{1f1f9}\u{1f1ed}", region: "Asia",       lat: 13.8,  lng: 100.5 },
+  { symbol: "^NZ50",     tvSymbol: "NZX:NZ50G",           name: "NZX 50",                 country: "Nova Zelândia", flag: "\u{1f1f3}\u{1f1ff}", region: "Oceania",  lat: -36.8, lng: 174.8 },
 
   // Middle East
-  { symbol: "^TA125.TA", name: "TA-125",                 country: "Israel",        flag: "\u{1f1ee}\u{1f1f1}", region: "Middle East", lat: 32.1,  lng: 34.8 },
+  { symbol: "^TA125.TA", tvSymbol: "TASE:TA125",          name: "TA-125",                 country: "Israel",        flag: "\u{1f1ee}\u{1f1f1}", region: "Middle East", lat: 32.1,  lng: 34.8 },
 
   // Africa
-  { symbol: "^J203.JO",  name: "JSE All Share",          country: "África do Sul", flag: "\u{1f1ff}\u{1f1e6}", region: "Africa",  lat: -26.2, lng: 28.0 },
-  { symbol: "^CASE30",   name: "EGX 30",                 country: "Egito",         flag: "\u{1f1ea}\u{1f1ec}", region: "Africa",      lat: 30.0,  lng: 31.2 },
+  { symbol: "^J203.JO",  tvSymbol: "JSE:J203",            name: "JSE All Share",          country: "África do Sul", flag: "\u{1f1ff}\u{1f1e6}", region: "Africa",  lat: -26.2, lng: 28.0 },
+  { symbol: "^CASE30",   tvSymbol: "EGX:EGX30",           name: "EGX 30",                 country: "Egito",         flag: "\u{1f1ea}\u{1f1ec}", region: "Africa",      lat: 30.0,  lng: 31.2 },
 
   // Oceania
-  { symbol: "^AXJO",     name: "ASX 200",                country: "Austrália", flag: "\u{1f1e6}\u{1f1fa}", region: "Oceania",    lat: -33.9, lng: 151.2 },
+  { symbol: "^AXJO",     tvSymbol: "ASX:XJO",             name: "ASX 200",                country: "Austrália", flag: "\u{1f1e6}\u{1f1fa}", region: "Oceania",    lat: -33.9, lng: 151.2 },
 ];
 
 function closeNDaysAgo(history: HistoryPoint[], days: number): number | null {

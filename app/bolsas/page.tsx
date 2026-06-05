@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback, memo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
 import Link from "next/link";
 import {
   ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
 } from "react-simple-maps";
 import {
-  Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, YAxis,
-} from "recharts";
-import {
   ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ZoomIn, ZoomOut, Maximize2,
-  Activity, BarChart3,
+  Activity, BarChart3, Maximize,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -20,6 +17,7 @@ const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 
 interface IndexData {
   symbol: string;
+  tvSymbol: string;
   name: string;
   country: string;
   flag: string;
@@ -59,11 +57,6 @@ const REGION_COLORS: Record<string, string> = {
 };
 
 type SortKey = "name" | "price" | "changePct" | "region";
-
-const CHART_RANGES: { key: PeriodKey; days: number }[] = [
-  { key: "1M", days: 30 }, { key: "3M", days: 90 },
-  { key: "6M", days: 180 }, { key: "1A", days: 365 },
-];
 
 const ALL_PERIODS: PeriodKey[] = ["1S", "1M", "3M", "6M", "1A", "YTD"];
 
@@ -245,11 +238,8 @@ const WorldMap = memo(function WorldMap({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
-interface HistoryCache {
-  [symbol: string]: {
-    history: { date: string; close: number }[];
-    periods: Record<PeriodKey, number | null> | null;
-  };
+interface PeriodsCache {
+  [symbol: string]: Record<PeriodKey, number | null> | null;
 }
 
 export default function BolsasPage() {
@@ -262,8 +252,9 @@ export default function BolsasPage() {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<IndexData | null>(null);
-  const [historyCache, setHistoryCache] = useState<HistoryCache>({});
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [periodsCache, setPeriodsCache] = useState<PeriodsCache>({});
+  const [periodsLoading, setPeriodsLoading] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -272,11 +263,8 @@ export default function BolsasPage() {
         if (d.error) setError(d.error);
         else {
           setData(d);
-          if (d.spHistory) {
-            setHistoryCache(prev => ({
-              ...prev,
-              "^GSPC": { history: d.spHistory, periods: d.spPeriods },
-            }));
+          if (d.spPeriods) {
+            setPeriodsCache(prev => ({ ...prev, "^GSPC": d.spPeriods }));
           }
         }
       })
@@ -287,22 +275,21 @@ export default function BolsasPage() {
   const focusedSymbol = selectedIndex?.symbol ?? "^GSPC";
 
   useEffect(() => {
-    if (!focusedSymbol || historyCache[focusedSymbol]) return;
+    if (!focusedSymbol || periodsCache[focusedSymbol] !== undefined) return;
     let cancelled = false;
-    setHistoryLoading(true);
+    setPeriodsLoading(true);
     fetch(`/api/bolsas/history?symbol=${encodeURIComponent(focusedSymbol)}`)
       .then(r => r.json())
       .then(d => {
         if (cancelled) return;
-        setHistoryCache(prev => ({
-          ...prev,
-          [focusedSymbol]: { history: d.history ?? [], periods: d.periods ?? null },
-        }));
+        setPeriodsCache(prev => ({ ...prev, [focusedSymbol]: d.periods ?? null }));
       })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+      .catch(() => {
+        if (!cancelled) setPeriodsCache(prev => ({ ...prev, [focusedSymbol]: null }));
+      })
+      .finally(() => { if (!cancelled) setPeriodsLoading(false); });
     return () => { cancelled = true; };
-  }, [focusedSymbol, historyCache]);
+  }, [focusedSymbol, periodsCache]);
 
   const regions = useMemo(() => {
     if (!data) return [];
@@ -415,16 +402,17 @@ export default function BolsasPage() {
         {(() => {
           const focusIdx = selectedIndex ?? sp;
           if (!focusIdx) return null;
-          const cached = historyCache[focusIdx.symbol];
+          const cachedPeriods = periodsCache[focusIdx.symbol];
           return (
             <IndexThermometer
               index={focusIdx}
               vix={vix ?? null}
-              history={cached?.history ?? []}
-              periods={cached?.periods ?? null}
+              periods={cachedPeriods ?? null}
               breadth={data.breadth}
-              historyLoading={historyLoading && !cached}
+              historyLoading={periodsLoading && cachedPeriods === undefined}
               isDefault={!selectedIndex}
+              expanded={chartExpanded}
+              onToggleExpand={() => setChartExpanded(e => !e)}
             />
           );
         })()}
@@ -692,18 +680,72 @@ export default function BolsasPage() {
   );
 }
 
+// ── TradingView Advanced Chart (candlesticks + indicators + drawing) ─────
+
+function TradingViewChart({ tvSymbol, height = 500 }: { tvSymbol: string; height?: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.innerHTML = "";
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.async = true;
+    script.type = "text/javascript";
+    script.textContent = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval: "D",
+      timezone: "America/Sao_Paulo",
+      theme: "dark",
+      style: "1",
+      locale: "br",
+      backgroundColor: "rgba(13, 14, 20, 0)",
+      gridColor: "rgba(255, 255, 255, 0.04)",
+      allow_symbol_change: true,
+      calendar: false,
+      support_host: "https://www.tradingview.com",
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: true,
+      hide_volume: false,
+      studies: ["STD;SMA"],
+      withdateranges: true,
+    });
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "tradingview-widget-container__widget";
+    wrapper.style.height = `calc(${height}px - 32px)`;
+    wrapper.style.width = "100%";
+    el.appendChild(wrapper);
+    el.appendChild(script);
+
+    return () => { el.innerHTML = ""; };
+  }, [tvSymbol, height]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="tradingview-widget-container rounded-xl overflow-hidden"
+      style={{ height: `${height}px`, width: "100%" }}
+    />
+  );
+}
+
 // ── Index Thermometer (dynamic — updates when user selects an index) ─────
 
-function IndexThermometer({ index, vix, history, periods, breadth, historyLoading, isDefault }: {
+function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefault, expanded, onToggleExpand }: {
   index: IndexData;
   vix: IndexData | null;
-  history: { date: string; close: number }[];
   periods: Record<PeriodKey, number | null> | null;
   breadth: { up: number; down: number; total: number };
   historyLoading: boolean;
   isDefault: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
 }) {
-  const [chartRange, setChartRange] = useState<PeriodKey>("3M");
   const isUp = index.changePct >= 0;
 
   const tone = useMemo(() => {
@@ -711,23 +753,6 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
     if (index.changePct < -0.5) return { color: "#f87171", bg: "rgba(239,68,68,0.12)" };
     return { color: "#fbbf24", bg: "rgba(245,158,11,0.12)" };
   }, [index.changePct]);
-
-  const chartData = useMemo(() => {
-    if (history.length === 0) return [];
-    const cfg = CHART_RANGES.find(r => r.key === chartRange) ?? CHART_RANGES[1];
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - cfg.days);
-    const cutoffStr = cutoff.toISOString().split("T")[0];
-    return history.filter(p => p.date >= cutoffStr);
-  }, [history, chartRange]);
-
-  const chartMin = useMemo(() => chartData.length > 0 ? Math.min(...chartData.map(d => d.close)) : 0, [chartData]);
-  const chartMax = useMemo(() => chartData.length > 0 ? Math.max(...chartData.map(d => d.close)) : 0, [chartData]);
-  const chartRangePct = chartData.length > 1
-    ? ((chartData[chartData.length - 1].close / chartData[0].close) - 1) * 100
-    : 0;
-
-  const gradientId = `idxArea-${index.symbol.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <div
@@ -738,6 +763,7 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
         boxShadow: `0 8px 32px ${tone.color}08`,
       }}
     >
+      {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <Activity size={16} style={{ color: tone.color }} />
         <h2 className="text-sm font-semibold text-zinc-200">
@@ -754,9 +780,10 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Metrics row */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-4">
         {/* Col 1: Index + VIX key metrics */}
-        <div className="flex flex-col justify-center gap-4">
+        <div className="lg:col-span-4 flex flex-col justify-center gap-4">
           <div>
             <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{index.name}</p>
             <div className="flex items-baseline gap-2">
@@ -771,7 +798,7 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
           {vix && isDefault && (
             <div>
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider">VIX (Medo &amp; Ganância)</p>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-xl font-bold text-zinc-100">{vix.price.toFixed(2)}</span>
                 <span className={`text-xs font-semibold ${vix.changePct >= 0 ? "text-red-400" : "text-emerald-400"}`}>
                   {vix.changePct >= 0 ? "+" : ""}{vix.changePct.toFixed(2)}%
@@ -795,7 +822,7 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
         </div>
 
         {/* Col 2: Periods */}
-        <div className="flex flex-col justify-center">
+        <div className="lg:col-span-8 flex flex-col justify-center">
           {historyLoading ? (
             <div className="text-[11px] text-zinc-500 text-center animate-pulse">
               Carregando períodos...
@@ -803,7 +830,7 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
           ) : periods ? (
             <>
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">{index.name} — Períodos</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                 {ALL_PERIODS.map(p => {
                   const v = periods[p];
                   if (v == null) return null;
@@ -825,70 +852,32 @@ function IndexThermometer({ index, vix, history, periods, breadth, historyLoadin
             </div>
           )}
         </div>
-
-        {/* Col 3: Sparkline */}
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-zinc-500 flex items-center gap-1">
-              <Activity size={11} /> Histórico {index.name}
-            </span>
-            <div className="flex gap-1">
-              {CHART_RANGES.map(r => (
-                <button
-                  key={r.key}
-                  onClick={() => setChartRange(r.key)}
-                  className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
-                  style={{
-                    background: chartRange === r.key ? `${tone.color}25` : "rgba(255,255,255,0.04)",
-                    color: chartRange === r.key ? tone.color : "#71717a",
-                  }}
-                >
-                  {r.key}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {historyLoading ? (
-            <div className="flex-1 min-h-[120px] flex items-center justify-center text-[11px] text-zinc-500 animate-pulse">
-              Carregando gráfico...
-            </div>
-          ) : chartData.length > 1 ? (
-            <>
-              <div className="flex-1 min-h-[120px]">
-                <ResponsiveContainer width="100%" height={120}>
-                  <AreaChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0.35} />
-                        <stop offset="100%" stopColor={chartRangePct >= 0 ? "#34d399" : "#f87171"} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <YAxis domain={[chartMin, chartMax]} hide />
-                    <RTooltip
-                      contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: "#a1a1aa" }}
-                      formatter={(v: number) => [fmtPrice(v), index.name]}
-                    />
-                    <Area
-                      type="monotone" dataKey="close"
-                      stroke={chartRangePct >= 0 ? "#34d399" : "#f87171"}
-                      strokeWidth={1.5} fill={`url(#${gradientId})`}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-[10px] text-zinc-600 text-center">
-                {chartRangePct >= 0 ? "+" : ""}{chartRangePct.toFixed(2)}% no período
-              </p>
-            </>
-          ) : (
-            <div className="flex-1 min-h-[120px] flex items-center justify-center text-[11px] text-zinc-600">
-              Histórico indisponível
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* TradingView Chart */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
+          <span className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+            <BarChart3 size={11} />
+            Candlestick &middot; Indicadores &middot; Desenho
+          </span>
+          <button
+            onClick={onToggleExpand}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+          >
+            <Maximize size={10} />
+            {expanded ? "Recolher" : "Expandir"}
+          </button>
+        </div>
+        <TradingViewChart
+          tvSymbol={index.tvSymbol}
+          height={expanded ? 700 : 480}
+        />
+      </div>
+
+      <p className="text-[9px] text-zinc-700 text-center mt-2">
+        Powered by TradingView &middot; Candlesticks, SMA, EMA, RSI, MACD, Bollinger e mais &middot; Use a barra de ferramentas para desenhar
+      </p>
     </div>
   );
 }
