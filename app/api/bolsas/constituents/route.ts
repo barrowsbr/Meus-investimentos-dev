@@ -213,8 +213,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    result.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
-
     return NextResponse.json({
       symbol,
       constituents: result.slice(0, 20),
