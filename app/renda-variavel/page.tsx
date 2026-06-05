@@ -540,33 +540,31 @@ export default function RendaVariavelPage() {
       {/* FX decomposition summary */}
       {hasUSD && (
         <div className="glass-card p-5 mt-4 animate-fade-in">
-          <h2 className="section-title mb-4"><DollarSign size={15} />Decomposição FX</h2>
+          <h2 className="section-title mb-4"><DollarSign size={15} />Decomposição FX (3 fatores)</h2>
           <p className="text-xs text-zinc-500 mb-4">
-            Separa o lucro total entre o que veio da valorização do ativo em si e o que veio da variação cambial (spot vs PM do dólar pago).
+            Quebra o lucro total nos três fatores: valorização do ativo (ao câmbio de custo), câmbio sobre o capital aportado e o efeito cruzado (câmbio sobre o lucro do ativo).{" "}
+            <a href="/entendimento" className="text-accent hover:underline">Entenda a matemática →</a>
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             <div>
               <span className="stat-label block mb-1">Lucro Total (BRL)</span>
               <span className={`stat-value ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</span>
+              <span className="text-[10px] text-zinc-500 block mt-0.5">Resultado em reais</span>
             </div>
             <div>
-              <span className="stat-label block mb-1">Ganho Ativo</span>
-              <span className={`stat-value ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoTotalBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">Valorização intrínseca</span>
+              <span className="stat-label block mb-1">Ativo (puro)</span>
+              <span className={`stat-value ${data.ganhoAtivoPuroTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoPuroTotalBRL)}</span>
+              <span className="text-[10px] text-zinc-500 block mt-0.5">(V₁−V₀)·P₀ — ao câmbio de custo</span>
             </div>
             <div>
-              <span className="stat-label block mb-1">Ganho Câmbio</span>
-              <span className={`stat-value ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCambioTotalBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">Spot R$ {data.usdbrl.toFixed(2)} vs PM R$ {data.cambio?.pmDolar.toFixed(2)}</span>
+              <span className="stat-label block mb-1">Câmbio principal</span>
+              <span className={`stat-value ${data.ganhoFXPrincipalTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoFXPrincipalTotalBRL)}</span>
+              <span className="text-[10px] text-zinc-500 block mt-0.5">V₀·(P₁−P₀) — spot R$ {data.usdbrl.toFixed(2)} vs PM R$ {data.cambio?.pmDolar.toFixed(2)}</span>
             </div>
             <div>
-              <span className="stat-label block mb-1">Cambial / Total</span>
-              <span className="stat-value text-zinc-300">
-                {data.lucroBRL !== 0
-                  ? `${((data.ganhoCambioTotalBRL / data.lucroBRL) * 100).toFixed(1)}%`
-                  : "—"}
-              </span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">% do lucro via câmbio</span>
+              <span className="stat-label block mb-1">Efeito cruzado</span>
+              <span className={`stat-value ${data.ganhoCruzadoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCruzadoTotalBRL)}</span>
+              <span className="text-[10px] text-zinc-500 block mt-0.5">(V₁−V₀)·(P₁−P₀) — câmbio sobre o lucro</span>
             </div>
           </div>
         </div>
