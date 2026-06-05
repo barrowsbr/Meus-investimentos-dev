@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 10;
+export const maxDuration = 15;
 
 const INDEX_DESCRIPTIONS: Record<string, string> = {
   "^GSPC": "O S&P 500 acompanha as 500 maiores empresas dos EUA, ponderadas por capitalização de mercado. É o principal termômetro do mercado acionário americano.",
@@ -77,28 +78,61 @@ async function fetchYahooProfile(ticker: string): Promise<string | null> {
   return null;
 }
 
+const aiCache = new Map<string, { text: string; ts: number }>();
+const AI_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+async function fetchGeminiDescription(ticker: string): Promise<string | null> {
+  const cached = aiCache.get(ticker);
+  if (cached && Date.now() - cached.ts < AI_CACHE_TTL) return cached.text;
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text:
+        `Descreva brevemente o ticker "${ticker}" (ação, ETF, índice ou fundo) em 1-2 frases em português do Brasil. ` +
+        `Foque no que a empresa faz ou o que o índice/fundo representa. Seja direto e objetivo, sem introduções. ` +
+        `Se não souber do que se trata, responda apenas "null".`
+      }] }],
+      generationConfig: { maxOutputTokens: 150, temperature: 0.2 },
+    });
+    const text = result.response.text().trim();
+    if (!text || text.toLowerCase() === "null") return null;
+    const clean = text.length > 300 ? text.slice(0, 297) + "..." : text;
+    aiCache.set(ticker, { text: clean, ts: Date.now() });
+    return clean;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol");
   if (!symbol) {
     return NextResponse.json({ error: "symbol required" }, { status: 400 });
   }
 
+  const headers = { "Cache-Control": "s-maxage=86400, stale-while-revalidate=3600" };
+
   const local = INDEX_DESCRIPTIONS[symbol];
   if (local) {
-    return NextResponse.json(
-      { symbol, description: local, source: "local" },
-      { headers: { "Cache-Control": "s-maxage=86400, stale-while-revalidate=3600" } },
-    );
+    return NextResponse.json({ symbol, description: local, source: "local" }, { headers });
   }
 
   try {
-    const desc = await fetchYahooProfile(symbol);
-    if (desc) {
-      return NextResponse.json(
-        { symbol, description: desc, source: "yahoo" },
-        { headers: { "Cache-Control": "s-maxage=86400, stale-while-revalidate=3600" } },
-      );
+    const yahoo = await fetchYahooProfile(symbol);
+    if (yahoo) {
+      return NextResponse.json({ symbol, description: yahoo, source: "yahoo" }, { headers });
     }
+
+    const ai = await fetchGeminiDescription(symbol);
+    if (ai) {
+      return NextResponse.json({ symbol, description: ai, source: "gemini" }, { headers });
+    }
+
     return NextResponse.json({ symbol, description: null, source: "none" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
