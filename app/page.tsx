@@ -727,37 +727,24 @@ export default function HomePage() {
 
         {/* ── Hero ── */}
         <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center">
-          {/* Clickable logo with tilt */}
+          {/* Clickable logo */}
           <button
             onClick={handleLogoClick}
-            className={`relative group cursor-pointer transition-all duration-300 mb-1 ${holoActive ? "logo-tilted" : "logo-idle"}`}
-            style={{ transformStyle: "preserve-3d" }}
-            aria-label="Ativar holograma"
+            className="relative group cursor-pointer transition-all duration-300 mb-1"
+            aria-label="Abrir globo de mercados"
           >
             <Image
               src="/midias/carregamento.png"
               alt="Meus Investimentos"
               width={96}
               height={96}
-              className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(212,165,116,0.3)]"
+              className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(212,165,116,0.3)] group-hover:scale-105"
               priority
             />
-            {holoActive && (
-              <div
-                className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-3 h-3 rounded-full"
-                style={{
-                  background: "radial-gradient(circle, rgba(0,255,255,0.5), transparent)",
-                  filter: "blur(2px)",
-                  animation: "holoBeam 2s ease-in-out infinite",
-                }}
-              />
-            )}
           </button>
 
-          {/* ── Holographic Globe — projected right below logo ── */}
-          <ErrorBoundary>
-            <HoloGlobe active={holoActive} onClose={() => setHoloActive(false)} />
-          </ErrorBoundary>
+          {/* ── 3D Globe overlay ── */}
+          <HoloGlobe active={holoActive} onClose={() => setHoloActive(false)} />
 
           <h1
             className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
