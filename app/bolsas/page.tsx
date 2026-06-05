@@ -6,7 +6,7 @@ import {
   ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
 } from "react-simple-maps";
 import {
-  ArrowLeft, Globe, TrendingUp, TrendingDown, Search,
+  ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ZoomIn, ZoomOut, Maximize2,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
 } from "lucide-react";
@@ -1265,8 +1265,6 @@ interface TreemapRect extends SectorItem {
 function layoutTreemap(items: SectorItem[], width: number, height: number): TreemapRect[] {
   if (items.length === 0) return [];
   const sorted = [...items].sort((a, b) => b.weight - a.weight);
-  const totalW = sorted.reduce((s, i) => s + i.weight, 0);
-
   function split(list: SectorItem[], x: number, y: number, w: number, h: number): TreemapRect[] {
     if (list.length === 0) return [];
     if (list.length === 1) return [{ ...list[0], x, y, w, h }];
@@ -1305,6 +1303,7 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
   const [loading, setLoading] = useState(true);
   const [available, setAvailable] = useState(true);
   const [isRegional, setIsRegional] = useState(false);
+  const [tmExpanded, setTmExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(600);
   const treemapH = 280;
@@ -1335,7 +1334,7 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
-  }, []);
+  }, [tmExpanded]);
 
   const rects = useMemo(() => layoutTreemap(sectors, containerW, treemapH), [sectors, containerW, treemapH]);
 
@@ -1346,8 +1345,6 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
       </div>
     );
   }
-
-  const [tmExpanded, setTmExpanded] = useState(false);
 
   if (!available || sectors.length === 0) return null;
 
