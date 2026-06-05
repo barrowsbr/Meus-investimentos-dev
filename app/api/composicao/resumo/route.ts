@@ -340,35 +340,45 @@ export async function GET() {
     }
 
     // Sold RF positions from renda_fixa transactions (CDBs, Tesouro, etc.)
-    const rfTickersInRent = new Set(rentabilidade.map(r => r.ticker));
-    const rfAgg: Record<string, { compra: number; venda: number; imposto: number; moeda: string }> = {};
+    // O imposto/venda/compra são casados por ticker NORMALIZADO (sem espaços
+    // extras, acentos ou diferença de caixa) para que um IR lançado com pequena
+    // variação no nome ainda seja atribuído à posição certa. Também aceitamos
+    // tipos "IR"/"IRRF"/"tributo"/"IOF" além de "imposto".
+    const normTicker = (t: string) =>
+      t.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+    const isImpostoTipo = (t: string) => /\b(imposto|irrf|ir|tributo|iof)\b/.test(t);
+    const rfTickersInRent = new Set(rentabilidade.map(r => normTicker(r.ticker)));
+    const rfAgg: Record<string, { compra: number; venda: number; imposto: number; moeda: string; display: string }> = {};
     for (const row of rfTransacoes) {
-      const ticker = String(row["ticker"] ?? "").trim();
-      if (!ticker) continue;
+      const rawTicker = String(row["ticker"] ?? "").trim();
+      if (!rawTicker) continue;
+      const key = normTicker(rawTicker);
       const tipo = String(row["tipo"] ?? "").toLowerCase();
       const valorRaw = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
-      if (valorRaw <= 0 && !tipo.includes("imposto")) continue;
+      const ehImposto = isImpostoTipo(tipo);
+      if (valorRaw <= 0 && !ehImposto) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-      if (!rfAgg[ticker]) rfAgg[ticker] = { compra: 0, venda: 0, imposto: 0, moeda };
+      if (!rfAgg[key]) rfAgg[key] = { compra: 0, venda: 0, imposto: 0, moeda, display: rawTicker };
       if (tipo.includes("compra") || tipo.includes("aporte")) {
-        rfAgg[ticker].compra += valorRaw;
+        rfAgg[key].compra += valorRaw;
       } else if (tipo.includes("venda") || tipo.includes("resgate")) {
-        rfAgg[ticker].venda += valorRaw;
-      } else if (tipo.includes("imposto")) {
-        rfAgg[ticker].imposto += Math.abs(valorRaw);
+        rfAgg[key].venda += valorRaw;
+      } else if (ehImposto) {
+        rfAgg[key].imposto += Math.abs(valorRaw);
       }
     }
-    for (const [ticker, agg] of Object.entries(rfAgg)) {
-      if (rfTickersInRent.has(ticker)) continue;
+    for (const [key, agg] of Object.entries(rfAgg)) {
+      if (rfTickersInRent.has(key)) continue;
       if (agg.venda <= 0) continue;
+      const display = agg.display;
       const lucroRealizado = agg.venda - agg.compra - agg.imposto;
-      const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
+      const proventosAtivo = proventosPorTicker[display] ?? proventosPorTicker[display.toUpperCase()] ?? proventosPorTicker[key] ?? 0;
       const resultadoTotal = lucroRealizado + proventosAtivo;
       const nativeFx = fxFactor(agg.moeda, fxAtual);
       const retRealizadoProventosPct = agg.compra > 0 ? ((lucroRealizado + (nativeFx > 0 ? proventosAtivo / nativeFx : 0)) / agg.compra) * 100 : 0;
-      const { macro, sub } = classificarCamadas(ticker, "Renda Fixa");
+      const { macro, sub } = classificarCamadas(display, "Renda Fixa");
       rentabilidade.push({
-        ticker, setor: sub, macro, moeda: agg.moeda,
+        ticker: display, setor: sub, macro, moeda: agg.moeda,
         status: "Vendido", valor_atual_brl: 0, custo_brl: agg.compra * nativeFx,
         lucro_nao_realizado_brl: 0, lucro_realizado_brl: lucroRealizado * nativeFx,
         proventos_brl: proventosAtivo, resultado_total_brl: resultadoTotal * nativeFx,
