@@ -750,13 +750,14 @@ export default function PerformancePage() {
                     <DollarSign size={13} className="inline" /> Decomposição: Ativo vs Cambial
                   </h3>
                   <p className="text-[10px] text-zinc-600 mb-3">
-                    R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>fx</sub>) − 1
+                    R<sub>total</sub> = R<sub>ativo</sub> + R<sub>fx</sub> + (R<sub>ativo</sub> × R<sub>fx</sub>) — o último termo é o <span className="text-purple-400">efeito cruzado</span>
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
                       { label: "R. Total", value: data.fxDecomposition.r_total * 100, color: "#60a5fa" },
-                      { label: "C. Ativo", value: data.fxDecomposition.r_ativo * 100, color: "#34d399" },
-                      { label: "C. Cambial", value: data.fxDecomposition.r_fx * 100, color: "#f59e0b" },
+                      { label: "Ativo (puro)", value: data.fxDecomposition.r_ativo * 100, color: "#34d399" },
+                      { label: "Câmbio principal", value: data.fxDecomposition.r_fx * 100, color: "#f59e0b" },
+                      { label: "Efeito cruzado", value: data.fxDecomposition.r_combinado * 100, color: "#8b5cf6" },
                     ].map(item => (
                       <div key={item.label} className="text-center p-3 rounded-xl bg-zinc-900/50">
                         <p className="text-[10px] text-zinc-500 mb-1">{item.label}</p>

@@ -460,8 +460,13 @@ export default function ResumoPage() {
         const rvGanho = rvNaoReal + rvReal;
         const proventosTotal = rent.reduce((s, r) => s + r.proventos_brl, 0);
         const rfGanho = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+        // Quebra o Ganho RV em ativo vs câmbio (câmbio = principal + cruzado das
+        // posições abertas). Câmbio sai como resíduo → o total não muda.
+        const cambioTotal = (data.ganhoFXPrincipalTotalBRL ?? 0) + (data.ganhoCruzadoTotalBRL ?? 0);
+        const rvAtivo = rvGanho - cambioTotal;
         const items = [
-          { label: "Ganho RV", value: rvGanho, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)}` },
+          { label: "Ganho RV (ativo)", value: rvAtivo, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)} (ex-câmbio)` },
+          { label: "Câmbio", value: cambioTotal, color: "#f59e0b", desc: `Principal ${compactBRL(data.ganhoFXPrincipalTotalBRL ?? 0)} · Cruzado ${compactBRL(data.ganhoCruzadoTotalBRL ?? 0)}` },
           { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos (líq. IR)" },
           { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
         ];
@@ -476,7 +481,7 @@ export default function ResumoPage() {
             <div className="mb-3">
               <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Resultado por Fonte</h2>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {items.map(item => (
                 <div key={item.label} className="text-center">
                   <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{item.label}</p>
