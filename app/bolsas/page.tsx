@@ -1222,6 +1222,184 @@ function CandlestickChart({ symbol, height }: { symbol: string; height: number }
   );
 }
 
+// ── Sector Treemap ────────────────────────────────────────────────────────
+
+interface SectorItem {
+  name: string;
+  weight: number;
+  changePct: number;
+  ticker: string;
+}
+
+interface TreemapRect extends SectorItem {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function layoutTreemap(items: SectorItem[], width: number, height: number): TreemapRect[] {
+  if (items.length === 0) return [];
+  const sorted = [...items].sort((a, b) => b.weight - a.weight);
+  const totalW = sorted.reduce((s, i) => s + i.weight, 0);
+
+  function split(list: SectorItem[], x: number, y: number, w: number, h: number): TreemapRect[] {
+    if (list.length === 0) return [];
+    if (list.length === 1) return [{ ...list[0], x, y, w, h }];
+
+    const total = list.reduce((s, i) => s + i.weight, 0);
+    let acc = 0;
+    let splitIdx = 0;
+    const half = total / 2;
+    for (let i = 0; i < list.length - 1; i++) {
+      acc += list[i].weight;
+      if (acc >= half) { splitIdx = i; break; }
+    }
+
+    const left = list.slice(0, splitIdx + 1);
+    const right = list.slice(splitIdx + 1);
+    const leftW = left.reduce((s, i) => s + i.weight, 0);
+    const ratio = leftW / total;
+
+    if (w >= h) {
+      return [
+        ...split(left, x, y, w * ratio, h),
+        ...split(right, x + w * ratio, y, w * (1 - ratio), h),
+      ];
+    }
+    return [
+      ...split(left, x, y, w, h * ratio),
+      ...split(right, x, y + h * ratio, w, h * (1 - ratio)),
+    ];
+  }
+
+  return split(sorted, 0, 0, width, height);
+}
+
+function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: string }) {
+  const [sectors, setSectors] = useState<SectorItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [available, setAvailable] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState(600);
+  const treemapH = 280;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/bolsas/sectors?symbol=${encodeURIComponent(symbol)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        if (!d.available || !d.sectors?.length) { setAvailable(false); setSectors([]); }
+        else { setAvailable(true); setSectors(d.sectors); }
+      })
+      .catch(() => { if (!cancelled) setAvailable(false); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      if (entries[0]) setContainerW(entries[0].contentRect.width);
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const rects = useMemo(() => layoutTreemap(sectors, containerW, treemapH), [sectors, containerW, treemapH]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8 text-[11px] text-zinc-500 animate-pulse">
+        Carregando composição setorial...
+      </div>
+    );
+  }
+
+  if (!available || sectors.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <Flame size={13} className="text-orange-400" />
+        <span className="text-[11px] font-semibold text-zinc-300">
+          Setores — {indexName}
+        </span>
+        <span className="text-[9px] text-zinc-600 ml-auto">tamanho = peso no índice · cor = variação do dia</span>
+      </div>
+      <div
+        ref={containerRef}
+        className="relative rounded-xl overflow-hidden"
+        style={{ height: treemapH, background: "rgba(5,7,14,0.5)" }}
+      >
+        {rects.map((r, i) => {
+          const color = heatColor(r.changePct);
+          const isSmall = r.w < 60 || r.h < 40;
+          const isTiny = r.w < 40 || r.h < 30;
+          return (
+            <div
+              key={i}
+              className="absolute flex flex-col items-center justify-center text-center transition-all group"
+              style={{
+                left: r.x,
+                top: r.y,
+                width: r.w,
+                height: r.h,
+                background: `${color}20`,
+                border: `1px solid ${color}35`,
+                padding: 2,
+              }}
+              title={`${r.name}: ${r.changePct >= 0 ? "+" : ""}${r.changePct.toFixed(2)}% · ${r.weight}% do índice`}
+            >
+              {!isTiny && (
+                <>
+                  <span
+                    className="font-bold leading-tight truncate w-full"
+                    style={{
+                      fontSize: isSmall ? 9 : r.w > 120 ? 13 : 11,
+                      color,
+                      textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
+                  </span>
+                  <span
+                    className="truncate w-full leading-tight"
+                    style={{
+                      fontSize: isSmall ? 8 : r.w > 120 ? 11 : 9,
+                      color: "rgba(255,255,255,0.7)",
+                    }}
+                  >
+                    {r.name}
+                  </span>
+                  {!isSmall && (
+                    <span className="text-[8px] text-zinc-500 truncate w-full">
+                      {r.weight}% · {r.ticker}
+                    </span>
+                  )}
+                </>
+              )}
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center rounded"
+                style={{ background: "rgba(0,0,0,0.85)" }}
+              >
+                <span className="text-[11px] font-bold" style={{ color }}>{r.name}</span>
+                <span className="text-[12px] font-bold" style={{ color }}>
+                  {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
+                </span>
+                <span className="text-[9px] text-zinc-400">{r.weight}% do índice</span>
+                <span className="text-[8px] text-zinc-500">{r.ticker}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Index Thermometer (dynamic — updates when user selects an index) ─────
 
 function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefault, expanded, onToggleExpand }: {
@@ -1362,6 +1540,9 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
           height={expanded ? 600 : 400}
         />
       </div>
+
+      {/* Sector Treemap */}
+      <SectorTreemap symbol={index.symbol} indexName={index.name} />
     </div>
   );
 }
