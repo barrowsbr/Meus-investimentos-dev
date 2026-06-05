@@ -322,6 +322,7 @@ export default function BolsasPage() {
   const [periodsCache, setPeriodsCache] = useState<PeriodsCache>({});
   const [periodsLoading, setPeriodsLoading] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
+  const [customAsset, setCustomAsset] = useState<IndexData | null>(null);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -339,7 +340,7 @@ export default function BolsasPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const focusedSymbol = selectedIndex?.symbol ?? "^GSPC";
+  const focusedSymbol = customAsset?.symbol ?? selectedIndex?.symbol ?? "^GSPC";
 
   useEffect(() => {
     if (!focusedSymbol || periodsCache[focusedSymbol] !== undefined) return;
@@ -399,7 +400,26 @@ export default function BolsasPage() {
   };
 
   const handleHover = useCallback((symbol: string | null) => setHoveredIndex(symbol), []);
-  const handleSelect = useCallback((i: IndexData | null) => setSelectedIndex(i), []);
+  const handleSelect = useCallback((i: IndexData | null) => { setSelectedIndex(i); setCustomAsset(null); }, []);
+
+  const handleSelectStock = useCallback((ticker: string, name: string, price: number, changePct: number, currency: string) => {
+    setCustomAsset({
+      symbol: ticker,
+      tvSymbol: "",
+      name,
+      country: "",
+      flag: "",
+      region: "",
+      lat: 0,
+      lng: 0,
+      price,
+      change: price * changePct / 100,
+      changePct,
+      currency,
+    });
+  }, []);
+
+  const handleClearCustom = useCallback(() => setCustomAsset(null), []);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
@@ -467,7 +487,7 @@ export default function BolsasPage() {
 
         {/* ── Index Thermometer (dynamic) ── */}
         {(() => {
-          const focusIdx = selectedIndex ?? sp;
+          const focusIdx = customAsset ?? selectedIndex ?? sp;
           if (!focusIdx) return null;
           const cachedPeriods = periodsCache[focusIdx.symbol];
           return (
@@ -477,9 +497,13 @@ export default function BolsasPage() {
               periods={cachedPeriods ?? null}
               breadth={data.breadth}
               historyLoading={periodsLoading && cachedPeriods === undefined}
-              isDefault={!selectedIndex}
+              isDefault={!selectedIndex && !customAsset}
+              isCustom={!!customAsset}
               expanded={chartExpanded}
               onToggleExpand={() => setChartExpanded(e => !e)}
+              onSelectStock={handleSelectStock}
+              onClearCustom={handleClearCustom}
+              parentIndex={selectedIndex ?? sp ?? null}
             />
           );
         })()}
@@ -1420,7 +1444,11 @@ interface ConstituentItem {
   currency: string;
 }
 
-function TopConstituents({ symbol, indexName }: { symbol: string; indexName: string }) {
+function TopConstituents({ symbol, indexName, onSelectStock }: {
+  symbol: string;
+  indexName: string;
+  onSelectStock: (ticker: string, name: string, price: number, changePct: number, currency: string) => void;
+}) {
   const [constituents, setConstituents] = useState<ConstituentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState(true);
@@ -1498,7 +1526,8 @@ function TopConstituents({ symbol, indexName }: { symbol: string; indexName: str
                 return (
                   <div
                     key={c.ticker}
-                    className="flex items-center gap-3 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                    onClick={() => onSelectStock(c.ticker, c.name, c.price, c.changePct, c.currency)}
                   >
                     <span className="text-[10px] text-zinc-600 w-5 text-right font-mono">{i + 1}</span>
                     <div className="flex-1 min-w-0">
@@ -1542,17 +1571,43 @@ function TopConstituents({ symbol, indexName }: { symbol: string; indexName: str
 
 // ── Index Thermometer (dynamic — updates when user selects an index) ─────
 
-function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefault, expanded, onToggleExpand }: {
+function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefault, isCustom, expanded, onToggleExpand, onSelectStock, onClearCustom, parentIndex }: {
   index: IndexData;
   vix: IndexData | null;
   periods: Record<PeriodKey, number | null> | null;
   breadth: { up: number; down: number; total: number };
   historyLoading: boolean;
   isDefault: boolean;
+  isCustom: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
+  onSelectStock: (ticker: string, name: string, price: number, changePct: number, currency: string) => void;
+  onClearCustom: () => void;
+  parentIndex: IndexData | null;
 }) {
   const isUp = index.changePct >= 0;
+  const [tickerSearch, setTickerSearch] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    const ticker = tickerSearch.trim().toUpperCase();
+    if (!ticker) return;
+    setSearchLoading(true);
+    fetch(`/api/bolsas/ohlc?symbol=${encodeURIComponent(ticker)}&range=5d&interval=1d`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.data && d.data.length > 0) {
+          const last = d.data[d.data.length - 1];
+          const prev = d.data.length > 1 ? d.data[d.data.length - 2] : last;
+          const pct = prev.close > 0 ? ((last.close / prev.close) - 1) * 100 : 0;
+          onSelectStock(ticker, ticker, last.close, pct, "");
+          setTickerSearch("");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSearchLoading(false));
+  }, [tickerSearch, onSelectStock]);
 
   const tone = useMemo(() => {
     if (index.changePct > 0.5) return { color: "#34d399", bg: "rgba(16,185,129,0.12)" };
@@ -1570,10 +1625,28 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {isCustom && (
+          <button
+            onClick={onClearCustom}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="Voltar ao índice"
+          >
+            <ArrowLeft size={14} />
+          </button>
+        )}
         <Activity size={16} style={{ color: tone.color }} />
         <h2 className="text-sm font-semibold text-zinc-200">
-          {isDefault ? "Panorama de Mercado" : (
+          {isDefault ? "Panorama de Mercado" : isCustom ? (
+            <span className="flex items-center gap-2">
+              <span>{index.name}</span>
+              {parentIndex && (
+                <span className="text-[10px] text-zinc-500 font-normal">
+                  via {parentIndex.flag} {parentIndex.name}
+                </span>
+              )}
+            </span>
+          ) : (
             <span className="flex items-center gap-2">
               <span>{index.flag}</span>
               <span>{index.name}</span>
@@ -1581,9 +1654,27 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             </span>
           )}
         </h2>
-        <span className="text-[10px] text-zinc-600 ml-auto">
-          {breadth.up}/{breadth.total} bolsas em alta
-        </span>
+
+        {/* Search box */}
+        <form onSubmit={handleSearchSubmit} className="ml-auto flex items-center gap-1">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600" />
+            <input
+              type="text"
+              placeholder="Ticker..."
+              value={tickerSearch}
+              onChange={e => setTickerSearch(e.target.value)}
+              className="pl-7 pr-2 py-1 text-[10px] rounded-lg bg-zinc-900/60 border border-zinc-800 text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={searchLoading || !tickerSearch.trim()}
+            className="text-[9px] px-2 py-1 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-colors disabled:opacity-40"
+          >
+            {searchLoading ? "..." : "Ir"}
+          </button>
+        </form>
       </div>
 
       {/* Metrics row */}
@@ -1688,11 +1779,17 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         />
       </div>
 
-      {/* Sector Treemap */}
-      <SectorTreemap symbol={index.symbol} indexName={index.name} />
+      {/* Sector Treemap — only for indices, not custom stocks */}
+      {!isCustom && <SectorTreemap symbol={index.symbol} indexName={index.name} />}
 
-      {/* Top Constituents */}
-      <TopConstituents symbol={index.symbol} indexName={index.name} />
+      {/* Top Constituents — only for indices */}
+      {!isCustom && (
+        <TopConstituents
+          symbol={index.symbol}
+          indexName={index.name}
+          onSelectStock={onSelectStock}
+        />
+      )}
     </div>
   );
 }
