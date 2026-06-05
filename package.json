@@ -12,10 +12,9 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
-    "@react-three/postprocessing": "^3.0.4",
-    "@types/three": "^0.184.1",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@types/three": "^0.170.0",
     "googleapis": "^140.0.1",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.400.0",
@@ -26,7 +25,7 @@
     "react-simple-maps": "^3.0.0",
     "recharts": "^2.12.7",
     "remark-gfm": "^4.0.1",
-    "three": "^0.184.0",
+    "three": "^0.170.0",
     "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.14.1"
   },

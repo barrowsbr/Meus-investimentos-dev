@@ -224,7 +224,8 @@ function MarkerPoint({
       meshRef.current.scale.setScalar(isSelected ? markerScale * 1.8 * pulse : markerScale * pulse);
     }
     if (beamRef.current) {
-      beamRef.current.scale.y = 0.03 + intensity * 0.012 + Math.sin(t * 2 + point.lng) * 0.005;
+      const bScale = 1 + Math.sin(t * 2 + point.lng) * 0.15;
+      beamRef.current.scale.set(1, bScale, 1);
       (beamRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(t * 2) * 0.05;
     }
     if (ringRef.current && isSelected) {
@@ -235,14 +236,19 @@ function MarkerPoint({
   });
 
   const normal = pos.clone().normalize();
-  const beamEnd = pos.clone().add(normal.clone().multiplyScalar(0.03 + intensity * 0.012));
-  const beamMid = pos.clone().add(beamEnd).multiplyScalar(0.5);
+  const beamHeight = 0.03 + intensity * 0.012;
+  const beamMid = pos.clone().add(normal.clone().multiplyScalar(beamHeight / 2));
+  const beamQuat = useMemo(() => {
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    return q;
+  }, [normal]);
 
   return (
     <group>
       {/* Vertical beam / pillar */}
-      <mesh ref={beamRef} position={beamMid} lookAt={beamEnd}>
-        <cylinderGeometry args={[0.002, 0.001, 0.03 + intensity * 0.012, 6]} />
+      <mesh ref={beamRef} position={beamMid} quaternion={beamQuat}>
+        <cylinderGeometry args={[0.002, 0.001, beamHeight, 6]} />
         <meshBasicMaterial color={col} transparent opacity={0.2} blending={THREE.AdditiveBlending} />
       </mesh>
 
