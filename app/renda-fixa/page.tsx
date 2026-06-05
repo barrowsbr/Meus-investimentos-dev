@@ -59,6 +59,8 @@ interface RFData {
   lucroNaoRealizado: number;
   lucroRealizado: number;
   totalProventosRF: number;
+  totalProventosBrutoRF: number;
+  totalImpostoRF: number;
   rentMedia: number;
   patrimonio: number;
 }
@@ -107,12 +109,29 @@ export default function RendaFixaPage() {
     return portfolio.positions.filter((p: Position) => isRendaFixa(p.setor));
   }, [portfolio]);
 
+  // Proventos/IR dos RF de bolsa (SHV, BIL) vêm do snapshot — já líquidos de IR
+  // e convertidos para BRL (SHV é USD). O `proventosPorTicker` já abate o IMPOSTO.
+  const provAtivosByTicker = useMemo(() => {
+    const map: Record<string, { liquido: number; imposto: number }> = {};
+    for (const p of rfDeAtivos) {
+      const liquido = portfolio?.proventosPorTicker?.[p.ticker] ?? 0;
+      const imposto = portfolio?.impostoProventosPorTicker?.[p.ticker] ?? 0;
+      if (Math.abs(liquido) > 0.005 || imposto > 0.005) map[p.ticker] = { liquido, imposto };
+    }
+    return map;
+  }, [rfDeAtivos, portfolio]);
+
   const metrics = useMemo(() => {
     if (!rfData) return null;
     const totalAtivosBRL = rfDeAtivos.reduce((s, p) => s + p.valorAtualBRL, 0);
     const lucroAtivos = rfDeAtivos.reduce((s, p) => s + (p.lucroBRL ?? 0), 0);
     const totalRF = rfData.patrimonio + totalAtivosBRL;
-    const lucroTotal = rfData.lucroNaoRealizado + rfData.lucroRealizado + rfData.totalProventosRF + lucroAtivos;
+    // Proventos/IR dos ativos de bolsa (SHV/BIL) que faltavam na conta de RF
+    const proventosAtivos = Object.values(provAtivosByTicker).reduce((s, v) => s + v.liquido, 0);
+    const impostoAtivos = Object.values(provAtivosByTicker).reduce((s, v) => s + v.imposto, 0);
+    const totalProventosRF = rfData.totalProventosRF + proventosAtivos;        // líquido (manual + bolsa)
+    const totalImpostoRF = (rfData.totalImpostoRF ?? 0) + impostoAtivos;       // IR retido total
+    const lucroTotal = rfData.lucroNaoRealizado + rfData.lucroRealizado + totalProventosRF + lucroAtivos;
     const investidoAtivos = rfDeAtivos.reduce((s, p) => s + p.custoTotalBRL, 0);
 
     return {
@@ -122,11 +141,12 @@ export default function RendaFixaPage() {
       lucroTotal,
       lucroNaoRealizado: rfData.lucroNaoRealizado + lucroAtivos,
       lucroRealizado: rfData.lucroRealizado,
-      totalProventosRF: rfData.totalProventosRF,
+      totalProventosRF,
+      totalImpostoRF,
       totalInvestido: rfData.totalInvestidoAberto + investidoAtivos,
       rentMedia: rfData.rentMedia,
     };
-  }, [rfData, rfDeAtivos]);
+  }, [rfData, rfDeAtivos, provAtivosByTicker]);
 
   const sortedOpen = useMemo(() => {
     if (!rfData) return [];
@@ -200,9 +220,11 @@ export default function RendaFixaPage() {
         </div>
         <div className="animate-fade-in animate-delay-3">
           <MetricCard
-            label="Proventos RF"
+            label="Proventos RF (líq.)"
             value={brl(metrics.totalProventosRF)}
-            sub="Juros, cupons e rendimentos"
+            sub={metrics.totalImpostoRF > 0.01
+              ? `Líquido de IR · −${brl(metrics.totalImpostoRF)} retido`
+              : "Juros, cupons e rendimentos"}
             icon={<Wallet size={18} />}
             glowColor="#f59e0b"
           />
@@ -344,7 +366,7 @@ export default function RendaFixaPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/30">
-                  {["Ticker", "Setor", "Qtd", "PM", "Preço", "Investido", "Valor Atual", "Lucro", "%"].map(h => (
+                  {["Ticker", "Setor", "Qtd", "PM", "Preço", "Investido", "Valor Atual", "Lucro", "%", "Proventos (líq.)"].map(h => (
                     <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${h !== "Ticker" && h !== "Setor" ? "text-right" : "text-left"}`}>{h}</th>
                   ))}
                 </tr>
@@ -352,6 +374,7 @@ export default function RendaFixaPage() {
               <tbody>
                 {rfDeAtivos.map((p, i) => {
                   const cor = (p.lucroPct ?? 0) >= 0 ? "text-emerald-400" : "text-red-400";
+                  const prov = provAtivosByTicker[p.ticker];
                   return (
                     <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
                       <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker} <span className="text-zinc-600 text-[10px]">{p.moeda}</span></td>
@@ -365,12 +388,21 @@ export default function RendaFixaPage() {
                       <td className="px-3 py-2.5 text-right text-zinc-200 font-medium text-xs">{brl(p.valorAtualBRL)}</td>
                       <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
                       <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {prov ? (
+                          <span className="text-amber-400 font-mono">
+                            {brl(prov.liquido)}
+                            {prov.imposto > 0.01 && <span className="text-zinc-600 block text-[9px]">−{brl(prov.imposto)} IR</span>}
+                          </span>
+                        ) : <span className="text-zinc-700">—</span>}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          <p className="text-[10px] text-zinc-600 mt-2">Proventos líquidos de IR retido na fonte, convertidos para BRL pelo câmbio atual.</p>
         </div>
       )}
 

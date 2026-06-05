@@ -78,7 +78,7 @@ const MACRO_COLORS: Record<string, string> = {
 };
 
 const CURRENCY_COLORS: Record<string, string> = {
-  BRL: "#3b82f6", USD: "#10b981", EUR: "#8b5cf6", GBP: "#f59e0b", CAD: "#ef4444", Cripto: "#f97316",
+  BRL: "#3b82f6", USD: "#10b981", "USD (RF)": "#1d4ed8", EUR: "#8b5cf6", GBP: "#f59e0b", CAD: "#ef4444", Cripto: "#f97316",
 };
 
 const TOOLTIP_STYLE = {
@@ -142,16 +142,45 @@ export default function ResumoPage() {
   // ── Derived from portfolio hook ──────────────────────────────────────────
   const RF_SECTORS_SET = useMemo(() => new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]), []);
 
+  // Setores: bolsa (meus_ativos) + RF manual (Tesouro/CDB/caixa de fixa_aberta),
+  // que vivem só em rf_posicoes. Sem isso, a RF some e as % inflam.
   const sectorData = useMemo(() => {
-    const raw = Object.entries(data?.setorAlocacao ?? {}).map(([name, value]) => ({ name, value: value as number }));
+    const map: Record<string, number> = { ...(data?.setorAlocacao ?? {}) };
+    for (const r of (composicao?.rf_posicoes ?? [])) {
+      map[r.setor] = (map[r.setor] ?? 0) + r.valor_brl;
+    }
+    const raw = Object.entries(map).map(([name, value]) => ({ name, value }));
     if (activeFilter === "Renda Variável") return raw.filter(s => !RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
     if (activeFilter === "Renda Fixa") return raw.filter(s => RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
     return raw.sort((a, b) => b.value - a.value);
-  }, [data, activeFilter, RF_SECTORS_SET]);
+  }, [data, composicao, activeFilter, RF_SECTORS_SET]);
 
-  const currencyData = useMemo(() =>
-    Object.entries(data?.exposicaoCambial ?? {}).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value),
-    [data]);
+  // Exposição cambial pela MESMA base completa (bolsa por moeda + RF manual por
+  // moeda), respeitando o filtro — assim bate com o Setores e com o patrimônio.
+  const currencyData = useMemo(() => {
+    // Renda fixa em dólar (SHV/BIL na bolsa + RF manual em USD) ganha fatia
+    // própria "USD (RF)", separada do dólar de ações.
+    const moedaKey = (moeda: string, setor: string) => {
+      if (setor === "Cripto") return "Cripto";
+      if (moeda === "USD" && !isRendaVariavel(setor)) return "USD (RF)";
+      return moeda;
+    };
+    const map: Record<string, number> = {};
+    for (const p of (data?.positions ?? [])) {
+      if (p.valorAtualBRL < 1) continue;
+      if (activeFilter === "Renda Variável" && !isRendaVariavel(p.setor)) continue;
+      if (activeFilter === "Renda Fixa" && isRendaVariavel(p.setor)) continue;
+      const key = moedaKey(p.moeda, p.setor);
+      map[key] = (map[key] ?? 0) + p.valorAtualBRL;
+    }
+    if (activeFilter !== "Renda Variável") {
+      for (const r of (composicao?.rf_posicoes ?? [])) {
+        const key = r.moeda === "USD" ? "USD (RF)" : r.moeda;
+        map[key] = (map[key] ?? 0) + r.valor_brl;
+      }
+    }
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [data, composicao, activeFilter]);
 
   // ── Derived from composicao API ───────────────────────────────────────────
   const macros = useMemo(() => {
@@ -220,13 +249,7 @@ export default function ResumoPage() {
     custodiaPositions.reduce((s, p) => s + p.valorAtualBRL, 0),
     [custodiaPositions]);
 
-  const filteredExposicao = useMemo(() => {
-    if (!composicao) return currencyData;
-    if (activeFilter === "global") {
-      return Object.entries(composicao.exposicao_cambial).map(([name, value]) => ({ name, value }));
-    }
-    return currencyData;
-  }, [composicao, activeFilter, currencyData]);
+  const filteredExposicao = currencyData;
 
   const currencyTotal = useMemo(() =>
     filteredExposicao.reduce((s, c) => s + c.value, 0),

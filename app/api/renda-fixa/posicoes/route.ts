@@ -91,18 +91,28 @@ export async function GET() {
       txByTicker[ticker].txs.push({ date, ticker, tipo: tipoRaw, valor, moeda });
     }
 
-    // 3. Parse proventos for RF tickers
+    // 3. Parse proventos for RF tickers (líquido = bruto − IR retido)
     const allRfTickers = new Set([...openSet.keys(), ...Object.keys(txByTicker)]);
-    const proventosPorTicker: Record<string, number> = {};
+    const proventosPorTicker: Record<string, number> = {}; // líquido
+    const impostoPorTicker: Record<string, number> = {};   // IR retido (custo positivo)
+    let totalImpostoRF = 0;
     for (const row of proventosRows) {
       const ticker = String(row["ticker"] ?? row["símbolo"] ?? row["simbolo"] ?? "").trim();
       if (!ticker) continue;
       // Check if this ticker is an RF ticker (exists in fixa_aberta or renda_fixa)
       if (!allRfTickers.has(ticker) && !allRfTickers.has(ticker.toUpperCase())) continue;
-      const valor = toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0;
-      if (valor <= 0) continue;
+      const valorAbs = Math.abs(toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0);
+      if (valorAbs === 0) continue;
+      const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
+      const isImposto = decisao.includes("imposto");
       const key = allRfTickers.has(ticker) ? ticker : ticker.toUpperCase();
-      proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) + valor;
+      if (isImposto) {
+        proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) - valorAbs;
+        impostoPorTicker[key] = (impostoPorTicker[key] ?? 0) + valorAbs;
+        totalImpostoRF += valorAbs;
+      } else {
+        proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) + valorAbs;
+      }
     }
 
     // 4. Build open positions (everything in fixa_aberta)
@@ -159,7 +169,8 @@ export async function GET() {
     const totalInvestidoAberto = abertas.reduce((s, p) => s + p.investido, 0);
     const lucroNaoRealizado = abertas.reduce((s, p) => s + p.lucro, 0);
     const lucroRealizado = encerradas.reduce((s, p) => s + p.lucro, 0);
-    const totalProventosRF = Object.values(proventosPorTicker).reduce((s, v) => s + v, 0);
+    const totalProventosRF = Object.values(proventosPorTicker).reduce((s, v) => s + v, 0); // líquido
+    const totalProventosBrutoRF = totalProventosRF + totalImpostoRF;
     const rentMedia = totalInvestidoAberto > 0 ? (lucroNaoRealizado / totalInvestidoAberto) * 100 : 0;
 
     // 7. All transactions for display (sorted newest first)
@@ -176,6 +187,8 @@ export async function GET() {
       lucroNaoRealizado,
       lucroRealizado,
       totalProventosRF,
+      totalProventosBrutoRF,
+      totalImpostoRF,
       rentMedia,
       patrimonio: totalAtual + totalCaixa,
     });

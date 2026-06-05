@@ -174,6 +174,8 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     totalProventosBRL: data.totalProventosBRL ?? data.total_proventos_brl ?? 0,
     proventosMensais: data.proventosMensais ?? data.proventos_mensais ?? {},
     proventosPorTicker: data.proventosPorTicker ?? data.proventos_por_ticker ?? {},
+    totalImpostoProventosBRL: data.totalImpostoProventosBRL ?? data.total_imposto_proventos_brl ?? 0,
+    impostoProventosPorTicker: data.impostoProventosPorTicker ?? data.imposto_proventos_por_ticker ?? {},
     lucroBRL: data.lucroBRL ?? data.lucro_brl ?? 0,
     lucroPct: data.lucroPct ?? data.lucro_pct ?? 0,
     ganhoAtivoTotalBRL: data.ganhoAtivoTotalBRL ?? data.ganho_ativo_total_brl ?? 0,
