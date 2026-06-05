@@ -124,6 +124,12 @@ const WorldMap = memo(function WorldMap({
   const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
   const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blockWheelZoom = useCallback((evt: any) => {
+    if (evt?.type === "wheel") return false;
+    return true;
+  }, []);
+
   const countryHeat = useMemo(() => {
     const map: Record<string, number> = {};
     for (const idx of indices) {
@@ -134,7 +140,7 @@ const WorldMap = memo(function WorldMap({
   }, [indices]);
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden" style={{ maxHeight: 420 }}>
       <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
         {[
           { icon: ZoomIn, action: handleZoomIn, label: "Zoom in" },
@@ -177,6 +183,8 @@ const WorldMap = memo(function WorldMap({
           center={center}
           onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
           maxZoom={8}
+          filterZoomEvent={blockWheelZoom}
+          translateExtent={[[-200, -100], [1000, 600]]}
         >
           <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.8)" />
           <Geographies geography={GEO_URL}>
@@ -1661,6 +1669,15 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
       .catch(() => {});
   }, [index.symbol]);
 
+  const [profileDesc, setProfileDesc] = useState<string | null>(null);
+  useEffect(() => {
+    setProfileDesc(null);
+    fetch(`/api/bolsas/profile?symbol=${encodeURIComponent(index.symbol)}`)
+      .then(r => r.json())
+      .then(d => { if (d.description) setProfileDesc(d.description); })
+      .catch(() => {});
+  }, [index.symbol]);
+
   return (
     <div
       className="rounded-2xl p-5 md:p-7 transition-all duration-300 relative overflow-hidden"
@@ -1752,6 +1769,11 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
                 ({isUp ? "+" : ""}{fmtPrice(Math.abs(index.change))})
               </span>
             </div>
+            {profileDesc && (
+              <p className="text-[11px] text-zinc-400 leading-relaxed mt-2 line-clamp-3">
+                {profileDesc}
+              </p>
+            )}
           </div>
 
           {/* Day + 52w stats */}
