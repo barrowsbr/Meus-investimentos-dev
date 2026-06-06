@@ -726,7 +726,7 @@ export default function HomePage() {
       <div className="relative z-10 w-full max-w-lg px-4 py-10 flex flex-col items-center">
 
         {/* ── Hero ── */}
-        <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center" style={{ overflow: "visible" }}>
+        <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center">
           {/* Clickable logo */}
           <button
             onClick={handleLogoClick}

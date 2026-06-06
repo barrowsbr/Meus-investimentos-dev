@@ -334,14 +334,20 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div className={`flex flex-col items-center w-full ${animClass}`} style={{ overflow: "visible" }}>
-      {/* Globe + card side by side */}
-      <div className="relative flex items-center justify-center" style={{ overflow: "visible" }}>
-        {/* Globe — large container, centered, never clipped */}
-        <div className="mx-auto" style={{ width: "min(420px, 92vw)", height: "min(420px, 92vw)", marginTop: "-10px", marginBottom: "-30px" }}>
+    <div className={`flex flex-col items-center ${animClass}`}>
+      <div className="relative">
+        {/* Canvas — square, centered, transparent */}
+        <div style={{ width: 320, height: 320, margin: "0 auto" }}>
           <Canvas
-            camera={{ position: [0, 0, 2.2], fov: 44 }}
-            gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+            camera={{ position: [0, 0, 3.2], fov: 40 }}
+            gl={{
+              antialias: true,
+              alpha: true,
+              powerPreference: "high-performance",
+            }}
+            onCreated={({ gl }) => {
+              gl.setClearColor(0x000000, 0);
+            }}
             dpr={[1, 2]}
             style={{ background: "transparent" }}
           >
@@ -351,21 +357,19 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
           </Canvas>
         </div>
 
-        {/* Shadow underneath the globe */}
+        {/* Shadow underneath */}
         <div
-          className="absolute pointer-events-none"
+          className="pointer-events-none mx-auto"
           style={{
-            bottom: "10px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "55%",
-            height: "20px",
-            background: "radial-gradient(ellipse, rgba(0,0,0,0.4) 0%, transparent 70%)",
-            filter: "blur(8px)",
+            width: "60%",
+            height: 14,
+            marginTop: -6,
+            background: "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
+            filter: "blur(6px)",
           }}
         />
 
-        {/* Info card — positioned to the right on desktop, below on mobile */}
+        {/* Desktop: info card to the right */}
         {selected && (
           <div className="absolute -right-[190px] top-1/2 -translate-y-1/2 hidden md:block">
             <InfoCard point={selected} />
@@ -373,9 +377,9 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
         )}
       </div>
 
-      {/* Mobile info card — below the globe */}
+      {/* Mobile: info card below */}
       {selected && (
-        <div className="mt-2 md:hidden">
+        <div className="mt-1 md:hidden">
           <InfoCard point={selected} />
         </div>
       )}
