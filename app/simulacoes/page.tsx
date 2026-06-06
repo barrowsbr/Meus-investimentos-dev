@@ -12,7 +12,8 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
-import { identificarSetor, getMoedaExposicao } from "@/lib/sectors";
+import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors";
+import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -41,6 +42,7 @@ interface Allocation {
   classe: Record<string, number>;
   tipo: Record<string, number>;
   custodia: Record<string, number>;
+  setorEconomico: Record<string, number>;
   topPositions: { ticker: string; valor: number; pct: number }[];
   total: number;
 }
@@ -86,8 +88,16 @@ const CUSTODIA_COLORS: Record<string, string> = {
   Brasil: "#22c55e", Exterior: "#3b82f6", Cripto: "#f59e0b",
 };
 
+const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
+
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function getSetor(ticker: string): string {
+  const t = ticker.toUpperCase().trim();
+  if (CASH_TICKERS.has(t.split(/\s/)[0])) return "Caixa/Liquidez";
+  return identificarSetor(t);
 }
 
 function getClasse(setor: string): string {
@@ -126,7 +136,7 @@ function detectMoeda(ticker: string, setor: string): string {
     if (t.endsWith(".AX")) return "AUD";
     return "USD";
   }
-  if (["Ações Brasil", "ETF", "FIIs", "BDRs", "Renda Fixa"].includes(setor)) return "BRL";
+  if (["Ações Brasil", "ETF", "FIIs", "BDRs", "Renda Fixa", "Caixa/Liquidez"].includes(setor)) return "BRL";
   return "USD";
 }
 
@@ -146,6 +156,7 @@ function buildAllocation(
   const classe: Record<string, number> = {};
   const tipo: Record<string, number> = {};
   const custodia: Record<string, number> = {};
+  const setorEconomico: Record<string, number> = {};
   let total = 0;
 
   for (const p of positions) {
@@ -166,6 +177,9 @@ function buildAllocation(
 
     const cust = getCustodia(p.setor, p.moeda);
     custodia[cust] = (custodia[cust] ?? 0) + v;
+
+    const se = getSetorEconomico(p.ticker, p.setor);
+    setorEconomico[se] = (setorEconomico[se] ?? 0) + v;
   }
 
   const topPositions = positions
@@ -174,7 +188,7 @@ function buildAllocation(
     .slice(0, 15)
     .map(p => ({ ticker: p.ticker.replace(/\.SA$/, ""), valor: p.valorAtualBRL, pct: total > 0 ? (p.valorAtualBRL / total) * 100 : 0 }));
 
-  return { setor, moeda, classe, tipo, custodia, topPositions, total };
+  return { setor, moeda, classe, tipo, custodia, setorEconomico, topPositions, total };
 }
 
 // ── DonutChart ───────────────────────────────────────────────────────────────
@@ -252,6 +266,31 @@ export default function SimulacoesPage() {
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [quoteCache, setQuoteCache] = useState<Record<string, QuoteInfo>>({});
   const fetchingRef = useRef<Set<string>>(new Set());
+  const [rfPositions, setRfPositions] = useState<{ ticker: string; atual: number; moeda: string; isCaixa: boolean }[]>([]);
+
+  // Load RF positions from fixa_aberta
+  useEffect(() => {
+    fetch("/api/renda-fixa/posicoes")
+      .then(r => r.json())
+      .then(d => {
+        const all = [
+          ...(d.abertas ?? []).map((p: Record<string, unknown>) => ({
+            ticker: String(p.ticker ?? ""),
+            atual: Number(p.atual) || 0,
+            moeda: String(p.moeda ?? "BRL"),
+            isCaixa: false,
+          })),
+          ...(d.caixa ?? []).map((p: Record<string, unknown>) => ({
+            ticker: String(p.ticker ?? ""),
+            atual: Number(p.atual) || 0,
+            moeda: String(p.moeda ?? "BRL"),
+            isCaixa: true,
+          })),
+        ];
+        setRfPositions(all);
+      })
+      .catch(() => {});
+  }, []);
 
   // Load saved scenarios
   useEffect(() => {
@@ -338,10 +377,28 @@ export default function SimulacoesPage() {
     const t = ticker.trim().toUpperCase();
     if (!t || t.length < 2) return;
 
-    const setor = identificarSetor(t);
+    const setor = getSetor(t);
     const detectedMoeda = detectMoeda(t, setor);
     if (detectedMoeda !== currentMoeda) {
       setOps(prev => prev.map(o => o.id === opId ? { ...o, moeda: detectedMoeda } : o));
+    }
+
+    // RF tickers don't have market quotes — use fixa_aberta value or manual input
+    if (isRendaFixa(setor) || CASH_TICKERS.has(t.split(/\s/)[0])) {
+      const rfMatch = rfPositions.find(r => r.ticker.toUpperCase() === t);
+      if (rfMatch && rfMatch.atual > 0) {
+        const price = Math.round(rfMatch.atual * 100) / 100;
+        setQuoteCache(prev => ({ ...prev, [t]: { price, changePct: 0, loading: false, error: false } }));
+        setOps(prev => prev.map(o => o.id === opId && o.ticker.toUpperCase() === t
+          ? { ...o, preco: price, quantidade: o.quantidade || 1 }
+          : o));
+      } else {
+        setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: false, error: false } }));
+        setOps(prev => prev.map(o => o.id === opId && o.ticker.toUpperCase() === t && !o.quantidade
+          ? { ...o, quantidade: 1 }
+          : o));
+      }
+      return;
     }
 
     if (fetchingRef.current.has(t)) return;
@@ -377,12 +434,11 @@ export default function SimulacoesPage() {
         setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: false, error: true } }));
       })
       .finally(() => fetchingRef.current.delete(t));
-  }, [data?.positions]);
+  }, [data?.positions, rfPositions]);
 
   // ── Build current allocation from portfolio ────────────────────────────────
   const currentPositions = useMemo(() => {
-    if (!data?.positions) return [];
-    return data.positions
+    const positions = (data?.positions ?? [])
       .filter(p => p.quantidade > 0 && p.valorAtualBRL > 0)
       .map(p => ({
         ticker: p.ticker,
@@ -393,7 +449,28 @@ export default function SimulacoesPage() {
         quantidade: p.quantidade,
         fatorBRL: p.fatorBRL,
       }));
-  }, [data]);
+
+    // Merge RF positions from fixa_aberta (NTN-B, CDB, Caixa, etc.)
+    const usd = data?.usdbrl ?? 5.7;
+    const rfFxMap: Record<string, number> = { BRL: 1, USD: usd };
+    for (const rf of rfPositions) {
+      if (rf.atual <= 0) continue;
+      const setor = rf.isCaixa ? "Caixa/Liquidez" : "Renda Fixa";
+      const fx = rfFxMap[rf.moeda] ?? 1;
+      const valorBRL = rf.atual * fx;
+      positions.push({
+        ticker: rf.ticker,
+        setor,
+        moeda: rf.moeda,
+        valorAtualBRL: valorBRL,
+        precoAtual: rf.atual,
+        quantidade: 1,
+        fatorBRL: fx,
+      });
+    }
+
+    return positions;
+  }, [data, rfPositions]);
 
   const currentAlloc = useMemo(() => buildAllocation(currentPositions), [currentPositions]);
 
@@ -425,7 +502,7 @@ export default function SimulacoesPage() {
 
     for (const op of validOps) {
       const ticker = op.ticker.toUpperCase();
-      const setor = identificarSetor(ticker);
+      const setor = getSetor(ticker);
       const fxRate = fxMap[op.moeda] ?? usd;
       const valorBRL = op.quantidade * op.preco * fxRate;
 
@@ -621,7 +698,28 @@ export default function SimulacoesPage() {
                     {/* Quote info bar */}
                     {(() => {
                       const t = op.ticker.trim().toUpperCase();
-                      const q = t.length >= 2 ? quoteCache[t] : undefined;
+                      if (t.length < 2) return null;
+                      const setor = getSetor(t);
+                      const rfTicker = isRendaFixa(setor) || CASH_TICKERS.has(t.split(/\s/)[0]);
+                      const q = quoteCache[t];
+
+                      if (rfTicker && !q?.loading) {
+                        const rfMatch = rfPositions.find(r => r.ticker.toUpperCase() === t);
+                        return (
+                          <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.1)" }}>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#22c55e" }} />
+                            <span className="text-[10px] text-emerald-400/70">{setor}</span>
+                            {rfMatch && rfMatch.atual > 0 && (
+                              <span className="text-[10px] text-zinc-300 font-mono font-bold">
+                                R$ {rfMatch.atual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            )}
+                            {!rfMatch && <span className="text-[9px] text-zinc-600">Insira o valor manualmente</span>}
+                            <span className="text-[9px] text-zinc-600 ml-auto">{getSetorEconomico(t, setor)}</span>
+                          </div>
+                        );
+                      }
+
                       if (!q) return null;
                       if (q.loading) return (
                         <div className="flex items-center gap-1.5 mt-2 text-[10px] text-zinc-500">
@@ -650,7 +748,7 @@ export default function SimulacoesPage() {
                                 {isUp ? "+" : ""}{q.changePct.toFixed(2)}%
                               </span>
                             )}
-                            <span className="text-[9px] text-zinc-600 ml-auto">{identificarSetor(t)}</span>
+                            <span className="text-[9px] text-zinc-600 ml-auto">{getSetorEconomico(t, setor)}</span>
                           </div>
                         );
                       }
@@ -659,7 +757,7 @@ export default function SimulacoesPage() {
                     {op.ticker && op.quantidade > 0 && op.preco > 0 && (
                       <div className="mt-2 text-[10px] text-zinc-500">
                         Total: <strong className="text-zinc-300">{op.moeda === "BRL" ? compactBRL(op.quantidade * op.preco) : `$${(op.quantidade * op.preco).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</strong>
-                        <span className="text-zinc-700 ml-1">· {identificarSetor(op.ticker)}</span>
+                        <span className="text-zinc-700 ml-1">· {getSetor(op.ticker)} · {getSetorEconomico(op.ticker, getSetor(op.ticker))}</span>
                       </div>
                     )}
                   </div>
@@ -691,10 +789,11 @@ export default function SimulacoesPage() {
 
           {/* Allocation grids */}
           {[
-            { title: "Setor", colors: SETOR_COLORS, key: "setor" as const },
+            { title: "Setor Econômico", colors: SETOR_ECONOMICO_COLORS, key: "setorEconomico" as const },
+            { title: "Tipo de Ativo", colors: SETOR_COLORS, key: "setor" as const },
             { title: "Moeda / Exposição Cambial", colors: MOEDA_COLORS, key: "moeda" as const },
             { title: "Classe", colors: CLASSE_COLORS, key: "classe" as const },
-            { title: "Tipo de Ativo", colors: TIPO_COLORS, key: "tipo" as const },
+            { title: "Tipo", colors: TIPO_COLORS, key: "tipo" as const },
             { title: "Custódia", colors: CUSTODIA_COLORS, key: "custodia" as const },
           ].map(({ title, colors, key }) => (
             <div key={key} className="glass-card p-5">
