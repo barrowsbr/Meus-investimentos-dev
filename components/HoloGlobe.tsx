@@ -334,7 +334,7 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div className={animClass}>
+    <div className={animClass} style={{ width: "100%" }}>
       {/* Globe canvas — centered via margin auto */}
       <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)", margin: "0 auto" }}>
         <Canvas
