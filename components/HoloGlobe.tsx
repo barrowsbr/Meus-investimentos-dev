@@ -17,6 +17,27 @@ interface MarketPoint {
   currency: string;
 }
 
+interface ConflictZone {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  nearbyMarkets: string[];
+}
+
+const CONFLICT_ZONES: ConflictZone[] = [
+  { id: "ukraine", name: "Guerra Rússia–Ucrânia", lat: 48.5, lng: 32.0, nearbyMarkets: ["^STOXX50E", "^GDAXI", "^FCHI"] },
+  { id: "israel-palestine", name: "Conflito Israel–Palestina", lat: 31.5, lng: 34.8, nearbyMarkets: ["^TA125.TA", "^CASE30"] },
+  { id: "sudan", name: "Guerra Civil no Sudão", lat: 15.5, lng: 32.5, nearbyMarkets: ["^CASE30", "^JN0U.JO"] },
+  { id: "myanmar", name: "Guerra Civil em Myanmar", lat: 19.8, lng: 96.2, nearbyMarkets: ["^SET.BK", "^STI"] },
+  { id: "taiwan-strait", name: "Tensão no Estreito de Taiwan", lat: 24.0, lng: 121.0, nearbyMarkets: ["^TWII", "^HSI", "^N225"] },
+  { id: "red-sea", name: "Crise no Mar Vermelho (Houthis)", lat: 14.5, lng: 42.5, nearbyMarkets: ["^CASE30", "^BSESN", "^TA125.TA"] },
+];
+
+type SelectedItem =
+  | { type: "market"; data: MarketPoint }
+  | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
+
 interface HoloGlobeProps {
   active: boolean;
 }
@@ -202,24 +223,104 @@ function MarkerPoint({
   );
 }
 
+// ── Conflict marker ─────────────────────────────────────────────────────────
+
+function ConflictMarker({
+  zone,
+  radius,
+  isSelected,
+  onSelect,
+}: {
+  zone: ConflictZone;
+  radius: number;
+  isSelected: boolean;
+  onSelect: (z: ConflictZone) => void;
+}) {
+  const ring1Ref = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const pos = useMemo(() => latLngToVec3(zone.lat, zone.lng, radius), [zone.lat, zone.lng, radius]);
+  const warColor = useMemo(() => new THREE.Color("#ff4444"), []);
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (ring1Ref.current) {
+      const s = 1 + Math.sin(t * 3) * 0.3;
+      ring1Ref.current.scale.setScalar(s);
+      (ring1Ref.current.material as THREE.MeshBasicMaterial).opacity = 0.5 - Math.sin(t * 3) * 0.2;
+    }
+    if (ring2Ref.current) {
+      ring2Ref.current.rotation.z = t * 2;
+      const s2 = 1.3 + Math.sin(t * 2 + 1) * 0.2;
+      ring2Ref.current.scale.setScalar(s2);
+      (ring2Ref.current.material as THREE.MeshBasicMaterial).opacity = 0.2 + Math.sin(t * 2 + 1) * 0.1;
+    }
+  });
+
+  const markerScale = isSelected ? 0.045 : 0.032;
+
+  return (
+    <group>
+      {/* Clickable hit area */}
+      <mesh position={pos} onClick={(e) => { e.stopPropagation(); onSelect(zone); }}>
+        <sphereGeometry args={[0.07, 8, 8]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+
+      {/* Inner pulsing ring */}
+      <mesh ref={ring1Ref} position={pos}>
+        <ringGeometry args={[markerScale * 0.6, markerScale, 6]} />
+        <meshBasicMaterial color={warColor} transparent opacity={0.5} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Outer rotating ring */}
+      <mesh ref={ring2Ref} position={pos}>
+        <ringGeometry args={[markerScale * 1.4, markerScale * 1.7, 4]} />
+        <meshBasicMaterial color={warColor} transparent opacity={0.25} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Center glow */}
+      <mesh position={pos}>
+        <sphereGeometry args={[markerScale * 0.35, 12, 12]} />
+        <meshBasicMaterial color={warColor} transparent opacity={isSelected ? 0.9 : 0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Danger glow halo */}
+      <mesh position={pos}>
+        <sphereGeometry args={[markerScale * 3, 16, 16]} />
+        <meshBasicMaterial color={warColor} transparent opacity={isSelected ? 0.08 : 0.04} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Scene ────────────────────────────────────────────────────────────────────
 
-function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (p: MarketPoint | null) => void }) {
+function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
 
-  const handleSelect = useCallback((p: MarketPoint) => {
-    setSelectedSymbol(prev => {
+  const handleSelectMarket = useCallback((p: MarketPoint) => {
+    setSelectedId(prev => {
       const next = prev === p.symbol ? null : p.symbol;
-      onSelect(next ? p : null);
+      onSelect(next ? { type: "market", data: p } : null);
       return next;
     });
   }, [onSelect]);
 
+  const handleSelectConflict = useCallback((z: ConflictZone) => {
+    setSelectedId(prev => {
+      const next = prev === z.id ? null : z.id;
+      if (!next) { onSelect(null); return null; }
+      const nearbyData = markets.filter(m => z.nearbyMarkets.includes(m.symbol));
+      onSelect({ type: "conflict", data: z, nearbyData });
+      return next;
+    });
+  }, [onSelect, markets]);
+
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * (selectedSymbol ? 0.015 : 0.06);
+      groupRef.current.rotation.y += delta * (selectedId ? 0.015 : 0.06);
     }
   });
 
@@ -239,8 +340,18 @@ function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (
             key={m.symbol}
             point={m}
             radius={R + 0.005}
-            isSelected={selectedSymbol === m.symbol}
-            onSelect={handleSelect}
+            isSelected={selectedId === m.symbol}
+            onSelect={handleSelectMarket}
+          />
+        ))}
+
+        {CONFLICT_ZONES.map(z => (
+          <ConflictMarker
+            key={z.id}
+            zone={z}
+            radius={R + 0.005}
+            isSelected={selectedId === z.id}
+            onSelect={handleSelectConflict}
           />
         ))}
       </group>
@@ -261,13 +372,14 @@ function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (
 
 // ── Info card (outside canvas, next to globe) ────────────────────────────────
 
-function InfoCard({ point }: { point: MarketPoint }) {
+function MarketInfoCard({ point }: { point: MarketPoint }) {
   const hex = heatHex(point.changePct);
   const isUp = point.changePct >= 0;
 
   return (
-    <div
-      className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[180px]"
+    <a
+      href={`/bolsas?symbol=${encodeURIComponent(point.symbol)}`}
+      className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[180px] block cursor-pointer transition-all duration-200 hover:brightness-125"
       style={{
         background: "rgba(13,14,20,0.88)",
         border: `1px solid ${hex}40`,
@@ -284,14 +396,62 @@ function InfoCard({ point }: { point: MarketPoint }) {
         {point.currency && <span className="text-[8px] text-zinc-500">{point.currency}</span>}
       </div>
       <div className="flex items-center gap-1 mt-1">
-        <span
-          className="text-[12px] font-extrabold font-mono"
-          style={{ color: hex }}
-        >
+        <span className="text-[12px] font-extrabold font-mono" style={{ color: hex }}>
           {isUp ? "+" : ""}{point.changePct.toFixed(2)}%
         </span>
       </div>
-      <p className="text-[8px] text-zinc-600 mt-1.5">{point.country}</p>
+      <div className="flex items-center justify-between mt-1.5">
+        <p className="text-[8px] text-zinc-600">{point.country}</p>
+        <span className="text-[7px] text-zinc-600 font-semibold uppercase tracking-wider">Ver detalhes →</span>
+      </div>
+    </a>
+  );
+}
+
+function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
+  return (
+    <div
+      className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[220px]"
+      style={{
+        background: "rgba(13,14,20,0.92)",
+        border: "1px solid rgba(255,68,68,0.3)",
+        boxShadow: "0 0 20px rgba(255,68,68,0.1), 0 4px 16px rgba(0,0,0,0.5)",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="text-[10px]">⚠️</span>
+        <span className="text-[10px] font-extrabold text-red-400 uppercase tracking-wider">Conflito Ativo</span>
+      </div>
+      <p className="text-[12px] font-bold text-white leading-snug mb-2">{zone.name}</p>
+
+      {nearbyMarkets.length > 0 && (
+        <>
+          <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Bolsas impactadas</p>
+          <div className="flex flex-col gap-1">
+            {nearbyMarkets.map(m => {
+              const hex = heatHex(m.changePct);
+              const isUp = m.changePct >= 0;
+              return (
+                <a
+                  key={m.symbol}
+                  href={`/bolsas?symbol=${encodeURIComponent(m.symbol)}`}
+                  className="flex items-center justify-between px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.06]"
+                  style={{ background: "rgba(255,255,255,0.03)" }}
+                >
+                  <span className="flex items-center gap-1">
+                    <span className="text-[10px]">{m.flag}</span>
+                    <span className="text-[9px] font-semibold text-zinc-300">{m.name}</span>
+                  </span>
+                  <span className="text-[9px] font-bold font-mono" style={{ color: hex }}>
+                    {isUp ? "+" : ""}{m.changePct.toFixed(1)}%
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -300,7 +460,7 @@ function InfoCard({ point }: { point: MarketPoint }) {
 
 export default function HoloGlobe({ active }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
-  const [selected, setSelected] = useState<MarketPoint | null>(null);
+  const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
 
@@ -375,12 +535,21 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
         <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
         <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
         <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
+        <span className="text-[8px] text-zinc-600 mx-1">|</span>
+        <span className="text-[8px] text-red-500/70 font-semibold flex items-center gap-1">
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff4444", display: "inline-block", boxShadow: "0 0 4px #ff4444" }} />
+          Conflitos
+        </span>
       </div>
 
       {/* Info card below globe when selected */}
       {selected && (
         <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-          <InfoCard point={selected} />
+          {selected.type === "market" ? (
+            <MarketInfoCard point={selected.data} />
+          ) : (
+            <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
+          )}
         </div>
       )}
 
