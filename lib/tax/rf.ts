@@ -31,8 +31,8 @@ interface RfTx { date: string; ticker: string; tipo: "compra" | "resgate"; valor
 function parseRf(rows: Row[]): RfTx[] {
   const out: RfTx[] = [];
   for (const r of rows) {
-    const ticker = String(r["ticker"] ?? r["ativo"] ?? r["papel"] ?? "").trim();
-    if (!ticker || CASH.has(ticker.toUpperCase())) continue;
+    const ticker = String(r["ticker"] ?? r["ativo"] ?? r["papel"] ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    if (!ticker || CASH.has(ticker)) continue;
     const tipoRaw = String(r["tipo"] ?? r["movimentacao"] ?? "").toLowerCase();
     let tipo: RfTx["tipo"] | null = null;
     if (tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte")) tipo = "compra";
@@ -87,8 +87,8 @@ export function rfPosicoesAbertas(rfRows: Row[], fixaAberta: Row[]): { ticker: s
   }
   const out: { ticker: string; investido: number; atual: number; moeda: string }[] = [];
   for (const row of fixaAberta) {
-    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
-    if (!ticker || CASH.has(ticker.toUpperCase())) continue;
+    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    if (!ticker || CASH.has(ticker)) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     if (atual <= 0) continue;
     const inv = investidoPorTicker.get(ticker);

@@ -50,7 +50,7 @@ function parseRFTransactions(rows: Row[]): RFTransaction[] {
   for (const row of rows) {
     const ticker = String(
       row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""
-    ).trim();
+    ).trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
 
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
@@ -151,7 +151,7 @@ export function calcularRF(
   const manualValues = new Map<string, ManualEntry>();
 
   for (const row of fixaAberta) {
-    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
+    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
