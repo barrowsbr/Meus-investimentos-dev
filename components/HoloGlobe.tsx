@@ -38,7 +38,7 @@ type SelectedItem =
   | { type: "market"; data: MarketPoint }
   | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
 
-type HoloMode = "off" | "globe" | "blackhole";
+type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno" | "blackhole";
 
 interface HoloGlobeProps {
   mode: HoloMode;
@@ -766,6 +766,1117 @@ function BlackHoleScene() {
   );
 }
 
+// ── Planet scenes — Solar system ─────────────────────────────────────────────
+
+type PlanetMode = "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno";
+
+const PLANET_MODES: PlanetMode[] = ["sol", "mercurio", "venus", "terra", "marte", "jupiter", "saturno", "urano", "netuno"];
+
+const PLANET_CAPTIONS: Record<PlanetMode, { name: string; fact: string }> = {
+  sol:      { name: "Sol",      fact: "Estrela G2V · 4.6 bilhões de anos" },
+  mercurio: { name: "Mercúrio", fact: "Planeta mais próximo do Sol · 88 dias de órbita" },
+  venus:    { name: "Vênus",    fact: "Rotação retrógrada · 462°C na superfície" },
+  terra:    { name: "Terra",    fact: "Nosso planeta · 12.742 km de diâmetro" },
+  marte:    { name: "Marte",    fact: "Planeta vermelho · Monte Olimpo 21.9 km" },
+  jupiter:  { name: "Júpiter",  fact: "Gigante gasoso · Grande Mancha Vermelha" },
+  saturno:  { name: "Saturno",  fact: "Anéis de gelo e rocha · 146 luas" },
+  urano:    { name: "Urano",    fact: "Inclinação axial 98° · Gira de lado" },
+  netuno:   { name: "Netuno",   fact: "Ventos de 2.100 km/h · Mais distante" },
+};
+
+// ── Sun (Sol) ──
+
+const SUN_VERT = `
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SUN_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) {
+      v += a * noise(p);
+      p = p * 2.1 + vec2(1.7, 3.2);
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.15;
+
+    // Plasma turbulence
+    float n1 = fbm(uv * 6.0 + vec2(t, t * 0.7));
+    float n2 = fbm(uv * 8.0 - vec2(t * 0.5, t * 1.1));
+    float n3 = fbm(uv * 12.0 + vec2(t * 0.3, -t * 0.4));
+    float turb = n1 * 0.5 + n2 * 0.3 + n3 * 0.2;
+
+    // Solar granulation
+    float gran = noise(uv * 40.0 + t * 0.5);
+
+    // Base colors: deep orange core -> yellow -> white hot spots
+    vec3 deep = vec3(0.85, 0.25, 0.0);
+    vec3 mid = vec3(1.0, 0.6, 0.05);
+    vec3 hot = vec3(1.0, 0.95, 0.7);
+
+    vec3 color = mix(deep, mid, turb);
+    color = mix(color, hot, pow(turb, 3.0) * 1.2);
+    color += gran * 0.08 * mid;
+
+    // Sunspot-like dark patches
+    float spot = smoothstep(0.62, 0.58, n1) * smoothstep(0.55, 0.60, n2);
+    color = mix(color, vec3(0.3, 0.08, 0.0), spot * 0.4);
+
+    // Limb darkening
+    float rim = dot(vNormal, vec3(0.0, 0.0, 1.0));
+    float limb = pow(max(rim, 0.0), 0.5);
+    color *= 0.4 + 0.6 * limb;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const SUN_CORONA_FRAG = `
+  varying vec3 vNormal;
+  uniform float uTime;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  void main() {
+    float rim = 1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0));
+    float corona = pow(rim, 2.0);
+    float flicker = 0.85 + 0.15 * sin(uTime * 2.0 + rim * 10.0);
+    vec3 color = mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 0.9, 0.3), rim) * corona * flicker;
+    gl_FragColor = vec4(color, corona * 0.6);
+  }
+`;
+
+const SunSurface = React.memo(function SunSurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: SUN_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.9, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const SunCorona = React.memo(function SunCorona() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: SUN_CORONA_FRAG,
+    uniforms: { uTime: { value: 0 } },
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh scale={[1.25, 1.25, 1.25]}>
+      <sphereGeometry args={[0.9, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function SolScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.04;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.3} />
+      <pointLight position={[0, 0, 0]} intensity={2} color="#ffaa44" />
+      <group ref={groupRef}>
+        <SunSurface />
+        <SunCorona />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={2.0} maxDistance={4.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Mercury (Mercurio) ──
+
+const MERCURY_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+
+    // Base gray terrain
+    float terrain = fbm(uv * 10.0);
+
+    // Craters — multiple scales
+    float craters = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float scale = 15.0 + float(i) * 8.0;
+      vec2 cell = floor(uv * scale);
+      vec2 center = (cell + 0.5) / scale;
+      float dist = length(uv - center) * scale;
+      float rim = smoothstep(0.4, 0.35, dist) * smoothstep(0.2, 0.35, dist);
+      float floor_c = smoothstep(0.3, 0.0, dist) * 0.15;
+      craters += rim * 0.12 - floor_c;
+    }
+
+    vec3 baseColor = vec3(0.42, 0.40, 0.38);
+    vec3 darkColor = vec3(0.25, 0.24, 0.22);
+    vec3 lightColor = vec3(0.55, 0.53, 0.50);
+
+    vec3 color = mix(darkColor, lightColor, terrain);
+    color += craters;
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0);
+    color *= 0.25 + 0.75 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const MercurySurface = React.memo(function MercurySurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: MERCURY_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.6, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function MercurioScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.03;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1.5} color="#fffdf0" />
+      <group ref={groupRef}>
+        <MercurySurface />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={1.5} maxDistance={4.0} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Venus (Venus) ──
+
+const VENUS_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 6; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.03;
+
+    // Cloud bands flowing horizontally
+    float lat = uv.y;
+    float bands = sin(lat * 12.0) * 0.15;
+
+    float clouds1 = fbm(vec2(uv.x * 4.0 + t, uv.y * 6.0));
+    float clouds2 = fbm(vec2(uv.x * 6.0 - t * 0.7, uv.y * 8.0 + t * 0.3));
+    float clouds = clouds1 * 0.6 + clouds2 * 0.4 + bands;
+
+    // Swirling vortex patterns
+    float vortex = fbm(vec2(uv.x * 3.0 + sin(uv.y * 5.0 + t) * 0.3, uv.y * 4.0 + t * 0.2));
+    clouds = mix(clouds, vortex, 0.3);
+
+    // Venus palette: yellowish-white to pale orange
+    vec3 pale = vec3(0.95, 0.90, 0.75);
+    vec3 yellow = vec3(0.90, 0.78, 0.50);
+    vec3 orange = vec3(0.82, 0.65, 0.40);
+
+    vec3 color = mix(orange, pale, clouds);
+    color = mix(color, yellow, vortex * 0.4);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.3, 1.0))), 0.0);
+    color *= 0.35 + 0.65 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const VENUS_ATMO_FRAG = `
+  varying vec3 vNormal;
+  void main() {
+    float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+    vec3 glow = vec3(0.9, 0.8, 0.4) * intensity;
+    gl_FragColor = vec4(glow, intensity * 0.5);
+  }
+`;
+
+const VenusSurface = React.memo(function VenusSurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: VENUS_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.8, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const VenusAtmosphere = React.memo(function VenusAtmosphere() {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: VENUS_ATMO_FRAG,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh scale={[1.12, 1.12, 1.12]}>
+      <sphereGeometry args={[0.8, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function VenusScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.025;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[5, 3, 5]} intensity={1.4} color="#fffde8" />
+      <group ref={groupRef}>
+        <VenusSurface />
+        <VenusAtmosphere />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={1.8} maxDistance={4.0} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Earth close-up (Terra) ──
+
+function TerraScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  const R = 1;
+
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={1.0} />
+      <directionalLight position={[5, 3, 5]} intensity={1.8} color="#fffdf0" />
+      <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
+      <group ref={groupRef}>
+        <EarthSphere radius={R} />
+        <Atmosphere radius={R} />
+        {/* Cloud layer */}
+        <mesh scale={[1.015, 1.015, 1.015]}>
+          <sphereGeometry args={[R, 64, 64]} />
+          <meshPhongMaterial color="#ffffff" transparent opacity={0.12} depthWrite={false} />
+        </mesh>
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={1.5} maxDistance={3.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Mars (Marte) ──
+
+const MARS_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+
+    float terrain = fbm(uv * 8.0);
+    float detail = fbm(uv * 20.0);
+
+    // Mars palette
+    vec3 rust = vec3(0.72, 0.30, 0.15);
+    vec3 sand = vec3(0.82, 0.55, 0.30);
+    vec3 dark = vec3(0.45, 0.20, 0.10);
+
+    vec3 color = mix(rust, sand, terrain);
+    color = mix(color, dark, detail * 0.3);
+
+    // Polar ice caps
+    float polar = abs(uv.y - 0.5) * 2.0;
+    float ice = smoothstep(0.82, 0.95, polar);
+    vec3 iceColor = vec3(0.92, 0.93, 0.95);
+    color = mix(color, iceColor, ice * 0.85);
+
+    // Valles Marineris hint (dark equatorial feature)
+    float valley = smoothstep(0.48, 0.50, uv.y) * smoothstep(0.52, 0.50, uv.y);
+    valley *= smoothstep(0.2, 0.3, uv.x) * smoothstep(0.6, 0.5, uv.x);
+    color = mix(color, dark * 0.7, valley * 0.3);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0);
+    color *= 0.3 + 0.7 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const MARS_ATMO_FRAG = `
+  varying vec3 vNormal;
+  void main() {
+    float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.5);
+    vec3 glow = vec3(0.8, 0.4, 0.2) * intensity;
+    gl_FragColor = vec4(glow, intensity * 0.3);
+  }
+`;
+
+const MarsSurface = React.memo(function MarsSurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: MARS_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.7, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const MarsAtmosphere = React.memo(function MarsAtmosphere() {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: MARS_ATMO_FRAG,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh scale={[1.08, 1.08, 1.08]}>
+      <sphereGeometry args={[0.7, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function MarteScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.045;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1.5} color="#fffdf0" />
+      <group ref={groupRef}>
+        <MarsSurface />
+        <MarsAtmosphere />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={1.5} maxDistance={4.0} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Jupiter (Jupiter) ──
+
+const JUPITER_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.02;
+    float lat = uv.y;
+
+    // Cloud bands — sinusoidal horizontal bands
+    float bands = sin(lat * 28.0) * 0.5 + 0.5;
+    float bandDetail = sin(lat * 56.0 + fbm(vec2(uv.x * 8.0 + t, lat * 4.0)) * 2.0) * 0.25 + 0.5;
+
+    // Zonal flow distortion
+    float flow = fbm(vec2(uv.x * 6.0 + t * (1.0 + sin(lat * 14.0) * 0.5), lat * 10.0));
+
+    // Jupiter palette
+    vec3 cream = vec3(0.92, 0.85, 0.72);
+    vec3 orange = vec3(0.85, 0.55, 0.25);
+    vec3 brown = vec3(0.60, 0.38, 0.20);
+    vec3 white = vec3(0.95, 0.93, 0.88);
+
+    vec3 color = mix(cream, orange, bands);
+    color = mix(color, brown, bandDetail * 0.5);
+    color = mix(color, white, flow * 0.2);
+
+    // Great Red Spot (approximate position)
+    vec2 spotCenter = vec2(0.35, 0.42);
+    float spotDist = length((uv - spotCenter) * vec2(1.8, 2.8));
+    float spot = smoothstep(0.12, 0.04, spotDist);
+    float spotSwirl = fbm(vec2(atan(uv.y - spotCenter.y, uv.x - spotCenter.x) * 3.0 + t * 2.0, spotDist * 15.0));
+    vec3 spotColor = mix(vec3(0.78, 0.28, 0.15), vec3(0.90, 0.45, 0.20), spotSwirl);
+    color = mix(color, spotColor, spot * 0.8);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.3, 1.0))), 0.0);
+    color *= 0.3 + 0.7 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const JupiterSurface = React.memo(function JupiterSurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: JUPITER_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[1.0, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function JupiterScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.06;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1.5} color="#fffdf0" />
+      <group ref={groupRef} rotation={[0.05, 0, 0]}>
+        <JupiterSurface />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={2.0} maxDistance={4.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Saturn (Saturno) ──
+
+const SATURN_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.015;
+    float lat = uv.y;
+
+    // Soft cloud bands
+    float bands = sin(lat * 20.0) * 0.3 + 0.5;
+    float flow = fbm(vec2(uv.x * 5.0 + t, lat * 8.0));
+
+    // Saturn palette: golden/butterscotch tones
+    vec3 gold = vec3(0.90, 0.78, 0.50);
+    vec3 butter = vec3(0.85, 0.72, 0.42);
+    vec3 pale = vec3(0.93, 0.88, 0.70);
+
+    vec3 color = mix(butter, gold, bands);
+    color = mix(color, pale, flow * 0.25);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.3, 1.0))), 0.0);
+    color *= 0.3 + 0.7 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const SATURN_RING_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  void main() {
+    vec2 c = vUv - 0.5;
+    float r = length(c) * 2.0;
+    float angle = atan(c.y, c.x);
+
+    // Ring structure with gaps
+    float ringBase = smoothstep(0.0, 0.08, r) * smoothstep(1.0, 0.85, r);
+
+    // Cassini division (main gap)
+    float cassini = 1.0 - smoothstep(0.42, 0.44, r) * smoothstep(0.48, 0.46, r) * 0.85;
+
+    // Encke gap
+    float encke = 1.0 - smoothstep(0.62, 0.63, r) * smoothstep(0.65, 0.64, r) * 0.6;
+
+    // Ring density variations
+    float density = hash(vec2(r * 200.0, 0.0)) * 0.3 + 0.7;
+    density *= 0.8 + 0.2 * sin(r * 80.0);
+
+    // Ring colors: inner bright → outer darker
+    vec3 innerColor = vec3(0.85, 0.75, 0.55);
+    vec3 midColor = vec3(0.75, 0.65, 0.50);
+    vec3 outerColor = vec3(0.55, 0.48, 0.38);
+
+    vec3 color = mix(innerColor, midColor, smoothstep(0.0, 0.5, r));
+    color = mix(color, outerColor, smoothstep(0.5, 1.0, r));
+
+    float alpha = ringBase * cassini * encke * density * 0.85;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const SaturnBody = React.memo(function SaturnBody() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: SATURN_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.7, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const SaturnRings = React.memo(function SaturnRings() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: DISK_VERT,
+    fragmentShader: SATURN_RING_FRAG,
+    uniforms: { uTime: { value: 0 } },
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh rotation={[Math.PI * 0.5, 0, 0]}>
+      <ringGeometry args={[0.85, 1.45, 128, 1]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function SaturnoScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.04;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1.5} color="#fffdf0" />
+      <group ref={groupRef} rotation={[0.4, 0, -0.1]}>
+        <SaturnBody />
+        <SaturnRings />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={2.5} maxDistance={5.0} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Uranus (Urano) ──
+
+const URANUS_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.01;
+
+    // Subtle atmospheric banding
+    float bands = sin(uv.y * 16.0 + fbm(uv * 3.0 + t) * 0.5) * 0.08;
+    float clouds = fbm(vec2(uv.x * 4.0 + t, uv.y * 5.0));
+
+    // Uranus palette: pale cyan to blue-green
+    vec3 cyan = vec3(0.60, 0.82, 0.85);
+    vec3 teal = vec3(0.50, 0.75, 0.78);
+    vec3 pale = vec3(0.70, 0.88, 0.90);
+
+    vec3 color = mix(teal, cyan, bands + 0.5);
+    color = mix(color, pale, clouds * 0.15);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.3, 1.0))), 0.0);
+    color *= 0.35 + 0.65 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const URANUS_RING_FRAG = `
+  varying vec2 vUv;
+
+  void main() {
+    vec2 c = vUv - 0.5;
+    float r = length(c) * 2.0;
+
+    float ring = smoothstep(0.0, 0.1, r) * smoothstep(1.0, 0.8, r);
+    // Thin, faint rings
+    float bands = sin(r * 60.0) * 0.5 + 0.5;
+    bands = pow(bands, 8.0);
+
+    vec3 color = vec3(0.6, 0.7, 0.75);
+    float alpha = ring * bands * 0.35;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const UranusBody = React.memo(function UranusBody() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: URANUS_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.8, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const UranusRings = React.memo(function UranusRings() {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: DISK_VERT,
+    fragmentShader: URANUS_RING_FRAG,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh rotation={[Math.PI * 0.5, 0, 0]}>
+      <ringGeometry args={[0.95, 1.2, 128, 1]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const UranusAtmosphere = React.memo(function UranusAtmosphere() {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+        vec3 glow = vec3(0.4, 0.8, 0.85) * intensity;
+        gl_FragColor = vec4(glow, intensity * 0.4);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh scale={[1.1, 1.1, 1.1]}>
+      <sphereGeometry args={[0.8, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function UranoScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.035;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1.3} color="#f0f8ff" />
+      {/* Tilted ~98 degrees on its side */}
+      <group ref={groupRef} rotation={[1.71, 0, 0.2]}>
+        <UranusBody />
+        <UranusAtmosphere />
+        <UranusRings />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={2.0} maxDistance={4.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Neptune (Netuno) ──
+
+const NEPTUNE_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 uv = vUv;
+    float t = uTime * 0.025;
+
+    // Strong atmospheric bands
+    float lat = uv.y;
+    float bands = sin(lat * 18.0) * 0.15;
+    float flow = fbm(vec2(uv.x * 6.0 + t * 1.5, lat * 8.0));
+    float wispy = fbm(vec2(uv.x * 10.0 + t * 2.0, lat * 12.0));
+
+    // Neptune palette: deep blue
+    vec3 deepBlue = vec3(0.15, 0.25, 0.65);
+    vec3 blue = vec3(0.25, 0.40, 0.80);
+    vec3 lightBlue = vec3(0.45, 0.60, 0.90);
+    vec3 white = vec3(0.85, 0.88, 0.95);
+
+    vec3 color = mix(deepBlue, blue, bands + 0.5);
+    color = mix(color, lightBlue, flow * 0.3);
+
+    // White cloud streaks (high-altitude cirrus)
+    float clouds = pow(wispy, 3.0);
+    color = mix(color, white, clouds * 0.5);
+
+    // Great Dark Spot
+    vec2 spotCenter = vec2(0.6, 0.45);
+    float spotDist = length((uv - spotCenter) * vec2(2.0, 3.0));
+    float darkSpot = smoothstep(0.15, 0.05, spotDist);
+    vec3 darkColor = vec3(0.08, 0.12, 0.35);
+    color = mix(color, darkColor, darkSpot * 0.6);
+
+    // Lighting
+    float light = max(dot(vNormal, normalize(vec3(1.0, 0.3, 1.0))), 0.0);
+    color *= 0.3 + 0.7 * light;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const NeptuneSurface = React.memo(function NeptuneSurface() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: SUN_VERT,
+    fragmentShader: NEPTUNE_FRAG,
+    uniforms: { uTime: { value: 0 } },
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh>
+      <sphereGeometry args={[0.85, 64, 64]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+const NeptuneAtmosphere = React.memo(function NeptuneAtmosphere() {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+        vec3 glow = vec3(0.2, 0.4, 1.0) * intensity;
+        gl_FragColor = vec4(glow, intensity * 0.5);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh scale={[1.1, 1.1, 1.1]}>
+      <sphereGeometry args={[0.85, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+});
+
+function NetunoScene() {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.3} />
+      <directionalLight position={[5, 3, 5]} intensity={1.4} color="#e8f0ff" />
+      <group ref={groupRef} rotation={[0.5, 0, 0]}>
+        <NeptuneSurface />
+        <NeptuneAtmosphere />
+      </group>
+      <OrbitControls enableZoom enablePan={false} minDistance={2.0} maxDistance={4.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Planet scene dispatcher ─────────────────────────────────────────────────
+
+function PlanetSceneContent({ planet }: { planet: PlanetMode }) {
+  switch (planet) {
+    case "sol": return <SolScene />;
+    case "mercurio": return <MercurioScene />;
+    case "venus": return <VenusScene />;
+    case "terra": return <TerraScene />;
+    case "marte": return <MarteScene />;
+    case "jupiter": return <JupiterScene />;
+    case "saturno": return <SaturnoScene />;
+    case "urano": return <UranoScene />;
+    case "netuno": return <NetunoScene />;
+  }
+}
+
 // ── Exported component ───────────────────────────────────────────────────────
 
 export default function HoloGlobe({ mode }: HoloGlobeProps) {
@@ -773,7 +1884,7 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
-  const [displayMode, setDisplayMode] = useState<"globe" | "blackhole">("globe");
+  const [displayMode, setDisplayMode] = useState<"globe" | "blackhole" | PlanetMode>("globe");
   const prevModeRef = useRef<HoloMode>("off");
 
   useEffect(() => {
@@ -805,17 +1916,17 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
           })
           .catch(() => {});
       }
-    } else if (mode === "blackhole") {
+    } else if (mode === "blackhole" || PLANET_MODES.includes(mode as PlanetMode)) {
       setSelected(null);
-      if (prev === "globe") {
+      if (prev !== "off") {
         setAnimClass("animate-globe-out");
         const t = setTimeout(() => {
-          setDisplayMode("blackhole");
+          setDisplayMode(mode as "blackhole" | PlanetMode);
           setAnimClass("animate-globe-in");
         }, 400);
         return () => clearTimeout(t);
       } else {
-        setDisplayMode("blackhole");
+        setDisplayMode(mode as "blackhole" | PlanetMode);
         setVisible(true);
         setAnimClass("animate-globe-in");
       }
@@ -834,6 +1945,19 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   if (!visible) return null;
 
   const isBlackHole = displayMode === "blackhole";
+  const isPlanet = PLANET_MODES.includes(displayMode as PlanetMode);
+
+  const planetCaptionColor: Record<string, string> = {
+    sol: "text-amber-400/60",
+    mercurio: "text-zinc-400/60",
+    venus: "text-yellow-300/60",
+    terra: "text-blue-400/60",
+    marte: "text-red-400/60",
+    jupiter: "text-orange-300/60",
+    saturno: "text-yellow-400/60",
+    urano: "text-cyan-400/60",
+    netuno: "text-blue-500/60",
+  };
 
   return (
     <div className={animClass} style={{ width: "100%" }}>
@@ -846,7 +1970,13 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
           style={{ background: "transparent" }}
         >
           <React.Suspense fallback={null}>
-            {isBlackHole ? <BlackHoleScene /> : <GlobeScene markets={markets} onSelect={setSelected} />}
+            {isBlackHole ? (
+              <BlackHoleScene />
+            ) : isPlanet ? (
+              <PlanetSceneContent planet={displayMode as PlanetMode} />
+            ) : (
+              <GlobeScene markets={markets} onSelect={setSelected} />
+            )}
           </React.Suspense>
         </Canvas>
       </div>
@@ -859,6 +1989,8 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
           margin: "-6px auto 0",
           background: isBlackHole
             ? "radial-gradient(ellipse, rgba(255,100,0,0.18) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)"
+            : displayMode === "sol"
+            ? "radial-gradient(ellipse, rgba(255,170,0,0.15) 0%, rgba(0,0,0,0.25) 40%, transparent 70%)"
             : "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
           filter: "blur(6px)",
           pointerEvents: "none",
@@ -870,6 +2002,16 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
           <span className="text-[9px] font-bold text-orange-400/50 uppercase tracking-[3px]">Gargantua</span>
           <span className="text-[7px] text-zinc-600 italic">Easter egg · Clique na logo para fechar</span>
+        </div>
+      ) : isPlanet ? (
+        /* Planet caption */
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+          <span className={`text-[9px] font-bold uppercase tracking-[3px] ${planetCaptionColor[displayMode] || "text-zinc-400/60"}`}>
+            {PLANET_CAPTIONS[displayMode as PlanetMode].name}
+          </span>
+          <span className="text-[7px] text-zinc-600 italic">
+            {PLANET_CAPTIONS[displayMode as PlanetMode].fact}
+          </span>
         </div>
       ) : (
         <>
