@@ -333,16 +333,14 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
 
   if (!visible) return null;
 
-  const globeSize = "min(300px, 75vw)";
-
   return (
     <div className={`flex flex-col items-center w-full ${animClass}`}>
       {/* Globe + card side by side */}
       <div className="relative flex items-center justify-center">
-        {/* Globe */}
-        <div style={{ width: globeSize, height: globeSize }}>
+        {/* Globe — large container so the sphere is never clipped */}
+        <div style={{ width: "min(420px, 95vw)", height: "min(420px, 95vw)", marginTop: "-10px", marginBottom: "-30px" }}>
           <Canvas
-            camera={{ position: [0, 0.15, 2.5], fov: 42 }}
+            camera={{ position: [0, 0.15, 2.2], fov: 44 }}
             gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
             dpr={[1, 2]}
             style={{ background: "transparent" }}
@@ -357,13 +355,13 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
         <div
           className="absolute pointer-events-none"
           style={{
-            bottom: "-8px",
+            bottom: "10px",
             left: "50%",
             transform: "translateX(-50%)",
-            width: "65%",
-            height: "18px",
-            background: "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
-            filter: "blur(6px)",
+            width: "55%",
+            height: "20px",
+            background: "radial-gradient(ellipse, rgba(0,0,0,0.4) 0%, transparent 70%)",
+            filter: "blur(8px)",
           }}
         />
 
