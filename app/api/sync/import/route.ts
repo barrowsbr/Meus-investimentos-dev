@@ -477,7 +477,7 @@ function parseB3Excel(rows: Record<string, unknown>[]): { proventos: ProventoRow
 function sigProvento(data: string, ticker: string, valor: number): string {
   const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
   const t = normalizeTicker(ticker);
-  const v = Math.round(valor * 100);
+  const v = Math.round(Math.abs(valor) * 100);
   return `${d}|${t}|${v}`;
 }
 
