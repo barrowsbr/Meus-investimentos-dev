@@ -12,7 +12,7 @@ const ETFS_BR = new Set([
 
 const COMMODITIES = new Set(["IAU", "SIVR", "SLV", "GLD", "DBC", "USO"]);
 
-const RENDA_FIXA_USD = new Set(["SHV", "BIL"]);
+const RENDA_FIXA_USD = new Set(["SHV", "BIL", "VDST"]);
 
 const ETFS_USA = new Set(["SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT"]);
 

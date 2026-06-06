@@ -16,7 +16,7 @@ export const maxDuration = 45;
 
 // Matches Streamlit classificar_camadas() — maps (ticker, setor) → (macro, sub)
 const RF_SETORES = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"]);
-const RF_USD_TICKERS = new Set(["SHV", "BIL"]);
+const RF_USD_TICKERS = new Set(["SHV", "BIL", "VDST"]);
 const ETF_KEYWORDS = ["VWRA", "WRLD", "ACWI", "VT", "URTH", "SPY", "QQQ", "IVV", "VOO", "VNQ", "BND", "AGG"];
 const MUNDO_TICKERS = ["ASML", "DPM", "TSM", "BABA", "JD", "TCEHY"];
 

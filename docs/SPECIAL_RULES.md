@@ -4,11 +4,11 @@
 
 ---
 
-## 1. SHV e BIL -- Renda Fixa USD
+## 1. SHV, BIL e VDST -- Renda Fixa USD
 
 ### Regra
 
-Os ETFs **SHV** (iShares Short Treasury Bond) e **BIL** (SPDR Bloomberg 1-3 Month T-Bill) sao classificados como **"Renda Fixa USD"**, nao como Renda Variavel.
+Os ETFs **SHV** (iShares Short Treasury Bond), **BIL** (SPDR Bloomberg 1-3 Month T-Bill) e **VDST** (Vanguard Short-Term Treasury) sao classificados como **"Renda Fixa USD"**, nao como Renda Variavel. VDST nao distribui dividendos (acumula), ao contrario de SHV e BIL.
 
 ### Impacto
 
@@ -21,7 +21,7 @@ Os ETFs **SHV** (iShares Short Treasury Bond) e **BIL** (SPDR Bloomberg 1-3 Mont
 
 ```typescript
 // lib/sectors.ts
-const RENDA_FIXA_USD = new Set(["SHV", "BIL"]);
+const RENDA_FIXA_USD = new Set(["SHV", "BIL", "VDST"]);
 
 // Na funcao identificarSetor():
 if (RENDA_FIXA_USD.has(tClean)) return "Renda Fixa USD";
@@ -38,7 +38,7 @@ const rfPatrimonioBRL = rfFixaAberta + rfDePosicoes;
 
 ### Justificativa
 
-SHV e BIL sao ETFs de titulos do tesouro americano de curtissimo prazo. Apesar de serem tecnicamente acoes negociadas em bolsa, seu comportamento e de renda fixa (volatilidade minima, retorno previsivel). Classificar como RF reflete melhor a exposicao real da carteira.
+SHV, BIL e VDST sao ETFs de titulos do tesouro americano de curtissimo prazo. Apesar de serem tecnicamente acoes negociadas em bolsa, seu comportamento e de renda fixa (volatilidade minima, retorno previsivel). Classificar como RF reflete melhor a exposicao real da carteira. VDST acumula rendimentos em vez de distribuir dividendos.
 
 ---
 
