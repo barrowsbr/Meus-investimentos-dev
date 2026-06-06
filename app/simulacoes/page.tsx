@@ -591,7 +591,7 @@ export default function SimulacoesPage() {
         {/* ── Left: Operation editor ── */}
         <div className="lg:col-span-1">
           {/* Scenario name + actions */}
-          <div className="glass-card p-4 mb-4">
+          <div className="glass-card p-4 mb-4 overflow-visible relative z-20">
             <div className="flex items-center gap-2 mb-3">
               <Target size={16} className="text-amber-400" />
               <input
@@ -620,7 +620,7 @@ export default function SimulacoesPage() {
                   <FolderOpen size={12} /> Carregar <ChevronDown size={10} />
                 </button>
                 {loadMenuOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-56 rounded-xl z-20 py-1 overflow-hidden" style={{ background: "#1a1b22", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                  <div className="absolute top-full left-0 mt-1 w-56 rounded-xl z-50 py-1 overflow-hidden" style={{ background: "#1a1b22", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
                     {loadingScenarios ? (
                       <div className="px-3 py-4 text-center text-xs text-zinc-500">Carregando...</div>
                     ) : Object.keys(savedScenarios).length === 0 ? (
