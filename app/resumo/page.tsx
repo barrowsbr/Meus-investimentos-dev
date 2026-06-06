@@ -1619,7 +1619,7 @@ export default function ResumoPage() {
            TAB: CAIXA
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "caixa" && (
-        <CaixaManager />
+        <CaixaManager fx={composicao?.fx} />
       )}
 
       {/* ── Data quality warnings ── */}
@@ -1758,7 +1758,7 @@ interface CaixaPos {
   moeda: string;
 }
 
-function CaixaManager() {
+function CaixaManager({ fx }: { fx?: { USDBRL: number; EURBRL: number; CADBRL: number; GBPBRL: number } }) {
   const [positions, setPositions] = useState<CaixaPos[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1813,7 +1813,15 @@ function CaixaManager() {
     setSaving(false);
   };
 
-  const totalBRL = positions.reduce((s, p) => s + p.atual, 0);
+  const fxRates: Record<string, number> = {
+    BRL: 1,
+    USD: fx?.USDBRL ?? 1,
+    EUR: fx?.EURBRL ?? 1,
+    CAD: fx?.CADBRL ?? 1,
+    GBP: fx?.GBPBRL ?? 1,
+  };
+  const toBRL = (val: number, moeda: string) => val * (fxRates[moeda] ?? 1);
+  const totalBRL = positions.reduce((s, p) => s + toBRL(p.atual, p.moeda), 0);
 
   if (loading) {
     return (
@@ -1905,6 +1913,9 @@ function CaixaManager() {
                         min={0}
                         step={0.01}
                       />
+                      {p.moeda !== "BRL" && p.atual > 0 && (
+                        <div className="text-[9px] text-zinc-600 text-right mt-0.5">≈ {compactBRL(toBRL(p.atual, p.moeda))}</div>
+                      )}
                     </td>
                     <td className="py-2 px-2 text-center">
                       <button onClick={() => remove(i)} className="text-zinc-700 hover:text-red-400 transition-colors p-0.5">
