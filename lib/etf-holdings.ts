@@ -65,7 +65,7 @@ PROVIDER_URLS["VWRA"] = PROVIDER_URLS["VWRA.L"];
 PROVIDER_URLS["IVVB11"] = PROVIDER_URLS["IVV"];
 PROVIDER_URLS["VOO"] = PROVIDER_URLS["SPY"];
 
-const ETF_CONFIG = new Set(["SPY", "QQQ", "VWRA.L", "VWRA", "IVV", "IVVB11", "VOO", "VT", "VNQ", "SCHD"]);
+const ETF_CONFIG = new Set(["SPY", "QQQ", "VWRA.L", "VWRA", "IVV", "IVVB11", "VOO", "VT", "VNQ", "SCHD", "FLJP"]);
 
 // ── Embedded fallback (Q1-2025, approximate) ─────────────────────────────────
 
@@ -102,6 +102,21 @@ const EMBEDDED: Record<string, Array<[string, string, number]>> = {
     ["HD", "Home Depot", 0.9], ["PG", "Procter & Gamble", 0.9], ["JNJ", "Johnson & Johnson", 0.8],
     ["WMT", "Walmart Inc", 0.8], ["ABBV", "AbbVie Inc", 0.8], ["BAC", "Bank of America", 0.7],
     ["CRM", "Salesforce Inc", 0.7],
+  ],
+  FLJP: [
+    ["7203.T", "Toyota Motor Corp", 4.2], ["8306.T", "Mitsubishi UFJ Financial", 3.3],
+    ["6758.T", "Sony Group Corp", 2.9], ["6501.T", "Hitachi Ltd", 2.6],
+    ["8316.T", "Sumitomo Mitsui Financial", 2.2], ["6857.T", "Advantest Corp", 2.0],
+    ["8035.T", "Tokyo Electron Ltd", 2.0], ["8411.T", "Mizuho Financial Group", 1.8],
+    ["8058.T", "Mitsubishi Corp", 1.8], ["9984.T", "SoftBank Group Corp", 1.7],
+    ["6861.T", "Keyence Corp", 1.5], ["6098.T", "Recruit Holdings", 1.4],
+    ["6902.T", "Denso Corp", 1.2], ["8766.T", "Tokio Marine Holdings", 1.2],
+    ["9432.T", "Nippon Telegraph & Tel", 1.1], ["7974.T", "Nintendo Co Ltd", 1.1],
+    ["6367.T", "Daikin Industries", 1.0], ["4063.T", "Shin-Etsu Chemical", 1.0],
+    ["6981.T", "Murata Manufacturing", 0.9], ["9433.T", "KDDI Corp", 0.9],
+    ["4568.T", "Daiichi Sankyo Co", 0.8], ["7741.T", "HOYA Corp", 0.8],
+    ["6594.T", "Nidec Corp", 0.7], ["8001.T", "ITOCHU Corp", 0.7],
+    ["4519.T", "Chugai Pharmaceutical", 0.7],
   ],
 };
 EMBEDDED["IVV"] = EMBEDDED["SPY"];
