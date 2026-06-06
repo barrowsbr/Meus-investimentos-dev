@@ -94,11 +94,19 @@ function normalizeTipo(t: string): string {
   return t;
 }
 
+const NON_TICKERS = new Set(["TOTAL", "SUBTOTAL", "NOTES", "HEADER", "DATA"]);
+
 function extractTickerFromDesc(desc: string): string {
   const m = desc.match(/^([A-Z0-9]{1,10})\s*[\(]/i);
-  if (m) return m[1].toUpperCase();
+  if (m) {
+    const t = m[1].toUpperCase();
+    if (!NON_TICKERS.has(t)) return t;
+  }
   const m2 = desc.match(/^([A-Z]{1,5}\d{0,2})\b/i);
-  if (m2) return m2[1].toUpperCase();
+  if (m2) {
+    const t = m2[1].toUpperCase();
+    if (!NON_TICKERS.has(t)) return t;
+  }
   return "";
 }
 
@@ -145,7 +153,7 @@ function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRo
 
     if (tipo === "Dividendo" || tipo === "Dividend") {
       const valor = parseValor(valorStr);
-      if (!valor) continue;
+      if (!valor || valor < 0) continue; // skip reversals
       proventos.push(makeProvento(ticker, data, "Dividendo", valor, moeda, "Ação Internacional"));
     } else if (tipo.includes("imposto") || tipo.includes("Tax") || tipo.includes("Retenção")) {
       const valor = parseValor(valorStr);
@@ -208,10 +216,12 @@ function parseActivityStatement(lines: string[], proventos: ProventoRow[], trade
       const desc = parts[4] ?? "";
       const amount = parseValor(parts[5] ?? "0");
 
-      if (!date || amount === 0) continue;
+      if (!date || !date.match(/^\d{4}-\d{2}-\d{2}$/) || amount === 0) continue;
+      if (amount < 0) continue; // reversal — skip
+      if (/\bTotal\b/i.test(desc) || /\(Reversal\)/i.test(desc)) continue;
       const ticker = extractTickerFromDesc(desc);
       if (!ticker) continue;
-      proventos.push(makeProvento(ticker, date, "Dividendo", Math.abs(amount), currency, "Ação Internacional"));
+      proventos.push(makeProvento(ticker, date, "Dividendo", amount, currency, "Ação Internacional"));
     }
 
     if ((section === "Withholding Tax" || section === "WithholdingTax") && parts.length >= 5) {
@@ -220,7 +230,9 @@ function parseActivityStatement(lines: string[], proventos: ProventoRow[], trade
       const desc = parts[4] ?? "";
       const amount = parseValor(parts[5] ?? "0");
 
-      if (!date || amount === 0) continue;
+      if (!date || !date.match(/^\d{4}-\d{2}-\d{2}$/) || amount === 0) continue;
+      if (amount > 0) continue; // tax refund — skip (actual withholdings are negative)
+      if (/\bTotal\b/i.test(desc) || /\(Reversal\)/i.test(desc)) continue;
       const ticker = extractTickerFromDesc(desc);
       if (!ticker) continue;
       proventos.push(makeProvento(ticker, date, "IMPOSTO", Math.abs(amount), currency, "Ação Internacional"));
