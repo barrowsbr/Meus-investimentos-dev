@@ -465,99 +465,99 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
 }
 
 // ── Black Hole — Gargantua easter egg ───────────────────────────────────────
+//
+// Physics: the accretion disk is in the equatorial plane. Gravitational lensing
+// bends light from the FAR side of the disk over the top and under the bottom
+// of the event horizon, creating a vertical arc (the "photon ring"). The camera
+// sees both the direct disk AND the lensed secondary image simultaneously.
+// Doppler beaming makes the approaching side brighter.
 
-const ACCRETION_VERT = `
+const DISK_VERT = `
   varying vec2 vUv;
-  varying float vRadius;
   void main() {
     vUv = uv;
-    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-    vRadius = length(worldPos.xz);
-    gl_Position = projectionMatrix * viewMatrix * worldPos;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 
-const ACCRETION_FRAG = `
+const DISK_FRAG = `
   uniform float uTime;
   varying vec2 vUv;
-  varying float vRadius;
 
-  float noise(vec2 p) {
+  float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   }
-
   float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 4; i++) {
-      v += a * noise(p);
-      p *= 2.0;
-      a *= 0.5;
-    }
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * hash(p); p *= 2.0; a *= 0.5; }
     return v;
   }
 
   void main() {
-    float angle = atan(vUv.y - 0.5, vUv.x - 0.5);
-    float r = length(vUv - 0.5) * 2.0;
+    vec2 c = vUv - 0.5;
+    float r = length(c) * 2.0;        // 0 at center, 1 at edge
+    float angle = atan(c.y, c.x);
 
-    float rotAngle = angle - uTime * 0.15 + r * 2.0;
-    float turbulence = fbm(vec2(rotAngle * 3.0, r * 8.0 + uTime * 0.3));
+    // Orbital speed: inner orbits faster (Kepler)
+    float orbitalSpeed = 0.3 / (r * r + 0.15);
+    float rotAngle = angle - uTime * orbitalSpeed;
 
-    // Temperature gradient: white-hot inner → orange → deep red outer
-    vec3 hotCore = vec3(1.0, 0.95, 0.85);
-    vec3 warmMid = vec3(1.0, 0.55, 0.1);
-    vec3 coolEdge = vec3(0.6, 0.08, 0.0);
-    vec3 darkEdge = vec3(0.15, 0.0, 0.0);
+    float turb = fbm(vec2(rotAngle * 4.0, r * 12.0 + uTime * 0.2));
 
-    float t = smoothstep(0.0, 0.5, r);
-    vec3 color = mix(hotCore, warmMid, smoothstep(0.0, 0.35, r));
-    color = mix(color, coolEdge, smoothstep(0.25, 0.7, r));
-    color = mix(color, darkEdge, smoothstep(0.6, 1.0, r));
+    // Temperature: white-hot inner (ISCO) → orange → deep red → black
+    vec3 hotCore  = vec3(1.0, 0.97, 0.92);
+    vec3 warmMid  = vec3(1.0, 0.52, 0.08);
+    vec3 coolEdge = vec3(0.55, 0.06, 0.0);
 
-    // Streaks in the disk
-    float streaks = sin(rotAngle * 12.0 + r * 30.0) * 0.5 + 0.5;
-    streaks = pow(streaks, 3.0);
-    color += hotCore * streaks * 0.15 * (1.0 - r);
+    vec3 color = mix(hotCore, warmMid, smoothstep(0.0, 0.4, r));
+    color = mix(color, coolEdge, smoothstep(0.3, 0.85, r));
 
-    color += turbulence * 0.08 * warmMid;
+    // Hot streaks (spiral arms)
+    float spiral = sin(rotAngle * 8.0 + r * 25.0) * 0.5 + 0.5;
+    spiral = pow(spiral, 4.0);
+    color += hotCore * spiral * 0.2 * (1.0 - r);
+    color += turb * 0.06 * warmMid;
 
-    // Doppler beaming — one side brighter
-    float doppler = 0.7 + 0.3 * sin(angle + 1.0);
+    // Doppler beaming: approaching side (left) ~2× brighter
+    float doppler = 0.55 + 0.45 * sin(angle + 0.8);
     color *= doppler;
 
-    // Fade at edges
-    float alpha = smoothstep(0.0, 0.08, r) * smoothstep(1.0, 0.55, r);
-    alpha *= 0.85 + turbulence * 0.15;
+    // Alpha: fade at inner and outer edges
+    float alpha = smoothstep(0.0, 0.1, r) * smoothstep(1.0, 0.5, r);
+    alpha *= 0.9 + turb * 0.1;
 
     gl_FragColor = vec4(color, alpha);
   }
 `;
 
-const LENSING_VERT = `
-  varying vec3 vNormal;
-  varying vec3 vWorldPos;
-  void main() {
-    vNormal = normalize(normalMatrix * normal);
-    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const LENSING_FRAG = `
+// Photon ring shader — the lensed secondary image of the disk.
+// Oriented perpendicular to the disk, this ring represents light from the
+// far side of the disk that was bent over/under the event horizon.
+const PHOTON_RING_FRAG = `
   uniform float uTime;
-  varying vec3 vNormal;
-  varying vec3 vWorldPos;
+  varying vec2 vUv;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
 
   void main() {
-    float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
-    rim = pow(rim, 3.0);
+    vec2 c = vUv - 0.5;
+    float r = length(c) * 2.0;
+    float angle = atan(c.y, c.x);
 
-    float shimmer = sin(vWorldPos.x * 20.0 + uTime * 2.0) * 0.5 + 0.5;
-    shimmer = 0.7 + shimmer * 0.3;
+    // The photon ring is thinner and hotter (light has circled closer to BH)
+    float orbitalSpeed = 0.4 / (r * r + 0.2);
+    float rotAngle = angle - uTime * orbitalSpeed;
+    float turb = hash(vec2(rotAngle * 6.0, r * 20.0 + uTime * 0.15));
 
-    vec3 color = mix(vec3(1.0, 0.6, 0.15), vec3(1.0, 0.9, 0.7), rim);
-    float alpha = rim * 0.6 * shimmer;
+    vec3 color = mix(vec3(1.0, 0.95, 0.85), vec3(1.0, 0.5, 0.1), smoothstep(0.0, 0.6, r));
+
+    float doppler = 0.6 + 0.4 * sin(angle + 0.8);
+    color *= doppler;
+    color += turb * 0.05;
+
+    float alpha = smoothstep(0.0, 0.15, r) * smoothstep(1.0, 0.4, r) * 0.75;
 
     gl_FragColor = vec4(color, alpha);
   }
@@ -565,7 +565,7 @@ const LENSING_FRAG = `
 
 function EventHorizon({ radius }: { radius: number }) {
   return (
-    <mesh>
+    <mesh renderOrder={10}>
       <sphereGeometry args={[radius, 64, 64]} />
       <meshBasicMaterial color="#000000" />
     </mesh>
@@ -584,9 +584,9 @@ function EventHorizonGlow({ radius }: { radius: number }) {
     fragmentShader: `
       varying vec3 vNormal;
       void main() {
-        float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 4.0);
-        vec3 glow = vec3(0.8, 0.3, 0.0) * intensity;
-        gl_FragColor = vec4(glow, intensity * 0.4);
+        float rim = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 5.0);
+        vec3 glow = vec3(0.9, 0.35, 0.0) * rim;
+        gl_FragColor = vec4(glow, rim * 0.35);
       }
     `,
     blending: THREE.AdditiveBlending,
@@ -596,7 +596,7 @@ function EventHorizonGlow({ radius }: { radius: number }) {
   }), []);
 
   return (
-    <mesh scale={[1.15, 1.15, 1.15]}>
+    <mesh scale={[1.18, 1.18, 1.18]}>
       <sphereGeometry args={[radius, 64, 64]} />
       <primitive object={mat} attach="material" />
     </mesh>
@@ -605,10 +605,9 @@ function EventHorizonGlow({ radius }: { radius: number }) {
 
 function AccretionDisk({ innerRadius, outerRadius }: { innerRadius: number; outerRadius: number }) {
   const matRef = useRef<THREE.ShaderMaterial>(null);
-
   const mat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: ACCRETION_VERT,
-    fragmentShader: ACCRETION_FRAG,
+    vertexShader: DISK_VERT,
+    fragmentShader: DISK_FRAG,
     uniforms: { uTime: { value: 0 } },
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -628,12 +627,16 @@ function AccretionDisk({ innerRadius, outerRadius }: { innerRadius: number; oute
   );
 }
 
-function LensingRing({ radius }: { radius: number }) {
-  const matRef = useRef<THREE.ShaderMaterial>(null);
+// The gravitationally lensed image: a thin ring perpendicular to the disk.
+// Light from the far side of the accretion disk is bent by gravity so it
+// appears as an arc going OVER the top and UNDER the bottom of the shadow.
+function PhotonRing({ eventHorizonR }: { eventHorizonR: number }) {
+  const mat1Ref = useRef<THREE.ShaderMaterial>(null);
+  const mat2Ref = useRef<THREE.ShaderMaterial>(null);
 
-  const mat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: LENSING_VERT,
-    fragmentShader: LENSING_FRAG,
+  const makeMat = useCallback((opacity: number) => new THREE.ShaderMaterial({
+    vertexShader: DISK_VERT,
+    fragmentShader: PHOTON_RING_FRAG,
     uniforms: { uTime: { value: 0 } },
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -641,15 +644,31 @@ function LensingRing({ radius }: { radius: number }) {
     depthWrite: false,
   }), []);
 
+  const mat1 = useMemo(() => makeMat(1), [makeMat]);
+  const mat2 = useMemo(() => makeMat(0.6), [makeMat]);
+
   useFrame(({ clock }) => {
-    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+    const t = clock.getElapsedTime();
+    if (mat1Ref.current) mat1Ref.current.uniforms.uTime.value = t;
+    if (mat2Ref.current) mat2Ref.current.uniforms.uTime.value = t;
   });
 
+  const primaryR = eventHorizonR * 1.52;
+  const secondaryR = eventHorizonR * 1.42;
+
   return (
-    <mesh rotation={[0, 0, 0]}>
-      <torusGeometry args={[radius, 0.012, 16, 128]} />
-      <primitive ref={matRef} object={mat} attach="material" />
-    </mesh>
+    <group>
+      {/* Primary lensed image — perpendicular to disk (XY plane) */}
+      <mesh rotation={[0, 0, 0]}>
+        <ringGeometry args={[primaryR - 0.025, primaryR + 0.025, 128, 1]} />
+        <primitive ref={mat1Ref} object={mat1} attach="material" />
+      </mesh>
+      {/* Secondary (dimmer, closer to EH) */}
+      <mesh rotation={[0, 0, 0]}>
+        <ringGeometry args={[secondaryR - 0.012, secondaryR + 0.012, 128, 1]} />
+        <primitive ref={mat2Ref} object={mat2} attach="material" />
+      </mesh>
+    </group>
   );
 }
 
@@ -662,24 +681,23 @@ function SpiralParticles({ count, innerR, outerR }: { count: number; innerR: num
       const r = innerR + Math.random() * (outerR - innerR);
       const angle = Math.random() * Math.PI * 2;
       pos[i * 3] = Math.cos(angle) * r;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 0.06;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 0.04;
       pos[i * 3 + 2] = Math.sin(angle) * r;
       vel[i] = 0.2 + Math.random() * 0.6;
     }
     return { positions: pos, velocities: vel };
   }, [count, innerR, outerR]);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (!ref.current) return;
-    const t = clock.getElapsedTime();
     const posArr = ref.current.geometry.attributes.position.array as Float32Array;
     for (let i = 0; i < count; i++) {
       const x = posArr[i * 3];
       const z = posArr[i * 3 + 2];
       const r = Math.sqrt(x * x + z * z);
-      const speed = (velocities[i] / (r * r + 0.3)) * 0.02;
+      const speed = (velocities[i] / (r * r + 0.3)) * 0.015;
       const angle = Math.atan2(z, x) + speed;
-      const newR = Math.max(innerR * 0.8, r - 0.00008 * velocities[i]);
+      const newR = Math.max(innerR * 0.8, r - 0.00006 * velocities[i]);
       posArr[i * 3] = Math.cos(angle) * newR;
       posArr[i * 3 + 2] = Math.sin(angle) * newR;
       posArr[i * 3 + 1] *= 0.999;
@@ -687,7 +705,7 @@ function SpiralParticles({ count, innerR, outerR }: { count: number; innerR: num
         const resetR = innerR + Math.random() * (outerR - innerR);
         const resetAngle = Math.random() * Math.PI * 2;
         posArr[i * 3] = Math.cos(resetAngle) * resetR;
-        posArr[i * 3 + 1] = (Math.random() - 0.5) * 0.06;
+        posArr[i * 3 + 1] = (Math.random() - 0.5) * 0.04;
         posArr[i * 3 + 2] = Math.sin(resetAngle) * resetR;
       }
     }
@@ -699,7 +717,7 @@ function SpiralParticles({ count, innerR, outerR }: { count: number; innerR: num
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial color="#ffaa44" size={0.008} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} sizeAttenuation />
+      <pointsMaterial color="#ffaa44" size={0.006} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} sizeAttenuation />
     </points>
   );
 }
@@ -709,29 +727,36 @@ function BlackHoleScene() {
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.03;
+      groupRef.current.rotation.y += delta * 0.025;
     }
   });
 
+  const EH = 0.3;
+
   return (
     <>
-      <ambientLight intensity={0.05} />
-      <pointLight position={[0, 0, 0]} intensity={0.3} color="#ff6600" distance={5} />
+      <ambientLight intensity={0.02} />
 
-      <group ref={groupRef} rotation={[0.3, 0, 0.1]}>
-        <EventHorizon radius={0.35} />
-        <EventHorizonGlow radius={0.35} />
-        <AccretionDisk innerRadius={0.5} outerRadius={1.4} />
-        <LensingRing radius={0.52} />
-        <LensingRing radius={0.48} />
-        <SpiralParticles count={600} innerR={0.5} outerR={1.4} />
+      <group ref={groupRef} rotation={[0.45, 0, 0.08]}>
+        {/* Event horizon */}
+        <EventHorizon radius={EH} />
+        <EventHorizonGlow radius={EH} />
+
+        {/* Equatorial accretion disk */}
+        <AccretionDisk innerRadius={EH * 1.6} outerRadius={EH * 3.5} />
+
+        {/* Photon ring — gravitationally lensed secondary image, perpendicular */}
+        <PhotonRing eventHorizonR={EH} />
+
+        {/* Matter spiraling inward */}
+        <SpiralParticles count={500} innerR={EH * 1.6} outerR={EH * 3.5} />
       </group>
 
       <OrbitControls
         enableZoom
         enablePan={false}
-        minDistance={1.5}
-        maxDistance={4.0}
+        minDistance={1.8}
+        maxDistance={4.5}
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.4}
