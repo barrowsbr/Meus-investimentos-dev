@@ -57,7 +57,7 @@ export async function GET() {
   }
 }
 
-// ── POST — append operations to a scenario ───────────────────────────────────
+// ── POST — save scenario (replace if exists, then append new rows) ──────────
 
 export async function POST(req: Request) {
   try {
@@ -75,27 +75,63 @@ export async function POST(req: Request) {
     await ensureTab();
     const sheets = getAuthSheets();
 
-    const rows = operacoes.map((op) => {
+    const newRows = operacoes.map((op) => {
       const o = op as Record<string, unknown>;
       return [
-      cenario,
-      String(o.tipo ?? ""),
-      String(o.ticker ?? ""),
-      o.quantidade ?? "",
-      o.preco ?? "",
-      String(o.moeda ?? "BRL"),
-      String(o.notas ?? ""),
-    ];
+        cenario,
+        String(o.tipo ?? ""),
+        String(o.ticker ?? ""),
+        o.quantidade ?? "",
+        o.preco ?? "",
+        String(o.moeda ?? "BRL"),
+        String(o.notas ?? ""),
+      ];
     });
 
-    await sheets.spreadsheets.values.append({
+    // Read existing data to remove old rows for this scenario
+    const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: TAB,
-      valueInputOption: "RAW",
-      requestBody: { values: rows },
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
 
-    return NextResponse.json({ ok: true, added: rows.length });
+    const allRows = res.data.values;
+    if (allRows && allRows.length >= 2) {
+      const header = allRows[0];
+      const cenarioIdx = header.findIndex(
+        (h: unknown) => String(h).trim().toLowerCase() === "cenario",
+      );
+
+      // Keep rows from OTHER scenarios, drop rows from THIS scenario
+      const kept = cenarioIdx >= 0
+        ? allRows.slice(1).filter(
+            (row) => String(row[cenarioIdx] ?? "").trim() !== cenario,
+          )
+        : allRows.slice(1);
+
+      // Clear and rewrite: header + kept rows + new rows
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId: SPREADSHEET_ID,
+        range: TAB,
+      });
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${TAB}!A1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [header, ...kept, ...newRows] },
+      });
+    } else {
+      // No existing data or only header — just append
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: TAB,
+        valueInputOption: "RAW",
+        requestBody: { values: newRows },
+      });
+    }
+
+    return NextResponse.json({ ok: true, saved: newRows.length });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
