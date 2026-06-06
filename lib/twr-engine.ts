@@ -127,7 +127,7 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
 
 // ─── RF (renda fixa) timeline for TWR integration ────────────────────────────
 
-const SELIC_ANNUAL_RATE = 0.1375;
+const SELIC_ANNUAL_RATE = 0.1475;
 const RF_BIZ_DAYS_YEAR = 252;
 const SELIC_DAILY_RATE = Math.pow(1 + SELIC_ANNUAL_RATE, 1 / RF_BIZ_DAYS_YEAR) - 1;
 const CASH_TICKERS_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
@@ -141,11 +141,15 @@ interface RfParsedTx {
   moeda: string;
 }
 
+function normalizeRfTicker(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\s+/g, " ");
+}
+
 function parseRfTxs(rows: Row[]): RfParsedTx[] {
   const result: RfParsedTx[] = [];
   for (const row of rows) {
-    const ticker = String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? "").trim();
-    if (!ticker || CASH_TICKERS_RF.has(ticker.toUpperCase())) continue;
+    const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""));
+    if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
     let tipo: "compra" | "venda" | null = null;
     if (tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte")) tipo = "compra";
@@ -207,8 +211,8 @@ export function buildRfTimeline(
 
   const manualValues = new Map<string, { atual: number; moeda: string }>();
   for (const row of fixaAberta) {
-    const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
-    if (!ticker || CASH_TICKERS_RF.has(ticker.toUpperCase())) continue;
+    const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? ""));
+    if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
     if (atual > 0) manualValues.set(ticker, { atual, moeda });
