@@ -109,8 +109,10 @@ export default function RendaVariavelPage() {
     const totalInvestido = rv.reduce((s, p) => s + p.custoTotalBRL, 0);
     const totalAtual = data.rvPatrimonioBRL;
     const dayChangeBRL = data.dayChangeTotalBRL ?? 0;
-    const ganhoAtivo = data.ganhoAtivoTotalBRL ?? 0;
-    const ganhoCambio = data.ganhoCambioTotalBRL ?? 0;
+    const ganhoAtivoPuro = data.ganhoAtivoPuroTotalBRL ?? 0;
+    const fxPrincipal = data.ganhoFXPrincipalTotalBRL ?? 0;
+    const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
+    const ganhoCambio = fxPrincipal + fxCruzado;
 
     // Sector breakdown
     const bySector: Record<string, { value: number; invested: number; count: number }> = {};
@@ -136,8 +138,8 @@ export default function RendaVariavelPage() {
     const posPerdedoras = rv.filter(p => (p.dayChangePct ?? 0) < 0).length;
 
     return {
-      rv, totalInvestido, totalAtual, dayChangeBRL, ganhoAtivo, ganhoCambio,
-      sectorData, posGanhadoras, posPerdedoras,
+      rv, totalInvestido, totalAtual, dayChangeBRL, ganhoAtivoPuro, ganhoCambio,
+      fxPrincipal, fxCruzado, sectorData, posGanhadoras, posPerdedoras,
     };
   }, [data]);
 
@@ -238,20 +240,20 @@ export default function RendaVariavelPage() {
         </div>
         <div className="animate-fade-in animate-delay-4">
           <MetricCard
-            label="Ganho Ativo"
-            value={brl(metrics.ganhoAtivo)}
-            sub="Valorização dos ativos (vs PM)"
+            label="Ganho Ativo (ex-câmbio)"
+            value={brl(metrics.ganhoAtivoPuro)}
+            sub="Valorização ao câmbio de compra"
             icon={<TrendingUp size={18} />}
-            trend={metrics.ganhoAtivo >= 0 ? "up" : "down"}
+            trend={metrics.ganhoAtivoPuro >= 0 ? "up" : "down"}
             glowColor="#06b6d4"
             compact
           />
         </div>
         <div className="animate-fade-in animate-delay-5">
           <MetricCard
-            label="Ganho Câmbio"
+            label="Efeito Câmbio"
             value={brl(metrics.ganhoCambio)}
-            sub="Variação cambial (spot vs PM)"
+            sub={`Principal ${brl(metrics.fxPrincipal)} · Cruzado ${brl(metrics.fxCruzado)}`}
             icon={<ArrowLeftRight size={18} />}
             trend={metrics.ganhoCambio >= 0 ? "up" : "down"}
             glowColor="#10b981"

@@ -488,7 +488,7 @@ export default function ResumoPage() {
         const cambioTotal = (data.ganhoFXPrincipalTotalBRL ?? 0) + (data.ganhoCruzadoTotalBRL ?? 0);
         const rvAtivo = rvGanho - cambioTotal;
         const items = [
-          { label: "Ganho RV (ativo)", value: rvAtivo, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal)} · Realiz ${compactBRL(rvReal)} (ex-câmbio)` },
+          { label: "Ganho RV (ex-câmbio)", value: rvAtivo, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal - cambioTotal)} · Realiz ${compactBRL(rvReal)}` },
           { label: "Câmbio", value: cambioTotal, color: "#f59e0b", desc: `Principal ${compactBRL(data.ganhoFXPrincipalTotalBRL ?? 0)} · Cruzado ${compactBRL(data.ganhoCruzadoTotalBRL ?? 0)}` },
           { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos (líq. IR)" },
           { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
