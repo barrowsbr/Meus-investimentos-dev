@@ -1003,16 +1003,48 @@ function EtfLookThrough({ alloc, positions }: {
       .then(r => r.json())
       .then(d => {
         const lt = d.look_through;
-        if (lt?.compositions) {
-          setCompositions(lt.compositions);
-          setSources(lt.sources ?? {});
-        } else {
-          setCompositions({});
-        }
+        const comps: Record<string, CompositionData> = lt?.compositions ?? {};
+        const srcs: Record<string, string> = lt?.sources ?? {};
+        setCompositions(comps);
+        setSources(srcs);
       })
       .catch(() => setCompositions({}))
       .finally(() => setLoadingComp(false));
   }, [expanded, compositions, etfPositions.length]);
+
+  const fetchedExtrasRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!compositions || etfPositions.length === 0) return;
+    const missing = etfPositions
+      .map(p => p.ticker.toUpperCase())
+      .filter(t => {
+        const found = compositions[t] || compositions[t + ".SA"];
+        return !found && !fetchedExtrasRef.current.has(t);
+      });
+    if (missing.length === 0) return;
+    for (const t of missing) fetchedExtrasRef.current.add(t);
+    fetch(`/api/composicao/holdings?tickers=${missing.join(",")}`)
+      .then(r => r.json())
+      .then(d => {
+        const extra = d.compositions as Record<string, { components: { ativo: string; name: string; peso: number }[]; source: string }> | undefined;
+        if (!extra || Object.keys(extra).length === 0) return;
+        setCompositions(prev => {
+          const next = { ...prev };
+          for (const [tk, data] of Object.entries(extra)) {
+            next[tk] = { ticker: tk, valor_brl: 0, components: data.components };
+          }
+          return next;
+        });
+        setSources(prev => {
+          const next = { ...prev };
+          for (const [tk, data] of Object.entries(extra)) {
+            next[tk] = data.source;
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [compositions, etfPositions]);
 
   const findComp = useCallback((ticker: string): CompositionData | null => {
     if (!compositions) return null;
