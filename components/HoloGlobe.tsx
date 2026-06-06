@@ -409,9 +409,12 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
+  const aiQuery = `Analise o conflito "${zone.name}": quais os impactos econômicos e geopolíticos atuais? Como está afetando os mercados financeiros da região e as bolsas globais?`;
+
   return (
-    <div
-      className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[220px]"
+    <a
+      href={`/agente-ia?q=${encodeURIComponent(aiQuery)}`}
+      className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[220px] block cursor-pointer transition-all duration-200 hover:brightness-125"
       style={{
         background: "rgba(13,14,20,0.92)",
         border: "1px solid rgba(255,68,68,0.3)",
@@ -428,15 +431,14 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
       {nearbyMarkets.length > 0 && (
         <>
           <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Bolsas impactadas</p>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 mb-2">
             {nearbyMarkets.map(m => {
               const hex = heatHex(m.changePct);
               const isUp = m.changePct >= 0;
               return (
-                <a
+                <div
                   key={m.symbol}
-                  href={`/bolsas?symbol=${encodeURIComponent(m.symbol)}`}
-                  className="flex items-center justify-between px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.06]"
+                  className="flex items-center justify-between px-2 py-1 rounded-lg"
                   style={{ background: "rgba(255,255,255,0.03)" }}
                 >
                   <span className="flex items-center gap-1">
@@ -446,13 +448,17 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
                   <span className="text-[9px] font-bold font-mono" style={{ color: hex }}>
                     {isUp ? "+" : ""}{m.changePct.toFixed(1)}%
                   </span>
-                </a>
+                </div>
               );
             })}
           </div>
         </>
       )}
-    </div>
+
+      <div className="flex items-center justify-center gap-1.5 pt-1.5" style={{ borderTop: "1px solid rgba(255,68,68,0.15)" }}>
+        <span className="text-[8px] text-red-400/70 font-semibold uppercase tracking-wider">Perguntar à IA →</span>
+      </div>
+    </a>
   );
 }
 
