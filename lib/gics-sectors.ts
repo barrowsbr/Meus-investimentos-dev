@@ -161,12 +161,44 @@ const US_SECTORS: Record<string, string> = {
 
 const SECTOR_MAP: Record<string, string> = { ...BR_SECTORS, ...US_SECTORS };
 
-export function getSetorEconomico(ticker: string, setorAtivo: string): string {
-  const t = ticker.toUpperCase().replace(/\.(SA|L|DE|TO|AS)$/i, "");
+// Yahoo Finance English sector → Portuguese
+const YAHOO_SECTOR_PT: Record<string, string> = {
+  "Technology": "Tecnologia",
+  "Financial Services": "Financeiro",
+  "Financials": "Financeiro",
+  "Healthcare": "Saúde",
+  "Health Care": "Saúde",
+  "Energy": "Energia",
+  "Basic Materials": "Mineração & Materiais",
+  "Materials": "Mineração & Materiais",
+  "Consumer Defensive": "Consumo",
+  "Consumer Staples": "Consumo",
+  "Consumer Cyclical": "Varejo",
+  "Consumer Discretionary": "Varejo",
+  "Communication Services": "Comunicação",
+  "Telecommunications": "Comunicação",
+  "Industrials": "Industriais",
+  "Utilities": "Utilidades Públicas",
+  "Real Estate": "Imobiliário",
+};
 
+export function translateYahooSector(englishSector: string): string {
+  return YAHOO_SECTOR_PT[englishSector] ?? englishSector;
+}
+
+export function getSetorEconomico(ticker: string, setorAtivo: string, apiSector?: string): string {
+  // 1) Dynamic sector from Yahoo API takes priority
+  if (apiSector) {
+    const translated = YAHOO_SECTOR_PT[apiSector];
+    if (translated) return translated;
+  }
+
+  // 2) Static mapping
+  const t = ticker.toUpperCase().replace(/\.(SA|L|DE|TO|AS|KS|T|SW|PA|MI|MC|HK|AX|TW)$/i, "");
   const mapped = SECTOR_MAP[t];
   if (mapped) return mapped;
 
+  // 3) Fallback by asset type
   if (setorAtivo === "Cripto") return "Cripto";
   if (setorAtivo === "Commodities") return "Commodities";
   if (setorAtivo === "Caixa/Liquidez") return "Caixa/Liquidez";
@@ -179,6 +211,9 @@ export function getSetorEconomico(ticker: string, setorAtivo: string): string {
     if (us) return us;
     return "Outros";
   }
+
+  // 4) If we got an untranslated API sector, use it as-is
+  if (apiSector) return apiSector;
 
   return "Outros";
 }
