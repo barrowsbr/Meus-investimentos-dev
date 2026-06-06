@@ -23,6 +23,7 @@ import {
   Target,
   GraduationCap,
   Globe,
+  PieChart,
 } from "lucide-react";
 
 interface NavItem {
@@ -58,6 +59,7 @@ const navGroups: NavGroup[] = [
     label: "Análise",
     items: [
       { href: "/performance",          label: "Performance",   icon: TrendingUp, mobileShow: true },
+      { href: "/setores",              label: "Setores",       icon: PieChart },
       { href: "/evolucao",             label: "Evolução",       icon: Activity },
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
       { href: "/entendimento",         label: "Entendimento",   icon: GraduationCap },
