@@ -19,7 +19,6 @@ interface MarketPoint {
 
 interface HoloGlobeProps {
   active: boolean;
-  onClose: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -289,35 +288,29 @@ function GlobeScene({ markets }: { markets: MarketPoint[] }) {
 
 // ── Exported component ───────────────────────────────────────────────────────
 
-export default function HoloGlobe({ active, onClose }: HoloGlobeProps) {
+export default function HoloGlobe({ active }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
-
-  // ESC to close
-  useEffect(() => {
-    if (!active) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [active, onClose]);
 
   useEffect(() => {
     if (active) {
       setVisible(true);
       setAnimClass("animate-globe-in");
-      fetch("/api/bolsas")
-        .then(r => r.json())
-        .then(d => {
-          if (d.indices) {
-            setMarkets(d.indices.map((i: MarketPoint) => ({
-              symbol: i.symbol, name: i.name, country: i.country,
-              flag: i.flag, lat: i.lat, lng: i.lng,
-              changePct: i.changePct, price: i.price, currency: i.currency,
-            })));
-          }
-        })
-        .catch(() => {});
+      if (markets.length === 0) {
+        fetch("/api/bolsas")
+          .then(r => r.json())
+          .then(d => {
+            if (d.indices) {
+              setMarkets(d.indices.map((i: MarketPoint) => ({
+                symbol: i.symbol, name: i.name, country: i.country,
+                flag: i.flag, lat: i.lat, lng: i.lng,
+                changePct: i.changePct, price: i.price, currency: i.currency,
+              })));
+            }
+          })
+          .catch(() => {});
+      }
     } else if (visible) {
       setAnimClass("animate-globe-out");
       const t = setTimeout(() => { setVisible(false); setAnimClass(""); }, 400);
@@ -329,31 +322,17 @@ export default function HoloGlobe({ active, onClose }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center ${animClass}`}
-      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(6px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      {/* Close hint */}
-      <button
-        onClick={onClose}
-        className="absolute top-6 right-6 text-[11px] text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg z-50"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+    <div className={`w-full flex flex-col items-center ${animClass}`}>
+      <div
+        className="relative"
+        style={{
+          width: "min(340px, 85vw)",
+          height: "min(340px, 85vw)",
+          filter: "drop-shadow(0 8px 30px rgba(0,0,0,0.5)) drop-shadow(0 2px 8px rgba(60,130,200,0.15))",
+        }}
       >
-        ESC para fechar
-      </button>
-
-      {/* Heat legend */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-50">
-        <span className="text-[9px] text-red-400 font-bold">-4%</span>
-        <div className="w-24 h-1.5 rounded-full" style={{ background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)" }} />
-        <span className="text-[9px] text-emerald-400 font-bold">+4%</span>
-      </div>
-
-      {/* Globe canvas — no container, just floating */}
-      <div className="w-full h-full">
         <Canvas
-          camera={{ position: [0, 0.3, 2.5], fov: 45 }}
+          camera={{ position: [0, 0.2, 2.6], fov: 42 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           dpr={[1, 2]}
           style={{ background: "transparent" }}
@@ -364,17 +343,24 @@ export default function HoloGlobe({ active, onClose }: HoloGlobeProps) {
         </Canvas>
       </div>
 
+      {/* Heat legend — subtle, below the globe */}
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-[8px] text-red-400/70 font-semibold">-4%</span>
+        <div className="w-16 h-1 rounded-full" style={{ background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.6 }} />
+        <span className="text-[8px] text-emerald-400/70 font-semibold">+4%</span>
+      </div>
+
       <style jsx global>{`
         @keyframes globe-in {
-          from { opacity: 0; transform: scale(0.7); }
-          to { opacity: 1; transform: scale(1); }
+          from { opacity: 0; transform: scale(0.5) translateY(-20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
         @keyframes globe-out {
-          from { opacity: 1; transform: scale(1); }
-          to { opacity: 0; transform: scale(0.7); }
+          from { opacity: 1; transform: scale(1) translateY(0); }
+          to { opacity: 0; transform: scale(0.5) translateY(-20px); }
         }
         .animate-globe-in { animation: globe-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .animate-globe-out { animation: globe-out 0.4s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
+        .animate-globe-out { animation: globe-out 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
       `}</style>
     </div>
   );

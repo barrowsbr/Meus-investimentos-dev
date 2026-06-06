@@ -743,8 +743,8 @@ export default function HomePage() {
             />
           </button>
 
-          {/* ── 3D Globe overlay ── */}
-          <HoloGlobe active={holoActive} onClose={() => setHoloActive(false)} />
+          {/* ── 3D Globe — inline below logo ── */}
+          <HoloGlobe active={holoActive} />
 
           <h1
             className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
