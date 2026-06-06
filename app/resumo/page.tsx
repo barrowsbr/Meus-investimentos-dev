@@ -1347,25 +1347,26 @@ export default function ResumoPage() {
             const combinedList = Object.values(combined).sort((a, b) => b.valorBRL - a.valorBRL);
             const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
 
-            const rvComplete: { ticker: string; valorBRL: number; source: string; isExpanded: boolean }[] = [];
+            const rvComplete: { ticker: string; name: string; valorBRL: number; source: string; isExpanded: boolean }[] = [];
             for (const p of rvPositions) {
               if (lt.compositions[p.ticker]) {
                 for (const c of lt.compositions[p.ticker].components) {
-                  rvComplete.push({ ticker: c.ativo, valorBRL: p.valorAtualBRL * c.peso, source: p.ticker, isExpanded: true });
+                  rvComplete.push({ ticker: c.ativo, name: c.name ?? "", valorBRL: p.valorAtualBRL * c.peso, source: p.ticker, isExpanded: true });
                 }
               } else {
-                rvComplete.push({ ticker: p.ticker, valorBRL: p.valorAtualBRL, source: "", isExpanded: false });
+                rvComplete.push({ ticker: p.ticker, name: "", valorBRL: p.valorAtualBRL, source: "", isExpanded: false });
               }
             }
-            const rvMerged: Record<string, { valorBRL: number; sources: string[] }> = {};
+            const rvMerged: Record<string, { valorBRL: number; name: string; sources: string[] }> = {};
             for (const item of rvComplete) {
-              if (!rvMerged[item.ticker]) rvMerged[item.ticker] = { valorBRL: 0, sources: [] };
+              if (!rvMerged[item.ticker]) rvMerged[item.ticker] = { valorBRL: 0, name: item.name, sources: [] };
               rvMerged[item.ticker].valorBRL += item.valorBRL;
+              if (item.name && !rvMerged[item.ticker].name) rvMerged[item.ticker].name = item.name;
               if (item.source && !rvMerged[item.ticker].sources.includes(item.source))
                 rvMerged[item.ticker].sources.push(item.source);
             }
             const rvCompleteList = Object.entries(rvMerged)
-              .map(([ticker, d]) => ({ ticker, valorBRL: d.valorBRL, via: d.sources.join(", ") }))
+              .map(([ticker, d]) => ({ ticker, name: d.name, valorBRL: d.valorBRL, via: d.sources.join(", ") }))
               .sort((a, b) => b.valorBRL - a.valorBRL);
             const rvCompleteTotal = rvCompleteList.reduce((s, c) => s + c.valorBRL, 0);
 
@@ -1373,12 +1374,12 @@ export default function ResumoPage() {
             // RF manual (Tesouro, CDBs, caixa). Ranqueia tudo e respeita o filtro.
             const rfBolsa = data.positions
               .filter(p => !isRendaVariavel(p.setor) && p.valorAtualBRL > 0)
-              .map(p => ({ ticker: p.ticker, valorBRL: p.valorAtualBRL, via: p.setor, macro: "Renda Fixa" }));
+              .map(p => ({ ticker: p.ticker, name: "", valorBRL: p.valorAtualBRL, via: p.setor, macro: "Renda Fixa" }));
             const rfManual = (composicao.rf_posicoes ?? []).map(r => ({
-              ticker: r.ticker, valorBRL: r.valor_brl, via: r.is_caixa ? "Caixa" : r.setor, macro: "Renda Fixa",
+              ticker: r.ticker, name: "", valorBRL: r.valor_brl, via: r.is_caixa ? "Caixa" : r.setor, macro: "Renda Fixa",
             }));
             const portfolioItems = [
-              ...rvCompleteList.map(c => ({ ticker: c.ticker, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" })),
+              ...rvCompleteList.map(c => ({ ticker: c.ticker, name: c.name, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" })),
               ...rfBolsa,
               ...rfManual,
             ];
@@ -1468,7 +1469,10 @@ export default function ResumoPage() {
                         {combinedList.slice(0, 30).map((c, i) => (
                           <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                             <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                            <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
+                            <td className="py-1.5 px-2">
+                              <span className="text-zinc-200 font-semibold">{c.ativo}</span>
+                              {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                            </td>
                             <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
                             <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
                               {combinedTotal > 0 ? ((c.valorBRL / combinedTotal) * 100).toFixed(2) : "0"}%
@@ -1501,7 +1505,10 @@ export default function ResumoPage() {
                           {rvCompleteList.map((c, i) => (
                             <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via ? "opacity-85" : ""}`}>
                               <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                              <td className="py-1.5 px-2 font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                              <td className="py-1.5 px-2">
+                                <span className="font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</span>
+                                {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                              </td>
                               <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
                               <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
                                 {rvCompleteTotal > 0 ? ((c.valorBRL / rvCompleteTotal) * 100).toFixed(2) : "0"}%
@@ -1540,7 +1547,10 @@ export default function ResumoPage() {
                               return (
                                 <tr key={`${c.ticker}-${i}`} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                                   <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                                  <td className="py-1.5 px-2 font-semibold text-zinc-100">{c.ticker}</td>
+                                  <td className="py-1.5 px-2">
+                                    <span className="font-semibold text-zinc-100">{c.ticker}</span>
+                                    {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                  </td>
                                   <td className="py-1.5 px-2">
                                     <span className="tag text-[9px] px-1.5 py-0.5" style={{ backgroundColor: isRF ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: isRF ? "#10b981" : "#3b82f6" }}>
                                       {isRF ? "RF" : "RV"}
