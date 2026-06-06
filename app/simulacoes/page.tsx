@@ -1097,21 +1097,23 @@ function EtfLookThrough({ alloc, positions }: {
       .sort((a, b) => b.valorBRL - a.valorBRL);
     const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
 
-    const rvMerged: Record<string, { directBRL: number; etfBRL: number; via: string[] }> = {};
+    const rvMerged: Record<string, { directBRL: number; etfBRL: number; name: string; via: string[] }> = {};
     for (const pos of directRvPositions) {
-      rvMerged[pos.ticker] = { directBRL: pos.valor, etfBRL: 0, via: [] };
+      rvMerged[pos.ticker] = { directBRL: pos.valor, etfBRL: 0, name: "", via: [] };
     }
     for (const [ativo, d] of Object.entries(combined)) {
       if (rvMerged[ativo]) {
         rvMerged[ativo].etfBRL += d.valorBRL;
+        if (d.name && !rvMerged[ativo].name) rvMerged[ativo].name = d.name;
         for (const e of d.etfs) if (!rvMerged[ativo].via.includes(e)) rvMerged[ativo].via.push(e);
       } else {
-        rvMerged[ativo] = { directBRL: 0, etfBRL: d.valorBRL, via: [...d.etfs] };
+        rvMerged[ativo] = { directBRL: 0, etfBRL: d.valorBRL, name: d.name, via: [...d.etfs] };
       }
     }
     const rvList = Object.entries(rvMerged)
       .map(([ticker, d]) => ({
         ticker,
+        name: d.name,
         valorBRL: d.directBRL + d.etfBRL,
         via: (d.directBRL > 0 ? ["Direta"] : []).concat(d.via).join(", ") || "—",
       }))
@@ -1120,9 +1122,9 @@ function EtfLookThrough({ alloc, positions }: {
 
     const rfPositionsLT = positions
       .filter(p => isRendaFixa(p.setor) && p.valor > 0)
-      .map(p => ({ ticker: p.ticker, valorBRL: p.valor, via: p.setor, macro: "Renda Fixa" as const }));
+      .map(p => ({ ticker: p.ticker, name: "", valorBRL: p.valor, via: p.setor, macro: "Renda Fixa" as const }));
     const portfolioItems = [
-      ...rvList.map(c => ({ ticker: c.ticker, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" as const })),
+      ...rvList.map(c => ({ ticker: c.ticker, name: c.name, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" as const })),
       ...rfPositionsLT,
     ].sort((a, b) => b.valorBRL - a.valorBRL);
     const portfolioTotal = portfolioItems.reduce((s, c) => s + c.valorBRL, 0);
@@ -1267,7 +1269,10 @@ function EtfLookThrough({ alloc, positions }: {
                       {lookThrough.combinedList.slice(0, 30).map((c, i) => (
                         <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                           <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                          <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
+                          <td className="py-1.5 px-2">
+                            <span className="text-zinc-200 font-semibold">{c.ativo}</span>
+                            {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                          </td>
                           <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
                           <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
                             {lookThrough.combinedTotal > 0 ? ((c.valorBRL / lookThrough.combinedTotal) * 100).toFixed(2) : "0"}%
@@ -1300,7 +1305,10 @@ function EtfLookThrough({ alloc, positions }: {
                         {lookThrough.rvList.map((c, i) => (
                           <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via !== "Direta" && c.via !== "—" ? "opacity-85" : ""}`}>
                             <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                            <td className="py-1.5 px-2 font-semibold" style={{ color: c.via !== "Direta" && c.via !== "—" ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                            <td className="py-1.5 px-2">
+                              <span className="font-semibold" style={{ color: c.via !== "Direta" && c.via !== "—" ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</span>
+                              {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                            </td>
                             <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
                             <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
                               {lookThrough.rvTotal > 0 ? ((c.valorBRL / lookThrough.rvTotal) * 100).toFixed(2) : "0"}%
@@ -1338,7 +1346,10 @@ function EtfLookThrough({ alloc, positions }: {
                             return (
                               <tr key={`${c.ticker}-${i}`} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                                 <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                                <td className="py-1.5 px-2 font-semibold text-zinc-100">{c.ticker}</td>
+                                <td className="py-1.5 px-2">
+                                  <span className="font-semibold text-zinc-100">{c.ticker}</span>
+                                  {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                </td>
                                 <td className="py-1.5 px-2">
                                   <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{ backgroundColor: isRF ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: isRF ? "#10b981" : "#3b82f6" }}>
                                     {isRF ? "RF" : "RV"}
