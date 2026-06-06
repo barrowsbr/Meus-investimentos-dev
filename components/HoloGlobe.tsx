@@ -334,62 +334,47 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div className={`w-full ${animClass}`} style={{ display: "flex", justifyContent: "center" }}>
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {/* Canvas — square, centered, transparent */}
-        <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)" }}>
-          <Canvas
-            camera={{ position: [0, 0, 3.2], fov: 40 }}
-            gl={{
-              antialias: true,
-              alpha: true,
-              powerPreference: "high-performance",
-            }}
-            onCreated={({ gl }) => {
-              gl.setClearColor(0x000000, 0);
-            }}
-            dpr={[1, 2]}
-            style={{ background: "transparent" }}
-          >
-            <React.Suspense fallback={null}>
-              <GlobeScene markets={markets} onSelect={setSelected} />
-            </React.Suspense>
-          </Canvas>
-        </div>
-
-        {/* Shadow underneath */}
-        <div
-          className="pointer-events-none mx-auto"
-          style={{
-            width: "60%",
-            height: 14,
-            marginTop: -6,
-            background: "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
-            filter: "blur(6px)",
-          }}
-        />
-
-        {/* Desktop: info card to the right */}
-        {selected && (
-          <div className="absolute -right-[190px] top-1/2 -translate-y-1/2 hidden md:block">
-            <InfoCard point={selected} />
-          </div>
-        )}
+    <div className={animClass}>
+      {/* Globe canvas — centered via margin auto */}
+      <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)", margin: "0 auto" }}>
+        <Canvas
+          camera={{ position: [0, 0, 3.2], fov: 40 }}
+          gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+          onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
+          dpr={[1, 2]}
+          style={{ background: "transparent" }}
+        >
+          <React.Suspense fallback={null}>
+            <GlobeScene markets={markets} onSelect={setSelected} />
+          </React.Suspense>
+        </Canvas>
       </div>
 
-      {/* Mobile: info card below */}
+      {/* Shadow */}
+      <div
+        style={{
+          width: "40%",
+          height: 14,
+          margin: "-6px auto 0",
+          background: "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
+          filter: "blur(6px)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Heat legend — centered */}
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
+        <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
+        <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
+      </div>
+
+      {/* Info card below globe when selected */}
       {selected && (
-        <div className="mt-1 md:hidden">
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
           <InfoCard point={selected} />
         </div>
       )}
-
-      {/* Heat legend */}
-      <div className="flex items-center gap-2 mt-1">
-        <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
-        <div className="w-14 h-[3px] rounded-full" style={{ background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
-        <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
-      </div>
 
       <style jsx global>{`
         @keyframes globe-in {
