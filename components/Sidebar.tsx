@@ -24,6 +24,8 @@ import {
   GraduationCap,
   Globe,
   PieChart,
+  Scale,
+  Zap,
 } from "lucide-react";
 
 interface NavItem {
@@ -64,14 +66,16 @@ const navGroups: NavGroup[] = [
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
       { href: "/entendimento",         label: "Entendimento",   icon: GraduationCap },
       { href: "/simulacoes",           label: "Simulações",     icon: Target },
+      { href: "/trades",               label: "Trades",         icon: Zap },
     ],
   },
   {
     label: "Gestão",
     items: [
-      { href: "/impostos", label: "Impostos",      icon: Receipt },
-      { href: "/financas", label: "Fin. Pessoais", icon: Wallet },
-      { href: "/fluxos",   label: "Fluxos",        icon: ListOrdered },
+      { href: "/impostos",      label: "Impostos",      icon: Receipt },
+      { href: "/alavancagem",  label: "Alavancagem",   icon: Scale },
+      { href: "/financas",     label: "Fin. Pessoais", icon: Wallet },
+      { href: "/fluxos",       label: "Fluxos",        icon: ListOrdered },
     ],
   },
   {
