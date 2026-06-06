@@ -38,7 +38,7 @@ type SelectedItem =
   | { type: "market"; data: MarketPoint }
   | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
 
-type HoloMode = "off" | "globe" | "blackhole";
+type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno" | "blackhole";
 
 interface HoloGlobeProps {
   mode: HoloMode;
