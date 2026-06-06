@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bot, Send, User, Trash2, Loader2, Sparkles, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -134,6 +135,7 @@ interface ModelStatus {
 }
 
 export default function AgenteIAPage() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -237,6 +239,16 @@ export default function AgenteIAPage() {
       inputRef.current?.focus();
     }
   }, [messages, loading]);
+
+  const didAutoSend = useRef(false);
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q && !didAutoSend.current && messages.length === 0) {
+      didAutoSend.current = true;
+      sendMessage(q);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
