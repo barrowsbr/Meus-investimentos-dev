@@ -38,8 +38,10 @@ type SelectedItem =
   | { type: "market"; data: MarketPoint }
   | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
 
+type HoloMode = "off" | "globe" | "blackhole";
+
 interface HoloGlobeProps {
-  active: boolean;
+  mode: HoloMode;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -462,16 +464,306 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
   );
 }
 
+// ── Black Hole — Gargantua easter egg ───────────────────────────────────────
+
+const ACCRETION_VERT = `
+  varying vec2 vUv;
+  varying float vRadius;
+  void main() {
+    vUv = uv;
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vRadius = length(worldPos.xz);
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+const ACCRETION_FRAG = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying float vRadius;
+
+  float noise(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * noise(p);
+      p *= 2.0;
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  void main() {
+    float angle = atan(vUv.y - 0.5, vUv.x - 0.5);
+    float r = length(vUv - 0.5) * 2.0;
+
+    float rotAngle = angle - uTime * 0.15 + r * 2.0;
+    float turbulence = fbm(vec2(rotAngle * 3.0, r * 8.0 + uTime * 0.3));
+
+    // Temperature gradient: white-hot inner → orange → deep red outer
+    vec3 hotCore = vec3(1.0, 0.95, 0.85);
+    vec3 warmMid = vec3(1.0, 0.55, 0.1);
+    vec3 coolEdge = vec3(0.6, 0.08, 0.0);
+    vec3 darkEdge = vec3(0.15, 0.0, 0.0);
+
+    float t = smoothstep(0.0, 0.5, r);
+    vec3 color = mix(hotCore, warmMid, smoothstep(0.0, 0.35, r));
+    color = mix(color, coolEdge, smoothstep(0.25, 0.7, r));
+    color = mix(color, darkEdge, smoothstep(0.6, 1.0, r));
+
+    // Streaks in the disk
+    float streaks = sin(rotAngle * 12.0 + r * 30.0) * 0.5 + 0.5;
+    streaks = pow(streaks, 3.0);
+    color += hotCore * streaks * 0.15 * (1.0 - r);
+
+    color += turbulence * 0.08 * warmMid;
+
+    // Doppler beaming — one side brighter
+    float doppler = 0.7 + 0.3 * sin(angle + 1.0);
+    color *= doppler;
+
+    // Fade at edges
+    float alpha = smoothstep(0.0, 0.08, r) * smoothstep(1.0, 0.55, r);
+    alpha *= 0.85 + turbulence * 0.15;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const LENSING_VERT = `
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const LENSING_FRAG = `
+  uniform float uTime;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+
+  void main() {
+    float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+    rim = pow(rim, 3.0);
+
+    float shimmer = sin(vWorldPos.x * 20.0 + uTime * 2.0) * 0.5 + 0.5;
+    shimmer = 0.7 + shimmer * 0.3;
+
+    vec3 color = mix(vec3(1.0, 0.6, 0.15), vec3(1.0, 0.9, 0.7), rim);
+    float alpha = rim * 0.6 * shimmer;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+function EventHorizon({ radius }: { radius: number }) {
+  return (
+    <mesh>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <meshBasicMaterial color="#000000" />
+    </mesh>
+  );
+}
+
+function EventHorizonGlow({ radius }: { radius: number }) {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 4.0);
+        vec3 glow = vec3(0.8, 0.3, 0.0) * intensity;
+        gl_FragColor = vec4(glow, intensity * 0.4);
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
+  }), []);
+
+  return (
+    <mesh scale={[1.15, 1.15, 1.15]}>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+}
+
+function AccretionDisk({ innerRadius, outerRadius }: { innerRadius: number; outerRadius: number }) {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: ACCRETION_VERT,
+    fragmentShader: ACCRETION_FRAG,
+    uniforms: { uTime: { value: 0 } },
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh rotation={[Math.PI * 0.5, 0, 0]}>
+      <ringGeometry args={[innerRadius, outerRadius, 128, 1]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+}
+
+function LensingRing({ radius }: { radius: number }) {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: LENSING_VERT,
+    fragmentShader: LENSING_FRAG,
+    uniforms: { uTime: { value: 0 } },
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }), []);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.getElapsedTime();
+  });
+
+  return (
+    <mesh rotation={[0, 0, 0]}>
+      <torusGeometry args={[radius, 0.012, 16, 128]} />
+      <primitive ref={matRef} object={mat} attach="material" />
+    </mesh>
+  );
+}
+
+function SpiralParticles({ count, innerR, outerR }: { count: number; innerR: number; outerR: number }) {
+  const ref = useRef<THREE.Points>(null);
+  const { positions, velocities } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const vel = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const r = innerR + Math.random() * (outerR - innerR);
+      const angle = Math.random() * Math.PI * 2;
+      pos[i * 3] = Math.cos(angle) * r;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 0.06;
+      pos[i * 3 + 2] = Math.sin(angle) * r;
+      vel[i] = 0.2 + Math.random() * 0.6;
+    }
+    return { positions: pos, velocities: vel };
+  }, [count, innerR, outerR]);
+
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const t = clock.getElapsedTime();
+    const posArr = ref.current.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      const x = posArr[i * 3];
+      const z = posArr[i * 3 + 2];
+      const r = Math.sqrt(x * x + z * z);
+      const speed = (velocities[i] / (r * r + 0.3)) * 0.02;
+      const angle = Math.atan2(z, x) + speed;
+      const newR = Math.max(innerR * 0.8, r - 0.00008 * velocities[i]);
+      posArr[i * 3] = Math.cos(angle) * newR;
+      posArr[i * 3 + 2] = Math.sin(angle) * newR;
+      posArr[i * 3 + 1] *= 0.999;
+      if (newR <= innerR * 0.85) {
+        const resetR = innerR + Math.random() * (outerR - innerR);
+        const resetAngle = Math.random() * Math.PI * 2;
+        posArr[i * 3] = Math.cos(resetAngle) * resetR;
+        posArr[i * 3 + 1] = (Math.random() - 0.5) * 0.06;
+        posArr[i * 3 + 2] = Math.sin(resetAngle) * resetR;
+      }
+    }
+    ref.current.geometry.attributes.position.needsUpdate = true;
+  });
+
+  return (
+    <points ref={ref}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#ffaa44" size={0.008} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} sizeAttenuation />
+    </points>
+  );
+}
+
+function BlackHoleScene() {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.03;
+    }
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.05} />
+      <pointLight position={[0, 0, 0]} intensity={0.3} color="#ff6600" distance={5} />
+
+      <group ref={groupRef} rotation={[0.3, 0, 0.1]}>
+        <EventHorizon radius={0.35} />
+        <EventHorizonGlow radius={0.35} />
+        <AccretionDisk innerRadius={0.5} outerRadius={1.4} />
+        <LensingRing radius={0.52} />
+        <LensingRing radius={0.48} />
+        <SpiralParticles count={600} innerR={0.5} outerR={1.4} />
+      </group>
+
+      <OrbitControls
+        enableZoom
+        enablePan={false}
+        minDistance={1.5}
+        maxDistance={4.0}
+        enableDamping
+        dampingFactor={0.06}
+        rotateSpeed={0.4}
+        zoomSpeed={0.5}
+      />
+    </>
+  );
+}
+
 // ── Exported component ───────────────────────────────────────────────────────
 
-export default function HoloGlobe({ active }: HoloGlobeProps) {
+export default function HoloGlobe({ mode }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
+  const [displayMode, setDisplayMode] = useState<"globe" | "blackhole">("globe");
+  const prevModeRef = useRef<HoloMode>("off");
 
   useEffect(() => {
-    if (active) {
+    const prev = prevModeRef.current;
+    prevModeRef.current = mode;
+
+    if (mode === "off") {
+      if (visible) {
+        setAnimClass("animate-globe-out");
+        setSelected(null);
+        const t = setTimeout(() => { setVisible(false); setAnimClass(""); }, 400);
+        return () => clearTimeout(t);
+      }
+    } else if (mode === "globe") {
+      setDisplayMode("globe");
       setVisible(true);
       setAnimClass("animate-globe-in");
       if (markets.length === 0) {
@@ -488,14 +780,23 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
           })
           .catch(() => {});
       }
-    } else if (visible) {
-      setAnimClass("animate-globe-out");
+    } else if (mode === "blackhole") {
       setSelected(null);
-      const t = setTimeout(() => { setVisible(false); setAnimClass(""); }, 400);
-      return () => clearTimeout(t);
+      if (prev === "globe") {
+        setAnimClass("animate-globe-out");
+        const t = setTimeout(() => {
+          setDisplayMode("blackhole");
+          setAnimClass("animate-globe-in");
+        }, 400);
+        return () => clearTimeout(t);
+      } else {
+        setDisplayMode("blackhole");
+        setVisible(true);
+        setAnimClass("animate-globe-in");
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [mode]);
 
   // Force canvas to recalculate viewport after mount
   useEffect(() => {
@@ -507,9 +808,10 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
 
   if (!visible) return null;
 
+  const isBlackHole = displayMode === "blackhole";
+
   return (
     <div className={animClass} style={{ width: "100%" }}>
-      {/* Globe canvas — centered via margin auto */}
       <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)", margin: "0 auto" }}>
         <Canvas
           camera={{ position: [0, 0, 3.2], fov: 40 }}
@@ -519,7 +821,7 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
           style={{ background: "transparent" }}
         >
           <React.Suspense fallback={null}>
-            <GlobeScene markets={markets} onSelect={setSelected} />
+            {isBlackHole ? <BlackHoleScene /> : <GlobeScene markets={markets} onSelect={setSelected} />}
           </React.Suspense>
         </Canvas>
       </div>
@@ -527,36 +829,48 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
       {/* Shadow */}
       <div
         style={{
-          width: "40%",
-          height: 14,
+          width: isBlackHole ? "60%" : "40%",
+          height: isBlackHole ? 18 : 14,
           margin: "-6px auto 0",
-          background: "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
+          background: isBlackHole
+            ? "radial-gradient(ellipse, rgba(255,100,0,0.18) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)"
+            : "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
           filter: "blur(6px)",
           pointerEvents: "none",
         }}
       />
 
-      {/* Heat legend — centered */}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
-        <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
-        <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
-        <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
-        <span className="text-[8px] text-zinc-600 mx-1">|</span>
-        <span className="text-[8px] text-red-500/70 font-semibold flex items-center gap-1">
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff4444", display: "inline-block", boxShadow: "0 0 4px #ff4444" }} />
-          Conflitos
-        </span>
-      </div>
-
-      {/* Info card below globe when selected */}
-      {selected && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-          {selected.type === "market" ? (
-            <MarketInfoCard point={selected.data} />
-          ) : (
-            <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
-          )}
+      {isBlackHole ? (
+        /* Black hole caption */
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+          <span className="text-[9px] font-bold text-orange-400/50 uppercase tracking-[3px]">Gargantua</span>
+          <span className="text-[7px] text-zinc-600 italic">Easter egg · Clique na logo para fechar</span>
         </div>
+      ) : (
+        <>
+          {/* Heat legend — centered */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
+            <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
+            <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
+            <span className="text-[8px] text-zinc-600 mx-1">|</span>
+            <span className="text-[8px] text-red-500/70 font-semibold flex items-center gap-1">
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff4444", display: "inline-block", boxShadow: "0 0 4px #ff4444" }} />
+              Conflitos
+            </span>
+          </div>
+
+          {/* Info card below globe when selected */}
+          {selected && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+              {selected.type === "market" ? (
+                <MarketInfoCard point={selected.data} />
+              ) : (
+                <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <style jsx global>{`
