@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from "recharts";
 import {
   Target, Plus, Trash2, Save, FolderOpen, ArrowRight,
-  ChevronDown, X, RefreshCw,
+  ChevronDown, X, RefreshCw, Loader2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -26,6 +26,13 @@ interface SimOp {
   preco: number;
   moeda: string;
   notas: string;
+}
+
+interface QuoteInfo {
+  price: number;
+  changePct: number;
+  loading: boolean;
+  error: boolean;
 }
 
 interface Allocation {
@@ -226,6 +233,8 @@ export default function SimulacoesPage() {
   const [loadMenuOpen, setLoadMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
+  const [quoteCache, setQuoteCache] = useState<Record<string, QuoteInfo>>({});
+  const fetchingRef = useRef<Set<string>>(new Set());
 
   // Load saved scenarios
   useEffect(() => {
@@ -306,6 +315,52 @@ export default function SimulacoesPage() {
       });
     } catch { /* ignore */ }
   }, []);
+
+  // ── Auto-fetch quote on ticker blur ──────────────────────────────────────
+  const handleTickerBlur = useCallback((opId: string, ticker: string, currentMoeda: string) => {
+    const t = ticker.trim().toUpperCase();
+    if (!t || t.length < 2) return;
+
+    const setor = identificarSetor(t);
+    const detectedMoeda = getMoedaEfetiva(t, currentMoeda, setor);
+    if (detectedMoeda !== currentMoeda) {
+      setOps(prev => prev.map(o => o.id === opId ? { ...o, moeda: detectedMoeda } : o));
+    }
+
+    if (fetchingRef.current.has(t)) return;
+
+    const pos = data?.positions?.find(p =>
+      p.ticker.replace(/\.SA$/, "").toUpperCase() === t && p.precoAtual != null && p.precoAtual > 0
+    );
+    if (pos) {
+      const price = Math.round(pos.precoAtual! * 100) / 100;
+      setQuoteCache(prev => ({ ...prev, [t]: { price, changePct: 0, loading: false, error: false } }));
+      setOps(prev => prev.map(o => o.id === opId && o.ticker.toUpperCase() === t ? { ...o, preco: price } : o));
+      return;
+    }
+
+    fetchingRef.current.add(t);
+    setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: true, error: false } }));
+
+    fetch(`/api/market/ohlc?ticker=${encodeURIComponent(t)}&moeda=${detectedMoeda}&range=5d`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.data?.length > 0) {
+          const last = d.data[d.data.length - 1];
+          const prevDay = d.data.length > 1 ? d.data[d.data.length - 2] : last;
+          const chg = prevDay.close > 0 ? ((last.close / prevDay.close) - 1) * 100 : 0;
+          const price = Math.round(last.close * 100) / 100;
+          setQuoteCache(prev => ({ ...prev, [t]: { price, changePct: chg, loading: false, error: false } }));
+          setOps(prev => prev.map(o => o.id === opId && o.ticker.toUpperCase() === t ? { ...o, preco: price } : o));
+        } else {
+          setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: false, error: true } }));
+        }
+      })
+      .catch(() => {
+        setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: false, error: true } }));
+      })
+      .finally(() => fetchingRef.current.delete(t));
+  }, [data?.positions]);
 
   // ── Build current allocation from portfolio ────────────────────────────────
   const currentPositions = useMemo(() => {
@@ -480,13 +535,19 @@ export default function SimulacoesPage() {
                         <option value="compra">Compra</option>
                         <option value="venda">Venda</option>
                       </select>
-                      <input
-                        type="text"
-                        value={op.ticker}
-                        onChange={e => updateOp(op.id, "ticker", e.target.value.toUpperCase())}
-                        placeholder="TICKER"
-                        className="flex-1 bg-transparent text-xs font-bold text-zinc-100 outline-none border-b border-zinc-800 focus:border-amber-400/30 px-1 py-1 uppercase"
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={op.ticker}
+                          onChange={e => updateOp(op.id, "ticker", e.target.value.toUpperCase())}
+                          onBlur={() => handleTickerBlur(op.id, op.ticker, op.moeda)}
+                          placeholder="TICKER"
+                          className="w-full bg-transparent text-xs font-bold text-zinc-100 outline-none border-b border-zinc-800 focus:border-amber-400/30 px-1 py-1 uppercase"
+                        />
+                        {quoteCache[op.ticker.trim().toUpperCase()]?.loading && (
+                          <Loader2 size={10} className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-400 animate-spin" />
+                        )}
+                      </div>
                       <select
                         value={op.moeda}
                         onChange={e => updateOp(op.id, "moeda", e.target.value)}
@@ -526,6 +587,44 @@ export default function SimulacoesPage() {
                         />
                       </div>
                     </div>
+                    {/* Quote info bar */}
+                    {(() => {
+                      const t = op.ticker.trim().toUpperCase();
+                      const q = t.length >= 2 ? quoteCache[t] : undefined;
+                      if (!q) return null;
+                      if (q.loading) return (
+                        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-zinc-500">
+                          <Loader2 size={10} className="animate-spin text-amber-400/60" />
+                          Buscando cotação...
+                        </div>
+                      );
+                      if (q.error) return (
+                        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-red-400/60">
+                          <X size={9} />
+                          Cotação não encontrada
+                        </div>
+                      );
+                      if (q.price > 0) {
+                        const ms = op.moeda === "BRL" ? "R$" : op.moeda === "EUR" ? "€" : "$";
+                        const isUp = q.changePct >= 0;
+                        return (
+                          <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#4ade80" }} />
+                            <span className="text-[10px] text-zinc-500">Cotação</span>
+                            <span className="text-[10px] text-zinc-200 font-bold font-mono">
+                              {ms} {q.price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            {q.changePct !== 0 && (
+                              <span className={`text-[10px] font-bold font-mono ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                                {isUp ? "+" : ""}{q.changePct.toFixed(2)}%
+                              </span>
+                            )}
+                            <span className="text-[9px] text-zinc-600 ml-auto">{identificarSetor(t)}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                     {op.ticker && op.quantidade > 0 && op.preco > 0 && (
                       <div className="mt-2 text-[10px] text-zinc-500">
                         Total: <strong className="text-zinc-300">{op.moeda === "BRL" ? compactBRL(op.quantidade * op.preco) : `$${(op.quantidade * op.preco).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</strong>
