@@ -334,13 +334,13 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div className={`flex flex-col items-center w-full ${animClass}`}>
+    <div className={`flex flex-col items-center w-full ${animClass}`} style={{ overflow: "visible" }}>
       {/* Globe + card side by side */}
-      <div className="relative flex items-center justify-center">
-        {/* Globe — large container so the sphere is never clipped */}
-        <div style={{ width: "min(420px, 95vw)", height: "min(420px, 95vw)", marginTop: "-10px", marginBottom: "-30px" }}>
+      <div className="relative flex items-center justify-center" style={{ overflow: "visible" }}>
+        {/* Globe — large container, centered, never clipped */}
+        <div className="mx-auto" style={{ width: "min(420px, 92vw)", height: "min(420px, 92vw)", marginTop: "-10px", marginBottom: "-30px" }}>
           <Canvas
-            camera={{ position: [0, 0.15, 2.2], fov: 44 }}
+            camera={{ position: [0, 0, 2.2], fov: 44 }}
             gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
             dpr={[1, 2]}
             style={{ background: "transparent" }}
