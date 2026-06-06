@@ -1,20 +1,25 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
-} from "react-simple-maps";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
-  ArrowUpDown, Filter, ZoomIn, ZoomOut, Maximize2,
+  ArrowUpDown, Filter,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const BolsasGlobe = dynamic(() => import("@/components/BolsasGlobe"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center" style={{ height: 420 }}>
+      <span className="text-zinc-500 text-sm animate-pulse">Carregando globo...</span>
+    </div>
+  ),
+});
 
 interface IndexData {
   symbol: string;
@@ -95,222 +100,6 @@ function heatColor(pct: number): string {
   const b = Math.round(21 + (94 - 21) * ((t - 0.5) * 2));
   return `rgb(${r},${g},${b})`;
 }
-
-function heatRadius(pct: number, base: number): number {
-  const intensity = Math.min(Math.abs(pct), 5);
-  return base + intensity * 1.2;
-}
-
-// ── Heatmap World Map ─────────────────────────────────────────────────────
-
-const WorldMap = memo(function WorldMap({
-  indices,
-  selectedRegion,
-  hoveredIndex,
-  selectedIndex,
-  onHover,
-  onSelect,
-}: {
-  indices: IndexData[];
-  selectedRegion: string | null;
-  hoveredIndex: string | null;
-  selectedIndex: IndexData | null;
-  onHover: (symbol: string | null) => void;
-  onSelect: (i: IndexData | null) => void;
-}) {
-  const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState<[number, number]>([10, 20]);
-
-  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 1.5, 8)), []);
-  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
-  const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const blockWheelZoom = useCallback((evt: any) => {
-    if (evt?.type === "wheel") return false;
-    return true;
-  }, []);
-
-  const countryHeat = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const idx of indices) {
-      if (idx.symbol === "^VIX") continue;
-      map[idx.country] = idx.changePct;
-    }
-    return map;
-  }, [indices]);
-
-  return (
-    <div className="relative overflow-hidden" style={{ maxHeight: 420 }}>
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
-        {[
-          { icon: ZoomIn, action: handleZoomIn, label: "Zoom in" },
-          { icon: ZoomOut, action: handleZoomOut, label: "Zoom out" },
-          { icon: Maximize2, action: handleReset, label: "Reset" },
-        ].map(({ icon: Icon, action, label }) => (
-          <button
-            key={label}
-            onClick={action}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
-            style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
-            title={label}
-          >
-            <Icon size={13} className="text-zinc-400" />
-          </button>
-        ))}
-      </div>
-
-      <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{ scale: 130, center: [0, 30] }}
-        style={{ width: "100%", height: "auto" }}
-        width={800}
-        height={450}
-      >
-        <defs>
-          {indices.filter(i => i.symbol !== "^VIX").map(idx => {
-            const c = heatColor(idx.changePct);
-            return (
-              <radialGradient key={`glow-${idx.symbol}`} id={`glow-${idx.symbol.replace(/[^a-zA-Z0-9]/g, "_")}`}>
-                <stop offset="0%" stopColor={c} stopOpacity="0.6" />
-                <stop offset="50%" stopColor={c} stopOpacity="0.15" />
-                <stop offset="100%" stopColor={c} stopOpacity="0" />
-              </radialGradient>
-            );
-          })}
-        </defs>
-        <ZoomableGroup
-          zoom={zoom}
-          center={center}
-          onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
-          maxZoom={8}
-          filterZoomEvent={blockWheelZoom}
-          translateExtent={[[-200, -100], [1000, 600]]}
-        >
-          <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.8)" />
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const geoName: string = geo.properties?.name ?? "";
-                const pct = countryHeat[geoName];
-                const fillColor = pct !== undefined
-                  ? `${heatColor(pct)}18`
-                  : "rgba(255,255,255,0.03)";
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={fillColor}
-                    stroke="rgba(255,255,255,0.08)"
-                    strokeWidth={0.4}
-                    style={{
-                      default: { outline: "none" },
-                      hover: { fill: pct !== undefined ? `${heatColor(pct)}30` : "rgba(255,255,255,0.06)", outline: "none" },
-                      pressed: { outline: "none" },
-                    }}
-                  />
-                );
-              })
-            }
-          </Geographies>
-
-          {indices.filter(i => i.symbol !== "^VIX").map((idx) => {
-            const isHovered = hoveredIndex === idx.symbol;
-            const isSelected = selectedIndex?.symbol === idx.symbol;
-            const active = isHovered || isSelected;
-            const dimmed = selectedRegion ? idx.region !== selectedRegion : false;
-            const color = heatColor(idx.changePct);
-            const baseR = heatRadius(idx.changePct, 3.5);
-            const markerR = active ? baseR + 2.5 : baseR;
-            const glowR = markerR * 3.5;
-            const glowId = `glow-${idx.symbol.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-            return (
-              <Marker
-                key={idx.symbol}
-                coordinates={[idx.lng, idx.lat]}
-                onMouseEnter={() => onHover(idx.symbol)}
-                onMouseLeave={() => onHover(null)}
-                onClick={() => onSelect(isSelected ? null : idx)}
-              >
-                <g style={{ opacity: dimmed ? 0.1 : 1, cursor: "pointer" }}>
-                  <circle r={glowR} fill={`url(#${glowId})`} opacity={active ? 1 : 0.7} />
-
-                  {active && (
-                    <circle r={markerR + 6} fill="none" stroke={color} strokeWidth={0.5} opacity={0.4}>
-                      <animate attributeName="r" from={markerR + 3} to={markerR + 12} dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
-                    </circle>
-                  )}
-
-                  <circle r={markerR + 0.5} fill="rgba(0,0,0,0.5)" cx={0.3} cy={0.3} />
-                  <circle
-                    r={markerR}
-                    fill={color}
-                    stroke={active ? "#fff" : `${color}60`}
-                    strokeWidth={active ? 1.5 : 0.5}
-                    style={{ filter: `drop-shadow(0 0 ${active ? 8 : 4}px ${color})` }}
-                  />
-
-                  <text
-                    y={0}
-                    x={0}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="#fff"
-                    fontSize={markerR > 5 ? 7 : 5.5}
-                    fontWeight={700}
-                    fontFamily="system-ui, -apple-system, sans-serif"
-                    style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)", pointerEvents: "none" }}
-                  >
-                    {idx.changePct >= 0 ? "+" : ""}{idx.changePct.toFixed(1)}
-                  </text>
-
-                  {!dimmed && !active && (
-                    <text
-                      y={-markerR - 3}
-                      textAnchor="middle"
-                      fill="rgba(255,255,255,0.55)"
-                      fontSize={6.5}
-                      fontWeight={500}
-                      fontFamily="system-ui, -apple-system, sans-serif"
-                      style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", pointerEvents: "none" }}
-                    >
-                      {idx.name.length > 12 ? idx.symbol.replace("^", "") : idx.name}
-                    </text>
-                  )}
-
-                  {active && (
-                    <g>
-                      <rect
-                        x={-74} y={markerR + 5}
-                        width={148} height={46}
-                        rx={8}
-                        fill="rgba(0,0,0,0.94)"
-                        stroke={`${color}50`}
-                        strokeWidth={0.8}
-                        style={{ filter: `drop-shadow(0 4px 16px ${color}30)` }}
-                      />
-                      <text x={0} y={markerR + 20} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={600} fontFamily="system-ui">
-                        {idx.flag} {idx.name}
-                      </text>
-                      <text x={-36} y={markerR + 35} textAnchor="start" fill="#94a3b8" fontSize={9} fontFamily="system-ui">
-                        {fmtPrice(idx.price)} {idx.currency}
-                      </text>
-                      <text x={36} y={markerR + 35} textAnchor="end" fill={color} fontSize={9.5} fontWeight={700} fontFamily="system-ui">
-                        {idx.changePct >= 0 ? "+" : ""}{idx.changePct.toFixed(2)}%
-                      </text>
-                    </g>
-                  )}
-                </g>
-              </Marker>
-            );
-          })}
-        </ZoomableGroup>
-      </ComposableMap>
-    </div>
-  );
-});
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
@@ -562,7 +351,7 @@ export default function BolsasPage() {
           </div>
 
           <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.6)" }}>
-            <WorldMap
+            <BolsasGlobe
               indices={data.indices}
               selectedRegion={selectedRegion}
               hoveredIndex={hoveredIndex}
