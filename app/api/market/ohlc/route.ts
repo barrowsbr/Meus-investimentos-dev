@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { yahooTicker } from "@/lib/cotacoes";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 15;
+export const maxDuration = 20;
 
 function rangeToStartDate(range: string): string {
   const d = new Date();
@@ -79,6 +79,73 @@ async function fetchViaV8(symbol: string, range: string): Promise<OHLCPoint[]> {
   }
 }
 
+async function searchYahooSymbol(query: string): Promise<string | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const YF: any = (await import("yahoo-finance2")).default;
+    const yf = typeof YF === "function" ? new YF() : YF;
+    const res = await yf.search(query, { quotesCount: 6 });
+    const match = (res?.quotes ?? []).find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (q: any) => q.quoteType === "EQUITY" || q.quoteType === "ETF" || q.quoteType === "MUTUALFUND"
+    );
+    return match?.symbol ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchQuoteInfo(symbol: string): Promise<{
+  sector?: string; industry?: string; longName?: string; currency?: string; exchange?: string;
+}> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const YF: any = (await import("yahoo-finance2")).default;
+    const yf = typeof YF === "function" ? new YF() : YF;
+    const summary = await yf.quoteSummary(symbol, {
+      modules: ["assetProfile", "price"],
+    });
+    return {
+      sector: summary?.assetProfile?.sector ?? undefined,
+      industry: summary?.assetProfile?.industry ?? undefined,
+      longName: summary?.price?.longName ?? summary?.price?.shortName ?? undefined,
+      currency: summary?.price?.currency ?? undefined,
+      exchange: summary?.price?.exchangeName ?? undefined,
+    };
+  } catch {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const YF: any = (await import("yahoo-finance2")).default;
+      const yf = typeof YF === "function" ? new YF() : YF;
+      const q = await yf.quote(symbol);
+      return {
+        longName: q?.longName ?? q?.shortName ?? undefined,
+        currency: q?.currency ?? undefined,
+        exchange: q?.exchangeName ?? q?.fullExchangeName ?? undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
+}
+
+async function tryFetchOHLC(symbol: string, range: string): Promise<{ data: OHLCPoint[]; errors: string[] }> {
+  const errors: string[] = [];
+  for (const [label, fetcher] of [
+    ["yf2", () => fetchViaYF2(symbol, range)],
+    ["v8", () => fetchViaV8(symbol, range)],
+  ] as [string, () => Promise<OHLCPoint[]>][]) {
+    try {
+      const data = await fetcher();
+      if (data.length > 0) return { data, errors };
+      errors.push(`${label}: empty result`);
+    } catch (err) {
+      errors.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return { data: [], errors };
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const ticker = searchParams.get("ticker");
@@ -91,26 +158,40 @@ export async function GET(request: NextRequest) {
   }
 
   const symbol = yahooTicker(ticker, moeda, corretora);
-  const errors: string[] = [];
 
-  // Try yahoo-finance2 first (more reliable), then v8 API
-  for (const [label, fetcher] of [
-    ["yf2", () => fetchViaYF2(symbol, range)],
-    ["v8", () => fetchViaV8(symbol, range)],
-  ] as [string, () => Promise<OHLCPoint[]>][]) {
-    try {
-      const data = await fetcher();
-      if (data.length > 0) {
-        return NextResponse.json({ ticker: ticker.toUpperCase().trim(), symbol, data });
-      }
-      errors.push(`${label}: empty result`);
-    } catch (err) {
-      errors.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
+  // 1) Try with the resolved symbol
+  let result = await tryFetchOHLC(symbol, range);
+
+  // 2) If failed, try Yahoo search to find correct symbol
+  let resolvedSymbol = symbol;
+  if (result.data.length === 0) {
+    const found = await searchYahooSymbol(ticker);
+    if (found && found !== symbol) {
+      resolvedSymbol = found;
+      result = await tryFetchOHLC(resolvedSymbol, range);
     }
   }
 
+  if (result.data.length > 0) {
+    // Fetch sector/industry info (non-blocking on failure)
+    const info = await fetchQuoteInfo(resolvedSymbol).catch(
+      (): { sector?: string; industry?: string; longName?: string; currency?: string; exchange?: string } => ({})
+    );
+
+    return NextResponse.json({
+      ticker: ticker.toUpperCase().trim(),
+      symbol: resolvedSymbol,
+      data: result.data,
+      sector: info.sector,
+      industry: info.industry,
+      longName: info.longName,
+      currency: info.currency,
+      exchange: info.exchange,
+    });
+  }
+
   return NextResponse.json(
-    { error: `Failed to fetch ${symbol}: ${errors.join("; ")}` },
+    { error: `Failed to fetch ${symbol}: ${result.errors.join("; ")}` },
     { status: 502 }
   );
 }

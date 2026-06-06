@@ -34,6 +34,11 @@ interface QuoteInfo {
   changePct: number;
   loading: boolean;
   error: boolean;
+  sector?: string;
+  industry?: string;
+  longName?: string;
+  resolvedSymbol?: string;
+  currency?: string;
 }
 
 interface Allocation {
@@ -123,21 +128,43 @@ function getCustodia(setor: string, moeda: string): string {
   return "Brasil";
 }
 
+const EXCHANGE_CURRENCY: Record<string, string> = {
+  ".SA": "BRL", ".L": "GBP", ".DE": "EUR", ".AS": "EUR",
+  ".PA": "EUR", ".MI": "EUR", ".MC": "EUR", ".HE": "EUR",
+  ".BR": "EUR", ".LS": "EUR", ".VI": "EUR", ".AT": "EUR",
+  ".TO": "CAD", ".V": "CAD",
+  ".T": "JPY", ".TYO": "JPY",
+  ".HK": "HKD",
+  ".SW": "CHF",
+  ".AX": "AUD", ".NZ": "NZD",
+  ".KS": "KRW", ".KQ": "KRW",
+  ".TW": "TWD", ".TWO": "TWD",
+  ".SI": "SGD",
+  ".BO": "INR", ".NS": "INR",
+  ".JK": "IDR",
+  ".MX": "MXN",
+  ".ST": "SEK", ".CO": "DKK", ".OL": "NOK",
+  ".IS": "TRY",
+};
+
 function detectMoeda(ticker: string, setor: string): string {
   const t = ticker.toUpperCase();
   if (t.includes(".")) {
-    if (t.endsWith(".SA")) return "BRL";
-    if (t.endsWith(".L")) return "GBP";
-    if (t.endsWith(".DE") || t.endsWith(".AS")) return "EUR";
-    if (t.endsWith(".TO")) return "CAD";
-    if (t.endsWith(".T")) return "JPY";
-    if (t.endsWith(".HK")) return "HKD";
-    if (t.endsWith(".SW")) return "CHF";
-    if (t.endsWith(".AX")) return "AUD";
+    for (const [suffix, currency] of Object.entries(EXCHANGE_CURRENCY)) {
+      if (t.endsWith(suffix.toUpperCase())) return currency;
+    }
     return "USD";
   }
   if (["Ações Brasil", "ETF", "FIIs", "BDRs", "Renda Fixa", "Caixa/Liquidez"].includes(setor)) return "BRL";
   return "USD";
+}
+
+function detectMoedaFromSymbol(resolvedSymbol: string): string | null {
+  const t = resolvedSymbol.toUpperCase();
+  for (const [suffix, currency] of Object.entries(EXCHANGE_CURRENCY)) {
+    if (t.endsWith(suffix.toUpperCase())) return currency;
+  }
+  return null;
 }
 
 const TIPO_COLORS: Record<string, string> = {
@@ -149,7 +176,8 @@ const TIPO_COLORS: Record<string, string> = {
 // ── Build Allocation from positions ──────────────────────────────────────────
 
 function buildAllocation(
-  positions: { ticker: string; setor: string; moeda: string; valorAtualBRL: number; fatorBRL: number }[]
+  positions: { ticker: string; setor: string; moeda: string; valorAtualBRL: number; fatorBRL: number }[],
+  sectorCache?: Record<string, QuoteInfo>,
 ): Allocation {
   const setor: Record<string, number> = {};
   const moeda: Record<string, number> = {};
@@ -178,7 +206,9 @@ function buildAllocation(
     const cust = getCustodia(p.setor, p.moeda);
     custodia[cust] = (custodia[cust] ?? 0) + v;
 
-    const se = getSetorEconomico(p.ticker, p.setor);
+    const tClean = p.ticker.toUpperCase().replace(/\.SA$/, "");
+    const apiSector = sectorCache?.[tClean]?.sector;
+    const se = getSetorEconomico(p.ticker, p.setor, apiSector);
     setorEconomico[se] = (setorEconomico[se] ?? 0) + v;
   }
 
@@ -424,8 +454,25 @@ export default function SimulacoesPage() {
           const prevDay = d.data.length > 1 ? d.data[d.data.length - 2] : last;
           const chg = prevDay.close > 0 ? ((last.close / prevDay.close) - 1) * 100 : 0;
           const price = Math.round(last.close * 100) / 100;
-          setQuoteCache(prev => ({ ...prev, [t]: { price, changePct: chg, loading: false, error: false } }));
-          setOps(prev => prev.map(o => o.id === opId && o.ticker.toUpperCase() === t ? { ...o, preco: price } : o));
+          setQuoteCache(prev => ({ ...prev, [t]: {
+            price, changePct: chg, loading: false, error: false,
+            sector: d.sector, industry: d.industry, longName: d.longName,
+            resolvedSymbol: d.symbol, currency: d.currency,
+          } }));
+          setOps(prev => prev.map(o => {
+            if (o.id !== opId || o.ticker.toUpperCase() !== t) return o;
+            const updates: Partial<SimOp> = { preco: price };
+            // Auto-detect currency from resolved symbol if different
+            if (d.symbol && d.symbol !== t) {
+              const symMoeda = detectMoedaFromSymbol(d.symbol);
+              if (symMoeda && symMoeda !== o.moeda) updates.moeda = symMoeda;
+            }
+            if (d.currency) {
+              const apiCurrency = d.currency.toUpperCase();
+              if (apiCurrency !== o.moeda && apiCurrency.length === 3) updates.moeda = apiCurrency;
+            }
+            return { ...o, ...updates };
+          }));
         } else {
           setQuoteCache(prev => ({ ...prev, [t]: { price: 0, changePct: 0, loading: false, error: true } }));
         }
@@ -472,7 +519,7 @@ export default function SimulacoesPage() {
     return positions;
   }, [data, rfPositions]);
 
-  const currentAlloc = useMemo(() => buildAllocation(currentPositions), [currentPositions]);
+  const currentAlloc = useMemo(() => buildAllocation(currentPositions, quoteCache), [currentPositions, quoteCache]);
 
   // ── Build simulated allocation ─────────────────────────────────────────────
   const simAlloc = useMemo(() => {
@@ -498,6 +545,17 @@ export default function SimulacoesPage() {
       CHF: usd * 1.12,
       HKD: usd / 7.8,
       AUD: usd * 0.65,
+      KRW: usd / 1380,
+      TWD: usd / 32,
+      SGD: usd * 0.74,
+      INR: usd / 84,
+      SEK: usd / 10.5,
+      DKK: usd / 6.9,
+      NOK: usd / 10.8,
+      NZD: usd * 0.62,
+      MXN: usd / 17.5,
+      TRY: usd / 32,
+      IDR: usd / 15700,
     };
 
     for (const op of validOps) {
@@ -525,8 +583,8 @@ export default function SimulacoesPage() {
       }
     }
 
-    return buildAllocation([...posMap.values()]);
-  }, [ops, currentPositions, data]);
+    return buildAllocation([...posMap.values()], quoteCache);
+  }, [ops, currentPositions, data, quoteCache]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -665,6 +723,15 @@ export default function SimulacoesPage() {
                         <option value="CHF">CHF</option>
                         <option value="HKD">HKD</option>
                         <option value="AUD">AUD</option>
+                        <option value="KRW">KRW</option>
+                        <option value="TWD">TWD</option>
+                        <option value="SGD">SGD</option>
+                        <option value="INR">INR</option>
+                        <option value="SEK">SEK</option>
+                        <option value="DKK">DKK</option>
+                        <option value="NOK">NOK</option>
+                        <option value="NZD">NZD</option>
+                        <option value="MXN">MXN</option>
                       </select>
                       <button onClick={() => removeOp(op.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
                         <X size={13} />
@@ -736,19 +803,31 @@ export default function SimulacoesPage() {
                       if (q.price > 0) {
                         const ms = op.moeda === "BRL" ? "R$" : op.moeda === "EUR" ? "€" : "$";
                         const isUp = q.changePct >= 0;
+                        const econSector = getSetorEconomico(t, setor, q.sector);
                         return (
-                          <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#4ade80" }} />
-                            <span className="text-[10px] text-zinc-500">Cotação</span>
-                            <span className="text-[10px] text-zinc-200 font-bold font-mono">
-                              {ms} {q.price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                            {q.changePct !== 0 && (
-                              <span className={`text-[10px] font-bold font-mono ${isUp ? "text-emerald-400" : "text-red-400"}`}>
-                                {isUp ? "+" : ""}{q.changePct.toFixed(2)}%
+                          <div className="flex flex-col gap-1 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#4ade80" }} />
+                              <span className="text-[10px] text-zinc-500">Cotação</span>
+                              <span className="text-[10px] text-zinc-200 font-bold font-mono">
+                                {ms} {q.price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
+                              {q.changePct !== 0 && (
+                                <span className={`text-[10px] font-bold font-mono ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                                  {isUp ? "+" : ""}{q.changePct.toFixed(2)}%
+                                </span>
+                              )}
+                              <span className="text-[9px] text-zinc-600 ml-auto">{econSector}</span>
+                            </div>
+                            {(q.longName || q.resolvedSymbol) && (
+                              <div className="flex items-center gap-2 text-[9px] text-zinc-600">
+                                {q.longName && <span className="truncate">{q.longName}</span>}
+                                {q.resolvedSymbol && q.resolvedSymbol !== t && (
+                                  <span className="shrink-0 text-amber-400/50">({q.resolvedSymbol})</span>
+                                )}
+                                {q.industry && <span className="shrink-0 ml-auto">{q.industry}</span>}
+                              </div>
                             )}
-                            <span className="text-[9px] text-zinc-600 ml-auto">{getSetorEconomico(t, setor)}</span>
                           </div>
                         );
                       }
@@ -757,7 +836,7 @@ export default function SimulacoesPage() {
                     {op.ticker && op.quantidade > 0 && op.preco > 0 && (
                       <div className="mt-2 text-[10px] text-zinc-500">
                         Total: <strong className="text-zinc-300">{op.moeda === "BRL" ? compactBRL(op.quantidade * op.preco) : `$${(op.quantidade * op.preco).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</strong>
-                        <span className="text-zinc-700 ml-1">· {getSetor(op.ticker)} · {getSetorEconomico(op.ticker, getSetor(op.ticker))}</span>
+                        <span className="text-zinc-700 ml-1">· {getSetor(op.ticker)} · {getSetorEconomico(op.ticker, getSetor(op.ticker), quoteCache[op.ticker.trim().toUpperCase()]?.sector)}</span>
                       </div>
                     )}
                   </div>
