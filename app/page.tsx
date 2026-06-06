@@ -667,7 +667,7 @@ function MetricCard({ children, borderColor }: { children: React.ReactNode; bord
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [fxExpanded, setFxExpanded] = useState(false);
-  const [holoActive, setHoloActive] = useState(false);
+  const [holoMode, setHoloMode] = useState<"off" | "globe" | "blackhole">("off");
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -703,7 +703,7 @@ export default function HomePage() {
   }, [data?.positions]);
 
   const handleLogoClick = useCallback(() => {
-    setHoloActive(prev => !prev);
+    setHoloMode(prev => prev === "off" ? "globe" : prev === "globe" ? "blackhole" : "off");
   }, []);
 
   return (
@@ -744,7 +744,7 @@ export default function HomePage() {
           </button>
 
           {/* ── 3D Globe — inline below logo ── */}
-          <HoloGlobe active={holoActive} />
+          <HoloGlobe mode={holoMode} />
 
           <h1
             className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
