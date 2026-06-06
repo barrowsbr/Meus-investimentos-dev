@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
@@ -318,6 +319,8 @@ interface PeriodsCache {
 }
 
 export default function BolsasPage() {
+  const searchParams = useSearchParams();
+  const initialSymbol = searchParams.get("symbol");
   const [data, setData] = useState<BolsasResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -331,6 +334,7 @@ export default function BolsasPage() {
   const [periodsLoading, setPeriodsLoading] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
   const [customAsset, setCustomAsset] = useState<IndexData | null>(null);
+  const didAutoSelect = useRef(false);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -342,10 +346,16 @@ export default function BolsasPage() {
           if (d.spPeriods) {
             setPeriodsCache(prev => ({ ...prev, "^GSPC": d.spPeriods }));
           }
+          if (initialSymbol && !didAutoSelect.current) {
+            didAutoSelect.current = true;
+            const match = (d.indices as IndexData[]).find(i => i.symbol === initialSymbol);
+            if (match) setSelectedIndex(match);
+          }
         }
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const focusedSymbol = customAsset?.symbol ?? selectedIndex?.symbol ?? "^GSPC";
