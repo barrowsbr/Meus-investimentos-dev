@@ -669,7 +669,8 @@ function MetricCard({ children, borderColor }: { children: React.ReactNode; bord
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [fxExpanded, setFxExpanded] = useState(false);
-  const [holoMode, setHoloMode] = useState<string>("globe");
+  type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno" | "blackhole";
+  const [holoMode, setHoloMode] = useState<HoloMode>("globe");
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -705,7 +706,7 @@ export default function HomePage() {
   }, [data?.positions]);
 
   const handleLogoClick = useCallback(() => {
-    const cycle = ["globe", "sol", "mercurio", "venus", "terra", "marte", "jupiter", "saturno", "urano", "netuno", "blackhole"];
+    const cycle: HoloMode[] = ["globe", "sol", "mercurio", "venus", "terra", "marte", "jupiter", "saturno", "urano", "netuno", "blackhole"];
     setHoloMode(prev => {
       const idx = cycle.indexOf(prev);
       return cycle[(idx + 1) % cycle.length];
