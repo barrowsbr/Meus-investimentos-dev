@@ -976,7 +976,7 @@ function EtfLookThrough({ alloc, positions }: {
   positions: { ticker: string; setor: string; valor: number; pct: number }[];
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"por-etf" | "combinada" | "rv-completa">("combinada");
+  const [activeTab, setActiveTab] = useState<"por-etf" | "combinada" | "rv-completa" | "portfolio-completo">("combinada");
   const [compositions, setCompositions] = useState<Record<string, CompositionData> | null>(null);
   const [loadingComp, setLoadingComp] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -1086,7 +1086,16 @@ function EtfLookThrough({ alloc, positions }: {
       .sort((a, b) => b.valorBRL - a.valorBRL);
     const rvTotal = rvList.reduce((s, c) => s + c.valorBRL, 0);
 
-    return { perEtf, sup, unsup, combinedList, combinedTotal, rvList, rvTotal };
+    const rfPositionsLT = positions
+      .filter(p => isRendaFixa(p.setor) && p.valor > 0)
+      .map(p => ({ ticker: p.ticker, valorBRL: p.valor, via: p.setor, macro: "Renda Fixa" as const }));
+    const portfolioItems = [
+      ...rvList.map(c => ({ ticker: c.ticker, valorBRL: c.valorBRL, via: c.via || "Direto", macro: "Renda Variável" as const })),
+      ...rfPositionsLT,
+    ].sort((a, b) => b.valorBRL - a.valorBRL);
+    const portfolioTotal = portfolioItems.reduce((s, c) => s + c.valorBRL, 0);
+
+    return { perEtf, sup, unsup, combinedList, combinedTotal, rvList, rvTotal, portfolioItems, portfolioTotal };
   }, [compositions, etfPositions, directRvPositions, findComp]);
 
   if (etfPositions.length === 0) return null;
@@ -1163,7 +1172,7 @@ function EtfLookThrough({ alloc, positions }: {
               </div>
 
               <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
-                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"]] as const).map(([id, label]) => (
+                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => (
                   <button
                     key={id}
                     onClick={() => setActiveTab(id)}
@@ -1270,6 +1279,59 @@ function EtfLookThrough({ alloc, positions }: {
                       </tbody>
                     </table>
                   </div>
+                </>
+              )}
+
+              {activeTab === "portfolio-completo" && (
+                <>
+                  <p className="text-[10px] text-zinc-600 mb-3">
+                    Tudo ranqueado: RV (ETFs expandidos) + renda fixa + caixa.
+                  </p>
+                  {lookThrough.portfolioItems.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-zinc-800">
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">#</th>
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Ativo</th>
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Classe</th>
+                            <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Valor</th>
+                            <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">%</th>
+                            <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Via</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lookThrough.portfolioItems.map((c, i) => {
+                            const isRF = c.macro === "Renda Fixa";
+                            return (
+                              <tr key={`${c.ticker}-${i}`} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-semibold text-zinc-100">{c.ticker}</td>
+                                <td className="py-1.5 px-2">
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{ backgroundColor: isRF ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: isRF ? "#10b981" : "#3b82f6" }}>
+                                    {isRF ? "RF" : "RV"}
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                                <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                                  {lookThrough.portfolioTotal > 0 ? ((c.valorBRL / lookThrough.portfolioTotal) * 100).toFixed(2) : "0"}%
+                                </td>
+                                <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-zinc-800 font-semibold">
+                            <td className="py-2 px-2 text-zinc-300" colSpan={3}>Total ({lookThrough.portfolioItems.length})</td>
+                            <td className="py-2 px-2 text-right text-zinc-200 font-mono">{compactBRL(lookThrough.portfolioTotal)}</td>
+                            <td className="py-2 px-2 text-right text-zinc-500 font-mono">100%</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  ) : <p className="text-zinc-600 text-sm">Nenhuma posição disponível.</p>}
                 </>
               )}
             </>

@@ -165,7 +165,7 @@ const ETF_SINGLE_COUNTRY: Record<string, string> = {
   DIA: "US", RSP: "US", MDY: "US", IWM: "US", SCHD: "US", VIG: "US",
   VNQ: "US", XLRE: "US", XLF: "US", XLK: "US", XLE: "US", XLV: "US",
   EWZ: "BR", BOVA11: "BR",
-  EWJ: "JP", DXJ: "JP",
+  EWJ: "JP", DXJ: "JP", FLJP: "JP",
   EWG: "DE", EWU: "GB", EWQ: "FR", EWI: "IT", EWP: "ES", EWN: "NL",
   EWL: "CH", EWD: "SE", NORW: "NO",
   FXI: "CN", MCHI: "CN", KWEB: "CN", ASHR: "CN",
