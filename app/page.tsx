@@ -12,7 +12,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink, Target,
+  ExternalLink, Target, Scale, Zap,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -106,6 +106,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/evolucao",     label: "Evolução",    icon: Activity },
       { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
       { href: "/simulacoes",   label: "Simulações",  icon: Target },
+      { href: "/trades",       label: "Trades",      icon: Zap },
     ],
   },
   {
@@ -115,9 +116,10 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Receipt,
     accentColor: "#8b5cf6",
     items: [
-      { href: "/impostos", label: "Impostos",      icon: Receipt },
-      { href: "/financas", label: "Fin. Pessoais", icon: Wallet },
-      { href: "/fluxos",   label: "Fluxos",        icon: ListOrdered },
+      { href: "/impostos",      label: "Impostos",      icon: Receipt },
+      { href: "/alavancagem",  label: "Alavancagem",  icon: Scale },
+      { href: "/financas",     label: "Fin. Pessoais", icon: Wallet },
+      { href: "/fluxos",       label: "Fluxos",        icon: ListOrdered },
     ],
   },
   {
