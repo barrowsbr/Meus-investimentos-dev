@@ -12,7 +12,7 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
-import { identificarSetor, getMoedaEfetiva, getMoedaExposicao } from "@/lib/sectors";
+import { identificarSetor, getMoedaExposicao } from "@/lib/sectors";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -109,8 +109,25 @@ function getTipo(setor: string): string {
 
 function getCustodia(setor: string, moeda: string): string {
   if (setor === "Cripto") return "Cripto";
-  if (["USD", "EUR", "CAD", "GBP"].includes(moeda)) return "Exterior";
+  if (moeda !== "BRL") return "Exterior";
   return "Brasil";
+}
+
+function detectMoeda(ticker: string, setor: string): string {
+  const t = ticker.toUpperCase();
+  if (t.includes(".")) {
+    if (t.endsWith(".SA")) return "BRL";
+    if (t.endsWith(".L")) return "GBP";
+    if (t.endsWith(".DE") || t.endsWith(".AS")) return "EUR";
+    if (t.endsWith(".TO")) return "CAD";
+    if (t.endsWith(".T")) return "JPY";
+    if (t.endsWith(".HK")) return "HKD";
+    if (t.endsWith(".SW")) return "CHF";
+    if (t.endsWith(".AX")) return "AUD";
+    return "USD";
+  }
+  if (["Ações Brasil", "ETF", "FIIs", "BDRs", "Renda Fixa"].includes(setor)) return "BRL";
+  return "USD";
 }
 
 const TIPO_COLORS: Record<string, string> = {
@@ -322,7 +339,7 @@ export default function SimulacoesPage() {
     if (!t || t.length < 2) return;
 
     const setor = identificarSetor(t);
-    const detectedMoeda = getMoedaEfetiva(t, currentMoeda, setor);
+    const detectedMoeda = detectMoeda(t, setor);
     if (detectedMoeda !== currentMoeda) {
       setOps(prev => prev.map(o => o.id === opId ? { ...o, moeda: detectedMoeda } : o));
     }
@@ -393,15 +410,23 @@ export default function SimulacoesPage() {
       posMap.set(p.ticker, { ...p });
     }
 
-    const spot = data?.usdbrl ?? 5.7;
-    const eurBrl = data?.eurbrl ?? 6.4;
-    const fxMap: Record<string, number> = { BRL: 1, USD: spot, EUR: eurBrl, CAD: data?.cadbrl ?? 4.1, GBP: 1.0 };
+    const usd = data?.usdbrl ?? 5.7;
+    const fxMap: Record<string, number> = {
+      BRL: 1,
+      USD: usd,
+      EUR: data?.eurbrl ?? 6.4,
+      CAD: data?.cadbrl ?? 4.1,
+      GBP: data?.fx?.GBPBRL ?? 7.6,
+      JPY: usd / 155,
+      CHF: usd * 1.12,
+      HKD: usd / 7.8,
+      AUD: usd * 0.65,
+    };
 
     for (const op of validOps) {
       const ticker = op.ticker.toUpperCase();
       const setor = identificarSetor(ticker);
-      const moedaEfetiva = getMoedaEfetiva(ticker, op.moeda, setor);
-      const fxRate = fxMap[moedaEfetiva] ?? fxMap[op.moeda] ?? 1;
+      const fxRate = fxMap[op.moeda] ?? usd;
       const valorBRL = op.quantidade * op.preco * fxRate;
 
       const existing = posMap.get(ticker);
@@ -409,7 +434,7 @@ export default function SimulacoesPage() {
         if (existing) {
           posMap.set(ticker, { ...existing, valorAtualBRL: existing.valorAtualBRL + valorBRL });
         } else {
-          posMap.set(ticker, { ticker, setor, moeda: moedaEfetiva, valorAtualBRL: valorBRL, fatorBRL: fxRate });
+          posMap.set(ticker, { ticker, setor, moeda: op.moeda, valorAtualBRL: valorBRL, fatorBRL: fxRate });
         }
       } else {
         if (existing) {
@@ -557,6 +582,12 @@ export default function SimulacoesPage() {
                         <option value="BRL">BRL</option>
                         <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="CAD">CAD</option>
+                        <option value="JPY">JPY</option>
+                        <option value="CHF">CHF</option>
+                        <option value="HKD">HKD</option>
+                        <option value="AUD">AUD</option>
                       </select>
                       <button onClick={() => removeOp(op.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
                         <X size={13} />
