@@ -331,6 +331,14 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  // Force canvas to recalculate viewport after mount
+  useEffect(() => {
+    if (visible) {
+      const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 120);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
+
   if (!visible) return null;
 
   return (
@@ -378,12 +386,12 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
 
       <style jsx global>{`
         @keyframes globe-in {
-          from { opacity: 0; transform: scale(0.4) translateY(-12px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
+          from { opacity: 0; transform: translateY(-16px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         @keyframes globe-out {
-          from { opacity: 1; transform: scale(1) translateY(0); }
-          to { opacity: 0; transform: scale(0.4) translateY(-12px); }
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(-16px); }
         }
         @keyframes card-in {
           from { opacity: 0; transform: translateX(-8px); }
