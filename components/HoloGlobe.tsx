@@ -334,10 +334,10 @@ export default function HoloGlobe({ active }: HoloGlobeProps) {
   if (!visible) return null;
 
   return (
-    <div className={`flex flex-col items-center ${animClass}`}>
-      <div className="relative">
+    <div className={`w-full ${animClass}`} style={{ display: "flex", justifyContent: "center" }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Canvas — square, centered, transparent */}
-        <div style={{ width: 320, height: 320, margin: "0 auto" }}>
+        <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)" }}>
           <Canvas
             camera={{ position: [0, 0, 3.2], fov: 40 }}
             gl={{
