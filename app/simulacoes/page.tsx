@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Target, Plus, Trash2, Save, FolderOpen, ArrowRight,
-  ChevronDown, X, RefreshCw, Loader2,
+  ChevronDown, ChevronRight, X, RefreshCw, Loader2, Layers,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -48,7 +48,7 @@ interface Allocation {
   tipo: Record<string, number>;
   custodia: Record<string, number>;
   setorEconomico: Record<string, number>;
-  topPositions: { ticker: string; valor: number; pct: number }[];
+  allPositions: { ticker: string; setor: string; valor: number; pct: number }[];
   total: number;
 }
 
@@ -212,13 +212,12 @@ function buildAllocation(
     setorEconomico[se] = (setorEconomico[se] ?? 0) + v;
   }
 
-  const topPositions = positions
+  const allPositions = positions
     .filter(p => p.valorAtualBRL > 0)
     .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
-    .slice(0, 15)
-    .map(p => ({ ticker: p.ticker.replace(/\.SA$/, ""), valor: p.valorAtualBRL, pct: total > 0 ? (p.valorAtualBRL / total) * 100 : 0 }));
+    .map(p => ({ ticker: p.ticker.replace(/\.SA$/, ""), setor: p.setor, valor: p.valorAtualBRL, pct: total > 0 ? (p.valorAtualBRL / total) * 100 : 0 }));
 
-  return { setor, moeda, classe, tipo, custodia, setorEconomico, topPositions, total };
+  return { setor, moeda, classe, tipo, custodia, setorEconomico, allPositions, total };
 }
 
 // ── DonutChart ───────────────────────────────────────────────────────────────
@@ -521,6 +520,19 @@ export default function SimulacoesPage() {
 
   const currentAlloc = useMemo(() => buildAllocation(currentPositions, quoteCache), [currentPositions, quoteCache]);
 
+  // ── FX map (shared between simAlloc and ticker card display) ──────────────
+  const fxMap = useMemo(() => {
+    const usd = data?.usdbrl ?? 5.7;
+    return {
+      BRL: 1, USD: usd, EUR: data?.eurbrl ?? 6.4, CAD: data?.cadbrl ?? 4.1,
+      GBP: data?.fx?.GBPBRL ?? 7.6, JPY: usd / 155, CHF: usd * 1.12,
+      HKD: usd / 7.8, AUD: usd * 0.65, KRW: usd / 1380, TWD: usd / 32,
+      SGD: usd * 0.74, INR: usd / 84, SEK: usd / 10.5, DKK: usd / 6.9,
+      NOK: usd / 10.8, NZD: usd * 0.62, MXN: usd / 17.5, TRY: usd / 32,
+      IDR: usd / 15700,
+    } as Record<string, number>;
+  }, [data]);
+
   // ── Build simulated allocation ─────────────────────────────────────────────
   const simAlloc = useMemo(() => {
     if (ops.length === 0) return null;
@@ -535,33 +547,11 @@ export default function SimulacoesPage() {
     }
 
     const usd = data?.usdbrl ?? 5.7;
-    const fxMap: Record<string, number> = {
-      BRL: 1,
-      USD: usd,
-      EUR: data?.eurbrl ?? 6.4,
-      CAD: data?.cadbrl ?? 4.1,
-      GBP: data?.fx?.GBPBRL ?? 7.6,
-      JPY: usd / 155,
-      CHF: usd * 1.12,
-      HKD: usd / 7.8,
-      AUD: usd * 0.65,
-      KRW: usd / 1380,
-      TWD: usd / 32,
-      SGD: usd * 0.74,
-      INR: usd / 84,
-      SEK: usd / 10.5,
-      DKK: usd / 6.9,
-      NOK: usd / 10.8,
-      NZD: usd * 0.62,
-      MXN: usd / 17.5,
-      TRY: usd / 32,
-      IDR: usd / 15700,
-    };
 
     for (const op of validOps) {
       const ticker = op.ticker.toUpperCase();
       const setor = getSetor(ticker);
-      const fxRate = fxMap[op.moeda] ?? usd;
+      const fxRate = fxMap[op.moeda] ?? fxMap.USD ?? usd;
       const valorBRL = op.quantidade * op.preco * fxRate;
 
       const existing = posMap.get(ticker);
@@ -584,7 +574,7 @@ export default function SimulacoesPage() {
     }
 
     return buildAllocation([...posMap.values()], quoteCache);
-  }, [ops, currentPositions, data, quoteCache]);
+  }, [ops, currentPositions, data, fxMap, quoteCache]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -833,12 +823,23 @@ export default function SimulacoesPage() {
                       }
                       return null;
                     })()}
-                    {op.ticker && op.quantidade > 0 && op.preco > 0 && (
-                      <div className="mt-2 text-[10px] text-zinc-500">
-                        Total: <strong className="text-zinc-300">{op.moeda === "BRL" ? compactBRL(op.quantidade * op.preco) : `$${(op.quantidade * op.preco).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</strong>
-                        <span className="text-zinc-700 ml-1">· {getSetor(op.ticker)} · {getSetorEconomico(op.ticker, getSetor(op.ticker), quoteCache[op.ticker.trim().toUpperCase()]?.sector)}</span>
-                      </div>
-                    )}
+                    {op.ticker && op.quantidade > 0 && op.preco > 0 && (() => {
+                      const totalLocal = op.quantidade * op.preco;
+                      const fx = fxMap[op.moeda] ?? 1;
+                      const totalBRL = totalLocal * fx;
+                      const isBRL = op.moeda === "BRL";
+                      const currSym = op.moeda === "EUR" ? "€" : op.moeda === "GBP" ? "£" : op.moeda === "JPY" ? "¥" : "$";
+                      return (
+                        <div className="mt-2 text-[10px] text-zinc-500">
+                          Total:{" "}
+                          {!isBRL && (
+                            <span className="text-zinc-400">{currSym} {totalLocal.toLocaleString("en-US", { maximumFractionDigits: 0 })} → </span>
+                          )}
+                          <strong className="text-zinc-300">{compactBRL(totalBRL)}</strong>
+                          <span className="text-zinc-700 ml-1">· {getSetor(op.ticker)} · {getSetorEconomico(op.ticker, getSetor(op.ticker), quoteCache[op.ticker.trim().toUpperCase()]?.sector)}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -917,16 +918,18 @@ export default function SimulacoesPage() {
             </div>
           ))}
 
-          {/* Top positions comparison */}
+          {/* All positions */}
           {hasSim && (
             <div className="glass-card p-5">
-              <h2 className="text-xs font-semibold text-zinc-300 mb-4">Top 15 Posições — Simulado</h2>
+              <h2 className="text-xs font-semibold text-zinc-300 mb-4">
+                Todas as Posições — Simulado ({simAlloc.allPositions.length})
+              </h2>
               <div className="space-y-1">
-                {simAlloc.topPositions.map(p => (
+                {simAlloc.allPositions.map(p => (
                   <div key={p.ticker} className="flex items-center gap-2 py-1">
                     <span className="text-xs font-bold text-zinc-200 w-20 truncate">{p.ticker}</span>
                     <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(p.pct * 2, 100)}%`, background: "rgba(212,165,116,0.5)" }} />
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(p.pct * 2, 100)}%`, background: SETOR_ECONOMICO_COLORS[getSetorEconomico(p.ticker, p.setor, quoteCache[p.ticker.toUpperCase()]?.sector)] ?? "rgba(212,165,116,0.5)" }} />
                     </div>
                     <span className="text-[10px] text-zinc-400 font-mono w-12 text-right">{p.pct.toFixed(1)}%</span>
                     <span className="text-[10px] text-zinc-500 font-mono w-16 text-right">{compactBRL(p.valor)}</span>
@@ -935,6 +938,14 @@ export default function SimulacoesPage() {
               </div>
             </div>
           )}
+
+          {/* ETF Look-Through */}
+          <EtfLookThrough
+            alloc={hasSim ? simAlloc : currentAlloc}
+            positions={hasSim
+              ? simAlloc.allPositions
+              : currentAlloc.allPositions}
+          />
 
           {/* Empty state */}
           {!hasSim && (
@@ -949,6 +960,336 @@ export default function SimulacoesPage() {
         </div>
       </div>
     </>
+  );
+}
+
+// ── ETF Look-Through ────────────────────────────────────────────────────────
+
+interface CompositionData {
+  ticker: string;
+  valor_brl: number;
+  components: { ativo: string; name: string; peso: number }[];
+}
+
+function EtfLookThrough({ alloc, positions }: {
+  alloc: Allocation;
+  positions: { ticker: string; setor: string; valor: number; pct: number }[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"por-etf" | "combinada" | "rv-completa">("combinada");
+  const [compositions, setCompositions] = useState<Record<string, CompositionData> | null>(null);
+  const [loadingComp, setLoadingComp] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sources, setSources] = useState<Record<string, string>>({});
+
+  const etfPositions = useMemo(
+    () => positions.filter(p => p.setor === "ETF" || p.setor === "ETF USA"),
+    [positions],
+  );
+
+  const directRvPositions = useMemo(
+    () => positions.filter(p =>
+      !["ETF", "ETF USA", "Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"].includes(p.setor),
+    ),
+    [positions],
+  );
+
+  const totalEtfBRL = etfPositions.reduce((s, p) => s + p.valor, 0);
+
+  useEffect(() => {
+    if (!expanded || compositions !== null || etfPositions.length === 0) return;
+    setLoadingComp(true);
+    fetch("/api/composicao/resumo")
+      .then(r => r.json())
+      .then(d => {
+        const lt = d.look_through;
+        if (lt?.compositions) {
+          setCompositions(lt.compositions);
+          setSources(lt.sources ?? {});
+        } else {
+          setCompositions({});
+        }
+      })
+      .catch(() => setCompositions({}))
+      .finally(() => setLoadingComp(false));
+  }, [expanded, compositions, etfPositions.length]);
+
+  const findComp = useCallback((ticker: string): CompositionData | null => {
+    if (!compositions) return null;
+    const t = ticker.toUpperCase();
+    return compositions[t] ?? compositions[t + ".SA"] ?? compositions[ticker] ?? compositions[ticker + ".SA"] ?? null;
+  }, [compositions]);
+
+  const lookThrough = useMemo(() => {
+    if (!compositions) return null;
+
+    const perEtf: Record<string, {
+      ticker: string; valorBRL: number; hasComp: boolean;
+      components: { ativo: string; name: string; peso: number; valorBRL: number }[];
+    }> = {};
+    const sup: string[] = [];
+    const unsup: string[] = [];
+
+    for (const pos of etfPositions) {
+      const comp = findComp(pos.ticker);
+      if (comp && comp.components.length > 0) {
+        sup.push(pos.ticker);
+        perEtf[pos.ticker] = {
+          ticker: pos.ticker,
+          valorBRL: pos.valor,
+          hasComp: true,
+          components: comp.components.map(c => ({
+            ativo: c.ativo,
+            name: c.name,
+            peso: c.peso,
+            valorBRL: pos.valor * c.peso,
+          })),
+        };
+      } else {
+        unsup.push(pos.ticker);
+        perEtf[pos.ticker] = { ticker: pos.ticker, valorBRL: pos.valor, hasComp: false, components: [] };
+      }
+    }
+
+    const combined: Record<string, { name: string; valorBRL: number; etfs: string[] }> = {};
+    for (const [etfTk, data] of Object.entries(perEtf)) {
+      if (!data.hasComp) continue;
+      for (const c of data.components) {
+        if (!combined[c.ativo]) combined[c.ativo] = { name: c.name, valorBRL: 0, etfs: [] };
+        combined[c.ativo].valorBRL += c.valorBRL;
+        if (!combined[c.ativo].etfs.includes(etfTk)) combined[c.ativo].etfs.push(etfTk);
+      }
+    }
+    const combinedList = Object.entries(combined)
+      .map(([ativo, d]) => ({ ativo, ...d }))
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+    const combinedTotal = combinedList.reduce((s, c) => s + c.valorBRL, 0);
+
+    const rvMerged: Record<string, { directBRL: number; etfBRL: number; via: string[] }> = {};
+    for (const pos of directRvPositions) {
+      rvMerged[pos.ticker] = { directBRL: pos.valor, etfBRL: 0, via: [] };
+    }
+    for (const [ativo, d] of Object.entries(combined)) {
+      if (rvMerged[ativo]) {
+        rvMerged[ativo].etfBRL += d.valorBRL;
+        for (const e of d.etfs) if (!rvMerged[ativo].via.includes(e)) rvMerged[ativo].via.push(e);
+      } else {
+        rvMerged[ativo] = { directBRL: 0, etfBRL: d.valorBRL, via: [...d.etfs] };
+      }
+    }
+    const rvList = Object.entries(rvMerged)
+      .map(([ticker, d]) => ({
+        ticker,
+        valorBRL: d.directBRL + d.etfBRL,
+        via: (d.directBRL > 0 ? ["Direta"] : []).concat(d.via).join(", ") || "—",
+      }))
+      .sort((a, b) => b.valorBRL - a.valorBRL);
+    const rvTotal = rvList.reduce((s, c) => s + c.valorBRL, 0);
+
+    return { perEtf, sup, unsup, combinedList, combinedTotal, rvList, rvTotal };
+  }, [compositions, etfPositions, directRvPositions, findComp]);
+
+  if (etfPositions.length === 0) return null;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/composicao/etf-refresh", { method: "POST" });
+      if (res.ok) {
+        const fresh = await fetch("/api/composicao/resumo");
+        if (fresh.ok) {
+          const d = await fresh.json();
+          if (d.look_through?.compositions) {
+            setCompositions(d.look_through.compositions);
+            setSources(d.look_through.sources ?? {});
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    setRefreshing(false);
+  };
+
+  return (
+    <div className="glass-card overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-5 text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <Layers size={16} className="text-indigo-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xs font-semibold text-zinc-300">Composição ETFs — Look-Through</h2>
+          <p className="text-[10px] text-zinc-600 mt-0.5">
+            {etfPositions.length} ETF{etfPositions.length !== 1 ? "s" : ""} · {compactBRL(totalEtfBRL)}
+          </p>
+        </div>
+        <ChevronRight
+          size={14}
+          className={`text-zinc-600 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 space-y-3">
+          {loadingComp ? (
+            <div className="flex items-center gap-2 py-6 justify-center text-zinc-500 text-xs">
+              <Loader2 size={14} className="animate-spin text-indigo-400" />
+              Carregando composições…
+            </div>
+          ) : lookThrough && (lookThrough.sup.length > 0 || lookThrough.unsup.length > 0) ? (
+            <>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {lookThrough.sup.map(etf => (
+                    <span key={etf} className="text-[10px] px-2 py-0.5 rounded-md" style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#818cf8" }}>
+                      {etf}
+                      {sources[etf] || sources[etf + ".SA"] ? (
+                        <span className="text-zinc-600 ml-1">({sources[etf] ?? sources[etf + ".SA"]})</span>
+                      ) : null}
+                    </span>
+                  ))}
+                  {lookThrough.unsup.length > 0 && (
+                    <span className="text-[10px] text-zinc-600">Sem composição: {lookThrough.unsup.join(", ")}</span>
+                  )}
+                </div>
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all"
+                  style={{ border: "1px solid rgba(99,102,241,0.2)", color: refreshing ? "#71717a" : "#818cf8" }}
+                >
+                  <RefreshCw size={10} className={refreshing ? "animate-spin" : ""} />
+                  {refreshing ? "…" : "Atualizar"}
+                </button>
+              </div>
+
+              <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
+                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"]] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${activeTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === "por-etf" && (
+                <div className="space-y-4">
+                  {Object.values(lookThrough.perEtf).filter(e => e.hasComp).map(etf => (
+                    <div key={etf.ticker}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-zinc-200 text-sm">{etf.ticker}</span>
+                        <span className="text-zinc-600 text-xs">{compactBRL(etf.valorBRL)}</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-zinc-800">
+                              <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Ativo</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Peso</th>
+                              <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Valor BRL</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {etf.components.slice(0, 30).map(c => (
+                              <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                <td className="py-1.5 px-2 text-zinc-300 font-medium">
+                                  {c.ativo}
+                                  {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1 text-[10px] hidden sm:inline">{c.name}</span>}
+                                </td>
+                                <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">{(c.peso * 100).toFixed(2)}%</td>
+                                <td className="py-1.5 px-2 text-right text-zinc-400 font-mono">{compactBRL(c.valorBRL)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "combinada" && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">#</th>
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Ativo</th>
+                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Valor</th>
+                        <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">%</th>
+                        <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Via</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lookThrough.combinedList.slice(0, 30).map((c, i) => (
+                        <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                          <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                          <td className="py-1.5 px-2 text-zinc-200 font-semibold">{c.ativo}</td>
+                          <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                          <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                            {lookThrough.combinedTotal > 0 ? ((c.valorBRL / lookThrough.combinedTotal) * 100).toFixed(2) : "0"}%
+                          </td>
+                          <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.etfs.join(", ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {activeTab === "rv-completa" && (
+                <>
+                  <p className="text-[10px] text-zinc-600">
+                    Posições diretas + ETFs expandidos. ETFs sem composição mantidos como linha única.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-800">
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">#</th>
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Ativo</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Valor</th>
+                          <th className="text-right py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">%</th>
+                          <th className="text-left py-1.5 px-2 text-zinc-600 font-semibold uppercase tracking-wider text-[9px]">Via</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lookThrough.rvList.map((c, i) => (
+                          <tr key={c.ticker} className={`border-b border-zinc-900 hover:bg-white/[0.02] ${c.via !== "Direta" && c.via !== "—" ? "opacity-85" : ""}`}>
+                            <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                            <td className="py-1.5 px-2 font-semibold" style={{ color: c.via !== "Direta" && c.via !== "—" ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                            <td className="py-1.5 px-2 text-right text-zinc-500 font-mono">
+                              {lookThrough.rvTotal > 0 ? ((c.valorBRL / lookThrough.rvTotal) * 100).toFixed(2) : "0"}%
+                            </td>
+                            <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="py-6 text-center">
+              <p className="text-xs text-zinc-600 mb-3">Nenhuma composição de ETF disponível.</p>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{ border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}
+              >
+                <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+                {refreshing ? "Buscando composições…" : "Buscar Composições ao Vivo"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
