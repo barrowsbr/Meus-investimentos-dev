@@ -9,7 +9,6 @@ import {
 import {
   TrendingUp, TrendingDown, BarChart2, Activity, Scale,
   Calendar, Target, AlertTriangle, DollarSign, Zap, RefreshCw,
-  Landmark,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -81,13 +80,6 @@ interface PerformanceResponse {
   usdView: UsdView | null;
   errors: string[];
   lookback: number;
-}
-
-interface ResultadoFonte {
-  rv_ganho: number;
-  proventos: number;
-  rf_ganho: number;
-  total: number;
 }
 
 interface DecomposicaoBucket {
@@ -217,7 +209,6 @@ export default function PerformancePage() {
   const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
-  const [resultadoFonte, setResultadoFonte] = useState<ResultadoFonte | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
 
   const isUsd = currencyView === "USD";
@@ -254,18 +245,6 @@ export default function PerformancePage() {
     fetch(`${API_URL}/api/twr/decomposicao`)
       .then(r => r.json())
       .then(body => setDecomp(body))
-      .catch(() => {});
-    fetch(`${API_URL}/api/composicao/resumo`)
-      .then(r => r.json())
-      .then(body => {
-        if (body.resumo && body.rentabilidade) {
-          const rent = body.rentabilidade as Array<{ macro: string; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number }>;
-          const rvGanho = rent.filter(r => r.macro === "Renda Variável").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
-          const rfGanho = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
-          const proventos = body.resumo.total_proventos ?? 0;
-          setResultadoFonte({ rv_ganho: rvGanho, proventos, rf_ganho: rfGanho, total: rvGanho + proventos + rfGanho });
-        }
-      })
       .catch(() => {});
   }, []);
 
@@ -797,49 +776,6 @@ export default function PerformancePage() {
               )}
             </div>
           </div>
-
-          {/* ── Results breakdown by source ── */}
-          {!isUsd && resultadoFonte && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><BarChart2 size={15} />Resultado por Fonte</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {[
-                  { label: "Ganho RV", value: resultadoFonte.rv_ganho, color: "#3b82f6", icon: <TrendingUp size={16} />, desc: "Valorização renda variável" },
-                  { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574", icon: <DollarSign size={16} />, desc: "Dividendos, JCP, rendimentos" },
-                  { label: "Ganho RF", value: resultadoFonte.rf_ganho, color: "#10b981", icon: <Landmark size={16} />, desc: "Rendimento renda fixa" },
-                  { label: "Resultado Total", value: resultadoFonte.total, color: resultadoFonte.total >= 0 ? "#34d399" : "#f87171", icon: <Zap size={16} />, desc: "Soma de todas as fontes" },
-                ].map(item => (
-                  <div key={item.label} className="rounded-xl p-4" style={{ background: `${item.color}08`, border: `1px solid ${item.color}18` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span style={{ color: item.color }}>{item.icon}</span>
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{item.label}</span>
-                    </div>
-                    <p className="text-xl font-bold mb-0.5" style={{ color: item.value >= 0 ? item.color : "#f87171" }}>
-                      {item.value >= 0 ? "+" : ""}{compactBRL(item.value)}
-                    </p>
-                    <p className="text-[9px] text-zinc-600">{item.desc}</p>
-                  </div>
-                ))}
-              </div>
-              {resultadoFonte.total !== 0 && (
-                <div className="mt-4 flex items-center gap-2">
-                  {[
-                    { label: "RV", value: resultadoFonte.rv_ganho, color: "#3b82f6" },
-                    { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574" },
-                    { label: "RF", value: resultadoFonte.rf_ganho, color: "#10b981" },
-                  ].map(seg => {
-                    const pctVal = resultadoFonte.total !== 0 ? (Math.abs(seg.value) / Math.abs(resultadoFonte.total)) * 100 : 0;
-                    return (
-                      <div key={seg.label} className="group relative" style={{ flex: Math.max(pctVal, 3) }}>
-                        <div className="h-3 rounded-full transition-all" style={{ backgroundColor: seg.color, opacity: 0.7 }} />
-                        <span className="text-[9px] text-zinc-500 block text-center mt-1">{seg.label} {pctVal.toFixed(0)}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Currency decomposition (BRL only) */}
           {!isUsd && decomp && decomp.buckets.length > 1 && (
