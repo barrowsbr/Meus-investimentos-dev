@@ -1,11 +1,11 @@
 import { toNumber } from "./format";
-import { identificarSetor, isRendaFixaPrecificavel } from "./sectors";
+import { identificarSetor, isRendaFixaManual } from "./sectors";
 
 type Row = Record<string, unknown>;
 
 // ─── Constants (CALCULOS.md §24) ──────────────────────────────────────────────
 
-const SELIC_PROXY_ANNUAL = 0.1375;  // 13.75% a.a. — atualizar conforme COPOM
+const SELIC_PROXY_ANNUAL = 0.1475;  // 14.75% a.a. — atualizar conforme COPOM
 const BUSINESS_DAYS_YEAR = 252;
 const SELIC_DAILY = Math.pow(1 + SELIC_PROXY_ANNUAL, 1 / BUSINESS_DAYS_YEAR) - 1;
 
@@ -53,7 +53,7 @@ function parseRFTransactions(rows: Row[]): RFTransaction[] {
       row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""
     ).trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
-    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
+    if (!isRendaFixaManual(identificarSetor(ticker))) continue;
 
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
     let tipo: RFTransaction["tipo"] | null = null;
@@ -155,7 +155,7 @@ export function calcularRF(
   for (const row of fixaAberta) {
     const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
-    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
+    if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
     const statusRaw = String(row["status"] ?? "").toLowerCase();

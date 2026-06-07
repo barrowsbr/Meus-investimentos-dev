@@ -12,9 +12,9 @@ const ETFS_BR = new Set([
 
 const COMMODITIES = new Set(["IAU", "SIVR", "SLV", "GLD", "DBC", "USO"]);
 
-const RENDA_FIXA_USD = new Set(["SHV", "BIL", "VDST"]);
+const RENDA_FIXA_USD = new Set(["BIL", "VDST"]);
 
-const ETFS_USA = new Set(["SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT", "FLJP"]);
+const ETFS_USA = new Set(["SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT", "FLJP", "SHV"]);
 
 const RF_TERMS = ["TESOURO", "NTN", "NTB", "LFT", "LTN", "LCI", "LCA", "CDB", "LC", "DEBENTURE", "CASH", "CAIXA"];
 
