@@ -26,6 +26,9 @@ import {
   PieChart,
   Scale,
   Zap,
+  Crosshair,
+  BrainCircuit,
+  Egg,
 } from "lucide-react";
 
 interface NavItem {
@@ -55,6 +58,7 @@ const navGroups: NavGroup[] = [
       { href: "/renda-fixa",     label: "Renda Fixa",     icon: Landmark },
       { href: "/proventos",      label: "Proventos",      icon: Coins,            mobileShow: true },
       { href: "/criptoativos",   label: "Criptoativos",   icon: Bitcoin },
+      { href: "/opcoes",         label: "Opções",         icon: Crosshair },
     ],
   },
   {
@@ -67,6 +71,7 @@ const navGroups: NavGroup[] = [
       { href: "/entendimento",         label: "Entendimento",   icon: GraduationCap },
       { href: "/simulacoes",           label: "Simulações",     icon: Target },
       { href: "/trades",               label: "Trades",         icon: Zap },
+      { href: "/preditivo",            label: "Preditivo",      icon: BrainCircuit },
     ],
   },
   {
@@ -86,6 +91,7 @@ const navGroups: NavGroup[] = [
       { href: "/noticias",      label: "Notícias",     icon: Newspaper },
       { href: "/polymarket",    label: "Polymarket",   icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
+      { href: "/easter-eggs",  label: "Easter Eggs",  icon: Egg },
       { href: "/configuracoes", label: "Configurações", icon: Settings },
     ],
   },

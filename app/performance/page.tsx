@@ -412,76 +412,86 @@ export default function PerformancePage() {
       })()}
 
       {/* ── Hero Performance Card ── */}
-      <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5">
-          {/* Left: TWR headline */}
-          <div>
-            <div className="flex items-baseline gap-3 mb-1">
-              <span className="text-4xl sm:text-5xl font-extrabold tracking-tight" style={{ color: trendColor }}>
-                {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
-              </span>
-              <span className="text-sm text-zinc-500 font-medium" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices (CDI/IBOV/S&P). Difere do 'retorno simples' (lucro÷investido) mostrado no Resumo.">TWR acumulado ⓘ</span>
-            </div>
-            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-2">
-              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong> a.a.</span>
-              <span className="text-zinc-700">·</span>
-              <span>{formatDuracao(s.duracaoAnos)}</span>
-            </div>
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-purple-500/8 border border-purple-500/15 w-fit" title="Money-Weighted Return: retorno ponderado pelo dinheiro investido — reflete o ganho real considerando timing e tamanho dos aportes">
-              <span className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold">MWR</span>
-              <span className={`text-lg font-bold ${mwrPct >= 0 ? "text-purple-400" : "text-red-400"}`}>{pct(mwrPct)}</span>
-              <span className="text-[10px] text-zinc-500">a.a. — retorno do seu dinheiro</span>
-            </div>
-            {/* Benchmark comparison pills */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
-                { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
-                ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
-              ].map(b => (
-                <div key={b.label} className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: `${b.color}10`, border: `1px solid ${b.color}20` }}>
-                  <span className="text-[10px] text-zinc-500">{b.label}</span>
-                  <span className="text-xs font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
-                  <span className={`text-[10px] font-semibold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    α {b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {(() => {
+        const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
+        const custoFIFO = s.custoPosicoesAtuais ?? s.totalInvestido;
+        const navAtual = s.patrimonio?.total ?? s.navFinal;
+        const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+        const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+        const retornoSimples = custoFIFO > 0 ? ((navAtual - custoFIFO + (isUnfiltered && ganhoCanonical != null ? 0 : 0)) / custoFIFO) * 100 : 0;
 
-          {/* Right: NAV + Ganho */}
-          <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
-            <div>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio Total</p>
-              <p className="text-xl font-bold text-zinc-100">{compactCurr(s.patrimonio?.total ?? s.navFinal)}</p>
-              {s.patrimonio ? (
-                <p className="text-[10px] text-zinc-500">
-                  RV + RF + cripto{s.patrimonio.caixa > 0 ? `, incluindo ${compactCurr(s.patrimonio.caixa)} em caixa` : ""}
+        return (
+          <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
+            {/* 3 main metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 pb-5 border-b border-zinc-800/40">
+              <div title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">TWR Acumulado</p>
+                <p className="text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: trendColor }}>
+                  {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
                 </p>
-              ) : (
-                <p className="text-[10px] text-zinc-500">Investido {compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido)} · inclui RV + RF</p>
-              )}
+                <p className="text-[10px] text-zinc-500 mt-1">CAGR {pct(s.twrAnualizado * 100)} a.a.</p>
+              </div>
+              <div title="Money-Weighted Return: retorno ponderado pelo dinheiro investido — reflete o ganho real considerando timing e tamanho dos aportes">
+                <p className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold mb-1">MWR Acumulado</p>
+                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${mwrTotal >= 0 ? "text-purple-400" : "text-red-400"}`}>
+                  {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
+                </p>
+                <p className="text-[10px] text-zinc-500 mt-1">TIR {pct(mwrPct)} a.a.</p>
+              </div>
+              <div title="Retorno simples: (patrimônio atual − custo FIFO) / custo FIFO">
+                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Retorno Simples</p>
+                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${retornoSimples >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                  {retornoSimples >= 0 ? "+" : ""}{retornoSimples.toFixed(2)}%
+                </p>
+                <p className="text-[10px] text-zinc-500 mt-1">{compactCurr(navAtual)} / {compactCurr(custoFIFO)}</p>
+              </div>
             </div>
-            <div className="h-px bg-zinc-800/50" />
-            <div>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-              {(() => {
-                const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
-                const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
-                return (
-                  <>
-                    <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {ge >= 0 ? "+" : ""}{compactCurr(ge)}
-                    </p>
-                    <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
-                  </>
-                );
-              })()}
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5">
+              {/* Left: Benchmarks + details */}
+              <div>
+                <div className="flex items-center gap-4 text-xs text-zinc-500 mb-3">
+                  <span>{formatDuracao(s.duracaoAnos)}</span>
+                  <span className="text-zinc-700">·</span>
+                  <span>{formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
+                    { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
+                    ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
+                  ].map(b => (
+                    <div key={b.label} className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: `${b.color}10`, border: `1px solid ${b.color}20` }}>
+                      <span className="text-[10px] text-zinc-500">{b.label}</span>
+                      <span className="text-xs font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
+                      <span className={`text-[10px] font-semibold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        α {b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: NAV + Ganho */}
+              <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
+                <div>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio</p>
+                  <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
+                  <p className="text-[10px] text-zinc-500">Investido {compactCurr(custoFIFO)}</p>
+                </div>
+                <div className="h-px bg-zinc-800/50" />
+                <div>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
+                  <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {ge >= 0 ? "+" : ""}{compactCurr(ge)}
+                  </p>
+                  <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ── Risk Metrics ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">

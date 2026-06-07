@@ -59,18 +59,30 @@ function rowMonth(r: Record<string, unknown>): string {
   return "";
 }
 
-interface FxRatesSimple { usdbrl: number; eurbrl: number; cadbrl: number; gbpbrl: number }
+type FxRatesSimple = Record<string, number>;
+
+function fxRate(moeda: string, fx: FxRatesSimple): number {
+  if (!moeda || moeda === "BRL") return 1;
+  const key = moeda.toLowerCase() + "brl";
+  return fx[key] ?? 1;
+}
 
 function rowValueBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
   const v = Math.abs(toNumber(r["valor"]) ?? 0);
   const decisao = String(r["decisao"] ?? "").toLowerCase();
   const sign = decisao.includes("imposto") ? -1 : 1;
   const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
-  if (moeda === "USD") return sign * v * fx.usdbrl;
-  if (moeda === "EUR") return sign * v * fx.eurbrl;
-  if (moeda === "CAD") return sign * v * fx.cadbrl;
-  if (moeda === "GBP") return sign * v * fx.gbpbrl;
-  return sign * v;
+  return sign * v * fxRate(moeda, fx);
+}
+
+function rowIsImposto(r: Record<string, unknown>): boolean {
+  return String(r["decisao"] ?? "").toLowerCase().includes("imposto");
+}
+
+function rowAbsBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
+  const v = Math.abs(toNumber(r["valor"]) ?? 0);
+  const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
+  return v * fxRate(moeda, fx);
 }
 
 // ── Filter bar ───────────────────────────────────────────────────────────────
@@ -212,6 +224,9 @@ export default function ProventosPage() {
     eurbrl: portfolio?.eurbrl ?? 6.4,
     cadbrl: portfolio?.fx?.CADBRL ?? 4.1,
     gbpbrl: portfolio?.fx?.GBPBRL ?? 7.6,
+    ...Object.fromEntries(
+      Object.entries(portfolio?.fx ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+    ),
   };
 
   const [filters, setFilters] = useState<Filters>({ year: "all", ticker: "all", tipo: "all", moeda: "all" });
@@ -240,8 +255,14 @@ export default function ProventosPage() {
   // ── Metrics ──
   const noFilter = filters.year === "all" && filters.ticker === "all" && filters.tipo === "all" && filters.moeda === "all";
   const metrics = useMemo(() => {
-    const summed = filteredData.reduce((s, r) => s + rowValueBRL(r, fx), 0);
-    // When unfiltered, use canonical snapshot total for cross-page consistency
+    let bruto = 0;
+    let imposto = 0;
+    filteredData.forEach(r => {
+      const abs = rowAbsBRL(r, fx);
+      if (rowIsImposto(r)) imposto += abs;
+      else bruto += abs;
+    });
+    const summed = bruto - imposto;
     const total = noFilter && portfolio?.totalProventosBRL ? portfolio.totalProventosBRL : summed;
     const months = new Set(filteredData.map(r => rowMonth(r)).filter(Boolean));
     const avgMonth = months.size > 0 ? total / months.size : 0;
@@ -255,7 +276,6 @@ export default function ProventosPage() {
     });
     const topEntry = Object.entries(byTicker).sort((a, b) => b[1] - a[1])[0];
 
-    // Best month
     const byMonth: Record<string, number> = {};
     filteredData.forEach(r => {
       const m = rowMonth(r);
@@ -265,7 +285,7 @@ export default function ProventosPage() {
     const bestMonth = Object.entries(byMonth).sort((a, b) => b[1] - a[1])[0];
 
     return {
-      total, avgMonth, tickers: tickers.size,
+      total, bruto, imposto, avgMonth, tickers: tickers.size,
       topTicker: topEntry?.[0] ?? "—", topValue: topEntry?.[1] ?? 0,
       bestMonth: bestMonth ? shortMonth(bestMonth[0]) : "—", bestMonthValue: bestMonth?.[1] ?? 0,
     };
@@ -526,15 +546,28 @@ export default function ProventosPage() {
 
       {/* ── Hero DRE Card ── */}
       <div className="glass-card p-5 mb-5 animate-fade-in" style={{ borderColor: "rgba(52,211,153,0.12)", boxShadow: "0 0 60px rgba(52,211,153,0.04)" }}>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Total Recebido</p>
-            <p className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono">{compactBRL(metrics.total)}</p>
+        {/* Bruto → Imposto → Líquido */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-5 mb-4 pb-4 border-b border-zinc-800/40">
+          <div className="flex-1">
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Bruto</p>
+            <p className="text-xl font-bold text-zinc-200 font-mono">{compactBRL(metrics.bruto)}</p>
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] text-red-400/70 uppercase tracking-wider font-semibold mb-1">IR Retido</p>
+            <p className="text-xl font-bold text-red-400 font-mono">−{compactBRL(metrics.imposto)}</p>
+          </div>
+          <div className="hidden sm:block text-zinc-700 text-lg">=</div>
+          <div className="flex-1">
+            <p className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-1">Líquido</p>
+            <p className="text-2xl font-bold text-emerald-400 font-mono">{compactBRL(metrics.total)}</p>
             <p className="text-[10px] text-zinc-600 mt-0.5">{filteredData.length} pagamentos</p>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div>
             <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Média Mensal</p>
-            <p className="text-xl sm:text-2xl font-bold text-zinc-200 font-mono">{compactBRL(metrics.avgMonth)}</p>
+            <p className="text-lg font-bold text-zinc-200 font-mono">{compactBRL(metrics.avgMonth)}</p>
             <p className="text-[10px] text-zinc-600 mt-0.5">{metrics.tickers} ativos pagadores</p>
           </div>
           <div>
@@ -544,8 +577,15 @@ export default function ProventosPage() {
           </div>
           <div>
             <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Projeção Anual</p>
-            <p className="text-xl sm:text-2xl font-bold text-teal-400 font-mono">{projectedAnnual ? compactBRL(projectedAnnual) : "—"}</p>
+            <p className="text-lg font-bold text-teal-400 font-mono">{projectedAnnual ? compactBRL(projectedAnnual) : "—"}</p>
             <p className="text-[10px] text-zinc-600 mt-0.5">Baseado no YTD</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Alíquota Efetiva</p>
+            <p className="text-lg font-bold text-zinc-300 font-mono">
+              {metrics.bruto > 0 ? `${((metrics.imposto / metrics.bruto) * 100).toFixed(1)}%` : "—"}
+            </p>
+            <p className="text-[10px] text-zinc-600 mt-0.5">IR / Bruto</p>
           </div>
         </div>
 
