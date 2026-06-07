@@ -435,11 +435,11 @@ export default function PerformancePage() {
             </div>
             <div className="h-px bg-zinc-800/50" />
             <div>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-              <p className={`text-xl font-bold ${s.ganhoEconomico >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {s.ganhoEconomico >= 0 ? "+" : ""}{compactCurr(s.ganhoEconomico)}
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Investido (FIFO)</p>
+              <p className="text-xl font-bold text-zinc-100">
+                {compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido)}
               </p>
-              <p className="text-[10px] text-zinc-500">NAV − investido + proventos ({currSymbol})</p>
+              <p className="text-[10px] text-zinc-500">Custo das posições atuais ({currSymbol})</p>
             </div>
           </div>
         </div>
@@ -674,7 +674,6 @@ export default function PerformancePage() {
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
                   { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
-                  { label: "Ganho econômico", value: compactCurr(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" },
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                 ].map(row => (
