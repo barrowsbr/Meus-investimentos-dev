@@ -63,12 +63,14 @@ interface FxRatesSimple { usdbrl: number; eurbrl: number; cadbrl: number; gbpbrl
 
 function rowValueBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
   const v = Math.abs(toNumber(r["valor"]) ?? 0);
+  const decisao = String(r["decisao"] ?? "").toLowerCase();
+  const sign = decisao.includes("imposto") ? -1 : 1;
   const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
-  if (moeda === "USD") return v * fx.usdbrl;
-  if (moeda === "EUR") return v * fx.eurbrl;
-  if (moeda === "CAD") return v * fx.cadbrl;
-  if (moeda === "GBP") return v * fx.gbpbrl;
-  return v;
+  if (moeda === "USD") return sign * v * fx.usdbrl;
+  if (moeda === "EUR") return sign * v * fx.eurbrl;
+  if (moeda === "CAD") return sign * v * fx.cadbrl;
+  if (moeda === "GBP") return sign * v * fx.gbpbrl;
+  return sign * v;
 }
 
 // ── Filter bar ───────────────────────────────────────────────────────────────
