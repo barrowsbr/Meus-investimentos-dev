@@ -1,5 +1,5 @@
 import { toNumber } from "./format";
-import { identificarSetor, getMoedaEfetiva, isRendaFixaManual } from "./sectors";
+import { identificarSetor, getMoedaEfetiva, isRendaFixaManual, isRendaFixaPrecificavel } from "./sectors";
 import type { FxRates } from "./cotacoes";
 
 type Row = Record<string, unknown>;
@@ -150,6 +150,8 @@ function parseRfTxs(rows: Row[]): RfParsedTx[] {
   for (const row of rows) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""));
     if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
+    // SHV/BIL/VDST are market-priced via meus_ativos — skip to avoid double-count
+    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
     let tipo: "compra" | "venda" | null = null;
     if (tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte")) tipo = "compra";
@@ -213,6 +215,7 @@ export function buildRfTimeline(
   for (const row of fixaAberta) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? ""));
     if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
+    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
     if (atual > 0) manualValues.set(ticker, { atual, moeda });
