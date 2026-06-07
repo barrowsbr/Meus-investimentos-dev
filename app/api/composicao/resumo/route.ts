@@ -232,17 +232,23 @@ export async function GET() {
     const rawPortfolio = calcularCarteiraFIFO(transacoes, fxByDate);
     const activeTickerSet = new Set(positions.map(p => p.ticker));
 
-    // RF cost basis from renda_fixa transactions
+    // RF net cost basis: compras − vendas/resgates (remaining invested amount)
     const rfCostBasis: Record<string, number> = {};
     for (const row of rfTransacoes) {
       const tipo = String(row["tipo"] ?? "").toLowerCase();
-      if (!tipo.includes("compra") && !tipo.includes("aporte")) continue;
+      const isCompra = tipo.includes("compra") || tipo.includes("aporte");
+      const isVenda = tipo.includes("venda") || tipo.includes("resgate") || tipo.includes("vencimento");
+      if (!isCompra && !isVenda) continue;
       const ticker = String(row["ticker"] ?? "").trim();
       const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
       if (!ticker || valor <= 0) continue;
       if (!isRendaFixaManual(identificarSetor(ticker))) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-      rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + valor * fxFactor(moeda, fxAtual);
+      const valorBRL = valor * fxFactor(moeda, fxAtual);
+      rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + (isCompra ? valorBRL : -valorBRL);
+    }
+    for (const key of Object.keys(rfCostBasis)) {
+      if (rfCostBasis[key] < 0) rfCostBasis[key] = 0;
     }
 
     type RentItem = {
