@@ -478,10 +478,10 @@ export default function ResumoPage() {
         const rfReal = rfItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
         const rfGanho = rfNaoReal + rfReal;
 
-        // Proventos
+        // Proventos — use snapshot total (authoritative); breakdown from rentabilidade
         const proventosRV = rvItems.reduce((s, r) => s + r.proventos_brl, 0);
         const proventosRF = rfItems.reduce((s, r) => s + r.proventos_brl, 0);
-        const proventosTotal = rent.reduce((s, r) => s + r.proventos_brl, 0);
+        const proventosTotal = data.totalProventosBRL;
 
         // Impostos
         const impostoRF = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
