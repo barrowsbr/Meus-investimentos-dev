@@ -140,6 +140,18 @@ export default function ResumoPage() {
   const loading = portLoading || compLoading;
 
   // ── Derived from portfolio hook ──────────────────────────────────────────
+  const monthlyDividends = useMemo(() => {
+    if (!data?.proventosMensais) return [];
+    return Object.entries(data.proventosMensais)
+      .sort(([a], [b]) => a.localeCompare(b)).slice(-12)
+      .map(([month, total]) => ({ month: shortMonth(month), total }));
+  }, [data]);
+
+  const avgMonthlyDividend = useMemo(() =>
+    monthlyDividends.length === 0 ? 0
+      : monthlyDividends.reduce((s, m) => s + m.total, 0) / monthlyDividends.length,
+    [monthlyDividends]);
+
   const RF_SECTORS_SET = useMemo(() => new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]), []);
 
   // Setores: bolsa (meus_ativos) + RF manual (Tesouro/CDB/caixa de fixa_aberta),
