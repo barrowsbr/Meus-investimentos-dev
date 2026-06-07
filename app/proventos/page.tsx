@@ -238,8 +238,11 @@ export default function ProventosPage() {
   }, [rawData, filters]);
 
   // ── Metrics ──
+  const noFilter = filters.year === "all" && filters.ticker === "all" && filters.tipo === "all" && filters.moeda === "all";
   const metrics = useMemo(() => {
-    const total = filteredData.reduce((s, r) => s + rowValueBRL(r, fx), 0);
+    const summed = filteredData.reduce((s, r) => s + rowValueBRL(r, fx), 0);
+    // When unfiltered, use canonical snapshot total for cross-page consistency
+    const total = noFilter && portfolio?.totalProventosBRL ? portfolio.totalProventosBRL : summed;
     const months = new Set(filteredData.map(r => rowMonth(r)).filter(Boolean));
     const avgMonth = months.size > 0 ? total / months.size : 0;
     const tickers = new Set(filteredData.map(r => String(r["ticker"] ?? "").toUpperCase().trim()).filter(Boolean));
@@ -266,7 +269,7 @@ export default function ProventosPage() {
       topTicker: topEntry?.[0] ?? "—", topValue: topEntry?.[1] ?? 0,
       bestMonth: bestMonth ? shortMonth(bestMonth[0]) : "—", bestMonthValue: bestMonth?.[1] ?? 0,
     };
-  }, [filteredData, fx]);
+  }, [filteredData, fx, noFilter, portfolio]);
 
   // ── Monthly chart (stacked BRL + exterior + cumulative line) ──
   const monthlyChart = useMemo(() => {
