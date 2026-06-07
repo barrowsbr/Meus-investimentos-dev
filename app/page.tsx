@@ -19,6 +19,7 @@ import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import type { PolyEvent } from "@/lib/polymarket";
+import BlackHole from "@/components/BlackHole";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -716,16 +717,22 @@ export default function HomePage() {
   return (
     <ErrorBoundary>
     <div className="relative min-h-screen flex flex-col items-center">
-      {/* Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      {/* Background — buraco negro Gargantua (lente gravitacional via WebGL) */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <ErrorBoundary fallback={null}>
+          <div className="absolute inset-0 opacity-60">
+            <BlackHole />
+          </div>
+        </ErrorBoundary>
+        {/* Escurecimento p/ legibilidade do conteúdo sobre o disco */}
         <div
           className="absolute inset-0"
-          style={{ background: "radial-gradient(ellipse at 50% 20%, rgba(28,32,50,0.7) 0%, rgba(12,14,20,0.97) 100%)" }}
+          style={{ background: "radial-gradient(ellipse at 50% 30%, transparent 0%, rgba(12,14,20,0.55) 60%, rgba(12,14,20,0.9) 100%)" }}
         />
         <div
           className="absolute inset-0"
           style={{
-            background: "radial-gradient(ellipse at 30% 60%, rgba(212,165,116,0.035) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(99,102,241,0.035) 0%, transparent 50%)",
+            background: "radial-gradient(ellipse at 30% 60%, rgba(212,165,116,0.025) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(99,102,241,0.025) 0%, transparent 50%)",
           }}
         />
       </div>
