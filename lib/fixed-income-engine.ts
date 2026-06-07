@@ -1,4 +1,5 @@
 import { toNumber } from "./format";
+import { identificarSetor, isRendaFixaPrecificavel } from "./sectors";
 
 type Row = Record<string, unknown>;
 
@@ -52,6 +53,7 @@ function parseRFTransactions(rows: Row[]): RFTransaction[] {
       row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""
     ).trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
+    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
 
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
     let tipo: RFTransaction["tipo"] | null = null;
@@ -153,6 +155,7 @@ export function calcularRF(
   for (const row of fixaAberta) {
     const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim().toUpperCase().replace(/\s+/g, " ");
     if (!ticker) continue;
+    if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
     const statusRaw = String(row["status"] ?? "").toLowerCase();
