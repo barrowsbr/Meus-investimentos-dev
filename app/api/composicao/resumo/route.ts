@@ -3,7 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
-import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaPrecificavel, getMoedaExposicao } from "@/lib/sectors";
+import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
 import type { Position } from "@/lib/portfolio";
@@ -16,7 +16,7 @@ export const maxDuration = 45;
 
 // Matches Streamlit classificar_camadas() — maps (ticker, setor) → (macro, sub)
 const RF_SETORES = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"]);
-const RF_USD_TICKERS = new Set(["SHV", "BIL", "VDST"]);
+const RF_USD_TICKERS = new Set(["BIL", "VDST"]);
 const ETF_KEYWORDS = ["VWRA", "WRLD", "ACWI", "VT", "URTH", "SPY", "QQQ", "IVV", "VOO", "VNQ", "BND", "AGG"];
 const MUNDO_TICKERS = ["ASML", "DPM", "TSM", "BABA", "JD", "TCEHY"];
 
@@ -240,7 +240,7 @@ export async function GET() {
       const ticker = String(row["ticker"] ?? "").trim();
       const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
       if (!ticker || valor <= 0) continue;
-      if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
+      if (!isRendaFixaManual(identificarSetor(ticker))) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + valor * fxFactor(moeda, fxAtual);
     }
@@ -317,7 +317,7 @@ export async function GET() {
     for (const row of fixaAberta) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
       if (!ticker || activeTickerSet.has(ticker.toUpperCase())) continue;
-      if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
+      if (!isRendaFixaManual(identificarSetor(ticker))) continue;
       const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
@@ -342,10 +342,6 @@ export async function GET() {
     }
 
     // Sold RF positions from renda_fixa transactions (CDBs, Tesouro, etc.)
-    // O imposto/venda/compra são casados por ticker NORMALIZADO (sem espaços
-    // extras, acentos ou diferença de caixa) para que um IR lançado com pequena
-    // variação no nome ainda seja atribuído à posição certa. Também aceitamos
-    // tipos "IR"/"IRRF"/"tributo"/"IOF" além de "imposto".
     const normTicker = (t: string) =>
       t.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
     const isImpostoTipo = (t: string) => /\b(imposto|irrf|ir|tributo|iof)\b/.test(t);
@@ -354,7 +350,7 @@ export async function GET() {
     for (const row of rfTransacoes) {
       const rawTicker = String(row["ticker"] ?? "").trim();
       if (!rawTicker) continue;
-      if (isRendaFixaPrecificavel(identificarSetor(rawTicker))) continue;
+      if (!isRendaFixaManual(identificarSetor(rawTicker))) continue;
       const key = normTicker(rawTicker);
       const tipo = String(row["tipo"] ?? "").toLowerCase();
       const valorRaw = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
