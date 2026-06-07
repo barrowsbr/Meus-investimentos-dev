@@ -1798,113 +1798,180 @@ def render_solar_system():
         scene.add(createNebula( 100, 120, -350, 0.38, 500, 130, 0.20)); // green-cyan emission
 
         // ════════════════════════════════════════════════════════
-        //  BLACK HOLE  (supermassive — far background)
-        //  Position: BH_POS = (-750, 0, -550)
+        //  BLACK HOLE  (supermassive — REAL gravitational lensing)
+        //  O "arco superior" não é o disco "em cima" — é a luz do
+        //  disco de acreção ATRÁS do buraco, curvada ~180° pela
+        //  gravidade. Cada pixel integra a geodésica do fóton:
+        //  a = -1.5·h²·r/|r|⁵  (aprox. Schwarzschild)
         // ════════════════════════════════════════════════════════
         const BH_POS = new THREE.Vector3(-750, 0, -550);
-        const BH_RS  = 28;   // Schwarzschild radius (display)
+        const BH_RS  = 28;
 
         const bhGroup = new THREE.Group();
         bhGroup.position.copy(BH_POS);
         scene.add(bhGroup);
 
-        // Event horizon — perfect black sphere
-        const bhCore = new THREE.Mesh(
-            new THREE.SphereGeometry(BH_RS, 64, 64),
-            new THREE.MeshBasicMaterial({{ color:0x000000 }})
-        );
-        bhGroup.add(bhCore);
-
-        // Photon sphere — subtle purple rim just outside event horizon
-        const photonRim = new THREE.Mesh(
-            new THREE.SphereGeometry(BH_RS * 1.5, 48, 48),
-            new THREE.MeshBasicMaterial({{ color:0x8833ff, transparent:true, opacity:0.04, side:THREE.BackSide }})
-        );
-        bhGroup.add(photonRim);
-
-        // Gravitational lensing rings
-        for (let ri = 0; ri < 5; ri++) {{
-            const rr = BH_RS * (1.6 + ri * 0.5);
-            const lensRing = new THREE.Mesh(
-                new THREE.RingGeometry(rr - 0.5, rr + 0.5, 128),
-                new THREE.MeshBasicMaterial({{
-                    color:0xffffff, transparent:true,
-                    opacity:0.07 - ri * 0.012, side:THREE.DoubleSide, depthWrite:false
-                }})
-            );
-            lensRing.rotation.x = Math.PI / 2;
-            lensRing.rotation.y = 0.3 + ri * 0.15;
-            bhGroup.add(lensRing);
-        }}
-
-        // Accretion disk — custom ring with radial color gradient
-        (function buildAccretionDisk() {{
-            const RINGS   = 80;
-            const SEGS    = 192;
-            const rInner  = BH_RS * 1.5;
-            const rOuter  = BH_RS * 5.8;
-            const verts   = [];
-            const colors  = [];
-            const indices = [];
-
-            for (let ri = 0; ri <= RINGS; ri++) {{
-                const t = ri / RINGS;                              // 0 = inner, 1 = outer
-                const r = rInner + t * (rOuter - rInner);
-                // Temperature ∝ (1/r)^(3/4) · (1 - √(rInner/r))^(1/4)  [thin disk model]
-                const temp = Math.pow(1/r, 0.75) * Math.pow(Math.max(0, 1 - Math.sqrt(rInner/r)), 0.25);
-                const normT = Math.min(1, temp / Math.pow(1/rInner, 0.75));  // normalize
-                // Map normT: 1 = white-blue, 0.5 = orange, 0 = dark red
-                let cr, cg, cb;
-                if (normT > 0.7) {{
-                    const s = (normT - 0.7) / 0.3;
-                    cr = 1; cg = 0.85 + s * 0.15; cb = 0.6 + s * 0.4;  // orange → white-yellow
-                }} else if (normT > 0.35) {{
-                    const s = (normT - 0.35) / 0.35;
-                    cr = 1; cg = 0.25 + s * 0.6; cb = 0.0 + s * 0.6;   // deep red → orange
-                }} else {{
-                    const s = normT / 0.35;
-                    cr = s * 0.7; cg = 0.0; cb = 0.0;                   // black → deep red
-                }}
-
-                for (let si = 0; si <= SEGS; si++) {{
-                    const a = (si / SEGS) * Math.PI * 2;
-                    // Slight warp: disk is not perfectly flat
-                    const warp = Math.sin(a * 3 + ri * 0.15) * 0.6 * (1 - t);
-                    verts.push(Math.cos(a) * r, warp, Math.sin(a) * r);
-                    colors.push(cr, cg, cb);
-                }}
+        // Fragment shader: integra geodésica do fóton pixel a pixel
+        const bhVertShader = `
+            varying vec2 vUv;
+            void main() {{
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }}
-            for (let ri = 0; ri < RINGS; ri++) {{
-                for (let si = 0; si < SEGS; si++) {{
-                    const a = ri * (SEGS+1) + si;
-                    const b = a + SEGS + 1;
-                    indices.push(a, b, a+1, b, b+1, a+1);
-                }}
-            }}
-            const diskGeo = new THREE.BufferGeometry();
-            diskGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts),  3));
-            diskGeo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(colors), 3));
-            diskGeo.setIndex(indices);
-            diskGeo.computeVertexNormals();
-            const diskMat = new THREE.MeshBasicMaterial({{
-                vertexColors:true, transparent:true, opacity:0.85,
-                side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending
-            }});
-            const disk = new THREE.Mesh(diskGeo, diskMat);
-            disk.rotation.x = 0.22;  // slight inclination (not perfectly edge-on)
-            disk.name = 'accretionDisk';
-            bhGroup.add(disk);
-        }})();
+        `;
+        const bhFragShader = `
+            precision highp float;
+            varying vec2 vUv;
+            uniform float uTime;
+            uniform vec3  uCamLocal;   // camera position in BH local space
 
-        // Relativistic jets (perpendicular to disk)
+            float hash(vec3 p) {{
+                p = fract(p * 0.3183099 + 0.1);
+                p *= 17.0;
+                return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }}
+
+            vec3 starfield(vec3 dir) {{
+                vec3 col = vec3(0.0);
+                for(int i = 0; i < 3; i++) {{
+                    float sc = 20.0 + float(i) * 40.0;
+                    vec3 ip = floor(dir * sc);
+                    float h = hash(ip);
+                    if(h > 0.982) {{
+                        float b = fract(h * 137.0);
+                        float tw = 0.6 + 0.4 * sin(uTime * 0.8 + h * 40.0);
+                        col += vec3(b*0.9, b*0.92, b) * tw;
+                    }}
+                }}
+                float neb = pow(max(0.0, 0.5 + 0.5*dir.y), 2.0);
+                col += vec3(0.015, 0.02, 0.045) * neb;
+                return col;
+            }}
+
+            vec3 diskColor(float r, float rin, float rout) {{
+                float t = clamp((r - rin) / (rout - rin), 0.0, 1.0);
+                vec3 hot  = vec3(1.0, 0.96, 0.85);
+                vec3 mid  = vec3(1.0, 0.62, 0.22);
+                vec3 cool = vec3(0.75, 0.20, 0.04);
+                vec3 c = mix(hot, mid, smoothstep(0.0, 0.45, t));
+                c = mix(c, cool, smoothstep(0.45, 1.0, t));
+                return c;
+            }}
+
+            float diskTex(vec3 hit, float r) {{
+                float ang = atan(hit.z, hit.x);
+                float sw = ang*3.0 + r*1.6 - uTime*0.9;
+                return (0.6 + 0.4*sin(sw)) * (0.7 + 0.3*sin(sw*4.0 + r*3.0));
+            }}
+
+            void main() {{
+                // Ray from camera through this fragment (billboard quad)
+                vec2 uv = vUv * 2.0 - 1.0;
+                float aspect = 1.0;
+                uv.x *= aspect;
+
+                // Camera setup in local BH space
+                vec3 ro = uCamLocal;
+                float camDist = length(ro);
+                vec3 fwd = normalize(-ro);
+                vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));
+                vec3 up = cross(fwd, right);
+                float fov = 0.7;
+                vec3 dir = normalize(fwd + uv.x * fov * right + uv.y * fov * up);
+
+                // Scale: map world units to BH units (rs = 1 in shader space)
+                float worldToShader = 1.0 / {BH_RS}.0;
+                vec3 pos = ro * worldToShader;
+                vec3 vel = dir;
+
+                vec3 L = cross(pos, vel);
+                float h2 = dot(L, L);
+
+                const float rs   = 1.0;
+                const float rin  = 2.6;
+                const float rout = 9.5;
+
+                vec3  color = vec3(0.0);
+                float alpha = 0.0;
+                bool  captured = false;
+                float dt = 0.16;
+
+                for(int i = 0; i < 170; i++) {{
+                    float r = length(pos);
+                    if(r < rs * 1.02) {{ captured = true; break; }}
+                    if(r > 35.0) break;
+
+                    vec3 prev = pos;
+                    // Geodésica do fóton: a = -1.5·h²·r/|r|⁵
+                    vec3 acc = -1.5 * h2 * pos / pow(dot(pos, pos), 2.5);
+                    vel += acc * dt;
+                    pos += vel * dt;
+
+                    // Cruzou o plano do disco (y=0)?
+                    if(prev.y * pos.y < 0.0) {{
+                        float f = prev.y / (prev.y - pos.y);
+                        vec3 hit = mix(prev, pos, f);
+                        float rr = length(vec2(hit.x, hit.z));
+                        if(rr > rin && rr < rout) {{
+                            vec3 dc = diskColor(rr, rin, rout);
+                            float tex = diskTex(hit, rr);
+                            float bright = 1.6 / (0.4 + (rr - rin) * 0.45);
+                            // Doppler beaming
+                            vec3 orbDir = normalize(cross(vec3(0.0,1.0,0.0), hit));
+                            vec3 toCam = normalize(ro * worldToShader - hit);
+                            float dop = 0.5 + 0.5*dot(orbDir, toCam);
+                            dop = pow(dop, 2.2) * 2.2 + 0.25;
+                            vec3 add = dc * bright * tex * dop;
+                            color += (1.0 - alpha) * add;
+                            alpha += (1.0 - alpha) * 0.9;
+                        }}
+                    }}
+                }}
+
+                vec3 bg = captured ? vec3(0.0) : starfield(normalize(vel));
+                vec3 outc = color + (1.0 - alpha) * bg;
+
+                // Tonemap
+                outc = outc / (1.0 + outc);
+                outc = pow(outc, vec3(0.82));
+
+                // Circular vignette to blend with scene
+                float dist = length(uv);
+                float circle = smoothstep(1.0, 0.7, dist);
+                float bgAlpha = max(alpha, captured ? 1.0 : 0.0);
+                float finalAlpha = max(bgAlpha, step(0.01, length(color))) * circle;
+
+                gl_FragColor = vec4(outc, finalAlpha);
+            }}
+        `;
+
+        const bhSize = BH_RS * 14;
+        const bhQuadGeo = new THREE.PlaneGeometry(bhSize, bhSize);
+        const bhShaderMat = new THREE.ShaderMaterial({{
+            vertexShader:   bhVertShader,
+            fragmentShader: bhFragShader,
+            uniforms: {{
+                uTime:     {{ value: 0.0 }},
+                uCamLocal: {{ value: new THREE.Vector3() }},
+            }},
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.NormalBlending,
+        }});
+        const bhQuad = new THREE.Mesh(bhQuadGeo, bhShaderMat);
+        bhQuad.name = 'bhLensQuad';
+        bhGroup.add(bhQuad);
+
+        // Relativistic jets (partículas — mantidas como efeito visual complementar)
         function createJet(yDir) {{
             const N = 1200;
             const pos = new Float32Array(N * 3);
             const col = new Float32Array(N * 3);
             for (let i = 0; i < N; i++) {{
                 const t = Math.random();
-                const h = yDir * t * 280;                       // jet height
-                const spread = 1.2 + t * 14;                    // expands outward
+                const h = yDir * t * 280;
+                const spread = 1.2 + t * 14;
                 const a = Math.random() * Math.PI * 2;
                 pos[i*3]   = Math.cos(a) * spread * Math.random();
                 pos[i*3+1] = h + (Math.random()-0.5) * 6;
@@ -1926,50 +1993,6 @@ def render_solar_system():
         }}
         bhGroup.add(createJet( 1));
         bhGroup.add(createJet(-1));
-
-        // Hawking radiation (slow drift of particles from event horizon outward)
-        const hawkingParticles = (function() {{
-            const N = 400;
-            const pos   = new Float32Array(N * 3);
-            const col   = new Float32Array(N * 3);
-            const vel   = [];
-            for (let i = 0; i < N; i++) {{
-                const th = Math.random() * Math.PI * 2;
-                const ph = Math.acos(2 * Math.random() - 1);
-                const r  = BH_RS * (1.05 + Math.random() * 0.5);
-                pos[i*3]   = r * Math.sin(ph) * Math.cos(th);
-                pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
-                pos[i*3+2] = r * Math.cos(ph);
-                col[i*3]=1; col[i*3+1]=1; col[i*3+2]=1;
-                vel.push({{ x:Math.sin(ph)*Math.cos(th)*0.06, y:Math.sin(ph)*Math.sin(th)*0.06, z:Math.cos(ph)*0.06 }});
-            }}
-            const g = new THREE.BufferGeometry();
-            g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            g.setAttribute('color',    new THREE.BufferAttribute(col, 3));
-            const pts = new THREE.Points(g, new THREE.PointsMaterial({{
-                size:0.5, vertexColors:true, transparent:true, opacity:0.35,
-                sizeAttenuation:true, blending:THREE.AdditiveBlending
-            }}));
-            pts.name = 'hawking';
-            pts.userData.vel = vel;
-            bhGroup.add(pts);
-            return pts;
-        }})();
-
-        // Gravitational wave rings (expand outward from BH periodically)
-        const gwRings = [];
-        for (let g = 0; g < 3; g++) {{
-            const ring = new THREE.Mesh(
-                new THREE.RingGeometry(BH_RS * 2, BH_RS * 2 + 1, 128),
-                new THREE.MeshBasicMaterial({{
-                    color:0x8833ff, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false
-                }})
-            );
-            ring.rotation.x = Math.PI / 2;
-            ring.userData.phase = g / 3;
-            bhGroup.add(ring);
-            gwRings.push(ring);
-        }}
 
         // ════════════════════════════════════════════════════════
         //  PULSARS  (distant neutron stars — lighthouse beams)
@@ -2503,43 +2526,16 @@ def render_solar_system():
             const blinkMesh = stPivot.getObjectByName('blink');
             if (blinkMesh) blinkMesh.material.opacity = 0.5 + 0.5 * Math.sin(time * 8);
 
-            // ── Black hole ───────────────────────────────────────
-            // Accretion disk slow rotation
-            const disk = bhGroup.getObjectByName('accretionDisk');
-            if (disk) disk.rotation.z += 0.004 * timeScale;
-
-            // Hawking particles drift outward, reset when too far
-            const hawking = bhGroup.getObjectByName('hawking');
-            if (hawking) {{
-                const pos = hawking.geometry.attributes.position;
-                const vel = hawking.userData.vel;
-                for (let i = 0; i < pos.count; i++) {{
-                    pos.array[i*3]   += vel[i].x * timeScale;
-                    pos.array[i*3+1] += vel[i].y * timeScale;
-                    pos.array[i*3+2] += vel[i].z * timeScale;
-                    const r = Math.sqrt(pos.array[i*3]**2 + pos.array[i*3+1]**2 + pos.array[i*3+2]**2);
-                    if (r > BH_RS * 6) {{
-                        // Reset to event horizon
-                        const th = Math.random() * Math.PI * 2;
-                        const ph = Math.acos(2 * Math.random() - 1);
-                        pos.array[i*3]   = BH_RS * 1.05 * Math.sin(ph) * Math.cos(th);
-                        pos.array[i*3+1] = BH_RS * 1.05 * Math.sin(ph) * Math.sin(th);
-                        pos.array[i*3+2] = BH_RS * 1.05 * Math.cos(ph);
-                    }}
-                }}
-                pos.needsUpdate = true;
+            // ── Black hole (lente gravitacional real via shader) ──
+            const bhLens = bhGroup.getObjectByName('bhLensQuad');
+            if (bhLens) {{
+                // Billboard: quad sempre olha para a câmera
+                bhLens.quaternion.copy(camera.quaternion);
+                // Passa posição da câmera em coordenadas locais do BH
+                const camLocal = camera.position.clone().sub(bhGroup.position);
+                bhLens.material.uniforms.uCamLocal.value.copy(camLocal);
+                bhLens.material.uniforms.uTime.value = time;
             }}
-
-            // Gravitational wave rings
-            gwRings.forEach(ring => {{
-                const phase = ((time * 0.18 + ring.userData.phase) % 1);
-                const scale = 1 + phase * 12;
-                ring.scale.set(scale, scale, 1);
-                ring.material.opacity = (1 - phase) * 0.12;
-            }});
-
-            // BH group slow rotation (Kerr)
-            bhGroup.rotation.y += 0.001 * timeScale;
 
             // ── Pulsars ──────────────────────────────────────────
             pulsars.forEach(p => {{
