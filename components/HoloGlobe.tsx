@@ -532,13 +532,13 @@ void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
 
   float orbit = uTime * 0.05;
-  float camDist = 13.0;
-  vec3 ro = vec3(sin(orbit) * camDist, 1.6, -cos(orbit) * camDist);
+  float camDist = 10.0;
+  vec3 ro = vec3(sin(orbit) * camDist, 1.4, -cos(orbit) * camDist);
   vec3 ta = vec3(0.0);
   vec3 fwd   = normalize(ta - ro);
   vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));
   vec3 up    = cross(fwd, right);
-  float fov  = 1.3;
+  float fov  = 1.05;
   vec3 dir = normalize(fwd + uv.x * fov * right + uv.y * fov * up);
 
   vec3 pos = ro;
@@ -589,10 +589,12 @@ void main(){
   outc = outc / (1.0 + outc);
   outc = pow(outc, vec3(0.82));
 
-  float vig = smoothstep(1.25, 0.35, length(uv));
-  outc *= 0.35 + 0.65 * vig;
+  float d = length(uv);
+  float vig = smoothstep(0.72, 0.25, d);
+  outc *= vig;
+  float oAlpha = smoothstep(0.78, 0.38, d);
 
-  gl_FragColor = vec4(outc, 1.0);
+  gl_FragColor = vec4(outc, oAlpha);
 }
 `;
 
@@ -607,6 +609,7 @@ function BlackHoleLensQuad() {
       uRes: { value: new THREE.Vector2(size.width, size.height) },
       uTime: { value: 0 },
     },
+    transparent: true,
     depthTest: false,
     depthWrite: false,
   }), []);
@@ -1825,7 +1828,11 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
 
   return (
     <div className={animClass} style={{ width: "100%" }}>
-      <div style={{ width: "min(320px, 80vw)", height: "min(320px, 80vw)", margin: "0 auto" }}>
+      <div style={{
+        width: isBlackHole ? "min(420px, 95vw)" : "min(320px, 80vw)",
+        height: isBlackHole ? "min(360px, 82vw)" : "min(320px, 80vw)",
+        margin: isBlackHole ? "-10px auto -16px" : "0 auto",
+      }}>
         <Canvas
           camera={{ position: [0, 0, 3.2], fov: 40 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
@@ -1848,11 +1855,11 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
       {/* Shadow */}
       <div
         style={{
-          width: isBlackHole ? "60%" : "40%",
-          height: isBlackHole ? 18 : 14,
-          margin: "-6px auto 0",
+          width: isBlackHole ? "50%" : "40%",
+          height: isBlackHole ? 12 : 14,
+          margin: isBlackHole ? "0 auto 0" : "-6px auto 0",
           background: isBlackHole
-            ? "radial-gradient(ellipse, rgba(255,100,0,0.18) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)"
+            ? "radial-gradient(ellipse, rgba(255,120,20,0.12) 0%, transparent 65%)"
             : displayMode === "sol"
             ? "radial-gradient(ellipse, rgba(255,170,0,0.15) 0%, rgba(0,0,0,0.25) 40%, transparent 70%)"
             : "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
