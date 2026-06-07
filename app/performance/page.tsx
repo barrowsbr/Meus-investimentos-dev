@@ -29,7 +29,7 @@ interface Summary {
   totalInvestido: number;
   custoPosicoesAtuais?: number;
   patrimonio?: { total: number; rv: number; rf: number; caixa: number };
-  filtros?: { classe: string; setor: string; rvSetores: string[]; temCripto: boolean; temRF: boolean };
+  filtros?: { classe: string; setor: string; ticker: string; rvSetores: string[]; tickers: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
@@ -203,6 +203,7 @@ export default function PerformancePage() {
   const [lookback, setLookback] = useState(0);
   const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
   const [setor, setSetor] = useState("");
+  const [tickerFilter, setTickerFilter] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -230,7 +231,8 @@ export default function PerformancePage() {
     const rangeQuery = useCustom
       ? `from=${customFrom}&to=${customTo}`
       : `lookback=${lookback}`;
-    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}`)
+    const tickerQ = tickerFilter ? `&ticker=${encodeURIComponent(tickerFilter)}` : "";
+    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}${tickerQ}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -240,7 +242,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback, classe, setor, customMode, customFrom, customTo]);
+  }, [lookback, classe, setor, tickerFilter, customMode, customFrom, customTo]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/twr/decomposicao`)
@@ -358,7 +360,7 @@ export default function PerformancePage() {
         </span>
       </div>
 
-      {/* ── Filtro por classe / setor ── */}
+      {/* ── Filtro por classe / setor / ativo ── */}
       {(() => {
         const f = data?.summary.filtros;
         if (!f) return null;
@@ -370,17 +372,30 @@ export default function PerformancePage() {
         ];
         return (
           <div className="mb-6 space-y-2">
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1.5">
               {classes.filter(c => c.show).map(c => (
-                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); }}
+                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); setTickerFilter(""); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     classe === c.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border border-zinc-800/50"
                   }`}>
                   {c.label}
                 </button>
               ))}
+              <span className="text-zinc-700 mx-1">|</span>
+              <select
+                value={tickerFilter}
+                onChange={e => setTickerFilter(e.target.value)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold outline-none transition-all ${
+                  tickerFilter
+                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                    : "bg-zinc-900/60 text-zinc-400 border border-zinc-800/50"
+                }`}
+              >
+                <option value="">Todos os ativos</option>
+                {(f.tickers ?? []).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
-            {classe === "rv" && f.rvSetores.length > 1 && (
+            {classe === "rv" && !tickerFilter && f.rvSetores.length > 1 && (
               <div className="flex flex-wrap items-center gap-1">
                 {["", ...f.rvSetores].map(st => (
                   <button key={st || "todos"} onClick={() => setSetor(st)}
@@ -407,12 +422,15 @@ export default function PerformancePage() {
               </span>
               <span className="text-sm text-zinc-500 font-medium" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices (CDI/IBOV/S&P). Difere do 'retorno simples' (lucro÷investido) mostrado no Resumo.">TWR acumulado ⓘ</span>
             </div>
-            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4">
-              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong></span>
-              <span className="text-zinc-700">·</span>
-              <span title="Money-Weighted Return (TIR): ponderado pelo dinheiro investido — é o primo próximo do 'retorno simples' do Resumo.">MWR <strong className={mwrPct >= 0 ? "text-purple-400" : "text-red-400"}>{pct(mwrPct)}</strong> a.a.</span>
+            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-2">
+              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong> a.a.</span>
               <span className="text-zinc-700">·</span>
               <span>{formatDuracao(s.duracaoAnos)}</span>
+            </div>
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-purple-500/8 border border-purple-500/15 w-fit" title="Money-Weighted Return: retorno ponderado pelo dinheiro investido — reflete o ganho real considerando timing e tamanho dos aportes">
+              <span className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold">MWR</span>
+              <span className={`text-lg font-bold ${mwrPct >= 0 ? "text-purple-400" : "text-red-400"}`}>{pct(mwrPct)}</span>
+              <span className="text-[10px] text-zinc-500">a.a. — retorno do seu dinheiro</span>
             </div>
             {/* Benchmark comparison pills */}
             <div className="flex flex-wrap gap-2">
@@ -448,16 +466,18 @@ export default function PerformancePage() {
             <div className="h-px bg-zinc-800/50" />
             <div>
               <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-              {ganhoCanonical != null ? (
-                <>
-                  <p className={`text-xl font-bold ${ganhoCanonical >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {ganhoCanonical >= 0 ? "+" : ""}{compactCurr(ganhoCanonical)}
-                  </p>
-                  <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
-                </>
-              ) : (
-                <p className="text-zinc-500 text-sm">…</p>
-              )}
+              {(() => {
+                const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+                return (
+                  <>
+                    <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {ge >= 0 ? "+" : ""}{compactCurr(ge)}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -692,7 +712,11 @@ export default function PerformancePage() {
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
                   { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
-                  ...(ganhoCanonical != null ? [{ label: "Ganho econômico", value: `${ganhoCanonical >= 0 ? "+" : ""}${compactCurr(ganhoCanonical)}`, color: ganhoCanonical >= 0 ? "#34d399" : "#f87171" }] : []),
+                  ...(() => {
+                    const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                    const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+                    return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
+                  })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                 ].map(row => (

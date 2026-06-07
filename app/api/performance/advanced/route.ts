@@ -256,6 +256,7 @@ export async function GET(request: Request) {
   // Filtro por classe (tudo|rv|rf|cripto) e, dentro de RV, por setor.
   const classe = (searchParams.get("classe") ?? "tudo").toLowerCase();
   const setorFiltro = searchParams.get("setor") ?? "";
+  const tickerFiltro = (searchParams.get("ticker") ?? "").toUpperCase().trim();
   const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const fromParam = isYmd(searchParams.get("from")) ? searchParams.get("from")! : "";
   const toParam = isYmd(searchParams.get("to")) ? searchParams.get("to")! : "";
@@ -359,19 +360,18 @@ export async function GET(request: Request) {
     const temRF = rfTransacoes.length > 0 || fixaAberta.length > 0 || temPricedRF;
 
     function keepRvTicker(tk: string): boolean {
+      if (tickerFiltro && tk !== tickerFiltro) return false;
       const setor = identificarSetor(tk);
       const isCripto = setor === "Cripto";
-      // Na aba RF, incluímos a RF precificável da meus_ativos (SHV/BIL); a RF
-      // manual (CDB/Tesouro) vem da timeline de RF (rfNavByDate).
       if (classe === "rf") return isRendaFixaPrecificavel(setor);
-      if (isRendaFixa(setor)) return false; // RF não entra em RV/Cripto/Tudo-filtrado via meus_ativos
+      if (isRendaFixa(setor)) return false;
       if (classe === "cripto") return isCripto;
       if (classe === "rv") return isCripto ? false : (setorFiltro ? setor === setorFiltro : true);
-      return setorFiltro ? setor === setorFiltro : true; // tudo
+      return setorFiltro ? setor === setorFiltro : true;
     }
 
-    const includeRF = classe === "tudo" || classe === "rf";
-    const filtroAtivo = classe !== "tudo" || setorFiltro !== "";
+    const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro;
+    const filtroAtivo = classe !== "tudo" || setorFiltro !== "" || tickerFiltro !== "";
     const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
     const proventosF = filtroAtivo
@@ -678,7 +678,9 @@ export async function GET(request: Request) {
         filtros: {
           classe,
           setor: setorFiltro,
+          ticker: tickerFiltro,
           rvSetores: [...rvSetores].sort(),
+          tickers: [...tickerMeta.keys()].sort(),
           temCripto,
           temRF,
         },
