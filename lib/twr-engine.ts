@@ -62,8 +62,7 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
     if (!ticker) continue;
 
     const setor = identificarSetor(ticker);
-    // RF precificável (SHV/BIL) é mantida e avaliada por preço de mercado;
-    // só a RF manual (CDB/Tesouro) é excluída (vem da timeline de RF).
+    // RF manual (CDB/Tesouro) é excluída — vem da timeline de RF.
     if (isRendaFixaManual(setor)) continue;
 
     const tipoRaw = String(

@@ -8,9 +8,9 @@ ETFS_BR = {"IVVB11", "BOVA11", "SMAL11", "HASH11", "XINA11", "EURP11", "GOLD11",
 
 COMMODITIES = {"IAU", "SIVR", "SLV", "GLD", "DBC", "USO"}
 
-RENDA_FIXA_USD = {"BIL", "VDST"}
+RENDA_FIXA_USD: set[str] = set()
 
-ETFS_USA = {"SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT", "SHV"}
+ETFS_USA = {"SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT", "SHV", "BIL", "VDST"}
 
 RF_TERMS = ["TESOURO", "NTN", "LCI", "LCA", "CDB", "LC", "DEBENTURE", "CASH", "CAIXA"]
 

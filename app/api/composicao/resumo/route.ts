@@ -16,7 +16,7 @@ export const maxDuration = 45;
 
 // Matches Streamlit classificar_camadas() — maps (ticker, setor) → (macro, sub)
 const RF_SETORES = new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"]);
-const RF_USD_TICKERS = new Set(["BIL", "VDST"]);
+const RF_USD_TICKERS = new Set<string>([]);
 const ETF_KEYWORDS = ["VWRA", "WRLD", "ACWI", "VT", "URTH", "SPY", "QQQ", "IVV", "VOO", "VNQ", "BND", "AGG"];
 const MUNDO_TICKERS = ["ASML", "DPM", "TSM", "BABA", "JD", "TCEHY"];
 
@@ -232,6 +232,10 @@ export async function GET() {
     const rawPortfolio = calcularCarteiraFIFO(transacoes, fxByDate);
     const activeTickerSet = new Set(positions.map(p => p.ticker));
 
+    // Normalize ticker: uppercase, strip accents, collapse whitespace
+    const normTicker = (t: string) =>
+      t.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+
     // RF net cost basis: compras − vendas/resgates (remaining invested amount)
     const rfCostBasis: Record<string, number> = {};
     for (const row of rfTransacoes) {
@@ -245,7 +249,8 @@ export async function GET() {
       if (!isRendaFixaManual(identificarSetor(ticker))) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valor * fxFactor(moeda, fxAtual);
-      rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + (isCompra ? valorBRL : -valorBRL);
+      const key = normTicker(ticker);
+      rfCostBasis[key] = (rfCostBasis[key] ?? 0) + (isCompra ? valorBRL : -valorBRL);
     }
     for (const key of Object.keys(rfCostBasis)) {
       if (rfCostBasis[key] < 0) rfCostBasis[key] = 0;
@@ -328,7 +333,7 @@ export async function GET() {
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
-      const custo = rfCostBasis[ticker] ?? 0;
+      const custo = rfCostBasis[normTicker(ticker)] ?? 0;
       const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
       const lucroNaoRealizado = custo > 0 ? valorBRL - custo : 0;
       const resultadoTotal = lucroNaoRealizado + proventosAtivo;
@@ -348,8 +353,6 @@ export async function GET() {
     }
 
     // Sold RF positions from renda_fixa transactions (CDBs, Tesouro, etc.)
-    const normTicker = (t: string) =>
-      t.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
     const isImpostoTipo = (t: string) => /\b(imposto|irrf|ir|tributo|iof)\b/.test(t);
     const rfTickersInRent = new Set(rentabilidade.map(r => normTicker(r.ticker)));
     const rfAgg: Record<string, { compra: number; venda: number; imposto: number; moeda: string; display: string }> = {};
@@ -375,6 +378,9 @@ export async function GET() {
     for (const [key, agg] of Object.entries(rfAgg)) {
       if (rfTickersInRent.has(key)) continue;
       if (agg.venda <= 0) continue;
+      // Skip partial redemptions: if venda < compra, the position is still active
+      // and should be reflected in fixa_aberta, not counted as a realized loss.
+      if (agg.venda < agg.compra * 0.95) continue;
       const display = agg.display;
       const lucroRealizado = agg.venda - agg.compra - agg.imposto;
       const proventosAtivo = proventosPorTicker[display] ?? proventosPorTicker[display.toUpperCase()] ?? proventosPorTicker[key] ?? 0;
@@ -511,6 +517,7 @@ export async function GET() {
           rf_value: snapshot.rfPatrimonioBRL,
           total_proventos: snapshot.totalProventosBRL,
           lucro_total_brl: rentabilidade.reduce((s, r) => s + r.resultado_total_brl, 0),
+          rf_ganho: rentabilidade.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0),
           top_performer: topPerformer,
           bottom_performer: bottomPerformer,
         },
