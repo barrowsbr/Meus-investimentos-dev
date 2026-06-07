@@ -687,52 +687,6 @@ export default function PerformancePage() {
             </div>
           </div>
 
-          {/* FX Decomposition time-series chart (BRL only) */}
-          {!isUsd && chartData.length > 0 && chartData.some(p => p.fx != null) && (
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="section-title"><DollarSign size={15} />Retorno: Total vs Ativo vs Câmbio</h2>
-              </div>
-              <p className="text-[10px] text-zinc-600 mb-4">
-                R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>câmbio</sub>) − 1 — mostra o peso do câmbio e do ativo no retorno ao longo do tempo
-              </p>
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                  <defs>
-                    <linearGradient id="gradFxTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradFxAtivo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradFxCambio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
-                  <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
-                  <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
-                    formatter={(v: number, name: string) => [
-                      `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Total" : name === "ativo" ? "Ativo" : "Câmbio",
-                    ]}
-                    labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Total" : v === "ativo" ? "Ativo" : "Câmbio"}
-                    wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
-                  <Area type="monotone" dataKey="portfolio" stroke="#60a5fa" fill="url(#gradFxTotal)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradFxAtivo)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFxCambio)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
           {/* TWR vs MWR + FX Decomposition */}
           <div className="glass-card p-5">
             <h2 className="section-title mb-4"><Activity size={15} />TWR vs MWR — Comparação ({currSymbol})</h2>
