@@ -209,6 +209,7 @@ export default function PerformancePage() {
   const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
+  const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
 
   const isUsd = currencyView === "USD";
@@ -245,6 +246,17 @@ export default function PerformancePage() {
     fetch(`${API_URL}/api/twr/decomposicao`)
       .then(r => r.json())
       .then(body => setDecomp(body))
+      .catch(() => {});
+    fetch(`${API_URL}/api/composicao/resumo`)
+      .then(r => r.json())
+      .then(body => {
+        if (body.resumo && body.rentabilidade) {
+          const rent = body.rentabilidade as Array<{ lucro_nao_realizado_brl: number; lucro_realizado_brl: number }>;
+          const gains = rent.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+          const proventos = body.resumo.total_proventos ?? 0;
+          setGanhoCanonical(gains + proventos);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -435,11 +447,17 @@ export default function PerformancePage() {
             </div>
             <div className="h-px bg-zinc-800/50" />
             <div>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Investido (FIFO)</p>
-              <p className="text-xl font-bold text-zinc-100">
-                {compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido)}
-              </p>
-              <p className="text-[10px] text-zinc-500">Custo das posições atuais ({currSymbol})</p>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
+              {ganhoCanonical != null ? (
+                <>
+                  <p className={`text-xl font-bold ${ganhoCanonical >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {ganhoCanonical >= 0 ? "+" : ""}{compactCurr(ganhoCanonical)}
+                  </p>
+                  <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
+                </>
+              ) : (
+                <p className="text-zinc-500 text-sm">…</p>
+              )}
             </div>
           </div>
         </div>
@@ -674,6 +692,7 @@ export default function PerformancePage() {
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
                   { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
+                  ...(ganhoCanonical != null ? [{ label: "Ganho econômico", value: `${ganhoCanonical >= 0 ? "+" : ""}${compactCurr(ganhoCanonical)}`, color: ganhoCanonical >= 0 ? "#34d399" : "#f87171" }] : []),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                 ].map(row => (
