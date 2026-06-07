@@ -236,6 +236,13 @@ export async function GET() {
     const normTicker = (t: string) =>
       t.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
 
+    // Cash tickers: no P&L (just cash on hand)
+    const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA", "DISPONIVEL"]);
+    const isCashTicker = (t: string) => {
+      const u = t.toUpperCase().trim();
+      return CASH_TICKERS.has(u) || u.includes("CAIXA") || u.includes("SALDO") || u.includes("CASH") || u.includes("DISPONIVEL");
+    };
+
     // RF net cost basis: compras − vendas/resgates (remaining invested amount)
     const rfCostBasis: Record<string, number> = {};
     for (const row of rfTransacoes) {
@@ -246,6 +253,7 @@ export async function GET() {
       const ticker = String(row["ticker"] ?? "").trim();
       const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
       if (!ticker || valor <= 0) continue;
+      if (isCashTicker(ticker)) continue;
       if (!isRendaFixaManual(identificarSetor(ticker))) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valor * fxFactor(moeda, fxAtual);
@@ -333,9 +341,10 @@ export async function GET() {
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
-      const custo = rfCostBasis[normTicker(ticker)] ?? 0;
+      const isCaixa = isCashTicker(ticker);
+      const custo = isCaixa ? 0 : (rfCostBasis[normTicker(ticker)] ?? 0);
       const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
-      const lucroNaoRealizado = custo > 0 ? valorBRL - custo : 0;
+      const lucroNaoRealizado = (!isCaixa && custo > 0) ? valorBRL - custo : 0;
       const resultadoTotal = lucroNaoRealizado + proventosAtivo;
       const retNaoRealizadoPct = custo > 0 ? (lucroNaoRealizado / custo) * 100 : 0;
       const retRealizadoProventosPct = custo > 0 && proventosAtivo > 0 ? (proventosAtivo / custo) * 100 : 0;
@@ -359,6 +368,7 @@ export async function GET() {
     for (const row of rfTransacoes) {
       const rawTicker = String(row["ticker"] ?? "").trim();
       if (!rawTicker) continue;
+      if (isCashTicker(rawTicker)) continue;
       if (!isRendaFixaManual(identificarSetor(rawTicker))) continue;
       const key = normTicker(rawTicker);
       const tipo = String(row["tipo"] ?? "").toLowerCase();
