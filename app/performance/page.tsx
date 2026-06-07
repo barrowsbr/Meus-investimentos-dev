@@ -9,7 +9,6 @@ import {
 import {
   TrendingUp, TrendingDown, BarChart2, Activity, Scale,
   Calendar, Target, AlertTriangle, DollarSign, Zap, RefreshCw,
-  Landmark,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -30,7 +29,7 @@ interface Summary {
   totalInvestido: number;
   custoPosicoesAtuais?: number;
   patrimonio?: { total: number; rv: number; rf: number; caixa: number };
-  filtros?: { classe: string; setor: string; rvSetores: string[]; temCripto: boolean; temRF: boolean };
+  filtros?: { classe: string; setor: string; ticker: string; rvSetores: string[]; tickers: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
@@ -81,13 +80,6 @@ interface PerformanceResponse {
   usdView: UsdView | null;
   errors: string[];
   lookback: number;
-}
-
-interface ResultadoFonte {
-  rv_ganho: number;
-  proventos: number;
-  rf_ganho: number;
-  total: number;
 }
 
 interface DecomposicaoBucket {
@@ -211,13 +203,14 @@ export default function PerformancePage() {
   const [lookback, setLookback] = useState(0);
   const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
   const [setor, setSetor] = useState("");
+  const [tickerFilter, setTickerFilter] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
-  const [resultadoFonte, setResultadoFonte] = useState<ResultadoFonte | null>(null);
+  const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
 
   const isUsd = currencyView === "USD";
@@ -238,7 +231,8 @@ export default function PerformancePage() {
     const rangeQuery = useCustom
       ? `from=${customFrom}&to=${customTo}`
       : `lookback=${lookback}`;
-    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}`)
+    const tickerQ = tickerFilter ? `&ticker=${encodeURIComponent(tickerFilter)}` : "";
+    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}${tickerQ}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -248,7 +242,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback, classe, setor, customMode, customFrom, customTo]);
+  }, [lookback, classe, setor, tickerFilter, customMode, customFrom, customTo]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/twr/decomposicao`)
@@ -259,11 +253,10 @@ export default function PerformancePage() {
       .then(r => r.json())
       .then(body => {
         if (body.resumo && body.rentabilidade) {
-          const rent = body.rentabilidade as Array<{ macro: string; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number }>;
-          const rvGanho = rent.filter(r => r.macro === "Renda Variável").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
-          const rfGanho = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
+          const rent = body.rentabilidade as Array<{ lucro_nao_realizado_brl: number; lucro_realizado_brl: number }>;
+          const gains = rent.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
           const proventos = body.resumo.total_proventos ?? 0;
-          setResultadoFonte({ rv_ganho: rvGanho, proventos, rf_ganho: rfGanho, total: rvGanho + proventos + rfGanho });
+          setGanhoCanonical(gains + proventos);
         }
       })
       .catch(() => {});
@@ -367,7 +360,7 @@ export default function PerformancePage() {
         </span>
       </div>
 
-      {/* ── Filtro por classe / setor ── */}
+      {/* ── Filtro por classe / setor / ativo ── */}
       {(() => {
         const f = data?.summary.filtros;
         if (!f) return null;
@@ -379,17 +372,30 @@ export default function PerformancePage() {
         ];
         return (
           <div className="mb-6 space-y-2">
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1.5">
               {classes.filter(c => c.show).map(c => (
-                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); }}
+                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); setTickerFilter(""); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     classe === c.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border border-zinc-800/50"
                   }`}>
                   {c.label}
                 </button>
               ))}
+              <span className="text-zinc-700 mx-1">|</span>
+              <select
+                value={tickerFilter}
+                onChange={e => setTickerFilter(e.target.value)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold outline-none transition-all ${
+                  tickerFilter
+                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                    : "bg-zinc-900/60 text-zinc-400 border border-zinc-800/50"
+                }`}
+              >
+                <option value="">Todos os ativos</option>
+                {(f.tickers ?? []).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
-            {classe === "rv" && f.rvSetores.length > 1 && (
+            {classe === "rv" && !tickerFilter && f.rvSetores.length > 1 && (
               <div className="flex flex-wrap items-center gap-1">
                 {["", ...f.rvSetores].map(st => (
                   <button key={st || "todos"} onClick={() => setSetor(st)}
@@ -416,12 +422,15 @@ export default function PerformancePage() {
               </span>
               <span className="text-sm text-zinc-500 font-medium" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices (CDI/IBOV/S&P). Difere do 'retorno simples' (lucro÷investido) mostrado no Resumo.">TWR acumulado ⓘ</span>
             </div>
-            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4">
-              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong></span>
-              <span className="text-zinc-700">·</span>
-              <span title="Money-Weighted Return (TIR): ponderado pelo dinheiro investido — é o primo próximo do 'retorno simples' do Resumo.">MWR <strong className={mwrPct >= 0 ? "text-purple-400" : "text-red-400"}>{pct(mwrPct)}</strong> a.a.</span>
+            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-2">
+              <span>CAGR <strong className="text-zinc-300">{pct(s.twrAnualizado * 100)}</strong> a.a.</span>
               <span className="text-zinc-700">·</span>
               <span>{formatDuracao(s.duracaoAnos)}</span>
+            </div>
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-purple-500/8 border border-purple-500/15 w-fit" title="Money-Weighted Return: retorno ponderado pelo dinheiro investido — reflete o ganho real considerando timing e tamanho dos aportes">
+              <span className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold">MWR</span>
+              <span className={`text-lg font-bold ${mwrPct >= 0 ? "text-purple-400" : "text-red-400"}`}>{pct(mwrPct)}</span>
+              <span className="text-[10px] text-zinc-500">a.a. — retorno do seu dinheiro</span>
             </div>
             {/* Benchmark comparison pills */}
             <div className="flex flex-wrap gap-2">
@@ -457,10 +466,18 @@ export default function PerformancePage() {
             <div className="h-px bg-zinc-800/50" />
             <div>
               <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-              <p className={`text-xl font-bold ${s.ganhoEconomico >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {s.ganhoEconomico >= 0 ? "+" : ""}{compactCurr(s.ganhoEconomico)}
-              </p>
-              <p className="text-[10px] text-zinc-500">NAV − investido + proventos ({currSymbol})</p>
+              {(() => {
+                const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+                return (
+                  <>
+                    <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {ge >= 0 ? "+" : ""}{compactCurr(ge)}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -695,7 +712,11 @@ export default function PerformancePage() {
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
                   { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
-                  { label: "Ganho econômico", value: compactCurr(s.ganhoEconomico), color: s.ganhoEconomico >= 0 ? "#34d399" : "#f87171" },
+                  ...(() => {
+                    const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                    const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+                    return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
+                  })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                 ].map(row => (
@@ -707,52 +728,6 @@ export default function PerformancePage() {
               </div>
             </div>
           </div>
-
-          {/* FX Decomposition time-series chart (BRL only) */}
-          {!isUsd && chartData.length > 0 && chartData.some(p => p.fx != null) && (
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="section-title"><DollarSign size={15} />Retorno: Total vs Ativo vs Câmbio</h2>
-              </div>
-              <p className="text-[10px] text-zinc-600 mb-4">
-                R<sub>total</sub> = (1 + R<sub>ativo</sub>) × (1 + R<sub>câmbio</sub>) − 1 — mostra o peso do câmbio e do ativo no retorno ao longo do tempo
-              </p>
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                  <defs>
-                    <linearGradient id="gradFxTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradFxAtivo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradFxCambio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
-                  <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
-                  <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
-                    formatter={(v: number, name: string) => [
-                      `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Total" : name === "ativo" ? "Ativo" : "Câmbio",
-                    ]}
-                    labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Total" : v === "ativo" ? "Ativo" : "Câmbio"}
-                    wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
-                  <Area type="monotone" dataKey="portfolio" stroke="#60a5fa" fill="url(#gradFxTotal)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradFxAtivo)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFxCambio)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
 
           {/* TWR vs MWR + FX Decomposition */}
           <div className="glass-card p-5">
@@ -797,49 +772,6 @@ export default function PerformancePage() {
               )}
             </div>
           </div>
-
-          {/* ── Results breakdown by source ── */}
-          {!isUsd && resultadoFonte && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><BarChart2 size={15} />Resultado por Fonte</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {[
-                  { label: "Ganho RV", value: resultadoFonte.rv_ganho, color: "#3b82f6", icon: <TrendingUp size={16} />, desc: "Valorização renda variável" },
-                  { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574", icon: <DollarSign size={16} />, desc: "Dividendos, JCP, rendimentos" },
-                  { label: "Ganho RF", value: resultadoFonte.rf_ganho, color: "#10b981", icon: <Landmark size={16} />, desc: "Rendimento renda fixa" },
-                  { label: "Resultado Total", value: resultadoFonte.total, color: resultadoFonte.total >= 0 ? "#34d399" : "#f87171", icon: <Zap size={16} />, desc: "Soma de todas as fontes" },
-                ].map(item => (
-                  <div key={item.label} className="rounded-xl p-4" style={{ background: `${item.color}08`, border: `1px solid ${item.color}18` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span style={{ color: item.color }}>{item.icon}</span>
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{item.label}</span>
-                    </div>
-                    <p className="text-xl font-bold mb-0.5" style={{ color: item.value >= 0 ? item.color : "#f87171" }}>
-                      {item.value >= 0 ? "+" : ""}{compactBRL(item.value)}
-                    </p>
-                    <p className="text-[9px] text-zinc-600">{item.desc}</p>
-                  </div>
-                ))}
-              </div>
-              {resultadoFonte.total !== 0 && (
-                <div className="mt-4 flex items-center gap-2">
-                  {[
-                    { label: "RV", value: resultadoFonte.rv_ganho, color: "#3b82f6" },
-                    { label: "Proventos", value: resultadoFonte.proventos, color: "#d4a574" },
-                    { label: "RF", value: resultadoFonte.rf_ganho, color: "#10b981" },
-                  ].map(seg => {
-                    const pctVal = resultadoFonte.total !== 0 ? (Math.abs(seg.value) / Math.abs(resultadoFonte.total)) * 100 : 0;
-                    return (
-                      <div key={seg.label} className="group relative" style={{ flex: Math.max(pctVal, 3) }}>
-                        <div className="h-3 rounded-full transition-all" style={{ backgroundColor: seg.color, opacity: 0.7 }} />
-                        <span className="text-[9px] text-zinc-500 block text-center mt-1">{seg.label} {pctVal.toFixed(0)}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Currency decomposition (BRL only) */}
           {!isUsd && decomp && decomp.buckets.length > 1 && (
