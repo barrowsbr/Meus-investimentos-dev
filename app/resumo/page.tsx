@@ -17,10 +17,9 @@ import {
   Building2, Wallet, Plus, Trash2, Save, Loader2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { brl, compactBRL, pct, currency } from "@/lib/format";
+import { compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import type { CountryAllocation } from "@/lib/ticker-country";
-import MetricCard from "@/components/MetricCard";
 import InvestmentWorldMap from "@/components/InvestmentWorldMap";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -446,180 +445,299 @@ export default function ResumoPage() {
       />
 
       {/* ═══════════════════════════════════════════════════════════════════════
-           HERO — Big numbers
+           DRE — Demonstrativo de Resultados
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-3">
-        <MetricCard label="Patrimônio Atual" value={compactBRL(data.totalPatrimonioBRL)}
-          sub={`RV ${compactBRL(data.rvPatrimonioBRL)} · RF ${compactBRL(data.rfPatrimonioBRL)}`}
-          icon={<DollarSign size={17} />}
-          glowColor="#d4a574" />
-        <MetricCard label="Total Investido" value={compactBRL(totalInvestidoRV + (data.rfPatrimonioBRL - (composicao ? (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").reduce((s, r) => s + r.lucro_nao_realizado_brl, 0) : 0)))}
-          sub={`RV ${compactBRL(totalInvestidoRV)} · RF ${compactBRL(data.rfPatrimonioBRL - (composicao ? (composicao.rentabilidade ?? []).filter(r => r.macro === "Renda Fixa" && r.status === "Ativo").reduce((s, r) => s + r.lucro_nao_realizado_brl, 0) : 0))}`}
-          icon={<Briefcase size={17} />}
-          glowColor="#6366f1" />
-        <MetricCard label="Variação Hoje" value={brl(dayChange)}
-          sub={`${pct(dayChangePct)} sobre patrimônio RV`}
-          icon={dayChange >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
-          trend={dayChange >= 0 ? "up" : "down"}
-          glowColor={dayChange >= 0 ? "#34d399" : "#f87171"} />
-        {composicao?.resumo.lucro_total_brl !== undefined && (() => {
-          const lucroTotal = composicao.resumo.lucro_total_brl;
-          return (
-            <MetricCard label="Resultado Total" value={compactBRL(lucroTotal)}
-              sub={`${pct(data.totalPatrimonioBRL > 0 ? (lucroTotal / (data.totalPatrimonioBRL - lucroTotal)) * 100 : 0)} retorno simples (lucro÷investido)`}
-              icon={lucroTotal >= 0 ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
-              trend={lucroTotal >= 0 ? "up" : "down"}
-              glowColor={lucroTotal >= 0 ? "#34d399" : "#f87171"} />
-          );
-        })()}
-      </div>
-
-      {/* ── Results breakdown: RV + Proventos + RF (inclui lucro realizado) ── */}
-      {composicao && (() => {
-        const rent = composicao.rentabilidade ?? [];
+      {(() => {
+        const rent = composicao?.rentabilidade ?? [];
         const rvItems = rent.filter(r => r.macro === "Renda Variável");
         const rfItems = rent.filter(r => r.macro === "Renda Fixa");
+
+        const patrimonioAtual = data.totalPatrimonioBRL;
+        const rvPatrimonio = data.rvPatrimonioBRL;
+        const rfPatrimonio = data.rfPatrimonioBRL;
+
+        // RV breakdown
         const rvNaoReal = rvItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
         const rvReal = rvItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
         const rvGanho = rvNaoReal + rvReal;
+
+        // RF breakdown
+        const rfNaoReal = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
+        const rfReal = rfItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
+        const rfGanho = rfNaoReal + rfReal;
+
+        // Proventos
+        const proventosRV = rvItems.reduce((s, r) => s + r.proventos_brl, 0);
+        const proventosRF = rfItems.reduce((s, r) => s + r.proventos_brl, 0);
         const proventosTotal = rent.reduce((s, r) => s + r.proventos_brl, 0);
-        const rfGanho = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl + r.lucro_realizado_brl, 0);
-        // Quebra o Ganho RV em ativo vs câmbio (câmbio = principal + cruzado das
-        // posições abertas). Câmbio sai como resíduo → o total não muda.
-        const cambioTotal = (data.ganhoFXPrincipalTotalBRL ?? 0) + (data.ganhoCruzadoTotalBRL ?? 0);
-        const rvAtivo = rvGanho - cambioTotal;
-        const items = [
-          { label: "Ganho RV (ex-câmbio)", value: rvAtivo, color: "#3b82f6", desc: `Não realiz ${compactBRL(rvNaoReal - cambioTotal)} · Realiz ${compactBRL(rvReal)}` },
-          { label: "Câmbio", value: cambioTotal, color: "#f59e0b", desc: `Principal ${compactBRL(data.ganhoFXPrincipalTotalBRL ?? 0)} · Cruzado ${compactBRL(data.ganhoCruzadoTotalBRL ?? 0)}` },
-          { label: "Proventos", value: proventosTotal, color: "#d4a574", desc: "Dividendos, JCP, rendimentos (líq. IR)" },
-          { label: "Ganho RF", value: rfGanho, color: "#10b981", desc: "Rendimento renda fixa" },
-        ];
-        const maxAbs = Math.max(...items.map(i => Math.abs(i.value)), 1);
-        const vendidos = rent
-          .filter(r => r.status === "Vendido")
-          .sort((a, b) => b.resultado_total_brl - a.resultado_total_brl);
-        const totalImpostoRF = vendidos.reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
-        const hasImpostoRF = totalImpostoRF > 0.01;
+
+        // Impostos
+        const impostoRF = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
+
+        // FX decomposition (use detailed data if available, fallback to aggregate)
+        const fxPrincipal = (data as any).ganhoFXPrincipalTotalBRL ?? 0;
+        const fxCruzado = (data as any).ganhoCruzadoTotalBRL ?? 0;
+        const ganhoCambio = (fxPrincipal + fxCruzado) || (data.ganhoCambioTotalBRL ?? 0);
+        const ganhoAtivo = (data.ganhoAtivoTotalBRL ?? 0) || (rvGanho - ganhoCambio);
+
+        // Resultado total
+        const resultadoTotal = rvGanho + rfGanho + proventosTotal;
+
+        // Investido
+        const investidoRV = totalInvestidoRV;
+        const investidoRF = rfPatrimonio - rfNaoReal;
+
+        const fmt = (v: number) => v >= 0 ? `+${compactBRL(v)}` : compactBRL(v);
+        const clr = (v: number) => v >= 0 ? "text-emerald-400" : "text-red-400";
+        const clrSub = (v: number) => v >= 0 ? "text-emerald-400/70" : "text-red-400/70";
+
+        const dayChg = data.dayChangeTotalBRL ?? 0;
+        const dayPct = data.dayChangeTotalPct ?? 0;
+
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
-            <div className="mb-3">
-              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Resultado por Fonte</h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {items.map(item => (
-                <div key={item.label} className="text-center">
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{item.label}</p>
-                  <p className="text-lg sm:text-xl font-bold mb-1.5" style={{ color: item.value >= 0 ? item.color : "#f87171" }}>
-                    {item.value >= 0 ? "+" : ""}{compactBRL(item.value)}
-                  </p>
-                  <div className="h-1.5 rounded-full mx-auto overflow-hidden" style={{ background: "rgba(255,255,255,0.05)", maxWidth: 120 }}>
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${Math.min((Math.abs(item.value) / maxAbs) * 100, 100)}%`,
-                        backgroundColor: item.value >= 0 ? item.color : "#f87171",
-                        opacity: 0.7,
-                      }} />
-                  </div>
-                  <p className="text-[9px] text-zinc-700 mt-1">{item.desc}</p>
-                </div>
-              ))}
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Demonstrativo de Resultado</h2>
+              <span className="text-[10px] text-zinc-600">{composicao?.computed_at ? formatComputedAt(composicao.computed_at) : ""}</span>
             </div>
 
-            {/* ── Posições encerradas (vendidas) ── */}
-            {vendidos.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-zinc-800/50">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                    Posições encerradas ({vendidos.length})
-                  </h3>
-                  <div className="flex items-center gap-3">
-                    {hasImpostoRF && (
-                      <span className="text-[10px] text-amber-500/70">
-                        IR RF {compactBRL(totalImpostoRF)}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-zinc-500">
-                      Realizado {compactBRL(vendidos.reduce((s, r) => s + r.resultado_total_brl, 0))}
-                    </span>
-                  </div>
+            {/* ── Patrimônio ── */}
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-sm font-bold text-zinc-100">Patrimônio Atual</span>
+              <span className="text-lg font-bold text-zinc-100">{compactBRL(patrimonioAtual)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-4">
+              <span>RV {compactBRL(rvPatrimonio)} · RF {compactBRL(rfPatrimonio)}</span>
+              <span className={dayChg >= 0 ? "text-emerald-400/70" : "text-red-400/70"}>
+                Hoje {fmt(dayChg)} ({pct(dayPct)})
+              </span>
+            </div>
+
+            <div className="h-px bg-zinc-800/60 mb-3" />
+
+            {/* ── Investido ── */}
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-[11px] font-semibold text-zinc-400">Total Investido</span>
+              <span className="text-sm font-bold text-zinc-300">{compactBRL(investidoRV + investidoRF)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-zinc-600 mb-3">
+              <span>RV {compactBRL(investidoRV)}</span>
+              <span>RF {compactBRL(investidoRF)}</span>
+            </div>
+
+            <div className="h-px bg-zinc-800/60 mb-3" />
+
+            {/* ── Resultado por Fonte ── */}
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Resultado Total</span>
+              <span className={`text-base font-bold ${clr(resultadoTotal)}`}>{fmt(resultadoTotal)}</span>
+            </div>
+
+            {/* Renda Variável */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-semibold text-blue-400">Renda Variável</span>
+                <span className={`text-[12px] font-bold ${clr(rvGanho)}`}>{fmt(rvGanho)}</span>
+              </div>
+              <div className="pl-3 space-y-0.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Não realizado</span>
+                  <span className={clrSub(rvNaoReal)}>{fmt(rvNaoReal)}</span>
                 </div>
-                <div className="max-h-[180px] overflow-y-auto -mx-1 px-1">
-                  <table className="w-full text-[11px]">
-                    <thead className="text-zinc-600">
-                      <tr className="border-b border-zinc-800/40">
-                        <th className="text-left font-medium py-1">Ativo</th>
-                        <th className="text-right font-medium py-1">Custo</th>
-                        {hasImpostoRF && <th className="text-right font-medium py-1">IR retido</th>}
-                        <th className="text-right font-medium py-1">Resultado</th>
-                        <th className="text-right font-medium py-1">Retorno</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vendidos.map(r => (
-                        <tr key={r.ticker} className="border-b border-zinc-900/40">
-                          <td className="text-left py-1 font-mono text-zinc-300">{r.ticker}</td>
-                          <td className="text-right py-1 text-zinc-500 font-mono">{compactBRL(r.custo_brl)}</td>
-                          {hasImpostoRF && (
-                            <td className="text-right py-1 text-amber-500/70 font-mono">
-                              {(r.imposto_brl ?? 0) > 0.01 ? `-${compactBRL(r.imposto_brl)}` : "—"}
-                            </td>
-                          )}
-                          <td className={`text-right py-1 font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {r.resultado_total_brl >= 0 ? "+" : ""}{compactBRL(r.resultado_total_brl)}
-                          </td>
-                          <td className={`text-right py-1 font-mono ${r.retorno_total_pct >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
-                            {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Realizado</span>
+                  <span className={clrSub(rvReal)}>{fmt(rvReal)}</span>
                 </div>
-                <p className="text-[9px] text-zinc-700 mt-1.5">Resultado = lucro realizado + proventos{hasImpostoRF ? " − IR retido na fonte (RF)" : ""}</p>
+              </div>
+            </div>
+
+            {/* Proventos */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-semibold text-amber-400">Proventos</span>
+                <span className="text-[12px] font-bold text-amber-400">{fmt(proventosTotal)}</span>
+              </div>
+              <div className="pl-3 space-y-0.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Dividendos / JCP (RV)</span>
+                  <span className="text-amber-400/70">{compactBRL(proventosRV)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Rendimentos (RF)</span>
+                  <span className="text-amber-400/70">{compactBRL(proventosRF)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Renda Fixa */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-semibold text-teal-400">Renda Fixa</span>
+                <span className={`text-[12px] font-bold ${clr(rfGanho)}`}>{fmt(rfGanho)}</span>
+              </div>
+              <div className="pl-3 space-y-0.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Não realizado</span>
+                  <span className={clrSub(rfNaoReal)}>{fmt(rfNaoReal)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Realizado</span>
+                  <span className={clrSub(rfReal)}>{fmt(rfReal)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Impostos */}
+            {impostoRF > 0.01 && (
+              <div className="mb-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-red-400/80">IR Retido (RF)</span>
+                  <span className="text-[12px] font-bold text-red-400">−{compactBRL(impostoRF)}</span>
+                </div>
               </div>
             )}
+
+            <div className="h-px bg-zinc-800/60 mb-3" />
+
+            {/* ── Decomposição Cambial ── */}
+            <div className="mb-3">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Decomposição de Fatores</span>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-zinc-400">Retorno do ativo (preço)</span>
+                  <span className={`font-semibold ${clr(ganhoAtivo)}`}>{fmt(ganhoAtivo)}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-zinc-400">Efeito cambial (FX)</span>
+                  <span className={`font-semibold ${clr(ganhoCambio)}`}>{fmt(ganhoCambio)}</span>
+                </div>
+                {(fxPrincipal !== 0 || fxCruzado !== 0) && (
+                  <div className="pl-3 space-y-0.5">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Principal (USD/BRL)</span>
+                      <span className={clrSub(fxPrincipal)}>{fmt(fxPrincipal)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Cruzado (ativo × FX)</span>
+                      <span className={clrSub(fxCruzado)}>{fmt(fxCruzado)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="h-px bg-zinc-800/60 mb-3" />
+
+            {/* ── Métricas Secundárias ── */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Dólar</p>
+                <p className="text-sm font-bold text-zinc-200">R$ {data.usdbrl.toFixed(2)}</p>
+                <p className="text-[9px] text-zinc-600">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Proventos/mês</p>
+                <p className="text-sm font-bold text-amber-400">{compactBRL(avgMonthlyDividend)}</p>
+                <p className="text-[9px] text-zinc-600">{rvPositions.length} ativos</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Retorno simples</p>
+                <p className={`text-sm font-bold ${clr(resultadoTotal)}`}>
+                  {pct(patrimonioAtual > 0 ? (resultadoTotal / (patrimonioAtual - resultadoTotal)) * 100 : 0)}
+                </p>
+                <p className="text-[9px] text-zinc-600">lucro ÷ investido</p>
+              </div>
+            </div>
+
+            {/* ── Top / Bottom ── */}
+            {(top || bot) && (
+              <>
+                <div className="h-px bg-zinc-800/60 my-3" />
+                <div className="grid grid-cols-2 gap-3">
+                  {top && (
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
+                        <Award size={12} className="text-emerald-400" />
+                      </span>
+                      <div>
+                        <p className="text-[9px] text-zinc-600 uppercase">Top</p>
+                        <p className="text-[11px] font-bold text-zinc-200">{top.ticker} <span className="text-emerald-400">+{top.lucro_pct.toFixed(1)}%</span></p>
+                      </div>
+                    </div>
+                  )}
+                  {bot && (
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
+                        <AlertTriangle size={12} className="text-red-400" />
+                      </span>
+                      <div>
+                        <p className="text-[9px] text-zinc-600 uppercase">Bottom</p>
+                        <p className="text-[11px] font-bold text-zinc-200">{bot.ticker} <span className="text-red-400">{bot.lucro_pct.toFixed(1)}%</span></p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── Posições Encerradas ── */}
+            {(() => {
+              const vendidos = rent.filter(r => r.status === "Vendido").sort((a, b) => b.resultado_total_brl - a.resultado_total_brl);
+              if (vendidos.length === 0) return null;
+              const totalImpostoVend = vendidos.reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
+              const hasImposto = totalImpostoVend > 0.01;
+              return (
+                <>
+                  <div className="h-px bg-zinc-800/60 my-3" />
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                      Posições encerradas ({vendidos.length})
+                    </h3>
+                    <span className="text-[10px] text-zinc-500">
+                      Total {compactBRL(vendidos.reduce((s, r) => s + r.resultado_total_brl, 0))}
+                    </span>
+                  </div>
+                  <div className="max-h-[180px] overflow-y-auto -mx-1 px-1">
+                    <table className="w-full text-[11px]">
+                      <thead className="text-zinc-600">
+                        <tr className="border-b border-zinc-800/40">
+                          <th className="text-left font-medium py-1">Ativo</th>
+                          <th className="text-right font-medium py-1">Custo</th>
+                          {hasImposto && <th className="text-right font-medium py-1">IR</th>}
+                          <th className="text-right font-medium py-1">Resultado</th>
+                          <th className="text-right font-medium py-1">%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vendidos.map(r => (
+                          <tr key={r.ticker} className="border-b border-zinc-900/40">
+                            <td className="text-left py-1 font-mono text-zinc-300">{r.ticker}</td>
+                            <td className="text-right py-1 text-zinc-500 font-mono">{compactBRL(r.custo_brl)}</td>
+                            {hasImposto && (
+                              <td className="text-right py-1 text-amber-500/70 font-mono">
+                                {(r.imposto_brl ?? 0) > 0.01 ? `−${compactBRL(r.imposto_brl)}` : "—"}
+                              </td>
+                            )}
+                            <td className={`text-right py-1 font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {r.resultado_total_brl >= 0 ? "+" : ""}{compactBRL(r.resultado_total_brl)}
+                            </td>
+                            <td className={`text-right py-1 font-mono ${r.retorno_total_pct >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
+                              {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         );
       })()}
-
-      {/* ── Secondary metrics + performers in a unified strip ── */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-5">
-        {top && (
-          <div className="glass-card p-3 flex items-center gap-2">
-            <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
-              <Award size={14} className="text-emerald-400" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Top</p>
-              <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate">{top.ticker} <span className="text-emerald-400">+{top.lucro_pct.toFixed(1)}%</span></p>
-            </div>
-          </div>
-        )}
-        {bot && (
-          <div className="glass-card p-3 flex items-center gap-2">
-            <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(248,113,113,0.12)" }}>
-              <AlertTriangle size={14} className="text-red-400" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Bottom</p>
-              <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate">{bot.ticker} <span className="text-red-400">{bot.lucro_pct.toFixed(1)}%</span></p>
-            </div>
-          </div>
-        )}
-        {!top && (
-          <div className="glass-card p-3">
-            <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Ativo</p>
-            <p className="text-base sm:text-lg font-bold" style={{ color: data.ganhoAtivoTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{compactBRL(data.ganhoAtivoTotalBRL)}</p>
-            <p className="text-[10px] text-zinc-500 mt-0.5">Câmbio {brl(data.ganhoCambioTotalBRL)}</p>
-          </div>
-        )}
-        {!bot && (
-          <div className="glass-card p-3">
-            <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ganho Cambial</p>
-            <p className="text-base sm:text-lg font-bold" style={{ color: data.ganhoCambioTotalBRL >= 0 ? "#34d399" : "#f87171" }}>{brl(data.ganhoCambioTotalBRL)}</p>
-          </div>
-        )}
-      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
            TAB NAVIGATION
