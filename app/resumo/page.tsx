@@ -17,7 +17,7 @@ import {
   Building2, Wallet, Plus, Trash2, Save, Loader2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { compactBRL, pct, shortMonth, currency } from "@/lib/format";
+import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { isRendaVariavel } from "@/lib/sectors";
 import type { CountryAllocation } from "@/lib/ticker-country";
 import InvestmentWorldMap from "@/components/InvestmentWorldMap";
