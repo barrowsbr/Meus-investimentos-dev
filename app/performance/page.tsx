@@ -214,7 +214,7 @@ export default function PerformancePage() {
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [showBenchmarks, setShowBenchmarks] = useState(true);
+  const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [resultadoFonte, setResultadoFonte] = useState<ResultadoFonte | null>(null);
@@ -520,14 +520,24 @@ export default function PerformancePage() {
           }`}>
           <Calendar size={12} /> Personalizado
         </button>
-        <button onClick={() => setShowBenchmarks(v => !v)}
-          className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-            showBenchmarks
-              ? "bg-indigo-900/50 text-indigo-300 border-indigo-700/40"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
-          }`}>
-          {showBenchmarks ? "Ocultar benchmarks" : "Ver benchmarks"}
-        </button>
+        <div className="ml-auto flex items-center rounded-lg border border-zinc-800 overflow-hidden">
+          <button onClick={() => setChartMode("benchmarks")}
+            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+              chartMode === "benchmarks"
+                ? "bg-indigo-900/50 text-indigo-300"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+            }`}>
+            Benchmarks
+          </button>
+          <button onClick={() => setChartMode("fx")}
+            className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
+              chartMode === "fx"
+                ? "bg-amber-900/50 text-amber-300"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+            }`}>
+            <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
+          </button>
+        </div>
         <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
           <RefreshCw size={14} />
         </button>
@@ -594,6 +604,14 @@ export default function PerformancePage() {
                       <stop offset="5%" stopColor="#ec4899" stopOpacity={0.1} />
                       <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="gradAtivo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradFx" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                   <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
@@ -603,14 +621,14 @@ export default function PerformancePage() {
                   <Tooltip contentStyle={TOOLTIP_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Portfólio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
+                      name === "portfolio" ? "Portfólio" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Portfólio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
+                  <Legend formatter={v => v === "portfolio" ? "Portfólio" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
                     wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
                   <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
                     strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                  {showBenchmarks && (
+                  {chartMode === "benchmarks" && (
                     <>
                       <Area type="monotone" dataKey="cdi" stroke="#6366f1" fill="url(#gradCDI)"
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
@@ -618,6 +636,14 @@ export default function PerformancePage() {
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
                       <Area type="monotone" dataKey="sp500" stroke="#ec4899" fill="url(#gradSP500)"
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+                    </>
+                  )}
+                  {chartMode === "fx" && (
+                    <>
+                      <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradAtivo)"
+                        strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
+                      <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFx)"
+                        strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
                     </>
                   )}
                 </AreaChart>
