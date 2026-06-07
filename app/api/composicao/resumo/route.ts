@@ -3,7 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
-import { identificarSetor, isRendaFixa, isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
+import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaPrecificavel, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
 import type { Position } from "@/lib/portfolio";
@@ -240,6 +240,7 @@ export async function GET() {
       const ticker = String(row["ticker"] ?? "").trim();
       const valor = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
       if (!ticker || valor <= 0) continue;
+      if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       rfCostBasis[ticker] = (rfCostBasis[ticker] ?? 0) + valor * fxFactor(moeda, fxAtual);
     }
@@ -316,6 +317,7 @@ export async function GET() {
     for (const row of fixaAberta) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
       if (!ticker || activeTickerSet.has(ticker.toUpperCase())) continue;
+      if (isRendaFixaPrecificavel(identificarSetor(ticker))) continue;
       const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
@@ -352,6 +354,7 @@ export async function GET() {
     for (const row of rfTransacoes) {
       const rawTicker = String(row["ticker"] ?? "").trim();
       if (!rawTicker) continue;
+      if (isRendaFixaPrecificavel(identificarSetor(rawTicker))) continue;
       const key = normTicker(rawTicker);
       const tipo = String(row["tipo"] ?? "").toLowerCase();
       const valorRaw = parseFloat(String(row["valor"] ?? "0").replace(",", "."));
