@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   BrainCircuit, Shuffle, LineChart, Waves, Network,
   FlaskConical, Sigma, Clock, Database, Play, Loader2,
@@ -349,7 +349,7 @@ function ResultChart({ methodId, data }: { methodId: string; data: Record<string
 
 // ── Method Card ──────────────────────────────────────────────────────────────
 
-function MethodCard({ method, idx, getRows }: { method: MethodDef; idx: number; getRows: () => Promise<Record<string, unknown>[]> }) {
+function MethodCard({ method, idx }: { method: MethodDef; idx: number }) {
   const [result, setResult] = useState<ModelResult>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -359,14 +359,7 @@ function MethodCard({ method, idx, getRows }: { method: MethodDef; idx: number; 
     setError(null);
     setResult(null);
     try {
-      const rows = await getRows();
-      if (rows.length < 2) throw new Error("db_cotacoes sem dados suficientes");
-
-      const res = await fetch(`${API}/api/preditivo/${method.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
-      });
+      const res = await fetch(`${API}/api/preditivo/${method.id}`);
       const json = await res.json();
       if (json.error) {
         setError(json.error);
@@ -378,7 +371,7 @@ function MethodCard({ method, idx, getRows }: { method: MethodDef; idx: number; 
     } finally {
       setLoading(false);
     }
-  }, [method.id, getRows]);
+  }, [method.id]);
 
   const Icon = method.icon;
 
@@ -460,18 +453,6 @@ function MethodCard({ method, idx, getRows }: { method: MethodDef; idx: number; 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PreditivoPage() {
-  const rowsCache = useRef<Record<string, unknown>[] | null>(null);
-
-  const getRows = useCallback(async (): Promise<Record<string, unknown>[]> => {
-    if (rowsCache.current) return rowsCache.current;
-    const res = await fetch("/api/sheets/db_cotacoes");
-    if (!res.ok) throw new Error("Falha ao carregar db_cotacoes");
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error("db_cotacoes formato inválido");
-    rowsCache.current = data;
-    return data;
-  }, []);
-
   return (
     <>
       <PageHeader
@@ -507,7 +488,7 @@ export default function PreditivoPage() {
       {/* ── Methods ── */}
       <div className="space-y-4">
         {METHODS.map((method, idx) => (
-          <MethodCard key={method.id} method={method} idx={idx} getRows={getRows} />
+          <MethodCard key={method.id} method={method} idx={idx} />
         ))}
       </div>
     </>
