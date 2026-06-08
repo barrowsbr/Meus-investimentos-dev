@@ -53,6 +53,10 @@
     {
       "source": "/api/historico/:path*",
       "destination": "/api/index"
+    },
+    {
+      "source": "/api/preditivo/:path*",
+      "destination": "/api/index"
     }
   ]
 }
