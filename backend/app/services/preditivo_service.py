@@ -123,7 +123,7 @@ def monte_carlo(
     p75 = np.percentile(paths, 75, axis=0).tolist()
     p95 = np.percentile(paths, 95, axis=0).tolist()
 
-    sample_paths = paths[rng.choice(n_simulations, size=min(50, n_simulations), replace=False)].tolist()
+    sample_paths = paths[rng.choice(n_simulations, size=min(30, n_simulations), replace=False)].tolist()
 
     return {
         "percentiles": {"p5": p5, "p25": p25, "p50": p50, "p75": p75, "p95": p95},
@@ -151,36 +151,49 @@ def arima_forecast(
 
     returns = _portfolio_returns(rows, tickers)
     if len(returns) < 50:
-        return {"error": "Dados insuficientes (mínimo 50 observações)"}
+        return {"error": f"Dados insuficientes ({len(returns)} obs, mínimo 50)"}
 
-    prices = np.exp(returns.cumsum()) * 100
-    series = prices.values
+    cum = returns.cumsum()
+    prices = np.exp(cum) * 100
+    # Use plain numpy array (no date index) to avoid statsmodels date parsing
+    series = np.asarray(prices, dtype=float)
 
-    adf_stat, adf_pvalue, *_ = adfuller(series, maxlag=20)
+    try:
+        adf_stat, adf_pvalue, *_ = adfuller(series, maxlag=min(20, len(series) // 3))
+    except Exception:
+        adf_pvalue = 0.5
 
     d = 0 if adf_pvalue < 0.05 else 1
 
     best_aic = np.inf
-    best_order = (1, d, 1)
-    for p in range(0, 4):
-        for q in range(0, 4):
-            if p == 0 and q == 0:
-                continue
-            try:
-                model = ARIMA(series, order=(p, d, q))
-                fit = model.fit()
-                if fit.aic < best_aic:
-                    best_aic = fit.aic
-                    best_order = (p, d, q)
-            except Exception:
-                continue
+    best_order = (1, d, 0)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for p in range(0, 4):
+            for q in range(0, 4):
+                if p == 0 and q == 0:
+                    continue
+                try:
+                    model = ARIMA(series, order=(p, d, q))
+                    fit = model.fit()
+                    if fit.aic < best_aic:
+                        best_aic = float(fit.aic)
+                        best_order = (p, d, q)
+                except Exception:
+                    continue
 
-    model = ARIMA(series, order=best_order)
-    fit = model.fit()
-    forecast_result = fit.get_forecast(steps=horizon)
-    mean_forecast = forecast_result.predicted_mean.tolist()
-    ci_80 = forecast_result.conf_int(alpha=0.20)
-    ci_95 = forecast_result.conf_int(alpha=0.05)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = ARIMA(series, order=best_order)
+            fit = model.fit()
+            forecast_result = fit.get_forecast(steps=horizon)
+            mean_forecast = np.asarray(forecast_result.predicted_mean).tolist()
+            ci_80 = np.asarray(forecast_result.conf_int(alpha=0.20))
+            ci_95 = np.asarray(forecast_result.conf_int(alpha=0.05))
+    except Exception as e:
+        return {"error": f"ARIMA fit falhou: {e}"}
 
     historical = series[-min(120, len(series)):].tolist()
 
@@ -193,8 +206,8 @@ def arima_forecast(
         "ci_95_upper": ci_95[:, 1].tolist(),
         "order": list(best_order),
         "aic": best_aic,
-        "adf_pvalue": adf_pvalue,
-        "stationary": adf_pvalue < 0.05,
+        "adf_pvalue": float(adf_pvalue),
+        "stationary": bool(adf_pvalue < 0.05),
         "horizon": horizon,
         "observations_used": len(returns),
     }
@@ -218,7 +231,7 @@ def prophet_forecast(
         return {"error": "Dados insuficientes (mínimo 60 observações)"}
 
     prices = np.exp(returns.cumsum()) * 100
-    series = prices.values
+    series = np.asarray(prices, dtype=float)
 
     try:
         period = min(21, len(series) // 4)
@@ -412,6 +425,8 @@ def var_forecast(
     if len(df) < 60:
         return {"error": "Dados insuficientes após limpeza"}
 
+    # Reset index to avoid date parsing issues in statsmodels
+    df = df.reset_index(drop=True)
     model = VARModel(df)
 
     try:
