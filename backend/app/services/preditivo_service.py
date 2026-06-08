@@ -10,18 +10,38 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def _build_returns_df(rows: list[dict], tickers: list[str] | None = None) -> pd.DataFrame:
-    """Build a DataFrame of daily log-returns from db_cotacoes rows.
+def _to_float(val: Any) -> float | None:
+    if val is None or val == "":
+        return None
+    try:
+        f = float(val)
+        return f if np.isfinite(f) and f > 0 else None
+    except (ValueError, TypeError):
+        return None
 
-    rows: list of dicts with 'data' as first key and ticker columns as prices.
-    Returns a DataFrame indexed by date with columns = tickers, values = log-returns.
+
+def _build_price_df(rows: list[dict], tickers: list[str] | None = None) -> pd.DataFrame:
+    """Build a price DataFrame from db_cotacoes rows.
+
+    Returns DataFrame indexed by date, columns = tickers (uppercase), values = prices.
+    Keeps NaN for missing data — does NOT dropna across rows.
     """
     if not rows:
         return pd.DataFrame()
 
     headers = list(rows[0].keys())
     date_col = headers[0]
-    ticker_cols = headers[1:] if tickers is None else [h for h in headers[1:] if h.upper() in [t.upper() for t in tickers]]
+
+    # Exclude known non-asset columns (FX, indices)
+    skip = {"brl=x", "usd=x", "eur=x", "^bvsp", "^gspc", "^ixic", "^dji"}
+    if tickers is not None:
+        ticker_set = {t.upper() for t in tickers}
+        ticker_cols = [h for h in headers[1:] if h.upper() in ticker_set]
+    else:
+        ticker_cols = [h for h in headers[1:] if h.lower() not in skip]
+
+    if not ticker_cols:
+        return pd.DataFrame()
 
     records = []
     for row in rows:
@@ -30,27 +50,45 @@ def _build_returns_df(rows: list[dict], tickers: list[str] | None = None) -> pd.
             continue
         record: dict[str, Any] = {"date": str(date)[:10]}
         for col in ticker_cols:
-            val = row.get(col)
-            if val is not None and val != "" and isinstance(val, (int, float)):
-                record[col.upper()] = float(val)
+            f = _to_float(row.get(col))
+            if f is not None:
+                record[col.upper()] = f
         records.append(record)
 
     if not records:
         return pd.DataFrame()
 
     df = pd.DataFrame(records).set_index("date").sort_index()
-    df = df.apply(pd.to_numeric, errors="coerce")
-    df = df.dropna(how="all")
-    returns = np.log(df / df.shift(1)).dropna()
+    return df
+
+
+def _build_returns_df(rows: list[dict], tickers: list[str] | None = None) -> pd.DataFrame:
+    """Build a log-returns DataFrame. NaN-tolerant — keeps rows with partial data."""
+    df = _build_price_df(rows, tickers)
+    if df.empty or len(df) < 2:
+        return pd.DataFrame()
+
+    # Drop columns with too little data (< 20 observations)
+    min_obs = min(20, len(df) // 2)
+    good_cols = [c for c in df.columns if df[c].count() >= min_obs]
+    if not good_cols:
+        return pd.DataFrame()
+    df = df[good_cols]
+
+    returns = np.log(df / df.shift(1))
+    # Drop the first row (NaN from shift) and rows where ALL are NaN
+    returns = returns.iloc[1:].dropna(how="all")
     return returns
 
 
 def _portfolio_returns(rows: list[dict], tickers: list[str] | None = None) -> pd.Series:
-    """Equal-weighted portfolio log-returns (or single-asset if 1 ticker)."""
+    """Equal-weighted portfolio log-returns. Handles NaN per-column via skipna."""
     df = _build_returns_df(rows, tickers)
     if df.empty:
         return pd.Series(dtype=float)
-    return df.mean(axis=1)
+    # mean with skipna=True handles sparse data gracefully
+    series = df.mean(axis=1)
+    return series.dropna()
 
 
 # ── Monte Carlo ──────────────────────────────────────────────────────────────
