@@ -339,15 +339,33 @@ function VarChart({ data }: { data: Record<string, unknown> }) {
 
 // ── Chart dispatcher ─────────────────────────────────────────────────────────
 
+function Interpretation({ text }: { text: string }) {
+  return (
+    <div className="mt-4 rounded-lg border border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+        Leitura do Modelo
+      </p>
+      <p className="text-[12px] text-zinc-400 leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
 function ResultChart({ methodId, data }: { methodId: string; data: Record<string, unknown> }) {
+  const interpretation = data.interpretation as string | undefined;
+  let chart: React.ReactNode = null;
   switch (methodId) {
-    case "monte-carlo": return <MonteCarloChart data={data} />;
-    case "arima": return <ArimaChart data={data} />;
-    case "prophet": return <ProphetChart data={data} />;
-    case "garch": return <GarchChart data={data} />;
-    case "var": return <VarChart data={data} />;
-    default: return null;
+    case "monte-carlo": chart = <MonteCarloChart data={data} />; break;
+    case "arima": chart = <ArimaChart data={data} />; break;
+    case "prophet": chart = <ProphetChart data={data} />; break;
+    case "garch": chart = <GarchChart data={data} />; break;
+    case "var": chart = <VarChart data={data} />; break;
   }
+  return (
+    <>
+      {chart}
+      {interpretation && <Interpretation text={interpretation} />}
+    </>
+  );
 }
 
 // ── Method Card ──────────────────────────────────────────────────────────────

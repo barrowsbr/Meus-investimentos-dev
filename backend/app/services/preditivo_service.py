@@ -125,13 +125,32 @@ def monte_carlo(
 
     sample_paths = paths[rng.choice(n_simulations, size=min(30, n_simulations), replace=False)].tolist()
 
+    terminal = paths[:, -1]
+    prob_loss = float(np.mean(terminal < initial_value))
+    median_terminal = float(p50[-1])
+    gain_pct = (median_terminal / initial_value - 1) * 100
+    mu_annual = mu * 252
+    sigma_annual = sigma * np.sqrt(252)
+
+    direction = "alta" if gain_pct > 1 else ("queda" if gain_pct < -1 else "estabilidade")
+    interpretation = (
+        f"A simulação de Monte Carlo gerou {n_simulations:,} caminhos estocásticos em um horizonte de {horizon} dias úteis. "
+        f"O valor mediano projetado é {median_terminal:.2f} ({"+" if gain_pct >= 0 else ""}{gain_pct:.1f}% sobre o valor inicial de {initial_value:.2f}), "
+        f"indicando tendência de {direction}. "
+        f"O intervalo P5–P95 vai de {p5[-1]:.2f} a {p95[-1]:.2f}, refletindo a dispersão dos cenários. "
+        f"A probabilidade de perda (valor terminal abaixo do inicial) é de {prob_loss*100:.1f}%. "
+        f"O drift anualizado (μ) é {mu_annual*100:.1f}% e a volatilidade anualizada (σ) é {sigma_annual*100:.1f}%. "
+        f"{"A alta volatilidade indica incerteza significativa nas projeções." if sigma_annual > 0.30 else "A volatilidade moderada sugere razoável previsibilidade."}"
+    )
+
     return {
         "percentiles": {"p5": p5, "p25": p25, "p50": p50, "p75": p75, "p95": p95},
         "sample_paths": sample_paths,
-        "params": {"mu_daily": mu, "sigma_daily": sigma, "mu_annual": mu * 252, "sigma_annual": sigma * np.sqrt(252)},
+        "params": {"mu_daily": mu, "sigma_daily": sigma, "mu_annual": mu_annual, "sigma_annual": sigma_annual},
         "horizon": horizon,
         "n_simulations": n_simulations,
         "observations_used": len(returns),
+        "interpretation": interpretation,
     }
 
 
@@ -197,6 +216,27 @@ def arima_forecast(
 
     historical = series[-min(120, len(series)):].tolist()
 
+    last_hist = float(series[-1])
+    last_forecast = float(mean_forecast[-1])
+    fc_change_pct = (last_forecast / last_hist - 1) * 100
+    ci_width = float(ci_95[:, 1][-1] - ci_95[:, 0][-1])
+    ci_width_pct = ci_width / last_hist * 100
+
+    direction = "alta" if fc_change_pct > 1 else ("queda" if fc_change_pct < -1 else "estabilidade")
+    stationarity_msg = (
+        f"O teste ADF indica que a série é estacionária (p={adf_pvalue:.4f}), dispensando diferenciação."
+        if adf_pvalue < 0.05 else
+        f"O teste ADF (p={adf_pvalue:.4f}) indica não-estacionariedade — aplicada diferenciação (d={d})."
+    )
+    interpretation = (
+        f"O modelo ARIMA{list(best_order)} foi selecionado via minimização do AIC ({best_aic:.1f}). "
+        f"{stationarity_msg} "
+        f"A previsão para {horizon} dias aponta {direction}, com valor projetado de {last_forecast:.2f} "
+        f"({"+" if fc_change_pct >= 0 else ""}{fc_change_pct:.1f}% em relação ao último valor observado). "
+        f"O intervalo de confiança de 95% ao final do horizonte tem amplitude de {ci_width:.2f} ({ci_width_pct:.1f}% do valor atual), "
+        f"{"indicando alta incerteza nas projeções de longo prazo." if ci_width_pct > 30 else "sugerindo razoável precisão na previsão."}"
+    )
+
     return {
         "historical": historical,
         "forecast": mean_forecast,
@@ -210,6 +250,7 @@ def arima_forecast(
         "stationary": bool(adf_pvalue < 0.05),
         "horizon": horizon,
         "observations_used": len(returns),
+        "interpretation": interpretation,
     }
 
 
@@ -260,6 +301,9 @@ def prophet_forecast(
         trend = fit.trend[-min(120, len(series)):].tolist() if hasattr(fit, "trend") and fit.trend is not None else []
         seasonal = fit.season[-min(120, len(series)):].tolist() if hasattr(fit, "season") and fit.season is not None else []
 
+        model_used = "Holt-Winters (aditivo)"
+        has_seasonal = len(seasonal) > 0
+
     except Exception as e:
         logger.warning(f"Prophet-like model failed, falling back to linear: {e}")
         x = np.arange(len(series))
@@ -275,8 +319,27 @@ def prophet_forecast(
         lower_95 = (np.array(forecast_list) - 1.96 * expanding_std).tolist()
         trend = trend_line[:len(series)][-120:].tolist()
         seasonal = []
+        model_used = "Regressão linear (fallback)"
+        has_seasonal = False
 
     historical = series[-min(120, len(series)):].tolist()
+
+    last_hist = float(series[-1])
+    last_fc = float(forecast_list[-1])
+    fc_change = (last_fc / last_hist - 1) * 100
+    direction = "alta" if fc_change > 1 else ("queda" if fc_change < -1 else "lateralização")
+    band_width = float(upper_95[-1]) - float(lower_95[-1])
+    band_pct = band_width / last_hist * 100
+
+    interpretation = (
+        f"Modelo utilizado: {model_used}. "
+        f"A decomposição separa a série em tendência{" e sazonalidade" if has_seasonal else ""}, "
+        f"projetando {direction} para os próximos {horizon} dias úteis. "
+        f"O valor previsto ao final é {last_fc:.2f} ({"+" if fc_change >= 0 else ""}{fc_change:.1f}%). "
+        f"A banda de confiança 95% no horizonte final tem amplitude de {band_width:.2f} ({band_pct:.1f}% do valor atual). "
+        f"{"O alargamento progressivo das bandas reflete a incerteza crescente em horizontes mais distantes." if band_pct > 25 else "As bandas relativamente estreitas sugerem boa aderência do modelo."}"
+        f"{" Sazonalidade detectada — o modelo captura padrões cíclicos recorrentes na série." if has_seasonal else ""}"
+    )
 
     return {
         "historical": historical,
@@ -289,6 +352,7 @@ def prophet_forecast(
         "seasonal": seasonal,
         "horizon": horizon,
         "observations_used": len(returns),
+        "interpretation": interpretation,
     }
 
 
@@ -319,12 +383,33 @@ def garch_forecast(
     vol_forecast = np.sqrt(variance_forecast) / 100 * np.sqrt(252)
 
     conditional_vol = fit.conditional_volatility.values / 100 * np.sqrt(252)
+    conditional_vol_daily = fit.conditional_volatility.values / 100
     historical_vol = conditional_vol[-min(252, len(conditional_vol)):].tolist()
 
     realized_vol = returns.rolling(21).std() * np.sqrt(252)
     realized_hist = realized_vol.dropna().values[-min(252, len(realized_vol)):].tolist()
 
-    var_95 = float(returns.mean() - 1.645 * returns.std()) * np.sqrt(252)
+    # VaR using GARCH conditional volatility (not unconditional std)
+    current_cond_vol_daily = float(conditional_vol_daily[-1]) if len(conditional_vol_daily) > 0 else float(returns.std())
+    var_95 = float(returns.mean() - 1.645 * current_cond_vol_daily) * np.sqrt(252)
+
+    alpha_val = float(fit.params.get("alpha[1]", 0))
+    beta_val = float(fit.params.get("beta[1]", 0))
+    persistence = alpha_val + beta_val
+    current_vol_ann = float(conditional_vol[-1]) if len(conditional_vol) > 0 else 0
+    avg_vol = float(np.mean(conditional_vol[-60:])) if len(conditional_vol) >= 60 else float(np.mean(conditional_vol))
+    vol_regime = "elevada" if current_vol_ann > avg_vol * 1.2 else ("baixa" if current_vol_ann < avg_vol * 0.8 else "normal")
+    fc_vol_end = float(vol_forecast[-1]) if len(vol_forecast) > 0 else current_vol_ann
+
+    interpretation = (
+        f"O GARCH(1,1) modela a volatilidade condicional — isto é, como a volatilidade varia ao longo do tempo. "
+        f"A volatilidade atual é {current_vol_ann*100:.1f}% a.a., em regime {vol_regime} "
+        f"(média recente: {avg_vol*100:.1f}% a.a.). "
+        f"A persistência (α+β={persistence:.4f}) {"é próxima de 1, indicando que choques de volatilidade demoram a dissipar" if persistence > 0.95 else "indica dissipação razoável de choques"}. "
+        f"A projeção de volatilidade converge para {fc_vol_end*100:.1f}% a.a. no horizonte de {horizon} dias. "
+        f"O VaR paramétrico a 95% (baseado na vol condicional atual) é {abs(var_95)*100:.2f}% a.a. — "
+        f"em um dia típico, a perda máxima esperada com 95% de confiança é de {abs(current_cond_vol_daily)*1.645*100:.2f}%."
+    )
 
     return {
         "conditional_vol": historical_vol,
@@ -332,14 +417,15 @@ def garch_forecast(
         "vol_forecast": vol_forecast.tolist(),
         "params": {
             "omega": float(fit.params.get("omega", 0)),
-            "alpha": float(fit.params.get("alpha[1]", 0)),
-            "beta": float(fit.params.get("beta[1]", 0)),
-            "persistence": float(fit.params.get("alpha[1]", 0) + fit.params.get("beta[1]", 0)),
+            "alpha": alpha_val,
+            "beta": beta_val,
+            "persistence": persistence,
         },
         "var_95_annual": float(var_95),
-        "current_vol_annual": float(conditional_vol[-1]) if len(conditional_vol) > 0 else 0,
+        "current_vol_annual": current_vol_ann,
         "horizon": horizon,
         "observations_used": len(returns),
+        "interpretation": interpretation,
     }
 
 
@@ -373,10 +459,24 @@ def _garch_fallback(
     realized_vol = returns.rolling(21).std() * np.sqrt(252)
     realized_hist = realized_vol.dropna().values[-min(252, len(realized_vol)):].tolist()
 
-    var_95 = float(returns.mean() - 1.645 * returns.std()) * np.sqrt(252)
+    # VaR using current EWMA conditional vol (not unconditional std)
+    current_cond_vol_daily = float(np.sqrt(last_var))
+    var_95 = float(returns.mean() - 1.645 * current_cond_vol_daily) * np.sqrt(252)
 
     alpha_est = 1 - lam
     beta_est = lam
+    current_vol_ann = float(historical_vol[-1]) if historical_vol else 0
+    avg_vol = float(np.mean(historical_vol[-60:])) if len(historical_vol) >= 60 else float(np.mean(historical_vol)) if historical_vol else 0
+    vol_regime = "elevada" if current_vol_ann > avg_vol * 1.2 else ("baixa" if current_vol_ann < avg_vol * 0.8 else "normal")
+    fc_vol_end = vol_forecast[-1] if vol_forecast else current_vol_ann
+
+    interpretation = (
+        f"Modelo EWMA (λ=0.94, método RiskMetrics) utilizado como fallback. "
+        f"A volatilidade atual é {current_vol_ann*100:.1f}% a.a., regime {vol_regime}. "
+        f"A projeção converge para {fc_vol_end*100:.1f}% a.a. em {horizon} dias. "
+        f"VaR 95% condicional: {abs(var_95)*100:.2f}% a.a. "
+        f"Perda máxima diária (95%): {abs(current_cond_vol_daily)*1.645*100:.2f}%."
+    )
 
     return {
         "conditional_vol": historical_vol,
@@ -389,10 +489,11 @@ def _garch_fallback(
             "persistence": lam,
         },
         "var_95_annual": float(var_95),
-        "current_vol_annual": float(historical_vol[-1]) if historical_vol else 0,
+        "current_vol_annual": current_vol_ann,
         "horizon": horizon,
         "observations_used": len(returns),
         "method": "EWMA (arch indisponível)",
+        "interpretation": interpretation,
     }
 
 
@@ -460,8 +561,36 @@ def var_forecast(
     except Exception:
         fevd_data = {}
 
+    vars_list = df.columns.tolist()
+    fc_summary_parts = []
+    for col in vars_list:
+        fc_vals = forecast_df[col].values
+        hist_mean = float(df[col].mean())
+        fc_mean = float(fc_vals.mean())
+        direction = "positivos" if fc_mean > hist_mean * 0.1 else ("negativos" if fc_mean < hist_mean * -0.1 else "próximos de zero")
+        fc_summary_parts.append(f"{col} ({direction})")
+
+    irf_insight = ""
+    if irf_data and len(vars_list) >= 2:
+        shock_var = vars_list[0]
+        resp_var = vars_list[1]
+        if shock_var in irf_data and resp_var in irf_data[shock_var]:
+            peak = max(irf_data[shock_var][resp_var], key=abs)
+            irf_insight = (
+                f" Um choque em {shock_var} tem impacto {"positivo" if peak > 0 else "negativo"} "
+                f"de até {abs(peak)*10000:.1f} bps sobre {resp_var}."
+            )
+
+    interpretation = (
+        f"O modelo VAR({optimal_lag}) captura interdependências entre {len(vars_list)} ativos: {', '.join(vars_list)}. "
+        f"O número de lags ({optimal_lag}) foi selecionado via AIC — indica quantos dias passados são relevantes para prever o próximo. "
+        f"Retornos previstos para {horizon} dias: {'; '.join(fc_summary_parts)}."
+        f"{irf_insight}"
+        f" A análise de impulso-resposta mostra como um choque unitário em um ativo se propaga pelos demais ao longo de 20 períodos."
+    )
+
     return {
-        "variables": df.columns.tolist(),
+        "variables": vars_list,
         "forecast": {col: forecast_df[col].tolist() for col in df.columns},
         "historical": {col: df[col].values[-60:].tolist() for col in df.columns},
         "irf": irf_data,
@@ -469,4 +598,5 @@ def var_forecast(
         "lag_order": optimal_lag,
         "horizon": horizon,
         "observations_used": len(df),
+        "interpretation": interpretation,
     }
