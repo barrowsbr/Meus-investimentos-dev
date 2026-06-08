@@ -87,43 +87,46 @@ const METHODS: MethodDef[] = [
 
 function MonteCarloChart({ data }: { data: Record<string, unknown> }) {
   const perc = data.percentiles as { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] };
+  const samplePaths = data.sample_paths as number[][] | undefined;
   if (!perc) return null;
 
-  const chartData = perc.p50.map((_, i) => ({
-    t: i,
-    p5: perc.p5[i],
-    p25: perc.p25[i],
-    p50: perc.p50[i],
-    p75: perc.p75[i],
-    p95: perc.p95[i],
-  }));
+  const chartData = perc.p50.map((_, i) => {
+    const point: Record<string, number> = {
+      t: i,
+      p5: perc.p5[i],
+      p50: perc.p50[i],
+      p95: perc.p95[i],
+    };
+    if (samplePaths) {
+      samplePaths.forEach((path, j) => { point[`s${j}`] = path[i]; });
+    }
+    return point;
+  });
 
   const params = data.params as { mu_annual: number; sigma_annual: number } | undefined;
+  const pathCount = samplePaths?.length ?? 0;
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={320}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} label={{ value: "Dias", position: "bottom", fontSize: 10, fill: "#71717a" }} />
-          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+      <ResponsiveContainer width="100%" height={380}>
+        <RLineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1c1c1e" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#52525b" }} label={{ value: "Dias", position: "bottom", fontSize: 10, fill: "#52525b" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#52525b" }} />
           <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
-          <Area type="monotone" dataKey="p95" stroke="none" fill="#34d39915" name="P95" />
-          <Area type="monotone" dataKey="p75" stroke="none" fill="#34d39920" name="P75" />
-          <Area type="monotone" dataKey="p25" stroke="none" fill="#34d39920" name="P25" />
-          <Area type="monotone" dataKey="p5" stroke="none" fill="#34d39915" name="P5" />
-          <Line type="monotone" dataKey="p50" stroke="#34d399" strokeWidth={2} dot={false} name="Mediana" />
-          <Line type="monotone" dataKey="p75" stroke="#34d39980" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P75" />
-          <Line type="monotone" dataKey="p25" stroke="#34d39980" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P25" />
-          <Line type="monotone" dataKey="p95" stroke="#34d39950" strokeWidth={1} dot={false} strokeDasharray="2 2" name="P95" />
-          <Line type="monotone" dataKey="p5" stroke="#34d39950" strokeWidth={1} dot={false} strokeDasharray="2 2" name="P5" />
-        </AreaChart>
+          {Array.from({ length: pathCount }).map((_, j) => (
+            <Line key={`s${j}`} type="monotone" dataKey={`s${j}`} stroke="#34d39918" strokeWidth={0.5} dot={false} isAnimationActive={false} legendType="none" />
+          ))}
+          <Line type="monotone" dataKey="p95" stroke="#34d39960" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P95" />
+          <Line type="monotone" dataKey="p5" stroke="#34d39960" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P5" />
+          <Line type="monotone" dataKey="p50" stroke="#34d399" strokeWidth={2.5} dot={false} name="Mediana" />
+        </RLineChart>
       </ResponsiveContainer>
       {params && (
-        <div className="flex gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        <div className="flex flex-wrap gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
           <span>μ anual: {(params.mu_annual * 100).toFixed(2)}%</span>
           <span>σ anual: {(params.sigma_annual * 100).toFixed(2)}%</span>
-          <span>Simulações: {String(data.n_simulations)}</span>
+          <span>{String(data.n_simulations)} simulações · {pathCount} caminhos visíveis</span>
           <span>Obs: {String(data.observations_used)}</span>
         </div>
       )}
