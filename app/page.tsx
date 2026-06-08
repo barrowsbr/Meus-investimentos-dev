@@ -12,7 +12,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink, Target, Scale, Zap,
+  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Egg, Zap,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -93,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/renda-fixa",      label: "Renda Fixa",     icon: Landmark },
       { href: "/proventos",       label: "Proventos",      icon: Coins },
       { href: "/criptoativos",    label: "Criptoativos",   icon: Bitcoin },
+      { href: "/opcoes",          label: "Opções",         icon: Crosshair },
     ],
   },
   {
@@ -107,6 +108,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
       { href: "/simulacoes",   label: "Simulações",  icon: Target },
       { href: "/trades",       label: "Trades",      icon: Zap },
+      { href: "/preditivo",    label: "Preditivo",   icon: BrainCircuit },
     ],
   },
   {
@@ -134,6 +136,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/moedas",         label: "Moedas",         icon: Globe },
       { href: "/bolsas",         label: "Bolsas",         icon: BarChart3 },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
+      { href: "/easter-eggs",    label: "Easter Eggs",    icon: Egg },
       { href: "/configuracoes",  label: "Configurações",  icon: Settings },
     ],
   },
