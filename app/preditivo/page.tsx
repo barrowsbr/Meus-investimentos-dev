@@ -1,129 +1,451 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import {
-  BrainCircuit, TrendingUp, Target, BarChart2, Gauge, Activity,
-  GitBranch, Lock, Shuffle, LineChart, Waves, Network, ImageIcon,
+  BrainCircuit, Shuffle, LineChart, Waves, Network,
+  FlaskConical, Sigma, Clock, Database, Play, Loader2,
 } from "lucide-react";
+import {
+  ResponsiveContainer, LineChart as RLineChart, Line, Area, AreaChart,
+  XAxis, YAxis, Tooltip, CartesianGrid, Legend, ComposedChart,
+} from "recharts";
 import PageHeader from "@/components/PageHeader";
 
-// ── Planned feature cards ────────────────────────────────────────────────────
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
-const PLANNED = [
-  {
-    icon: TrendingUp,
-    title: "Projeção de Patrimônio",
-    desc: "Monte Carlo com 10.000 simulações baseado em retornos históricos reais do seu portfólio. Intervalos de confiança 50/75/95%.",
-    color: "#34d399",
-  },
-  {
-    icon: Target,
-    title: "Probabilidade de Meta",
-    desc: "Qual a chance de atingir R$ X em Y anos? Calibrado com seu CAGR, volatilidade e padrão de aportes.",
-    color: "#60a5fa",
-  },
-  {
-    icon: BarChart2,
-    title: "Value at Risk Condicional",
-    desc: "CVaR / Expected Shortfall — quanto você pode perder nos piores cenários? Stress test com crise 2008, 2020 e custom.",
-    color: "#f87171",
-  },
-  {
-    icon: Gauge,
-    title: "Regime de Mercado",
-    desc: "Detecção de regime (bull/bear/lateral) via Hidden Markov Model. Indicadores de transição e probabilidade do regime atual.",
-    color: "#f59e0b",
-  },
-  {
-    icon: Activity,
-    title: "Correlação Dinâmica",
-    desc: "Matriz de correlação rolling entre seus ativos. Detecte quando diversificação falha (correlações sobem em crises).",
-    color: "#8b5cf6",
-  },
-  {
-    icon: GitBranch,
-    title: "Cenários What-If",
-    desc: "E se o dólar for a R$ 7? E se a Selic cair 3pp? Simule choques em variáveis macro e veja o impacto no portfólio.",
-    color: "#ec4899",
-  },
-];
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface MethodDef {
+  id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: React.ComponentType<any>;
+  title: string;
+  tag: string;
+  color: string;
+  description: string;
+  detail: string;
+}
+
+type ModelResult = Record<string, unknown> | null;
 
 // ── Methods catalog ──────────────────────────────────────────────────────────
 
-const METHODS = [
+const METHODS: MethodDef[] = [
   {
     id: "monte-carlo",
     icon: Shuffle,
     title: "Simulação de Monte Carlo",
+    tag: "Estocástico",
     color: "#34d399",
     description:
-      "Método que utiliza variáveis aleatórias para projetar múltiplos cenários futuros (caminhos estocásticos) a partir de um valor presente. Gera um \"Gráfico de Espaguete\", permitindo visualizar a distribuição de probabilidades e a concentração dos resultados possíveis.",
-    chartLabel: "Gráfico de caminhos estocásticos",
-    chartCount: 1,
+      "Geração de N caminhos estocásticos via GBM (Geometric Brownian Motion) calibrado com μ e σ históricos do portfólio. Permite estimar percentis da distribuição terminal e probabilidade de ruína.",
+    detail: "10.000 simulações · GBM · Drift + Difusão",
   },
   {
     id: "arima",
     icon: LineChart,
-    title: "Modelos ARIMA",
-    subtitle: "Autoregressivos Integrados de Média Móvel",
+    title: "ARIMA(p,d,q)",
+    tag: "Série Temporal",
     color: "#60a5fa",
     description:
-      "Modelo clássico de econometria para análise de séries temporais. Prevê o futuro com base nos valores e erros passados da própria série, gerando uma previsão central e intervalos de confiança que se expandem com o tempo (Gráfico de Leque).",
-    chartLabel: "Gráfico de leque ARIMA",
-    chartCount: 1,
+      "Modelo autoregressivo integrado de média móvel. Seleção automática de ordem via AIC/BIC, teste de estacionariedade (ADF), e geração de intervalos de confiança expandidos no horizonte de previsão (fan chart).",
+    detail: "Auto-ARIMA · ADF test · IC 80%/95%",
   },
   {
     id: "prophet",
     icon: BrainCircuit,
-    title: "Prophet",
-    subtitle: "Modelos Aditivos",
+    title: "Decomposição Aditiva",
+    tag: "Tendência + Sazonalidade",
     color: "#8b5cf6",
     description:
-      "Ferramenta desenvolvida para séries temporais com forte sazonalidade. O modelo decompõe a série em tendências, padrões sazonais e efeitos de feriados, gerando uma previsão acompanhada por bandas sombreadas de incerteza.",
-    chartLabel: "Previsão e decomposição sazonal",
-    chartCount: 1,
+      "Decomposição aditiva da série em tendência (piecewise linear/logistic), sazonalidade (Fourier) e efeitos de regressores externos. Robusto a dados faltantes e mudanças de regime.",
+    detail: "Holt-Winters · Tendência + Sazonalidade + Resíduos",
   },
   {
     id: "garch",
     icon: Waves,
-    title: "Modelos GARCH",
-    subtitle: "Heterocedasticidade Condicional Autorregressiva Generalizada",
+    title: "GARCH(1,1)",
+    tag: "Volatilidade",
     color: "#f59e0b",
     description:
-      "Método projetado especificamente para prever a volatilidade (risco ou variância) futura, em vez de apenas o preço direcional. O gráfico demonstra visualmente como a dispersão dos resultados e o risco de oscilações extremas se expandem agressivamente.",
-    chartLabel: "Previsão de volatilidade",
-    chartCount: 1,
+      "Modelagem da variância condicional via GARCH(1,1). Captura clusters de volatilidade, estima VaR paramétrico e projeta a volatilidade futura anualizada. Essencial para sizing de posição e gestão de risco.",
+    detail: "Variância condicional · VaR · Vol Forecast",
   },
   {
     id: "var",
     icon: Network,
-    title: "Vetores Autorregressivos (VAR)",
-    subtitle: "Modelos Multivariados",
+    title: "VAR(p) — Vetores Autorregressivos",
+    tag: "Multivariado",
     color: "#ec4899",
     description:
-      "Modelos multivariados que preveem múltiplas variáveis simultaneamente, considerando como elas interagem entre si em sistemas complexos. A visualização utiliza múltiplos leques de confiança sobrepostos para ilustrar as dependências.",
-    chartLabel: "Leques de confiança interligados",
-    chartCount: 4,
+      "Sistema de equações simultâneas para modelar interdependências entre ativos, taxas de juros, câmbio e índices. Permite análise de impulso-resposta e decomposição de variância para entender transmissão de choques.",
+    detail: "IRF · Decomposição de Variância · Granger",
   },
 ];
 
-// ── Chart placeholder ────────────────────────────────────────────────────────
+// ── Chart renderers ──────────────────────────────────────────────────────────
 
-function ChartPlaceholder({ label, color }: { label: string; color: string }) {
+function MonteCarloChart({ data }: { data: Record<string, unknown> }) {
+  const perc = data.percentiles as { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] };
+  if (!perc) return null;
+
+  const chartData = perc.p50.map((_, i) => ({
+    t: i,
+    p5: perc.p5[i],
+    p25: perc.p25[i],
+    p50: perc.p50[i],
+    p75: perc.p75[i],
+    p95: perc.p95[i],
+  }));
+
+  const params = data.params as { mu_annual: number; sigma_annual: number } | undefined;
+
   return (
-    <div
-      className="relative w-full aspect-[16/9] rounded-xl border border-dashed flex flex-col items-center justify-center gap-3 transition-colors hover:border-solid"
-      style={{
-        borderColor: `${color}30`,
-        background: `linear-gradient(135deg, ${color}05 0%, ${color}02 100%)`,
-      }}
-    >
-      <ImageIcon size={28} style={{ color: `${color}40` }} />
-      <span className="text-[11px] font-medium" style={{ color: `${color}60` }}>
-        {label}
-      </span>
-      <span className="absolute bottom-2 right-3 text-[9px] text-zinc-600 uppercase tracking-wider">
-        placeholder
-      </span>
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} label={{ value: "Dias", position: "bottom", fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Area type="monotone" dataKey="p95" stroke="none" fill="#34d39915" name="P95" />
+          <Area type="monotone" dataKey="p75" stroke="none" fill="#34d39920" name="P75" />
+          <Area type="monotone" dataKey="p25" stroke="none" fill="#34d39920" name="P25" />
+          <Area type="monotone" dataKey="p5" stroke="none" fill="#34d39915" name="P5" />
+          <Line type="monotone" dataKey="p50" stroke="#34d399" strokeWidth={2} dot={false} name="Mediana" />
+          <Line type="monotone" dataKey="p75" stroke="#34d39980" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P75" />
+          <Line type="monotone" dataKey="p25" stroke="#34d39980" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P25" />
+          <Line type="monotone" dataKey="p95" stroke="#34d39950" strokeWidth={1} dot={false} strokeDasharray="2 2" name="P95" />
+          <Line type="monotone" dataKey="p5" stroke="#34d39950" strokeWidth={1} dot={false} strokeDasharray="2 2" name="P5" />
+        </AreaChart>
+      </ResponsiveContainer>
+      {params && (
+        <div className="flex gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+          <span>μ anual: {(params.mu_annual * 100).toFixed(2)}%</span>
+          <span>σ anual: {(params.sigma_annual * 100).toFixed(2)}%</span>
+          <span>Simulações: {String(data.n_simulations)}</span>
+          <span>Obs: {String(data.observations_used)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArimaChart({ data }: { data: Record<string, unknown> }) {
+  const historical = data.historical as number[] | undefined;
+  const forecast = data.forecast as number[] | undefined;
+  const ci95l = data.ci_95_lower as number[] | undefined;
+  const ci95u = data.ci_95_upper as number[] | undefined;
+  const ci80l = data.ci_80_lower as number[] | undefined;
+  const ci80u = data.ci_80_upper as number[] | undefined;
+  if (!historical || !forecast) return null;
+
+  const chartData = [
+    ...historical.map((v, i) => ({ t: i, historical: v })),
+    ...forecast.map((v, i) => ({
+      t: historical.length + i,
+      forecast: v,
+      ci80l: ci80l?.[i],
+      ci80u: ci80u?.[i],
+      ci95l: ci95l?.[i],
+      ci95u: ci95u?.[i],
+    })),
+  ];
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Area type="monotone" dataKey="ci95u" stroke="none" fill="#60a5fa10" name="IC 95%" />
+          <Area type="monotone" dataKey="ci95l" stroke="none" fill="transparent" name="" />
+          <Area type="monotone" dataKey="ci80u" stroke="none" fill="#60a5fa18" name="IC 80%" />
+          <Area type="monotone" dataKey="ci80l" stroke="none" fill="transparent" name="" />
+          <Line type="monotone" dataKey="historical" stroke="#a1a1aa" strokeWidth={1.5} dot={false} name="Histórico" />
+          <Line type="monotone" dataKey="forecast" stroke="#60a5fa" strokeWidth={2} dot={false} name="Previsão" />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className="flex gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        <span>Ordem: ARIMA{JSON.stringify(data.order)}</span>
+        <span>AIC: {Number(data.aic).toFixed(1)}</span>
+        <span>ADF p-value: {Number(data.adf_pvalue).toFixed(4)}</span>
+        <span>{data.stationary ? "Estacionária" : "Não-estacionária (d=1)"}</span>
+      </div>
+    </div>
+  );
+}
+
+function ProphetChart({ data }: { data: Record<string, unknown> }) {
+  const historical = data.historical as number[] | undefined;
+  const forecast = data.forecast as number[] | undefined;
+  const upper95 = data.upper_95 as number[] | undefined;
+  const lower95 = data.lower_95 as number[] | undefined;
+  if (!historical || !forecast) return null;
+
+  const chartData = [
+    ...historical.map((v, i) => ({ t: i, historical: v })),
+    ...forecast.map((v, i) => ({
+      t: historical.length + i,
+      forecast: v,
+      upper: upper95?.[i],
+      lower: lower95?.[i],
+    })),
+  ];
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Area type="monotone" dataKey="upper" stroke="none" fill="#8b5cf615" name="IC 95% sup" />
+          <Area type="monotone" dataKey="lower" stroke="none" fill="transparent" name="" />
+          <Line type="monotone" dataKey="historical" stroke="#a1a1aa" strokeWidth={1.5} dot={false} name="Histórico" />
+          <Line type="monotone" dataKey="forecast" stroke="#8b5cf6" strokeWidth={2} dot={false} name="Previsão" />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className="flex gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        <span>Horizonte: {String(data.horizon)} dias</span>
+        <span>Obs: {String(data.observations_used)}</span>
+      </div>
+    </div>
+  );
+}
+
+function GarchChart({ data }: { data: Record<string, unknown> }) {
+  const condVol = data.conditional_vol as number[] | undefined;
+  const realVol = data.realized_vol as number[] | undefined;
+  const volForecast = data.vol_forecast as number[] | undefined;
+  if (!condVol) return null;
+
+  const maxHist = Math.max(condVol.length, realVol?.length ?? 0);
+  const chartData = [
+    ...Array.from({ length: maxHist }).map((_, i) => ({
+      t: i,
+      conditional: condVol[i] != null ? +(condVol[i] * 100).toFixed(2) : undefined,
+      realized: realVol && realVol[i] != null ? +(realVol[i] * 100).toFixed(2) : undefined,
+    })),
+    ...(volForecast ?? []).map((v, i) => ({
+      t: maxHist + i,
+      forecast: +(v * 100).toFixed(2),
+    })),
+  ];
+
+  const params = data.params as { alpha: number; beta: number; persistence: number } | undefined;
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <RLineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit="%" />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Line type="monotone" dataKey="conditional" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="Vol Condicional" />
+          <Line type="monotone" dataKey="realized" stroke="#71717a" strokeWidth={1} dot={false} name="Vol Realizada (21d)" />
+          <Line type="monotone" dataKey="forecast" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="6 3" name="Forecast" />
+        </RLineChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        {params && <>
+          <span>α: {params.alpha.toFixed(4)}</span>
+          <span>β: {params.beta.toFixed(4)}</span>
+          <span>Persistência: {params.persistence.toFixed(4)}</span>
+        </>}
+        <span>VaR 95% anual: {((data.var_95_annual as number) * 100).toFixed(2)}%</span>
+        <span>Vol atual: {((data.current_vol_annual as number) * 100).toFixed(1)}% a.a.</span>
+      </div>
+    </div>
+  );
+}
+
+function VarChart({ data }: { data: Record<string, unknown> }) {
+  const variables = data.variables as string[] | undefined;
+  const forecast = data.forecast as Record<string, number[]> | undefined;
+  const historical = data.historical as Record<string, number[]> | undefined;
+  const irf = data.irf as Record<string, Record<string, number[]>> | undefined;
+  if (!variables || !forecast) return null;
+
+  const colors = ["#ec4899", "#60a5fa", "#34d399", "#f59e0b"];
+
+  const forecastData = Array.from({ length: (forecast[variables[0]] ?? []).length }).map((_, i) => {
+    const point: Record<string, number | string> = { t: i };
+    variables.forEach(v => { point[v] = forecast[v]?.[i] ?? 0; });
+    return point;
+  });
+
+  const irfShock = variables[0];
+  const irfData = irf && irf[irfShock]
+    ? Array.from({ length: (irf[irfShock][variables[0]] ?? []).length }).map((_, i) => {
+        const point: Record<string, number | string> = { t: i };
+        variables.forEach(v => { point[v] = (irf[irfShock]?.[v]?.[i] ?? 0) * 10000; });
+        return point;
+      })
+    : [];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-2">Previsão multivariada ({data.lag_order as number} lags)</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <RLineChart data={forecastData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+            <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+            <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            {variables.map((v, i) => (
+              <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
+            ))}
+          </RLineChart>
+        </ResponsiveContainer>
+      </div>
+      {irfData.length > 0 && (
+        <div>
+          <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-2">
+            Impulso-Resposta (choque em {irfShock}) · bps
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <RLineChart data={irfData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} label={{ value: "Períodos", position: "bottom", fontSize: 10, fill: "#71717a" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit=" bps" />
+              <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              {variables.map((v, i) => (
+                <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
+              ))}
+            </RLineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <div className="flex gap-4 text-[10px] text-zinc-500 font-mono">
+        <span>Variáveis: {variables.join(", ")}</span>
+        <span>Lags: {String(data.lag_order)}</span>
+        <span>Obs: {String(data.observations_used)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Chart dispatcher ─────────────────────────────────────────────────────────
+
+function ResultChart({ methodId, data }: { methodId: string; data: Record<string, unknown> }) {
+  switch (methodId) {
+    case "monte-carlo": return <MonteCarloChart data={data} />;
+    case "arima": return <ArimaChart data={data} />;
+    case "prophet": return <ProphetChart data={data} />;
+    case "garch": return <GarchChart data={data} />;
+    case "var": return <VarChart data={data} />;
+    default: return null;
+  }
+}
+
+// ── Method Card ──────────────────────────────────────────────────────────────
+
+function MethodCard({ method, idx }: { method: MethodDef; idx: number }) {
+  const [result, setResult] = useState<ModelResult>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch(`${API}/api/preditivo/${method.id}`);
+      const json = await res.json();
+      if (json.error) {
+        setError(json.error);
+      } else {
+        setResult(json);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro de conexão");
+    } finally {
+      setLoading(false);
+    }
+  }, [method.id]);
+
+  const Icon = method.icon;
+
+  return (
+    <div className="glass-card overflow-hidden" style={{ borderColor: `${method.color}0a` }}>
+      {/* Header */}
+      <div className="flex items-center gap-4 px-6 py-4 border-b border-zinc-800/50">
+        <div
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: `${method.color}10` }}
+        >
+          <Icon size={18} style={{ color: method.color }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-bold text-zinc-200 truncate">
+              {method.title}
+            </h2>
+            <span
+              className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+              style={{ color: method.color, background: `${method.color}12` }}
+            >
+              {method.tag}
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 font-mono mt-0.5">
+            {method.detail}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-zinc-700 font-mono shrink-0">
+            #{String(idx + 1).padStart(2, "0")}
+          </span>
+          <button
+            onClick={run}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-50"
+            style={{
+              background: `${method.color}15`,
+              color: method.color,
+              border: `1px solid ${method.color}30`,
+            }}
+          >
+            {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+            {loading ? "Calculando..." : "Executar"}
+          </button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="px-6 py-5">
+        <p className="text-[13px] text-zinc-400 leading-relaxed mb-5">
+          {method.description}
+        </p>
+
+        {error && (
+          <div className="rounded-lg p-3 mb-4 text-[11px] text-red-400 bg-red-500/8 border border-red-500/15">
+            {error}
+          </div>
+        )}
+
+        {result && <ResultChart methodId={method.id} data={result} />}
+
+        {!result && !loading && !error && (
+          <div
+            className="w-full aspect-[16/9] rounded-lg border flex items-center justify-center"
+            style={{ borderColor: `${method.color}15`, background: `${method.color}03` }}
+          >
+            <span className="text-[11px] text-zinc-600 font-mono">
+              Clique em Executar para rodar o modelo
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -135,87 +457,38 @@ export default function PreditivoPage() {
     <>
       <PageHeader
         title="Estatísticas Preditivas"
-        description="Simulações, projeções e análise de cenários"
+        description="Econometria aplicada ao portfólio"
       />
 
-      {/* ── Banner ── */}
-      <div className="glass-card p-6 mb-6 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 mb-4">
-          <Lock size={14} className="text-purple-400" />
-          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Em construção</span>
+      {/* ── Status bar ── */}
+      <div className="glass-card p-4 mb-6 flex flex-wrap items-center gap-4 text-[11px]">
+        <div className="flex items-center gap-2">
+          <Database size={13} className="text-zinc-500" />
+          <span className="text-zinc-500">Fonte:</span>
+          <span className="text-zinc-300 font-semibold">db_cotacoes · retornos diários</span>
         </div>
-        <h2 className="text-lg font-bold text-zinc-200 mb-2">
-          Módulo preditivo em desenvolvimento
-        </h2>
-        <p className="text-sm text-zinc-500 max-w-lg mx-auto">
-          Projeções Monte Carlo, análise de cenários, detecção de regime de mercado
-          e stress testing — tudo calibrado com os dados reais do seu portfólio.
-        </p>
+        <div className="hidden sm:block h-3 w-px bg-zinc-800" />
+        <div className="flex items-center gap-2">
+          <Clock size={13} className="text-zinc-500" />
+          <span className="text-zinc-500">Horizonte padrão:</span>
+          <span className="text-zinc-300 font-semibold">252 dias úteis</span>
+        </div>
+        <div className="hidden sm:block h-3 w-px bg-zinc-800" />
+        <div className="flex items-center gap-2">
+          <Sigma size={13} className="text-zinc-500" />
+          <span className="text-zinc-500">Confiança:</span>
+          <span className="text-zinc-300 font-semibold">95%</span>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15">
+          <FlaskConical size={12} className="text-emerald-400" />
+          <span className="text-emerald-400 font-semibold uppercase tracking-wider text-[9px]">Operacional</span>
+        </div>
       </div>
 
-      {/* ── Methods Catalog ── */}
-      <div className="space-y-5 mb-8">
-        {METHODS.map(method => (
-          <div
-            key={method.id}
-            className="glass-card p-6"
-            style={{ borderColor: `${method.color}10` }}
-          >
-            <div className="flex items-start gap-4 mb-4">
-              <div
-                className="p-2.5 rounded-xl shrink-0"
-                style={{ background: `${method.color}12` }}
-              >
-                <method.icon size={22} style={{ color: method.color }} />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-zinc-200">
-                  {method.title}
-                </h2>
-                {method.subtitle && (
-                  <p className="text-[11px] text-zinc-500 mt-0.5">
-                    {method.subtitle}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <p className="text-sm text-zinc-400 leading-relaxed mb-5">
-              {method.description}
-            </p>
-
-            {method.chartCount === 1 ? (
-              <ChartPlaceholder label={method.chartLabel} color={method.color} />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {Array.from({ length: method.chartCount }).map((_, i) => (
-                  <ChartPlaceholder
-                    key={i}
-                    label={`${method.chartLabel} (${i + 1})`}
-                    color={method.color}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* ── Planned Features Grid ── */}
-      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 px-1">
-        Funcionalidades planejadas
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {PLANNED.map(item => (
-          <div key={item.title} className="glass-card p-5 opacity-60 hover:opacity-80 transition-opacity">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg" style={{ background: `${item.color}15` }}>
-                <item.icon size={18} style={{ color: item.color }} />
-              </div>
-              <h3 className="text-sm font-semibold text-zinc-300">{item.title}</h3>
-            </div>
-            <p className="text-xs text-zinc-500 leading-relaxed">{item.desc}</p>
-          </div>
+      {/* ── Methods ── */}
+      <div className="space-y-4">
+        {METHODS.map((method, idx) => (
+          <MethodCard key={method.id} method={method} idx={idx} />
         ))}
       </div>
     </>
