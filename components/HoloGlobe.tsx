@@ -361,8 +361,8 @@ function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (
       <OrbitControls
         enableZoom
         enablePan={false}
-        minDistance={1.5}
-        maxDistance={3.5}
+        minDistance={1.35}
+        maxDistance={4.0}
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.4}
@@ -1829,12 +1829,16 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   return (
     <div className={animClass} style={{ width: "100%" }}>
       <div style={{
-        width: isBlackHole ? "min(420px, 95vw)" : "min(320px, 80vw)",
-        height: isBlackHole ? "min(360px, 82vw)" : "min(320px, 80vw)",
-        margin: isBlackHole ? "-10px auto -16px" : "0 auto",
+        width: isBlackHole ? "min(420px, 95vw)" : isPlanet ? "min(320px, 80vw)" : "100vw",
+        height: isBlackHole ? "min(360px, 82vw)" : isPlanet ? "min(320px, 80vw)" : "100vh",
+        maxHeight: (!isBlackHole && !isPlanet) ? "100vh" : undefined,
+        margin: isBlackHole ? "-10px auto -16px" : (!isPlanet) ? "-20px auto -10px" : "0 auto",
+        position: (!isBlackHole && !isPlanet) ? "relative" : undefined,
+        left: (!isBlackHole && !isPlanet) ? "50%" : undefined,
+        transform: (!isBlackHole && !isPlanet) ? "translateX(-50%)" : undefined,
       }}>
         <Canvas
-          camera={{ position: [0, 0, 3.2], fov: 40 }}
+          camera={{ position: [0, 0, 2.8], fov: 45 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
           dpr={[1, 2]}
@@ -1855,9 +1859,9 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
       {/* Shadow */}
       <div
         style={{
-          width: isBlackHole ? "50%" : "40%",
+          width: isBlackHole ? "50%" : isPlanet ? "40%" : "30%",
           height: isBlackHole ? 12 : 14,
-          margin: isBlackHole ? "0 auto 0" : "-6px auto 0",
+          margin: isBlackHole ? "0 auto 0" : isPlanet ? "-6px auto 0" : "-20px auto 0",
           background: isBlackHole
             ? "radial-gradient(ellipse, rgba(255,120,20,0.12) 0%, transparent 65%)"
             : displayMode === "sol"

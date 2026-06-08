@@ -72,13 +72,31 @@ const INDICES: IndexMeta[] = [
 
   // Middle East
   { symbol: "^TA125.TA", tvSymbol: "TASE:TA125",          name: "TA-125",                 country: "Israel",        flag: "\u{1f1ee}\u{1f1f1}", region: "Middle East", lat: 32.1,  lng: 34.8 },
+  { symbol: "^TASI.SR",  tvSymbol: "TADAWUL:TASI",        name: "Tadawul All Share",      country: "Arábia Saudita", flag: "\u{1f1f8}\u{1f1e6}", region: "Middle East", lat: 24.7, lng: 46.7 },
+  { symbol: "^DFMGI",    tvSymbol: "DFM:DFMGI",           name: "Dubai Financial Market", country: "Emirados",      flag: "\u{1f1e6}\u{1f1ea}", region: "Middle East", lat: 25.2,  lng: 55.3 },
+  { symbol: "^ADI",      tvSymbol: "ADX:ADI",             name: "Abu Dhabi Index",        country: "Emirados",      flag: "\u{1f1e6}\u{1f1ea}", region: "Middle East", lat: 24.5,  lng: 54.4 },
+  { symbol: "^QSI",      tvSymbol: "QSE:GNRI",            name: "Qatar General",          country: "Catar",         flag: "\u{1f1f6}\u{1f1e6}", region: "Middle East", lat: 25.3,  lng: 51.5 },
 
   // Africa
   { symbol: "^J203.JO",  tvSymbol: "JSE:J203",            name: "JSE All Share",          country: "África do Sul", flag: "\u{1f1ff}\u{1f1e6}", region: "Africa",  lat: -26.2, lng: 28.0 },
   { symbol: "^CASE30",   tvSymbol: "EGX:EGX30",           name: "EGX 30",                 country: "Egito",         flag: "\u{1f1ea}\u{1f1ec}", region: "Africa",      lat: 30.0,  lng: 31.2 },
+  { symbol: "^MASI",     tvSymbol: "CSE:MASI",            name: "MASI Casablanca",        country: "Marrocos",      flag: "\u{1f1f2}\u{1f1e6}", region: "Africa",      lat: 33.6,  lng: -7.6 },
+  { symbol: "^NGSEINDX", tvSymbol: "NGXGROUP:NGSE",       name: "NGX All Share",          country: "Nigéria",       flag: "\u{1f1f3}\u{1f1ec}", region: "Africa",      lat: 6.5,   lng: 3.4 },
+  { symbol: "^NSE20",    tvSymbol: "NSE:NSE20",           name: "NSE 20",                 country: "Quênia",        flag: "\u{1f1f0}\u{1f1ea}", region: "Africa",      lat: -1.3,  lng: 36.8 },
 
   // Oceania
   { symbol: "^AXJO",     tvSymbol: "ASX:XJO",             name: "ASX 200",                country: "Austrália", flag: "\u{1f1e6}\u{1f1fa}", region: "Oceania",    lat: -33.9, lng: 151.2 },
+
+  // Americas (additional)
+  { symbol: "^COLCAP",   tvSymbol: "BVC:COLCAP",          name: "COLCAP",                 country: "Colômbia",      flag: "\u{1f1e8}\u{1f1f4}", region: "Americas",    lat: 4.7,   lng: -74.1 },
+  { symbol: "^SPBLPGPT", tvSymbol: "BVL:SPBLPGPT",        name: "S&P/BVL Peru",           country: "Peru",          flag: "\u{1f1f5}\u{1f1ea}", region: "Americas",    lat: -12.0, lng: -77.0 },
+
+  // Asia (additional)
+  { symbol: "^VNINDEX",  tvSymbol: "HOSE:VNINDEX",        name: "VN-Index",               country: "Vietnã",        flag: "\u{1f1fb}\u{1f1f3}", region: "Asia",        lat: 10.8,  lng: 106.7 },
+  { symbol: "^PSEi",     tvSymbol: "PSE:PSEi",            name: "PSEi Composite",         country: "Filipinas",     flag: "\u{1f1f5}\u{1f1ed}", region: "Asia",        lat: 14.6,  lng: 121.0 },
+  { symbol: "^KSE",      tvSymbol: "PSX:KSE100",          name: "KSE 100",                country: "Paquistão",     flag: "\u{1f1f5}\u{1f1f0}", region: "Asia",        lat: 24.9,  lng: 67.0 },
+  { symbol: "^CSE",      tvSymbol: "CSE:ASPI",            name: "CSE All Share",          country: "Sri Lanka",     flag: "\u{1f1f1}\u{1f1f0}", region: "Asia",        lat: 6.9,   lng: 79.9 },
+  { symbol: "^BETI",     tvSymbol: "BET:BETI",            name: "Dhaka DSEX",             country: "Bangladesh",    flag: "\u{1f1e7}\u{1f1e9}", region: "Asia",        lat: 23.8,  lng: 90.4 },
 ];
 
 function closeNDaysAgo(history: HistoryPoint[], days: number): number | null {
