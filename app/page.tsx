@@ -19,9 +19,6 @@ import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import type { PolyEvent } from "@/lib/polymarket";
-import dynamic from "next/dynamic";
-
-const GlobeExchanges = dynamic(() => import("@/components/GlobeExchanges"), { ssr: false });
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -846,15 +843,6 @@ export default function HomePage() {
           <ErrorBoundary>
             <div className="w-full flex justify-center mb-4 animate-fade-in animate-delay-1">
               <TickerTape items={tickerItems} />
-            </div>
-          </ErrorBoundary>
-        )}
-
-        {/* ── Globe — Stock Exchanges & Geopolitics ── */}
-        {!loading && (
-          <ErrorBoundary>
-            <div className="w-screen relative left-1/2 -translate-x-1/2 mb-5 animate-fade-in animate-delay-2">
-              <GlobeExchanges />
             </div>
           </ErrorBoundary>
         )}
