@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agent, cambio, composicao, financas, fluxos, historico, market, performance, portfolio, proventos, sheets
+from app.routers import agent, cambio, composicao, financas, fluxos, historico, market, performance, portfolio, preditivo, proventos, sheets
 
 app = FastAPI(
     title="Meus Investimentos API",
@@ -38,6 +38,7 @@ app.include_router(financas.router)
 app.include_router(historico.router)
 app.include_router(agent.router)
 app.include_router(fluxos.router)
+app.include_router(preditivo.router)
 
 
 @app.get("/health")
