@@ -1,8 +1,7 @@
 """Predictive analytics endpoints — econometric models on portfolio data.
 
-Data flow: Frontend fetches db_cotacoes from Next.js API (/api/sheets/db_cotacoes),
-then POSTs the rows to these endpoints. This avoids the Python backend needing
-direct Google Sheets access.
+Python reads db_cotacoes directly from Google Sheets (env vars available on Vercel).
+All endpoints are GET for simplicity — the frontend just calls the URL.
 """
 from __future__ import annotations
 
@@ -11,8 +10,8 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
 
+from app.services.gsheets_service import fetch_tab
 from app.services.preditivo_service import (
     monte_carlo,
     arima_forecast,
@@ -27,75 +26,107 @@ router = APIRouter(prefix="/api/preditivo", tags=["preditivo"])
 Row = dict[str, Any]
 
 
-class PreditivoRequest(BaseModel):
-    rows: list[dict[str, Any]]
-    tickers: list[str] | None = None
+async def _get_cotacoes() -> list[Row]:
+    """Fetch db_cotacoes from Google Sheets."""
+    try:
+        rows = await fetch_tab("db_cotacoes")
+        logger.info("db_cotacoes: %d rows, cols=%s", len(rows), list(rows[0].keys())[:5] if rows else [])
+        return rows
+    except Exception as e:
+        logger.error("Failed to fetch db_cotacoes: %s", e, exc_info=True)
+        return []
 
 
-class MonteCarloRequest(PreditivoRequest):
-    simulations: int = 1000
-    horizon: int = 252
-    initial_value: float = 100.0
+def _parse_tickers(tickers: str | None) -> list[str] | None:
+    if not tickers:
+        return None
+    return [t.strip().upper() for t in tickers.split(",") if t.strip()]
 
 
-class HorizonRequest(PreditivoRequest):
-    horizon: int = 60
+def _no_data_error():
+    return {"error": "Não foi possível ler db_cotacoes. Verifique GOOGLE_API_KEY e SPREADSHEET_ID."}
 
 
-class VarRequest(PreditivoRequest):
-    horizon: int = 30
-    max_vars: int = 4
+@router.get("/status")
+async def endpoint_status():
+    """Diagnostic: shows what data is available."""
+    rows = await _get_cotacoes()
+    if not rows:
+        return {"ok": False, "error": "db_cotacoes vazio ou inacessível", "rows": 0}
+    headers = list(rows[0].keys())
+    return {
+        "ok": True,
+        "rows": len(rows),
+        "columns": len(headers),
+        "tickers": headers[1:],
+        "first_date": rows[0].get(headers[0]),
+        "last_date": rows[-1].get(headers[0]),
+    }
 
 
-def _error_no_data():
-    return {"error": "Nenhum dado recebido. Verifique se db_cotacoes está populado."}
-
-
-@router.post("/monte-carlo")
-async def endpoint_monte_carlo(req: MonteCarloRequest):
-    if not req.rows:
-        return _error_no_data()
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, monte_carlo, req.rows, req.tickers, req.simulations, req.horizon, req.initial_value
+@router.get("/monte-carlo")
+async def endpoint_monte_carlo(
+    tickers: str | None = Query(None),
+    simulations: int = Query(1000, ge=100, le=10000),
+    horizon: int = Query(252, ge=10, le=504),
+    initial_value: float = Query(100.0, ge=1),
+):
+    rows = await _get_cotacoes()
+    if not rows:
+        return _no_data_error()
+    return await asyncio.get_event_loop().run_in_executor(
+        None, monte_carlo, rows, _parse_tickers(tickers), simulations, horizon, initial_value
     )
-    return result
 
 
-@router.post("/arima")
-async def endpoint_arima(req: HorizonRequest):
-    if not req.rows:
-        return _error_no_data()
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, arima_forecast, req.rows, req.tickers, req.horizon
+@router.get("/arima")
+async def endpoint_arima(
+    tickers: str | None = Query(None),
+    horizon: int = Query(60, ge=5, le=252),
+):
+    rows = await _get_cotacoes()
+    if not rows:
+        return _no_data_error()
+    return await asyncio.get_event_loop().run_in_executor(
+        None, arima_forecast, rows, _parse_tickers(tickers), horizon
     )
-    return result
 
 
-@router.post("/prophet")
-async def endpoint_prophet(req: HorizonRequest):
-    if not req.rows:
-        return _error_no_data()
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, prophet_forecast, req.rows, req.tickers, req.horizon
+@router.get("/prophet")
+async def endpoint_prophet(
+    tickers: str | None = Query(None),
+    horizon: int = Query(60, ge=5, le=252),
+):
+    rows = await _get_cotacoes()
+    if not rows:
+        return _no_data_error()
+    return await asyncio.get_event_loop().run_in_executor(
+        None, prophet_forecast, rows, _parse_tickers(tickers), horizon
     )
-    return result
 
 
-@router.post("/garch")
-async def endpoint_garch(req: HorizonRequest):
-    if not req.rows:
-        return _error_no_data()
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, garch_forecast, req.rows, req.tickers, req.horizon
+@router.get("/garch")
+async def endpoint_garch(
+    tickers: str | None = Query(None),
+    horizon: int = Query(60, ge=5, le=252),
+):
+    rows = await _get_cotacoes()
+    if not rows:
+        return _no_data_error()
+    return await asyncio.get_event_loop().run_in_executor(
+        None, garch_forecast, rows, _parse_tickers(tickers), horizon
     )
-    return result
 
 
-@router.post("/var")
-async def endpoint_var(req: VarRequest):
-    if not req.rows:
-        return _error_no_data()
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, var_forecast, req.rows, req.tickers, req.horizon, req.max_vars
+@router.get("/var")
+async def endpoint_var(
+    tickers: str | None = Query(None),
+    horizon: int = Query(30, ge=5, le=120),
+    max_vars: int = Query(4, ge=2, le=8),
+):
+    rows = await _get_cotacoes()
+    if not rows:
+        return _no_data_error()
+    return await asyncio.get_event_loop().run_in_executor(
+        None, var_forecast, rows, _parse_tickers(tickers), horizon, max_vars
     )
-    return result
