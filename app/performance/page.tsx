@@ -418,7 +418,8 @@ export default function PerformancePage() {
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
         const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
-        const retornoSimples = custoFIFO > 0 ? ((navAtual - custoFIFO + (isUnfiltered && ganhoCanonical != null ? 0 : 0)) / custoFIFO) * 100 : 0;
+        const lucroSimples = navAtual - custoFIFO;
+        const retornoSimplesPct = custoFIFO > 0 ? (lucroSimples / custoFIFO) * 100 : 0;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -438,12 +439,12 @@ export default function PerformancePage() {
                 </p>
                 <p className="text-[10px] text-zinc-500 mt-1">TIR {pct(mwrPct)} a.a.</p>
               </div>
-              <div title="Retorno simples: (patrimônio atual − custo FIFO) / custo FIFO">
-                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Retorno Simples</p>
-                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${retornoSimples >= 0 ? "text-amber-400" : "text-red-400"}`}>
-                  {retornoSimples >= 0 ? "+" : ""}{retornoSimples.toFixed(2)}%
+              <div title="Lucro simples: patrimônio atual − custo FIFO das posições atuais">
+                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Lucro Simples</p>
+                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${lucroSimples >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                  {lucroSimples >= 0 ? "+" : ""}{compactCurr(lucroSimples)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">{compactCurr(navAtual)} / {compactCurr(custoFIFO)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{retornoSimplesPct >= 0 ? "+" : ""}{retornoSimplesPct.toFixed(2)}% sobre {compactCurr(custoFIFO)}</p>
               </div>
             </div>
 
