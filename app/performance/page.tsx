@@ -419,11 +419,13 @@ export default function PerformancePage() {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+        const isAllTime = lookback === 0 && !customMode;
+        const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
         const ge = isUnfiltered && ganhoCanonical != null
           ? ganhoCanonical
-          : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
-        const custoFIFO = s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido;
-        const retornoTotalPct = s.resultadoTotalPct != null && !isUnfiltered
+          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
+        const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
           : custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
 
@@ -727,13 +729,15 @@ export default function PerformancePage() {
                   ),
                   { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
-                  { label: "Investido", value: compactCurr(s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido) },
+                  { label: "Investido", value: compactCurr((tickerFilter && lookback === 0 && !customMode && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
                     const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                    const isAllT = lookback === 0 && !customMode;
+                    const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
                     const ge = isUnfiltered && ganhoCanonical != null
                       ? ganhoCanonical
-                      : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
+                      : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
                     return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
