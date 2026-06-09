@@ -425,9 +425,10 @@ export default function PerformancePage() {
           ? ganhoCanonical
           : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
+        const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
-          : custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
+          : pctBase > 0 ? (ge / pctBase) * 100 : 0;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -452,7 +453,7 @@ export default function PerformancePage() {
                 <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">{retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(custoFIFO)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}</p>
               </div>
             </div>
 
@@ -486,7 +487,7 @@ export default function PerformancePage() {
                 <div>
                   <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio</p>
                   <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
-                  <p className="text-[10px] text-zinc-500">Investido {compactCurr(custoFIFO)}</p>
+                  <p className="text-[10px] text-zinc-500">{isAllTime ? "Investido" : "NAV inicial"} {compactCurr(isAllTime ? custoFIFO : s.navInicial)}</p>
                 </div>
               </div>
             </div>
@@ -721,7 +722,7 @@ export default function PerformancePage() {
                   ),
                   { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
-                  { label: "Investido", value: compactCurr((tickerFilter && lookback === 0 && !customMode && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) },
+                  { label: (lookback === 0 && !customMode) ? "Investido" : "NAV inicial", value: compactCurr((lookback === 0 && !customMode) ? ((tickerFilter && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) : s.navInicial) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
                     const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
