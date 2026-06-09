@@ -292,32 +292,9 @@ export default function BolsasPage() {
           />
         </div>
 
-        {/* ── Index Thermometer (dynamic) ── */}
-        {(() => {
-          const focusIdx = customAsset ?? selectedIndex ?? sp;
-          if (!focusIdx) return null;
-          const cachedPeriods = periodsCache[focusIdx.symbol];
-          return (
-            <IndexThermometer
-              index={focusIdx}
-              vix={vix ?? null}
-              periods={cachedPeriods ?? null}
-              breadth={data.breadth}
-              historyLoading={periodsLoading && cachedPeriods === undefined}
-              isDefault={!selectedIndex && !customAsset}
-              isCustom={!!customAsset}
-              expanded={chartExpanded}
-              onToggleExpand={() => setChartExpanded(e => !e)}
-              onSelectStock={handleSelectStock}
-              onClearCustom={handleClearCustom}
-              parentIndex={selectedIndex ?? sp ?? null}
-            />
-          );
-        })()}
-
-        {/* ── Heatmap World Map (sticky on desktop) ── */}
+        {/* ── Heatmap World Map ── */}
         <div
-          className="rounded-2xl p-3 md:p-5 overflow-hidden lg:sticky lg:top-4 z-20"
+          className="rounded-2xl p-3 md:p-5 overflow-hidden"
           style={{
             background: "rgba(13,14,20,0.92)",
             border: "1px solid rgba(255,255,255,0.06)",
@@ -374,6 +351,29 @@ export default function BolsasPage() {
             <span className="text-[9px] text-zinc-600 ml-2">tamanho = intensidade</span>
           </div>
         </div>
+
+        {/* ── Index Thermometer (dynamic) ── */}
+        {(() => {
+          const focusIdx = customAsset ?? selectedIndex ?? sp;
+          if (!focusIdx) return null;
+          const cachedPeriods = periodsCache[focusIdx.symbol];
+          return (
+            <IndexThermometer
+              index={focusIdx}
+              vix={vix ?? null}
+              periods={cachedPeriods ?? null}
+              breadth={data.breadth}
+              historyLoading={periodsLoading && cachedPeriods === undefined}
+              isDefault={!selectedIndex && !customAsset}
+              isCustom={!!customAsset}
+              expanded={chartExpanded}
+              onToggleExpand={() => setChartExpanded(e => !e)}
+              onSelectStock={handleSelectStock}
+              onClearCustom={handleClearCustom}
+              parentIndex={selectedIndex ?? sp ?? null}
+            />
+          );
+        })()}
 
         {/* ── Selected Index Detail ── */}
         {selectedIndex && (
