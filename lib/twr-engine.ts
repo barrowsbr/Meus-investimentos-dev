@@ -819,8 +819,12 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const firstMeaningfulFlow = points[firstIdx].flow;
   const ganhoEconomico = last.nav - firstMeaningful.nav - flowsFromFirst + firstMeaningfulFlow + incomeFromFirst;
 
+  // Exclude flows on or before firstMeaningful.date — they're already
+  // captured in navInicial (end-of-day NAV). Including them double-counts
+  // the initial investment, systematically understating MWR.
+  const mwrFlowsAfterFirst = mwrFlows.filter(f => f.date > firstMeaningful.date);
   const mwr = calculateMWR(
-    mwrFlows, last.nav, last.date,
+    mwrFlowsAfterFirst, last.nav, last.date,
     firstMeaningful.nav, firstMeaningful.date,
   );
 
