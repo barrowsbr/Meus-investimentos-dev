@@ -13,45 +13,18 @@
       "schedule": "0 23 * * 1-5"
     }
   ],
+    "//": "Python (api/index.py) serve APENAS o que é genuinamente Python: ML/preditivo, agente/IA, e endpoints sem equivalente TS (fluxos, historico). TODA matemática de portfólio/proventos/câmbio/RF é TypeScript (lib/portfolio.ts → /api/cotacoes, /api/composicao/*, /api/renda-fixa/*). NÃO adicionar rewrites que sobreponham rotas TS — isso recria a divergência de cálculo.",
   "rewrites": [
-    {
-      "source": "/api/portfolio",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/composicao/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/renda-fixa/:path*",
-      "destination": "/api/index"
-    },
     {
       "source": "/api/fluxos",
       "destination": "/api/index"
     },
     {
-      "source": "/api/agent/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/market/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/proventos/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/cambio/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/api/financas/:path*",
-      "destination": "/api/index"
-    },
-    {
       "source": "/api/historico/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api/agent/:path*",
       "destination": "/api/index"
     },
     {
