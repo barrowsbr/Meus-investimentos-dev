@@ -167,7 +167,6 @@ export function calcularCarteiraFIFO(
     }
     const pos = portfolio.get(ticker)!;
 
-    const isCrypto = setor === "Cripto";
     const isUsdAsset = moeda === "USD";
     const lotFx = isUsdAsset && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
 
@@ -253,13 +252,32 @@ export function enriquecerPosicoes(
       valorAtualBRL = custoTotal * fatorAtual;
     }
 
-    // For USD assets: use per-lot PTAX rate at purchase date for accurate BRL cost
+    // ── Custo cambial híbrido (fonte única de "efeito cambial") ───────────────
+    // Para ativos em moeda estrangeira, o custo em BRL e a decomposição usam o
+    // pmDólar/pmEuro REAL das suas remessas (via fxCusto = buildPmFxRates), e não
+    // a PTAX da data de compra. Assim "Investido", "Lucro" e a "Decomposição de
+    // Fatores" do Resumo passam a usar a MESMA taxa de referência que a página
+    // Câmbio. Fallback: PTAX por lote → câmbio atual, quando não há remessa.
     const isCrypto = setor === "Cripto";
     const isUsdAsset = moeda === "USD";
-    const hasPerLotFx = isUsdAsset && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
-    const custoTotalBRL = hasPerLotFx
-      ? pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0)
-      : custoTotal * fatorCusto;
+    const isForeign = moeda !== "BRL" && !isCrypto;
+    const pmFxRate = fxToBRL(moeda, fxCusto); // pmDólar-based (0 se sem remessa na moeda)
+    const hasPerLotFx = (isUsdAsset || isForeign) && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
+
+    let custoTotalBRL: number;
+    let fxCostBasis: number; // P0 — câmbio médio de aquisição (R$/moeda)
+    if (isForeign && pmFxRate > 0) {
+      fxCostBasis = pmFxRate;
+      custoTotalBRL = custoTotal * pmFxRate;
+    } else if (hasPerLotFx) {
+      custoTotalBRL = pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0);
+      fxCostBasis = custoTotal > 0 ? custoTotalBRL / custoTotal : fatorCusto;
+    } else {
+      const rate = fatorCusto > 0 ? fatorCusto : fatorAtual;
+      custoTotalBRL = custoTotal * rate;
+      fxCostBasis = rate;
+    }
+
     const lucroBRL = precoAtual !== null ? valorAtualBRL - custoTotalBRL : null;
     const lucroPct = lucroBRL !== null && custoTotalBRL > 0
       ? (lucroBRL / custoTotalBRL) * 100
@@ -274,11 +292,11 @@ export function enriquecerPosicoes(
     let pmFxAquisicao: number | null = null;
     let fxAtualBRL: number | null = null;
 
-    if (precoAtual !== null && moeda !== "BRL" && !isCrypto) {
+    if (precoAtual !== null && isForeign) {
       // Capital na moeda funcional (V0 custo, V1 atual) e câmbios P0/P1.
       const V0 = custoTotal;                                   // USD custo
       const V1 = precoAtual * qtdTotal;                        // USD atual
-      const P0 = custoTotal > 0 ? custoTotalBRL / custoTotal : fatorCusto; // câmbio médio aquisição
+      const P0 = fxCostBasis;                                  // câmbio médio aquisição (pmDólar)
       const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
       const P1 = fatorQuote;                                   // câmbio atual
       pmFxAquisicao = P0;

@@ -782,6 +782,33 @@ cumret_fx    = (1 + portfolio_daily_fx).cumprod() - 1
 total_twr    = (1 + cumret_asset.iloc[-1]) * (1 + cumret_fx.iloc[-1]) - 1
 ```
 
+### Decomposição de snapshot (TS — `lib/portfolio.ts`) — FONTE ÚNICA
+
+A decomposição instantânea (a que aparece no **Resumo/DRE** e na página **Câmbio**)
+usa 3 fatores por posição, com câmbio de custo `P0` e câmbio atual `P1`:
+
+```
+V0 = custo em moeda funcional (USD)        V1 = valor atual em USD
+P0 = pmDólar real das remessas             P1 = câmbio atual (spot)
+
+ganhoAtivoPuro    = (V1 − V0) · P0
+ganhoFXPrincipal  = V0 · (P1 − P0)
+ganhoCruzado      = (V1 − V0) · (P1 − P0)
+efeitoCambial     = ganhoFXPrincipal + ganhoCruzado
+custoTotalBRL     = V0 · P0           (mantém: puro + principal + cruzado = lucroBRL)
+```
+
+**Regra canônica do câmbio de custo (`P0`):** para ativos em moeda estrangeira,
+`P0` é o **pmDólar/pmEuro real das suas remessas** (`buildPmFxRates` → `fxCusto`),
+NÃO a PTAX da data de compra do ativo. Assim "Investido", "Lucro" e "Efeito
+Cambial" usam a mesma taxa de referência da página Câmbio. Fallback quando não há
+remessa na moeda: PTAX por lote → câmbio atual.
+
+> A página **Câmbio** mede o ganho sobre TODO o USD convertido (remessas, escopo
+> de caixa+investido); o **Resumo** mede o efeito cambial só sobre o capital nas
+> posições atuais. Ambos usam `pmDólar` como referência, então reconciliam:
+> `câmbio_total = efeito_cambial_posições + efeito_cambial_caixa_ociosa`.
+
 ---
 
 ## 21. Atribuição de Performance por Ativo
