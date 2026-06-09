@@ -106,7 +106,7 @@ export default function Sidebar() {
     <>
       {/* ── Desktop sidebar ── */}
       <aside
-        className="sidebar-metallic hidden md:flex flex-col w-56 min-h-screen px-3 py-6 fixed left-0 top-0 z-30 backdrop-blur-md overflow-y-auto"
+        className="sidebar-metallic hidden md:flex flex-col w-56 h-screen px-3 py-6 fixed left-0 top-0 z-30 backdrop-blur-md overflow-y-auto"
         style={{
           borderRight: "1px solid",
           borderImageSource:
@@ -133,7 +133,7 @@ export default function Sidebar() {
         </div>
 
         {/* Nav groups */}
-        <nav className="flex flex-col gap-4 flex-1">
+        <nav className="flex flex-col gap-4 flex-1 overflow-y-auto min-h-0">
           {navGroups.map((group, gi) => (
             <div key={gi}>
               {/* Group label */}
