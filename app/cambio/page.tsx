@@ -10,6 +10,7 @@ import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
+import { getMoedaExposicao } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
@@ -565,13 +566,23 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
   const positions = portfolio.positions ?? [];
 
   const analysis = useMemo(() => {
-    const foreignPositions = positions.filter(
-      p => p.moeda !== "BRL" && p.valorAtualBRL > 0
-    );
+    // Canônico: exposicaoCambial do snapshot (inclui posições + caixa fixa_aberta,
+    // usando getMoedaExposicao → cripto vai pra "Cripto", não "USD")
+    const expo = portfolio.exposicaoCambial ?? {};
+    const totalExpostoAtualBRL = Object.entries(expo)
+      .filter(([k]) => k !== "BRL" && k !== "Cripto")
+      .reduce((s, [, v]) => s + v, 0);
 
-    const byMoeda: Record<string, { valorAtualBRL: number; custoTotalBRL: number; valorAtualNativo: number; positions: typeof foreignPositions }> = {};
+    // Posições FX (exclui BRL e Cripto) — para decomposição ativo × câmbio
+    const foreignPositions = positions.filter(p => {
+      const me = getMoedaExposicao(p.setor, p.moeda);
+      return me !== "BRL" && me !== "Cripto" && p.valorAtualBRL > 0;
+    });
+
+    type PosArray = typeof foreignPositions;
+    const byMoeda: Record<string, { valorAtualBRL: number; custoTotalBRL: number; valorAtualNativo: number; positions: PosArray }> = {};
     for (const p of foreignPositions) {
-      const m = p.moeda || "USD";
+      const m = getMoedaExposicao(p.setor, p.moeda);
       if (!byMoeda[m]) byMoeda[m] = { valorAtualBRL: 0, custoTotalBRL: 0, valorAtualNativo: 0, positions: [] };
       byMoeda[m].valorAtualBRL += p.valorAtualBRL;
       byMoeda[m].custoTotalBRL += p.custoTotalBRL;
@@ -579,15 +590,26 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
       byMoeda[m].positions.push(p);
     }
 
-    const totalExpostoAtualBRL = foreignPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
+    // Inclui caixa FX (fixa_aberta) no byMoeda — diferença entre canônico e posições
+    for (const [moeda, valCanonical] of Object.entries(expo)) {
+      if (moeda === "BRL" || moeda === "Cripto") continue;
+      const posVal = byMoeda[moeda]?.valorAtualBRL ?? 0;
+      const caixa = valCanonical - posVal;
+      if (caixa >= 1) {
+        if (!byMoeda[moeda]) byMoeda[moeda] = { valorAtualBRL: 0, custoTotalBRL: 0, valorAtualNativo: 0, positions: [] };
+        byMoeda[moeda].valorAtualBRL = valCanonical;
+      }
+    }
+
+    const positionsOnlyBRL = foreignPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
     const totalCustoBRL = foreignPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
-    // Dois fatores (já calculados no snapshot — identidade: ativo + câmbio = lucro):
     const ganhoAtivo = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
     const ganhoCambio = foreignPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
-    const lucroTotal = totalExpostoAtualBRL - totalCustoBRL;
+    const lucroTotal = positionsOnlyBRL - totalCustoBRL;
+    const caixaFxBRL = totalExpostoAtualBRL - positionsOnlyBRL;
 
-    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivo, ganhoCambio, lucroTotal };
-  }, [positions]);
+    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivo, ganhoCambio, lucroTotal, caixaFxBRL };
+  }, [positions, portfolio.exposicaoCambial]);
 
   const stressScenarios = useMemo(() => {
     const scenarios = [
@@ -638,9 +660,9 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           {pctExpostoFx.toFixed(1)}% do patrimônio total ({compactBRL(patrimonioBRL)}) está exposto a variação cambial
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
-            <span className="stat-label block mb-1">Custo em BRL</span>
+            <span className="stat-label block mb-1">Custo Posições</span>
             <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
           </div>
           <div>
@@ -655,6 +677,12 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
               {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
             </span>
           </div>
+          {analysis.caixaFxBRL > 0 && (
+            <div>
+              <span className="stat-label block mb-1">Caixa FX</span>
+              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.caixaFxBRL)}</span>
+            </div>
+          )}
           <div>
             <span className="stat-label block mb-1">Spot USD/BRL</span>
             <span className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</span>
@@ -671,7 +699,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           (em moeda nativa, ao câmbio de custo) e quanto a <strong>variação do câmbio</strong> contribuiu sobre o capital aplicado.
         </p>
 
-        {/* Custo → Valor atual */}
+        {/* Custo → Valor atual (posições — caixa FX não tem decomposição) */}
         <div className="flex items-center justify-between gap-4 mb-5">
           <div>
             <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Custo BRL</div>
@@ -679,8 +707,11 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           </div>
           <ArrowLeftRight size={16} className="text-zinc-700 shrink-0" />
           <div className="text-right">
-            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Valor atual BRL</div>
+            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Valor Atual BRL</div>
             <div className="text-lg font-bold text-zinc-100">{compactBRL(analysis.totalExpostoAtualBRL)}</div>
+            {analysis.caixaFxBRL > 0 && (
+              <div className="text-[9px] text-zinc-600">inclui {compactBRL(analysis.caixaFxBRL)} em caixa FX</div>
+            )}
           </div>
         </div>
 
@@ -745,8 +776,11 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
               .sort((a, b) => b[1].valorAtualBRL - a[1].valorAtualBRL)
               .map(([moeda, info]) => {
                 const color = FX_COLORS[moeda] ?? "#64748b";
-                const lucroBRL = info.valorAtualBRL - info.custoTotalBRL;
+                const posVal = info.positions.reduce((s, p) => s + p.valorAtualBRL, 0);
+                const caixa = info.valorAtualBRL - posVal;
                 const pctPortfolio = patrimonioBRL > 0 ? (info.valorAtualBRL / patrimonioBRL) * 100 : 0;
+                const nAtivos = info.positions.length;
+                const descParts = [nAtivos > 0 ? `${nAtivos} ativos` : null, caixa >= 1 ? "caixa" : null].filter(Boolean).join(" + ");
                 return (
                   <div key={moeda} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}20` }}>
                     <div className="flex items-center justify-between mb-3">
@@ -754,14 +788,11 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
                         <span className="text-lg">{moeda === "USD" ? "🇺🇸" : moeda === "EUR" ? "🇪🇺" : moeda === "GBP" ? "🇬🇧" : moeda === "CAD" ? "🇨🇦" : "🌐"}</span>
                         <div>
                           <span className="text-sm font-bold" style={{ color }}>{moeda}</span>
-                          <span className="text-[10px] text-zinc-600 ml-2">{info.positions.length} ativos · {pctPortfolio.toFixed(1)}% do portfólio</span>
+                          <span className="text-[10px] text-zinc-600 ml-2">{descParts} · {pctPortfolio.toFixed(1)}% do portfólio</span>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-bold text-zinc-100">{compactBRL(info.valorAtualBRL)}</div>
-                        <div className={`text-[10px] font-semibold ${lucroBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {lucroBRL >= 0 ? "+" : ""}{compactBRL(lucroBRL)}
-                        </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -773,6 +804,11 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
                             {p.ticker.replace(/\.SA$/, "")} {compactBRL(p.valorAtualBRL)}
                           </span>
                         ))}
+                      {caixa >= 1 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "#a1a1aa", border: "1px solid rgba(255,255,255,0.08)" }}>
+                          Caixa {compactBRL(caixa)}
+                        </span>
+                      )}
                       {info.positions.length > 10 && (
                         <span className="text-[10px] px-2 py-0.5 text-zinc-600">+{info.positions.length - 10}</span>
                       )}
