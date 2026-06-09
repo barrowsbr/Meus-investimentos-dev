@@ -1313,15 +1313,12 @@ export default function ResumoPage() {
                   </thead>
                   <tbody>
                     {filteredPositions.map((p, i) => {
-                      const dividendosBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
-                      const naoRealizadoBRL = p.lucroBRL ?? 0;
+                      // Fonte única: campos vêm do snapshot (lib/portfolio.ts).
+                      const dividendosBRL = p.proventosBRL;
                       const realizadoBRL = p.lucroRealizadoBRL ?? 0;
-                      const totalBRL = naoRealizadoBRL + realizadoBRL + dividendosBRL;
-                      const naoRealizadoPct = p.lucroPct;
+                      const naoRealizadoPct = p.lucroPct;                 // Valorização %
                       const realizadoPct = p.custoTotalBRL > 0 ? (realizadoBRL / p.custoTotalBRL) * 100 : 0;
-                      const totalPct = p.lucroBRL !== null && p.custoTotalBRL > 0
-                        ? (totalBRL / p.custoTotalBRL) * 100
-                        : null;
+                      const totalPct = p.retornoTotalPct;                 // Retorno Total %
                       const corTotal = totalPct !== null ? (totalPct >= 0 ? "text-emerald-400" : "text-red-400") : "text-zinc-500";
 
                       return (

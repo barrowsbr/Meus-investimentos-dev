@@ -439,12 +439,13 @@ export function calcularSnapshot(
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
-  // Anexa proventos líquidos por posição e o Retorno Total (= valorização +
-  // proventos). lucroPct continua sendo a "Valorização %" (só preço/câmbio).
+  // Anexa proventos líquidos por posição e o Retorno Total
+  // (= valorização não realizada + lucro realizado + proventos líquidos).
+  // lucroPct continua sendo a "Valorização %" (só preço/câmbio, não realizado).
   for (const p of positions) {
     p.proventosBRL = prov.porTicker[p.ticker] ?? 0;
     if (p.lucroBRL !== null) {
-      p.retornoTotalBRL = p.lucroBRL + p.proventosBRL;
+      p.retornoTotalBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
       p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;
     }
   }
@@ -465,8 +466,9 @@ export function calcularSnapshot(
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
   const lucroBRL = totalAtualRV - totalInvestidoRV;            // valorização (preço+câmbio)
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
+  const realizadoRVBRL = rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
   const proventosRVBRL = rvPositions.reduce((s, p) => s + p.proventosBRL, 0);
-  const retornoTotalRVBRL = lucroBRL + proventosRVBRL;        // valorização + proventos
+  const retornoTotalRVBRL = lucroBRL + realizadoRVBRL + proventosRVBRL; // não realiz. + realizado + proventos
   const retornoTotalRVPct = totalInvestidoRV > 0 ? (retornoTotalRVBRL / totalInvestidoRV) * 100 : 0;
 
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
