@@ -213,10 +213,10 @@ export default function Sidebar() {
 
       {/* ── Mobile bottom bar (Instagram-style) ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t flex justify-around items-center h-12 pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex justify-around items-center pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         style={{
-          background: "rgba(15,16,22,0.98)",
-          borderColor: "rgba(255,255,255,0.08)",
+          background: "#000000",
+          borderTop: "1px solid rgba(255,255,255,0.1)",
         }}
       >
         {mobileItems.map(({ href, icon: Icon }) => {
@@ -225,11 +225,13 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center justify-center w-12 h-12 transition-colors ${
-                active ? "text-white" : "text-zinc-500"
-              }`}
+              className="flex items-center justify-center flex-1 py-1"
             >
-              <Icon size={26} strokeWidth={active ? 2.2 : 1.5} />
+              <Icon
+                size={28}
+                strokeWidth={active ? 2.4 : 1.4}
+                color={active ? "#ffffff" : "#6b7280"}
+              />
             </Link>
           );
         })}
