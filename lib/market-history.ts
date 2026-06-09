@@ -34,23 +34,23 @@ function daysToRange(days: number): string {
   return "max";
 }
 
-// ─── Method 1: yahoo-finance2 library ────────────────────────────────────────
+// ─── Method 1: yahoo-finance2 chart() API ───────────────────────────────────
 
 async function fetchViaYF2(
   ticker: string,
   startStr: string,
-  endStr: string
+  _endStr: string
 ): Promise<{ date: string; price: number }[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const YF: any = (await import("yahoo-finance2")).default;
   const yf = typeof YF === "function" ? new YF() : YF;
-  const rows = await yf.historical(
-    ticker,
-    { period1: startStr, period2: endStr, interval: "1d" },
-    { validateResult: false }
-  );
-  return (rows ?? []).flatMap((r: Record<string, unknown>) => {
-    const close = (r.close ?? r.adjClose) as number | null;
+  const result = await yf.chart(ticker, {
+    period1: startStr,
+    interval: "1d",
+  });
+  const quotes = result?.quotes ?? [];
+  return (quotes as Record<string, unknown>[]).flatMap((r) => {
+    const close = r.close as number | null;
     if (close == null || !isFinite(close)) return [];
     const d = r.date instanceof Date ? r.date : new Date(r.date as string);
     return [{ date: d.toISOString().split("T")[0], price: close }];
@@ -100,8 +100,11 @@ async function fetchViaV8Chart(
     [];
 
   return timestamps.flatMap((ts, i) => {
-    const price = closes[i];
-    if (price == null || !isFinite(price)) return [];
+    const raw = closes[i];
+    if (raw == null || !isFinite(raw)) return [];
+    const price = raw >= 1000 ? Math.round(raw * 100) / 100
+                : raw >= 1    ? Math.round(raw * 10000) / 10000
+                :               Math.round(raw * 1000000) / 1000000;
     const d = new Date(ts * 1000);
     return [{ date: d.toISOString().split("T")[0], price }];
   });
