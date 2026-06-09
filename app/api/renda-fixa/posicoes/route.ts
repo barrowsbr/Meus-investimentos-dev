@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { toNumber } from "@/lib/format";
+import { fetchFxRates, fxToBRL } from "@/lib/cotacoes";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 15;
+export const maxDuration = 30;
 
 type Row = Record<string, unknown>;
 
@@ -19,11 +20,16 @@ interface RFOpenPosition {
   ticker: string;
   moeda: string;
   atual: number;
+  atualBRL: number;
   investido: number;
+  investidoBRL: number;
   lucro: number;
+  lucroBRL: number;
   rentabilidade: number;
   proventos: number;
+  proventosBRL: number;
   resultadoTotal: number;
+  resultadoTotalBRL: number;
   isCaixa: boolean;
 }
 
@@ -34,9 +40,12 @@ interface RFClosedPosition {
   venda: number;
   imposto: number;
   lucro: number;
+  lucroBRL: number;
   rentabilidade: number;
   proventos: number;
+  proventosBRL: number;
   resultadoTotal: number;
+  resultadoTotalBRL: number;
 }
 
 const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
@@ -55,11 +64,14 @@ function parseTipo(raw: string): string {
 
 export async function GET() {
   try {
-    const [rfTransacoes, fixaAberta, proventosRows] = await Promise.all([
+    const [rfTransacoes, fixaAberta, proventosRows, { fx }] = await Promise.all([
       fetchTab("renda_fixa"),
       fetchTab("fixa_aberta"),
       fetchTab("meus_proventos"),
+      fetchFxRates(),
     ]);
+
+    const toBRL = (valor: number, moeda: string) => valor * fxToBRL(moeda, fx);
 
     // 1. Parse fixa_aberta — source of truth for what's currently held
     const openSet = new Map<string, { atual: number; moeda: string }>();
@@ -93,23 +105,27 @@ export async function GET() {
 
     // 3. Parse proventos for RF tickers (líquido = bruto − IR retido)
     const allRfTickers = new Set([...openSet.keys(), ...Object.keys(txByTicker)]);
-    const proventosPorTicker: Record<string, number> = {}; // líquido
-    const impostoPorTicker: Record<string, number> = {};   // IR retido (custo positivo)
-    let totalImpostoRF = 0;
+    const proventosPorTicker: Record<string, number> = {}; // líquido (moeda original)
+    const impostoPorTicker: Record<string, number> = {};   // IR retido (moeda original)
+    let totalImpostoRFBRL = 0;
+
+    const tickerMoeda = (t: string): string =>
+      openSet.get(t)?.moeda ?? txByTicker[t]?.moeda ?? "BRL";
+
     for (const row of proventosRows) {
       const ticker = String(row["ticker"] ?? row["símbolo"] ?? row["simbolo"] ?? "").trim();
       if (!ticker) continue;
-      // Check if this ticker is an RF ticker (exists in fixa_aberta or renda_fixa)
       if (!allRfTickers.has(ticker) && !allRfTickers.has(ticker.toUpperCase())) continue;
       const valorAbs = Math.abs(toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0);
       if (valorAbs === 0) continue;
       const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
       const isImposto = decisao.includes("imposto");
       const key = allRfTickers.has(ticker) ? ticker : ticker.toUpperCase();
+      const moeda = tickerMoeda(key);
       if (isImposto) {
         proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) - valorAbs;
         impostoPorTicker[key] = (impostoPorTicker[key] ?? 0) + valorAbs;
-        totalImpostoRF += valorAbs;
+        totalImpostoRFBRL += toBRL(valorAbs, moeda);
       } else {
         proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) + valorAbs;
       }
@@ -125,23 +141,29 @@ export async function GET() {
       const txData = txByTicker[ticker];
       const investido = txData?.compra ?? 0;
       const proventos = proventosPorTicker[ticker] ?? 0;
+      const atualBRL = toBRL(atual, moeda);
+      const investidoBRL = toBRL(investido, moeda);
+      const proventosBRL = toBRL(proventos, moeda);
 
       if (isCaixa) {
-        totalCaixa += atual;
+        totalCaixa += atualBRL;
         caixaPositions.push({
-          ticker, moeda, atual, investido, lucro: 0,
-          rentabilidade: 0, proventos, resultadoTotal: proventos, isCaixa: true,
+          ticker, moeda, atual, atualBRL, investido, investidoBRL, lucro: 0, lucroBRL: 0,
+          rentabilidade: 0, proventos, proventosBRL, resultadoTotal: proventos,
+          resultadoTotalBRL: proventosBRL, isCaixa: true,
         });
         continue;
       }
 
       const lucro = investido > 0 ? atual - investido : 0;
-      const rentabilidade = investido > 0 ? (lucro / investido) * 100 : 0;
+      const lucroBRL = toBRL(lucro, moeda);
       const resultadoTotal = lucro + proventos;
+      const resultadoTotalBRL = lucroBRL + proventosBRL;
+      const rentabilidade = investido > 0 ? (resultadoTotal / investido) * 100 : 0;
 
       abertas.push({
-        ticker, moeda, atual, investido, lucro,
-        rentabilidade, proventos, resultadoTotal, isCaixa: false,
+        ticker, moeda, atual, atualBRL, investido, investidoBRL, lucro, lucroBRL,
+        rentabilidade, proventos, proventosBRL, resultadoTotal, resultadoTotalBRL, isCaixa: false,
       });
     }
 
@@ -152,26 +174,31 @@ export async function GET() {
       if (agg.venda <= 0) continue; // no sale = not closed
       if (CASH_TICKERS.has(ticker.toUpperCase())) continue;
 
+      const moeda = agg.moeda;
       const lucro = agg.venda - agg.compra - agg.imposto;
-      const rentabilidade = agg.compra > 0 ? (lucro / agg.compra) * 100 : 0;
+      const lucroBRL = toBRL(lucro, moeda);
       const proventos = proventosPorTicker[ticker] ?? 0;
+      const proventosBRL = toBRL(proventos, moeda);
       const resultadoTotal = lucro + proventos;
+      const resultadoTotalBRL = lucroBRL + proventosBRL;
+      const rentabilidade = agg.compra > 0 ? (resultadoTotal / agg.compra) * 100 : 0;
 
       encerradas.push({
-        ticker, moeda: agg.moeda,
+        ticker, moeda,
         compra: agg.compra, venda: agg.venda, imposto: agg.imposto,
-        lucro, rentabilidade, proventos, resultadoTotal,
+        lucro, lucroBRL, rentabilidade, proventos, proventosBRL, resultadoTotal, resultadoTotalBRL,
       });
     }
 
-    // 6. Compute totals
-    const totalAtual = abertas.reduce((s, p) => s + p.atual, 0);
-    const totalInvestidoAberto = abertas.reduce((s, p) => s + p.investido, 0);
-    const lucroNaoRealizado = abertas.reduce((s, p) => s + p.lucro, 0);
-    const lucroRealizado = encerradas.reduce((s, p) => s + p.lucro, 0);
-    const totalProventosRF = Object.values(proventosPorTicker).reduce((s, v) => s + v, 0); // líquido
-    const totalProventosBrutoRF = totalProventosRF + totalImpostoRF;
-    const rentMedia = totalInvestidoAberto > 0 ? (lucroNaoRealizado / totalInvestidoAberto) * 100 : 0;
+    // 6. Compute totals (all in BRL)
+    const totalAtual = abertas.reduce((s, p) => s + p.atualBRL, 0);
+    const totalInvestidoAberto = abertas.reduce((s, p) => s + p.investidoBRL, 0);
+    const lucroNaoRealizado = abertas.reduce((s, p) => s + p.lucroBRL, 0);
+    const lucroRealizado = encerradas.reduce((s, p) => s + p.lucroBRL, 0);
+    const totalProventosAbertoBRL = abertas.reduce((s, p) => s + p.proventosBRL, 0);
+    const totalProventosRF = totalProventosAbertoBRL + encerradas.reduce((s, p) => s + p.proventosBRL, 0);
+    const totalProventosBrutoRF = totalProventosRF + totalImpostoRFBRL;
+    const rentMedia = totalInvestidoAberto > 0 ? ((lucroNaoRealizado + totalProventosAbertoBRL) / totalInvestidoAberto) * 100 : 0;
 
     // 7. All transactions for display (sorted newest first)
     const allTxs: RFTransaction[] = Object.values(txByTicker).flatMap(t => t.txs);
@@ -188,7 +215,7 @@ export async function GET() {
       lucroRealizado,
       totalProventosRF,
       totalProventosBrutoRF,
-      totalImpostoRF,
+      totalImpostoRF: totalImpostoRFBRL,
       rentMedia,
       patrimonio: totalAtual + totalCaixa,
     });

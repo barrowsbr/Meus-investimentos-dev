@@ -20,11 +20,16 @@ interface RFOpenPos {
   ticker: string;
   moeda: string;
   atual: number;
+  atualBRL: number;
   investido: number;
+  investidoBRL: number;
   lucro: number;
+  lucroBRL: number;
   rentabilidade: number;
   proventos: number;
+  proventosBRL: number;
   resultadoTotal: number;
+  resultadoTotalBRL: number;
   isCaixa: boolean;
 }
 
@@ -35,9 +40,12 @@ interface RFClosedPos {
   venda: number;
   imposto: number;
   lucro: number;
+  lucroBRL: number;
   rentabilidade: number;
   proventos: number;
+  proventosBRL: number;
   resultadoTotal: number;
+  resultadoTotalBRL: number;
 }
 
 interface RFTx {
@@ -293,7 +301,7 @@ export default function RendaFixaPage() {
                       {p.investido > 0 ? pct(p.rentabilidade) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right text-xs">
-                      {p.proventos > 0 ? <span className="text-amber-400">{brl(p.proventos)}</span> : <span className="text-zinc-700">—</span>}
+                      {p.proventos > 0 ? <span className="text-amber-400">{currency(p.proventos, p.moeda)}</span> : <span className="text-zinc-700">—</span>}
                     </td>
                     <td className={`px-3 py-2.5 text-right font-bold text-xs ${p.resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                       {p.investido > 0 ? currency(p.resultadoTotal, p.moeda) : "—"}
@@ -313,10 +321,10 @@ export default function RendaFixaPage() {
                     {pct(rfData.rentMedia)}
                   </td>
                   <td className="px-3 py-3 text-right text-xs text-amber-400">
-                    {brl(sortedOpen.reduce((s, p) => s + p.proventos, 0))}
+                    {brl(sortedOpen.reduce((s, p) => s + p.proventosBRL, 0))}
                   </td>
-                  <td className={`px-3 py-3 text-right text-xs font-bold ${sortedOpen.reduce((s, p) => s + p.resultadoTotal, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {brl(sortedOpen.reduce((s, p) => s + p.resultadoTotal, 0))}
+                  <td className={`px-3 py-3 text-right text-xs font-bold ${sortedOpen.reduce((s, p) => s + p.resultadoTotalBRL, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {brl(sortedOpen.reduce((s, p) => s + p.resultadoTotalBRL, 0))}
                   </td>
                 </tr>
               </tfoot>
@@ -450,7 +458,7 @@ export default function RendaFixaPage() {
                         {pct(p.rentabilidade)}
                       </td>
                       <td className="px-3 py-2.5 text-right text-xs">
-                        {p.proventos > 0 ? <span className="text-amber-400">{brl(p.proventos)}</span> : <span className="text-zinc-700">—</span>}
+                        {p.proventos > 0 ? <span className="text-amber-400">{currency(p.proventos, p.moeda)}</span> : <span className="text-zinc-700">—</span>}
                       </td>
                       <td className={`px-3 py-2.5 text-right font-bold text-xs ${p.resultadoTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                         {currency(p.resultadoTotal, p.moeda)}
@@ -469,10 +477,10 @@ export default function RendaFixaPage() {
                     </td>
                     <td />
                     <td className="px-3 py-3 text-right text-xs text-amber-400">
-                      {brl(sortedClosed.reduce((s, p) => s + p.proventos, 0))}
+                      {brl(sortedClosed.reduce((s, p) => s + p.proventosBRL, 0))}
                     </td>
-                    <td className={`px-3 py-3 text-right text-xs font-bold ${sortedClosed.reduce((s, p) => s + p.resultadoTotal, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {brl(sortedClosed.reduce((s, p) => s + p.resultadoTotal, 0))}
+                    <td className={`px-3 py-3 text-right text-xs font-bold ${sortedClosed.reduce((s, p) => s + p.resultadoTotalBRL, 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {brl(sortedClosed.reduce((s, p) => s + p.resultadoTotalBRL, 0))}
                     </td>
                   </tr>
                 </tfoot>
