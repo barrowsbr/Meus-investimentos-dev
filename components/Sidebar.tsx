@@ -54,9 +54,9 @@ const navGroups: NavGroup[] = [
     label: "Portfólio",
     items: [
       { href: "/resumo",         label: "Resumo",         icon: LayoutDashboard, mobileShow: true },
-      { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2,        mobileShow: true },
+      { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2 },
       { href: "/renda-fixa",     label: "Renda Fixa",     icon: Landmark },
-      { href: "/proventos",      label: "Proventos",      icon: Coins,            mobileShow: true },
+      { href: "/proventos",      label: "Proventos",      icon: Coins },
       { href: "/criptoativos",   label: "Criptoativos",   icon: Bitcoin },
       { href: "/opcoes",         label: "Opções",         icon: Crosshair },
     ],
@@ -92,7 +92,7 @@ const navGroups: NavGroup[] = [
       { href: "/polymarket",    label: "Polymarket",   icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
       { href: "/easter-eggs",  label: "Easter Eggs",  icon: Egg },
-      { href: "/configuracoes", label: "Configurações", icon: Settings },
+      { href: "/configuracoes", label: "Configurações", icon: Settings, mobileShow: true },
     ],
   },
 ];
@@ -211,34 +211,25 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* ── Mobile bottom bar (top 5 items) ── */}
+      {/* ── Mobile bottom bar (Instagram-style) ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 backdrop-blur-xl border-t flex justify-around py-1.5 px-1 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t flex justify-around items-center h-12 pb-[env(safe-area-inset-bottom)]"
         style={{
-          background: "rgba(15,16,22,0.95)",
-          borderColor: "rgba(35,38,50,0.8)",
+          background: "rgba(15,16,22,0.98)",
+          borderColor: "rgba(255,255,255,0.08)",
         }}
       >
-        {mobileItems.map(({ href, label, icon: Icon }) => {
+        {mobileItems.map(({ href, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-0.5 text-[9px] px-2 py-1.5 rounded-lg transition-colors ${
-                active ? "text-accent" : "text-zinc-500"
+              className={`flex items-center justify-center w-12 h-12 transition-colors ${
+                active ? "text-white" : "text-zinc-500"
               }`}
             >
-              <Icon
-                size={19}
-                strokeWidth={active ? 2.0 : 1.6}
-                style={
-                  active
-                    ? { filter: "drop-shadow(0 0 4px rgba(212,165,116,0.5))" }
-                    : undefined
-                }
-              />
-              <span className={active ? "font-medium" : ""}>{label}</span>
+              <Icon size={26} strokeWidth={active ? 2.2 : 1.5} />
             </Link>
           );
         })}
