@@ -94,7 +94,7 @@ function FilterBar({
 }: {
   filters: Filters;
   onChange: (f: Partial<Filters>) => void;
-  options: { years: string[]; tickers: string[]; tipos: string[] };
+  options: { years: string[]; tickers: string[]; tipos: string[]; moedas: string[] };
 }) {
   const active = Object.values(filters).some(v => v !== "all");
   const sel = "bg-zinc-900/80 border border-zinc-700/60 text-zinc-300 text-xs rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500/50 transition-colors";
@@ -115,9 +115,8 @@ function FilterBar({
         {options.tipos.map(t => <option key={t} value={t}>{t}</option>)}
       </select>
       <select value={filters.moeda} onChange={e => onChange({ moeda: e.target.value })} className={sel}>
-        <option value="all">BRL + USD</option>
-        <option value="BRL">Apenas BRL</option>
-        <option value="USD">Apenas USD</option>
+        <option value="all">Todas as moedas</option>
+        {options.moedas.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
       {active && (
         <button
@@ -236,7 +235,8 @@ export default function ProventosPage() {
     const years = [...new Set(rawData.map(r => rowYear(r)).filter(Boolean))].sort().reverse();
     const tickers = [...new Set(rawData.map(r => String(r["ticker"] ?? "").toUpperCase().trim()).filter(Boolean))].sort();
     const tipos = [...new Set(rawData.map(r => String(r["lancamento"] ?? r["decisao"] ?? "").trim()).filter(Boolean))].sort();
-    return { years, tickers, tipos };
+    const moedas = [...new Set(rawData.map(r => String(r["moeda"] ?? "BRL").toUpperCase().trim()).filter(Boolean))].sort();
+    return { years, tickers, tipos, moedas };
   }, [rawData]);
 
   const filteredData = useMemo(() => {
