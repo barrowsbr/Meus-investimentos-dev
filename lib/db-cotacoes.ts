@@ -91,7 +91,13 @@ export async function writeGoldenSource(data: GoldenSourceData): Promise<void> {
 
   const values: (string | number | null)[][] = [["data", ...sorted]];
   for (const date of data.dates) {
-    values.push([date, ...sorted.map(t => data.prices[date]?.[t] ?? null)]);
+    values.push([date, ...sorted.map(t => {
+      const p = data.prices[date]?.[t];
+      if (p == null) return null;
+      return p >= 1000 ? Math.round(p * 100) / 100
+           : p >= 1    ? Math.round(p * 10000) / 10000
+           :             Math.round(p * 1000000) / 1000000;
+    })]);
   }
 
   try {
