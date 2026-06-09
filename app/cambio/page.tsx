@@ -603,12 +603,15 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
 
     const positionsOnlyBRL = foreignPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
     const totalCustoBRL = foreignPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
-    const ganhoAtivo = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
-    const ganhoCambio = foreignPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+    const ganhoAtivoPuro = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoPuroBRL ?? 0), 0);
+    const ganhoFXPrincipal = foreignPositions.reduce((s, p) => s + (p.ganhoFXPrincipalBRL ?? 0), 0);
+    const ganhoCruzado = foreignPositions.reduce((s, p) => s + (p.ganhoCruzadoBRL ?? 0), 0);
+    const ganhoAtivo = ganhoAtivoPuro + ganhoCruzado;
+    const ganhoCambio = ganhoFXPrincipal;
     const lucroTotal = positionsOnlyBRL - totalCustoBRL;
     const caixaFxBRL = totalExpostoAtualBRL - positionsOnlyBRL;
 
-    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivo, ganhoCambio, lucroTotal, caixaFxBRL };
+    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivoPuro, ganhoFXPrincipal, ganhoCruzado, ganhoAtivo, ganhoCambio, lucroTotal, caixaFxBRL };
   }, [positions, portfolio.exposicaoCambial]);
 
   const stressScenarios = useMemo(() => {
@@ -637,12 +640,14 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
   const patrimonioBRL = portfolio.totalPatrimonioBRL ?? 0;
   const pctExpostoFx = patrimonioBRL > 0 ? (analysis.totalExpostoAtualBRL / patrimonioBRL) * 100 : 0;
 
-  // Split proporcional entre os dois fatores (por contribuição absoluta)
-  const absAtivo = Math.abs(analysis.ganhoAtivo);
-  const absCambio = Math.abs(analysis.ganhoCambio);
-  const absSoma = absAtivo + absCambio;
-  const pctFatorAtivo = absSoma > 0 ? (absAtivo / absSoma) * 100 : 50;
-  const pctFatorCambio = 100 - pctFatorAtivo;
+  // Split proporcional entre os três fatores (por contribuição absoluta)
+  const absPuro = Math.abs(analysis.ganhoAtivoPuro);
+  const absPrincipal = Math.abs(analysis.ganhoFXPrincipal);
+  const absCruzado = Math.abs(analysis.ganhoCruzado);
+  const absSoma = absPuro + absPrincipal + absCruzado;
+  const pctFatorPuro = absSoma > 0 ? (absPuro / absSoma) * 100 : 33;
+  const pctFatorPrincipal = absSoma > 0 ? (absPrincipal / absSoma) * 100 : 34;
+  const pctFatorCruzado = 100 - pctFatorPuro - pctFatorPrincipal;
   const sign = (v: number) => (v >= 0 ? "+" : "");
 
   return (
@@ -666,15 +671,21 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
             <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
           </div>
           <div>
-            <span className="stat-label block mb-1">Fator Ativo</span>
-            <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}
+            <span className="stat-label block mb-1">Ativo Puro</span>
+            <span className={`text-sm font-bold ${analysis.ganhoAtivoPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}
             </span>
           </div>
           <div>
-            <span className="stat-label block mb-1">Fator Câmbio</span>
-            <span className={`text-sm font-bold ${analysis.ganhoCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
+            <span className="stat-label block mb-1">FX Principal</span>
+            <span className={`text-sm font-bold ${analysis.ganhoFXPrincipal >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}
+            </span>
+          </div>
+          <div>
+            <span className="stat-label block mb-1">Cruzado</span>
+            <span className={`text-sm font-bold ${analysis.ganhoCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}
             </span>
           </div>
           {analysis.caixaFxBRL > 0 && (
@@ -690,13 +701,13 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
         </div>
       </div>
 
-      {/* ── Decomposição de Dois Fatores (centro da aba) ── */}
+      {/* ── Decomposição de Três Fatores (centro da aba) ── */}
       <div className="glass-card p-6 mb-6">
-        <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição de Dois Fatores</h2>
+        <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição de Três Fatores</h2>
         <p className="text-[11px] text-zinc-500 mb-5 max-w-2xl leading-relaxed">
-          O resultado em BRL das suas posições no exterior se separa em <strong className="text-blue-400">dois fatores</strong>:
-          quanto o <strong>ativo</strong> valorizou (incluindo o efeito cruzado ativo × câmbio) e quanto a <strong>variação
-          do câmbio</strong> contribuiu isoladamente sobre o capital investido em moeda estrangeira.
+          O resultado em BRL das suas posições no exterior se separa em <strong className="text-blue-400">três fatores</strong>:
+          quanto o <strong>ativo puro</strong> rendeu (ao câmbio de custo), quanto a <strong className="text-amber-400">variação do câmbio</strong> impactou
+          sobre o capital aportado, e o <strong className="text-purple-400">efeito cruzado</strong> (câmbio aplicado sobre o lucro do ativo).
         </p>
 
         {/* Custo → Valor atual (posições — caixa FX não tem decomposição) */}
@@ -715,45 +726,58 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           </div>
         </div>
 
-        {/* Os dois fatores */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Os três fatores */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="rounded-xl p-4" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-              <span className="text-xs font-bold text-zinc-200">Ganho do Ativo</span>
+              <span className="text-xs font-bold text-zinc-200">Ativo Puro</span>
             </div>
-            <div className={`text-2xl font-extrabold ${analysis.ganhoAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}
+            <div className={`text-2xl font-extrabold ${analysis.ganhoAtivoPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}
             </div>
-            <p className="text-[10px] text-zinc-500 mt-1">Quanto seus ativos renderam em USD, convertido ao câmbio atual (inclui efeito cruzado).</p>
+            <p className="text-[10px] text-zinc-500 mt-1">(V1−V0) × P0 — rendimento do ativo convertido ao câmbio de custo.</p>
           </div>
           <div className="rounded-xl p-4" style={{ background: "rgba(212,165,116,0.05)", border: "1px solid rgba(212,165,116,0.15)" }}>
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span className="text-xs font-bold text-zinc-200">Efeito Câmbio</span>
+              <span className="text-xs font-bold text-zinc-200">FX Principal</span>
             </div>
-            <div className={`text-2xl font-extrabold ${analysis.ganhoCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
+            <div className={`text-2xl font-extrabold ${analysis.ganhoFXPrincipal >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}
             </div>
-            <p className="text-[10px] text-zinc-500 mt-1">Impacto isolado da variação do dólar sobre o custo original em USD (sem cruzado).</p>
+            <p className="text-[10px] text-zinc-500 mt-1">V0 × (P1−P0) — impacto do dólar sobre o capital aportado.</p>
+          </div>
+          <div className="rounded-xl p-4" style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.15)" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-400" />
+              <span className="text-xs font-bold text-zinc-200">Cruzado</span>
+            </div>
+            <div className={`text-2xl font-extrabold ${analysis.ganhoCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-1">(V1−V0) × (P1−P0) — efeito do câmbio sobre o lucro do ativo.</p>
           </div>
         </div>
 
         {/* Barra de proporção entre os fatores */}
         <div className="h-2.5 w-full rounded-full overflow-hidden flex mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-          <div style={{ width: `${pctFatorAtivo}%`, background: "#3b82f6" }} />
-          <div style={{ width: `${pctFatorCambio}%`, background: "#d4a574" }} />
+          <div style={{ width: `${pctFatorPuro}%`, background: "#3b82f6" }} />
+          <div style={{ width: `${pctFatorPrincipal}%`, background: "#d4a574" }} />
+          <div style={{ width: `${pctFatorCruzado}%`, background: "#a855f7" }} />
         </div>
         <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-4">
-          <span>Ativo {pctFatorAtivo.toFixed(0)}%</span>
-          <span>Câmbio {pctFatorCambio.toFixed(0)}%</span>
+          <span>Ativo {pctFatorPuro.toFixed(0)}%</span>
+          <span>FX {pctFatorPrincipal.toFixed(0)}%</span>
+          <span>Cruzado {pctFatorCruzado.toFixed(0)}%</span>
         </div>
 
         {/* Identidade: soma dos fatores = lucro total */}
         <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
           <span className="text-xs text-zinc-400">
-            Ganho do Ativo <span className="text-blue-400 font-semibold">{sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}</span>
-            {" + "}Efeito Câmbio <span className="text-amber-400 font-semibold">{sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}</span>
+            Ativo <span className="text-blue-400 font-semibold">{sign(analysis.ganhoAtivoPuro)}{compactBRL(analysis.ganhoAtivoPuro)}</span>
+            {" + "}FX <span className="text-amber-400 font-semibold">{sign(analysis.ganhoFXPrincipal)}{compactBRL(analysis.ganhoFXPrincipal)}</span>
+            {" + "}Cruzado <span className="text-purple-400 font-semibold">{sign(analysis.ganhoCruzado)}{compactBRL(analysis.ganhoCruzado)}</span>
           </span>
           <span className="text-right">
             <span className="text-[9px] text-zinc-600 uppercase block">Resultado total</span>
@@ -903,7 +927,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
 // ── Decomposição Ativo vs FX por posição ─────────────────────────────────────
 
 function FxDecomposition({ positions }: {
-  positions: { ticker: string; valorAtualBRL: number; ganhoAtivoBRL: number | null; ganhoCambioBRL: number | null }[];
+  positions: { ticker: string; valorAtualBRL: number; ganhoAtivoPuroBRL: number | null; ganhoFXPrincipalBRL: number | null; ganhoCruzadoBRL: number | null }[];
 }) {
   const sorted = useMemo(() =>
     [...positions]
@@ -917,19 +941,22 @@ function FxDecomposition({ positions }: {
 
   const chartData = sorted.map(p => ({
     ticker: p.ticker.replace(/\.SA$/, "").replace(/-USD$/, ""),
-    ativo: p.ganhoAtivoBRL ?? 0,
-    cambio: p.ganhoCambioBRL ?? 0,
-    total: (p.ganhoAtivoBRL ?? 0) + (p.ganhoCambioBRL ?? 0),
+    ativo: p.ganhoAtivoPuroBRL ?? 0,
+    fx: p.ganhoFXPrincipalBRL ?? 0,
+    cruzado: p.ganhoCruzadoBRL ?? 0,
+    total: (p.ganhoAtivoPuroBRL ?? 0) + (p.ganhoFXPrincipalBRL ?? 0) + (p.ganhoCruzadoBRL ?? 0),
   }));
 
-  const totalAtivo = positions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
-  const totalCambio = positions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+  const totalPuro = positions.reduce((s, p) => s + (p.ganhoAtivoPuroBRL ?? 0), 0);
+  const totalFX = positions.reduce((s, p) => s + (p.ganhoFXPrincipalBRL ?? 0), 0);
+  const totalCruzado = positions.reduce((s, p) => s + (p.ganhoCruzadoBRL ?? 0), 0);
+  const totalGeral = totalPuro + totalFX + totalCruzado;
 
   return (
     <div className="glass-card p-5 mb-6">
       <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição por Ativo</h2>
       <p className="text-[10px] text-zinc-500 mb-4">
-        Os mesmos dois fatores, abertos por posição: quanto veio da valorização do ativo (azul) e quanto da variação cambial (dourado).
+        Os mesmos três fatores, abertos por posição: ativo puro (azul), FX principal (dourado) e cruzado (roxo).
       </p>
 
       {/* Summary bar */}
@@ -937,23 +964,30 @@ function FxDecomposition({ positions }: {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full bg-blue-400" />
-            <span className="text-[10px] text-zinc-500">Ganho dos ativos</span>
-            <span className={`text-xs font-bold ml-auto ${totalAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
-              {totalAtivo >= 0 ? "+" : ""}{compactBRL(totalAtivo)}
+            <span className="text-[10px] text-zinc-500">Ativo puro</span>
+            <span className={`text-xs font-bold ml-auto ${totalPuro >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {totalPuro >= 0 ? "+" : ""}{compactBRL(totalPuro)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="text-[10px] text-zinc-500">FX principal</span>
+            <span className={`text-xs font-bold ml-auto ${totalFX >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {totalFX >= 0 ? "+" : ""}{compactBRL(totalFX)}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span className="text-[10px] text-zinc-500">Efeito câmbio</span>
-            <span className={`text-xs font-bold ml-auto ${totalCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
-              {totalCambio >= 0 ? "+" : ""}{compactBRL(totalCambio)}
+            <span className="w-2 h-2 rounded-full bg-purple-400" />
+            <span className="text-[10px] text-zinc-500">Cruzado</span>
+            <span className={`text-xs font-bold ml-auto ${totalCruzado >= 0 ? "text-purple-400" : "text-red-400"}`}>
+              {totalCruzado >= 0 ? "+" : ""}{compactBRL(totalCruzado)}
             </span>
           </div>
         </div>
         <div className="text-right border-l border-white/5 pl-3">
           <div className="text-[9px] text-zinc-600 uppercase">Total</div>
-          <div className={`text-sm font-bold ${totalAtivo + totalCambio >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {totalAtivo + totalCambio >= 0 ? "+" : ""}{compactBRL(totalAtivo + totalCambio)}
+          <div className={`text-sm font-bold ${totalGeral >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {totalGeral >= 0 ? "+" : ""}{compactBRL(totalGeral)}
           </div>
         </div>
       </div>
@@ -966,13 +1000,15 @@ function FxDecomposition({ positions }: {
             tickFormatter={v => compactBRL(v)} />
           <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
           <Tooltip contentStyle={TOOLTIP_STYLE}
+            labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
             formatter={(v: number, name: string) => [
               compactBRL(v),
-              name === "ativo" ? "Ganho ativo" : "Efeito câmbio",
+              name === "ativo" ? "Ativo puro" : name === "fx" ? "FX principal" : "Cruzado",
             ]} />
           <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
           <Bar dataKey="ativo" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} maxBarSize={18} />
-          <Bar dataKey="cambio" stackId="a" fill="#d4a574" radius={[0, 4, 4, 0]} maxBarSize={18} />
+          <Bar dataKey="fx" stackId="a" fill="#d4a574" radius={[0, 0, 0, 0]} maxBarSize={18} />
+          <Bar dataKey="cruzado" stackId="a" fill="#a855f7" radius={[0, 4, 4, 0]} maxBarSize={18} />
         </BarChart>
       </ResponsiveContainer>
     </div>
