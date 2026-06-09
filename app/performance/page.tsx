@@ -283,7 +283,7 @@ export default function PerformancePage() {
 
   const chartData = useMemo(() => {
     return activeChart.map(p => ({
-      date: p.date.slice(5),
+      date: formatDateShort(p.date),
       fullDate: p.date,
       portfolio: +(p.twr * 100).toFixed(2),
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
