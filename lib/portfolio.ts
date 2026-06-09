@@ -466,9 +466,34 @@ export function calcularSnapshot(
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
   const lucroBRL = totalAtualRV - totalInvestidoRV;            // valorização (preço+câmbio)
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
-  const realizadoRVBRL = rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
-  const proventosRVBRL = rvPositions.reduce((s, p) => s + p.proventosBRL, 0);
-  const retornoTotalRVBRL = lucroBRL + realizadoRVBRL + proventosRVBRL; // não realiz. + realizado + proventos
+  // Realized gains from open positions only
+  const realizadoOpenBRL = rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
+  // Include realized gains from CLOSED positions (qty=0, skipped by enriquecerPosicoes)
+  let realizadoClosedBRL = 0;
+  for (const [ticker, pos] of portfolio) {
+    const qtd = pos.lotes.reduce((sum, l) => sum + l.qty, 0);
+    if (qtd >= 0.000001) continue;
+    if (Math.abs(pos.lucroRealizado) < 0.01) continue;
+    const setor = identificarSetor(ticker);
+    if (!isRendaVariavel(setor)) continue;
+    const moeda = getMoedaEfetiva(ticker, pos.moeda, setor);
+    realizadoClosedBRL += pos.lucroRealizado * fxToBRL(moeda, fxAtual);
+  }
+  const realizadoRVBRL = realizadoOpenBRL + realizadoClosedBRL;
+  // Proventos from closed positions are already in prov.porTicker (not filtered by qty)
+  const proventosClosedBRL = (() => {
+    const openTickers = new Set(rvPositions.map(p => p.ticker));
+    let total = 0;
+    for (const [ticker, val] of Object.entries(prov.porTicker)) {
+      if (openTickers.has(ticker)) continue;
+      const setor = identificarSetor(ticker);
+      if (!isRendaVariavel(setor)) continue;
+      total += val;
+    }
+    return total;
+  })();
+  const proventosRVBRL = rvPositions.reduce((s, p) => s + p.proventosBRL, 0) + proventosClosedBRL;
+  const retornoTotalRVBRL = lucroBRL + realizadoRVBRL + proventosRVBRL;
   const retornoTotalRVPct = totalInvestidoRV > 0 ? (retornoTotalRVBRL / totalInvestidoRV) * 100 : 0;
 
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
