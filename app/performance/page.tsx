@@ -418,8 +418,7 @@ export default function PerformancePage() {
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
         const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
-        const lucroSimples = navAtual - custoFIFO;
-        const retornoSimplesPct = custoFIFO > 0 ? (lucroSimples / custoFIFO) * 100 : 0;
+        const retornoTotalPct = custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -439,12 +438,12 @@ export default function PerformancePage() {
                 </p>
                 <p className="text-[10px] text-zinc-500 mt-1">TIR {pct(mwrPct)} a.a.</p>
               </div>
-              <div title="Lucro simples: patrimônio atual − custo FIFO das posições atuais">
-                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Lucro Simples</p>
-                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${lucroSimples >= 0 ? "text-amber-400" : "text-red-400"}`}>
-                  {lucroSimples >= 0 ? "+" : ""}{compactCurr(lucroSimples)}
+              <div title="Resultado Total: não realizado + realizado + proventos (canônico do Resumo)">
+                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Resultado Total</p>
+                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                  {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">{retornoSimplesPct >= 0 ? "+" : ""}{retornoSimplesPct.toFixed(2)}% sobre {compactCurr(custoFIFO)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(custoFIFO)}</p>
               </div>
             </div>
 
