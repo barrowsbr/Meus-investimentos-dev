@@ -180,6 +180,10 @@ Registro de entradas, saídas e gastos com cartão.
 
 > Esta regra existe para impedir o problema histórico de "mudo numa página e quebra
 > a simetria com outra". Toda métrica tem UM lugar onde é calculada.
+>
+> **Leia `CANONICO.md`** — define o conceito de cálculo canônico, o catálogo de
+> métricas (qual campo ler), as exceções permitidas e os gaps a reconciliar.
+> Cálculo conhecido = reusar o campo canônico do snapshot; **nunca** recalcular ad-hoc.
 
 - **TypeScript é o único motor de portfólio.** Toda matemática de patrimônio,
   investido (FIFO), lucro, proventos, câmbio e renda fixa vive em **`lib/portfolio.ts`**
