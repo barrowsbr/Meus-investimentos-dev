@@ -5,8 +5,7 @@ import Image from "next/image";
 import { Lock, User, Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
 
 const AUTH_KEY = "mi_auth";
-const VALID_USER = "LBF";
-const VALID_PASS = "1015";
+const COTACOES_KEY = "mi_cotacoes_sync";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -22,26 +21,46 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  function handleSubmit(e: FormEvent) {
+  // Auto-update golden source once per day after login
+  useEffect(() => {
+    if (!authed) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (sessionStorage.getItem(COTACOES_KEY) === today) return;
+    sessionStorage.setItem(COTACOES_KEY, today);
+    fetch("/api/sync/cotacoes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", lookback_years: 1 }),
+    }).catch(() => {});
+  }, [authed]);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
 
-    setTimeout(() => {
-      if (user.trim().toUpperCase() === VALID_USER && pass === VALID_PASS) {
+    try {
+      const res = await fetch("/api/auth/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: user.trim(), password: pass }),
+      });
+      const data = await res.json();
+      if (data.ok) {
         sessionStorage.setItem(AUTH_KEY, "1");
         setAuthed(true);
       } else {
         setError("Usuário ou senha incorretos.");
         setPass("");
       }
+    } catch {
+      setError("Erro de conexão.");
+    } finally {
       setSubmitting(false);
-    }, 350);
+    }
   }
 
-  // Avoid hydration flash — render nothing until we know auth state
   if (!mounted) return null;
-
   if (authed) return <>{children}</>;
 
   return (
