@@ -419,11 +419,13 @@ export default function PerformancePage() {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+        const isAllTime = lookback === 0 && !customMode;
+        const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
         const ge = isUnfiltered && ganhoCanonical != null
           ? ganhoCanonical
-          : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
-        const custoFIFO = s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido;
-        const retornoTotalPct = s.resultadoTotalPct != null && !isUnfiltered
+          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
+        const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
           : custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
 
@@ -485,14 +487,6 @@ export default function PerformancePage() {
                   <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio</p>
                   <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
                   <p className="text-[10px] text-zinc-500">Investido {compactCurr(custoFIFO)}</p>
-                </div>
-                <div className="h-px bg-zinc-800/50" />
-                <div>
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-                  <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {ge >= 0 ? "+" : ""}{compactCurr(ge)}
-                  </p>
-                  <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
                 </div>
               </div>
             </div>
@@ -727,13 +721,15 @@ export default function PerformancePage() {
                   ),
                   { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
-                  { label: "Investido", value: compactCurr(s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido) },
+                  { label: "Investido", value: compactCurr((tickerFilter && lookback === 0 && !customMode && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
                     const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                    const isAllT = lookback === 0 && !customMode;
+                    const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
                     const ge = isUnfiltered && ganhoCanonical != null
                       ? ganhoCanonical
-                      : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
+                      : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
                     return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
