@@ -486,6 +486,16 @@ export function calcularSnapshot(
     const moedaKey = getMoedaExposicao(p.setor, p.moeda);
     exposicaoCambial[moedaKey] = (exposicaoCambial[moedaKey] ?? 0) + p.valorAtualBRL;
   }
+  // Inclui a RF manual e o caixa (fixa_aberta) na exposição por moeda — inclusive
+  // caixa em dólar — para o % cambial refletir TODO o patrimônio, não só as posições.
+  for (const row of fixaAberta) {
+    const valor = toNumber(getVal(row, "atual", "valor_atual", "saldo", "valor atual")) ?? 0;
+    if (valor <= 0) continue;
+    const moeda = getMoeda(row);
+    const valorBRL = valor * fxToBRL(moeda, fxAtual);
+    if (valorBRL < 1) continue;
+    exposicaoCambial[moeda] = (exposicaoCambial[moeda] ?? 0) + valorBRL;
+  }
 
   const setorAlocacao: Record<string, number> = {};
   for (const p of positions) {
