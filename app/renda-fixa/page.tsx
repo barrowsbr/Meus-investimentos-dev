@@ -184,13 +184,6 @@ export default function RendaFixaPage() {
     else { setSortKeyClosed(key); setSortDirClosed("desc"); }
   }
 
-  function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-    if (!active) return <span className="text-zinc-700 ml-0.5">↕</span>;
-    return dir === "asc"
-      ? <ChevronUp size={10} className="inline ml-0.5 text-accent" />
-      : <ChevronDown size={10} className="inline ml-0.5 text-accent" />;
-  }
-
   return (
     <>
       <PageHeader title="Renda Fixa" description="Posições abertas, encerradas, proventos e transações" />
@@ -249,7 +242,7 @@ export default function RendaFixaPage() {
           <p className="text-[10px] text-zinc-600 mt-0.5">NR + Realizado + Proventos</p>
         </div>
         <div className="glass-card p-3">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Rentab. Média</p>
+          <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Ret. Total Médio</p>
           <p className={`text-base font-bold ${metrics.rentMedia >= 0 ? "text-emerald-400" : "text-red-400"}`}>
             {pct(metrics.rentMedia)}
           </p>
@@ -280,7 +273,7 @@ export default function RendaFixaPage() {
                   <SortTh label="Investido" sortKey="investido" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
                   <SortTh label="Valor Atual" sortKey="atual" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
                   <SortTh label="Lucro" sortKey="lucro" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
-                  <SortTh label="Rent. %" sortKey="rentabilidade" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
+                  <SortTh label="Ret.Tot.%" sortKey="rentabilidade" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
                   <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Proventos</th>
                   <SortTh label="Resultado" sortKey="resultadoTotal" currentKey={sortKeyOpen} dir={sortDirOpen} onSort={handleSortOpen} right />
                 </tr>
@@ -436,7 +429,7 @@ export default function RendaFixaPage() {
                     <SortTh label="Venda" sortKey="venda" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
                     <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Imposto</th>
                     <SortTh label="Lucro" sortKey="lucro" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
-                    <SortTh label="Rent. %" sortKey="rentabilidade" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
+                    <SortTh label="Ret.Tot.%" sortKey="rentabilidade" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
                     <th className="px-3 py-2.5 text-right text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Proventos</th>
                     <SortTh label="Total" sortKey="resultadoTotal" currentKey={sortKeyClosed} dir={sortDirClosed} onSort={handleSortClosed} right />
                   </tr>

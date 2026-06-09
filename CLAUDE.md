@@ -176,6 +176,30 @@ Registro de entradas, saídas e gastos com cartão.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
 - **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
 
+## Arquitetura de cálculo — FONTE ÚNICA (regra dura)
+
+> Esta regra existe para impedir o problema histórico de "mudo numa página e quebra
+> a simetria com outra". Toda métrica tem UM lugar onde é calculada.
+
+- **TypeScript é o único motor de portfólio.** Toda matemática de patrimônio,
+  investido (FIFO), lucro, proventos, câmbio e renda fixa vive em **`lib/portfolio.ts`**
+  (`calcularSnapshot` + helpers) e `lib/cambio.ts`. As páginas consomem via
+  `usePortfolio` → `/api/cotacoes`, ou rotas TS que reusam `calcularSnapshot`
+  (`/api/composicao/resumo`, `/api/renda-fixa/posicoes`, `/api/portfolio/sectors`).
+- **Python (`api/index.py` / `backend/`) serve APENAS** preditivo/ML, agente/IA e
+  endpoints sem equivalente TS (`/api/fluxos`, `/api/historico`). **NUNCA** recalcular
+  portfólio/proventos/câmbio em Python — o `portfolio_service.py` está em quarentena
+  (inalcançável por rota) e não deve voltar a ser ligado.
+- **`vercel.json` rewrites**: só pode haver rewrite para Python em paths que NÃO têm
+  rota TS. Adicionar rewrite sobre um path TS recria a divergência silenciosa (a rota
+  de arquivo Next.js vence o rewrite, então o Python fica "morto mas divergente").
+- **Câmbio de custo (P0)** = pmDólar real das remessas (`buildPmFxRates` → `fxCusto`),
+  não PTAX da data de compra. Vale para Resumo, Câmbio e DRE. Ver `CALCULOS.md §20`.
+- **Rentabilidade**: mostrar SEMPRE duas medidas separadas — **Valorização %**
+  (só preço/câmbio, sem proventos) e **Retorno Total %** (valorização + proventos
+  líquidos / investido). Nunca misturar uma só métrica que ora inclui, ora não.
+- `lib/fixed-income-engine.ts` é legado e não deve ser usado.
+
 ## Base de cotações (golden source — `db_cotacoes`)
 
 - `db_cotacoes` é a **fonte de verdade** de preços para performance/TWR: matriz larga (1 linha/dia, 1 coluna/ativo), **preço bruto de fechamento** (não ajustado). FX e índices (`BRL=X`, `^BVSP`, `^GSPC`) são colunas normais.

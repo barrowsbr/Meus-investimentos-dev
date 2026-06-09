@@ -244,11 +244,10 @@ export default function PortfolioPage() {
                 const cor = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const provBRL = data.proventosPorTicker?.[p.ticker] ?? 0;
-                const realizadoBRL = p.lucroRealizadoBRL;
-                const naoRealizadoBRL = p.lucroBRL ?? 0;
-                const resultadoTotal = naoRealizadoBRL + realizadoBRL + provBRL;
-                const retornoTotalPct = p.custoTotalBRL > 0 ? (resultadoTotal / p.custoTotalBRL) * 100 : (p.lucroPct ?? 0);
+                // Fonte única: campos vêm do snapshot (lib/portfolio.ts), sem recomputar aqui.
+                const provBRL = p.proventosBRL;
+                const resultadoTotal = p.retornoTotalBRL ?? 0;
+                const retornoTotalPct = p.retornoTotalPct ?? (p.lucroPct ?? 0);
                 const corTotal = resultadoTotal >= 0 ? "text-positive" : "text-negative";
                 return (
                   <tr key={p.ticker} className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
@@ -287,10 +286,10 @@ export default function PortfolioPage() {
             </tbody>
             <tfoot>
               {(() => {
-                const totalProvRV = metrics.rv.reduce((s, p) => s + (data.proventosPorTicker?.[p.ticker] ?? 0), 0);
-                const totalRealizadoRV = metrics.lucroRealizado;
-                const totalResultado = data.lucroBRL + totalRealizadoRV + totalProvRV;
-                const totalRetornoPct = metrics.totalInvestido > 0 ? (totalResultado / metrics.totalInvestido) * 100 : 0;
+                // Fonte única: totais RV vêm do snapshot.
+                const totalProvRV = data.proventosRVBRL;
+                const totalResultado = data.retornoTotalRVBRL;
+                const totalRetornoPct = data.retornoTotalRVPct;
                 return (
                   <tr className="border-t-2 border-border font-semibold">
                     <td className="px-3 py-3 text-zinc-300" colSpan={5}>Total RV</td>

@@ -35,7 +35,10 @@ export interface Position {
   valorAtualBRL: number;
   custoTotalBRL: number;
   lucroBRL: number | null;
-  lucroPct: number | null;
+  lucroPct: number | null;            // Valorização % (preço + câmbio, SEM proventos)
+  proventosBRL: number;               // proventos líquidos (bruto − IR) deste ticker, em BRL
+  retornoTotalBRL: number | null;     // lucroBRL + proventosBRL
+  retornoTotalPct: number | null;     // Retorno Total % = retornoTotalBRL / custoTotalBRL
   ganhoAtivoBRL: number | null;
   ganhoCambioBRL: number | null;
   // ── Decomposição analítica multimoeda (3 fatores) ──────────────────────────
@@ -62,8 +65,11 @@ export interface PortfolioSnapshot {
   proventosPorTicker: Record<string, number>;
   totalImpostoProventosBRL: number;
   impostoProventosPorTicker: Record<string, number>;
-  lucroBRL: number;
-  lucroPct: number;
+  lucroBRL: number;                  // RV: valorização total (preço + câmbio)
+  lucroPct: number;                  // RV: Valorização % (sem proventos)
+  proventosRVBRL: number;            // RV: proventos líquidos acumulados
+  retornoTotalRVBRL: number;         // RV: valorização + proventos
+  retornoTotalRVPct: number;         // RV: Retorno Total %
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
   ganhoAtivoPuroTotalBRL: number;
@@ -167,7 +173,6 @@ export function calcularCarteiraFIFO(
     }
     const pos = portfolio.get(ticker)!;
 
-    const isCrypto = setor === "Cripto";
     const isUsdAsset = moeda === "USD";
     const lotFx = isUsdAsset && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
 
@@ -253,13 +258,32 @@ export function enriquecerPosicoes(
       valorAtualBRL = custoTotal * fatorAtual;
     }
 
-    // For USD assets: use per-lot PTAX rate at purchase date for accurate BRL cost
+    // ── Custo cambial híbrido (fonte única de "efeito cambial") ───────────────
+    // Para ativos em moeda estrangeira, o custo em BRL e a decomposição usam o
+    // pmDólar/pmEuro REAL das suas remessas (via fxCusto = buildPmFxRates), e não
+    // a PTAX da data de compra. Assim "Investido", "Lucro" e a "Decomposição de
+    // Fatores" do Resumo passam a usar a MESMA taxa de referência que a página
+    // Câmbio. Fallback: PTAX por lote → câmbio atual, quando não há remessa.
     const isCrypto = setor === "Cripto";
     const isUsdAsset = moeda === "USD";
-    const hasPerLotFx = isUsdAsset && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
-    const custoTotalBRL = hasPerLotFx
-      ? pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0)
-      : custoTotal * fatorCusto;
+    const isForeign = moeda !== "BRL" && !isCrypto;
+    const pmFxRate = fxToBRL(moeda, fxCusto); // pmDólar-based (0 se sem remessa na moeda)
+    const hasPerLotFx = (isUsdAsset || isForeign) && pos.lotes.some(l => l.fxBRL != null && l.fxBRL > 0);
+
+    let custoTotalBRL: number;
+    let fxCostBasis: number; // P0 — câmbio médio de aquisição (R$/moeda)
+    if (isForeign && pmFxRate > 0) {
+      fxCostBasis = pmFxRate;
+      custoTotalBRL = custoTotal * pmFxRate;
+    } else if (hasPerLotFx) {
+      custoTotalBRL = pos.lotes.reduce((sum, l) => sum + l.qty * l.pm * (l.fxBRL ?? fatorCusto), 0);
+      fxCostBasis = custoTotal > 0 ? custoTotalBRL / custoTotal : fatorCusto;
+    } else {
+      const rate = fatorCusto > 0 ? fatorCusto : fatorAtual;
+      custoTotalBRL = custoTotal * rate;
+      fxCostBasis = rate;
+    }
+
     const lucroBRL = precoAtual !== null ? valorAtualBRL - custoTotalBRL : null;
     const lucroPct = lucroBRL !== null && custoTotalBRL > 0
       ? (lucroBRL / custoTotalBRL) * 100
@@ -274,11 +298,11 @@ export function enriquecerPosicoes(
     let pmFxAquisicao: number | null = null;
     let fxAtualBRL: number | null = null;
 
-    if (precoAtual !== null && moeda !== "BRL" && !isCrypto) {
+    if (precoAtual !== null && isForeign) {
       // Capital na moeda funcional (V0 custo, V1 atual) e câmbios P0/P1.
       const V0 = custoTotal;                                   // USD custo
       const V1 = precoAtual * qtdTotal;                        // USD atual
-      const P0 = custoTotal > 0 ? custoTotalBRL / custoTotal : fatorCusto; // câmbio médio aquisição
+      const P0 = fxCostBasis;                                  // câmbio médio aquisição (pmDólar)
       const fatorQuote = quoteCurrency ? fxToBRL(quoteCurrency, fxAtual) : fatorAtual;
       const P1 = fatorQuote;                                   // câmbio atual
       pmFxAquisicao = P0;
@@ -317,6 +341,9 @@ export function enriquecerPosicoes(
       custoTotalBRL,
       lucroBRL,
       lucroPct,
+      proventosBRL: 0,            // preenchido em calcularSnapshot (precisa de prov.porTicker)
+      retornoTotalBRL: lucroBRL,
+      retornoTotalPct: lucroPct,
       ganhoAtivoBRL,
       ganhoCambioBRL,
       ganhoAtivoPuroBRL,
@@ -412,6 +439,17 @@ export function calcularSnapshot(
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
+  // Anexa proventos líquidos por posição e o Retorno Total
+  // (= valorização não realizada + lucro realizado + proventos líquidos).
+  // lucroPct continua sendo a "Valorização %" (só preço/câmbio, não realizado).
+  for (const p of positions) {
+    p.proventosBRL = prov.porTicker[p.ticker] ?? 0;
+    if (p.lucroBRL !== null) {
+      p.retornoTotalBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
+      p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;
+    }
+  }
+
   const rvPositions = positions.filter((p) => isRendaVariavel(p.setor));
   const rvPatrimonioBRL = rvPositions
     .filter((p) => p.valorAtualBRL > 1.0)
@@ -426,8 +464,12 @@ export function calcularSnapshot(
 
   const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
-  const lucroBRL = totalAtualRV - totalInvestidoRV;
+  const lucroBRL = totalAtualRV - totalInvestidoRV;            // valorização (preço+câmbio)
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
+  const realizadoRVBRL = rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
+  const proventosRVBRL = rvPositions.reduce((s, p) => s + p.proventosBRL, 0);
+  const retornoTotalRVBRL = lucroBRL + realizadoRVBRL + proventosRVBRL; // não realiz. + realizado + proventos
+  const retornoTotalRVPct = totalInvestidoRV > 0 ? (retornoTotalRVBRL / totalInvestidoRV) * 100 : 0;
 
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
   const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
@@ -463,6 +505,9 @@ export function calcularSnapshot(
     impostoProventosPorTicker: prov.impostoPorTicker,
     lucroBRL,
     lucroPct,
+    proventosRVBRL,
+    retornoTotalRVBRL,
+    retornoTotalRVPct,
     ganhoAtivoTotalBRL,
     ganhoCambioTotalBRL,
     ganhoAtivoPuroTotalBRL,

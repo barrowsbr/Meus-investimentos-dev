@@ -39,7 +39,7 @@ const SECTOR_COLORS: Record<string, string> = {
   "BDRs": "#ec4899",
 };
 
-type SortKey = "ticker" | "setor" | "valorAtualBRL" | "lucroBRL" | "lucroPct" | "dayChangePct" | "dayChangeBRL" | "ganhoAtivoBRL" | "ganhoCambioBRL";
+type SortKey = "ticker" | "setor" | "valorAtualBRL" | "lucroBRL" | "lucroPct" | "retornoTotalPct" | "dayChangePct" | "dayChangeBRL" | "ganhoAtivoBRL" | "ganhoCambioBRL";
 type SortDir = "asc" | "desc";
 
 function sortPositions(positions: Position[], key: SortKey, dir: SortDir): Position[] {
@@ -221,7 +221,7 @@ export default function RendaVariavelPage() {
           <MetricCard
             label="Lucro Total"
             value={brl(data.lucroBRL)}
-            sub={pct(data.lucroPct)}
+            sub={`Valoriz. ${pct(data.lucroPct)} · Ret.Tot. ${pct(data.retornoTotalRVPct ?? 0)}`}
             icon={data.lucroBRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
             trend={data.lucroBRL >= 0 ? "up" : "down"}
             glowColor={data.lucroBRL >= 0 ? "#4ade80" : "#f87171"}
@@ -371,7 +371,8 @@ export default function RendaVariavelPage() {
                 <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Preço</th>
                 <SortTh col="valorAtualBRL" label="Atual" right />
                 <SortTh col="lucroBRL" label="Lucro" right />
-                <SortTh col="lucroPct" label="%" right />
+                <SortTh col="lucroPct" label="Valoriz.%" right />
+                <SortTh col="retornoTotalPct" label="Ret.Tot.%" right />
                 <SortTh col="dayChangePct" label="Dia%" right />
                 <SortTh col="dayChangeBRL" label="Dia R$" right />
                 {hasUSD && <SortTh col="ganhoAtivoBRL" label="G.Ativo" right />}
@@ -386,7 +387,7 @@ export default function RendaVariavelPage() {
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const isExpanded = expandedTicker === p.ticker;
                 const txs = txByTicker[p.ticker] ?? [];
-                const colCount = 10 + (hasUSD ? 2 : 0);
+                const colCount = 11 + (hasUSD ? 2 : 0);
                 return (
                   <React.Fragment key={p.ticker}>
                     <tr
@@ -420,6 +421,9 @@ export default function RendaVariavelPage() {
                       </td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
                         {p.lucroPct !== null ? pct(p.lucroPct) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${(p.retornoTotalPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
+                        {p.retornoTotalPct !== null ? pct(p.retornoTotalPct) : "—"}
                       </td>
                       <td className={`px-3 py-2.5 text-right text-xs font-semibold ${p.dayChangePct !== null ? corDia : "text-zinc-600"}`}>
                         {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
@@ -517,6 +521,7 @@ export default function RendaVariavelPage() {
                 <td className="px-3 py-3 text-right text-zinc-200">{brl(data.rvPatrimonioBRL)}</td>
                 <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
                 <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
+                <td className={`px-3 py-3 text-right ${(data.retornoTotalRVPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.retornoTotalRVPct ?? 0)}</td>
                 <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
                   {pct(data.dayChangeTotalPct ?? 0)}
                 </td>
