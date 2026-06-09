@@ -486,14 +486,13 @@ export default function ResumoPage() {
           else proventosRV += val;
         }
 
-        // Impostos
-        const impostoRF = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
-
-        // FX decomposition (use detailed data if available, fallback to aggregate)
-        const fxPrincipal = (data as any).ganhoFXPrincipalTotalBRL ?? 0;
-        const fxCruzado = (data as any).ganhoCruzadoTotalBRL ?? 0;
-        const ganhoCambio = (fxPrincipal + fxCruzado) || (data.ganhoCambioTotalBRL ?? 0);
-        const ganhoAtivo = (data.ganhoAtivoTotalBRL ?? 0) || (rvGanho - ganhoCambio);
+        // Decomposição de 3 fatores (puro + principal + cruzado = lucro RV não realizado).
+        // "Efeito cambial" agrupa Principal + Cruzado, então a linha "Retorno do ativo"
+        // tem de ser o ganho PURO (sem cruzado) — senão o cruzado é contado 2x.
+        const fxPrincipal = data.ganhoFXPrincipalTotalBRL ?? 0;
+        const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
+        const ganhoCambio = fxPrincipal + fxCruzado;
+        const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvGanho - ganhoCambio);
 
         // Resultado total
         const resultadoTotal = rvGanho + rfGanho + proventosTotal;
@@ -509,6 +508,24 @@ export default function ResumoPage() {
         const dayChg = data.dayChangeTotalBRL ?? 0;
         const dayPct = data.dayChangeTotalPct ?? 0;
 
+        // ── Métricas macro derivadas (sem matemática nova — só agrega campos do snapshot) ──
+        const investidoTotal = investidoRV + investidoRF;
+        const retornoAcumPct = investidoTotal > 0 ? (resultadoTotal / investidoTotal) * 100 : 0;
+        // Alocação (% do patrimônio)
+        const rvPct = patrimonioAtual > 0 ? (rvPatrimonio / patrimonioAtual) * 100 : 0;
+        const rfPct = patrimonioAtual > 0 ? (rfPatrimonio / patrimonioAtual) * 100 : 0;
+        // Exposição cambial (tudo que não é BRL, em % do patrimônio exposto)
+        const expo = data.exposicaoCambial ?? {};
+        const totalExpo = Object.values(expo).reduce((s, v) => s + v, 0);
+        const brlExpo = expo["BRL"] ?? 0;
+        const foreignExpoBRL = totalExpo - brlExpo;
+        const foreignPct = totalExpo > 0 ? (foreignExpoBRL / totalExpo) * 100 : 0;
+        // Yield de proventos anualizado (carrego) sobre o patrimônio
+        const yieldAnualPct = patrimonioAtual > 0 ? ((avgMonthlyDividend * 12) / patrimonioAtual) * 100 : 0;
+        // Proventos brutos = líquidos + IR retido (para a leitura de DRE)
+        const irProventos = data.totalImpostoProventosBRL ?? 0;
+        const proventosBrutos = proventosTotal + irProventos;
+
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
             {/* Header */}
@@ -517,16 +534,26 @@ export default function ResumoPage() {
               <span className="text-[10px] text-zinc-600">{composicao?.computed_at ? formatComputedAt(composicao.computed_at) : ""}</span>
             </div>
 
-            {/* ── Patrimônio ── */}
+            {/* ── 1. Patrimônio (AUM) & Alocação ── */}
             <div className="flex items-baseline justify-between mb-1">
               <span className="text-sm font-bold text-zinc-100">Patrimônio Atual</span>
-              <span className="text-lg font-bold text-zinc-100">{compactBRL(patrimonioAtual)}</span>
+              <span className="text-xl font-extrabold text-zinc-100">{compactBRL(patrimonioAtual)}</span>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-4">
-              <span>RV {compactBRL(rvPatrimonio)} · RF {compactBRL(rfPatrimonio)}</span>
-              <span className={dayChg >= 0 ? "text-emerald-400/70" : "text-red-400/70"}>
+            <div className="flex items-center justify-end text-[11px] mb-3">
+              <span className={dayChg >= 0 ? "text-emerald-400/80" : "text-red-400/80"}>
                 Hoje {fmt(dayChg)} ({pct(dayPct)})
               </span>
+            </div>
+
+            {/* Barra de alocação RV / RF */}
+            <div className="h-2 w-full rounded-full overflow-hidden flex mb-1.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div style={{ width: `${rvPct}%`, background: "#3b82f6" }} />
+              <div style={{ width: `${rfPct}%`, background: "#2dd4bf" }} />
+            </div>
+            <div className="flex items-center justify-between text-[10px] mb-4">
+              <span className="text-blue-400">RV {rvPct.toFixed(0)}% · {compactBRL(rvPatrimonio)}</span>
+              <span className="text-zinc-600">🌐 {foreignPct.toFixed(0)}% câmbio</span>
+              <span className="text-teal-400">RF {rfPct.toFixed(0)}% · {compactBRL(rfPatrimonio)}</span>
             </div>
 
             <div className="h-px bg-zinc-800/60 mb-3" />
@@ -543,13 +570,16 @@ export default function ResumoPage() {
 
             <div className="h-px bg-zinc-800/60 mb-3" />
 
-            {/* ── Resultado por Fonte ── */}
+            {/* ── 2. Resultado Acumulado (por fonte) ── */}
             <div className="flex items-baseline justify-between mb-3">
-              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Resultado Total</span>
-              <span className={`text-base font-bold ${clr(resultadoTotal)}`}>{fmt(resultadoTotal)}</span>
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Resultado Acumulado</span>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-[11px] font-semibold ${clr(resultadoTotal)}`}>{pct(retornoAcumPct)}</span>
+                <span className={`text-base font-bold ${clr(resultadoTotal)}`}>{fmt(resultadoTotal)}</span>
+              </div>
             </div>
 
-            {/* Renda Variável */}
+            {/* Renda Variável — ganho de capital */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-semibold text-blue-400">Renda Variável</span>
@@ -563,24 +593,6 @@ export default function ResumoPage() {
                 <div className="flex justify-between text-[10px]">
                   <span className="text-zinc-500">Realizado</span>
                   <span className={clrSub(rvReal)}>{fmt(rvReal)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Proventos */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-semibold text-amber-400">Proventos</span>
-                <span className="text-[12px] font-bold text-amber-400">{fmt(proventosTotal)}</span>
-              </div>
-              <div className="pl-3 space-y-0.5">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-zinc-500">Dividendos / JCP (RV)</span>
-                  <span className="text-amber-400/70">{compactBRL(proventosRV)}</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-zinc-500">Rendimentos (RF)</span>
-                  <span className="text-amber-400/70">{compactBRL(proventosRF)}</span>
                 </div>
               </div>
             </div>
@@ -603,15 +615,29 @@ export default function ResumoPage() {
               </div>
             </div>
 
-            {/* Impostos */}
-            {impostoRF > 0.01 && (
-              <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-red-400/80">IR Retido (RF)</span>
-                  <span className="text-[12px] font-bold text-red-400">−{compactBRL(impostoRF)}</span>
-                </div>
+            {/* Proventos (carrego) — líquidos de IR */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-semibold text-amber-400">Proventos (líq.)</span>
+                <span className="text-[12px] font-bold text-amber-400">{fmt(proventosTotal)}</span>
               </div>
-            )}
+              <div className="pl-3 space-y-0.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Dividendos / JCP (RV)</span>
+                  <span className="text-amber-400/70">{compactBRL(proventosRV)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-zinc-500">Rendimentos (RF)</span>
+                  <span className="text-amber-400/70">{compactBRL(proventosRF)}</span>
+                </div>
+                {irProventos > 0.01 && (
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-zinc-600">Bruto {compactBRL(proventosBrutos)} · IR retido</span>
+                    <span className="text-red-400/70">−{compactBRL(irProventos)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
             <div className="h-px bg-zinc-800/60 mb-3" />
 
@@ -646,24 +672,27 @@ export default function ResumoPage() {
 
             <div className="h-px bg-zinc-800/60 mb-3" />
 
-            {/* ── Métricas Secundárias ── */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* ── 3. Indicadores-chave (macro) ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Retorno acum.</p>
+                <p className={`text-sm font-bold ${clr(resultadoTotal)}`}>{pct(retornoAcumPct)}</p>
+                <p className="text-[9px] text-zinc-600">lucro ÷ investido</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Yield proventos</p>
+                <p className="text-sm font-bold text-amber-400">{yieldAnualPct.toFixed(1)}% a.a.</p>
+                <p className="text-[9px] text-zinc-600">{compactBRL(avgMonthlyDividend)}/mês</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Exposição câmbio</p>
+                <p className="text-sm font-bold text-zinc-200">{foreignPct.toFixed(0)}%</p>
+                <p className="text-[9px] text-zinc-600">{compactBRL(foreignExpoBRL)}</p>
+              </div>
               <div>
                 <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Dólar</p>
                 <p className="text-sm font-bold text-zinc-200">R$ {data.usdbrl.toFixed(2)}</p>
                 <p className="text-[9px] text-zinc-600">PM R$ {data.cambio?.pmDolar?.toFixed(2) ?? "—"}</p>
-              </div>
-              <div>
-                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Proventos/mês</p>
-                <p className="text-sm font-bold text-amber-400">{compactBRL(avgMonthlyDividend)}</p>
-                <p className="text-[9px] text-zinc-600">{rvPositions.length} ativos</p>
-              </div>
-              <div>
-                <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Retorno simples</p>
-                <p className={`text-sm font-bold ${clr(resultadoTotal)}`}>
-                  {pct(patrimonioAtual > 0 ? (resultadoTotal / (patrimonioAtual - resultadoTotal)) * 100 : 0)}
-                </p>
-                <p className="text-[9px] text-zinc-600">lucro ÷ investido</p>
               </div>
             </div>
 
