@@ -5,10 +5,7 @@ import {
   PiggyBank, TrendingUp, TrendingDown,
   ChevronDown, ChevronUp, Wallet,
 } from "lucide-react";
-import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, currency, formatDate } from "@/lib/format";
-import { isRendaFixa } from "@/lib/sectors";
-import type { Position } from "@/lib/portfolio";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -87,7 +84,6 @@ function sortBy<T extends Record<string, unknown>>(arr: T[], key: string, dir: S
 }
 
 export default function RendaFixaPage() {
-  const { data: portfolio, loading: portLoading } = usePortfolio();
   const [rfData, setRfData] = useState<RFData | null>(null);
   const [rfLoading, setRfLoading] = useState(true);
   const [rfError, setRfError] = useState<string | null>(null);
@@ -110,51 +106,22 @@ export default function RendaFixaPage() {
       .finally(() => setRfLoading(false));
   }, []);
 
-  const loading = portLoading || rfLoading;
-
-  const rfDeAtivos = useMemo((): Position[] => {
-    if (!portfolio?.positions) return [];
-    return portfolio.positions.filter((p: Position) => isRendaFixa(p.setor));
-  }, [portfolio]);
-
-  // Proventos/IR dos RF de bolsa (SHV, BIL) vêm do snapshot — já líquidos de IR
-  // e convertidos para BRL (SHV é USD). O `proventosPorTicker` já abate o IMPOSTO.
-  const provAtivosByTicker = useMemo(() => {
-    const map: Record<string, { liquido: number; imposto: number }> = {};
-    for (const p of rfDeAtivos) {
-      const liquido = portfolio?.proventosPorTicker?.[p.ticker] ?? 0;
-      const imposto = portfolio?.impostoProventosPorTicker?.[p.ticker] ?? 0;
-      if (Math.abs(liquido) > 0.005 || imposto > 0.005) map[p.ticker] = { liquido, imposto };
-    }
-    return map;
-  }, [rfDeAtivos, portfolio]);
+  const loading = rfLoading;
 
   const metrics = useMemo(() => {
     if (!rfData) return null;
-    const totalAtivosBRL = rfDeAtivos.reduce((s, p) => s + p.valorAtualBRL, 0);
-    const lucroAtivos = rfDeAtivos.reduce((s, p) => s + (p.lucroBRL ?? 0), 0);
-    const totalRF = rfData.patrimonio + totalAtivosBRL;
-    // Proventos/IR dos ativos de bolsa (SHV/BIL) que faltavam na conta de RF
-    const proventosAtivos = Object.values(provAtivosByTicker).reduce((s, v) => s + v.liquido, 0);
-    const impostoAtivos = Object.values(provAtivosByTicker).reduce((s, v) => s + v.imposto, 0);
-    const totalProventosRF = rfData.totalProventosRF + proventosAtivos;        // líquido (manual + bolsa)
-    const totalImpostoRF = (rfData.totalImpostoRF ?? 0) + impostoAtivos;       // IR retido total
-    const lucroTotal = rfData.lucroNaoRealizado + rfData.lucroRealizado + totalProventosRF + lucroAtivos;
-    const investidoAtivos = rfDeAtivos.reduce((s, p) => s + p.custoTotalBRL, 0);
-
+    const lucroTotal = rfData.lucroNaoRealizado + rfData.lucroRealizado + rfData.totalProventosRF;
     return {
-      totalRF,
-      totalAtivosBRL,
-      totalManualBRL: rfData.patrimonio,
+      totalRF: rfData.patrimonio,
       lucroTotal,
-      lucroNaoRealizado: rfData.lucroNaoRealizado + lucroAtivos,
+      lucroNaoRealizado: rfData.lucroNaoRealizado,
       lucroRealizado: rfData.lucroRealizado,
-      totalProventosRF,
-      totalImpostoRF,
-      totalInvestido: rfData.totalInvestidoAberto + investidoAtivos,
+      totalProventosRF: rfData.totalProventosRF,
+      totalImpostoRF: rfData.totalImpostoRF ?? 0,
+      totalInvestido: rfData.totalInvestidoAberto,
       rentMedia: rfData.rentMedia,
     };
-  }, [rfData, rfDeAtivos, provAtivosByTicker]);
+  }, [rfData]);
 
   const sortedOpen = useMemo(() => {
     if (!rfData) return [];
@@ -194,7 +161,7 @@ export default function RendaFixaPage() {
           <MetricCard
             label="Total RF"
             value={compactBRL(metrics.totalRF)}
-            sub={`Manual ${compactBRL(metrics.totalManualBRL)} + Bolsa ${compactBRL(metrics.totalAtivosBRL)}`}
+            sub={`${rfData!.abertas.length} abertas · ${rfData!.caixa.length} caixa`}
             icon={<PiggyBank size={18} />}
             glowColor="#8b5cf6"
           />
@@ -356,54 +323,6 @@ export default function RendaFixaPage() {
               </tfoot>
             </table>
           </div>
-        </div>
-      )}
-
-      {/* ── RF via Bolsa (SHV, BIL, etc.) ── */}
-      {rfDeAtivos.length > 0 && (
-        <div className="glass-card p-5 mb-5 animate-fade-in">
-          <h2 className="section-title mb-3">Renda Fixa Internacional (via carteira RV)</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/30">
-                  {["Ticker", "Setor", "Qtd", "PM", "Preço", "Investido", "Valor Atual", "Lucro", "%", "Proventos (líq.)"].map(h => (
-                    <th key={h} className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider ${h !== "Ticker" && h !== "Setor" ? "text-right" : "text-left"}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rfDeAtivos.map((p, i) => {
-                  const cor = (p.lucroPct ?? 0) >= 0 ? "text-emerald-400" : "text-red-400";
-                  const prov = provAtivosByTicker[p.ticker];
-                  return (
-                    <tr key={p.ticker} className={`border-b border-border/20 hover:bg-white/[0.025] ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`}>
-                      <td className="px-3 py-2.5 font-semibold text-zinc-200 text-xs">{p.ticker} <span className="text-zinc-600 text-[10px]">{p.moeda}</span></td>
-                      <td className="px-3 py-2.5 text-zinc-500 text-xs">{p.setor}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">{p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.custoMedio, p.moeda)}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
-                        {p.precoAtual !== null ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{brl(p.custoTotalBRL)}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-200 font-medium text-xs">{brl(p.valorAtualBRL)}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold text-xs ${cor}`}>{p.lucroPct !== null ? pct(p.lucroPct) : "—"}</td>
-                      <td className="px-3 py-2.5 text-right text-xs">
-                        {prov ? (
-                          <span className="text-amber-400 font-mono">
-                            {brl(prov.liquido)}
-                            {prov.imposto > 0.01 && <span className="text-zinc-600 block text-[9px]">−{brl(prov.imposto)} IR</span>}
-                          </span>
-                        ) : <span className="text-zinc-700">—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-2">Proventos líquidos de IR retido na fonte, convertidos para BRL pelo câmbio atual.</p>
         </div>
       )}
 
