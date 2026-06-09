@@ -48,6 +48,9 @@ interface Summary {
   var95: number;
   var99: number;
   ganhoEconomico: number;
+  resultadoTotal?: number;
+  resultadoTotalPct?: number;
+  custoFIFOSnapshot?: number;
   peakDate?: string;
   troughDate?: string;
   peakTwr?: number;
@@ -414,11 +417,15 @@ export default function PerformancePage() {
       {/* ── Hero Performance Card ── */}
       {(() => {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
-        const custoFIFO = s.custoPosicoesAtuais ?? s.totalInvestido;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
-        const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
-        const retornoTotalPct = custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
+        const ge = isUnfiltered && ganhoCanonical != null
+          ? ganhoCanonical
+          : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
+        const custoFIFO = s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido;
+        const retornoTotalPct = s.resultadoTotalPct != null && !isUnfiltered
+          ? s.resultadoTotalPct
+          : custoFIFO > 0 ? (ge / custoFIFO) * 100 : 0;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -720,11 +727,13 @@ export default function PerformancePage() {
                   ),
                   { label: isUsd ? "Alpha vs S&P 500" : "Alpha vs CDI", value: pct((isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) * 100), color: (isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI) >= 0 ? "#34d399" : "#f87171" },
                   { label: "Patrimônio inicial", value: compactCurr(s.navInicial) },
-                  { label: "Custo posições atuais", value: compactCurr(s.custoPosicoesAtuais ?? s.totalInvestido) },
+                  { label: "Investido", value: compactCurr(s.custoFIFOSnapshot ?? s.custoPosicoesAtuais ?? s.totalInvestido) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
                     const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
-                    const ge = isUnfiltered && ganhoCanonical != null ? ganhoCanonical : s.ganhoEconomico;
+                    const ge = isUnfiltered && ganhoCanonical != null
+                      ? ganhoCanonical
+                      : s.resultadoTotal != null ? s.resultadoTotal : s.ganhoEconomico;
                     return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },

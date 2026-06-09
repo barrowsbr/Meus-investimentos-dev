@@ -674,6 +674,11 @@ export async function GET(request: Request) {
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
         ganhoEconomico: twr.ganhoEconomico,
+        resultadoTotal: snapshot.retornoTotalRVBRL,
+        resultadoTotalPct: snapshot.retornoTotalRVPct,
+        custoFIFOSnapshot: snapshot.positions
+          .filter(p => !isRendaFixa(p.setor))
+          .reduce((s, p) => s + p.custoTotalBRL, 0),
         patrimonio,
         filtros: {
           classe,
