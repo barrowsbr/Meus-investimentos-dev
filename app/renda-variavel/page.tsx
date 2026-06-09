@@ -549,8 +549,7 @@ export default function RendaVariavelPage() {
         <div className="glass-card p-5 mt-4 animate-fade-in">
           <h2 className="section-title mb-4"><DollarSign size={15} />Decomposição FX (3 fatores)</h2>
           <p className="text-xs text-zinc-500 mb-4">
-            Quebra o lucro total nos três fatores: valorização do ativo (ao câmbio de custo), câmbio sobre o capital aportado e o efeito cruzado (câmbio sobre o lucro do ativo).{" "}
-            <a href="/entendimento" className="text-accent hover:underline">Entenda a matemática →</a>
+            Quebra o lucro total nos três fatores: valorização do ativo (ao câmbio de custo), câmbio sobre o capital aportado e o efeito cruzado (câmbio sobre o lucro do ativo).
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             <div>
