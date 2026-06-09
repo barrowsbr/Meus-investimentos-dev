@@ -35,7 +35,10 @@ export interface Position {
   valorAtualBRL: number;
   custoTotalBRL: number;
   lucroBRL: number | null;
-  lucroPct: number | null;
+  lucroPct: number | null;            // Valorização % (preço + câmbio, SEM proventos)
+  proventosBRL: number;               // proventos líquidos (bruto − IR) deste ticker, em BRL
+  retornoTotalBRL: number | null;     // lucroBRL + proventosBRL
+  retornoTotalPct: number | null;     // Retorno Total % = retornoTotalBRL / custoTotalBRL
   ganhoAtivoBRL: number | null;
   ganhoCambioBRL: number | null;
   // ── Decomposição analítica multimoeda (3 fatores) ──────────────────────────
@@ -62,8 +65,11 @@ export interface PortfolioSnapshot {
   proventosPorTicker: Record<string, number>;
   totalImpostoProventosBRL: number;
   impostoProventosPorTicker: Record<string, number>;
-  lucroBRL: number;
-  lucroPct: number;
+  lucroBRL: number;                  // RV: valorização total (preço + câmbio)
+  lucroPct: number;                  // RV: Valorização % (sem proventos)
+  proventosRVBRL: number;            // RV: proventos líquidos acumulados
+  retornoTotalRVBRL: number;         // RV: valorização + proventos
+  retornoTotalRVPct: number;         // RV: Retorno Total %
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
   ganhoAtivoPuroTotalBRL: number;
@@ -335,6 +341,9 @@ export function enriquecerPosicoes(
       custoTotalBRL,
       lucroBRL,
       lucroPct,
+      proventosBRL: 0,            // preenchido em calcularSnapshot (precisa de prov.porTicker)
+      retornoTotalBRL: lucroBRL,
+      retornoTotalPct: lucroPct,
       ganhoAtivoBRL,
       ganhoCambioBRL,
       ganhoAtivoPuroBRL,
@@ -430,6 +439,16 @@ export function calcularSnapshot(
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
+  // Anexa proventos líquidos por posição e o Retorno Total (= valorização +
+  // proventos). lucroPct continua sendo a "Valorização %" (só preço/câmbio).
+  for (const p of positions) {
+    p.proventosBRL = prov.porTicker[p.ticker] ?? 0;
+    if (p.lucroBRL !== null) {
+      p.retornoTotalBRL = p.lucroBRL + p.proventosBRL;
+      p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;
+    }
+  }
+
   const rvPositions = positions.filter((p) => isRendaVariavel(p.setor));
   const rvPatrimonioBRL = rvPositions
     .filter((p) => p.valorAtualBRL > 1.0)
@@ -444,8 +463,11 @@ export function calcularSnapshot(
 
   const totalInvestidoRV = rvPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
-  const lucroBRL = totalAtualRV - totalInvestidoRV;
+  const lucroBRL = totalAtualRV - totalInvestidoRV;            // valorização (preço+câmbio)
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
+  const proventosRVBRL = rvPositions.reduce((s, p) => s + p.proventosBRL, 0);
+  const retornoTotalRVBRL = lucroBRL + proventosRVBRL;        // valorização + proventos
+  const retornoTotalRVPct = totalInvestidoRV > 0 ? (retornoTotalRVBRL / totalInvestidoRV) * 100 : 0;
 
   const ganhoAtivoTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
   const ganhoCambioTotalBRL = rvPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
@@ -481,6 +503,9 @@ export function calcularSnapshot(
     impostoProventosPorTicker: prov.impostoPorTicker,
     lucroBRL,
     lucroPct,
+    proventosRVBRL,
+    retornoTotalRVBRL,
+    retornoTotalRVPct,
     ganhoAtivoTotalBRL,
     ganhoCambioTotalBRL,
     ganhoAtivoPuroTotalBRL,
