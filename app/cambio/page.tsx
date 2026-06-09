@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
-import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, Crosshair, ShieldCheck, BarChart3 } from "lucide-react";
+import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Zap, ShieldAlert, BarChart3 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
@@ -562,7 +562,6 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
   const [stressCustom, setStressCustom] = useState(0);
 
   const spot = portfolio.usdbrl ?? 0;
-  const cambio = portfolio.cambio;
   const positions = portfolio.positions ?? [];
 
   const analysis = useMemo(() => {
@@ -582,25 +581,13 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
 
     const totalExpostoAtualBRL = foreignPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
     const totalCustoBRL = foreignPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+    // Dois fatores (já calculados no snapshot — identidade: ativo + câmbio = lucro):
     const ganhoAtivo = foreignPositions.reduce((s, p) => s + (p.ganhoAtivoBRL ?? 0), 0);
     const ganhoCambio = foreignPositions.reduce((s, p) => s + (p.ganhoCambioBRL ?? 0), 0);
+    const lucroTotal = totalExpostoAtualBRL - totalCustoBRL;
 
-    const remessaCusto = cambio?.totalCustoBRL ?? 0;
-    const remessaValorHoje = cambio?.totalValBRL ?? 0;
-    const ganhoCambialRemessa = cambio?.ganhoTotal_BRL ?? 0;
-
-    return {
-      foreignPositions,
-      byMoeda,
-      totalExpostoAtualBRL,
-      totalCustoBRL,
-      ganhoAtivo,
-      ganhoCambio,
-      remessaCusto,
-      remessaValorHoje,
-      ganhoCambialRemessa,
-    };
-  }, [positions, cambio]);
+    return { foreignPositions, byMoeda, totalExpostoAtualBRL, totalCustoBRL, ganhoAtivo, ganhoCambio, lucroTotal };
+  }, [positions]);
 
   const stressScenarios = useMemo(() => {
     const scenarios = [
@@ -619,33 +606,22 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
     return scenarios.map(s => {
       const fxFactor = 1 + s.pct / 100;
       const newSpot = spot * fxFactor;
-
       const novoValorAtual = analysis.totalExpostoAtualBRL * fxFactor;
       const impactoAtual = novoValorAtual - analysis.totalExpostoAtualBRL;
-
-      const novoValorRemessa = analysis.remessaValorHoje * fxFactor;
-      const impactoRemessa = novoValorRemessa - analysis.remessaValorHoje;
-      const ganhoPerdaVsCusto = novoValorRemessa - analysis.remessaCusto;
-
-      return {
-        label: s.label,
-        pct: s.pct,
-        newSpot,
-        novoValorAtual,
-        impactoAtual,
-        impactoRemessa,
-        ganhoPerdaVsCusto,
-        ganhoPerdaVsCustoPct: analysis.remessaCusto > 0 ? (ganhoPerdaVsCusto / analysis.remessaCusto) * 100 : 0,
-      };
+      return { label: s.label, pct: s.pct, newSpot, novoValorAtual, impactoAtual };
     });
   }, [spot, analysis, stressCustom]);
 
-  const breakEvenSpot = analysis.remessaCusto > 0 && analysis.remessaValorHoje > 0
-    ? spot * (analysis.remessaCusto / analysis.remessaValorHoje)
-    : null;
-
   const patrimonioBRL = portfolio.totalPatrimonioBRL ?? 0;
   const pctExpostoFx = patrimonioBRL > 0 ? (analysis.totalExpostoAtualBRL / patrimonioBRL) * 100 : 0;
+
+  // Split proporcional entre os dois fatores (por contribuição absoluta)
+  const absAtivo = Math.abs(analysis.ganhoAtivo);
+  const absCambio = Math.abs(analysis.ganhoCambio);
+  const absSoma = absAtivo + absCambio;
+  const pctFatorAtivo = absSoma > 0 ? (absAtivo / absSoma) * 100 : 50;
+  const pctFatorCambio = 100 - pctFatorAtivo;
+  const sign = (v: number) => (v >= 0 ? "+" : "");
 
   return (
     <div className="animate-fade-in">
@@ -668,110 +644,97 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
             <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
           </div>
           <div>
-            <span className="stat-label block mb-1">Ganho dos Ativos</span>
-            <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {analysis.ganhoAtivo >= 0 ? "+" : ""}{compactBRL(analysis.ganhoAtivo)}
+            <span className="stat-label block mb-1">Fator Ativo</span>
+            <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}
             </span>
           </div>
           <div>
-            <span className="stat-label block mb-1">Efeito Câmbio</span>
-            <span className={`text-sm font-bold ${analysis.ganhoCambio >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {analysis.ganhoCambio >= 0 ? "+" : ""}{compactBRL(analysis.ganhoCambio)}
+            <span className="stat-label block mb-1">Fator Câmbio</span>
+            <span className={`text-sm font-bold ${analysis.ganhoCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
             </span>
           </div>
           <div>
             <span className="stat-label block mb-1">Spot USD/BRL</span>
             <span className="text-sm font-bold text-zinc-100">R$ {spot.toFixed(4)}</span>
-            {breakEvenSpot && (
-              <span className="text-[10px] text-zinc-600 block">break-even R$ {breakEvenSpot.toFixed(2)}</span>
-            )}
           </div>
         </div>
       </div>
 
-      {/* ── Os dois conceitos ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Conceito 1: O que mandei */}
-        <div className="glass-card p-5" style={{ borderColor: "rgba(59,130,246,0.15)" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <DollarSign size={16} className="text-blue-400" />
-            <div>
-              <div className="text-sm font-bold text-zinc-100">Câmbio vs Remessas</div>
-              <div className="text-[10px] text-zinc-500">Quanto ganhei ou perdi sobre o dinheiro que enviei ao exterior</div>
-            </div>
-          </div>
+      {/* ── Decomposição de Dois Fatores (centro da aba) ── */}
+      <div className="glass-card p-6 mb-6">
+        <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição de Dois Fatores</h2>
+        <p className="text-[11px] text-zinc-500 mb-5 max-w-2xl leading-relaxed">
+          O dólar que você enviou foi investido e rendeu. O resultado em BRL das suas posições no exterior
+          se separa em <strong className="text-blue-400">dois fatores</strong>: quanto o <strong>ativo</strong> rendeu
+          (em moeda nativa, ao câmbio de custo) e quanto a <strong>variação do câmbio</strong> contribuiu sobre o capital aplicado.
+        </p>
 
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-xs text-zinc-500">BRL enviado (custo remessas)</span>
-              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.remessaCusto)}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-xs text-zinc-500">Valor hoje (FX spot)</span>
-              <span className="text-sm font-bold text-zinc-100">{compactBRL(analysis.remessaValorHoje)}</span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-xs text-zinc-400 font-semibold">Resultado cambial</span>
-              <div className="text-right">
-                <span className={`text-base font-extrabold ${analysis.ganhoCambialRemessa >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {analysis.ganhoCambialRemessa >= 0 ? "+" : ""}{compactBRL(analysis.ganhoCambialRemessa)}
-                </span>
-                {analysis.remessaCusto > 0 && (
-                  <span className={`text-xs ml-2 ${analysis.ganhoCambialRemessa >= 0 ? "text-emerald-400/70" : "text-red-400/70"}`}>
-                    {analysis.ganhoCambialRemessa >= 0 ? "+" : ""}{((analysis.ganhoCambialRemessa / analysis.remessaCusto) * 100).toFixed(1)}%
-                  </span>
-                )}
-              </div>
-            </div>
+        {/* Custo → Valor atual */}
+        <div className="flex items-center justify-between gap-4 mb-5">
+          <div>
+            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Custo BRL</div>
+            <div className="text-lg font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</div>
           </div>
-
-          <div className="mt-4 p-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.12)" }}>
-            <p className="text-[10px] text-blue-300/80 leading-relaxed">
-              Este é o ganho/perda <strong>puro do câmbio</strong> sobre as remessas. Se o dólar sobe, você ganha aqui.
-              Se cai, perde — mas só sobre o que efetivamente mandou.
-            </p>
+          <ArrowLeftRight size={16} className="text-zinc-700 shrink-0" />
+          <div className="text-right">
+            <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Valor atual BRL</div>
+            <div className="text-lg font-bold text-zinc-100">{compactBRL(analysis.totalExpostoAtualBRL)}</div>
           </div>
         </div>
 
-        {/* Conceito 2: O que tenho hoje */}
-        <div className="glass-card p-5" style={{ borderColor: "rgba(212,165,116,0.15)" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Crosshair size={16} className="text-amber-400" />
-            <div>
-              <div className="text-sm font-bold text-zinc-100">Câmbio vs Valor Atual</div>
-              <div className="text-[10px] text-zinc-500">Quanto perco ou ganho sobre TUDO que tenho lá fora hoje</div>
+        {/* Os dois fatores */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="rounded-xl p-4" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+              <span className="text-xs font-bold text-zinc-200">Ganho do Ativo</span>
             </div>
+            <div className={`text-2xl font-extrabold ${analysis.ganhoAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-1">Valorização dos ativos em dólar, convertida ao câmbio de aquisição.</p>
           </div>
+          <div className="rounded-xl p-4" style={{ background: "rgba(212,165,116,0.05)", border: "1px solid rgba(212,165,116,0.15)" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              <span className="text-xs font-bold text-zinc-200">Efeito Câmbio</span>
+            </div>
+            <div className={`text-2xl font-extrabold ${analysis.ganhoCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-1">Contribuição da variação do dólar sobre o capital aplicado.</p>
+          </div>
+        </div>
 
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-xs text-zinc-500">Custo BRL das posições</span>
-              <span className="text-sm font-bold text-zinc-300">{compactBRL(analysis.totalCustoBRL)}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-xs text-zinc-500">Valor atual em BRL</span>
-              <span className="text-sm font-bold text-zinc-100">{compactBRL(analysis.totalExpostoAtualBRL)}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-xs text-zinc-500">Lucro dos ativos em BRL</span>
-              <span className={`text-sm font-bold ${analysis.ganhoAtivo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {analysis.ganhoAtivo >= 0 ? "+" : ""}{compactBRL(analysis.ganhoAtivo)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-xs text-zinc-400 font-semibold">Exposição total ao FX</span>
-              <span className="text-base font-extrabold text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL)}</span>
-            </div>
-          </div>
+        {/* Barra de proporção entre os fatores */}
+        <div className="h-2.5 w-full rounded-full overflow-hidden flex mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div style={{ width: `${pctFatorAtivo}%`, background: "#3b82f6" }} />
+          <div style={{ width: `${pctFatorCambio}%`, background: "#d4a574" }} />
+        </div>
+        <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-4">
+          <span>Ativo {pctFatorAtivo.toFixed(0)}%</span>
+          <span>Câmbio {pctFatorCambio.toFixed(0)}%</span>
+        </div>
 
-          <div className="mt-4 p-3 rounded-xl" style={{ background: "rgba(212,165,116,0.06)", border: "1px solid rgba(212,165,116,0.12)" }}>
-            <p className="text-[10px] text-amber-300/80 leading-relaxed">
-              Seus ativos valorizaram e agora a <strong>exposição cambial é maior</strong> que o valor enviado.
-              Uma queda de 10% no dólar afeta {compactBRL(analysis.totalExpostoAtualBRL * 0.1)}, não apenas {compactBRL(analysis.remessaCusto * 0.1)}.
-            </p>
-          </div>
+        {/* Identidade: soma dos fatores = lucro total */}
+        <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+          <span className="text-xs text-zinc-400">
+            Ganho do Ativo <span className="text-blue-400 font-semibold">{sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}</span>
+            {" + "}Efeito Câmbio <span className="text-amber-400 font-semibold">{sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}</span>
+          </span>
+          <span className="text-right">
+            <span className="text-[9px] text-zinc-600 uppercase block">Resultado total</span>
+            <span className={`text-base font-extrabold ${analysis.lucroTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {sign(analysis.lucroTotal)}{compactBRL(analysis.lucroTotal)}
+            </span>
+          </span>
         </div>
       </div>
+
+      {/* ── Decomposição por ativo ── */}
+      <FxDecomposition positions={analysis.foreignPositions} />
 
       {/* ── Exposição por moeda ── */}
       {Object.keys(analysis.byMoeda).length > 0 && (
@@ -821,42 +784,34 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
         </div>
       )}
 
-      {/* ── Stress Test Comparativo ── */}
+      {/* ── Stress Test — sensibilidade da exposição ao câmbio ── */}
       <div className="glass-card p-5 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="section-title"><Zap size={15} />Teste de Estresse — Dois Cenários</h2>
+          <h2 className="section-title"><Zap size={15} />Teste de Estresse — Sensibilidade ao Câmbio</h2>
           <span className="text-[10px] text-zinc-600">
             Spot: R$ {spot.toFixed(2)} · Exposição: {compactBRL(analysis.totalExpostoAtualBRL)}
           </span>
         </div>
         <p className="text-[10px] text-zinc-500 mb-5">
-          <strong className="text-blue-400">Azul</strong> = impacto sobre o <strong>valor atual</strong> (o que tenho) ·
-          <strong className="text-amber-400 ml-1">Dourado</strong> = resultado vs <strong>custo das remessas</strong> (o que mandei)
+          Quanto a sua <strong className="text-blue-400">exposição atual</strong> ({compactBRL(analysis.totalExpostoAtualBRL)})
+          varia em BRL para cada movimento do dólar.
         </p>
 
         {/* Chart */}
         <div className="mb-5">
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={stressScenarios} barCategoryGap="12%">
+            <BarChart data={stressScenarios} barCategoryGap="18%">
               <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                 tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
               <Tooltip contentStyle={TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [
-                  compactBRL(v),
-                  name === "impactoAtual" ? "Impacto no valor atual" : "Resultado vs custo",
-                ]}
+                formatter={(v: number) => [compactBRL(v), "Impacto no valor atual"]}
                 labelFormatter={l => `Cenário: ${l}`} />
               <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-              <Bar dataKey="impactoAtual" radius={[4, 4, 0, 0]} maxBarSize={28}>
+              <Bar dataKey="impactoAtual" radius={[4, 4, 0, 0]} maxBarSize={32}>
                 {stressScenarios.map((entry, i) => (
                   <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.impactoAtual >= 0 ? "#3b82f6" : "#60a5fa"} fillOpacity={entry.pct === 0 ? 0.4 : 0.75} />
-                ))}
-              </Bar>
-              <Bar dataKey="ganhoPerdaVsCusto" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                {stressScenarios.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct === 0 ? "#6366f1" : entry.ganhoPerdaVsCusto >= 0 ? "#d4a574" : "#f59e0b"} fillOpacity={entry.pct === 0 ? 0.4 : 0.65} />
                 ))}
               </Bar>
             </BarChart>
@@ -868,7 +823,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-zinc-800">
-                {["Cenário", "USD/BRL", "Valor Atual", "Δ Valor", "vs Custo Remessa", "vs Custo %"].map(h => (
+                {["Cenário", "USD/BRL", "Valor Atual", "Δ Valor"].map(h => (
                   <th key={h} className="px-3 py-2 text-[9px] text-zinc-500 font-semibold uppercase tracking-wider text-right first:text-left">{h}</th>
                 ))}
               </tr>
@@ -881,12 +836,6 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
                   <td className="px-3 py-2 text-right text-zinc-200 font-mono">{compactBRL(s.novoValorAtual)}</td>
                   <td className={`px-3 py-2 text-right font-mono font-semibold ${s.impactoAtual >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                     {s.pct === 0 ? "—" : `${s.impactoAtual >= 0 ? "+" : ""}${compactBRL(s.impactoAtual)}`}
-                  </td>
-                  <td className={`px-3 py-2 text-right font-mono font-semibold ${s.ganhoPerdaVsCusto >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {s.ganhoPerdaVsCusto >= 0 ? "+" : ""}{compactBRL(s.ganhoPerdaVsCusto)}
-                  </td>
-                  <td className={`px-3 py-2 text-right font-mono ${s.ganhoPerdaVsCustoPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {s.ganhoPerdaVsCustoPct >= 0 ? "+" : ""}{s.ganhoPerdaVsCustoPct.toFixed(1)}%
                   </td>
                 </tr>
               ))}
@@ -911,125 +860,14 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
         </div>
       </div>
 
-      {/* ── Insight: diferença entre os dois ── */}
-      {analysis.totalExpostoAtualBRL > analysis.remessaCusto && (
-        <div className="glass-card p-5 mb-6" style={{ borderColor: "rgba(212,165,116,0.12)" }}>
-          <h2 className="section-title mb-3"><TrendingUp size={15} />Por que a exposição é maior que as remessas?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Remessas (custo BRL)</div>
-              <div className="text-lg font-bold text-zinc-300">{compactBRL(analysis.remessaCusto)}</div>
-            </div>
-            <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Valorização ativos + FX</div>
-              <div className={`text-lg font-bold ${analysis.totalExpostoAtualBRL - analysis.remessaCusto >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                +{compactBRL(analysis.totalExpostoAtualBRL - analysis.remessaCusto)}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl" style={{ background: "rgba(212,165,116,0.04)", border: "1px solid rgba(212,165,116,0.12)" }}>
-              <div className="text-[10px] text-amber-400/80 uppercase tracking-wider mb-1">Exposição real ao FX</div>
-              <div className="text-lg font-bold text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL)}</div>
-            </div>
-          </div>
-          <p className="text-[10px] text-zinc-500 leading-relaxed">
-            Você enviou <strong className="text-zinc-300">{compactBRL(analysis.remessaCusto)}</strong> ao exterior,
-            mas seus ativos cresceram para <strong className="text-zinc-300">{compactBRL(analysis.totalExpostoAtualBRL)}</strong>.
-            Uma variação de 10% no câmbio agora afeta <strong className="text-amber-400">{compactBRL(analysis.totalExpostoAtualBRL * 0.1)}</strong> do
-            seu patrimônio — {analysis.remessaCusto > 0 ? ((analysis.totalExpostoAtualBRL / analysis.remessaCusto) * 100 - 100).toFixed(0) : "∞"}% a mais
-            do que afetaria sobre o valor remitido ({compactBRL(analysis.remessaCusto * 0.1)}).
-          </p>
-        </div>
-      )}
-
-      {/* ── Seção 1: Custo de Oportunidade do Hedge ── */}
-      <HedgeOpportunity
-        remessaCusto={analysis.remessaCusto}
-        remessaValorHoje={analysis.remessaValorHoje}
-        ganhoCambial={analysis.ganhoCambialRemessa}
-        pmDolar={cambio?.pmDolar ?? 0}
-        spot={spot}
-      />
-
-      {/* ── Seção 2: Decomposição Ativo vs Câmbio por posição ── */}
-      <FxDecomposition positions={analysis.foreignPositions} total={analysis.totalExpostoAtualBRL} />
-
     </div>
   );
 }
 
-// ── Seção 1: Hedge Opportunity ───────────────────────────────────────────────
+// ── Decomposição Ativo vs FX por posição ─────────────────────────────────────
 
-function HedgeOpportunity({ remessaCusto, remessaValorHoje, ganhoCambial, pmDolar, spot }: {
-  remessaCusto: number; remessaValorHoje: number; ganhoCambial: number; pmDolar: number; spot: number;
-}) {
-  if (remessaCusto <= 0 || pmDolar <= 0) return null;
-
-  const hedgeCost_pctYear = 4.5;
-  const years = 3;
-  const custoHedge = remessaCusto * (hedgeCost_pctYear / 100) * years;
-
-  const cenarioHedge = remessaCusto;
-  const cenarioAberto = remessaValorHoje;
-  const diferencaVsHedge = cenarioAberto - cenarioHedge;
-
-  const teriaPagoPct = remessaCusto > 0 ? (custoHedge / remessaCusto) * 100 : 0;
-
-  return (
-    <div className="glass-card p-5 mb-6" style={{ borderColor: "rgba(139,92,246,0.12)" }}>
-      <h2 className="section-title mb-1"><ShieldCheck size={15} />Hedge: valia a pena proteger?</h2>
-      <p className="text-[10px] text-zinc-500 mb-5">
-        Comparação entre manter exposição aberta (o que você fez) vs ter hedgeado 100% no PM.
-        Custo estimado do hedge: ~{hedgeCost_pctYear}% a.a. (NDF típico BRL/USD).
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div className="p-4 rounded-xl" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.12)" }}>
-          <div className="text-[10px] text-violet-400/80 uppercase tracking-wider mb-1">Se hedgeou 100% no PM</div>
-          <div className="text-lg font-bold text-zinc-300">{compactBRL(cenarioHedge)}</div>
-          <div className="text-[10px] text-zinc-500 mt-1">Travou no PM R$ {pmDolar.toFixed(2)}</div>
-          <div className="text-[10px] text-red-400/80 mt-0.5">Custo do hedge: −{compactBRL(custoHedge)} ({teriaPagoPct.toFixed(1)}%)</div>
-          <div className="text-xs font-bold text-zinc-400 mt-1">Líquido: {compactBRL(cenarioHedge - custoHedge)}</div>
-        </div>
-        <div className="p-4 rounded-xl" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.12)" }}>
-          <div className="text-[10px] text-blue-400/80 uppercase tracking-wider mb-1">Exposição aberta (o que fez)</div>
-          <div className="text-lg font-bold text-zinc-100">{compactBRL(cenarioAberto)}</div>
-          <div className="text-[10px] text-zinc-500 mt-1">Spot atual R$ {spot.toFixed(2)}</div>
-          <div className={`text-[10px] mt-0.5 ${ganhoCambial >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
-            Ganho cambial: {ganhoCambial >= 0 ? "+" : ""}{compactBRL(ganhoCambial)}
-          </div>
-          <div className="text-xs font-bold text-zinc-200 mt-1">Líquido: {compactBRL(cenarioAberto)}</div>
-        </div>
-        <div className="p-4 rounded-xl" style={{ background: diferencaVsHedge >= 0 ? "rgba(34,197,94,0.05)" : "rgba(248,113,113,0.05)", border: `1px solid ${diferencaVsHedge >= 0 ? "rgba(34,197,94,0.15)" : "rgba(248,113,113,0.15)"}` }}>
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Veredito</div>
-          <div className={`text-lg font-bold ${diferencaVsHedge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {diferencaVsHedge >= 0 ? "+" : ""}{compactBRL(diferencaVsHedge)}
-          </div>
-          <div className="text-[10px] text-zinc-500 mt-1">
-            {diferencaVsHedge >= 0
-              ? "Manter aberto foi melhor que hedgear"
-              : "Teria sido melhor hedgear"}
-          </div>
-          <div className="text-[10px] text-zinc-600 mt-0.5">
-            vs hedge líquido: {compactBRL(cenarioAberto - (cenarioHedge - custoHedge))}
-          </div>
-        </div>
-      </div>
-
-      <div className="p-3 rounded-xl" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.08)" }}>
-        <p className="text-[10px] text-violet-300/70 leading-relaxed">
-          Um NDF (Non-Deliverable Forward) BRL/USD de ~{hedgeCost_pctYear}% a.a. reflete o diferencial de juros (CDI − Fed Funds).
-          Hedgear elimina o risco cambial mas custa caro. A decisão depende da sua visão de câmbio e tolerância ao risco.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ── Seção 2: Decomposição Ativo vs FX por posição ────────────────────────────
-
-function FxDecomposition({ positions, total }: {
+function FxDecomposition({ positions }: {
   positions: { ticker: string; valorAtualBRL: number; ganhoAtivoBRL: number | null; ganhoCambioBRL: number | null }[];
-  total: number;
 }) {
   const sorted = useMemo(() =>
     [...positions]
@@ -1053,9 +891,9 @@ function FxDecomposition({ positions, total }: {
 
   return (
     <div className="glass-card p-5 mb-6">
-      <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição: Ativo vs Câmbio</h2>
+      <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição por Ativo</h2>
       <p className="text-[10px] text-zinc-500 mb-4">
-        Quanto de cada posição veio de valorização do ativo e quanto veio da variação cambial.
+        Os mesmos dois fatores, abertos por posição: quanto veio da valorização do ativo (azul) e quanto da variação cambial (dourado).
       </p>
 
       {/* Summary bar */}
