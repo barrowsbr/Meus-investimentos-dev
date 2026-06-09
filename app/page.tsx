@@ -11,7 +11,7 @@ import {
   LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
-  ArrowRight, TrendingDown, Globe, Radio, ChevronRight,
+  TrendingDown, Globe, Radio, ChevronRight,
   ExternalLink, Target, Scale, Crosshair, BrainCircuit, Egg, Zap,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
@@ -158,75 +158,77 @@ function fmtPrice(price: number, moeda: string): string {
   return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
-// ── AccordionGroup ───────────────────────────────────────────────────────────
+// ── Tile stats helper ────────────────────────────────────────────────────────
 
-function AccordionGroup({ group }: { group: NavGroup }) {
-  const [open, setOpen] = useState(false);
-  const Icon = group.icon;
-  const c = group.accentColor;
+function getTileStat(href: string, data: PortfolioResponse | null | undefined): string | undefined {
+  if (!data) return undefined;
+  switch (href) {
+    case "/resumo":
+      return typeof data.totalPatrimonioBRL === "number" ? compactBRL(data.totalPatrimonioBRL) : undefined;
+    case "/performance": {
+      const p = data.dayChangeTotalPct;
+      return typeof p === "number" ? `${p >= 0 ? "+" : ""}${p.toFixed(1)}% hoje` : undefined;
+    }
+    case "/cambio":
+      return typeof data.usdbrl === "number" ? `R$ ${data.usdbrl.toFixed(2)}` : undefined;
+    case "/renda-variavel": {
+      const count = (data.positions ?? []).filter(
+        pos => pos && !isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
+      ).length;
+      return count > 0 ? `${count} ativos` : undefined;
+    }
+    case "/renda-fixa": {
+      const count = (data.positions ?? []).filter(
+        pos => pos && isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
+      ).length;
+      return count > 0 ? `${count} títulos` : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
 
+// ── NavTile ─────────────────────────────────────────────────────────────────
+
+function NavTile({ href, label, icon: Icon, accentColor, stat }: {
+  href: string; label: string; icon: IconComponent; accentColor: string; stat?: string;
+}) {
   return (
-    <div
-      className="rounded-2xl overflow-hidden transition-all duration-300"
+    <Link
+      href={href}
+      className="group flex flex-col items-center gap-2 rounded-2xl px-2 py-4 transition-all duration-200 active:scale-[0.96]"
       style={{
-        background: "rgba(17,19,28,0.72)",
-        border: `1px solid ${open ? c + "30" : "rgba(255,255,255,0.08)"}`,
-        boxShadow: open ? `0 8px 32px ${c}10` : "none",
+        background: "rgba(17,19,28,0.65)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget;
+        el.style.background = `${accentColor}0a`;
+        el.style.borderColor = `${accentColor}28`;
+        el.style.boxShadow = `0 4px 20px ${accentColor}10`;
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget;
+        el.style.background = "rgba(17,19,28,0.65)";
+        el.style.borderColor = "rgba(255,255,255,0.06)";
+        el.style.boxShadow = "none";
       }}
     >
-      <button
-        className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
-        style={{ background: open ? `${c}06` : "transparent" }}
-        onClick={() => setOpen(!open)}
-      >
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${c}12`, boxShadow: open ? `0 0 12px ${c}20` : "none" }}
-        >
-          <Icon size={18} style={{ color: c }} strokeWidth={1.8} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-zinc-100">{group.label}</p>
-          <p className="text-[11px] text-zinc-500 mt-0.5">{group.desc}</p>
-        </div>
-        <ChevronDown
-          size={15}
-          className="shrink-0 transition-transform duration-300 text-zinc-500"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", color: open ? c : undefined }}
-        />
-      </button>
-
       <div
-        className="overflow-hidden transition-all duration-300"
-        style={{ maxHeight: open ? `${group.items.length * 56}px` : "0px" }}
+        className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
+        style={{ background: `${accentColor}10` }}
       >
-        <div className="px-4 pb-3 flex flex-col gap-1">
-          {group.items.map(({ href, label, icon: SubIcon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.04)",
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = `${c}0a`;
-                (e.currentTarget as HTMLElement).style.borderColor = `${c}20`;
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
-                (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.04)";
-              }}
-            >
-              <SubIcon size={15} className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0" strokeWidth={1.6} />
-              <span className="flex-1 text-[12px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">{label}</span>
-              <ArrowRight size={12} className="text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
-            </Link>
-          ))}
-        </div>
+        <Icon size={18} style={{ color: accentColor }} strokeWidth={1.7} />
       </div>
-    </div>
+      <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors text-center leading-tight">
+        {label}
+      </span>
+      {stat && (
+        <span className="text-[9px] font-bold tabular-nums -mt-0.5" style={{ color: `${accentColor}99` }}>
+          {stat}
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -856,18 +858,40 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Section label ── */}
-        <div className="w-full flex items-center gap-3 mb-3 animate-fade-in animate-delay-2">
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(212,165,116,0.22))" }} />
-          <span className="text-[9px] font-extrabold tracking-[2px] uppercase text-zinc-600">Navegação</span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(212,165,116,0.22), transparent)" }} />
-        </div>
-
-        {/* ── Navigation Groups ── */}
-        <div className="w-full flex flex-col gap-2.5 animate-fade-in animate-delay-2">
-          {NAV_GROUPS.map(group => (
-            <AccordionGroup key={group.id} group={group} />
-          ))}
+        {/* ── Navigation Tiles ── */}
+        <div className="w-full flex flex-col gap-5 animate-fade-in animate-delay-2">
+          {NAV_GROUPS.map(group => {
+            const GroupIcon = group.icon;
+            return (
+              <div key={group.id}>
+                <div className="flex items-center gap-2.5 mb-2.5 px-1">
+                  <GroupIcon size={12} style={{ color: group.accentColor }} strokeWidth={2} />
+                  <span
+                    className="text-[10px] font-bold tracking-[1.5px] uppercase"
+                    style={{ color: `${group.accentColor}aa` }}
+                  >
+                    {group.label}
+                  </span>
+                  <div
+                    className="h-px flex-1"
+                    style={{ background: `linear-gradient(90deg, ${group.accentColor}20, transparent)` }}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {group.items.map(item => (
+                    <NavTile
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      accentColor={group.accentColor}
+                      stat={getTileStat(item.href, data)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Footer */}
