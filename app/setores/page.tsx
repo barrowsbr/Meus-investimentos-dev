@@ -66,17 +66,18 @@ function sectorColor(name: string): string {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function TreemapContent(props: any) {
-  const { x, y, width, height, name, pctVal } = props;
-  if (width < 40 || height < 25) return null;
+  const { x, y, width, height, name, pctVal, depth } = props;
+  if (depth === 0 || !name || width < 40 || height < 25) return null;
+  const safeName = String(name);
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} rx={4}
-        style={{ fill: sectorColor(name), stroke: "#09090b", strokeWidth: 2, opacity: 0.85 }} />
+        style={{ fill: sectorColor(safeName), stroke: "#09090b", strokeWidth: 2, opacity: 0.85 }} />
       {width > 60 && height > 35 && (
         <>
           <text x={x + 6} y={y + 15} fontSize={11} fontWeight={700} fill="#fafafa"
             style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
-            {name.length > Math.floor(width / 7) ? name.slice(0, Math.floor(width / 7)) + "…" : name}
+            {safeName.length > Math.floor(width / 7) ? safeName.slice(0, Math.floor(width / 7)) + "…" : safeName}
           </text>
           <text x={x + 6} y={y + 29} fontSize={10} fill="rgba(255,255,255,0.7)">
             {pctVal?.toFixed(1)}%
