@@ -514,12 +514,15 @@ export default function ResumoPage() {
         // Alocação (% do patrimônio)
         const rvPct = patrimonioAtual > 0 ? (rvPatrimonio / patrimonioAtual) * 100 : 0;
         const rfPct = patrimonioAtual > 0 ? (rfPatrimonio / patrimonioAtual) * 100 : 0;
-        // Exposição cambial (tudo que não é BRL, em % do patrimônio exposto)
+        // Exposição cambial = valor em moeda estrangeira ÷ PATRIMÔNIO TOTAL.
+        // Obs: exposicaoCambial vem só das posições (meus_ativos); o caixa em BRL e a
+        // RF manual estão em fixa_aberta. Por isso o denominador é o patrimônio total
+        // (que inclui o caixa em real), não a soma das posições — senão infla o %.
         const expo = data.exposicaoCambial ?? {};
         const totalExpo = Object.values(expo).reduce((s, v) => s + v, 0);
         const brlExpo = expo["BRL"] ?? 0;
         const foreignExpoBRL = totalExpo - brlExpo;
-        const foreignPct = totalExpo > 0 ? (foreignExpoBRL / totalExpo) * 100 : 0;
+        const foreignPct = patrimonioAtual > 0 ? (foreignExpoBRL / patrimonioAtual) * 100 : 0;
         // Yield de proventos anualizado (carrego) sobre o patrimônio
         const yieldAnualPct = patrimonioAtual > 0 ? ((avgMonthlyDividend * 12) / patrimonioAtual) * 100 : 0;
         // Proventos brutos = líquidos + IR retido (para a leitura de DRE)
