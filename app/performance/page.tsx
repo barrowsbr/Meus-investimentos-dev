@@ -482,12 +482,11 @@ export default function PerformancePage() {
                 </div>
               </div>
 
-              {/* Right: NAV + Ganho */}
+              {/* Right: Patrimônio */}
               <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
                 <div>
                   <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio</p>
                   <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
-                  <p className="text-[10px] text-zinc-500">{isAllTime ? "Investido" : "NAV inicial"} {compactCurr(isAllTime ? custoFIFO : s.navInicial)}</p>
                 </div>
               </div>
             </div>
