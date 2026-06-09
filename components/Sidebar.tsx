@@ -211,12 +211,17 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* ── Mobile bottom bar (Instagram-style) ── */}
+      {/* ── Mobile floating glass bar ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t flex justify-around items-center h-12 pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed z-40 left-4 right-4 flex justify-around items-center h-14 rounded-2xl"
         style={{
-          background: "rgba(15,16,22,0.98)",
-          borderColor: "rgba(255,255,255,0.08)",
+          bottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))",
+          background: "rgba(20,21,30,0.55)",
+          backdropFilter: "blur(24px) saturate(1.4)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow:
+            "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
         }}
       >
         {mobileItems.map(({ href, icon: Icon }) => {
@@ -225,11 +230,40 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center justify-center w-12 h-12 transition-colors ${
-                active ? "text-white" : "text-zinc-500"
-              }`}
+              className="relative flex flex-col items-center justify-center flex-1 h-full"
             >
-              <Icon size={26} strokeWidth={active ? 2.2 : 1.5} />
+              <span
+                className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 ease-out"
+                style={
+                  active
+                    ? {
+                        background: "rgba(212,165,116,0.15)",
+                        boxShadow: "0 0 12px rgba(212,165,116,0.2)",
+                      }
+                    : { background: "transparent" }
+                }
+              >
+                <Icon
+                  size={24}
+                  strokeWidth={active ? 2.2 : 1.4}
+                  className="transition-all duration-300 ease-out"
+                  style={{
+                    color: active ? "#f5d49a" : "#6b7280",
+                    transform: active ? "scale(1.1)" : "scale(1)",
+                    filter: active
+                      ? "drop-shadow(0 0 6px rgba(212,165,116,0.5))"
+                      : "none",
+                  }}
+                />
+              </span>
+              <span
+                className="absolute bottom-1.5 w-1 h-1 rounded-full transition-all duration-300 ease-out"
+                style={{
+                  background: active ? "#f5d49a" : "transparent",
+                  boxShadow: active ? "0 0 6px rgba(212,165,116,0.6)" : "none",
+                  transform: active ? "scale(1)" : "scale(0)",
+                }}
+              />
             </Link>
           );
         })}
