@@ -488,14 +488,6 @@ export default function PerformancePage() {
                   <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
                   <p className="text-[10px] text-zinc-500">Investido {compactCurr(custoFIFO)}</p>
                 </div>
-                <div className="h-px bg-zinc-800/50" />
-                <div>
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Ganho Econômico</p>
-                  <p className={`text-xl font-bold ${ge >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {ge >= 0 ? "+" : ""}{compactCurr(ge)}
-                  </p>
-                  <p className="text-[10px] text-zinc-500">Ganhos + proventos ({currSymbol})</p>
-                </div>
               </div>
             </div>
           </div>
