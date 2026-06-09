@@ -489,11 +489,13 @@ export default function ResumoPage() {
         // Impostos
         const impostoRF = rent.filter(r => r.macro === "Renda Fixa").reduce((s, r) => s + (r.imposto_brl ?? 0), 0);
 
-        // FX decomposition (use detailed data if available, fallback to aggregate)
-        const fxPrincipal = (data as any).ganhoFXPrincipalTotalBRL ?? 0;
-        const fxCruzado = (data as any).ganhoCruzadoTotalBRL ?? 0;
-        const ganhoCambio = (fxPrincipal + fxCruzado) || (data.ganhoCambioTotalBRL ?? 0);
-        const ganhoAtivo = (data.ganhoAtivoTotalBRL ?? 0) || (rvGanho - ganhoCambio);
+        // Decomposição de 3 fatores (puro + principal + cruzado = lucro RV não realizado).
+        // "Efeito cambial" agrupa Principal + Cruzado, então a linha "Retorno do ativo"
+        // tem de ser o ganho PURO (sem cruzado) — senão o cruzado é contado 2x.
+        const fxPrincipal = data.ganhoFXPrincipalTotalBRL ?? 0;
+        const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
+        const ganhoCambio = fxPrincipal + fxCruzado;
+        const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvGanho - ganhoCambio);
 
         // Resultado total
         const resultadoTotal = rvGanho + rfGanho + proventosTotal;
