@@ -515,9 +515,9 @@ export default function ResumoPage() {
         const rvPct = patrimonioAtual > 0 ? (rvPatrimonio / patrimonioAtual) * 100 : 0;
         const rfPct = patrimonioAtual > 0 ? (rfPatrimonio / patrimonioAtual) * 100 : 0;
         // Exposição cambial = valor em moeda estrangeira ÷ PATRIMÔNIO TOTAL.
-        // Obs: exposicaoCambial vem só das posições (meus_ativos); o caixa em BRL e a
-        // RF manual estão em fixa_aberta. Por isso o denominador é o patrimônio total
-        // (que inclui o caixa em real), não a soma das posições — senão infla o %.
+        // exposicaoCambial (snapshot) já inclui posições + RF manual + caixa (fixa_aberta),
+        // inclusive caixa em dólar. Divide-se pelo patrimônio total (que inclui o caixa
+        // em real) para o % refletir toda a carteira.
         const expo = data.exposicaoCambial ?? {};
         const totalExpo = Object.values(expo).reduce((s, v) => s + v, 0);
         const brlExpo = expo["BRL"] ?? 0;

@@ -227,3 +227,30 @@ describe("blindagem — identidades de reconciliação do snapshot", () => {
     expect(snap.retornoTotalRVPct).toBeCloseTo((snap.retornoTotalRVBRL / totalInvestidoRV) * 100, 6);
   });
 });
+
+// ── Exposição cambial inclui o caixa/RF manual (fixa_aberta), inclusive em USD ─
+describe("exposição cambial inclui caixa em dólar do fixa_aberta", () => {
+  const snap = calcularSnapshot(
+    [compra("PETR4", 100, 30, "BRL", "2023-01-02"), compra("AAPL", 10, 100, "USD", "2023-01-02")],
+    [],
+    [rfAberta("CAIXA", 5000, "BRL"), rfAberta("CAIXA USD", 1000, "USD")], // caixa BRL + caixa USD
+    { PETR4: quote(35, "BRL"), AAPL: quote(120) },
+    fx(6.0),
+    fx(5.0),
+  );
+
+  it("o caixa em USD entra no bucket USD da exposição (1000 × 6,00 = 6.000)", () => {
+    // USD = AAPL (1200×6=7200) + caixa USD (1000×6=6000) = 13.200
+    expect(snap.exposicaoCambial["USD"]).toBeCloseTo(7200 + 6000, 6);
+  });
+
+  it("o caixa em BRL entra no bucket BRL (não conta como exposição estrangeira)", () => {
+    // BRL = PETR4 (3500) + caixa BRL (5000) = 8.500
+    expect(snap.exposicaoCambial["BRL"]).toBeCloseTo(3500 + 5000, 6);
+  });
+
+  it("soma da exposição por moeda = patrimônio total", () => {
+    const soma = Object.values(snap.exposicaoCambial).reduce((s, v) => s + v, 0);
+    expect(soma).toBeCloseTo(snap.totalPatrimonioBRL, 6);
+  });
+});
