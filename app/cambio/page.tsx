@@ -694,9 +694,9 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
       <div className="glass-card p-6 mb-6">
         <h2 className="section-title mb-1"><BarChart3 size={15} />Decomposição de Dois Fatores</h2>
         <p className="text-[11px] text-zinc-500 mb-5 max-w-2xl leading-relaxed">
-          O dólar que você enviou foi investido e rendeu. O resultado em BRL das suas posições no exterior
-          se separa em <strong className="text-blue-400">dois fatores</strong>: quanto o <strong>ativo</strong> rendeu
-          (em moeda nativa, ao câmbio de custo) e quanto a <strong>variação do câmbio</strong> contribuiu sobre o capital aplicado.
+          O resultado em BRL das suas posições no exterior se separa em <strong className="text-blue-400">dois fatores</strong>:
+          quanto o <strong>ativo</strong> valorizou (incluindo o efeito cruzado ativo × câmbio) e quanto a <strong>variação
+          do câmbio</strong> contribuiu isoladamente sobre o capital investido em moeda estrangeira.
         </p>
 
         {/* Custo → Valor atual (posições — caixa FX não tem decomposição) */}
@@ -725,7 +725,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
             <div className={`text-2xl font-extrabold ${analysis.ganhoAtivo >= 0 ? "text-blue-400" : "text-red-400"}`}>
               {sign(analysis.ganhoAtivo)}{compactBRL(analysis.ganhoAtivo)}
             </div>
-            <p className="text-[10px] text-zinc-500 mt-1">Valorização dos ativos em dólar, convertida ao câmbio de aquisição.</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Quanto seus ativos renderam em USD, convertido ao câmbio atual (inclui efeito cruzado).</p>
           </div>
           <div className="rounded-xl p-4" style={{ background: "rgba(212,165,116,0.05)", border: "1px solid rgba(212,165,116,0.15)" }}>
             <div className="flex items-center gap-2 mb-1">
@@ -735,7 +735,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
             <div className={`text-2xl font-extrabold ${analysis.ganhoCambio >= 0 ? "text-amber-400" : "text-red-400"}`}>
               {sign(analysis.ganhoCambio)}{compactBRL(analysis.ganhoCambio)}
             </div>
-            <p className="text-[10px] text-zinc-500 mt-1">Contribuição da variação do dólar sobre o capital aplicado.</p>
+            <p className="text-[10px] text-zinc-500 mt-1">Impacto isolado da variação do dólar sobre o custo original em USD (sem cruzado).</p>
           </div>
         </div>
 
