@@ -219,7 +219,7 @@ export default function RendaVariavelPage() {
         </div>
         <div className="animate-fade-in animate-delay-2">
           <MetricCard
-            label="Lucro Total"
+            label="Lucro Não Realizado"
             value={brl(data.lucroBRL)}
             sub={`Valoriz. ${pct(data.lucroPct)} · Ret.Tot. ${pct(data.retornoTotalRVPct ?? 0)}`}
             icon={data.lucroBRL >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
@@ -331,7 +331,7 @@ export default function RendaVariavelPage() {
 
           {/* Sector returns bar */}
           <div className="glass-card p-5">
-            <h2 className="section-title mb-4">Retorno por Setor (%)</h2>
+            <h2 className="section-title mb-4">Valorização por Setor (%)</h2>
             <ResponsiveContainer width="100%" height={185}>
               <BarChart data={metrics.sectorData} layout="vertical" barCategoryGap="22%">
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
