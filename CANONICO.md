@@ -42,6 +42,13 @@ e pelas rotas TS que reusam o snapshot.
 - Helpers canônicos vivem em `lib/`: `lib/cambio.ts` (FX/remessas),
   `lib/sectors.ts` (classificação), `lib/cotacoes.ts` (`fxToBRL`).
 
+**RF manual é a única exceção de motor:** CDB/Tesouro/caixa vivem em `fixa_aberta` +
+`renda_fixa` e o snapshot não rastreia seu custo/realizado. O motor canônico da RF
+manual é **`/api/renda-fixa/posicoes`** (BRL-consistente). Quem precisa do resultado
+de RF manual (não realizado, realizado, investido, proventos) lê desse endpoint — é
+o mesmo que a página `/renda-fixa` usa, então Resumo e Renda Fixa batem entre si.
+A RF "de bolsa" (SHV/BIL, setor Renda Fixa) está nas `positions` do snapshot.
+
 ---
 
 ## 3. Catálogo de cálculos canônicos
@@ -136,18 +143,23 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
 
 Itens que **ainda não** seguem 100% o canônico. Tratar incrementalmente:
 
-- [ ] **Resumo (DRE) — RV/RF a partir de `composicao.rentabilidade`**: os ganhos
-  `rvNaoReal/rvReal/rfNaoReal/rfReal` no DRE vêm do route `composicao/resumo`
-  (calculado em moeda nativa), enquanto proventos e decomposição vêm do snapshot.
-  Devem migrar para os campos canônicos do snapshot (`lucroBRL`, realizado,
-  `retornoTotalRVBRL`) para bater com a página `/renda-variavel`.
+- [x] **Resumo (DRE)** — agora 100% canônica: RV do snapshot (`lucroBRL` +
+  realizado das posições), RF do motor canônico (`/api/renda-fixa/posicoes`) +
+  RF-posições do snapshot, proventos/decomposição/exposição/patrimônio do snapshot.
+  Bate com `/renda-variavel` e `/renda-fixa`. ✅ **Use o Resumo como padrão-ouro.**
 - [ ] **Resumo — aba "Rentabilidade por Ativo"**: usa `retorno_*_pct` do route
   (moeda nativa). Reconciliar/rotular vs `position.retornoTotalPct` (BRL canônico).
+- [ ] **Resumo — Posições Encerradas**: lista de vendidos vem de
+  `composicao.rentabilidade` (status "Vendido"). É dado de listagem (snapshot não
+  rastreia posições zeradas), não cálculo canônico — aceitável, mas avaliar mover
+  para o motor de RF/RV de encerradas.
 - [ ] **`/api/composicao/resumo` recomputa `exposicao_cambial`** por conta própria.
   Já bate com o snapshot, mas é código duplicado — fazer o route reusar
   `snapshot.exposicaoCambial`.
 - [ ] **Setores**: badge de % por ativo usa só valorização (preço). Avaliar expor
   Retorno Total quando fizer sentido.
+- [ ] **Outras páginas** (Performance, Trades, etc.): auditar contra o Resumo
+  canônico e migrar números recalculados para os campos do snapshot.
 
 ---
 

@@ -111,6 +111,8 @@ export default function ResumoPage() {
   const { data, loading: portLoading, error } = usePortfolio();
   const [composicao, setComposicao] = useState<ComposicaoData | null>(null);
   const [compLoading, setCompLoading] = useState(true);
+  // Motor canônico de RF manual (mesma fonte da página /renda-fixa) — usado na DRE.
+  const [rfData, setRfData] = useState<{ lucroNaoRealizado: number; lucroRealizado: number; totalInvestidoAberto: number } | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>("global");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
@@ -125,6 +127,13 @@ export default function ResumoPage() {
       .then(setComposicao)
       .catch(() => {})
       .finally(() => setCompLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/renda-fixa/posicoes`)
+      .then(r => r.json())
+      .then(d => { if (d && !d.error) setRfData(d); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -460,25 +469,32 @@ export default function ResumoPage() {
            DRE — Demonstrativo de Resultados
          ═══════════════════════════════════════════════════════════════════════ */}
       {(() => {
-        const rent = composicao?.rentabilidade ?? [];
-        const rvItems = rent.filter(r => r.macro === "Renda Variável");
-        const rfItems = rent.filter(r => r.macro === "Renda Fixa");
-
+        // ── DRE 100% CANÔNICA (ver CANONICO.md) ──
+        // RV ← snapshot (lib/portfolio.ts). RF ← motor canônico de RF
+        // (/api/renda-fixa/posicoes, idem página /renda-fixa) + RF-como-posições do
+        // snapshot. Proventos/decomposição/exposição/patrimônio ← snapshot.
         const patrimonioAtual = data.totalPatrimonioBRL;
         const rvPatrimonio = data.rvPatrimonioBRL;
         const rfPatrimonio = data.rfPatrimonioBRL;
+        // Lista de posições ENCERRADAS (vendidas) — dado de listagem do route; o
+        // snapshot não rastreia posições já zeradas. Não é cálculo canônico duplicado.
+        const rent = composicao?.rentabilidade ?? [];
 
-        // RV breakdown
-        const rvNaoReal = rvItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
-        const rvReal = rvItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
+        // RV — snapshot
+        const rvNaoReal = data.lucroBRL;                                       // valorização (preço+câmbio)
+        const rvReal = rvPositions.reduce((s, p) => s + (p.lucroRealizadoBRL ?? 0), 0);
         const rvGanho = rvNaoReal + rvReal;
 
-        // RF breakdown
-        const rfNaoReal = rfItems.reduce((s, r) => s + r.lucro_nao_realizado_brl, 0);
-        const rfReal = rfItems.reduce((s, r) => s + r.lucro_realizado_brl, 0);
+        // RF — motor canônico de RF (manual) + RF-como-posições (snapshot: SHV/BIL...)
+        const rfPositions = data.positions.filter(p => isRendaFixa(p.setor));
+        const rfPosNaoReal = rfPositions.reduce((s, p) => s + (p.lucroBRL ?? 0), 0);
+        const rfPosReal = rfPositions.reduce((s, p) => s + (p.lucroRealizadoBRL ?? 0), 0);
+        const rfPosInvestido = rfPositions.reduce((s, p) => s + p.custoTotalBRL, 0);
+        const rfNaoReal = (rfData?.lucroNaoRealizado ?? 0) + rfPosNaoReal;
+        const rfReal = (rfData?.lucroRealizado ?? 0) + rfPosReal;
         const rfGanho = rfNaoReal + rfReal;
 
-        // Proventos — all from snapshot (single source of truth)
+        // Proventos — snapshot (split RV/RF por classificação)
         const proventosTotal = data.totalProventosBRL;
         let proventosRV = 0, proventosRF = 0;
         for (const [ticker, val] of Object.entries(data.proventosPorTicker ?? {})) {
@@ -492,14 +508,14 @@ export default function ResumoPage() {
         const fxPrincipal = data.ganhoFXPrincipalTotalBRL ?? 0;
         const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
         const ganhoCambio = fxPrincipal + fxCruzado;
-        const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvGanho - ganhoCambio);
+        const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvNaoReal - ganhoCambio);
 
         // Resultado total
         const resultadoTotal = rvGanho + rfGanho + proventosTotal;
 
-        // Investido
+        // Investido — snapshot (RV, FIFO) + motor de RF (manual) + RF-posições
         const investidoRV = totalInvestidoRV;
-        const investidoRF = rfPatrimonio - rfNaoReal;
+        const investidoRF = (rfData?.totalInvestidoAberto ?? 0) + rfPosInvestido;
 
         const fmt = (v: number) => v >= 0 ? `+${compactBRL(v)}` : compactBRL(v);
         const clr = (v: number) => v >= 0 ? "text-emerald-400" : "text-red-400";
