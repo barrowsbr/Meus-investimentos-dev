@@ -552,11 +552,13 @@ export async function GET(request: Request) {
       const twrAnualizadoUsd = calDaysUsd > 20 && (1 + twrTotalUsd) > 0
         ? Math.pow(1 + twrTotalUsd, 365 / calDaysUsd) - 1 : twrTotalUsd;
 
-      // MWR in USD — include initial NAV as outflow at t=0
+      // MWR in USD — initial NAV as outflow at t=0, subsequent flows only
+      // (day-0 flows are already captured in pts[0].nav — including them
+      // would double-count the initial investment)
       const cfUsd: Array<{ date: string; amount: number }> = [];
       if (pts[0].nav > 0) cfUsd.push({ date: pts[0].date, amount: -pts[0].nav });
-      for (const p of pts) {
-        if (Math.abs(p.flow) > 0.5) cfUsd.push({ date: p.date, amount: -p.flow });
+      for (let pi = 1; pi < pts.length; pi++) {
+        if (Math.abs(pts[pi].flow) > 0.5) cfUsd.push({ date: pts[pi].date, amount: -pts[pi].flow });
       }
       if (pts.length > 0) cfUsd.push({ date: pts[pts.length - 1].date, amount: pts[pts.length - 1].nav });
       cfUsd.sort((a, b) => a.date.localeCompare(b.date));

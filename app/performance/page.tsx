@@ -283,7 +283,7 @@ export default function PerformancePage() {
 
   const chartData = useMemo(() => {
     return activeChart.map(p => ({
-      date: p.date.slice(5),
+      date: formatDateShort(p.date),
       fullDate: p.date,
       portfolio: +(p.twr * 100).toFixed(2),
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
@@ -652,7 +652,7 @@ export default function PerformancePage() {
                   <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
                       name === "portfolio" ? "Portfólio" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
@@ -703,7 +703,7 @@ export default function PerformancePage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                     <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
                     <Area type="monotone" dataKey="nav" stroke="#d4a574" fill="url(#gradNav)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -869,7 +869,7 @@ export default function PerformancePage() {
                   interval={Math.floor(drawdownData.length / 8)} />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${v.toFixed(0)}%`} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
                 <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
                 <Area type="monotone" dataKey="drawdown" stroke="#f87171" fill="url(#ddGrad)" strokeWidth={1.5} />
               </AreaChart>
@@ -906,7 +906,7 @@ export default function PerformancePage() {
                 interval={Math.floor(rollingData.length / 6)} />
               <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                 tickFormatter={v => `${v.toFixed(0)}%`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [`${v.toFixed(2)}%`, `Rolling ${name}`]} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number, name: string) => [`${v.toFixed(2)}%`, `Rolling ${name}`]} />
               <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
               <Line type="monotone" dataKey="1M" stroke="#60a5fa" strokeWidth={1.5} dot={false} />
               <Line type="monotone" dataKey="3M" stroke="#34d399" strokeWidth={1.5} dot={false} />
@@ -1068,7 +1068,7 @@ export default function PerformancePage() {
                   <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => `${v.toFixed(1)}%`} />
                   <YAxis type="category" dataKey="setor" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
                     formatter={(v: number) => [`${v.toFixed(2)}%`, "Contribuição"]} />
                   <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
                   <Bar dataKey="contrib_pct" radius={[0, 4, 4, 0]} maxBarSize={22}>
