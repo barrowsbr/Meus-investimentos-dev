@@ -136,8 +136,8 @@ export async function GET() {
       }
 
       const lucro = investido > 0 ? atual - investido : 0;
-      const rentabilidade = investido > 0 ? (lucro / investido) * 100 : 0;
       const resultadoTotal = lucro + proventos;
+      const rentabilidade = investido > 0 ? (resultadoTotal / investido) * 100 : 0;
 
       abertas.push({
         ticker, moeda, atual, investido, lucro,
@@ -153,9 +153,9 @@ export async function GET() {
       if (CASH_TICKERS.has(ticker.toUpperCase())) continue;
 
       const lucro = agg.venda - agg.compra - agg.imposto;
-      const rentabilidade = agg.compra > 0 ? (lucro / agg.compra) * 100 : 0;
       const proventos = proventosPorTicker[ticker] ?? 0;
       const resultadoTotal = lucro + proventos;
+      const rentabilidade = agg.compra > 0 ? (resultadoTotal / agg.compra) * 100 : 0;
 
       encerradas.push({
         ticker, moeda: agg.moeda,
@@ -171,7 +171,8 @@ export async function GET() {
     const lucroRealizado = encerradas.reduce((s, p) => s + p.lucro, 0);
     const totalProventosRF = Object.values(proventosPorTicker).reduce((s, v) => s + v, 0); // líquido
     const totalProventosBrutoRF = totalProventosRF + totalImpostoRF;
-    const rentMedia = totalInvestidoAberto > 0 ? (lucroNaoRealizado / totalInvestidoAberto) * 100 : 0;
+    const totalProventosAberto = abertas.reduce((s, p) => s + p.proventos, 0);
+    const rentMedia = totalInvestidoAberto > 0 ? ((lucroNaoRealizado + totalProventosAberto) / totalInvestidoAberto) * 100 : 0;
 
     // 7. All transactions for display (sorted newest first)
     const allTxs: RFTransaction[] = Object.values(txByTicker).flatMap(t => t.txs);
