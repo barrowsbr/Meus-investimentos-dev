@@ -48,7 +48,12 @@ interface RFClosedPosition {
   resultadoTotalBRL: number;
 }
 
-const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
+const CASH_TERMS = ["CAIXA", "SALDO", "CASH", "RESERVA", "LIQUIDEZ"];
+function isCashTicker(ticker: string, tipo?: string): boolean {
+  const t = ticker.toUpperCase();
+  const tp = (tipo ?? "").toUpperCase();
+  return CASH_TERMS.some(term => t.includes(term) || tp.includes(term));
+}
 
 function getTicker(row: Row): string {
   return String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? "").trim();
@@ -74,13 +79,18 @@ export async function GET() {
     const toBRL = (valor: number, moeda: string) => valor * fxToBRL(moeda, fx);
 
     // 1. Parse fixa_aberta — source of truth for what's currently held
-    const openSet = new Map<string, { atual: number; moeda: string }>();
+    // Uses array (not Map) because the same ticker can appear in multiple currencies
+    // (e.g. "Caixa" in BRL and "Caixa" in USD).
+    const openEntries: Array<{ ticker: string; atual: number; moeda: string; tipo: string }> = [];
+    const openTickers = new Set<string>();
     for (const row of fixaAberta) {
       const ticker = getTicker(row);
       if (!ticker) continue;
       const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-      openSet.set(ticker, { atual, moeda });
+      const tipo = String(row["tipo"] ?? "").trim();
+      openEntries.push({ ticker, atual, moeda, tipo });
+      openTickers.add(ticker);
     }
 
     // 2. Parse renda_fixa transactions — group by ticker
@@ -104,13 +114,15 @@ export async function GET() {
     }
 
     // 3. Parse proventos for RF tickers (líquido = bruto − IR retido)
-    const allRfTickers = new Set([...openSet.keys(), ...Object.keys(txByTicker)]);
+    const allRfTickers = new Set([...openTickers, ...Object.keys(txByTicker)]);
     const proventosPorTicker: Record<string, number> = {}; // líquido (moeda original)
     const impostoPorTicker: Record<string, number> = {};   // IR retido (moeda original)
     let totalImpostoRFBRL = 0;
 
-    const tickerMoeda = (t: string): string =>
-      openSet.get(t)?.moeda ?? txByTicker[t]?.moeda ?? "BRL";
+    const tickerMoeda = (t: string): string => {
+      const entry = openEntries.find(e => e.ticker === t);
+      return entry?.moeda ?? txByTicker[t]?.moeda ?? "BRL";
+    };
 
     for (const row of proventosRows) {
       const ticker = String(row["ticker"] ?? row["símbolo"] ?? row["simbolo"] ?? "").trim();
@@ -136,8 +148,8 @@ export async function GET() {
     let totalCaixa = 0;
     const caixaPositions: RFOpenPosition[] = [];
 
-    for (const [ticker, { atual, moeda }] of openSet) {
-      const isCaixa = CASH_TICKERS.has(ticker.toUpperCase());
+    for (const { ticker, atual, moeda, tipo } of openEntries) {
+      const isCaixa = isCashTicker(ticker, tipo);
       const txData = txByTicker[ticker];
       const investido = txData?.compra ?? 0;
       const proventos = proventosPorTicker[ticker] ?? 0;
@@ -170,9 +182,9 @@ export async function GET() {
     // 5. Build closed positions (has venda in renda_fixa but NOT in fixa_aberta)
     const encerradas: RFClosedPosition[] = [];
     for (const [ticker, agg] of Object.entries(txByTicker)) {
-      if (openSet.has(ticker)) continue; // still open
+      if (openTickers.has(ticker)) continue; // still open
       if (agg.venda <= 0) continue; // no sale = not closed
-      if (CASH_TICKERS.has(ticker.toUpperCase())) continue;
+      if (isCashTicker(ticker)) continue;
 
       const moeda = agg.moeda;
       const lucro = agg.venda - agg.compra - agg.imposto;
