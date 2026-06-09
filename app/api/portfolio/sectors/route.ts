@@ -154,7 +154,13 @@ export async function GET() {
 
     const positions: PosWithSector[] = [];
     const usd = fxAtual.USDBRL;
-    const fxMap: Record<string, number> = { BRL: 1, USD: usd };
+    const fxMap: Record<string, number> = {
+      BRL: 1,
+      USD: usd,
+      EUR: fxAtual.EURBRL ?? usd,
+      CAD: fxAtual.CADBRL ?? usd,
+      GBP: fxAtual.GBPBRL ?? usd,
+    };
 
     for (const p of snapshot.positions) {
       if (p.quantidade <= 0 || p.valorAtualBRL <= 0) continue;
@@ -182,23 +188,29 @@ export async function GET() {
     }
 
     // Add RF positions from fixa_aberta
+    const usedTickers = new Set(positions.map(p => p.ticker));
     for (const row of fixaAberta) {
-      const ticker = getTicker(row);
-      if (!ticker) continue;
+      const rawTicker = getTicker(row);
+      if (!rawTicker) continue;
       const valor =
         toNumber(
           row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"],
         ) ?? 0;
       if (valor <= 0) continue;
       const moeda = getMoeda(row);
-      const isCaixa = CASH_TICKERS.has(ticker.toUpperCase());
+      const isCaixa = CASH_TICKERS.has(rawTicker.toUpperCase());
       const setor = isCaixa ? "Caixa/Liquidez" : "Renda Fixa";
-      const fx = fxMap[moeda] ?? 1;
-      const valorBRL = valor * fx;
+      const fxRate = fxMap[moeda] ?? fxMap.USD ?? 1;
+      const valorBRL = valor * fxRate;
+
+      // Disambiguate duplicate tickers (e.g. "Caixa" in BRL and USD)
+      let ticker = rawTicker;
+      if (usedTickers.has(ticker)) ticker = `${rawTicker} (${moeda})`;
+      usedTickers.add(ticker);
 
       positions.push({
         ticker,
-        nome: ticker,
+        nome: rawTicker,
         setor,
         setorEconomico: isCaixa ? "Caixa/Liquidez" : "Renda Fixa",
         industry: "",
