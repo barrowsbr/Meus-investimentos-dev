@@ -123,6 +123,7 @@ export interface PortfolioResponse extends PortfolioSnapshot {
   cambio: CambioInfo;
   ptax: PtaxInfo | null;
   lbHistoric: LbHistoricPoint[];
+  alavancagem: { dividaBRL: number; jurosAcumBRL: number; netBRL: number; alavancagemPct: number; leverageRatio: number };
   timestamp: string;
   tickerMap: Record<string, string>;
 }
@@ -237,6 +238,7 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     },
     ptax: data.ptax ?? null,
     lbHistoric: data.lbHistoric ?? data.lb_historic ?? [],
+    alavancagem: data.alavancagem ?? { dividaBRL: 0, jurosAcumBRL: 0, netBRL: data.totalPatrimonioBRL ?? 0, alavancagemPct: 0, leverageRatio: 0 },
     timestamp: data.timestamp ?? new Date().toISOString(),
     tickerMap: data.tickerMap ?? data.ticker_map ?? {},
   };

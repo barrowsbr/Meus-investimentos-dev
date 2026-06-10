@@ -197,6 +197,16 @@ export default function RendaVariavelPage() {
         description="Análise completa de posições RV — variação diária, FX e setores"
       />
 
+      {/* Net = bruto − dívida margin: contexto de alavancagem quando houver margem aberta */}
+      {data.alavancagem.dividaBRL > 0 && (
+        <div className="glass-card px-4 py-2.5 mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs border-amber-500/15">
+          <span className="text-zinc-500">Net (patrimônio real): <span className="text-emerald-400 font-bold">{compactBRL(data.alavancagem.netBRL)}</span></span>
+          <span className="text-zinc-500">Bruto: <span className="text-zinc-300 font-semibold">{compactBRL(data.totalPatrimonioBRL)}</span></span>
+          <span className="text-zinc-500">Margin: <span className="text-red-400 font-semibold">−{compactBRL(data.alavancagem.dividaBRL)}</span></span>
+          <span className="text-zinc-500">Alavancagem: <span className="text-amber-400 font-semibold">{data.alavancagem.alavancagemPct.toFixed(1)}%</span></span>
+        </div>
+      )}
+
       {/* ── Metric Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6">
         <div className="animate-fade-in">

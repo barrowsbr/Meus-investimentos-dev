@@ -30,7 +30,7 @@ interface Summary {
   navInicial: number;
   totalInvestido: number;
   custoPosicoesAtuais?: number;
-  patrimonio?: { total: number; rv: number; rf: number; caixa: number };
+  patrimonio?: { total: number; rv: number; rf: number; caixa: number; divida?: number; net?: number; alavancagemPct?: number };
   filtros?: { classe: string; setor: string; ticker: string; rvSetores: string[]; tickers: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
   primeiraData: string;
@@ -730,11 +730,20 @@ export default function PerformancePage() {
                 </div>
               </div>
 
-              {/* Right: Patrimônio */}
+              {/* Right: Patrimônio — Net = bruto − dívida de margin (Net liq da corretora) */}
               <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
                 <div>
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">Patrimônio</p>
-                  <p className="text-xl font-bold text-zinc-100">{compactCurr(navAtual)}</p>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">
+                    Patrimônio{(s.patrimonio?.divida ?? 0) > 0 ? " (Net)" : ""}
+                  </p>
+                  <p className="text-xl font-bold text-zinc-100">{compactCurr(s.patrimonio?.net ?? navAtual)}</p>
+                  {(s.patrimonio?.divida ?? 0) > 0 && (
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      Bruto {compactCurr(navAtual)}<br />
+                      <span className="text-red-400/80">Margin −{compactCurr(s.patrimonio!.divida!)}</span>{" "}
+                      <span className="text-amber-400/80">({(s.patrimonio!.alavancagemPct ?? 0).toFixed(1)}%)</span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

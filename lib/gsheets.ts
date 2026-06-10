@@ -52,6 +52,30 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
   });
 }
 
+// Garante que uma aba exista; cria com a linha de cabeçalho se faltar.
+// Requer service account. Retorna true se a aba foi criada agora.
+export async function ensureTab(tabName: string, headers: string[]): Promise<boolean> {
+  const names = await listSheetNames();
+  const lower = tabName.toLowerCase().replace(/[_\s]/g, "");
+  const exists = names.some(n => n.toLowerCase().replace(/[_\s]/g, "") === lower);
+  if (exists) return false;
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error(`Aba "${tabName}" não existe e a criação requer GOOGLE_SERVICE_ACCOUNT_JSON`);
+  const sheets = google.sheets({ version: "v4", auth });
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${tabName}!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [headers] },
+  });
+  resetSheetNamesCache();
+  return true;
+}
+
 function serialToDate(serial: number): string {
   const utcDays = Math.floor(serial - 25569);
   const d = new Date(utcDays * 86400 * 1000);

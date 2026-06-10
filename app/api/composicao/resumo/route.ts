@@ -6,6 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
 
@@ -78,13 +79,14 @@ export async function GET() {
 
   try {
     // ── 1. Load all data ──────────────────────────────────────────────────────
-    const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows, marginRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
       fetchTab("fixa_aberta").catch(() => []),
       fetchTab("renda_fixa").catch(() => []),
       fetchTab("cambio").catch(() => []),
       fetchTab("p_tax").catch(() => []),
+      fetchTab(MARGIN_TAB).catch(() => []),
     ]);
 
     // ── 2. Get quotes and build snapshot ─────────────────────────────────────
@@ -537,6 +539,13 @@ export async function GET() {
           CADBRL: fxAtual.CADBRL,
           GBPBRL: fxAtual.GBPBRL,
         },
+        alavancagem: (() => {
+          const m = computeMarginResumo(parseMarginRows(marginRows), {
+            BRL: 1, USD: fxAtual.USDBRL, EUR: fxAtual.EURBRL, GBP: fxAtual.GBPBRL,
+            CAD: fxAtual.CADBRL, CHF: fxAtual.CHFBRL ?? 0, JPY: fxAtual.JPYBRL ?? 0,
+          });
+          return aplicarAlavancagem(totalPortfolio, m);
+        })(),
         resumo: {
           total_portfolio: totalPortfolio,
           rv_value: snapshot.rvPatrimonioBRL,

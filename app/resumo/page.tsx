@@ -555,11 +555,17 @@ export default function ResumoPage() {
             </div>
 
             {/* ── 1. Patrimônio (AUM) & Alocação ── */}
+            {/* Net = bruto − dívida de margin: o "Net liq" da corretora, o dinheiro que é meu. */}
             <div className="flex items-baseline justify-between mb-1">
-              <span className="text-sm font-bold text-zinc-100">Patrimônio Atual</span>
-              <span className="text-xl font-extrabold text-zinc-100">{compactBRL(patrimonioAtual)}</span>
+              <span className="text-sm font-bold text-zinc-100">Patrimônio Atual{data.alavancagem.dividaBRL > 0 ? " (Net)" : ""}</span>
+              <span className="text-xl font-extrabold text-zinc-100">{compactBRL(data.alavancagem.netBRL)}</span>
             </div>
-            <div className="flex items-center justify-end text-[11px] mb-3">
+            <div className="flex items-center justify-between text-[11px] mb-3">
+              {data.alavancagem.dividaBRL > 0 ? (
+                <span className="text-zinc-600">
+                  Bruto {compactBRL(patrimonioAtual)} · <span className="text-red-400/80">Margin −{compactBRL(data.alavancagem.dividaBRL)}</span> · <span className="text-amber-400/80">{data.alavancagem.alavancagemPct.toFixed(1)}% alavancado</span>
+                </span>
+              ) : <span />}
               <span className={dayChg >= 0 ? "text-emerald-400/80" : "text-red-400/80"}>
                 Hoje {fmt(dayChg)} ({pct(dayPct)})
               </span>
