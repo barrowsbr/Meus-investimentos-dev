@@ -31,47 +31,8 @@ export interface BolsasGlobeProps {
 
 const EARTH_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-blue-marble.jpg";
 const BUMP_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-topology.png";
-const NIGHT_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-night.jpg";
+const WATER_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-water.png";
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-
-const EARTH_VERT = `
-  varying vec2 vUv;
-  varying vec3 vWorldNormal;
-  varying vec3 vWorldPos;
-  void main() {
-    vUv = uv;
-    vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const EARTH_FRAG = `
-  uniform sampler2D uDayMap;
-  uniform sampler2D uNightMap;
-  uniform sampler2D uBumpMap;
-  uniform vec3 uSunDir;
-  varying vec2 vUv;
-  varying vec3 vWorldNormal;
-  varying vec3 vWorldPos;
-  void main() {
-    vec3 n = normalize(vWorldNormal);
-    vec3 sun = normalize(uSunDir);
-    vec3 day = texture2D(uDayMap, vUv).rgb;
-    vec3 night = texture2D(uNightMap, vUv).rgb;
-    float NdotL = dot(n, sun);
-    float dayMix = smoothstep(-0.12, 0.25, NdotL);
-    vec3 dayColor = day * (0.08 + 0.92 * max(NdotL, 0.0));
-    vec3 V = normalize(cameraPosition - vWorldPos);
-    vec3 R = reflect(-sun, n);
-    float spec = pow(max(dot(R, V), 0.0), 80.0);
-    float bmp = texture2D(uBumpMap, vUv).r;
-    float water = 1.0 - smoothstep(0.0, 0.1, bmp);
-    dayColor += vec3(0.6, 0.8, 1.0) * spec * water * 0.4;
-    vec3 nightColor = night * 1.5;
-    gl_FragColor = vec4(mix(nightColor, dayColor, dayMix), 1.0);
-  }
-`;
 
 function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -103,115 +64,62 @@ function heatHex(pct: number): string {
 // ── Earth sphere ─────────────────────────────────────────────────────────────
 
 function EarthSphere({ radius }: { radius: number }) {
-  const [dayMap, nightMap, bumpMap] = useTexture([EARTH_TEX, NIGHT_TEX, BUMP_TEX]);
-  const mat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: EARTH_VERT,
-    fragmentShader: EARTH_FRAG,
-    uniforms: {
-      uDayMap: { value: dayMap },
-      uNightMap: { value: nightMap },
-      uBumpMap: { value: bumpMap },
-      uSunDir: { value: new THREE.Vector3(5, 3, 5).normalize() },
-    },
-  }), [dayMap, nightMap, bumpMap]);
+  const [color, bump, water] = useTexture([EARTH_TEX, BUMP_TEX, WATER_TEX]);
+  useMemo(() => {
+    const maxAniso = 8;
+    color.anisotropy = maxAniso;
+    bump.anisotropy = maxAniso;
+    water.anisotropy = maxAniso;
+  }, [color, bump, water]);
 
   return (
     <mesh>
-      <sphereGeometry args={[radius, 64, 64]} />
-      <primitive object={mat} attach="material" />
+      <sphereGeometry args={[radius, 96, 96]} />
+      <meshStandardMaterial
+        map={color}
+        bumpMap={bump}
+        bumpScale={0.02}
+        roughnessMap={water}
+        roughness={0.85}
+        metalness={0.08}
+        envMapIntensity={0.6}
+      />
     </mesh>
   );
 }
 
 // ── Atmosphere glow ──────────────────────────────────────────────────────────
 
-const ATMO_VERT = `
-  varying vec3 vNormal;
-  void main() {
-    vNormal = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
 function Atmosphere({ radius }: { radius: number }) {
-  const innerMat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: ATMO_VERT,
-    fragmentShader: `
-      varying vec3 vNormal;
-      void main() {
-        float rim = dot(vNormal, vec3(0.0, 0.0, 1.0));
-        float f = 1.0 - max(0.0, rim);
-        float glow = pow(f, 4.0) * 1.5;
-        vec3 color = vec3(0.3, 0.6, 1.0) * glow;
-        gl_FragColor = vec4(color, glow * 0.7);
-      }
-    `,
-    blending: THREE.AdditiveBlending,
-    side: THREE.BackSide,
-    transparent: true,
-    depthWrite: false,
-  }), []);
-
-  const outerMat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: ATMO_VERT,
-    fragmentShader: `
-      varying vec3 vNormal;
-      void main() {
-        float rim = dot(vNormal, vec3(0.0, 0.0, 1.0));
-        float f = 1.0 - max(0.0, rim);
-        float glow = pow(f, 2.0) * 0.4;
-        vec3 color = vec3(0.45, 0.7, 1.0) * glow;
-        gl_FragColor = vec4(color, glow * 0.35);
-      }
-    `,
-    blending: THREE.AdditiveBlending,
-    side: THREE.BackSide,
-    transparent: true,
-    depthWrite: false,
-  }), []);
-
-  return (
-    <>
-      <mesh scale={[1.06, 1.06, 1.06]}>
-        <sphereGeometry args={[radius, 64, 64]} />
-        <primitive object={innerMat} attach="material" />
-      </mesh>
-      <mesh scale={[1.2, 1.2, 1.2]}>
-        <sphereGeometry args={[radius, 64, 64]} />
-        <primitive object={outerMat} attach="material" />
-      </mesh>
-    </>
-  );
-}
-
-function StarField() {
-  const geo = useMemo(() => {
-    const count = 2000;
-    const pos = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const r = 5 + Math.random() * 15;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      pos[i * 3 + 2] = r * Math.cos(phi);
-      const brightness = 0.3 + Math.random() * 0.7;
-      const temp = Math.random();
-      colors[i * 3] = brightness * (0.8 + temp * 0.2);
-      colors[i * 3 + 1] = brightness * (0.85 + temp * 0.15);
-      colors[i * 3 + 2] = brightness * (0.9 + (1 - temp) * 0.1);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-    return g;
+  const mat = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+          vec3 atmosphere = vec3(0.3, 0.6, 1.0) * intensity;
+          gl_FragColor = vec4(atmosphere, intensity * 0.65);
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+    });
   }, []);
 
   return (
-    <points geometry={geo}>
-      <pointsMaterial size={0.015} vertexColors transparent opacity={0.8} sizeAttenuation depthWrite={false} />
-    </points>
+    <mesh scale={[1.12, 1.12, 1.12]}>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
   );
 }
 
@@ -418,10 +326,10 @@ function GlobeScene({
 
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 3, 5]} intensity={1.2} color="#fffdf0" />
-
-      <StarField />
+      <ambientLight intensity={1.0} />
+      <directionalLight position={[5, 3, 5]} intensity={1.8} color="#fffdf0" />
+      <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
+      <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
 
       <group ref={groupRef}>
         <EarthSphere radius={R} />
