@@ -145,8 +145,10 @@ export async function runCotacoesSync(
     for (const { date, price } of rows) {
       dateSet.add(date);
       if (!prices[date]) prices[date] = {};
-      if (prices[date][orig] == null) newPoints++;
-      prices[date][orig] = price;
+      if (prices[date][orig] == null) {
+        newPoints++;
+        prices[date][orig] = price;
+      }
     }
   }
 
