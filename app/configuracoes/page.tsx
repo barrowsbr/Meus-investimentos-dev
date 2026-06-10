@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Lock, Upload, CheckCircle2, XCircle, AlertCircle,
   FileText, RefreshCw,
-  Shield, Info,
+  Shield, Info, ImageIcon, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { getBackgroundImage, setBackgroundImage } from "@/components/AppBackground";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -415,6 +416,108 @@ function GoldenSourceSection() {
   );
 }
 
+// ── Background Section ──────────────────────────────────────────────────────
+
+const BG_OPTIONS = [
+  { label: "Circuito", path: "/midias/home-bg.jpeg" },
+  { label: "Nenhum", path: "" },
+];
+
+function BackgroundSection() {
+  const [current, setCurrent] = useState("");
+  const [custom, setCustom] = useState("");
+
+  useEffect(() => {
+    setCurrent(getBackgroundImage());
+  }, []);
+
+  function select(path: string) {
+    setBackgroundImage(path);
+    setCurrent(path);
+  }
+
+  function handleCustom() {
+    const path = custom.trim();
+    if (!path) return;
+    const full = path.startsWith("/") ? path : `/midias/${path}`;
+    select(full);
+    setCustom("");
+  }
+
+  const isCustom = current && !BG_OPTIONS.some(o => o.path === current);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-zinc-500 leading-relaxed">
+        Imagem de fundo exibida em todas as páginas com transparência sutil.
+        Coloque imagens em <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">public/midias/</code> e selecione abaixo.
+      </p>
+
+      <div className="flex flex-wrap gap-3">
+        {BG_OPTIONS.map(opt => {
+          const active = current === opt.path;
+          return (
+            <button
+              key={opt.label}
+              onClick={() => select(opt.path)}
+              className="relative rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
+              style={{
+                width: 120, height: 80,
+                border: active ? "2px solid #d4a574" : "2px solid rgba(255,255,255,0.08)",
+                boxShadow: active ? "0 0 12px rgba(212,165,116,0.2)" : "none",
+              }}
+            >
+              {opt.path ? (
+                <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${opt.path}')`, filter: "brightness(0.5)" }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                  <span className="text-[10px] text-zinc-600">Sem fundo</span>
+                </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 flex items-center gap-1">
+                {active && <Check size={10} className="text-amber-400" />}
+                <span className={`text-[10px] font-semibold ${active ? "text-amber-400" : "text-zinc-400"}`}>{opt.label}</span>
+              </div>
+            </button>
+          );
+        })}
+
+        {isCustom && (
+          <div
+            className="relative rounded-xl overflow-hidden"
+            style={{ width: 120, height: 80, border: "2px solid #d4a574", boxShadow: "0 0 12px rgba(212,165,116,0.2)" }}
+          >
+            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${current}')`, filter: "brightness(0.5)" }} />
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 flex items-center gap-1">
+              <Check size={10} className="text-amber-400" />
+              <span className="text-[10px] font-semibold text-amber-400 truncate">Custom</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={custom}
+          onChange={e => setCustom(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleCustom()}
+          placeholder="nome-do-arquivo.jpg"
+          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+        />
+        <button
+          onClick={handleCustom}
+          disabled={!custom.trim()}
+          className="px-3 py-2 text-xs rounded-lg font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-40 transition-colors"
+        >
+          Aplicar
+        </button>
+      </div>
+      <p className="text-[10px] text-zinc-600">Digite o nome do arquivo em <code className="bg-zinc-800 px-1 rounded">public/midias/</code> ou o caminho completo começando com <code className="bg-zinc-800 px-1 rounded">/</code>.</p>
+    </div>
+  );
+}
+
 export default function ConfiguracoesPage() {
   return (
     <>
@@ -430,6 +533,10 @@ export default function ConfiguracoesPage() {
 
         <SectionCard title="Base de Cotações (Golden Source)" icon={<Database size={16} />}>
           <GoldenSourceSection />
+        </SectionCard>
+
+        <SectionCard title="Fundo do Painel" icon={<ImageIcon size={16} />}>
+          <BackgroundSection />
         </SectionCard>
 
         <SectionCard title="Importar Dados (IBKR / B3)" icon={<Upload size={16} />}>
