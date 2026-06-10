@@ -622,6 +622,10 @@ const BG_OPTIONS = [
   { label: "Circuito", path: "/midias/home-bg.jpeg" },
   { label: "Vórtex", path: "/midias/bg-vortex.jpeg" },
   { label: "Equações", path: "/midias/bg-equations.jpeg" },
+  { label: "Cassette", path: "/midias/bg-cassette.jpeg" },
+  { label: "Blueprint", path: "/midias/bg-blueprint.jpeg" },
+  { label: "Equações 2", path: "/midias/bg-equations2.jpeg" },
+  { label: "Motherboard", path: "/midias/bg-motherboard.jpeg" },
   { label: "Nenhum", path: "" },
 ];
 
