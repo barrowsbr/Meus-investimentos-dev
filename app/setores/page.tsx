@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   PieChart as PieIcon, ChevronDown, ChevronRight,
-  TrendingUp, TrendingDown, Building2, Briefcase,
+  TrendingUp, TrendingDown, Building2, Briefcase, Layers, Eye,
 } from "lucide-react";
 import { brl, compactBRL, pct } from "@/lib/format";
 import { SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
@@ -37,12 +37,19 @@ interface SectorAgg {
   posicoes: Position[];
 }
 
+interface LookThroughMeta {
+  supported: string[];
+  unsupported: string[];
+  sources: Record<string, string>;
+}
+
 interface SectorsData {
   totalBRL: number;
   rvBRL: number;
   rfBRL: number;
   sectors: SectorAgg[];
   positions: Position[];
+  lookthrough?: LookThroughMeta;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -92,9 +99,12 @@ function TreemapContent(props: any) {
 
 export default function SetoresPage() {
   const [data, setData] = useState<SectorsData | null>(null);
+  const [ltData, setLtData] = useState<SectorsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ltLoading, setLtLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set());
+  const [consolidated, setConsolidated] = useState(false);
 
   useEffect(() => {
     fetch("/api/portfolio/sectors")
@@ -110,6 +120,24 @@ export default function SetoresPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!consolidated || ltData) return;
+    setLtLoading(true);
+    fetch("/api/portfolio/sectors?lookthrough=true")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setLtData(d);
+      })
+      .catch(() => {})
+      .finally(() => setLtLoading(false));
+  }, [consolidated, ltData]);
+
+  const activeData = consolidated && ltData ? ltData : data;
+
   const toggleSector = (setor: string) => {
     setExpandedSectors((prev) => {
       const next = new Set(prev);
@@ -120,29 +148,29 @@ export default function SetoresPage() {
   };
 
   const treemapData = useMemo(() => {
-    if (!data) return [];
-    return data.sectors.map((s) => ({
+    if (!activeData) return [];
+    return activeData.sectors.map((s) => ({
       name: s.setor,
       value: s.valorBRL,
       pctVal: s.pct,
       fill: sectorColor(s.setor),
     }));
-  }, [data]);
+  }, [activeData]);
 
   const pieData = useMemo(() => {
-    if (!data) return [];
-    return data.sectors.map((s) => ({
+    if (!activeData) return [];
+    return activeData.sectors.map((s) => ({
       name: s.setor,
       value: s.valorBRL,
       pct: s.pct,
     }));
-  }, [data]);
+  }, [activeData]);
 
   // Industry sub-breakdown
   const industryBreakdown = useMemo(() => {
-    if (!data) return [];
+    if (!activeData) return [];
     const map = new Map<string, { industry: string; setor: string; valorBRL: number; count: number }>();
-    for (const p of data.positions) {
+    for (const p of activeData.positions) {
       if (!p.industry) continue;
       const key = `${p.setorEconomico}|${p.industry}`;
       const existing = map.get(key);
@@ -154,7 +182,7 @@ export default function SetoresPage() {
       }
     }
     return [...map.values()].sort((a, b) => b.valorBRL - a.valorBRL);
-  }, [data]);
+  }, [activeData]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -169,37 +197,100 @@ export default function SetoresPage() {
     );
   }
 
-  const rvPct = data.totalBRL > 0 ? (data.rvBRL / data.totalBRL) * 100 : 0;
-  const rfPct = data.totalBRL > 0 ? (data.rfBRL / data.totalBRL) * 100 : 0;
+  const d = activeData ?? data;
+  const rvPct = d.totalBRL > 0 ? (d.rvBRL / d.totalBRL) * 100 : 0;
+  const rfPct = d.totalBRL > 0 ? (d.rfBRL / d.totalBRL) * 100 : 0;
+  const ltMeta = ltData?.lookthrough;
 
   return (
     <>
       <PageHeader title="Setores" description="Alocação da carteira completa por setor econômico" />
+
+      {/* View toggle */}
+      <div className="flex items-center gap-3 mb-5">
+        <div
+          className="inline-flex rounded-xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(17,19,28,0.65)" }}
+        >
+          <button
+            onClick={() => setConsolidated(false)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold transition-colors"
+            style={{
+              background: !consolidated ? "rgba(212,165,116,0.12)" : "transparent",
+              color: !consolidated ? "#f5d49a" : "#71717a",
+            }}
+          >
+            <Eye size={13} />
+            Padrão
+          </button>
+          <button
+            onClick={() => setConsolidated(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold transition-colors"
+            style={{
+              background: consolidated ? "rgba(139,92,246,0.12)" : "transparent",
+              color: consolidated ? "#a78bfa" : "#71717a",
+            }}
+          >
+            <Layers size={13} />
+            Consolidada
+          </button>
+        </div>
+        {consolidated && ltLoading && (
+          <span className="text-[10px] text-zinc-500 animate-pulse">Carregando look-through…</span>
+        )}
+        {consolidated && ltMeta && (
+          <span className="text-[10px] text-zinc-600">
+            {ltMeta.supported.length} ETF{ltMeta.supported.length !== 1 ? "s" : ""} decompostos
+            {ltMeta.unsupported.length > 0 && ` · ${ltMeta.unsupported.length} sem dados`}
+          </span>
+        )}
+      </div>
+
+      {consolidated && ltMeta && (
+        <div
+          className="rounded-xl px-4 py-3 mb-5 flex items-start gap-3"
+          style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}
+        >
+          <Layers size={14} className="text-violet-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs text-violet-300 font-semibold mb-0.5">Visão Consolidada (Look-through)</p>
+            <p className="text-[10px] text-zinc-500 leading-relaxed">
+              ETFs foram decompostos nos ativos subjacentes e reclassificados por setor econômico.
+              {ltMeta.supported.length > 0 && (
+                <> Decompostos: <b className="text-zinc-400">{ltMeta.supported.join(", ")}</b>.</>
+              )}
+              {ltMeta.unsupported.length > 0 && (
+                <> Sem dados de composição: <b className="text-zinc-400">{ltMeta.unsupported.join(", ")}</b>.</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard
           icon={Briefcase}
           label="Patrimônio Total"
-          value={compactBRL(data.totalBRL)}
+          value={compactBRL(d.totalBRL)}
         />
         <SummaryCard
           icon={TrendingUp}
           label="Renda Variável"
-          value={compactBRL(data.rvBRL)}
+          value={compactBRL(d.rvBRL)}
           sub={pct(rvPct, 1)}
         />
         <SummaryCard
           icon={Building2}
           label="Renda Fixa + Caixa"
-          value={compactBRL(data.rfBRL)}
+          value={compactBRL(d.rfBRL)}
           sub={pct(rfPct, 1)}
         />
         <SummaryCard
           icon={PieIcon}
           label="Setores"
-          value={String(data.sectors.length)}
-          sub={`${data.positions.length} ativos`}
+          value={String(d.sectors.length)}
+          sub={`${d.positions.length} ativos`}
         />
       </div>
 
@@ -237,7 +328,7 @@ export default function SetoresPage() {
               Detalhamento por Setor
             </h2>
             <div className="space-y-1">
-              {data.sectors.map((s) => {
+              {d.sectors.map((s) => {
                 const isExpanded = expandedSectors.has(s.setor);
                 return (
                   <div key={s.setor}>
@@ -296,7 +387,7 @@ export default function SetoresPage() {
                                 {compactBRL(p.valorBRL)}
                               </span>
                               <span className="text-[10px] text-zinc-600 font-mono w-12 text-right">
-                                {data.totalBRL > 0 ? ((p.valorBRL / data.totalBRL) * 100).toFixed(1) : "0.0"}%
+                                {d.totalBRL > 0 ? ((p.valorBRL / d.totalBRL) * 100).toFixed(1) : "0.0"}%
                               </span>
                               {p.tipo === "RV" && (
                                 <span
@@ -352,7 +443,7 @@ export default function SetoresPage() {
                       {compactBRL(ind.valorBRL)}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono shrink-0 w-12 text-right">
-                      {data.totalBRL > 0 ? ((ind.valorBRL / data.totalBRL) * 100).toFixed(1) : "0.0"}%
+                      {d.totalBRL > 0 ? ((ind.valorBRL / d.totalBRL) * 100).toFixed(1) : "0.0"}%
                     </span>
                   </div>
                 ))}
@@ -397,7 +488,7 @@ export default function SetoresPage() {
 
             {/* Legend */}
             <div className="mt-4 space-y-1.5">
-              {data.sectors.map((s) => (
+              {d.sectors.map((s) => (
                 <div key={s.setor} className="flex items-center gap-2 text-xs">
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
@@ -418,8 +509,8 @@ export default function SetoresPage() {
               Top 15 Posições
             </h2>
             <div className="space-y-1">
-              {data.positions.slice(0, 15).map((p) => {
-                const posPct = data.totalBRL > 0 ? (p.valorBRL / data.totalBRL) * 100 : 0;
+              {d.positions.slice(0, 15).map((p) => {
+                const posPct = d.totalBRL > 0 ? (p.valorBRL / d.totalBRL) * 100 : 0;
                 return (
                   <div key={p.ticker} className="flex items-center gap-2 py-1">
                     <span
@@ -460,7 +551,7 @@ export default function SetoresPage() {
               Concentração
             </h2>
             {(() => {
-              const sorted = [...data.sectors].sort((a, b) => b.pct - a.pct);
+              const sorted = [...d.sectors].sort((a, b) => b.pct - a.pct);
               const top1 = sorted[0]?.pct ?? 0;
               const top3 = sorted.slice(0, 3).reduce((s, x) => s + x.pct, 0);
               const top5 = sorted.slice(0, 5).reduce((s, x) => s + x.pct, 0);
