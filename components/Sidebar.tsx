@@ -21,7 +21,6 @@ import {
   Newspaper,
   ListOrdered,
   Target,
-  Globe,
   PieChart,
   Scale,
   Zap,
@@ -84,8 +83,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Mais",
     items: [
-      { href: "/moedas",        label: "Moedas",        icon: Globe },
-      { href: "/bolsas",        label: "Bolsas",        icon: BarChart3 },
+      { href: "/bolsas",        label: "Radar",         icon: BarChart3 },
       { href: "/noticias",      label: "Inteligência",  icon: Newspaper },
       { href: "/polymarket",    label: "Preditivos",    icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
