@@ -294,11 +294,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
 
-    const dates = (fromParam || toParam)
-      ? hist.dates.filter(d => d >= (fromParam || "0000") && d <= (toParam || today()))
-      : lookback > 0
-        ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
-        : hist.dates.filter(d => d <= today());
+    // For windowed views, include 1 extra day BEFORE the window so the TWR
+    // engine starts with prevNav > 0. Without it, day 1 is always forceZero
+    // (prevNav=0) and any real market movement on that day is lost.
+    const isWindowed = lookback > 0 || fromParam || toParam;
+    const windowStart = (fromParam || toParam)
+      ? (fromParam || "0000")
+      : lookback > 0 ? startDateFromLookback(lookback) : "0000";
+    const allDates = hist.dates.filter(d => d <= (toParam || today()));
+    let dates: string[];
+    if (isWindowed) {
+      const firstInWindow = allDates.findIndex(d => d >= windowStart);
+      dates = allDates.slice(Math.max(0, firstInWindow - 1));
+    } else {
+      dates = allDates;
+    }
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
     // Pre-fill the FULL price matrix (ffill + bfill) BEFORE slicing to the
