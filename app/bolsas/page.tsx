@@ -8,7 +8,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
-  Landmark, Globe2,
+  Landmark, Globe2, DollarSign, Bitcoin, Coins,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -125,6 +125,33 @@ export default function BolsasPage() {
   const [chartExpanded, setChartExpanded] = useState(false);
   const [customAsset, setCustomAsset] = useState<IndexData | null>(null);
   const didAutoSelect = useRef(false);
+
+  interface MacroData {
+    yields: { label: string; maturity: number; yield: number; change: number }[];
+    spread10Y2Y: number | null;
+    dxy: { price: number; change: number; changePct: number } | null;
+    gold: { price: number; change: number; changePct: number } | null;
+  }
+  interface CryptoAsset {
+    id: string; symbol: string; name: string; image: string;
+    price: number; marketCap: number; rank: number;
+    change1h: number | null; change24h: number | null; change7d: number | null;
+    volume24h: number; sparkline: number[]; ath: number; athChangePct: number;
+  }
+  const [macro, setMacro] = useState<MacroData | null>(null);
+  const [cryptoAssets, setCryptoAssets] = useState<CryptoAsset[]>([]);
+  const [btcDominance, setBtcDominance] = useState<number>(0);
+
+  useEffect(() => {
+    fetch("/api/bolsas/yields")
+      .then(r => r.json())
+      .then(d => { if (!d.error) setMacro(d); })
+      .catch(() => {});
+    fetch("/api/bolsas/crypto")
+      .then(r => r.json())
+      .then(d => { if (d.assets?.length) { setCryptoAssets(d.assets); setBtcDominance(d.btcDominance ?? 0); } })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -293,6 +320,72 @@ export default function BolsasPage() {
           />
         </div>
 
+        {/* ── Global Macro Strip ── */}
+        {(macro || cryptoAssets.length > 0) && (
+          <div
+            className="rounded-2xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
+            style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <span className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest mr-1">Macro</span>
+            {macro?.dxy && (
+              <div className="flex items-center gap-1.5">
+                <DollarSign size={11} className="text-green-400" />
+                <span className="text-[10px] text-zinc-400 font-semibold">DXY</span>
+                <span className="text-[11px] text-zinc-200 font-bold font-mono">{macro.dxy.price.toFixed(2)}</span>
+                <span className={`text-[10px] font-semibold ${macro.dxy.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {macro.dxy.changePct >= 0 ? "+" : ""}{macro.dxy.changePct.toFixed(2)}%
+                </span>
+              </div>
+            )}
+            {macro?.gold && (
+              <div className="flex items-center gap-1.5">
+                <Coins size={11} className="text-yellow-400" />
+                <span className="text-[10px] text-zinc-400 font-semibold">Ouro</span>
+                <span className="text-[11px] text-zinc-200 font-bold font-mono">${macro.gold.price.toFixed(0)}</span>
+                <span className={`text-[10px] font-semibold ${macro.gold.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {macro.gold.changePct >= 0 ? "+" : ""}{macro.gold.changePct.toFixed(2)}%
+                </span>
+              </div>
+            )}
+            {macro?.yields?.map(y => (
+              <div key={y.label} className="flex items-center gap-1.5">
+                <span className="text-[10px] text-zinc-500 font-semibold">UST {y.label}</span>
+                <span className="text-[11px] text-zinc-200 font-bold font-mono">{y.yield.toFixed(2)}%</span>
+                <span className={`text-[10px] font-semibold ${y.change >= 0 ? "text-red-400" : "text-emerald-400"}`}>
+                  {y.change >= 0 ? "+" : ""}{y.change.toFixed(2)}
+                </span>
+              </div>
+            ))}
+            {macro?.spread10Y2Y != null && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-zinc-500 font-semibold">Spread 10Y-2Y</span>
+                <span className={`text-[11px] font-bold font-mono ${macro.spread10Y2Y >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {macro.spread10Y2Y >= 0 ? "+" : ""}{macro.spread10Y2Y.toFixed(3)}
+                </span>
+                {macro.spread10Y2Y < 0 && <span className="text-[9px] text-red-400/70">invertida</span>}
+              </div>
+            )}
+            {cryptoAssets.length > 0 && (
+              <>
+                <span className="text-zinc-800">|</span>
+                {cryptoAssets.slice(0, 3).map(c => (
+                  <div key={c.id} className="flex items-center gap-1.5">
+                    {c.id === "bitcoin" ? <Bitcoin size={11} className="text-orange-400" /> :
+                     <img src={c.image} alt={c.symbol} className="w-3 h-3 rounded-full" />}
+                    <span className="text-[10px] text-zinc-400 font-semibold uppercase">{c.symbol}</span>
+                    <span className="text-[11px] text-zinc-200 font-bold font-mono">
+                      ${c.price >= 1000 ? c.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : c.price.toFixed(2)}
+                    </span>
+                    <span className={`text-[10px] font-semibold ${(c.change24h ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {(c.change24h ?? 0) >= 0 ? "+" : ""}{(c.change24h ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Heatmap World Map ── */}
         <div
           className="rounded-2xl p-3 md:p-5 overflow-hidden"
@@ -459,6 +552,82 @@ export default function BolsasPage() {
           </div>
         </div>
 
+        {/* ── Crypto Market ── */}
+        {cryptoAssets.length > 0 && (
+          <div
+            className="rounded-2xl p-4 md:p-6"
+            style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                <Bitcoin size={16} className="text-orange-400" />
+                Criptomoedas
+              </h2>
+              <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+                <span>BTC Dominância: <span className="text-orange-400 font-semibold">{(btcDominance * 100).toFixed(1)}%</span></span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {cryptoAssets.map(c => {
+                const up = (c.change24h ?? 0) >= 0;
+                return (
+                  <div
+                    key={c.id}
+                    className="rounded-xl p-3 transition-all hover:scale-[1.02]"
+                    style={{
+                      background: up ? "rgba(16,185,129,0.04)" : "rgba(239,68,68,0.04)",
+                      border: `1px solid ${up ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)"}`,
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <img src={c.image} alt={c.symbol} className="w-5 h-5 rounded-full" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-zinc-200 truncate">{c.name}</p>
+                        <p className="text-[9px] text-zinc-500 uppercase">{c.symbol} · #{c.rank}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-sm font-bold text-zinc-100 font-mono">
+                        ${c.price >= 1000 ? c.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : c.price < 1 ? c.price.toFixed(4) : c.price.toFixed(2)}
+                      </span>
+                      <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
+                        {up ? "+" : ""}{(c.change24h ?? 0).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[8px] text-zinc-600">7d</span>
+                      <span className={`text-[9px] font-semibold ${(c.change7d ?? 0) >= 0 ? "text-emerald-400/70" : "text-red-400/70"}`}>
+                        {(c.change7d ?? 0) >= 0 ? "+" : ""}{(c.change7d ?? 0).toFixed(1)}%
+                      </span>
+                      <span className="text-[8px] text-zinc-600">MCap</span>
+                      <span className="text-[9px] text-zinc-400 font-mono">
+                        ${c.marketCap >= 1e12 ? `${(c.marketCap / 1e12).toFixed(2)}T` : c.marketCap >= 1e9 ? `${(c.marketCap / 1e9).toFixed(0)}B` : `${(c.marketCap / 1e6).toFixed(0)}M`}
+                      </span>
+                    </div>
+                    {/* Mini sparkline */}
+                    {c.sparkline.length > 10 && (
+                      <svg viewBox={`0 0 ${c.sparkline.length} 20`} className="w-full h-4 mt-1.5" preserveAspectRatio="none">
+                        <polyline
+                          points={c.sparkline.map((v, i) => {
+                            const min = Math.min(...c.sparkline);
+                            const max = Math.max(...c.sparkline);
+                            const y = max > min ? 20 - ((v - min) / (max - min)) * 20 : 10;
+                            return `${i},${y}`;
+                          }).join(" ")}
+                          fill="none"
+                          stroke={up ? "#34d399" : "#f87171"}
+                          strokeWidth="1.5"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── Index Table ── */}
         <div
           className="rounded-2xl p-4 md:p-6"
@@ -577,7 +746,7 @@ export default function BolsasPage() {
 
         {/* ── Footer ── */}
         <p className="text-center text-[10px] text-zinc-700 pt-4">
-          {`Cotações via Yahoo Finance · Dados com atraso de ~15 min para algumas bolsas`}
+          {`Cotações via Yahoo Finance · Crypto via CoinGecko · Câmbio via ExchangeRate API · Indicadores via World Bank · Yields via Yahoo Finance`}
         </p>
       </div>
     </div>
@@ -1478,21 +1647,40 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
       .catch(() => {});
   }, [index.symbol]);
 
+  interface YieldPt { label: string; maturity: number; yield: number; change: number }
+  const [yields, setYields] = useState<YieldPt[]>([]);
+  const [yieldSpread, setYieldSpread] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (index.country !== "EUA") { setYields([]); return; }
+    fetch("/api/bolsas/yields")
+      .then(r => r.json())
+      .then(d => {
+        if (d.yields) setYields(d.yields);
+        if (d.spread10Y2Y != null) setYieldSpread(d.spread10Y2Y);
+      })
+      .catch(() => {});
+  }, [index.country]);
+
   interface CountryIndicator { id: string; label: string; format: string; value: number; year: number }
   const [countryTeSlug, setCountryTeSlug] = useState<string | null>(null);
   const [countryIndicators, setCountryIndicators] = useState<CountryIndicator[]>([]);
+  const [countryCurrency, setCountryCurrency] = useState<string | null>(null);
+  const [countryFx, setCountryFx] = useState<{ vsUSD: number | null; vsBRL: number | null } | null>(null);
   const [countryLoading, setCountryLoading] = useState(false);
 
   useEffect(() => {
-    if (isCustom || !index.country) { setCountryTeSlug(null); setCountryIndicators([]); return; }
+    if (isCustom || !index.country) { setCountryTeSlug(null); setCountryIndicators([]); setCountryFx(null); return; }
     setCountryLoading(true);
     fetch(`/api/bolsas/country?country=${encodeURIComponent(index.country)}`)
       .then(r => r.json())
       .then(d => {
         setCountryTeSlug(d.teSlug ?? null);
         setCountryIndicators(d.indicators ?? []);
+        setCountryCurrency(d.currency ?? null);
+        setCountryFx(d.exchangeRate ?? null);
       })
-      .catch(() => { setCountryTeSlug(null); setCountryIndicators([]); })
+      .catch(() => { setCountryTeSlug(null); setCountryIndicators([]); setCountryFx(null); })
       .finally(() => setCountryLoading(false));
   }, [index.country, isCustom]);
 
@@ -1771,6 +1959,55 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         </div>
       </div>
 
+      {/* US Treasury Yield Curve */}
+      {yields.length >= 3 && (
+        <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
+            <span className="text-[10px] text-zinc-500 flex items-center gap-1.5 uppercase font-semibold tracking-wider">
+              <Activity size={11} />
+              Curva de Juros — US Treasury
+            </span>
+            {yieldSpread != null && (
+              <span className={`text-[10px] font-semibold ${yieldSpread >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                Spread 10Y-2Y: {yieldSpread >= 0 ? "+" : ""}{yieldSpread.toFixed(3)}
+                {yieldSpread < 0 && <span className="text-red-400/60 ml-1">(invertida)</span>}
+              </span>
+            )}
+          </div>
+          <div className="px-4 py-4">
+            <div className="flex items-end gap-1 h-28">
+              {yields.map((y, i) => {
+                const maxY = Math.max(...yields.map(yy => yy.yield), 0.1);
+                const h = (y.yield / maxY) * 100;
+                const up = y.change >= 0;
+                return (
+                  <div key={y.label} className="flex-1 flex flex-col items-center gap-1">
+                    <span className={`text-[9px] font-bold font-mono ${up ? "text-red-400" : "text-emerald-400"}`}>
+                      {y.yield.toFixed(2)}%
+                    </span>
+                    <div
+                      className="w-full rounded-t-md transition-all"
+                      style={{
+                        height: `${Math.max(h, 8)}%`,
+                        background: i === 0 ? "rgba(59,130,246,0.5)" :
+                          i === yields.length - 1 ? "rgba(168,85,247,0.5)" :
+                          "rgba(99,102,241,0.5)",
+                        border: `1px solid ${i === 0 ? "rgba(59,130,246,0.3)" : i === yields.length - 1 ? "rgba(168,85,247,0.3)" : "rgba(99,102,241,0.3)"}`,
+                      }}
+                    />
+                    <span className="text-[9px] text-zinc-500 font-semibold">{y.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between mt-2 px-1">
+              <span className="text-[8px] text-zinc-600">Curto prazo</span>
+              <span className="text-[8px] text-zinc-600">Longo prazo</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Candlestick Chart */}
       <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
@@ -1812,6 +2049,17 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/[0.02]">
+            {countryCurrency && countryFx && countryCurrency !== "USD" && countryFx.vsUSD && (
+              <div className="px-3 py-3" style={{ background: "rgba(5,7,14,0.8)" }}>
+                <p className="text-[8px] text-zinc-500 uppercase font-semibold mb-1">
+                  <DollarSign size={8} className="inline" /> Câmbio ({countryCurrency}/USD)
+                </p>
+                <p className="text-sm font-bold text-zinc-100 font-mono">{countryFx.vsUSD.toFixed(countryFx.vsUSD >= 100 ? 0 : countryFx.vsUSD >= 1 ? 2 : 4)}</p>
+                {countryFx.vsBRL && (
+                  <p className="text-[8px] text-zinc-500 mt-0.5">{countryCurrency}/BRL: {countryFx.vsBRL.toFixed(countryFx.vsBRL >= 100 ? 0 : countryFx.vsBRL >= 1 ? 2 : 4)}</p>
+                )}
+              </div>
+            )}
             {countryIndicators.map(ind => (
               <div key={ind.id} className="px-3 py-3" style={{ background: "rgba(5,7,14,0.8)" }}>
                 <p className="text-[8px] text-zinc-500 uppercase font-semibold mb-1">{ind.label}</p>
