@@ -6,6 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cam
 import { identificarSetor, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, translateYahooSector } from "@/lib/gics-sectors";
 import { toNumber } from "@/lib/format";
+import { loadFromGSheets, computeFromStored, computeLookThrough } from "@/lib/etf-holdings";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -69,7 +70,10 @@ function getMoeda(row: Row): string {
 
 const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const lookthrough = searchParams.get("lookthrough") === "true";
+
   try {
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] =
       await Promise.all([
@@ -223,6 +227,64 @@ export async function GET() {
       });
     }
 
+    // ── Look-through: canonical ETF decomposition via lib/etf-holdings ──
+    let lookThroughMeta: { supported: string[]; unsupported: string[]; sources: Record<string, string> } | undefined;
+
+    if (lookthrough) {
+      const ltPositions = snapshot.positions
+        .filter(p => p.quantidade > 0 && p.valorAtualBRL > 0)
+        .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL, quantidade: p.quantidade }));
+
+      const { stored } = await loadFromGSheets();
+      const lt = Object.keys(stored).length > 0
+        ? computeFromStored(stored, ltPositions)
+        : await computeLookThrough(ltPositions);
+
+      if (lt.supported.length > 0) {
+        // Remove decomposed ETF positions
+        const supportedSet = new Set(lt.supported.map(t => t.replace(/\.SA$/, "")));
+        for (let i = positions.length - 1; i >= 0; i--) {
+          const tk = positions[i].ticker;
+          if (supportedSet.has(tk) || supportedSet.has(tk.replace(/\.SA$/, ""))) {
+            positions.splice(i, 1);
+          }
+        }
+
+        // Add ETF-derived positions from canonical combined output
+        for (const entry of lt.combined) {
+          if (entry.ticker.startsWith("OUTROS.")) continue;
+          const cleanTicker = entry.ticker.replace(/\.SA$/, "").replace(/\.(L|DE|TO|AS)$/, "");
+          const se = getSetorEconomico(cleanTicker, "Ações Internacional");
+
+          const existing = positions.find(p => p.ticker === cleanTicker && p.tipo === "RV");
+          if (existing) {
+            existing.valorBRL += entry.value_brl;
+            existing.custoTotalBRL += entry.value_brl;
+          } else {
+            positions.push({
+              ticker: cleanTicker,
+              nome: entry.name,
+              setor: "Ações Internacional",
+              setorEconomico: se,
+              industry: "",
+              valorBRL: entry.value_brl,
+              custoTotalBRL: entry.value_brl,
+              lucroBRL: 0,
+              lucroPct: 0,
+              moeda: "USD",
+              tipo: "RV",
+            });
+          }
+        }
+
+        lookThroughMeta = {
+          supported: lt.supported,
+          unsupported: lt.unsupported,
+          sources: lt.sources,
+        };
+      }
+    }
+
     // Aggregate by sector
     const totalBRL = positions.reduce((s, p) => s + p.valorBRL, 0);
 
@@ -265,6 +327,7 @@ export async function GET() {
       positions: positions.sort((a, b) => b.valorBRL - a.valorBRL),
       fx: fxAtual,
       timestamp: cotacoes.timestamp,
+      ...(lookThroughMeta ? { lookthrough: lookThroughMeta } : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
