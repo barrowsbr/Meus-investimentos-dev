@@ -12,7 +12,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
   TrendingDown, Radio, ChevronRight,
-  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Egg, Zap, PieChart,
+  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Zap, PieChart,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -136,8 +136,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/noticias",       label: "Inteligência",   icon: Newspaper },
       { href: "/polymarket",     label: "Preditivos",     icon: BarChart2 },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
-      { href: "/easter-eggs",    label: "Easter Eggs",    icon: Egg },
-      { href: "/configuracoes",  label: "Configurações",  icon: Settings },
+            { href: "/configuracoes",  label: "Configurações",  icon: Settings },
     ],
   },
 ];

@@ -25,7 +25,6 @@ import {
   Scale,
   Zap,
   Crosshair,
-  Egg,
 } from "lucide-react";
 
 interface NavItem {
@@ -85,7 +84,6 @@ const navGroups: NavGroup[] = [
       { href: "/noticias",      label: "Inteligência",  icon: Newspaper },
       { href: "/polymarket",    label: "Preditivos",    icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
-      { href: "/easter-eggs",  label: "Easter Eggs",  icon: Egg },
       { href: "/configuracoes", label: "Configurações", icon: Settings, mobileShow: true },
     ],
   },
