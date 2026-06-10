@@ -47,6 +47,7 @@ interface Summary {
   sortino: number;
   var95: number;
   var99: number;
+  riskFreeRate?: number;
   ganhoEconomico: number;
   ganhoDecomposicao?: {
     navFinal: number; navInicial: number; flowsFromFirst: number;
@@ -502,26 +503,35 @@ export default function PerformancePage() {
       })()}
 
       {/* ── Risk Metrics ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        {[
-          { label: "Volatilidade", value: `${(s.volatility * 100).toFixed(1)}%`,
+      {(() => {
+        const rfPct = ((s.riskFreeRate ?? 0.10) * 100).toFixed(0);
+        const metrics = [
+          { label: "Volatilidade", value: `${(s.volatility * 100).toFixed(1)}%`, tip: "Desvio padrão anualizado dos retornos diários. Mede a dispersão — quanto mais alto, mais o portfólio oscila.",
             badge: <RatingBadge value={-(s.volatility * 100)} thresholds={[-30, -20, -10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} /> },
-          { label: "Max Drawdown", value: `${s.maxDrawdown.toFixed(1)}%`,
+          { label: "Max Drawdown", value: `${s.maxDrawdown.toFixed(1)}%`, tip: "Maior queda do pico ao vale no período. Mede o pior cenário histórico de perda.",
             badge: <RatingBadge value={s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} /> },
-          { label: "Sharpe Ratio", value: s.sharpe.toFixed(2),
+          { label: `Sharpe (rf ${rfPct}%)`, value: s.sharpe.toFixed(2), tip: `Retorno excedente sobre a taxa livre de risco (${rfPct}% a.a.) ÷ volatilidade. Negativo = rendeu menos que renda fixa ajustado pelo risco.`,
             badge: <RatingBadge value={s.sharpe} thresholds={[0, 0.5, 1]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} /> },
-          { label: "Sortino Ratio", value: s.sortino.toFixed(2),
+          { label: `Sortino (rf ${rfPct}%)`, value: s.sortino.toFixed(2), tip: `Similar ao Sharpe, mas só penaliza volatilidade negativa (quedas). Retorno excedente (${rfPct}% a.a.) ÷ downside deviation.`,
             badge: <RatingBadge value={s.sortino} thresholds={[0, 0.7, 1.5]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} /> },
-          { label: "VaR 95%", value: `${s.var95.toFixed(2)}%`, badge: null },
-          { label: "VaR 99%", value: `${s.var99.toFixed(2)}%`, badge: null },
-        ].map(m => (
-          <div key={m.label} className="glass-card p-4">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">{m.label}</p>
-            <p className="text-xl font-bold text-zinc-100 mb-1">{m.value}</p>
-            {m.badge}
+          { label: "VaR 95%", value: `${s.var95.toFixed(2)}%`, tip: "Value at Risk: em 95% dos dias, a perda diária não ultrapassou este valor.", badge: null },
+          { label: "VaR 99%", value: `${s.var99.toFixed(2)}%`, tip: "Value at Risk: em 99% dos dias, a perda diária não ultrapassou este valor.", badge: null },
+        ];
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            {metrics.map(m => (
+              <div key={m.label} className="glass-card p-4 group relative">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">{m.label}</p>
+                <p className="text-xl font-bold text-zinc-100 mb-1">{m.value}</p>
+                {m.badge}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[10px] text-zinc-300 leading-relaxed w-56 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50" style={{ background: "rgba(10,10,18,0.95)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                  {m.tip}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* ── Sub-tabs ── */}
       <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-4 flex-wrap border border-zinc-800/50">
