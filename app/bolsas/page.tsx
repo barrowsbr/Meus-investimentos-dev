@@ -6,7 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
-  ArrowUpDown, Filter,
+  ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -1519,6 +1519,17 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             </span>
           )}
         </h2>
+
+        {/* Yahoo Finance link */}
+        <a
+          href={`https://finance.yahoo.com/quote/${encodeURIComponent(index.symbol)}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25"
+        >
+          <ExternalLink size={11} />
+          Yahoo Finance
+        </a>
 
         {/* Search box */}
         <form onSubmit={handleSearchSubmit} className="ml-auto flex items-center gap-1">
