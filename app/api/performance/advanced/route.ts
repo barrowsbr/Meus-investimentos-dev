@@ -500,18 +500,21 @@ export async function GET(request: Request) {
       return false;
     })();
 
-    // FX decomposition (summary box) — only meaningful when portfolio has USD exposure
+    // FX decomposition — base = USDBRL at START of period (not PM dólar),
+    // so the decomposition is consistent with the chart and always starts at 0%.
     const fxDecomp = (() => {
       const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
       const r_total = lastPt ? lastPt.twr : 0;
       if (!hasForexExposure) {
         return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
       }
-      const baseFx = cambioMetrics.pmDolar > 0
-        ? cambioMetrics.pmDolar
-        : null;
-      const curFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
-      const r_fx = baseFx && curFx ? curFx / baseFx - 1 : 0;
+      let startFx: number | null = null;
+      for (const p of meaningfulPoints) {
+        const fx = alignedFx[p.date]?.USDBRL;
+        if (fx && fx > 0) { startFx = fx; break; }
+      }
+      const endFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
+      const r_fx = startFx && endFx ? endFx / startFx - 1 : 0;
       const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
       return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
     })();
@@ -746,25 +749,25 @@ export async function GET(request: Request) {
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
 
-        // PM dólar-based FX decomposition using RUNNING PM at each epoch.
-        // Advancing pointer: O(n + m) instead of O(n * m).
-        const pmTimeline = runningPm;
-        const firstPmDate = pmTimeline.length > 0 ? pmTimeline[0].date : null;
-        let pmIdx = 0;
-        let currentPm: number | null = null;
+        // FX decomposition: use USDBRL at the START of the period as base,
+        // so all three lines (portfolio, ativo, fx) begin at 0%.
+        const baseFxRate = (() => {
+          for (const p of meaningfulPoints) {
+            const fx = alignedFx[p.date]?.USDBRL;
+            if (fx && fx > 0) return fx;
+          }
+          return null;
+        })();
 
         const merged = meaningfulPoints.map(p => {
-          while (pmIdx < pmTimeline.length && pmTimeline[pmIdx].date <= p.date) {
-            currentPm = pmTimeline[pmIdx].pm;
-            pmIdx++;
-          }
           let fx_twr: number | null = null;
           let ativo_twr: number | null = null;
-          if (hasForexExposure) {
+          if (hasForexExposure && baseFxRate) {
             const curFx = alignedFx[p.date]?.USDBRL;
-            const pm = firstPmDate && p.date >= firstPmDate ? currentPm : null;
-            fx_twr = pm && curFx ? curFx / pm - 1 : null;
-            ativo_twr = fx_twr !== null ? (1 + p.twr) / (1 + fx_twr) - 1 : null;
+            if (curFx) {
+              fx_twr = curFx / baseFxRate - 1;
+              ativo_twr = (1 + p.twr) / (1 + fx_twr) - 1;
+            }
           }
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
