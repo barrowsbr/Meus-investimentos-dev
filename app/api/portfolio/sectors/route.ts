@@ -6,7 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cam
 import { identificarSetor, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, translateYahooSector } from "@/lib/gics-sectors";
 import { toNumber } from "@/lib/format";
-import { loadFromGSheets, type Holding } from "@/lib/etf-holdings";
+import { loadFromGSheets, computeFromStored, computeLookThrough } from "@/lib/etf-holdings";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -227,110 +227,60 @@ export async function GET(request: Request) {
       });
     }
 
-    // ── Look-through: explode ETFs into underlying holdings ──
+    // ── Look-through: canonical ETF decomposition via lib/etf-holdings ──
     let lookThroughMeta: { supported: string[]; unsupported: string[]; sources: Record<string, string> } | undefined;
 
     if (lookthrough) {
-      const ETF_SECTORS = new Set(["ETF USA", "ETF"]);
-      const etfPositions = positions.filter(p => ETF_SECTORS.has(p.setor));
+      const ltPositions = snapshot.positions
+        .filter(p => p.quantidade > 0 && p.valorAtualBRL > 0)
+        .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL, quantidade: p.quantidade }));
 
-      if (etfPositions.length > 0) {
-        const { stored } = await loadFromGSheets();
+      const { stored } = await loadFromGSheets();
+      const lt = Object.keys(stored).length > 0
+        ? computeFromStored(stored, ltPositions)
+        : await computeLookThrough(ltPositions);
 
-        const resolveHoldings = async (ticker: string): Promise<Holding[] | null> => {
-          const keys = [ticker.toUpperCase(), ticker.replace(/\.SA$/, "").toUpperCase()];
-          for (const k of keys) {
-            if (stored[k]?.length > 0) return stored[k];
-          }
-          const { holdings } = await (await import("@/lib/etf-holdings")).fetchHoldings(ticker);
-          return holdings;
-        };
-
-        const supportedETFs: string[] = [];
-        const unsupportedETFs: string[] = [];
-        const etfSources: Record<string, string> = {};
-        const virtualPositions: PosWithSector[] = [];
-
-        for (const etfPos of etfPositions) {
-          const holdings = await resolveHoldings(etfPos.ticker);
-          if (!holdings || holdings.length === 0) {
-            unsupportedETFs.push(etfPos.ticker);
-            continue;
-          }
-
-          supportedETFs.push(etfPos.ticker);
-          etfSources[etfPos.ticker] = "stored";
-          const totalWeight = holdings.reduce((s, h) => s + h.weight_pct, 0);
-          if (totalWeight <= 0) continue;
-
-          // Remove original ETF position
-          const idx = positions.indexOf(etfPos);
-          if (idx >= 0) positions.splice(idx, 1);
-
-          for (const h of holdings) {
-            if (h.ticker.startsWith("OUTROS.")) continue;
-            const valueBRL = (h.weight_pct / totalWeight) * etfPos.valorBRL;
-            const costBRL = (h.weight_pct / totalWeight) * etfPos.custoTotalBRL;
-            const cleanTicker = h.ticker.replace(/\.SA$/, "").replace(/\.(L|DE|TO|AS)$/, "");
-            const se = getSetorEconomico(cleanTicker, "Ações Internacional");
-
-            virtualPositions.push({
-              ticker: cleanTicker,
-              nome: h.name,
-              setor: "Ações Internacional",
-              setorEconomico: se,
-              industry: "",
-              valorBRL: valueBRL,
-              custoTotalBRL: costBRL,
-              lucroBRL: valueBRL - costBRL,
-              lucroPct: costBRL > 0 ? ((valueBRL - costBRL) / costBRL) * 100 : 0,
-              moeda: etfPos.moeda,
-              tipo: "RV",
-            });
-          }
-
-          // Add tail bucket for uncovered weight
-          const coveredPct = holdings.filter(h => !h.ticker.startsWith("OUTROS.")).reduce((s, h) => s + h.weight_pct, 0);
-          const uncoveredBRL = etfPos.valorBRL * Math.max(0, (100 - coveredPct) / 100);
-          if (uncoveredBRL > 1) {
-            virtualPositions.push({
-              ticker: `Outros (${etfPos.ticker})`,
-              nome: `Demais ativos de ${etfPos.ticker}`,
-              setor: "ETF USA",
-              setorEconomico: "Outros",
-              industry: "",
-              valorBRL: uncoveredBRL,
-              custoTotalBRL: uncoveredBRL,
-              lucroBRL: 0,
-              lucroPct: 0,
-              moeda: etfPos.moeda,
-              tipo: "RV",
-            });
+      if (lt.supported.length > 0) {
+        // Remove decomposed ETF positions
+        const supportedSet = new Set(lt.supported.map(t => t.replace(/\.SA$/, "")));
+        for (let i = positions.length - 1; i >= 0; i--) {
+          const tk = positions[i].ticker;
+          if (supportedSet.has(tk) || supportedSet.has(tk.replace(/\.SA$/, ""))) {
+            positions.splice(i, 1);
           }
         }
 
-        // Merge virtual positions with existing direct positions (same ticker)
-        for (const vp of virtualPositions) {
-          const existing = positions.find(
-            p => p.ticker === vp.ticker && p.tipo === "RV"
-          );
+        // Add ETF-derived positions from canonical combined output
+        for (const entry of lt.combined) {
+          if (entry.ticker.startsWith("OUTROS.")) continue;
+          const cleanTicker = entry.ticker.replace(/\.SA$/, "").replace(/\.(L|DE|TO|AS)$/, "");
+          const se = getSetorEconomico(cleanTicker, "Ações Internacional");
+
+          const existing = positions.find(p => p.ticker === cleanTicker && p.tipo === "RV");
           if (existing) {
-            const combinedCost = existing.custoTotalBRL + vp.custoTotalBRL;
-            existing.valorBRL += vp.valorBRL;
-            existing.custoTotalBRL = combinedCost;
-            existing.lucroBRL = existing.valorBRL - combinedCost;
-            existing.lucroPct = combinedCost > 0
-              ? ((existing.valorBRL - combinedCost) / combinedCost) * 100
-              : 0;
+            existing.valorBRL += entry.value_brl;
+            existing.custoTotalBRL += entry.value_brl;
           } else {
-            positions.push(vp);
+            positions.push({
+              ticker: cleanTicker,
+              nome: entry.name,
+              setor: "Ações Internacional",
+              setorEconomico: se,
+              industry: "",
+              valorBRL: entry.value_brl,
+              custoTotalBRL: entry.value_brl,
+              lucroBRL: 0,
+              lucroPct: 0,
+              moeda: "USD",
+              tipo: "RV",
+            });
           }
         }
 
         lookThroughMeta = {
-          supported: supportedETFs,
-          unsupported: unsupportedETFs,
-          sources: etfSources,
+          supported: lt.supported,
+          unsupported: lt.unsupported,
+          sources: lt.sources,
         };
       }
     }
