@@ -72,7 +72,8 @@ export async function POST(req: Request) {
     const message = [
       "## Dossiê de apuração (gerado pelo motor canônico lib/tax do dashboard)",
       "```json",
-      JSON.stringify(dossie, null, 1).slice(0, 28000),
+      // compacto e truncado: limites free de tokens/minuto são apertados
+      JSON.stringify(dossie).slice(0, 12000),
       "```",
       pergunta?.trim()
         ? `## Pergunta do investidor\n${pergunta.trim()}`

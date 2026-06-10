@@ -3,11 +3,12 @@
  * ===============
  * Fetches ETF holdings live and persists them to Google Sheets ('composicao' tab).
  *
- * Fetch strategy (4 tiers per ticker):
- *   1. Financial Modeling Prep API (free, requires FMP_API_KEY env)
- *   2. Live provider URL (iShares CSV, SSGA XLSX, Invesco)
- *   3. Yahoo Finance quoteSummary API
- *   4. Embedded fallback (hardcoded top-25 holdings, Q1-2025)
+ * Fetch strategy (5 tiers per ticker):
+ *   1.   Financial Modeling Prep API (endpoint legado; hoje exige plano pago)
+ *   1.5. Alpha Vantage ETF_PROFILE (free key, holdings COMPLETOS de ETFs US)
+ *   2.   Live provider URL (iShares CSV, SSGA XLSX, Invesco)
+ *   3.   Yahoo Finance quoteSummary API (top-10, universal — incl. UCITS/B3)
+ *   4.   Embedded fallback (hardcoded top-25 holdings, Q1-2025)
  *
  * Persistence:
  *   - saveToGSheets(perEtf)  → writes to 'composicao' tab
@@ -169,6 +170,37 @@ async function fetchFMP(ticker: string): Promise<Holding[] | null> {
   }
 }
 
+// ── Tier 1.5: Alpha Vantage ETF_PROFILE ──────────────────────────────────────
+// Holdings COMPLETOS (todas as posições, com peso) de qualquer ETF listado nos
+// EUA. Chave gratuita (alphavantage.co/support/#api-key), 25 req/dia no plano
+// free — suficiente porque o resultado é persistido na aba `composicao` e os
+// holdings mudam devagar. Não cobre UCITS (VWRA.L) nem B3 (IVVB11) — esses
+// caem para as camadas seguintes.
+
+async function fetchAlphaVantage(ticker: string): Promise<Holding[] | null> {
+  const key = process.env.ALPHAVANTAGE_API_KEY;
+  if (!key) return null;
+  try {
+    const url = `https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=${ticker}&apikey=${key}`;
+    const res = await tryFetch(url);
+    if (!res) return null;
+    const data = await res.json();
+    const raw = data?.holdings;
+    if (!Array.isArray(raw) || raw.length === 0) return null;
+    const holdings: Holding[] = raw
+      .map((h: Record<string, unknown>) => ({
+        ticker: String(h.symbol ?? "").trim(),
+        name: String(h.description ?? h.symbol ?? "").trim(),
+        // weight vem como fração em string (ex: "0.0712")
+        weight_pct: Math.round(parseFloat(String(h.weight ?? "0")) * 100 * 10000) / 10000,
+      }))
+      .filter(h => h.ticker && h.ticker.toUpperCase() !== "N/A" && h.weight_pct > 0);
+    return holdings.length > 0 ? holdings : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Tier 2: Live provider (CSV/XLSX) ─────────────────────────────────────────
 
 function parseCSVHoldings(text: string): Holding[] | null {
@@ -275,6 +307,13 @@ export async function fetchHoldings(ticker: string): Promise<{ holdings: Holding
   if (holdings && holdings.length > 0) {
     holdingsCache.set(t, { data: holdings, source: "fmp", ts: Date.now() });
     return { holdings, source: "fmp" };
+  }
+
+  // Tier 1.5: Alpha Vantage (holdings completos, qualquer ETF US)
+  holdings = await fetchAlphaVantage(t);
+  if (holdings && holdings.length > 0) {
+    holdingsCache.set(t, { data: holdings, source: "alphavantage", ts: Date.now() });
+    return { holdings, source: "alphavantage" };
   }
 
   // Tier 2: Live provider
