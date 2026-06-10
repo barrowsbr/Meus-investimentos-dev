@@ -429,7 +429,8 @@ export default function PerformancePage() {
   const [error, setError] = useState<string | null>(null);
   const [lookback, setLookback] = useState(0);
   const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
-  const [setor, setSetor] = useState("");
+  const [setores, setSetores] = useState<string[]>([]);
+  const setorQuery = setores.join(",");
   const [tickerFilter, setTickerFilter] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
@@ -463,7 +464,7 @@ export default function PerformancePage() {
       ? `from=${customFrom}&to=${customTo}`
       : `lookback=${lookback}`;
     const tickerQ = tickerFilter ? `&ticker=${encodeURIComponent(tickerFilter)}` : "";
-    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setor)}${tickerQ}`)
+    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setorQuery)}${tickerQ}`)
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -473,7 +474,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback, classe, setor, tickerFilter, customMode, customFrom, customTo]);
+  }, [lookback, classe, setorQuery, tickerFilter, customMode, customFrom, customTo]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/twr/decomposicao`)
@@ -614,7 +615,7 @@ export default function PerformancePage() {
           <div className="mb-6 space-y-2">
             <div className="flex flex-wrap items-center gap-1.5">
               {classes.filter(c => c.show).map(c => (
-                <button key={c.id} onClick={() => { setClasse(c.id); setSetor(""); setTickerFilter(""); }}
+                <button key={c.id} onClick={() => { setClasse(c.id); setSetores([]); setTickerFilter(""); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     classe === c.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border border-zinc-800/50"
                   }`}>
@@ -637,14 +638,21 @@ export default function PerformancePage() {
             </div>
             {classe === "rv" && !tickerFilter && f.rvSetores.length > 1 && (
               <div className="flex flex-wrap items-center gap-1">
-                {["", ...f.rvSetores].map(st => (
-                  <button key={st || "todos"} onClick={() => setSetor(st)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] transition-all ${
-                      setor === st ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-zinc-800/40 text-zinc-500 hover:text-zinc-300"
-                    }`}>
-                    {st || "Todos"}
-                  </button>
-                ))}
+                {["", ...f.rvSetores].map(st => {
+                  const active = st === "" ? setores.length === 0 : setores.includes(st);
+                  return (
+                    <button key={st || "todos"}
+                      onClick={() => {
+                        if (st === "") { setSetores([]); return; }
+                        setSetores(prev => prev.includes(st) ? prev.filter(x => x !== st) : [...prev, st]);
+                      }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] transition-all ${
+                        active ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-zinc-800/40 text-zinc-500 hover:text-zinc-300"
+                      }`}>
+                      {st || "Todos"}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -655,7 +663,7 @@ export default function PerformancePage() {
       {(() => {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
-        const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+        const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
         const ge = isUnfiltered && ganhoCanonical != null
@@ -972,7 +980,7 @@ export default function PerformancePage() {
                   { label: (lookback === 0 && !customMode) ? "Investido" : "NAV inicial", value: compactCurr((lookback === 0 && !customMode) ? ((tickerFilter && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) : s.navInicial) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
-                    const isUnfiltered = lookback === 0 && classe === "tudo" && !setor && !tickerFilter && !customMode;
+                    const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
                     const isAllT = lookback === 0 && !customMode;
                     const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
                     const ge = isUnfiltered && ganhoCanonical != null
