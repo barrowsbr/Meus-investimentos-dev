@@ -255,7 +255,9 @@ export async function GET(request: Request) {
   const lookback = rawLookback <= 0 ? 0 : rawLookback;
   // Filtro por classe (tudo|rv|rf|cripto) e, dentro de RV, por setor.
   const classe = (searchParams.get("classe") ?? "tudo").toLowerCase();
+  // Aceita múltiplos setores separados por vírgula (ex: "Ações Brasil,FIIs")
   const setorFiltro = searchParams.get("setor") ?? "";
+  const setoresFiltro = new Set(setorFiltro.split(",").map(s => s.trim()).filter(Boolean));
   const tickerFiltro = (searchParams.get("ticker") ?? "").toUpperCase().trim();
   const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const fromParam = isYmd(searchParams.get("from")) ? searchParams.get("from")! : "";
@@ -376,12 +378,12 @@ export async function GET(request: Request) {
       if (classe === "rf") return isRendaFixaPrecificavel(setor);
       if (isRendaFixa(setor)) return false;
       if (classe === "cripto") return isCripto;
-      if (classe === "rv") return isCripto ? false : (setorFiltro ? setor === setorFiltro : true);
-      return setorFiltro ? setor === setorFiltro : true;
+      if (classe === "rv") return isCripto ? false : (setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true);
+      return setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true;
     }
 
     const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro;
-    const filtroAtivo = classe !== "tudo" || setorFiltro !== "" || tickerFiltro !== "";
+    const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "";
     const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
     const proventosF = filtroAtivo
