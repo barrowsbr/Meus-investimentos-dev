@@ -86,8 +86,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/moedas",        label: "Moedas",        icon: Globe },
       { href: "/bolsas",        label: "Bolsas",        icon: BarChart3 },
-      { href: "/noticias",      label: "Notícias",     icon: Newspaper },
-      { href: "/polymarket",    label: "Polymarket",   icon: BarChart2 },
+      { href: "/noticias",      label: "Inteligência",  icon: Newspaper },
+      { href: "/polymarket",    label: "Preditivos",    icon: BarChart2 },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
       { href: "/easter-eggs",  label: "Easter Eggs",  icon: Egg },
       { href: "/configuracoes", label: "Configurações", icon: Settings, mobileShow: true },
