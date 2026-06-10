@@ -4,6 +4,7 @@ import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 
 function tickerOf(row: Record<string, unknown>): string {
@@ -264,12 +265,13 @@ export async function GET(request: Request) {
   const toParam = isYmd(searchParams.get("to")) ? searchParams.get("to")! : "";
 
   try {
-    const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta] = await Promise.all([
+    const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta, marginRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos").catch(() => []),
       fetchTab("cambio").catch(() => []),
       fetchTab("renda_fixa").catch(() => []),
       fetchTab("fixa_aberta").catch(() => []),
+      fetchTab(MARGIN_TAB).catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
@@ -424,11 +426,20 @@ export async function GET(request: Request) {
       CASH_TICKERS_PATRIMONIO.has(String(r["ticker"] ?? r["ativo"] ?? "").toUpperCase().trim())
     );
     const caixaBRL = calcularRendaFixaBRL(caixaRows, lastFx);
+    // Margin (alavancagem): net = bruto − dívida aberta — o "Net liq" da corretora.
+    const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
+      BRL: 1, USD: lastFx.USDBRL, EUR: lastFx.EURBRL, GBP: lastFx.GBPBRL,
+      CAD: lastFx.CADBRL, CHF: lastFx.CHFBRL ?? 0, JPY: lastFx.JPYBRL ?? 0,
+    });
+    const alavancagem = aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo);
     const patrimonio = {
       total: snapshot.totalPatrimonioBRL,
       rv: snapshot.rvPatrimonioBRL,
       rf: snapshot.rfPatrimonioBRL,
       caixa: caixaBRL,
+      divida: alavancagem.dividaBRL,
+      net: alavancagem.netBRL,
+      alavancagemPct: alavancagem.alavancagemPct,
     };
 
     // CDI, IBOV, S&P 500 benchmarks

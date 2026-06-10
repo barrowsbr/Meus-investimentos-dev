@@ -3,19 +3,21 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function GET() {
   try {
-    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, lbRows] = await Promise.all([
+    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, lbRows, marginRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("meus_proventos"),
       fetchTab("fixa_aberta"),
       fetchTab("cambio").catch(() => []),
       fetchTab("p_tax").catch(() => []),
       fetchTab("lb_historic").catch(() => []),
+      fetchTab(MARGIN_TAB).catch(() => []),
     ]);
 
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();
@@ -47,6 +49,18 @@ export async function GET() {
     const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
 
+    // Alavancagem (margin): bruto = snapshot; net = bruto − dívida aberta.
+    const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
+      BRL: 1,
+      USD: fxAtual.USDBRL,
+      EUR: fxAtual.EURBRL,
+      GBP: fxAtual.GBPBRL,
+      CAD: fxAtual.CADBRL,
+      CHF: fxAtual.CHFBRL ?? 0,
+      JPY: fxAtual.JPYBRL ?? 0,
+    });
+    const alavancagem = aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo);
+
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;
 
@@ -65,6 +79,7 @@ export async function GET() {
 
     return NextResponse.json({
       ...snapshot,
+      alavancagem,
       fx: fxAtual,
       fxSource: cotacoes.fxSource,
       fxCusto,
