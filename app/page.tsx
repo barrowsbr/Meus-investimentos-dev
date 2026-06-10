@@ -721,18 +721,7 @@ export default function HomePage() {
   return (
     <ErrorBoundary>
     <div className="relative min-h-screen flex flex-col items-center">
-      {/* Background image */}
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          backgroundImage: "url('/midias/home-bg.jpeg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          opacity: 0.06,
-        }}
-      />
-      <div className="relative z-10 w-full max-w-lg px-4 py-10 flex flex-col items-center">
+      <div className="w-full max-w-lg px-4 py-10 flex flex-col items-center">
 
         {/* ── Hero ── */}
         <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center w-full">
