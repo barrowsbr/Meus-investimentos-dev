@@ -44,9 +44,12 @@ e pelas rotas TS que reusam o snapshot.
 
 **RF manual é a única exceção de motor:** CDB/Tesouro/caixa vivem em `fixa_aberta` +
 `renda_fixa` e o snapshot não rastreia seu custo/realizado. O motor canônico da RF
-manual é **`/api/renda-fixa/posicoes`** (BRL-consistente). Quem precisa do resultado
-de RF manual (não realizado, realizado, investido, proventos) lê desse endpoint — é
-o mesmo que a página `/renda-fixa` usa, então Resumo e Renda Fixa batem entre si.
+manual é **`lib/renda-fixa.ts` (`calcularRendaFixaPosicoes`)**, exposto via
+**`/api/renda-fixa/posicoes`** (BRL-consistente; a rota é só transporte HTTP).
+Quem precisa do resultado de RF manual (não realizado, realizado, investido,
+proventos) lê desse endpoint — ou chama a função da lib em código server-side
+(ex: contexto do agente IA) — é o mesmo cálculo que a página `/renda-fixa` usa,
+então Resumo, Renda Fixa e agente batem entre si.
 A RF "de bolsa" (SHV/BIL, setor Renda Fixa) está nas `positions` do snapshot.
 
 ---

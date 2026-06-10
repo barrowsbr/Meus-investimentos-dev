@@ -1,7 +1,7 @@
 import { fetchTab } from "./gsheets";
 import { fetchCotacoes, yahooTicker } from "./cotacoes";
 import { calcularSnapshot, type Position, type PortfolioSnapshot } from "./portfolio";
-import { calcularRF, type RFSummary } from "./fixed-income-engine";
+import { calcularRendaFixaPosicoes, type RendaFixaResult } from "./renda-fixa";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "./cambio";
 import { toNumber } from "./format";
 import { isRendaFixa } from "./sectors";
@@ -117,7 +117,7 @@ function buildPortfolioContext(
 
 function buildMarketSnapshot(
   snapshot: PortfolioSnapshot,
-  rfSummary: RFSummary,
+  rfData: RendaFixaResult,
 ): string {
   const today = new Date().toLocaleDateString("pt-BR");
   const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -222,18 +222,17 @@ function buildMarketSnapshot(
     lines.push("");
   }
 
-  // RF from fixa_aberta
+  // RF from fixa_aberta — motor canônico (lib/renda-fixa.ts, mesmo da página Renda Fixa)
   lines.push("### Renda Fixa — aba `fixa_aberta` (Tesouro, CDBs, LCIs, caixa)");
-  lines.push("> O total de RF = soma desta tabela + ETFs de RF USD acima. O valor consolidado está no Resumo Patrimonial.");
-  if (rfSummary.positions.length > 0) {
-    const ativas = rfSummary.positions.filter((p) => p.status === "Ativo");
+  lines.push("> O total de RF = soma desta tabela + ETFs de RF USD acima. O valor consolidado está no Resumo Patrimonial. Valores em BRL ao câmbio do dia.");
+  const rfAtivas = [...rfData.abertas, ...rfData.caixa];
+  if (rfAtivas.length > 0) {
     lines.push("");
-    lines.push("| Ticker | Moeda | Investido | Atual | Lucro | Rent. % |");
+    lines.push("| Ticker | Moeda | Investido (BRL) | Atual (BRL) | Lucro | Rent. % |");
     lines.push("|---|---|---:|---:|---:|---:|");
-    for (const p of ativas) {
-      const atualVal = p.isCaixa ? p.caixa : p.atual;
+    for (const p of rfAtivas) {
       lines.push(
-        `| ${p.ticker} | ${p.moeda} | R$ ${p.investido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} | R$ ${atualVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} | ${fmtBRL(p.lucro)} | ${fmtPct(p.rentabilidade)} |`
+        `| ${p.ticker} | ${p.moeda} | R$ ${p.investidoBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} | R$ ${p.atualBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} | ${fmtBRL(p.lucroBRL)} | ${fmtPct(p.rentabilidade)} |`
       );
     }
   }
@@ -313,8 +312,8 @@ export async function buildAgentContext(): Promise<string> {
     const fxCusto = buildPmFxRates(cambio);
     const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
-    const rfSummary = calcularRF(rendaFixaHist, fixaAberta);
-    marketCtx = buildMarketSnapshot(snapshot, rfSummary);
+    const rfData = calcularRendaFixaPosicoes(rendaFixaHist, fixaAberta, proventos, fxAtual);
+    marketCtx = buildMarketSnapshot(snapshot, rfData);
   } catch (e) {
     marketCtx = `\n## Snapshot de Mercado\n⚠️ Erro ao calcular snapshot: ${e instanceof Error ? e.message : String(e)}\n`;
   }
