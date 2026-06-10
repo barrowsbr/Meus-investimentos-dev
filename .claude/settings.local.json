@@ -4,7 +4,8 @@
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\lucas\\\\OneDrive\\\\Área de Trabalho\\\\Meus-investimentos-dev\\\\app\\\\api\\\\twr\")",
       "Bash(Out-Null)",
       "Bash(npx tsc *)",
-      "PowerShell($n = Get-Command node -ErrorAction SilentlyContinue; if \\($n\\) { $n.Source } else { \"not found\" })"
+      "PowerShell($n = Get-Command node -ErrorAction SilentlyContinue; if \\($n\\) { $n.Source } else { \"not found\" })",
+      "Bash(cp /root/.claude/uploads/49dc642d-cf93-5649-bbb6-32473cc74d00/275d439a-IMG_3975.jpeg /home/user/Meus-investimentos-dev/public/midias/home-bg.jpeg)"
     ]
   }
 }
