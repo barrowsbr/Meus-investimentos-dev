@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Settings, Lock, Upload, CheckCircle2, XCircle, AlertCircle,
-  FileText, RefreshCw, Eye, EyeOff, Shield, Info, ImageIcon, Check,
+  FileText, RefreshCw, Shield, Info, ImageIcon, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -39,7 +39,7 @@ interface ImportResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function SectionCard({ title, icon, children, defaultOpen = true }: {
+function SectionCard({ title, icon, children, defaultOpen = false }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
@@ -66,105 +66,29 @@ function SectionCard({ title, icon, children, defaultOpen = true }: {
 // ── Password Section ──────────────────────────────────────────────────────────
 
 function PasswordSection() {
-  const [currentPwd, setCurrentPwd] = useState("");
-  const [newPwd, setNewPwd] = useState("");
-  const [confirmPwd, setConfirmPwd] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  async function handleChange() {
-    if (!newPwd) { setMsg({ ok: false, text: "Nova senha não pode ser vazia" }); return; }
-    if (newPwd !== confirmPwd) { setMsg({ ok: false, text: "Senhas não coincidem" }); return; }
-    if (newPwd.length < 3) { setMsg({ ok: false, text: "Senha deve ter ao menos 3 caracteres" }); return; }
-
-    setLoading(true);
-    setMsg(null);
-    try {
-      const res = await fetch(`${API_URL}/api/auth/password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: currentPwd, new_password: newPwd }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ ok: false, text: data.error ?? "Erro ao verificar senha" });
-      } else {
-        setMsg({ ok: true, text: data.message ?? "Atualize APP_PASSWORD nas variáveis de ambiente da Vercel." });
-        setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-xs text-zinc-500 leading-relaxed">
-        A senha é gerenciada via variável de ambiente{" "}
-        <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">APP_PASSWORD</code> no painel da Vercel.
+        A autenticação usa as chaves <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">usuario</code> e{" "}
+        <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">senha</code> na aba{" "}
+        <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">config</code> da planilha Google Sheets.
+        Caso não existam, usa a variável <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">APP_PASSWORD</code> da Vercel como fallback.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1.5 font-medium">Senha Atual</label>
-          <div className="relative">
-            <input
-              type={showCurrent ? "text" : "password"}
-              value={currentPwd}
-              onChange={e => setCurrentPwd(e.target.value)}
-              placeholder="••••••"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500 pr-9"
-            />
-            <button className="absolute right-2 top-2 text-zinc-500" onClick={() => setShowCurrent(v => !v)}>
-              {showCurrent ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-lg bg-zinc-800/40 px-4 py-3">
+          <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Como alterar</p>
+          <p className="text-xs text-zinc-300">Edite a aba <code className="bg-zinc-800 px-1 rounded">config</code> na planilha — coluna A = chave, coluna B = valor.</p>
         </div>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1.5 font-medium">Nova Senha</label>
-          <div className="relative">
-            <input
-              type={showNew ? "text" : "password"}
-              value={newPwd}
-              onChange={e => setNewPwd(e.target.value)}
-              placeholder="••••••"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500 pr-9"
-            />
-            <button className="absolute right-2 top-2 text-zinc-500" onClick={() => setShowNew(v => !v)}>
-              {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1.5 font-medium">Confirmar Nova Senha</label>
-          <input
-            type="password"
-            value={confirmPwd}
-            onChange={e => setConfirmPwd(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleChange()}
-            placeholder="••••••"
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
-          />
+        <div className="rounded-lg bg-zinc-800/40 px-4 py-3">
+          <p className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Fallback</p>
+          <p className="text-xs text-zinc-300">Variável <code className="bg-zinc-800 px-1 rounded">APP_PASSWORD</code> na Vercel. Usada quando a planilha não tem as chaves.</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleChange}
-          disabled={loading}
-          className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
-        >
-          {loading ? <RefreshCw size={14} className="animate-spin inline mr-1" /> : <Lock size={14} className="inline mr-1" />}
-          Alterar Senha
-        </button>
-        {msg && (
-          <span className={`text-xs flex items-center gap-1.5 ${msg.ok ? "text-emerald-400" : "text-red-400"}`}>
-            {msg.ok ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-            {msg.text}
-          </span>
-        )}
+      <div className="flex items-start gap-2 text-xs text-zinc-500 leading-relaxed">
+        <Shield size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+        <p>A validação é feita via <code className="bg-zinc-800 px-1 rounded text-zinc-300">/api/auth/validate</code>. A senha não é armazenada no frontend.</p>
       </div>
     </div>
   );
@@ -425,15 +349,15 @@ function ImportSection() {
 
 function EnvSection() {
   const vars = [
-    { key: "SPREADSHEET_ID",              desc: "ID da planilha Google Sheets (gdados)",          required: true },
-    { key: "GOOGLE_API_KEY",              desc: "API Key Google — leitura da planilha",            required: true },
-    { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: "Service Account JSON — escrita/sync",             required: false },
-    { key: "APP_PASSWORD",                desc: "Senha de acesso ao dashboard",                   required: false },
-    { key: "GEMINI_API_KEY",              desc: "Google Gemini — Agente IA (tier 1)",              required: false },
-    { key: "OPENAI_API_KEY",              desc: "OpenAI GPT-4o — Agente IA (fallback tier 1)",    required: false },
-    { key: "DEEPSEEK_API_KEY",            desc: "DeepSeek V3 — Agente IA (fallback tier 2)",      required: false },
-    { key: "GROQ_API_KEY",               desc: "Groq/Llama — Agente IA (fallback tier 3, free)", required: false },
-    { key: "NEXT_PUBLIC_API_URL",         desc: "URL base da API (vazio = mesmo domínio)",        required: false },
+    { key: "SPREADSHEET_ID",              desc: "ID da planilha Google Sheets (gdados)",           required: true },
+    { key: "GOOGLE_API_KEY",              desc: "API Key Google — leitura da planilha",             required: true },
+    { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: "Service Account JSON — escrita, sync e import",    required: true },
+    { key: "CRON_SECRET",                 desc: "Token para autenticação dos Vercel Crons",         required: true },
+    { key: "APP_PASSWORD",                desc: "Senha fallback (se planilha não tiver config)",     required: false },
+    { key: "GEMINI_API_KEY",              desc: "Google Gemini — Agente IA (tier 1)",               required: false },
+    { key: "OPENAI_API_KEY",              desc: "OpenAI GPT-4o — Agente IA (fallback tier 1)",     required: false },
+    { key: "DEEPSEEK_API_KEY",            desc: "DeepSeek V3 — Agente IA (fallback tier 2)",       required: false },
+    { key: "GROQ_API_KEY",               desc: "Groq/Llama — Agente IA (fallback tier 3, free)",  required: false },
   ];
 
   return (
@@ -481,50 +405,37 @@ interface GsResult { action: string; status: GsStatus; newPoints: number; ticker
 function GoldenSourceSection() {
   const [status, setStatus] = useState<GsStatus | null>(null);
   const [loading, setLoading] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<GsResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchStatus = useCallback(async () => {
+  useEffect(() => {
     setLoading(true);
-    try {
-      const d = await fetch("/api/sync/cotacoes").then(r => r.json());
-      setStatus(d);
-    } catch { setStatus(null); }
-    finally { setLoading(false); }
+    fetch("/api/sync/cotacoes")
+      .then(r => r.json())
+      .then(d => setStatus(d))
+      .catch(() => setStatus(null))
+      .finally(() => setLoading(false));
   }, []);
-
-  const runAction = useCallback(async (action: "backfill" | "update") => {
-    setRunning(true); setError(null); setResult(null);
-    try {
-      const res = await fetch("/api/sync/cotacoes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, lookback_years: action === "backfill" ? 5 : 1 }),
-      });
-      const d = await res.json();
-      if (d.error) { setError(d.error); return; }
-      setResult(d);
-      setStatus(d.status);
-    } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
-    finally { setRunning(false); }
-  }, []);
-
-  // load on mount
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+        <div className="flex items-start gap-2">
+          <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-emerald-300">
+            <p className="font-semibold mb-1">Atualização automática ativa</p>
+            <p className="text-emerald-400/70">A base de cotações é atualizada automaticamente a cada login (1x/dia) e via Vercel Cron (dias úteis, 23h UTC). Nenhuma ação manual necessária.</p>
+          </div>
+        </div>
+      </div>
+
       <p className="text-xs text-zinc-500">
-        Base própria de cotações históricas (preço bruto de fechamento). Fonte de verdade para performance/TWR — elimina dependência do Yahoo em tempo real.
+        Aba <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">db_cotacoes</code> — preço bruto de fechamento. Fonte de verdade para performance/TWR.
       </p>
 
-      {/* Status */}
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-zinc-500"><RefreshCw size={12} className="animate-spin" /> Carregando...</div>
+        <div className="flex items-center gap-2 text-xs text-zinc-500"><RefreshCw size={12} className="animate-spin" /> Carregando status...</div>
       ) : status?.empty !== false ? (
         <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
-          Aba <code className="bg-zinc-800 px-1 rounded">db_cotacoes</code> vazia. Execute o backfill para popular com dados históricos.
+          Base vazia — será populada no próximo login ou cron.
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -539,77 +450,6 @@ function GoldenSourceSection() {
               <p className="text-xs text-zinc-300 font-mono">{s.value}</p>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Tickers */}
-      {status?.tickers && status.tickers.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {status.tickers.map(t => (
-            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-400 font-mono">{t}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => runAction("backfill")}
-          disabled={running}
-          className="px-4 py-2 text-xs rounded-lg font-semibold transition-colors bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50"
-        >
-          {running ? <RefreshCw size={12} className="inline animate-spin mr-1" /> : <Database size={12} className="inline mr-1" />}
-          Backfill Completo (5 anos)
-        </button>
-        <button
-          onClick={() => runAction("update")}
-          disabled={running || status?.empty !== false}
-          className="px-4 py-2 text-xs rounded-lg font-semibold transition-colors bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-50"
-        >
-          <RefreshCw size={12} className="inline mr-1" />
-          Atualizar até Hoje
-        </button>
-      </div>
-
-      {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400 flex items-start gap-2">
-          <XCircle size={13} className="mt-0.5 flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      {/* Results */}
-      {result && (
-        <div className="space-y-3">
-          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400 flex items-start gap-2">
-            <CheckCircle2 size={13} className="mt-0.5 flex-shrink-0" />
-            <span>
-              {result.action === "backfill" ? "Backfill concluído" : "Atualização concluída"}.
-              {" "}{result.newPoints.toLocaleString()} novos pontos inseridos.
-              {result.tickerErrors && result.tickerErrors.length > 0 && (
-                <span className="text-amber-400"> Sem dados para: {result.tickerErrors.join(", ")}.</span>
-              )}
-            </span>
-          </div>
-
-          {/* Anomalies */}
-          {result.anomalies && result.anomalies.length > 0 && (
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-              <p className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1">
-                <AlertCircle size={12} /> {result.anomalyCount} anomalia{(result.anomalyCount ?? 0) > 1 ? "s" : ""} detectada{(result.anomalyCount ?? 0) > 1 ? "s" : ""}
-              </p>
-              <div className="max-h-[200px] overflow-y-auto space-y-1">
-                {result.anomalies.map((a, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[11px]">
-                    <span className="font-mono text-zinc-400 w-16 flex-shrink-0">{a.ticker}</span>
-                    <span className="text-zinc-600 w-20 flex-shrink-0">{a.date}</span>
-                    <span className={a.type === "large_move" ? "text-amber-400" : a.type === "gap" ? "text-zinc-500" : "text-red-400"}>
-                      {a.detail}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -724,23 +564,48 @@ export default function ConfiguracoesPage() {
           <ImportSection />
         </SectionCard>
 
-        <SectionCard title="Variáveis de Ambiente" icon={<Settings size={16} />} defaultOpen={false}>
+        <SectionCard title="Variáveis de Ambiente" icon={<Settings size={16} />}>
           <EnvSection />
         </SectionCard>
 
-        <SectionCard title="Sobre o Sistema" icon={<Info size={16} />} defaultOpen={false}>
-          <div className="space-y-3 text-xs text-zinc-500 leading-relaxed">
-            <div className="flex items-start gap-2">
-              <Shield size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-              <p>Dados lidos via API Key (somente leitura). Importações de escrita requerem Service Account com permissão de Editora na planilha <code className="bg-zinc-800 px-1 rounded text-zinc-300">gdados</code>.</p>
+        <SectionCard title="Sobre o Sistema" icon={<Info size={16} />}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { label: "Framework", value: "Next.js 14 (App Router)" },
+                { label: "Estilo", value: "Tailwind CSS 3" },
+                { label: "Gráficos", value: "Recharts + lightweight-charts" },
+                { label: "Dados", value: "Google Sheets API" },
+                { label: "Deploy", value: "Vercel (auto)" },
+                { label: "IA", value: "Gemini / GPT-4o / DeepSeek" },
+                { label: "3D Globe", value: "React Three Fiber" },
+                { label: "Mapas", value: "react-simple-maps" },
+              ].map(s => (
+                <div key={s.label} className="rounded-lg bg-zinc-800/40 px-3 py-2">
+                  <p className="text-[10px] text-zinc-600 uppercase">{s.label}</p>
+                  <p className="text-xs text-zinc-300">{s.value}</p>
+                </div>
+              ))}
             </div>
-            <div className="flex items-start gap-2">
-              <FileText size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-              <p>As importações são idempotentes — podem ser executadas múltiplas vezes sem criar duplicatas. Use sempre &quot;Simular&quot; antes de &quot;Importar&quot;.</p>
+
+            <div className="rounded-lg bg-blue-500/8 border border-blue-500/15 px-4 py-3">
+              <p className="text-xs text-blue-300 font-semibold mb-1">Motor de cálculo canônico</p>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                TypeScript é o <strong className="text-zinc-300">único motor de portfólio</strong>. Toda matemática de patrimônio, investido (FIFO), lucro, proventos e câmbio vive em{" "}
+                <code className="bg-zinc-800 px-1 rounded text-zinc-300">lib/portfolio.ts</code> (<code className="bg-zinc-800 px-1 rounded text-zinc-300">calcularSnapshot</code>).
+                Python serve apenas preditivo/ML e agente IA.
+              </p>
             </div>
-            <div className="flex items-start gap-2">
-              <Upload size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-              <p>Formatos suportados: CSV do IBKR (português e inglês, incluindo Activity Statements), CSV/TXT de proventos da B3. O sistema detecta automaticamente a origem.</p>
+
+            <div className="space-y-2 text-xs text-zinc-500 leading-relaxed">
+              <div className="flex items-start gap-2">
+                <Shield size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                <p>Leitura via API Key. Escrita/sync requer Service Account com permissão de Editora na planilha.</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <FileText size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                <p>Importações idempotentes — sem risco de duplicatas. Detecta automaticamente IBKR ou B3.</p>
+              </div>
             </div>
           </div>
         </SectionCard>
