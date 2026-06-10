@@ -56,6 +56,33 @@ const TE_SLUG: Record<string, string> = {
   "Austrália": "australia", "Nova Zelândia": "new-zealand",
 };
 
+const COUNTRY_CURRENCY: Record<string, string> = {
+  "EUA": "USD", "Brasil": "BRL", "Canadá": "CAD", "México": "MXN",
+  "Argentina": "ARS", "Chile": "CLP", "Colômbia": "COP", "Peru": "PEN",
+  "Venezuela": "VES", "Costa Rica": "CRC", "Rep. Dominicana": "DOP", "Panamá": "PAB",
+  "Europa": "EUR", "Reino Unido": "GBP", "Alemanha": "EUR", "França": "EUR",
+  "Espanha": "EUR", "Itália": "EUR", "Suíça": "CHF", "Holanda": "EUR",
+  "Suécia": "SEK", "Dinamarca": "DKK", "Finlândia": "EUR", "Noruega": "NOK",
+  "Áustria": "EUR", "Bélgica": "EUR", "Portugal": "EUR", "Polônia": "PLN",
+  "Turquia": "TRY", "Rússia": "RUB", "Hungria": "HUF", "Tchéquia": "CZK",
+  "Romênia": "RON", "Grécia": "EUR", "Islândia": "ISK", "Lituânia": "EUR",
+  "Letônia": "EUR", "Estônia": "EUR", "Croácia": "EUR", "Eslovênia": "EUR",
+  "Sérvia": "RSD", "Bulgária": "BGN", "Bósnia": "BAM", "Luxemburgo": "EUR",
+  "Malta": "EUR", "Ucrânia": "UAH",
+  "Japão": "JPY", "Hong Kong": "HKD", "China": "CNY", "Coreia do Sul": "KRW",
+  "Taiwan": "TWD", "Índia": "INR", "Singapura": "SGD", "Indonésia": "IDR",
+  "Malásia": "MYR", "Tailândia": "THB", "Vietnã": "VND", "Filipinas": "PHP",
+  "Paquistão": "PKR", "Sri Lanka": "LKR", "Bangladesh": "BDT", "Nepal": "NPR",
+  "Mongólia": "MNT", "Cazaquistão": "KZT",
+  "Israel": "ILS", "Arábia Saudita": "SAR", "Emirados": "AED", "Catar": "QAR",
+  "Kuwait": "KWD", "Bahrein": "BHD", "Omã": "OMR", "Jordânia": "JOD", "Líbano": "LBP",
+  "África do Sul": "ZAR", "Egito": "EGP", "Marrocos": "MAD", "Nigéria": "NGN",
+  "Quênia": "KES", "Tunísia": "TND", "Maurício": "MUR", "Botsuana": "BWP",
+  "Gana": "GHS", "Tanzânia": "TZS", "Uganda": "UGX", "Costa do Marfim": "XOF",
+  "Ruanda": "RWF",
+  "Austrália": "AUD", "Nova Zelândia": "NZD",
+};
+
 interface WBIndicator {
   id: string;
   label: string;
@@ -96,6 +123,25 @@ async function fetchWBIndicator(iso: string, indicator: string): Promise<{ value
   }
 }
 
+async function fetchExchangeRate(currency: string): Promise<{ vsUSD: number | null; vsBRL: number | null }> {
+  if (currency === "USD") return { vsUSD: 1, vsBRL: null };
+  try {
+    const res = await fetch(`https://open.er-api.com/v6/latest/USD`, {
+      signal: AbortSignal.timeout(8000),
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return { vsUSD: null, vsBRL: null };
+    const data = await res.json();
+    const rates = data.rates ?? {};
+    const vsUSD = rates[currency] ?? null;
+    const brlRate = rates["BRL"] ?? null;
+    const vsBRL = (vsUSD && brlRate) ? vsUSD / brlRate : null;
+    return { vsUSD, vsBRL };
+  } catch {
+    return { vsUSD: null, vsBRL: null };
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const country = searchParams.get("country") ?? "";
@@ -116,14 +162,19 @@ export async function GET(request: Request) {
     });
   }
 
-  const results = await Promise.allSettled(
-    INDICATORS.map(async (ind) => {
-      const { value, year } = await fetchWBIndicator(iso, ind.id);
-      return { ...ind, value, year };
-    })
-  );
+  const currency = COUNTRY_CURRENCY[country] ?? null;
 
-  const indicators = results
+  const [indicatorResults, exchangeRateResult] = await Promise.all([
+    Promise.allSettled(
+      INDICATORS.map(async (ind) => {
+        const { value, year } = await fetchWBIndicator(iso, ind.id);
+        return { ...ind, value, year };
+      })
+    ),
+    currency ? fetchExchangeRate(currency) : Promise.resolve({ vsUSD: null, vsBRL: null }),
+  ]);
+
+  const indicators = indicatorResults
     .filter((r): r is PromiseFulfilledResult<WBIndicator & { value: number | null; year: number | null }> => r.status === "fulfilled")
     .map(r => r.value)
     .filter(r => r.value != null);
@@ -133,6 +184,8 @@ export async function GET(request: Request) {
     iso,
     teSlug: teSlug ?? null,
     teUrl: teSlug ? `https://tradingeconomics.com/${teSlug}` : null,
+    currency,
+    exchangeRate: exchangeRateResult,
     indicators,
   });
 }
