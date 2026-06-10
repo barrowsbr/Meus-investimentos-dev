@@ -754,26 +754,69 @@ async function buildResponse(
     },
   };
 
-  // Insert if not dry run
+  // Insert if not dry run — com VERIFICAÇÃO pós-escrita: relê a aba e confere
+  // que as linhas realmente chegaram na planilha (contagem antes × depois).
   if (!dryRun) {
     let insertedProventos = 0;
     let insertedTrades = 0;
+    const erros: string[] = [];
 
     if (novosProventos.length > 0) {
       const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
       const rows = novosProventos.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
-      await appendRows("meus_proventos", rows);
-      insertedProventos = novosProventos.length;
+      try {
+        await appendRows("meus_proventos", rows);
+        insertedProventos = novosProventos.length;
+      } catch (e) {
+        erros.push(`proventos: ${e instanceof Error ? e.message : "falha na escrita"}`);
+      }
     }
 
     if (novosTrades.length > 0) {
       const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
       const rows = novosTrades.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
-      await appendRows("meus_ativos", rows);
-      insertedTrades = novosTrades.length;
+      try {
+        await appendRows("meus_ativos", rows);
+        insertedTrades = novosTrades.length;
+      } catch (e) {
+        erros.push(`operações: ${e instanceof Error ? e.message : "falha na escrita"}`);
+      }
     }
 
+    // Verificação: relê as abas e compara a contagem com o esperado.
+    const verificacao: Record<string, unknown> = {};
+    if (insertedProventos > 0) {
+      const depois = await fetchTab("meus_proventos").catch(() => null);
+      verificacao.proventos = depois === null
+        ? { ok: false, detalhe: "não foi possível reler a aba" }
+        : {
+            ok: depois.length >= existingProventos.length + insertedProventos,
+            antes: existingProventos.length,
+            depois: depois.length,
+            esperado: existingProventos.length + insertedProventos,
+          };
+    }
+    if (insertedTrades > 0) {
+      const depois = await fetchTab("meus_ativos").catch(() => null);
+      verificacao.trades = depois === null
+        ? { ok: false, detalhe: "não foi possível reler a aba" }
+        : {
+            ok: depois.length >= existingTrades.length + insertedTrades,
+            antes: existingTrades.length,
+            depois: depois.length,
+            esperado: existingTrades.length + insertedTrades,
+          };
+    }
+
+    const verificacoes = Object.values(verificacao) as Array<{ ok: boolean }>;
     result.inserted = { proventos: insertedProventos, trades: insertedTrades };
+    result.verificacao = verificacao;
+    result.verificado = verificacoes.length > 0 && verificacoes.every(v => v.ok);
+    if (erros.length > 0) {
+      result.error = `Falha ao gravar na planilha — ${erros.join("; ")}`;
+    } else if (verificacoes.length > 0 && !result.verificado) {
+      result.error = "Escrita enviada mas a releitura da planilha não confirmou as novas linhas — confira a aba manualmente.";
+    }
   }
 
   return NextResponse.json(result);

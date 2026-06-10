@@ -33,6 +33,8 @@ interface ImportResult {
     trades: { total: number; novos: number; existentes: number };
   };
   inserted?: { proventos: number; trades: number };
+  verificado?: boolean;
+  verificacao?: Record<string, { ok: boolean; antes?: number; depois?: number; esperado?: number; detalhe?: string }>;
   error?: string;
   hint?: string;
 }
@@ -123,18 +125,19 @@ function ImportSection() {
     if (f) { setFile(f); setResult(null); }
   }, []);
 
-  async function handleSync() {
+  async function handleSync(forceApply = false) {
     if (!file) return;
     setLoading(true);
     setResult(null);
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("dry_run", String(dryRun));
+    fd.append("dry_run", String(forceApply ? false : dryRun));
 
     try {
       const res = await fetch(`${API_URL}/api/sync/import`, { method: "POST", body: fd });
       const data = await res.json();
       setResult(data);
+      if (forceApply) setDryRun(false);
     } catch (e) {
       setResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
     } finally {
@@ -201,7 +204,7 @@ function ImportSection() {
         </label>
 
         <button
-          onClick={handleSync}
+          onClick={() => handleSync()}
           disabled={!file || loading}
           className="btn-primary text-sm px-4 py-2 disabled:opacity-40 ml-auto"
         >
@@ -251,22 +254,43 @@ function ImportSection() {
             )}
           </div>
 
-          {/* Inserted confirmation */}
+          {/* Inserted confirmation + verificação pós-escrita na planilha */}
           {result?.inserted && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400">
-              <CheckCircle2 size={14} />
-              {result.inserted.proventos > 0 && <span>{result.inserted.proventos} proventos inseridos</span>}
-              {result.inserted.proventos > 0 && result.inserted.trades > 0 && <span>·</span>}
-              {result.inserted.trades > 0 && <span>{result.inserted.trades} operações inseridas</span>}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-emerald-400">
+                <CheckCircle2 size={14} />
+                {result.inserted.proventos > 0 && <span>{result.inserted.proventos} proventos inseridos</span>}
+                {result.inserted.proventos > 0 && result.inserted.trades > 0 && <span>·</span>}
+                {result.inserted.trades > 0 && <span>{result.inserted.trades} operações inseridas</span>}
+                {result.inserted.proventos + result.inserted.trades === 0 && <span>Nada novo a inserir</span>}
+              </div>
+              {result.verificacao && Object.entries(result.verificacao).map(([k, v]) => (
+                <p key={k} className={`text-[11px] flex items-center gap-1 ${v.ok ? "text-emerald-500/80" : "text-red-400"}`}>
+                  {v.ok ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                  {k === "proventos" ? "meus_proventos" : "meus_ativos"}:{" "}
+                  {v.ok
+                    ? `verificado na planilha (${v.antes} → ${v.depois} linhas)`
+                    : v.detalhe ?? `releitura não confirmou (esperado ${v.esperado}, encontrado ${v.depois})`}
+                </p>
+              ))}
             </div>
           )}
 
-          {/* Dry run hint */}
+          {/* Dry run: aplicar direto, sem dança de toggle */}
           {dryRun && (resumo.proventos.novos + resumo.trades.novos) > 0 && !result?.inserted && (
-            <p className="text-xs text-amber-400 flex items-center gap-1">
-              <AlertCircle size={12} />
-              Simulação — desative &quot;Simular&quot; e clique &quot;Importar&quot; para aplicar
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-amber-400 flex items-center gap-1">
+                <AlertCircle size={12} />
+                Simulação — nada foi escrito na planilha ainda.
+              </p>
+              <button
+                onClick={() => handleSync(true)}
+                disabled={loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-40"
+              >
+                {loading ? "Aplicando…" : `Aplicar agora (${resumo.proventos.novos + resumo.trades.novos} novos)`}
+              </button>
+            </div>
           )}
 
           {/* Filter + sort */}
