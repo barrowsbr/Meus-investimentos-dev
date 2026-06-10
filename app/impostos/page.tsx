@@ -14,6 +14,7 @@ import PageHeader from "@/components/PageHeader";
 import MetricCard from "@/components/MetricCard";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { brl, compactBRL } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
 // ─── Tipos (espelham /api/ir) ──────────────────────────────────────────────────
 type OffsetBucket = "swing" | "day" | "fii" | "exterior" | "rf";
@@ -672,7 +673,7 @@ export default function ImpostosPage() {
                   <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))} width={40} />
                   <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(Math.abs(v)), n === "ganho" ? "Ganho" : n === "perda" ? "Perda" : "IR"]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, n: string) => [brl(Math.abs(v)), n === "ganho" ? "Ganho" : n === "perda" ? "Perda" : "IR"]} />
                   <Bar dataKey="ganho" fill="#34d399" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
                   <Bar dataKey="perda" fill="#f87171" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
                   <Bar dataKey="ir" fill="#6366f1" radius={[3, 3, 0, 0]} fillOpacity={0.9} />

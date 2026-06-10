@@ -11,6 +11,7 @@ import MetricCard from "@/components/MetricCard";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { brl, compactBRL, pct } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
 interface ContaPatrimonio {
   nome: string; instituicao: string; pessoa: string; tipo: string; valores: Record<string, number>;
@@ -93,7 +94,7 @@ export default function EvolucaoPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
             <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
             <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Patrimônio"]} labelFormatter={l => `20${l}`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [brl(v), "Patrimônio"]} labelFormatter={l => `20${l}`} />
             <Area type="monotone" dataKey="valor" stroke="#34d399" fill="url(#gTot)" strokeWidth={2.5} dot={{ r: 3, fill: "#34d399" }} />
           </AreaChart>
         </ResponsiveContainer>
@@ -107,7 +108,7 @@ export default function EvolucaoPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
               <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
               <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {m.tipos.map(t => <Bar key={t} dataKey={t} stackId="a" fill={TIPO_COR[t]} />)}
             </BarChart>
@@ -120,7 +121,7 @@ export default function EvolucaoPage() {
               <Pie data={m.donutTipo} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
                 {m.donutTipo.map(e => <Cell key={e.name} fill={TIPO_COR[e.name] ?? "#a1a1aa"} />)}
               </Pie>
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => brl(v)} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => brl(v)} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
@@ -141,7 +142,7 @@ export default function EvolucaoPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
             <XAxis dataKey="ano" tick={AXIS} axisLine={false} tickLine={false} />
             <YAxis tick={AXIS} axisLine={false} tickLine={false} tickFormatter={fmtK} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, n: string) => [brl(v), n]} labelFormatter={l => `20${l}`} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {Object.keys(PESSOA_COR).filter(p => d.anos.some(a => (d.porPessoa[a]?.[p] ?? 0) > 0)).map(p => (
               <Bar key={p} dataKey={p} stackId="p" fill={PESSOA_COR[p]} />

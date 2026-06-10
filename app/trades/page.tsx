@@ -10,6 +10,7 @@ import {
   Target, Clock, BarChart2,
 } from "lucide-react";
 import { compactBRL } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import PageHeader from "@/components/PageHeader";
 
 const TOOLTIP_STYLE = {
@@ -281,7 +282,7 @@ export default function TradesPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <XAxis dataKey="name" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} />
                     <YAxis tickFormatter={(v: number) => compactBRL(v)} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => compactBRL(v)} labelFormatter={(l: string) => {
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => compactBRL(v)} labelFormatter={(l: string) => {
                       const idx = parseInt(l.replace("#", "")) - 1;
                       return chartData[idx]?.ativo || l;
                     }} />

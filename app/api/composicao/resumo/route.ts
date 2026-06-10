@@ -475,7 +475,20 @@ export async function GET() {
     }
 
     // ── RF manual (fixa_aberta) com corretora — alimenta custódia e mapa ─────
-    // Inclui Tesouro, CDBs, caixa etc. Lê a coluna de corretora/instituição.
+    // Inclui Tesouro, CDBs, caixa etc. A fixa_aberta não tem coluna de
+    // corretora; a fonte é a aba renda_fixa (transações), casando por
+    // ticker+moeda (ex.: Caixa BRL → Nubank, Caixa USD → IBKR).
+    const rfCorretoraPorTickerMoeda = new Map<string, string>();
+    const rfCorretoraPorTicker = new Map<string, string>();
+    for (const row of rfTransacoes) {
+      const tk = String(row["ticker"] ?? row["ativo"] ?? "").trim().toUpperCase();
+      const corr = String(row["corretora"] ?? row["instituição"] ?? row["instituicao"] ?? row["banco"] ?? "").trim();
+      if (!tk || !corr) continue;
+      const m = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
+      if (!rfCorretoraPorTickerMoeda.has(`${tk}|${m}`)) rfCorretoraPorTickerMoeda.set(`${tk}|${m}`, corr);
+      if (!rfCorretoraPorTicker.has(tk)) rfCorretoraPorTicker.set(tk, corr);
+    }
+
     const rfPosicoes: Array<{
       ticker: string; setor: string; macro: string; valor_brl: number;
       moeda: string; corretora: string; pais: string; is_caixa: boolean;
@@ -488,9 +501,12 @@ export async function GET() {
       );
       if (valorRaw <= 0) continue;
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-      const corretora = String(
-        row["corretora"] ?? row["instituição"] ?? row["instituicao"] ?? row["banco"] ?? row["custódia"] ?? row["custodia"] ?? ""
-      ).trim();
+      const corretora = (
+        String(row["corretora"] ?? row["instituição"] ?? row["instituicao"] ?? row["banco"] ?? row["custódia"] ?? row["custodia"] ?? "").trim()
+        || rfCorretoraPorTickerMoeda.get(`${ticker.toUpperCase()}|${moeda}`)
+        || rfCorretoraPorTicker.get(ticker.toUpperCase())
+        || ""
+      );
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
       const { sub } = classificarCamadas(ticker, "Renda Fixa");
       const isCaixa = sub === "Caixa";

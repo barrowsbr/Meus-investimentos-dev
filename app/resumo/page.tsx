@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, isRendaFixa, isRendaVariavel } from "@/lib/sectors";
 import type { CountryAllocation } from "@/lib/ticker-country";
 import InvestmentWorldMap from "@/components/InvestmentWorldMap";
@@ -982,7 +983,7 @@ export default function ResumoPage() {
                         <Pie data={filteredExposicao} cx="50%" cy="50%" innerRadius={42} outerRadius={70} dataKey="value" stroke="none" paddingAngle={1}>
                           {filteredExposicao.map(entry => <Cell key={entry.name} fill={CURRENCY_COLORS[entry.name] || "#71717a"} />)}
                         </Pie>
-                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1024,7 +1025,7 @@ export default function ResumoPage() {
                         <Pie data={sectorData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} dataKey="value" stroke="none" paddingAngle={1}>
                           {sectorData.map(entry => <Cell key={entry.name} fill={SECTOR_COLORS[entry.name] || "#71717a"} />)}
                         </Pie>
-                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1088,7 +1089,7 @@ export default function ResumoPage() {
                     tickFormatter={v => compactBRL(v)} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 100]} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       name === "valor_brl" ? compactBRL(v) : `${v.toFixed(1)}%`,
                       name === "valor_brl" ? "Valor" : "Acumulado",
@@ -1161,7 +1162,7 @@ export default function ResumoPage() {
                       tickFormatter={v => `${v.toFixed(0)}%`} />
                     <YAxis type="category" dataKey="ticker" width={70} tick={{ fill: "#a1a1aa", fontSize: 11, fontWeight: 600 }}
                       axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE}
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                       formatter={(v: number, name: string) => [
                         `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
                         name === "retorno_nao_realizado_pct" ? "Não Realizado" : "Realiz. + Prov.",
@@ -1304,7 +1305,7 @@ export default function ResumoPage() {
                     tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => compactBRL(v)} />
                   <ZAxis dataKey="valor_atual_brl" range={[40, 600]} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload as RiscoRetornoItem;
