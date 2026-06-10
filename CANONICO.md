@@ -71,10 +71,10 @@ Não reimplemente.
 | **IR retido s/ proventos** | imposto retido na fonte (total RV+RF) | `snapshot.totalImpostoProventosBRL` |
 | **Exposição cambial** | valor em moeda ≠ BRL (posições **+** RF/caixa de `fixa_aberta`, inclui caixa USD) ÷ **patrimônio total** | `snapshot.exposicaoCambial` (buckets por moeda) |
 | **Variação no dia** | Σ `dayChangeBRL` das posições | `snapshot.dayChangeTotalBRL` / `dayChangeTotalPct` |
-| **TWR (%)** | Modified Dietz SoD: `Π(1 + ret_d) - 1`, chain-link diário | `calcularTWR().twrTotal` (`lib/twr-engine.ts`) |
-| **TWR anualizado** | `(1 + TWR)^(252/dias) - 1` | `calcularTWR().twrAnualizado` |
-| **MWR/XIRR** | Newton-Raphson sobre cashflows reais + NAV final | `calcularTWR().mwr` |
-| **Ganho Econômico** | `navFinal - navInicial - flows + firstFlow + income` (identidade contábil) | `calcularTWR().ganhoEconomico` |
+| **TWR (%)** | Modified Dietz SoD: `Π(1 + ret_d) - 1`, chain-link diário; dia 0 = âncora | `calcularTWR().twrTotal` (`lib/twr-engine.ts`) |
+| **TWR anualizado** | `(1 + TWR)^(365/dias corridos) - 1` | `calcularTWR().twrAnualizado` |
+| **MWR/XIRR** | Newton-Raphson sobre fluxos líquidos do investidor (`flow − income`, proventos = inflow do investidor) + NAV final | `calcularTWR().mwr` |
+| **Ganho Econômico** | Soma telescópica dos ganhos diários do período medido (ver `CALCULOS.md §16`) | `calcularTWR().ganhoEconomico` |
 
 ### Identidades que devem SEMPRE valer (cobertas por teste)
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`

@@ -610,22 +610,37 @@ cumTwr *= (1 + ret);                  // chain-link diário → TWR acumulado
 - **SoD sempre** — não há threshold condicional. Todo fluxo (aporte/resgate) é
   reconhecido no início do dia. Isso é o padrão GIPS para TWR diário quando
   o timing intraday exato é desconhecido.
+- **Dia-âncora (dia 0)** — o primeiro dia da série **nunca** contribui retorno
+  (`ret = 0`). Sem prevNav, o fluxo do dia não representa o capital que produziu
+  o NAV (em janelas, o NAV do dia 0 carrega o portfólio pré-janela inteiro).
+  A medição começa no **fim do dia 0** (inception-at-first-valuation, GIPS).
 - **Sem caps** — não há limite de retorno diário (±50%, ±100%). O retorno é o que
   o mercado entregou naquele dia.
 - **Sem heurísticas de anomalia** — sem detecção de "fluxo oculto", sem
   `MAX_UNEXPLAINED_CHANGE`. Se o NAV variou, a variação é real.
-- **forceZero apenas quando base ≤ 0** — o retorno é matematicamente indefinido
-  quando não há capital. Nenhum outro caso força zero.
+- **forceZero apenas quando base ≤ 0** (após o dia-âncora) — retorno
+  matematicamente indefinido sem capital. Nenhum outro caso força zero.
 - **NAV healing** — se preço vira 0/NaN mas prevNav era válido, forward-fill
   `nav = max(0, prevNav + flow)` para não perder a série.
+- **Custo FIFO com pmFx + taxas** — `custoPosicoesAtuais` usa
+  `(qtd × preço + taxas) × pmFx` (regra P0), alinhado ao `custoTotalBRL` do
+  snapshot canônico.
 
 **Métricas produzidas:**
 | Métrica | Fórmula |
 |---------|---------|
 | TWR (%) | `Π(1 + ret_d) - 1` — chain-link dos retornos diários |
-| TWR anualizado | `(1 + TWR)^(252/dias_úteis) - 1` |
-| MWR/XIRR | Newton-Raphson sobre fluxos reais (cashflows + NAV final) |
-| Ganho Econômico | `navFinal - navInicial - flowsFromFirst + firstMeaningfulFlow + incomeFromFirst` |
+| TWR anualizado | `(1 + TWR)^(365/dias_corridos) - 1` (só se > 20 dias) |
+| MWR/XIRR | Newton-Raphson sobre **fluxos líquidos do investidor** (`flow − income`): aportes saem do bolso, vendas E proventos voltam para o bolso |
+| Ganho Econômico | Identidade contábil exata (ver abaixo) |
+
+**Ganho Econômico — identidade contábil:**
+- Janela (dia 0 = âncora): `GE = navFinal − nav₀ − Σ flows(i≥1) + Σ income(i≥1)`.
+  Fluxos e income **no dia-âncora** pertencem ao capital de abertura, não à janela.
+- All-time (capital entra no dia f > 0): `GE = navFinal − Σ flows(i≥f) + Σ income(i≥f)`.
+- Em ambos os casos GE = soma telescópica dos ganhos diários
+  `(nav + income) − prevNav − flow` do período medido — verificável em
+  `/api/debug/auditoria` (campo `identidades`).
 
 **Janela temporal (windowed views):**
 - Para YTD/1M/6M, o motor inclui **1 dia antes** do início da janela (pre-window day)
