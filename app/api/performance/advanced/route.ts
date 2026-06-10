@@ -294,11 +294,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
 
-    const dates = (fromParam || toParam)
-      ? hist.dates.filter(d => d >= (fromParam || "0000") && d <= (toParam || today()))
-      : lookback > 0
-        ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
-        : hist.dates.filter(d => d <= today());
+    // For windowed views, include 1 extra day BEFORE the window so the TWR
+    // engine starts with prevNav > 0. Without it, day 1 is always forceZero
+    // (prevNav=0) and any real market movement on that day is lost.
+    const isWindowed = lookback > 0 || fromParam || toParam;
+    const windowStart = (fromParam || toParam)
+      ? (fromParam || "0000")
+      : lookback > 0 ? startDateFromLookback(lookback) : "0000";
+    const allDates = hist.dates.filter(d => d <= (toParam || today()));
+    let dates: string[];
+    if (isWindowed) {
+      const firstInWindow = allDates.findIndex(d => d >= windowStart);
+      dates = allDates.slice(Math.max(0, firstInWindow - 1));
+    } else {
+      dates = allDates;
+    }
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
     // Pre-fill the FULL price matrix (ffill + bfill) BEFORE slicing to the
@@ -541,7 +551,9 @@ export async function GET(request: Request) {
         const prevNav = pts[i - 1].nav;
         const flow = pts[i].flow;
         const navBefore = prevNav + flow;
-        const ret = navBefore > 0 ? (pts[i].nav - navBefore) / navBefore : 0;
+        // Same Modified Dietz as the BRL engine: income (dividends) is part
+        // of the day's economic gain — omitting it understates USD TWR.
+        const ret = navBefore > 0 ? ((pts[i].nav + pts[i].income) - navBefore) / navBefore : 0;
         cumTwr *= (1 + ret);
         usdTwrPoints.push({ date: pts[i].date, nav: pts[i].nav, twr: cumTwr - 1, ret });
       }
@@ -554,11 +566,13 @@ export async function GET(request: Request) {
 
       // MWR in USD — initial NAV as outflow at t=0, subsequent flows only
       // (day-0 flows are already captured in pts[0].nav — including them
-      // would double-count the initial investment)
+      // would double-count the initial investment). Dividends received are
+      // investor inflows: net investor flow = flow − income.
       const cfUsd: Array<{ date: string; amount: number }> = [];
       if (pts[0].nav > 0) cfUsd.push({ date: pts[0].date, amount: -pts[0].nav });
       for (let pi = 1; pi < pts.length; pi++) {
-        if (Math.abs(pts[pi].flow) > 0.5) cfUsd.push({ date: pts[pi].date, amount: -pts[pi].flow });
+        const netFlow = pts[pi].flow - pts[pi].income;
+        if (Math.abs(netFlow) > 0.5) cfUsd.push({ date: pts[pi].date, amount: -netFlow });
       }
       if (pts.length > 0) cfUsd.push({ date: pts[pts.length - 1].date, amount: pts[pts.length - 1].nav });
       cfUsd.sort((a, b) => a.date.localeCompare(b.date));
@@ -644,7 +658,17 @@ export async function GET(request: Request) {
           sortino: usdRisk.sortino,
           var95: usdRisk.var95,
           var99: usdRisk.var99,
-          ganhoEconomico: pts[pts.length - 1].nav - pts[0].nav - pts.reduce((s, p) => s + Math.max(0, p.flow), 0) + Math.max(0, pts[0].flow) + pts.reduce((s, p) => s + p.income, 0),
+          // Same accounting identity as the BRL engine: anchor day (firstIdx
+          // === 0, windowed view) measures from end of day 0 and excludes
+          // anchor-day flows/income; otherwise day 0 is the first purchase
+          // day and its flow counts. NET flows — vendas/saques increase gain.
+          ganhoEconomico: (() => {
+            const anchor = firstIdx === 0;
+            const start = anchor ? 1 : 0;
+            let fl = 0, inc = 0;
+            for (let pi = start; pi < pts.length; pi++) { fl += pts[pi].flow; inc += pts[pi].income; }
+            return pts[pts.length - 1].nav - (anchor ? pts[0].nav : 0) - fl + inc;
+          })(),
         },
         chart: thinSeries(chart),
         monthlyReturns: usdMonthly,
@@ -676,7 +700,6 @@ export async function GET(request: Request) {
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
         ganhoEconomico: twr.ganhoEconomico,
-        ganhoConsistente: twr.ganhoConsistente,
         ganhoDecomposicao: twr.ganhoDecomposicao,
         resultadoTotal: snapshot.retornoTotalRVBRL,
         resultadoTotalPct: snapshot.retornoTotalRVPct,

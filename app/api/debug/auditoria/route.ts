@@ -7,10 +7,6 @@ import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const FLOW_THRESHOLD = 0.01;
-const LARGE_FLOW_FORCE_ZERO = 0.90;
-const MAX_DAILY_RETURN = 0.50;
-
 function pct(x: number): string {
   return `${(x * 100).toFixed(2)}%`;
 }
@@ -50,11 +46,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sem dados históricos", histErrors: hist.errors }, { status: 422 });
     }
 
+    // Janela com 1 dia pre-window (dia-âncora), idêntico à rota /api/performance/advanced.
     const windowEnd = new Date().toISOString().split("T")[0];
     const fromDate = lookback > 0
       ? (() => { const d = new Date(); d.setDate(d.getDate() - lookback); return d.toISOString().split("T")[0]; })()
       : "0000";
-    const dates = hist.dates.filter(d => d >= fromDate && d <= windowEnd);
+    const allDates = hist.dates.filter(d => d <= windowEnd);
+    let dates: string[];
+    if (lookback > 0) {
+      const firstInWindow = allDates.findIndex(d => d >= fromDate);
+      dates = allDates.slice(Math.max(0, firstInWindow - 1));
+    } else {
+      dates = allDates;
+    }
 
     const dateIdxMap = new Map(hist.dates.map((d, i) => [d, i]));
     const alignedPrices: Record<string, (number | null)[]> = {};
@@ -84,80 +88,79 @@ export async function GET(request: Request) {
     const twrSemImposto = calcularTWR({ transacoes, proventos: proventosSemImposto, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
     const twrSemRF = calcularTWR({ transacoes, proventos, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx });
 
-    // ── Pergunta 1: bloqueios ──
+    // ── Auditoria do motor (GIPS Modified Dietz) ──
+    // O motor não tem caps nem heurísticas: o único bloqueio é base ≤ 0
+    // (capital zerado) depois do dia-âncora. Aqui listamos esses dias e
+    // verificamos as identidades que o motor promete.
     const pts = twrAtual.points;
-    const capped: { date: string; retBruto: string; retAplicado: string }[] = [];
-    const forceZeroSuspeito: { date: string; retDescartado: string; navAntes: number; navDepois: number }[] = [];
-    let forceZeroLegitimo = 0;
+    const firstIdx = pts.findIndex(p => p.nav > 0);
+    const measured = firstIdx >= 0 ? pts.slice(firstIdx) : [];
 
-    let twrSemBloqueios = 1;
-    let prevNav = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      if (i === 0) { prevNav = p.nav; continue; }
+    const forceZeroDias = measured
+      .filter(p => p.forceZero)
+      .map(p => ({ date: p.date, nav: Math.round(p.nav), flow: Math.round(p.flow) }));
 
-      const flow = p.flow;
-      const hugeFlow = prevNav > 0 && Math.abs(flow) / prevNav > LARGE_FLOW_FORCE_ZERO;
-      const noBase = prevNav <= 0;
-      const isSoD = !noBase && !hugeFlow && Math.abs(flow) / prevNav > FLOW_THRESHOLD;
-      const base = isSoD ? prevNav + flow : prevNav;
-      const rawRet = base > 0 ? ((p.nav + p.income) - prevNav - flow) / base : 0;
+    // Maiores retornos diários (sem caps, vale conferir se são plausíveis)
+    const extremos = [...measured]
+      .filter(p => !p.forceZero)
+      .sort((a, b) => Math.abs(b.ret) - Math.abs(a.ret))
+      .slice(0, 15)
+      .map(p => ({ date: p.date, ret: pct(p.ret), nav: Math.round(p.nav), flow: Math.round(p.flow), income: Math.round(p.income) }));
 
-      if (p.forceZero) {
-        if (noBase || hugeFlow) {
-          forceZeroLegitimo++;
-        } else {
-          forceZeroSuspeito.push({ date: p.date, retDescartado: pct(rawRet), navAntes: Math.round(prevNav), navDepois: Math.round(p.nav) });
-        }
-      } else if (Math.abs(rawRet) > MAX_DAILY_RETURN) {
-        capped.push({ date: p.date, retBruto: pct(rawRet), retAplicado: pct(p.ret) });
-      }
-
-      const retUnblocked = (noBase || hugeFlow) ? 0 : rawRet;
-      twrSemBloqueios *= (1 + retUnblocked);
-      prevNav = p.nav;
+    // ── Identidade do ganho econômico ──
+    // GE deve igualar a soma telescópica dos ganhos diários do período medido:
+    // Σ ((nav_i + income_i) − nav_{i−1} − flow_i). No dia-âncora (janelas) a
+    // medição começa no fim do dia 0; em série all-time começa no dia da
+    // primeira compra (prevNav = 0).
+    const isAnchor = firstIdx === 0;
+    let somaGanhosDiarios = 0;
+    for (let i = isAnchor ? 1 : firstIdx; i < pts.length; i++) {
+      const prev = i > 0 ? pts[i - 1].nav : 0;
+      somaGanhosDiarios += (pts[i].nav + pts[i].income) - prev - pts[i].flow;
     }
-    twrSemBloqueios -= 1;
+    const geIdentidadeOk = Math.abs(somaGanhosDiarios - twrAtual.ganhoEconomico) < 1.0;
 
     const contribDividendos = twrAtual.twrTotal - twrSemDiv.twrTotal;
-    const estimativaMetodoAntigo = twrAtual.twrTotal + contribDividendos;
-    const impactoBloqueios = twrSemBloqueios - twrAtual.twrTotal;
     const impostoImpacto = twrSemImposto.twrTotal - twrAtual.twrTotal;
     const rfImpacto = twrAtual.twrTotal - twrSemRF.twrTotal;
 
     return NextResponse.json({
-      janela: { de: dates[0], ate: dates[dates.length - 1], dias: dates.length, lookback },
+      janela: { de: dates[0], ate: dates[dates.length - 1], dias: dates.length, lookback, diaAncora: isAnchor ? dates[0] : null },
+
+      motor: {
+        metodo: "Modified Dietz SoD (GIPS) — base = prevNav + flow; sem caps, sem heurísticas",
+        forceZeroRegra: "apenas base ≤ 0 após o dia-âncora",
+      },
 
       decomposicao: {
         twrAtual: pct(twrAtual.twrTotal),
         twrAnualizado: pct(twrAtual.twrAnualizado),
+        mwr: twrAtual.mwr != null ? pct(twrAtual.mwr) : null,
         componentes: {
           somentePreco: pct(twrSemDiv.twrTotal),
           contribuicaoDividendos: pct(contribDividendos),
           impostoRetido: pct(-impostoImpacto),
           contribuicaoRF: pct(rfImpacto),
         },
-        estimativaMetodoAntigo: pct(estimativaMetodoAntigo),
-        explicacao: `TWR corrigido = ${pct(twrAtual.twrTotal)}. Método antigo (adjClose+income) ≈ ${pct(estimativaMetodoAntigo)}. Diferença = dividendos contados 2× (${pct(contribDividendos)}). IMPOSTO retido reduz ${pct(impostoImpacto)}.`,
       },
 
       bloqueios: {
-        resumo: forceZeroSuspeito.length === 0 && capped.length === 0
-          ? "✅ Nenhum bloqueio descartou retorno legítimo."
-          : "⚠️ Há dias bloqueados — ver impacto abaixo.",
-        twrComBloqueios: pct(twrAtual.twrTotal),
-        twrSemBloqueios: pct(twrSemBloqueios),
-        impacto: pct(impactoBloqueios),
-        veredito: Math.abs(impactoBloqueios) < 0.01
-          ? "Impacto < 1 ponto — os bloqueios NÃO estão amarrando a rentabilidade."
-          : `Impacto de ${pct(impactoBloqueios)} — investigar os dias listados.`,
-        diasCapados: { quantidade: capped.length, exemplos: capped.slice(0, 30) },
-        forceZeroSuspeitos: { quantidade: forceZeroSuspeito.length, exemplos: forceZeroSuspeito.slice(0, 30) },
-        forceZeroLegitimos: forceZeroLegitimo,
+        resumo: forceZeroDias.length === 0
+          ? "✅ Nenhum dia com base ≤ 0 no período medido — todos os retornos contam."
+          : `⚠️ ${forceZeroDias.length} dia(s) com base ≤ 0 (capital zerado) — retorno indefinido nesses dias.`,
+        dias: forceZeroDias.slice(0, 30),
       },
 
+      identidades: {
+        ganhoEconomico: Math.round(twrAtual.ganhoEconomico),
+        somaGanhosDiarios: Math.round(somaGanhosDiarios),
+        consistente: geIdentidadeOk
+          ? "✅ GE = Σ ganhos diários (identidade contábil fecha)"
+          : `⚠️ Divergência de R$ ${Math.round(somaGanhosDiarios - twrAtual.ganhoEconomico)} — investigar`,
+      },
+
+      retornosExtremos: extremos,
       diagnostics: twrAtual.diagnostics,
-      ganhoEconomico: Math.round(twrAtual.ganhoEconomico),
       custoPosicoesAtuais: Math.round(twrAtual.custoPosicoesAtuais),
       totalInvestido: Math.round(twrAtual.totalInvestido),
       histErrors: hist.errors,

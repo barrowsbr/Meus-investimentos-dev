@@ -71,6 +71,10 @@ Não reimplemente.
 | **IR retido s/ proventos** | imposto retido na fonte (total RV+RF) | `snapshot.totalImpostoProventosBRL` |
 | **Exposição cambial** | valor em moeda ≠ BRL (posições **+** RF/caixa de `fixa_aberta`, inclui caixa USD) ÷ **patrimônio total** | `snapshot.exposicaoCambial` (buckets por moeda) |
 | **Variação no dia** | Σ `dayChangeBRL` das posições | `snapshot.dayChangeTotalBRL` / `dayChangeTotalPct` |
+| **TWR (%)** | Modified Dietz SoD: `Π(1 + ret_d) - 1`, chain-link diário; dia 0 = âncora | `calcularTWR().twrTotal` (`lib/twr-engine.ts`) |
+| **TWR anualizado** | `(1 + TWR)^(365/dias corridos) - 1` | `calcularTWR().twrAnualizado` |
+| **MWR/XIRR** | Newton-Raphson sobre fluxos líquidos do investidor (`flow − income`, proventos = inflow do investidor) + NAV final | `calcularTWR().mwr` |
+| **Ganho Econômico** | Soma telescópica dos ganhos diários do período medido (ver `CALCULOS.md §16`) | `calcularTWR().ganhoEconomico` |
 
 ### Identidades que devem SEMPRE valer (cobertas por teste)
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`
@@ -158,7 +162,10 @@ Itens que **ainda não** seguem 100% o canônico. Tratar incrementalmente:
   `snapshot.exposicaoCambial`.
 - [ ] **Setores**: badge de % por ativo usa só valorização (preço). Avaliar expor
   Retorno Total quando fizer sentido.
-- [ ] **Outras páginas** (Performance, Trades, etc.): auditar contra o Resumo
+- [x] **Performance (TWR/MWR)** — agora canônico: motor GIPS-compliant Modified
+  Dietz em `lib/twr-engine.ts` (`calcularTWR`). SoD sempre, sem caps, sem
+  heurísticas. forceZero apenas quando base ≤ 0. Documentado em `CALCULOS.md §16/§19`.
+- [ ] **Outras páginas** (Trades, etc.): auditar contra o Resumo
   canônico e migrar números recalculados para os campos do snapshot.
 
 ---

@@ -386,14 +386,6 @@ function fxFactor(moeda: string, fx: FxRates): number {
   return 1;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const FLOW_THRESHOLD = 0.01; // 1% of NAV — triggers SoD timing
-const LARGE_FLOW_FORCE_ZERO = 0.90; // 90% — flow is too large, skip day
-const BUSINESS_DAYS_PER_YEAR = 252; // ANBIMA standard
-const MAX_DAILY_RETURN = 0.50; // Cap daily return at ±50% (matching Python canonical engine)
-const MAX_UNEXPLAINED_CHANGE = 0.40; // 40% NAV variation without flow → forceZero
-
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type PriceMatrix = Record<string, (number | null)[]>;
@@ -424,16 +416,14 @@ export interface TwrResult {
   totalInvestido: number;
   custoPosicoesAtuais: number;
   ganhoEconomico: number;
-  ganhoConsistente: number;
   ganhoDecomposicao: {
     navFinal: number; navInicial: number; flowsFromFirst: number;
     firstMeaningfulFlow: number; incomeFromFirst: number;
-    forceZeroDays: number; forceZeroFlowSum: number; forceZeroNavDelta: number;
+    forceZeroDays: number;
   };
   mwr: number | null;
   diagnostics: {
     forceZeroDays: number;
-    cappedDays: number;
     incomeTotal: number;
     tickersAtCost: string[];
   };
@@ -526,17 +516,17 @@ function calculateMWR(
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
 
 export function calcularTWR(input: TwrInput): TwrResult {
-  const { dates, prices, fxHistory, rfNavByDate, rfFlowByDate } = input;
+  const { dates, prices, fxHistory, rfNavByDate, rfFlowByDate, pmFx } = input;
 
   const EMPTY: TwrResult = {
     points: [], twrTotal: 0, twrAnualizado: 0,
     navInicial: 0, navFinal: 0, duracaoAnos: 0,
     primeiraData: "", ultimaData: "", totalInvestido: 0,
     custoPosicoesAtuais: 0,
-    ganhoEconomico: 0, ganhoConsistente: 0,
-    ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0, forceZeroFlowSum: 0, forceZeroNavDelta: 0 },
+    ganhoEconomico: 0,
+    ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0 },
     mwr: null,
-    diagnostics: { forceZeroDays: 0, cappedDays: 0, incomeTotal: 0, tickersAtCost: [] },
+    diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [] },
   };
 
   if (dates.length === 0) return EMPTY;
@@ -596,14 +586,18 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const sortedInc = [...incomeEvents].sort((a, b) => a.bizDate.localeCompare(b.bizDate));
   let incIdx = 0;
 
-  // FIFO lot tracking for cost of current positions
+  // FIFO lot tracking for cost of current positions.
+  // Cost FX follows the canonical P0 rule (CANONICO.md): pmDólar real das
+  // remessas (pmFx) — NOT the spot rate of the purchase date. This keeps
+  // custoPosicoesAtuais aligned with the snapshot's Σ custoTotalBRL, which
+  // also includes brokerage fees (taxas) in the cost basis.
   const fifoLots = new Map<string, { qty: number; costBrl: number }[]>();
   for (const tx of sortedTxs) {
-    const txFxRates = fxHistory[tx.bizDate] ?? fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
-    const fxF = fxFactor(tx.moeda, txFxRates);
+    const fxCusto = pmFx ?? fxHistory[tx.bizDate] ?? fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    const fxF = fxFactor(tx.moeda, fxCusto);
     if (tx.tipo === "Compra") {
       const lots = fifoLots.get(tx.ticker) ?? [];
-      lots.push({ qty: tx.quantidade, costBrl: tx.preco * tx.quantidade * fxF });
+      lots.push({ qty: tx.quantidade, costBrl: (tx.preco * tx.quantidade + tx.taxas) * fxF });
       fifoLots.set(tx.ticker, lots);
     } else {
       const lots = fifoLots.get(tx.ticker);
@@ -634,7 +628,6 @@ export function calcularTWR(input: TwrInput): TwrResult {
   let prevNav = 0;
   let cumTwr = 1.0;
   let totalInvestido = 0;
-  let ganhoConsistente = 0;
   const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
@@ -682,7 +675,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       const value = tx.quantidade * price * txFx;
       if (tx.tipo === "Compra") {
         flow += value;
-        totalInvestido += tx.preco * tx.quantidade * txFx;
+        totalInvestido += (tx.preco * tx.quantidade + tx.taxas) * txFx;
       } else {
         flow -= value;
       }
@@ -699,85 +692,44 @@ export function calcularTWR(input: TwrInput): TwrResult {
     flow += rfFlow;
     if (rfFlow > 0) totalInvestido += rfFlow;
 
-    // ── NAV gap handling (Python engine v3.1–v3.3) ──
-    let dataAnomaly = false;
-    if (i > 0 && prevNav > 0) {
-      // v3.2: Forward-fill NAV if it drops to 0/NaN but previous was valid
-      if (nav <= 0 || !isFinite(nav)) {
-        nav = Math.max(0, prevNav + flow);
-      }
-      // v3.3: Flag anomalous NAV jumps (>40% unexplained variation with no RV flow).
-      // Instead of modifying NAV (which creates catch-up spikes the next day),
-      // we flag the day for forceZero — the return is unreliable, but NAV stays
-      // accurate so subsequent days compute correctly.
-      else if (Math.abs(flow - rfFlow) < 1.0) {
-        const navExpected = prevNav + flow;
-        if (navExpected > 0) {
-          const variation = (nav - navExpected) / navExpected;
-          if (Math.abs(variation) > MAX_UNEXPLAINED_CHANGE) {
-            dataAnomaly = true;
-          }
-        }
-      }
+    // ── NAV data healing: forward-fill if price gaps produce 0/NaN ──
+    if (i > 0 && prevNav > 0 && (nav <= 0 || !isFinite(nav))) {
+      nav = Math.max(0, prevNav + flow);
     }
 
-    // ── MWR flow tracking (before any flow correction, so MWR sees real cashflows) ──
-    if (Math.abs(flow) > 0.01) {
-      mwrFlows.push({ date, amount: flow });
+    // ── MWR flow tracking ──
+    // Investor cashflows for XIRR: aportes are money IN (positive flow),
+    // vendas are money OUT (negative flow), and dividends/JCP received in
+    // cash are ALSO money out to the investor — they leave the portfolio.
+    // Net investor flow = flow − income. Omitting income would systematically
+    // understate MWR for dividend-paying portfolios.
+    const netInvestorFlow = flow - income;
+    if (Math.abs(netInvestorFlow) > 0.01) {
+      mwrFlows.push({ date, amount: netInvestorFlow });
     }
 
-    // RV/RF flow decomposition for forceZero check
-    const rvFlowPart = flow - rfFlow;
-    const prevDateRfNav = i > 0 ? (rfNavByDate?.[dates[i - 1]] ?? 0) : 0;
-
-    // ── Flow timing & force_zero logic (from Streamlit engine) ──
-    let forceZero = false;
-    let isSoD = false;
-
-    // Rule 0: Data anomaly detected (>40% unexplained NAV variation with no flow)
-    if (dataAnomaly) {
-      forceZero = true;
-    }
-    // Rule 1: Previous NAV ≤ 0 — no capital base, return undefined
-    else if (prevNav <= 0) {
-      forceZero = true;
-    }
-    // Rule 2: Enormous flow (>90% of NAV) — return is meaningless
-    else if (Math.abs(flow) / prevNav > LARGE_FLOW_FORCE_ZERO) {
-      forceZero = true;
-    }
-    // Rule 2b: Large RV flow relative to RV-only NAV — RF dilution must not
-    // bypass forceZero for flows that would have triggered it without RF.
-    else if (Math.abs(rvFlowPart) > 0) {
-      const prevRvNav = prevNav - prevDateRfNav;
-      if (prevRvNav > 0 && Math.abs(rvFlowPart) / prevRvNav > LARGE_FLOW_FORCE_ZERO) {
-        forceZero = true;
-      }
-    }
-
-    if (!forceZero) {
-      // Rule 3: Large inflow (>1% of NAV) — use SoD to prevent inflation
-      if (flow > 0 && flow / prevNav > FLOW_THRESHOLD) {
-        isSoD = true;
-      }
-      // Rule 4: Large outflow (>1% of NAV) — use SoD to prevent deflation
-      else if (flow < 0 && Math.abs(flow) / prevNav > FLOW_THRESHOLD) {
-        isSoD = true;
-      }
-    }
-
-    // ── Modified Dietz daily return ──
+    // ── Modified Dietz daily return (GIPS-compliant) ──
+    // Base = prevNav + flow (Start-of-Day convention). The flow is assumed
+    // to enter at the START of the day, so the market return applies to
+    // (prevNav + flow). This is the standard for daily TWR when exact
+    // intraday timing is unknown.
+    //
+    // Day 0 is ALWAYS an anchor: with no prevNav, the day's flow is not the
+    // capital that produced the NAV (in windowed views the NAV carries the
+    // whole pre-window portfolio), so Dietz on day 0 would divide a full-
+    // portfolio NAV by a tiny flow base. Performance measurement starts at
+    // the end of day 0 (GIPS inception-at-first-valuation).
+    //
+    // After day 0, return is undefined only when base ≤ 0 (no capital).
+    // No caps, no ad-hoc thresholds.
+    const base = prevNav + flow;
     let ret = 0;
-    if (!forceZero) {
-      const economicGain = (nav + income) - prevNav - flow;
-      const base = isSoD ? prevNav + flow : prevNav;
-      if (base > 0) {
-        ret = economicGain / base;
-      }
-      ganhoConsistente += economicGain;
+    const forceZero = i > 0 && base <= 0;
+
+    if (i > 0 && !forceZero) {
+      ret = ((nav + income) - base) / base;
     }
 
-    ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
     cumTwr *= (1 + ret);
 
     points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero });
@@ -791,14 +743,11 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const last = points[points.length - 1];
   const firstIdx = points.indexOf(firstMeaningful);
 
-  // Recompute cumTwr and ganhoConsistente starting from firstMeaningful
+  // Recompute cumTwr starting from firstMeaningful (skip pre-capital noise)
   let cleanCum = 1.0;
-  ganhoConsistente = 0;
   for (let i = firstIdx; i < points.length; i++) {
     if (!points[i].forceZero) {
       cleanCum *= (1 + points[i].ret);
-      const pNav = i > 0 ? points[i - 1].nav : 0;
-      ganhoConsistente += (points[i].nav + points[i].income) - pNav - points[i].flow;
     }
     points[i].twr = cleanCum - 1;
   }
@@ -818,19 +767,32 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ? Math.pow(1 + twrTotal, 365 / calendarDays) - 1
     : twrTotal;
 
-  // total_pnl = nav_final - nav_inicial - sum(flows from firstIdx onward) + first_flow
-  //           + sum(income). Dividends/JCP are received as cash (not held in NAV),
-  //           so the NAV delta alone understates the gain. Adding accumulated income
-  //           makes the total consistent with the daily Modified Dietz economic gain
-  //           ((nav + income) − prevNav − flow) and with the Resumo's "Resultado Total".
+  // ── Ganho econômico: exact accounting identity over the measured period ──
+  // It is the telescoped sum of the daily economic gains
+  // ((nav + income) − prevNav − flow) over every day the TWR measures:
+  //
+  //   • firstIdx === 0 → day 0 is the ANCHOR (windowed view, or first purchase
+  //     on the very first date). Measurement starts at end of day 0:
+  //       GE = navFinal − nav₀ − Σ_{i≥1} flow + Σ_{i≥1} income
+  //     Flows/income ON the anchor day belong to the opening capital, not to
+  //     the window — counting anchor-day income was the source of pre-window
+  //     dividend leakage.
+  //
+  //   • firstIdx > 0 → capital first entered on day f via its flow (prevNav=0):
+  //       GE = navFinal − Σ_{i≥f} flow + Σ_{i≥f} income
+  //     Day f's own gain (nav_f − flow_f) IS part of the period, matching the
+  //     TWR which also computes day f's Dietz return.
+  const isAnchor = firstIdx === 0;
+  const geStartIdx = isAnchor ? 1 : firstIdx;
   let flowsFromFirst = 0;
   let incomeFromFirst = 0;
-  for (let i = firstIdx; i < points.length; i++) {
+  for (let i = geStartIdx; i < points.length; i++) {
     flowsFromFirst += points[i].flow;
     incomeFromFirst += points[i].income;
   }
-  const firstMeaningfulFlow = points[firstIdx].flow;
-  const ganhoEconomico = last.nav - firstMeaningful.nav - flowsFromFirst + firstMeaningfulFlow + incomeFromFirst;
+  const navBase = isAnchor ? firstMeaningful.nav : 0;
+  const firstMeaningfulFlow = isAnchor ? points[0].flow : 0;
+  const ganhoEconomico = last.nav - navBase - flowsFromFirst + incomeFromFirst;
 
   // Exclude flows on or before firstMeaningful.date — they're already
   // captured in navInicial (end-of-day NAV). Including them double-counts
@@ -848,14 +810,13 @@ export function calcularTWR(input: TwrInput): TwrResult {
   }
   if (rfCostBasis > 0) custoPosicoesAtuais += rfCostBasis;
 
-  // Diagnostics
-  const forceZeroDays = points.filter(p => p.forceZero).length;
-  let cappedDays = 0;
   let incomeTotal = 0;
-  for (const p of points) {
-    incomeTotal += p.income;
-    if (!p.forceZero && Math.abs(p.ret) >= MAX_DAILY_RETURN - 0.001) cappedDays++;
-  }
+  for (const p of points) incomeTotal += p.income;
+
+  // forceZero days only count inside the measured period (after firstIdx).
+  // Pre-capital days (nav = 0 before the first purchase) are structurally
+  // base ≤ 0 and irrelevant — counting them would inflate the diagnostic.
+  const forceZeroDays = points.slice(firstIdx).filter(p => p.forceZero).length;
 
   return {
     points,
@@ -869,27 +830,17 @@ export function calcularTWR(input: TwrInput): TwrResult {
     totalInvestido,
     custoPosicoesAtuais,
     ganhoEconomico,
-    ganhoConsistente,
     ganhoDecomposicao: {
       navFinal: Math.round(last.nav),
       navInicial: Math.round(firstMeaningful.nav),
       flowsFromFirst: Math.round(flowsFromFirst),
       firstMeaningfulFlow: Math.round(firstMeaningfulFlow),
       incomeFromFirst: Math.round(incomeFromFirst),
-      forceZeroDays: points.filter(p => p.forceZero).length,
-      forceZeroFlowSum: Math.round(points.filter(p => p.forceZero).reduce((s, p) => s + p.flow, 0)),
-      forceZeroNavDelta: Math.round(
-        points.filter(p => p.forceZero).reduce((s, p, _, arr) => {
-          const idx = points.indexOf(p);
-          const prev = idx > 0 ? points[idx - 1].nav : 0;
-          return s + (p.nav - prev - p.flow);
-        }, 0)
-      ),
+      forceZeroDays,
     },
     mwr,
     diagnostics: {
       forceZeroDays,
-      cappedDays,
       incomeTotal: Math.round(incomeTotal),
       tickersAtCost: [...tickersAtCostSet].sort(),
     },

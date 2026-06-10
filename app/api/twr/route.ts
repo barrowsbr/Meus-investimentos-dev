@@ -85,11 +85,19 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── 4. Restrict to lookback window ───────────────────────────────────────
+    // ── 4. Restrict to lookback window (+1 pre-window anchor day) ────────────
+    // Same convention as /api/performance/advanced: windowed views include one
+    // day before the window start so the engine has prevNav > 0 on day 1.
     const windowEnd = today();
-    const dates = lookback > 0
-      ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= windowEnd)
-      : hist.dates.filter(d => d <= windowEnd);
+    const allDates = hist.dates.filter(d => d <= windowEnd);
+    let dates: string[];
+    if (lookback > 0) {
+      const windowStart = startDateFromLookback(lookback);
+      const firstInWindow = allDates.findIndex(d => d >= windowStart);
+      dates = allDates.slice(Math.max(0, firstInWindow - 1));
+    } else {
+      dates = allDates;
+    }
 
     if (dates.length === 0) {
       return NextResponse.json({ error: "Janela de datas sem dados" }, { status: 422 });
