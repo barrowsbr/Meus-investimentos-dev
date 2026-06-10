@@ -120,6 +120,67 @@ export async function GET(request: Request) {
     }
     const geIdentidadeOk = Math.abs(somaGanhosDiarios - twrAtual.ganhoEconomico) < 1.0;
 
+    // ── Verificação independente do MWR (XIRR) ──
+    // Reconstrói os MESMOS cashflows que o motor usa (−navInicial em t0,
+    // fluxos líquidos do investidor flow−income depois, +navFinal em tF) e
+    // resolve por BISSEÇÃO PURA — método independente do Newton-Raphson do
+    // motor. Se os dois baterem e o NPV residual for ~0, o MWR exibido é
+    // matematicamente correto. Também reporta o capital médio exposto, que
+    // torna o número intuitivo: XIRR ≈ ganho ÷ (capital médio × anos).
+    const MS_YEAR = 365.25 * 24 * 3600 * 1000;
+    const mwrVerificacao = (() => {
+      if (firstIdx < 0 || twrAtual.mwr == null) return null;
+      const t0 = new Date(twrAtual.primeiraData + "T12:00:00Z").getTime();
+      const tF = (new Date(twrAtual.ultimaData + "T12:00:00Z").getTime() - t0) / MS_YEAR;
+      if (tF <= 0) return null;
+
+      const cf: [number, number][] = [];
+      if (twrAtual.navInicial > 0) cf.push([0, -twrAtual.navInicial]);
+      for (let i = firstIdx + 1; i < pts.length; i++) {
+        const net = pts[i].flow - pts[i].income;
+        if (Math.abs(net) > 0.01) {
+          cf.push([(new Date(pts[i].date + "T12:00:00Z").getTime() - t0) / MS_YEAR, -net]);
+        }
+      }
+      cf.push([tF, twrAtual.navFinal]);
+
+      const npv = (r: number) => cf.reduce((s, [t, a]) => s + a / Math.pow(1 + r, t), 0);
+
+      let xirrIndependente: number | null = null;
+      let lo = -0.95, hi = 10;
+      if (npv(lo) * npv(hi) <= 0) {
+        for (let k = 0; k < 200; k++) {
+          const mid = (lo + hi) / 2;
+          if (npv(lo) * npv(mid) <= 0) hi = mid; else lo = mid;
+        }
+        xirrIndependente = (lo + hi) / 2;
+      }
+
+      // Capital médio exposto: Σ NAV_{i−1} × Δt (R$·ano) ÷ duração
+      let capitalAnos = 0;
+      for (let i = Math.max(firstIdx, 0) + 1; i < pts.length; i++) {
+        const dt = (new Date(pts[i].date + "T12:00:00Z").getTime() -
+                    new Date(pts[i - 1].date + "T12:00:00Z").getTime()) / MS_YEAR;
+        capitalAnos += pts[i - 1].nav * dt;
+      }
+      const capitalMedio = capitalAnos / tF;
+      const taxaSimplesAA = capitalAnos > 0 ? twrAtual.ganhoEconomico / capitalAnos : null;
+      const bate = xirrIndependente != null && Math.abs(xirrIndependente - twrAtual.mwr) < 0.005;
+
+      return {
+        xirrMotor: pct(twrAtual.mwr),
+        xirrIndependente: xirrIndependente != null ? pct(xirrIndependente) : "sem raiz no intervalo",
+        npvResidualNoXirrMotor: Math.round(npv(twrAtual.mwr)),
+        consistente: bate
+          ? "✅ Bisseção independente confirma o XIRR do motor (±0,5pp)"
+          : "⚠️ Métodos divergem — investigar cashflows",
+        capitalMedioExposto: Math.round(capitalMedio),
+        taxaSimplesAA: taxaSimplesAA != null ? pct(taxaSimplesAA) : null,
+        efeitoTimingAA: pct(twrAtual.mwr - twrAtual.twrAnualizado),
+        leitura: "MWR − TWR (a.a.) = efeito do timing dos aportes. Positivo = capital entrou antes dos períodos bons. O 'MWR acumulado' da página = (1+TIR)^anos — compara taxas a.a., não os acumulados.",
+      };
+    })();
+
     const contribDividendos = twrAtual.twrTotal - twrSemDiv.twrTotal;
     const impostoImpacto = twrSemImposto.twrTotal - twrAtual.twrTotal;
     const rfImpacto = twrAtual.twrTotal - twrSemRF.twrTotal;
@@ -158,6 +219,8 @@ export async function GET(request: Request) {
           ? "✅ GE = Σ ganhos diários (identidade contábil fecha)"
           : `⚠️ Divergência de R$ ${Math.round(somaGanhosDiarios - twrAtual.ganhoEconomico)} — investigar`,
       },
+
+      mwrVerificacao,
 
       retornosExtremos: extremos,
       diagnostics: twrAtual.diagnostics,

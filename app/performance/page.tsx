@@ -446,7 +446,7 @@ export default function PerformancePage() {
                 </p>
                 <p className="text-[10px] text-zinc-500 mt-1">CAGR {pct(s.twrAnualizado * 100)} a.a.</p>
               </div>
-              <div title="Money-Weighted Return: retorno ponderado pelo dinheiro investido — reflete o ganho real considerando timing e tamanho dos aportes">
+              <div title="Money-Weighted Return (XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed (mais capital nos períodos bons); MWR < TWR = o contrário. Compare a TIR a.a. com o CAGR do TWR — o acumulado projeta a TIR sobre o período inteiro. Verificação independente: /api/debug/auditoria → mwrVerificacao">
                 <p className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold mb-1">MWR Acumulado</p>
                 <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${mwrTotal >= 0 ? "text-purple-400" : "text-red-400"}`}>
                   {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
