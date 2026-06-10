@@ -48,6 +48,7 @@ interface Summary {
   var95: number;
   var99: number;
   ganhoEconomico: number;
+  ganhoConsistente?: number;
   ganhoDecomposicao?: {
     navFinal: number; navInicial: number; flowsFromFirst: number;
     firstMeaningfulFlow: number; incomeFromFirst: number;
@@ -433,9 +434,7 @@ export default function PerformancePage() {
         const pctBase = isAllTime ? custoFIFO + (isUnfiltered ? (s.patrimonio?.caixa ?? 0) : 0) : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
-          : isAllTime
-            ? (pctBase > 0 ? (ge / pctBase) * 100 : 0)
-            : twrPct;
+          : pctBase > 0 ? (ge / pctBase) * 100 : 0;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -461,7 +460,7 @@ export default function PerformancePage() {
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
                 <p className="text-[10px] text-zinc-500 mt-1">
-                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}%{isAllTime ? ` sobre ${compactCurr(pctBase)}` : " TWR"}
+                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}
                 </p>
               </div>
             </div>
@@ -739,7 +738,11 @@ export default function PerformancePage() {
                     const ge = isUnfiltered && ganhoCanonical != null
                       ? ganhoCanonical
                       : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
-                    return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
+                    const gc = s.ganhoConsistente ?? ge;
+                    return [
+                      { label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" },
+                      ...(Math.abs(ge - gc) > 500 ? [{ label: "Ganho consistente (s/ fZ)", value: `${gc >= 0 ? "+" : ""}${compactCurr(gc)}`, color: "#60a5fa" }] : []),
+                    ];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
