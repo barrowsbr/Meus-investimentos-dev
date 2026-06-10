@@ -13,6 +13,11 @@ export function getBackgroundImage(): string {
 export function setBackgroundImage(path: string) {
   localStorage.setItem(STORAGE_KEY, path);
   window.dispatchEvent(new Event("bg-change"));
+  fetch("/api/config/background", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  }).catch(() => {});
 }
 
 export default function AppBackground() {
@@ -20,6 +25,17 @@ export default function AppBackground() {
 
   useEffect(() => {
     setBg(getBackgroundImage());
+
+    fetch("/api/config/background")
+      .then(r => r.json())
+      .then(d => {
+        if (d.background && d.background !== getBackgroundImage()) {
+          localStorage.setItem(STORAGE_KEY, d.background);
+          setBg(d.background);
+        }
+      })
+      .catch(() => {});
+
     const handler = () => setBg(getBackgroundImage());
     window.addEventListener("bg-change", handler);
     window.addEventListener("storage", handler);
@@ -33,7 +49,7 @@ export default function AppBackground() {
     <div
       className="fixed inset-0 z-0 pointer-events-none"
       style={{
-        backgroundImage: `url('${bg}')`,
+        backgroundImage: bg ? `url('${bg}')` : "none",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
