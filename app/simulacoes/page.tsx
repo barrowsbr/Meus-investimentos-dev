@@ -522,9 +522,34 @@ export default function SimulacoesPage() {
   const currentAlloc = useMemo(() => buildAllocation(currentPositions, quoteCache), [currentPositions, quoteCache]);
 
   // ── FX map (shared between simAlloc and ticker card display) ──────────────
+  // Câmbio AO VIVO: busca taxas atuais no load e a cada 5 min — as operações
+  // simuladas são reavaliadas com o câmbio mais recente, não o do momento em
+  // que foram adicionadas.
+  const [fxLive, setFxLive] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchFx = () => {
+      fetch("https://open.er-api.com/v6/latest/USD")
+        .then(r => r.json())
+        .then(d => {
+          if (cancelled || !d?.rates?.BRL) return;
+          const brlPerUsd = d.rates.BRL as number;
+          const out: Record<string, number> = { BRL: 1, USD: brlPerUsd };
+          for (const [code, rate] of Object.entries(d.rates as Record<string, number>)) {
+            if (typeof rate === "number" && rate > 0) out[code] = brlPerUsd / rate;
+          }
+          setFxLive(out);
+        })
+        .catch(() => {});
+    };
+    fetchFx();
+    const t = setInterval(fetchFx, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
   const fxMap = useMemo(() => {
     const usd = data?.usdbrl ?? 5.7;
-    return {
+    const base = {
       BRL: 1, USD: usd, EUR: data?.eurbrl ?? 6.4, CAD: data?.cadbrl ?? 4.1,
       GBP: data?.fx?.GBPBRL ?? 7.6, JPY: usd / 155, CHF: usd * 1.12,
       HKD: usd / 7.8, AUD: usd * 0.65, KRW: usd / 1380, TWD: usd / 32,
@@ -532,7 +557,55 @@ export default function SimulacoesPage() {
       NOK: usd / 10.8, NZD: usd * 0.62, MXN: usd / 17.5, TRY: usd / 32,
       IDR: usd / 15700,
     } as Record<string, number>;
-  }, [data]);
+    return fxLive ? { ...base, ...fxLive } : base;
+  }, [data, fxLive]);
+
+  // ── Auto-refresh das cotações das operações ───────────────────────────────
+  // Preço acompanha a cotação mais atual (no load do cenário e a cada 60s),
+  // não fica congelado no momento em que a operação foi criada.
+  const opsRef = useRef(ops);
+  opsRef.current = ops;
+  const [quotesUpdatedAt, setQuotesUpdatedAt] = useState<Date | null>(null);
+
+  const refreshQuotes = useCallback(() => {
+    const current = opsRef.current;
+    const tickers = [...new Set(current.map(o => o.ticker.trim().toUpperCase()).filter(t => t.length >= 2))];
+    for (const t of tickers) {
+      const setor = getSetor(t);
+      if (isRendaFixa(setor) || CASH_TICKERS.has(t.split(/\s/)[0])) continue;
+      if (fetchingRef.current.has(t)) continue;
+      fetchingRef.current.add(t);
+      const moeda = current.find(o => o.ticker.trim().toUpperCase() === t)?.moeda ?? detectMoeda(t, setor);
+      fetch(`/api/market/ohlc?ticker=${encodeURIComponent(t)}&moeda=${moeda}&range=5d`)
+        .then(r => r.json())
+        .then(d => {
+          if (!(d.data?.length > 0)) return;
+          const last = d.data[d.data.length - 1];
+          const prevDay = d.data.length > 1 ? d.data[d.data.length - 2] : last;
+          const chg = prevDay.close > 0 ? ((last.close / prevDay.close) - 1) * 100 : 0;
+          const price = Math.round(last.close * 100) / 100;
+          setQuoteCache(prev => ({ ...prev, [t]: {
+            price, changePct: chg, loading: false, error: false,
+            sector: d.sector ?? prev[t]?.sector, industry: d.industry ?? prev[t]?.industry,
+            longName: d.longName ?? prev[t]?.longName,
+            resolvedSymbol: d.symbol ?? prev[t]?.resolvedSymbol,
+            currency: d.currency ?? prev[t]?.currency,
+          } }));
+          setOps(prev => prev.map(o => o.ticker.trim().toUpperCase() === t ? { ...o, preco: price } : o));
+          setQuotesUpdatedAt(new Date());
+        })
+        .catch(() => {})
+        .finally(() => fetchingRef.current.delete(t));
+    }
+  }, []);
+
+  const tickersKey = ops.map(o => o.ticker.trim().toUpperCase()).filter(t => t.length >= 2).sort().join(",");
+  useEffect(() => {
+    if (!tickersKey) return;
+    refreshQuotes();
+    const t = setInterval(refreshQuotes, 60_000);
+    return () => clearInterval(t);
+  }, [tickersKey, refreshQuotes]);
 
   // ── Build simulated allocation ─────────────────────────────────────────────
   const simAlloc = useMemo(() => {
@@ -654,7 +727,14 @@ export default function SimulacoesPage() {
           {/* Operations list */}
           <div className="glass-card p-4">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-zinc-400">Operações simuladas</span>
+              <span className="text-xs font-semibold text-zinc-400">
+                Operações simuladas
+                {quotesUpdatedAt && (
+                  <span className="ml-2 text-[9px] text-zinc-600 font-normal">
+                    · cotações/câmbio ao vivo · {quotesUpdatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </span>
               <button
                 onClick={addOp}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all"
@@ -850,23 +930,84 @@ export default function SimulacoesPage() {
 
         {/* ── Right: Allocation comparison ── */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Summary cards */}
-          {hasSim && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <SummaryCard label="Patrimônio Atual" value={compactBRL(currentAlloc.total)} />
-              <SummaryCard label="Patrimônio Simulado" value={compactBRL(simAlloc.total)} accent />
-              <SummaryCard
-                label="Variação"
-                value={`${simAlloc.total - currentAlloc.total >= 0 ? "+" : ""}${compactBRL(simAlloc.total - currentAlloc.total)}`}
-                trend={simAlloc.total >= currentAlloc.total ? "up" : "down"}
-              />
-              <SummaryCard
-                label="Δ %"
-                value={currentAlloc.total > 0 ? `${simAlloc.total >= currentAlloc.total ? "+" : ""}${pct((simAlloc.total - currentAlloc.total) / currentAlloc.total * 100, 1)}` : "—"}
-                trend={simAlloc.total >= currentAlloc.total ? "up" : "down"}
-              />
-            </div>
-          )}
+          {/* Summary cards — Investido (bruto) × Net (real) × Alavancagem */}
+          {hasSim && (() => {
+            const divida = data?.alavancagem?.dividaBRL ?? 0;
+            const brutoAtual = currentAlloc.total;
+            const brutoSim = simAlloc.total;
+            const netAtual = brutoAtual - divida;
+            const netSim = brutoSim - divida;
+            const alavAtual = brutoAtual > 0 ? (divida / brutoAtual) * 100 : 0;
+            const alavSim = brutoSim > 0 ? (divida / brutoSim) * 100 : 0;
+            const deltaBruto = brutoSim - brutoAtual;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <DualCard label="Investido (Bruto)" atual={compactBRL(brutoAtual)} sim={compactBRL(brutoSim)} color="#60a5fa" />
+                <DualCard label="Net (dinheiro real)" atual={compactBRL(netAtual)} sim={compactBRL(netSim)} color="#34d399"
+                  sub={divida > 0 ? `dívida margin −${compactBRL(divida)}` : "sem margem aberta"} />
+                <DualCard label="Alavancagem" atual={`${alavAtual.toFixed(1)}%`} sim={`${alavSim.toFixed(1)}%`} color="#fbbf24"
+                  sub={divida > 0 ? "dívida / bruto" : "—"} />
+                <SummaryCard
+                  label="Variação"
+                  value={`${deltaBruto >= 0 ? "+" : ""}${compactBRL(deltaBruto)} (${brutoAtual > 0 ? `${deltaBruto >= 0 ? "+" : ""}${pct(deltaBruto / brutoAtual * 100, 1)}` : "—"})`}
+                  trend={deltaBruto >= 0 ? "up" : "down"}
+                />
+              </div>
+            );
+          })()}
+
+          {/* Impacto por setor — o que o cenário muda na alocação setorial */}
+          {hasSim && (() => {
+            const keys = [...new Set([...Object.keys(currentAlloc.setorEconomico), ...Object.keys(simAlloc.setorEconomico)])];
+            const rows = keys
+              .map(k => {
+                const before = currentAlloc.total > 0 ? ((currentAlloc.setorEconomico[k] ?? 0) / currentAlloc.total) * 100 : 0;
+                const after = simAlloc.total > 0 ? ((simAlloc.setorEconomico[k] ?? 0) / simAlloc.total) * 100 : 0;
+                return { setor: k, before, after, delta: after - before };
+              })
+              .filter(r => Math.abs(r.delta) > 0.05)
+              .sort((a, b) => b.delta - a.delta);
+            if (rows.length === 0) return null;
+            const top3 = (se: Record<string, number>, total: number) =>
+              total > 0 ? Object.values(se).sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0) / total * 100 : 0;
+            const concBefore = top3(currentAlloc.setorEconomico, currentAlloc.total);
+            const concAfter = top3(simAlloc.setorEconomico, simAlloc.total);
+            const maxAbs = Math.max(...rows.map(r => Math.abs(r.delta)), 0.1);
+            return (
+              <div className="glass-card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xs font-semibold text-zinc-300">Impacto Setorial do Cenário</h2>
+                  <span className="text-[10px] text-zinc-600">
+                    Concentração top-3: <span className="text-zinc-400">{concBefore.toFixed(1)}%</span>
+                    <ArrowRight size={9} className="inline mx-1 text-zinc-700" />
+                    <span className={concAfter > concBefore + 0.1 ? "text-amber-400" : concAfter < concBefore - 0.1 ? "text-emerald-400" : "text-zinc-400"}>{concAfter.toFixed(1)}%</span>
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {rows.map(r => (
+                    <div key={r.setor} className="flex items-center gap-2 text-xs">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SETOR_ECONOMICO_COLORS[r.setor] ?? "#64748b" }} />
+                      <span className="text-zinc-400 w-36 truncate">{r.setor}</span>
+                      {/* barra divergente a partir do centro */}
+                      <div className="flex-1 h-3 relative">
+                        <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-700" />
+                        <div
+                          className="absolute inset-y-0.5 rounded-sm"
+                          style={r.delta >= 0
+                            ? { left: "50%", width: `${(r.delta / maxAbs) * 48}%`, background: "rgba(52,211,153,0.6)" }
+                            : { right: "50%", width: `${(-r.delta / maxAbs) * 48}%`, background: "rgba(248,113,113,0.6)" }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-zinc-500 font-mono w-24 text-right">{r.before.toFixed(1)}% → {r.after.toFixed(1)}%</span>
+                      <span className={`text-[10px] font-bold font-mono w-14 text-right ${r.delta > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {r.delta > 0 ? "+" : ""}{r.delta.toFixed(1)}pp
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Allocation grids */}
           {[
@@ -1400,6 +1541,22 @@ function EtfLookThrough({ alloc, positions }: {
 }
 
 // ── Small helper component ───────────────────────────────────────────────────
+
+function DualCard({ label, atual, sim, color, sub }: {
+  label: string; atual: string; sim: string; color: string; sub?: string;
+}) {
+  return (
+    <div className="glass-card p-3">
+      <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 text-center">{label}</div>
+      <div className="flex items-center justify-center gap-1.5">
+        <span className="text-xs font-semibold text-zinc-500">{atual}</span>
+        <ArrowRight size={10} className="text-zinc-700 shrink-0" />
+        <span className="text-sm font-bold" style={{ color }}>{sim}</span>
+      </div>
+      {sub && <div className="text-[9px] text-zinc-600 text-center mt-1">{sub}</div>}
+    </div>
+  );
+}
 
 function SummaryCard({ label, value, accent, trend }: {
   label: string; value: string; accent?: boolean; trend?: "up" | "down";
