@@ -197,6 +197,16 @@ export async function fetchHistoricalData(
   // Build date → ticker → price map
   const rawByDate = new Map<string, Map<string, number>>();
 
+  // Determine golden source date range for stability: past dates covered by
+  // db_cotacoes are authoritative and never overridden by Yahoo. Yahoo data
+  // only adds NEW dates (beyond golden coverage) or fills tickers absent from
+  // the golden source. This prevents past monthly returns from shifting when
+  // Yahoo returns slightly different prices between API calls.
+  const goldenDateSet = new Set(golden?.dates ?? []);
+  const lastGoldenDate = golden?.dates.length
+    ? golden.dates[golden.dates.length - 1]
+    : null;
+
   // 1) Golden source data (keyed by Yahoo ticker for compatibility)
   if (golden) {
     for (const yt of coveredByGolden) {
@@ -211,7 +221,10 @@ export async function fetchHistoricalData(
     }
   }
 
-  // 2) Yahoo data (for tickers not in golden source)
+  // 2) Yahoo data — only for tickers NOT in golden source, and ONLY for dates
+  //    beyond golden coverage (to avoid mixing sources on the same date).
+  //    For dates within golden range, Yahoo tickers get added to existing dates
+  //    so the date grid stays deterministic.
   for (const res of fetched) {
     if (res.status !== "fulfilled") continue;
     const { yt, rows } = res.value;
@@ -220,6 +233,9 @@ export async function fetchHistoricalData(
       continue;
     }
     for (const { date, price } of rows) {
+      if (lastGoldenDate && date <= lastGoldenDate && !goldenDateSet.has(date)) {
+        continue;
+      }
       if (!rawByDate.has(date)) rawByDate.set(date, new Map());
       rawByDate.get(date)!.set(yt, price);
     }
