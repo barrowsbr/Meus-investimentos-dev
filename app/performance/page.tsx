@@ -428,7 +428,9 @@ export default function PerformancePage() {
         const pctBase = isAllTime ? custoFIFO + (isUnfiltered ? (s.patrimonio?.caixa ?? 0) : 0) : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
-          : pctBase > 0 ? (ge / pctBase) * 100 : 0;
+          : isAllTime
+            ? (pctBase > 0 ? (ge / pctBase) * 100 : 0)
+            : twrPct;
 
         return (
           <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
@@ -453,7 +455,9 @@ export default function PerformancePage() {
                 <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">{retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}%{isAllTime ? ` sobre ${compactCurr(pctBase)}` : " TWR"}
+                </p>
               </div>
             </div>
 
