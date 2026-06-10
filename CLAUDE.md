@@ -202,7 +202,9 @@ Registro de entradas, saídas e gastos com cartão.
 - **Rentabilidade**: mostrar SEMPRE duas medidas separadas — **Valorização %**
   (só preço/câmbio, sem proventos) e **Retorno Total %** (valorização + proventos
   líquidos / investido). Nunca misturar uma só métrica que ora inclui, ora não.
-- `lib/fixed-income-engine.ts` é legado e não deve ser usado.
+- `lib/fixed-income-engine.ts` foi **removido** (era legado). O motor canônico de
+  RF manual é `lib/renda-fixa.ts` (`calcularRendaFixaPosicoes`), consumido pela
+  rota `/api/renda-fixa/posicoes` e pelo contexto do agente IA.
 
 ## Base de cotações (golden source — `db_cotacoes`)
 

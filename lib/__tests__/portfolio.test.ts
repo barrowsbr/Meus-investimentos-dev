@@ -254,3 +254,25 @@ describe("exposição cambial inclui caixa em dólar do fixa_aberta", () => {
     expect(soma).toBeCloseTo(snap.totalPatrimonioBRL, 6);
   });
 });
+
+// ── Corretagem na venda reduz o lucro realizado (simétrico à compra) ──────────
+describe("taxas de venda no FIFO", () => {
+  it("lucroRealizado = (preço − PM) × qtd − corretagem da venda", () => {
+    const rows = [
+      compra("PETR4", 100, 10, "BRL", "2024-01-02"),
+      {
+        "símbolo": "PETR4",
+        "tipo de transação": "Venda",
+        quantidade: 50,
+        "preço": 12,
+        "taxa de corretagem": 8,
+        moeda: "BRL",
+        data: "2024-06-03",
+      } as Record<string, unknown>,
+    ];
+    const carteira = calcularCarteiraFIFO(rows);
+    const pos = carteira.get("PETR4")!;
+    // (12 − 10) × 50 − 8 = 92 (sem o fix dava 100: taxa da venda sumia)
+    expect(pos.lucroRealizado).toBeCloseTo(92, 6);
+  });
+});

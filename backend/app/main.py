@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agent, cambio, composicao, financas, fluxos, historico, market, performance, portfolio, preditivo, proventos, sheets
+from app.routers import agent, financas, fluxos, historico, market, preditivo, sheets
 
 app = FastAPI(
     title="Meus Investimentos API",
@@ -27,13 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(portfolio.router)
-app.include_router(composicao.router)
-app.include_router(performance.router)
+# Quarentena (CLAUDE.md/CANONICO.md): os routers de portfólio/proventos/câmbio/
+# composição/performance NÃO são montados — TypeScript é o único motor de
+# portfólio. Python serve apenas preditivo/ML, agente IA, fluxos e histórico.
 app.include_router(sheets.router)
 app.include_router(market.router)
-app.include_router(proventos.router)
-app.include_router(cambio.router)
 app.include_router(financas.router)
 app.include_router(historico.router)
 app.include_router(agent.router)
