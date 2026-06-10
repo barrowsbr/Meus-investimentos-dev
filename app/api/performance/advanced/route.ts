@@ -294,26 +294,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sem dados históricos" }, { status: 422 });
     }
 
-    // For windowed views (YTD/lookback/custom), include 1 extra day BEFORE
-    // the window start so the TWR engine has prevNav > 0 on the first real day.
-    // Without this, day 1 triggers forceZero (prevNav=0) and any income on
-    // that day (e.g. R$11.5k of dividends paid Jan 2) is lost from TWR.
-    const isWindowed = lookback > 0 || fromParam || toParam;
-    const windowStart = (fromParam || toParam)
-      ? (fromParam || "0000")
+    const dates = (fromParam || toParam)
+      ? hist.dates.filter(d => d >= (fromParam || "0000") && d <= (toParam || today()))
       : lookback > 0
-        ? startDateFromLookback(lookback)
-        : "0000";
-    const windowEnd = toParam || today();
-    const allDatesInRange = hist.dates.filter(d => d <= windowEnd);
-    let dates: string[];
-    if (isWindowed) {
-      const firstInWindow = allDatesInRange.findIndex(d => d >= windowStart);
-      const startIdx = Math.max(0, firstInWindow - 1);
-      dates = allDatesInRange.slice(startIdx);
-    } else {
-      dates = allDatesInRange;
-    }
+        ? hist.dates.filter(d => d >= startDateFromLookback(lookback) && d <= today())
+        : hist.dates.filter(d => d <= today());
     if (dates.length === 0) return NextResponse.json({ error: "Janela sem dados" }, { status: 422 });
 
     // Pre-fill the FULL price matrix (ffill + bfill) BEFORE slicing to the
