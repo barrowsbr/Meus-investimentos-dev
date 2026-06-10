@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { brl, compactBRL, pct, currency } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -309,7 +310,7 @@ export default function RendaVariavelPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
+                    contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, _n: string, props: { payload?: { name: string; pct: number } }) => [
                       `${compactBRL(v)} (${(props.payload?.pct ?? 0).toFixed(1)}%)`,
                       props.payload?.name ?? "",
@@ -339,7 +340,7 @@ export default function RendaVariavelPage() {
                   tickFormatter={v => `${v.toFixed(0)}%`} />
                 <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
                 <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
+                  contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                   formatter={(v: number, _n: string, props: { payload?: { name: string; value: number; invested: number; count: number } }) => [
                     `${v >= 0 ? "+" : ""}${v.toFixed(1)}% · ${compactBRL(props.payload?.value ?? 0)} · ${props.payload?.count} ativos`,
                     props.payload?.name ?? "",

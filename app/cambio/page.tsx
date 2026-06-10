@@ -10,6 +10,7 @@ import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { getMoedaExposicao } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -401,7 +402,7 @@ export default function CambioPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f1f23" />
                   <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatDate(v).substring(0, 5)} />
                   <YAxis domain={["auto", "auto"]} tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`R$ ${v.toFixed(4)}`, "VET"]} labelFormatter={(l) => formatDate(l)} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`R$ ${v.toFixed(4)}`, "VET"]} labelFormatter={(l) => formatDate(l)} />
                   <ReferenceLine y={cambio.pmDolar} stroke="#d4a574" strokeDasharray="5 5" label={{ value: `PM ${cambio.pmDolar.toFixed(2)}`, fill: "#d4a574", fontSize: 10, position: "right" }} />
                   <Line type="monotone" dataKey="taxa" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#3b82f6" }} />
                 </LineChart>
@@ -462,6 +463,7 @@ export default function CambioPage() {
                         background: "#18181b", border: "1px solid #27272a",
                         borderRadius: 12, color: "#fafafa", fontSize: 12,
                       }}
+                        itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                         formatter={(v: number, name: string) => [
                           name === "impactBRL" ? brl(v) : `${v.toFixed(2)}%`,
                           name === "impactBRL" ? "Impacto BRL" : "Ganho vs Custo",
@@ -865,7 +867,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
               <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                 tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE}
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                 formatter={(v: number) => [compactBRL(v), "Impacto no valor atual"]}
                 labelFormatter={l => `Cenário: ${l}`} />
               <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
@@ -999,8 +1001,7 @@ function FxDecomposition({ positions }: {
           <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
             tickFormatter={v => compactBRL(v)} />
           <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
-          <Tooltip contentStyle={TOOLTIP_STYLE}
-            labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
+          <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
             formatter={(v: number, name: string) => [
               compactBRL(v),
               name === "ativo" ? "Ativo puro" : name === "fx" ? "FX principal" : "Cruzado",

@@ -16,6 +16,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import MetricCard from "@/components/MetricCard";
 import { brl, compactBRL, pct } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -226,7 +227,7 @@ function MonteCarloChart({ data }: { data: Record<string, unknown> }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#1c1c1e" />
           <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#52525b" }} label={{ value: "Dias", position: "bottom", fontSize: 10, fill: "#52525b" }} />
           <YAxis tick={{ fontSize: 10, fill: "#52525b" }} />
-          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           {Array.from({ length: pathCount }).map((_, j) => (
             <Line key={`s${j}`} type="monotone" dataKey={`s${j}`} stroke="#34d39918" strokeWidth={0.5} dot={false} isAnimationActive={false} legendType="none" />
           ))}
@@ -266,7 +267,7 @@ function ArimaChart({ data }: { data: Record<string, unknown> }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
           <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
           <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
-          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
           <Area type="monotone" dataKey="ci95u" stroke="none" fill="#60a5fa10" name="IC 95%" />
           <Area type="monotone" dataKey="ci95l" stroke="none" fill="transparent" name="" />
           <Area type="monotone" dataKey="ci80u" stroke="none" fill="#60a5fa18" name="IC 80%" />
@@ -307,7 +308,7 @@ function GarchChart({ data }: { data: Record<string, unknown> }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
           <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
           <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit="%" />
-          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => `${v.toFixed(2)}%`} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Line type="monotone" dataKey="conditional" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="Vol Condicional" />
           <Line type="monotone" dataKey="realized" stroke="#71717a" strokeWidth={1} dot={false} name="Vol Realizada (21d)" />
@@ -355,7 +356,7 @@ function VarChart({ data }: { data: Record<string, unknown> }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
             <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
             <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
-            <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+            <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             {variables.map((v, i) => (
               <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
@@ -371,7 +372,7 @@ function VarChart({ data }: { data: Record<string, unknown> }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} label={{ value: "Períodos", position: "bottom", fontSize: 10, fill: "#71717a" }} />
               <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit=" bps" />
-              <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               {variables.map((v, i) => (
                 <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
@@ -902,7 +903,7 @@ export default function PerformancePage() {
                   <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
                       name === "portfolio" ? "Portfólio" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
@@ -953,7 +954,7 @@ export default function PerformancePage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                     <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
                     <Area type="monotone" dataKey="nav" stroke="#d4a574" fill="url(#gradNav)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -1130,7 +1131,7 @@ export default function PerformancePage() {
                   interval={Math.floor(drawdownData.length / 8)} />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${v.toFixed(0)}%`} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
                 <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
                 <Area type="monotone" dataKey="drawdown" stroke="#f87171" fill="url(#ddGrad)" strokeWidth={1.5} />
               </AreaChart>

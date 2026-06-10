@@ -10,6 +10,7 @@ import {
   TrendingUp, TrendingDown, Building2, Briefcase, Layers, Eye,
 } from "lucide-react";
 import { brl, compactBRL, pct } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -313,7 +314,7 @@ export default function SetoresPage() {
                   content={<TreemapContent />}
                 >
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
+                    contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number) => compactBRL(v)}
                     labelFormatter={(l: string) => l}
                   />
@@ -478,7 +479,7 @@ export default function SetoresPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
+                      contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                       formatter={(v: number) => compactBRL(v)}
                     />
                   </PieChart>

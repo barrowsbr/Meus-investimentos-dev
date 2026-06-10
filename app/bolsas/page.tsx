@@ -18,6 +18,7 @@ import {
   ZoomIn, ZoomOut, Maximize2, Globe,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import ErrorAlert from "@/components/ErrorAlert";
 
 type RadarTab = "bolsas" | "moedas" | "crypto";
@@ -2684,8 +2685,7 @@ function DollarThermometer({ dxy, verdict, breadth }: {
                     </defs>
                     <YAxis domain={[chartMin, chartMax]} hide />
                     <RTooltip
-                      contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: "#a1a1aa" }}
+                      contentStyle={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                       formatter={(v: number) => [v.toFixed(2), "DXY"]}
                     />
                     <Area

@@ -10,6 +10,7 @@ import { Coins, Calendar, TrendingUp, Filter, X, Layers, Award, ArrowUpRight, Ar
 import { usePortfolio } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
 import { toNumber, brl, compactBRL, currency, formatDate, shortMonth } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -631,7 +632,7 @@ export default function ProventosPage() {
                 <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis yAxisId="left" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "brl" ? "BRL" : name === "ext" ? "Exterior (R$)" : "Acumulado"]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name === "brl" ? "BRL" : name === "ext" ? "Exterior (R$)" : "Acumulado"]} />
                 <Bar yAxisId="left" dataKey="brl" fill="url(#provBRL)" radius={[4, 4, 0, 0]} stackId="a" />
                 <Bar yAxisId="left" dataKey="ext" fill="url(#provExt)" radius={[4, 4, 0, 0]} stackId="a" />
                 <Line yAxisId="right" type="monotone" dataKey="cum" stroke="#34d399" strokeWidth={2} strokeDasharray="6 3" dot={false} strokeOpacity={0.5} />
@@ -672,7 +673,7 @@ export default function ProventosPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#18181b" vertical={false} />
                   <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name === "prev" ? yoyData.years[0] : yoyData.years[1]]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name === "prev" ? yoyData.years[0] : yoyData.years[1]]} />
                   <Bar dataKey="prev" fill="url(#yoyPrev)" radius={[3, 3, 0, 0]} maxBarSize={14} />
                   <Bar dataKey="curr" fill="url(#yoyCurr)" radius={[3, 3, 0, 0]} maxBarSize={14} />
                 </BarChart>
@@ -768,7 +769,7 @@ export default function ProventosPage() {
                       <Cell key={i} fill={PALETTE[i % PALETTE.length]} fillOpacity={0.85} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
                   <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "#a1a1aa", paddingTop: 4 }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -795,7 +796,7 @@ export default function ProventosPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#18181b" horizontal={false} />
                   <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
                   <YAxis type="category" dataKey="ticker" tick={{ fill: "#e2e8f0", fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} width={65} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [brl(v), "Total"]} />
                   <Bar dataKey="total" fill="url(#rankGrad)" radius={[0, 6, 6, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
@@ -841,7 +842,7 @@ export default function ProventosPage() {
                 node={<SankeyNodeRenderer />}
                 link={<SankeyLinkRenderer />}
               >
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value: number) => [brl(value), "Proventos"]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(value: number) => [brl(value), "Proventos"]} />
               </Sankey>
             </ResponsiveContainer>
           </div>
@@ -862,7 +863,7 @@ export default function ProventosPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#18181b" vertical={false} />
                 <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
                 <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "#71717a" }} />
                 {byOriginChart.origins.map((origin, i) => (
                   <Bar key={origin} dataKey={origin} stackId="origin" fill={ORIGIN_COLORS[origin] || PALETTE[i % PALETTE.length]} radius={i === 0 ? [3, 3, 0, 0] : undefined} />

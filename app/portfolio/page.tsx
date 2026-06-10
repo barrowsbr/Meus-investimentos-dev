@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight, DollarSign
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { usePortfolio } from "@/lib/hooks";
 import { brl, compactBRL, pct, currency } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { isRendaVariavel, isRendaFixa } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
@@ -160,7 +161,7 @@ export default function PortfolioPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
+                    contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${compactBRL(v)} (${data.rvPatrimonioBRL > 0 ? ((v / data.rvPatrimonioBRL) * 100).toFixed(1) : 0}%)`,
                       name,
@@ -196,7 +197,7 @@ export default function PortfolioPage() {
                   tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, "dataMax + 2"]} />
                 <YAxis type="category" dataKey="ticker" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={56} />
                 <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
+                  contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                   formatter={(v: number, _name: string, props: { payload?: { value: number; lucro: number } }) => [
                     `${v.toFixed(1)}% — ${compactBRL(props.payload?.value ?? 0)}`,
                     "Peso",

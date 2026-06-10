@@ -12,6 +12,7 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
 import PageHeader from "@/components/PageHeader";
@@ -244,7 +245,7 @@ function DonutChart({ data, colors, title }: {
               <Pie data={chartData} cx="50%" cy="50%" innerRadius={32} outerRadius={55} dataKey="value" stroke="none" paddingAngle={1}>
                 {chartData.map(e => <Cell key={e.name} fill={colors[e.name] ?? "#64748b"} />)}
               </Pie>
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => compactBRL(v)} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => compactBRL(v)} />
             </PieChart>
           </ResponsiveContainer>
         </div>

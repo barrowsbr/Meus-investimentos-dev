@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -307,7 +308,7 @@ export default function AlavancagemPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
                   <XAxis type="number" tickFormatter={(v: number) => compactBRL(Math.abs(v))} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => compactBRL(Math.abs(v))} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => compactBRL(Math.abs(v))} />
                   <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                     {[
                       { fill: "#3b82f6" },
@@ -343,7 +344,7 @@ export default function AlavancagemPage() {
                           <Cell key={i} fill={Object.values(TIPO_COLORS)[i % 3]} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => compactBRL(v)} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => compactBRL(v)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

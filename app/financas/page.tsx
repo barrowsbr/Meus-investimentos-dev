@@ -12,6 +12,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { brl } from "@/lib/format";
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -958,6 +959,8 @@ function ParcelamentosTab({
                   color: "#e2e8f0",
                   fontSize: "12px",
                 }}
+                itemStyle={TOOLTIP_ITEM_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
                 cursor={{ fill: "rgba(255,255,255,0.03)" }}
               />
               <Legend
