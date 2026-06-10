@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import AuthGate from "@/components/AuthGate";
 import AppBackground from "@/components/AppBackground";
+import CotacoesRefresh from "@/components/CotacoesRefresh";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -74,6 +75,7 @@ export default function RootLayout({
         </div>
 
         <AppBackground />
+        <CotacoesRefresh />
         <AuthGate>
           <Sidebar />
           <main className="relative z-10 md:ml-56 min-h-screen px-4 pt-[max(0.9rem,calc(0.9rem+env(safe-area-inset-top)))] pb-20 md:px-8 md:pt-8 md:pb-8">
