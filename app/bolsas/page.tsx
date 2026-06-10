@@ -8,6 +8,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
+  Landmark, Globe2,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -1477,6 +1478,24 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
       .catch(() => {});
   }, [index.symbol]);
 
+  interface CountryIndicator { id: string; label: string; format: string; value: number; year: number }
+  const [countryTeSlug, setCountryTeSlug] = useState<string | null>(null);
+  const [countryIndicators, setCountryIndicators] = useState<CountryIndicator[]>([]);
+  const [countryLoading, setCountryLoading] = useState(false);
+
+  useEffect(() => {
+    if (isCustom || !index.country) { setCountryTeSlug(null); setCountryIndicators([]); return; }
+    setCountryLoading(true);
+    fetch(`/api/bolsas/country?country=${encodeURIComponent(index.country)}`)
+      .then(r => r.json())
+      .then(d => {
+        setCountryTeSlug(d.teSlug ?? null);
+        setCountryIndicators(d.indicators ?? []);
+      })
+      .catch(() => { setCountryTeSlug(null); setCountryIndicators([]); })
+      .finally(() => setCountryLoading(false));
+  }, [index.country, isCustom]);
+
   return (
     <div
       className="rounded-2xl p-5 md:p-7 transition-all duration-300 relative overflow-hidden"
@@ -1520,16 +1539,29 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
           )}
         </h2>
 
-        {/* Yahoo Finance link */}
-        <a
-          href={`https://finance.yahoo.com/quote/${encodeURIComponent(index.symbol)}/`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25"
-        >
-          <ExternalLink size={11} />
-          Yahoo Finance
-        </a>
+        {/* External links */}
+        <div className="flex items-center gap-2">
+          <a
+            href={`https://finance.yahoo.com/quote/${encodeURIComponent(index.symbol)}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25"
+          >
+            <ExternalLink size={11} />
+            Yahoo Finance
+          </a>
+          {countryTeSlug && (
+            <a
+              href={`https://tradingeconomics.com/${countryTeSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25"
+            >
+              <Globe2 size={11} />
+              Trading Economics
+            </a>
+          )}
+        </div>
 
         {/* Search box */}
         <form onSubmit={handleSearchSubmit} className="ml-auto flex items-center gap-1">
@@ -1759,6 +1791,54 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
           height={expanded ? 600 : 400}
         />
       </div>
+
+      {/* Country Economic Indicators */}
+      {!isCustom && countryIndicators.length > 0 && (
+        <div className="mt-5 rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
+            <span className="text-[10px] text-zinc-500 flex items-center gap-1.5 uppercase font-semibold tracking-wider">
+              <Landmark size={11} />
+              {index.flag} Indicadores Econômicos — {index.country}
+            </span>
+            {countryTeSlug && (
+              <a
+                href={`https://tradingeconomics.com/${countryTeSlug}/indicators`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[9px] text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"
+              >
+                Mais no Trading Economics <ExternalLink size={9} />
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/[0.02]">
+            {countryIndicators.map(ind => (
+              <div key={ind.id} className="px-3 py-3" style={{ background: "rgba(5,7,14,0.8)" }}>
+                <p className="text-[8px] text-zinc-500 uppercase font-semibold mb-1">{ind.label}</p>
+                <p className="text-sm font-bold text-zinc-100 font-mono">
+                  {ind.format === "usd"
+                    ? ind.value >= 1e12 ? `$${(ind.value / 1e12).toFixed(2)}T`
+                      : ind.value >= 1e9 ? `$${(ind.value / 1e9).toFixed(1)}B`
+                      : `$${(ind.value / 1e6).toFixed(0)}M`
+                    : ind.format === "pct"
+                    ? `${ind.value.toFixed(1)}%`
+                    : ind.format === "num"
+                    ? ind.value >= 1e9 ? `${(ind.value / 1e9).toFixed(1)}B`
+                      : ind.value >= 1e6 ? `${(ind.value / 1e6).toFixed(1)}M`
+                      : ind.value.toLocaleString("pt-BR")
+                    : ind.value.toFixed(2)}
+                </p>
+                {ind.year && <p className="text-[8px] text-zinc-600 mt-0.5">{ind.year}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!isCustom && countryLoading && (
+        <div className="mt-5 flex items-center gap-2 text-[11px] text-zinc-500 animate-pulse px-2">
+          <Landmark size={12} /> Carregando indicadores econômicos...
+        </div>
+      )}
 
       {/* Sector Treemap — only for indices, not custom stocks */}
       {!isCustom && <SectorTreemap symbol={index.symbol} indexName={index.name} />}
