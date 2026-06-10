@@ -71,6 +71,44 @@ describe("dia-âncora (day 0)", () => {
 
 // ── MWR: proventos são fluxo do investidor ───────────────────────────────────
 describe("MWR (XIRR)", () => {
+  it("XIRR bate com a taxa anual exata num caso fechado (sem fluxos)", () => {
+    // 1 compra, preço cresce geometricamente +21% em ~2 anos ⇒ TIR ≈ 10% a.a.
+    const dates = businessDays("2023-01-02", "2025-01-02");
+    const transacoes = [compra("AAAA3", 100, 10, "2023-01-02")];
+    const n = dates.length;
+    const prices: PriceMatrix = {
+      AAAA3: dates.map((_, i) => 10 * Math.pow(1.21, i / (n - 1))),
+    };
+    const twr = calcularTWR({ transacoes, dates, prices, fxHistory: fxHist(dates) });
+
+    // Sem fluxos: TWR acumulado = crescimento do preço…
+    expect(twr.twrTotal).toBeCloseTo(0.21, 2);
+    // …e o XIRR = mesma taxa anualizada (TWR e MWR convergem sem aportes).
+    expect(twr.mwr).not.toBeNull();
+    expect(twr.mwr!).toBeGreaterThan(0.09);
+    expect(twr.mwr!).toBeLessThan(0.11);
+  });
+
+  it("MWR > TWR quando os aportes chegam antes do período bom (efeito timing)", () => {
+    // Fase 1 (capital pequeno): preço flat. Aporte grande. Fase 2: +20%.
+    const dates = businessDays("2024-01-01", "2024-12-31");
+    const meio = dates[Math.floor(dates.length / 2)];
+    const transacoes = [
+      compra("AAAA3", 10, 10, dates[0]),     // capital pequeno na fase flat
+      compra("AAAA3", 1000, 10, meio),       // capital grande antes da alta
+    ];
+    const n = dates.length;
+    const half = Math.floor(n / 2);
+    const prices: PriceMatrix = {
+      AAAA3: dates.map((_, i) => (i <= half ? 10 : 10 * (1 + 0.2 * (i - half) / (n - 1 - half)))),
+    };
+    const twr = calcularTWR({ transacoes, dates, prices, fxHistory: fxHist(dates) });
+
+    // TWR ≈ +20% (neutro a aportes). MWR anualizado deve superar o TWR
+    // anualizado: quase todo o capital só existiu na metade boa do ano.
+    expect(twr.twrTotal).toBeCloseTo(0.20, 1);
+    expect(twr.mwr!).toBeGreaterThan(twr.twrAnualizado);
+  });
   it("inclui dividendos recebidos como inflow do investidor", () => {
     const dates = businessDays("2025-01-06", "2025-03-31");
     const transacoes = [compra("AAAA3", 100, 10, "2025-01-06")];
