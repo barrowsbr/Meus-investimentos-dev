@@ -156,6 +156,21 @@ describe("custoPosicoesAtuais", () => {
   });
 });
 
+// ── Taxas de transação: retorno líquido de custos (GIPS) ─────────────────────
+describe("taxas de transação nos flows", () => {
+  it("corretagem da compra é drag no retorno e no ganho econômico", () => {
+    const dates = businessDays("2025-06-02", "2025-06-10");
+    // Compra no 2º dia com taxa de 10: investidor paga 1010, NAV ganha 1000.
+    const transacoes = [compra("AAAA3", 100, 10, "2025-06-03", "BRL", 10)];
+    const prices = flatPrices(dates, { AAAA3: 10 });
+    const twr = calcularTWR({ transacoes, dates, prices, fxHistory: fxHist(dates) });
+
+    // Preço flat: o único retorno é a perda da taxa: −10/1010.
+    expect(twr.twrTotal).toBeCloseTo(-10 / 1010, 4);
+    expect(twr.ganhoEconomico).toBeCloseTo(-10, 1);
+  });
+});
+
 // ── Diagnostics ──────────────────────────────────────────────────────────────
 describe("diagnostics", () => {
   it("forceZeroDays não conta dias pré-capital (antes da primeira compra)", () => {

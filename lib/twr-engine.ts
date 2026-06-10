@@ -673,11 +673,16 @@ export function calcularTWR(input: TwrInput): TwrResult {
       const price = (marketPrice != null && marketPrice > 0) ? marketPrice : tx.preco;
       const txFx = fxFactor(tx.moeda, fx);
       const value = tx.quantidade * price * txFx;
+      const taxasBrl = tx.taxas * txFx;
+      // Taxas (corretagem) entram no flow: na compra o investidor desembolsa
+      // value + taxas mas o NAV só ganha value; na venda recebe value − taxas
+      // mas o NAV perde value. Em ambos os casos o retorno do dia cai pela
+      // taxa — retorno líquido de custos de transação (GIPS).
       if (tx.tipo === "Compra") {
-        flow += value;
+        flow += value + taxasBrl;
         totalInvestido += (tx.preco * tx.quantidade + tx.taxas) * txFx;
       } else {
-        flow -= value;
+        flow -= value - taxasBrl;
       }
     }
     // ── Income: dividends/JCP received (incremental, synced with custody) ──

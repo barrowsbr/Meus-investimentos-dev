@@ -195,7 +195,9 @@ export function calcularCarteiraFIFO(
         if (lote.qty < 0.000001) pos.lotes.shift();
       }
 
-      pos.lucroRealizado += lucroOp;
+      // Corretagem da venda reduz o lucro realizado — simétrico à compra,
+      // onde a taxa entra no custo do lote (linha do custoTotal acima).
+      pos.lucroRealizado += lucroOp - taxas;
       pos.custoVendido += custoOp;
     }
   }
