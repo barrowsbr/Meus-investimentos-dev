@@ -676,6 +676,7 @@ export async function GET(request: Request) {
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
         ganhoEconomico: twr.ganhoEconomico,
+        ganhoDecomposicao: twr.ganhoDecomposicao,
         resultadoTotal: snapshot.retornoTotalRVBRL,
         resultadoTotalPct: snapshot.retornoTotalRVPct,
         custoFIFOSnapshot: snapshot.positions

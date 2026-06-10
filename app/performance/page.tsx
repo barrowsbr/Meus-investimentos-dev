@@ -48,6 +48,11 @@ interface Summary {
   var95: number;
   var99: number;
   ganhoEconomico: number;
+  ganhoDecomposicao?: {
+    navFinal: number; navInicial: number; flowsFromFirst: number;
+    firstMeaningfulFlow: number; incomeFromFirst: number;
+    forceZeroDays: number; forceZeroFlowSum: number; forceZeroNavDelta: number;
+  };
   resultadoTotal?: number;
   resultadoTotalPct?: number;
   custoFIFOSnapshot?: number;

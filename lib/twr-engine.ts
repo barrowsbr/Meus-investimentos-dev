@@ -856,6 +856,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
     totalInvestido,
     custoPosicoesAtuais,
     ganhoEconomico,
+    ganhoDecomposicao: {
+      navFinal: Math.round(last.nav),
+      navInicial: Math.round(firstMeaningful.nav),
+      flowsFromFirst: Math.round(flowsFromFirst),
+      firstMeaningfulFlow: Math.round(firstMeaningfulFlow),
+      incomeFromFirst: Math.round(incomeFromFirst),
+      forceZeroDays: points.filter(p => p.forceZero).length,
+      forceZeroFlowSum: Math.round(points.filter(p => p.forceZero).reduce((s, p) => s + p.flow, 0)),
+      forceZeroNavDelta: Math.round(
+        points.filter(p => p.forceZero).reduce((s, p, _, arr) => {
+          const idx = points.indexOf(p);
+          const prev = idx > 0 ? points[idx - 1].nav : 0;
+          return s + (p.nav - prev - p.flow);
+        }, 0)
+      ),
+    },
     mwr,
     diagnostics: {
       forceZeroDays,
