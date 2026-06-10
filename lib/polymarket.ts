@@ -261,7 +261,7 @@ function correlate(events: PolyEvent[], tickers: string[]): PolyEvent[] {
   return matched.slice(0, 15);
 }
 
-// ── Portfolio impact mapping (shared with Kalshi/Metaculus) ─────────────────
+// ── Portfolio impact mapping ────────────────────────────────────────────────
 
 const IMPACT_KW: Record<string, string[]> = {
   "fed ": ["VOO", "SPY", "QQQ", "IVVB11"],
@@ -288,7 +288,7 @@ export function findPortfolioImpact(title: string): string[] {
   return [...hits];
 }
 
-// ── Unified prediction event type (for multi-source pages) ─────────────────
+// ── Unified prediction event type ──────────────────────────────────────────
 
 export interface UnifiedPrediction {
   id: string;

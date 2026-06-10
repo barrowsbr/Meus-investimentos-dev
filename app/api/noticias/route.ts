@@ -15,7 +15,7 @@ export interface NewsItem {
   impacto: "alto" | "medio" | "baixo";
 }
 
-// ─── Impact scoring keywords ─────────────────────────────────────────────────
+// ─── Impact scoring ──────────────────────────────────────────────────────────
 
 const HIGH_IMPACT: string[] = [
   "selic", "copom", "fomc", "fed ", "rate cut", "rate hike",
@@ -41,7 +41,6 @@ const MEDIUM_IMPACT: string[] = [
   "lucro", "profit", "receita", "revenue",
   "dividendo", "dividend", "recompra", "buyback",
   "regulação", "regulation",
-  "oferta", "demanda", "supply", "demand",
 ];
 
 function scoreImpact(titulo: string): "alto" | "medio" | "baixo" {
@@ -144,21 +143,21 @@ interface FeedDef {
 function buildFeeds(tickers: string[]): FeedDef[] {
   const feeds: FeedDef[] = [];
 
-  // ── General market (PT) ──
+  // General market
   feeds.push(
     { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), ticker: "Mercado", categoria: "mercado", max: 8 },
     { url: newsUrl("ações dividendos investimentos brasil"), ticker: "Investimentos", categoria: "mercado", max: 5 },
     { url: newsUrl("S&P 500 Nasdaq Dow Jones stock market"), ticker: "Wall Street", categoria: "mercado", max: 5 },
   );
 
-  // ── Economy ──
+  // Economy
   feeds.push(
     { url: newsUrl("economia brasil banco central selic"), ticker: "Economia", categoria: "economia", max: 5 },
     { url: newsUrl("dólar câmbio moeda taxa real"), ticker: "Câmbio", categoria: "economia", max: 4 },
     { url: newsUrl("renda fixa tesouro direto CDB debêntures"), ticker: "Renda Fixa", categoria: "economia", max: 3 },
   );
 
-  // ── Macro calendar ──
+  // Macro calendar
   feeds.push(
     { url: newsUrl("COPOM selic decisão taxa juros reunião"), ticker: "COPOM", categoria: "macro", max: 5 },
     { url: newsUrl("FOMC federal reserve interest rate decision meeting", "en"), ticker: "FOMC", categoria: "macro", max: 5 },
@@ -168,7 +167,7 @@ function buildFeeds(tickers: string[]): FeedDef[] {
     { url: newsUrl("PIB produto interno bruto crescimento economia"), ticker: "PIB", categoria: "macro", max: 3 },
   );
 
-  // ── Sectors ──
+  // Sectors
   feeds.push(
     { url: newsUrl("petróleo energia petrobras eletrobras"), ticker: "Energia", categoria: "setor", max: 4 },
     { url: newsUrl("bancos itaú bradesco banco brasil financeiro"), ticker: "Financeiro", categoria: "setor", max: 4 },
@@ -178,7 +177,7 @@ function buildFeeds(tickers: string[]): FeedDef[] {
     { url: newsUrl("saúde hapvida rede d'or farmacêutica SUS"), ticker: "Saúde", categoria: "setor", max: 3 },
   );
 
-  // ── Portfolio tickers — ALL of them ──
+  // Portfolio tickers — ALL of them
   for (const t of tickers) {
     const clean = t.replace(".SA", "");
     const isIntl = !t.endsWith(".SA") && !t.match(/^\d/);
@@ -199,8 +198,6 @@ function buildFeeds(tickers: string[]): FeedDef[] {
 
 async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
   const feeds = buildFeeds(tickers);
-
-  // Batch in groups of 12 to avoid overwhelming Google News
   const BATCH = 12;
   const all: NewsItem[] = [];
 
@@ -217,13 +214,12 @@ async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
     }
   }
 
-  // Deduplicate by link prefix + title similarity
+  // Deduplicate by link + title
   const seen = new Set<string>();
   const deduped: NewsItem[] = [];
   for (const item of all) {
     const linkKey = item.link.slice(0, 80);
     const titleKey = item.titulo.toLowerCase().slice(0, 60);
-    const key = `${linkKey}|${titleKey}`;
     if (!seen.has(linkKey) && !seen.has(titleKey)) {
       seen.add(linkKey);
       seen.add(titleKey);
