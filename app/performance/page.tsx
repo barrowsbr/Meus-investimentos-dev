@@ -753,6 +753,8 @@ export default function PerformancePage() {
                     { label: "Dias forceZero", value: String(s.ganhoDecomposicao.forceZeroDays) },
                     { label: "Fluxo em dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroFlowSum) },
                     { label: "NAV delta dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroNavDelta), color: "#f59e0b" },
+                    { label: "TWR-implied gain", value: compactCurr(s.navInicial * s.twrTotal), color: "#60a5fa" },
+                    { label: "Divergência (GE − TWR)", value: compactCurr(s.ganhoEconomico - s.navInicial * s.twrTotal), color: Math.abs(s.ganhoEconomico - s.navInicial * s.twrTotal) > 1000 ? "#f87171" : "#71717a" },
                   ] : []),
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-1.5 last:border-0 last:pb-0">
