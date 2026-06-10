@@ -48,6 +48,12 @@ interface Summary {
   var95: number;
   var99: number;
   ganhoEconomico: number;
+  ganhoConsistente?: number;
+  ganhoDecomposicao?: {
+    navFinal: number; navInicial: number; flowsFromFirst: number;
+    firstMeaningfulFlow: number; incomeFromFirst: number;
+    forceZeroDays: number; forceZeroFlowSum: number; forceZeroNavDelta: number;
+  };
   resultadoTotal?: number;
   resultadoTotalPct?: number;
   custoFIFOSnapshot?: number;
@@ -453,7 +459,9 @@ export default function PerformancePage() {
                 <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">{retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}
+                </p>
               </div>
             </div>
 
@@ -730,10 +738,27 @@ export default function PerformancePage() {
                     const ge = isUnfiltered && ganhoCanonical != null
                       ? ganhoCanonical
                       : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
-                    return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
+                    const gc = s.ganhoConsistente ?? ge;
+                    return [
+                      { label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" },
+                      ...(Math.abs(ge - gc) > 500 ? [{ label: "Ganho consistente (s/ fZ)", value: `${gc >= 0 ? "+" : ""}${compactCurr(gc)}`, color: "#60a5fa" }] : []),
+                    ];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
+                  ...(s.ganhoDecomposicao ? [
+                    { label: "── Decomposição ──", value: "", color: "#71717a" },
+                    { label: "NAV final (engine)", value: compactCurr(s.ganhoDecomposicao.navFinal) },
+                    { label: "NAV inicial (engine)", value: compactCurr(s.ganhoDecomposicao.navInicial) },
+                    { label: "Fluxos no período", value: compactCurr(s.ganhoDecomposicao.flowsFromFirst) },
+                    { label: "Fluxo 1o dia (excluído)", value: compactCurr(s.ganhoDecomposicao.firstMeaningfulFlow) },
+                    { label: "Proventos no período", value: compactCurr(s.ganhoDecomposicao.incomeFromFirst) },
+                    { label: "Dias forceZero", value: String(s.ganhoDecomposicao.forceZeroDays) },
+                    { label: "Fluxo em dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroFlowSum) },
+                    { label: "NAV delta dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroNavDelta), color: "#f59e0b" },
+                    { label: "TWR-implied gain", value: compactCurr(s.navInicial * s.twrTotal), color: "#60a5fa" },
+                    { label: "Divergência (GE − TWR)", value: compactCurr(s.ganhoEconomico - s.navInicial * s.twrTotal), color: Math.abs(s.ganhoEconomico - s.navInicial * s.twrTotal) > 1000 ? "#f87171" : "#71717a" },
+                  ] : []),
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-1.5 last:border-0 last:pb-0">
                     <span className="text-zinc-400">{row.label}</span>

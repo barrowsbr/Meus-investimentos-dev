@@ -424,6 +424,12 @@ export interface TwrResult {
   totalInvestido: number;
   custoPosicoesAtuais: number;
   ganhoEconomico: number;
+  ganhoConsistente: number;
+  ganhoDecomposicao: {
+    navFinal: number; navInicial: number; flowsFromFirst: number;
+    firstMeaningfulFlow: number; incomeFromFirst: number;
+    forceZeroDays: number; forceZeroFlowSum: number; forceZeroNavDelta: number;
+  };
   mwr: number | null;
   diagnostics: {
     forceZeroDays: number;
@@ -527,7 +533,9 @@ export function calcularTWR(input: TwrInput): TwrResult {
     navInicial: 0, navFinal: 0, duracaoAnos: 0,
     primeiraData: "", ultimaData: "", totalInvestido: 0,
     custoPosicoesAtuais: 0,
-    ganhoEconomico: 0, mwr: null,
+    ganhoEconomico: 0, ganhoConsistente: 0,
+    ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0, forceZeroFlowSum: 0, forceZeroNavDelta: 0 },
+    mwr: null,
     diagnostics: { forceZeroDays: 0, cappedDays: 0, incomeTotal: 0, tickersAtCost: [] },
   };
 
@@ -626,6 +634,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
   let prevNav = 0;
   let cumTwr = 1.0;
   let totalInvestido = 0;
+  let ganhoConsistente = 0;
   const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
@@ -764,6 +773,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       if (base > 0) {
         ret = economicGain / base;
       }
+      ganhoConsistente += economicGain;
     }
 
     ret = Math.max(-MAX_DAILY_RETURN, Math.min(MAX_DAILY_RETURN, ret));
@@ -780,15 +790,17 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const last = points[points.length - 1];
   const firstIdx = points.indexOf(firstMeaningful);
 
-  // Recompute cumTwr starting from firstMeaningful (avoid pre-capital noise)
+  // Recompute cumTwr and ganhoConsistente starting from firstMeaningful
   let cleanCum = 1.0;
+  ganhoConsistente = 0;
   for (let i = firstIdx; i < points.length; i++) {
     if (!points[i].forceZero) {
       cleanCum *= (1 + points[i].ret);
+      const pNav = i > 0 ? points[i - 1].nav : 0;
+      ganhoConsistente += (points[i].nav + points[i].income) - pNav - points[i].flow;
     }
     points[i].twr = cleanCum - 1;
   }
-  // Zero out TWR for pre-capital days
   for (let i = 0; i < firstIdx; i++) {
     points[i].twr = 0;
   }
@@ -856,6 +868,23 @@ export function calcularTWR(input: TwrInput): TwrResult {
     totalInvestido,
     custoPosicoesAtuais,
     ganhoEconomico,
+    ganhoConsistente,
+    ganhoDecomposicao: {
+      navFinal: Math.round(last.nav),
+      navInicial: Math.round(firstMeaningful.nav),
+      flowsFromFirst: Math.round(flowsFromFirst),
+      firstMeaningfulFlow: Math.round(firstMeaningfulFlow),
+      incomeFromFirst: Math.round(incomeFromFirst),
+      forceZeroDays: points.filter(p => p.forceZero).length,
+      forceZeroFlowSum: Math.round(points.filter(p => p.forceZero).reduce((s, p) => s + p.flow, 0)),
+      forceZeroNavDelta: Math.round(
+        points.filter(p => p.forceZero).reduce((s, p, _, arr) => {
+          const idx = points.indexOf(p);
+          const prev = idx > 0 ? points[idx - 1].nav : 0;
+          return s + (p.nav - prev - p.flow);
+        }, 0)
+      ),
+    },
     mwr,
     diagnostics: {
       forceZeroDays,
