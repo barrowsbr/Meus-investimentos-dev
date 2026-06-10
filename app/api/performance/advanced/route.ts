@@ -192,8 +192,11 @@ function calcularAttributionBySector(
 
 // ── Volatility and risk metrics ───────────────────────────────────────────────
 
-function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
-  if (dailyReturns.length < 2) return { volatility: 0, sharpe: 0, sortino: 0, var95: 0, var99: 0 };
+const RISK_FREE_BRL = 0.10;
+const RISK_FREE_USD = 0.05;
+
+function calcularMetricasRisco(dailyReturns: number[], riskFreeAnnual = RISK_FREE_BRL, annualize = 252) {
+  if (dailyReturns.length < 2) return { volatility: 0, sharpe: 0, sortino: 0, var95: 0, var99: 0, riskFreeRate: riskFreeAnnual };
 
   const n = dailyReturns.length;
   const mean = dailyReturns.reduce((s, r) => s + r, 0) / n;
@@ -201,23 +204,20 @@ function calcularMetricasRisco(dailyReturns: number[], annualize = 252) {
   const stdDev = Math.sqrt(variance);
   const volatility = stdDev * Math.sqrt(annualize);
 
-  // Sharpe: annualized return vs risk-free (10% a.a. — matching Streamlit)
-  const RISK_FREE_ANNUAL = 0.10;
   const annualReturn = Math.pow(1 + mean, annualize) - 1;
-  const sharpe = volatility > 0 ? (annualReturn - RISK_FREE_ANNUAL) / volatility : 0;
+  const sharpe = volatility > 0 ? (annualReturn - riskFreeAnnual) / volatility : 0;
 
-  // Sortino: downside = returns below zero (matching Streamlit)
   const downside = dailyReturns.filter(r => r < 0);
   const downsideStd = downside.length > 0
     ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) * Math.sqrt(annualize)
     : 0;
-  const sortino = downsideStd > 0 ? (annualReturn - RISK_FREE_ANNUAL) / downsideStd : 0;
+  const sortino = downsideStd > 0 ? (annualReturn - riskFreeAnnual) / downsideStd : 0;
 
   const sorted = [...dailyReturns].sort((a, b) => a - b);
   const var95 = sorted[Math.floor(n * 0.05)] ?? 0;
   const var99 = sorted[Math.floor(n * 0.01)] ?? 0;
 
-  return { volatility, sharpe, sortino, var95: var95 * 100, var99: var99 * 100 };
+  return { volatility, sharpe, sortino, var95: var95 * 100, var99: var99 * 100, riskFreeRate: riskFreeAnnual };
 }
 
 // ── Flow ledger ───────────────────────────────────────────────────────────────
@@ -580,7 +580,7 @@ export async function GET(request: Request) {
 
       // USD risk metrics (skip first point's zero-return)
       const usdDailyReturns = usdTwrPoints.slice(1).filter(p => isFinite(p.ret)).map(p => p.ret);
-      const usdRisk = calcularMetricasRisco(usdDailyReturns);
+      const usdRisk = calcularMetricasRisco(usdDailyReturns, RISK_FREE_USD);
 
       // USD drawdown
       let peak = 0;
@@ -658,6 +658,7 @@ export async function GET(request: Request) {
           sortino: usdRisk.sortino,
           var95: usdRisk.var95,
           var99: usdRisk.var99,
+          riskFreeRate: usdRisk.riskFreeRate,
           // Same accounting identity as the BRL engine: anchor day (firstIdx
           // === 0, windowed view) measures from end of day 0 and excludes
           // anchor-day flows/income; otherwise day 0 is the first purchase
@@ -699,6 +700,7 @@ export async function GET(request: Request) {
         sortino: riskMetrics.sortino,
         var95: riskMetrics.var95,
         var99: riskMetrics.var99,
+        riskFreeRate: riskMetrics.riskFreeRate,
         ganhoEconomico: twr.ganhoEconomico,
         ganhoDecomposicao: twr.ganhoDecomposicao,
         resultadoTotal: snapshot.retornoTotalRVBRL,
