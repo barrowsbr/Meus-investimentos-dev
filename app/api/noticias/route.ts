@@ -11,7 +11,44 @@ export interface NewsItem {
   data: string;
   fonte: string;
   ticker: string;
-  categoria: "mercado" | "portfolio" | "economia";
+  categoria: "mercado" | "portfolio" | "economia" | "macro" | "setor";
+  impacto: "alto" | "medio" | "baixo";
+}
+
+// ─── Impact scoring keywords ─────────────────────────────────────────────────
+
+const HIGH_IMPACT: string[] = [
+  "selic", "copom", "fomc", "fed ", "rate cut", "rate hike",
+  "corte de juros", "alta de juros", "decisão de juros",
+  "inflação", "ipca", "cpi ", "pce ",
+  "pib", "gdp", "recessão", "recession",
+  "resultados", "earnings", "lucro líquido", "net income",
+  "dividendos extraordinários", "special dividend",
+  "ipo", "falência", "bankruptcy", "recuperação judicial",
+  "fusão", "merger", "aquisição", "acquisition", "takeover",
+  "default", "moratória", "rebaixamento", "downgrade soberano",
+  "guerra", "war ", "sanções", "sanctions",
+  "payroll", "emprego", "unemployment",
+  "breaking", "urgente", "alerta",
+];
+
+const MEDIUM_IMPACT: string[] = [
+  "balanço", "projeção", "guidance", "analista", "analyst",
+  "preço-alvo", "price target", "upgrade", "downgrade", "rating",
+  "volatilidade", "volatility", "sell-off", "rally",
+  "câmbio", "dólar", "petróleo", "crude oil",
+  "desemprego", "treasury", "bond yield",
+  "lucro", "profit", "receita", "revenue",
+  "dividendo", "dividend", "recompra", "buyback",
+  "regulação", "regulation",
+  "oferta", "demanda", "supply", "demand",
+];
+
+function scoreImpact(titulo: string): "alto" | "medio" | "baixo" {
+  const t = titulo.toLowerCase();
+  if (HIGH_IMPACT.some(kw => t.includes(kw))) return "alto";
+  if (MEDIUM_IMPACT.some(kw => t.includes(kw))) return "medio";
+  return "baixo";
 }
 
 // ─── RSS helpers ──────────────────────────────────────────────────────────────
@@ -79,7 +116,6 @@ function parseRSS(
   for (const m of matches.slice(0, maxItems)) {
     const block = m[1];
     const titulo = decodeHtml(extractTag(block, "title"));
-    // Google News link is sometimes in <link> (plain text) or <link href="...">
     let link = extractTag(block, "link");
     if (!link) {
       const hm = block.match(/<link\s+href="([^"]+)"/i);
@@ -90,84 +126,116 @@ function parseRSS(
     const data = extractTag(block, "pubDate");
     const fonte = extractSourceName(block) || "Google News";
 
-    items.push({ titulo, link, data, fonte, ticker, categoria });
+    items.push({ titulo, link, data, fonte, ticker, categoria, impacto: scoreImpact(titulo) });
   }
 
   return items;
 }
 
-// ─── Fetch all feeds concurrently ─────────────────────────────────────────────
+// ─── Feed definitions ─────────────────────────────────────────────────────────
 
-async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
-  const feeds: Array<{ url: string; ticker: string; categoria: NewsItem["categoria"]; max: number }> = [
-    // General market — Portuguese
-    {
-      url: newsUrl("bolsa brasil ibovespa mercado financeiro"),
-      ticker: "Mercado",
-      categoria: "mercado",
-      max: 8,
-    },
-    {
-      url: newsUrl("ações dividendos investimentos"),
-      ticker: "Investimentos",
-      categoria: "mercado",
-      max: 6,
-    },
-    // Economy
-    {
-      url: newsUrl("economia brasil banco central selic"),
-      ticker: "Economia",
-      categoria: "economia",
-      max: 6,
-    },
-    {
-      url: newsUrl("dólar câmbio moeda taxa"),
-      ticker: "Câmbio",
-      categoria: "economia",
-      max: 4,
-    },
-  ];
+interface FeedDef {
+  url: string;
+  ticker: string;
+  categoria: NewsItem["categoria"];
+  max: number;
+}
 
-  // Add top portfolio tickers (max 6)
-  const topTickers = tickers.slice(0, 6);
-  for (const t of topTickers) {
-    const query = t.endsWith(".SA") ? `${t} ações bolsa` : `${t} stock market`;
-    const lang = t.endsWith(".SA") || !t.includes(".") ? "pt" : "en";
+function buildFeeds(tickers: string[]): FeedDef[] {
+  const feeds: FeedDef[] = [];
+
+  // ── General market (PT) ──
+  feeds.push(
+    { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), ticker: "Mercado", categoria: "mercado", max: 8 },
+    { url: newsUrl("ações dividendos investimentos brasil"), ticker: "Investimentos", categoria: "mercado", max: 5 },
+    { url: newsUrl("S&P 500 Nasdaq Dow Jones stock market"), ticker: "Wall Street", categoria: "mercado", max: 5 },
+  );
+
+  // ── Economy ──
+  feeds.push(
+    { url: newsUrl("economia brasil banco central selic"), ticker: "Economia", categoria: "economia", max: 5 },
+    { url: newsUrl("dólar câmbio moeda taxa real"), ticker: "Câmbio", categoria: "economia", max: 4 },
+    { url: newsUrl("renda fixa tesouro direto CDB debêntures"), ticker: "Renda Fixa", categoria: "economia", max: 3 },
+  );
+
+  // ── Macro calendar ──
+  feeds.push(
+    { url: newsUrl("COPOM selic decisão taxa juros reunião"), ticker: "COPOM", categoria: "macro", max: 5 },
+    { url: newsUrl("FOMC federal reserve interest rate decision meeting", "en"), ticker: "FOMC", categoria: "macro", max: 5 },
+    { url: newsUrl("inflação IPCA índice preços consumidor"), ticker: "IPCA", categoria: "macro", max: 4 },
+    { url: newsUrl("payroll employment jobs report labor market", "en"), ticker: "Payroll", categoria: "macro", max: 3 },
+    { url: newsUrl("CPI inflation consumer prices report", "en"), ticker: "CPI", categoria: "macro", max: 3 },
+    { url: newsUrl("PIB produto interno bruto crescimento economia"), ticker: "PIB", categoria: "macro", max: 3 },
+  );
+
+  // ── Sectors ──
+  feeds.push(
+    { url: newsUrl("petróleo energia petrobras eletrobras"), ticker: "Energia", categoria: "setor", max: 4 },
+    { url: newsUrl("bancos itaú bradesco banco brasil financeiro"), ticker: "Financeiro", categoria: "setor", max: 4 },
+    { url: newsUrl("varejo consumo mercado livre magazine luiza"), ticker: "Varejo", categoria: "setor", max: 3 },
+    { url: newsUrl("mineração vale minério ferro siderurgia"), ticker: "Mineração", categoria: "setor", max: 3 },
+    { url: newsUrl("nvidia apple microsoft google big tech AI", "en"), ticker: "Tech", categoria: "setor", max: 4 },
+    { url: newsUrl("saúde hapvida rede d'or farmacêutica SUS"), ticker: "Saúde", categoria: "setor", max: 3 },
+  );
+
+  // ── Portfolio tickers — ALL of them ──
+  for (const t of tickers) {
+    const clean = t.replace(".SA", "");
+    const isIntl = !t.endsWith(".SA") && !t.match(/^\d/);
+    const query = isIntl ? `${clean} stock market news` : `${clean} ações bolsa`;
+    const lang = isIntl ? "en" : "pt";
     feeds.push({
       url: newsUrl(query, lang as "pt" | "en"),
-      ticker: t.replace(".SA", ""),
+      ticker: clean,
       categoria: "portfolio",
-      max: 4,
+      max: 3,
     });
   }
 
-  const results = await Promise.allSettled(
-    feeds.map(async f => {
-      const xml = await fetchFeed(f.url);
-      return parseRSS(xml, f.ticker, f.categoria, f.max);
-    })
-  );
+  return feeds;
+}
 
+// ─── Fetch all feeds concurrently ─────────────────────────────────────────────
+
+async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
+  const feeds = buildFeeds(tickers);
+
+  // Batch in groups of 12 to avoid overwhelming Google News
+  const BATCH = 12;
   const all: NewsItem[] = [];
-  for (const r of results) {
-    if (r.status === "fulfilled") {
-      all.push(...r.value);
+
+  for (let i = 0; i < feeds.length; i += BATCH) {
+    const batch = feeds.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async f => {
+        const xml = await fetchFeed(f.url);
+        return parseRSS(xml, f.ticker, f.categoria, f.max);
+      })
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") all.push(...r.value);
     }
   }
 
-  // Deduplicate by link
+  // Deduplicate by link prefix + title similarity
   const seen = new Set<string>();
   const deduped: NewsItem[] = [];
   for (const item of all) {
-    const key = item.link.slice(0, 80);
-    if (!seen.has(key)) {
-      seen.add(key);
+    const linkKey = item.link.slice(0, 80);
+    const titleKey = item.titulo.toLowerCase().slice(0, 60);
+    const key = `${linkKey}|${titleKey}`;
+    if (!seen.has(linkKey) && !seen.has(titleKey)) {
+      seen.add(linkKey);
+      seen.add(titleKey);
       deduped.push(item);
     }
   }
 
-  // Sort by date descending
+  // Sort: high impact first, then by date
+  const impactOrder = { alto: 0, medio: 1, baixo: 2 };
   deduped.sort((a, b) => {
+    const ia = impactOrder[a.impacto] - impactOrder[b.impacto];
+    if (ia !== 0) return ia;
     const da = a.data ? new Date(a.data).getTime() : 0;
     const db = b.data ? new Date(b.data).getTime() : 0;
     return db - da;

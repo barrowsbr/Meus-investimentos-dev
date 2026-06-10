@@ -261,6 +261,64 @@ function correlate(events: PolyEvent[], tickers: string[]): PolyEvent[] {
   return matched.slice(0, 15);
 }
 
+// ── Portfolio impact mapping (shared with Kalshi/Metaculus) ─────────────────
+
+const IMPACT_KW: Record<string, string[]> = {
+  "fed ": ["VOO", "SPY", "QQQ", "IVVB11"],
+  "interest rate": ["ITUB4", "BBDC4", "BBAS3", "B3SA3"],
+  "inflation": ["BOVA11", "IVVB11", "VOO"],
+  "recession": ["BOVA11", "VOO", "SPY"],
+  "oil": ["PETR4"], "crude": ["PETR4"],
+  "s&p": ["VOO", "SPY", "IVVB11"],
+  "nasdaq": ["QQQ"],
+  "bitcoin": ["BTC"], "ethereum": ["ETH"],
+  "nvidia": ["NVDA"], "apple": ["AAPL"], "tesla": ["TSLA"],
+  "microsoft": ["MSFT"], "google": ["GOOGL"], "amazon": ["AMZN"],
+  "china": ["VALE3"], "iron ore": ["VALE3"],
+  "tariff": ["VALE3", "SUZB3", "JBSS3", "PETR4"],
+  "brazil": ["BOVA11", "IVVB11"],
+};
+
+export function findPortfolioImpact(title: string): string[] {
+  const text = title.toLowerCase();
+  const hits = new Set<string>();
+  for (const [kw, tickers] of Object.entries(IMPACT_KW)) {
+    if (text.includes(kw)) tickers.forEach(t => hits.add(t));
+  }
+  return [...hits];
+}
+
+// ── Unified prediction event type (for multi-source pages) ─────────────────
+
+export interface UnifiedPrediction {
+  id: string;
+  source: "polymarket" | "kalshi" | "metaculus";
+  title: string;
+  url: string;
+  category: string;
+  odds: { outcome: string; percent: number }[];
+  volume?: number;
+  forecasters?: number;
+  end_date: string;
+  days_left: number | null;
+  portfolio_impact: string[];
+}
+
+export function polyToUnified(ev: PolyEvent): UnifiedPrediction {
+  return {
+    id: ev.id,
+    source: "polymarket",
+    title: ev.title,
+    url: ev.url,
+    category: "",
+    odds: ev.odds.map(o => ({ outcome: o.outcome, percent: o.percent })),
+    volume: ev.volume,
+    end_date: ev.end_date,
+    days_left: ev.days_left,
+    portfolio_impact: findPortfolioImpact(ev.title),
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function fetchPolymarket(portfolioTickers: string[] = []): Promise<PolyResponse> {
@@ -281,3 +339,5 @@ export async function fetchPolymarket(portfolioTickers: string[] = []): Promise<
     total_parsed: events.length,
   };
 }
+
+export { fetchEvents, classify, correlate };
