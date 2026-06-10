@@ -743,6 +743,17 @@ export default function PerformancePage() {
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
+                  ...(s.ganhoDecomposicao ? [
+                    { label: "── Decomposição ──", value: "", color: "#71717a" },
+                    { label: "NAV final (engine)", value: compactCurr(s.ganhoDecomposicao.navFinal) },
+                    { label: "NAV inicial (engine)", value: compactCurr(s.ganhoDecomposicao.navInicial) },
+                    { label: "Fluxos no período", value: compactCurr(s.ganhoDecomposicao.flowsFromFirst) },
+                    { label: "Fluxo 1o dia (excluído)", value: compactCurr(s.ganhoDecomposicao.firstMeaningfulFlow) },
+                    { label: "Proventos no período", value: compactCurr(s.ganhoDecomposicao.incomeFromFirst) },
+                    { label: "Dias forceZero", value: String(s.ganhoDecomposicao.forceZeroDays) },
+                    { label: "Fluxo em dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroFlowSum) },
+                    { label: "NAV delta dias fZ", value: compactCurr(s.ganhoDecomposicao.forceZeroNavDelta), color: "#f59e0b" },
+                  ] : []),
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-1.5 last:border-0 last:pb-0">
                     <span className="text-zinc-400">{row.label}</span>
