@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { fetchTab, getServiceAccountAuth } from "@/lib/gsheets";
+import { fetchTab, getServiceAccountAuth, ensureTab } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
-const API_KEY = process.env.GOOGLE_API_KEY!;
 const CONFIG_TAB = "config";
 const KEY = "fundo";
 const DEFAULT_BG = "/midias/home-bg.jpeg";
@@ -16,10 +15,14 @@ export async function GET() {
     const row = rows.find(
       (r) => String(r.chave ?? "").toLowerCase() === KEY
     );
-    const value = row ? String(row.valor ?? DEFAULT_BG) : DEFAULT_BG;
-    return NextResponse.json({ background: value || DEFAULT_BG });
+    // `saved` distingue valor persistido de fallback: o cliente só sobrescreve
+    // a escolha local quando o servidor TEM um valor salvo de verdade.
+    if (row && String(row.valor ?? "").trim()) {
+      return NextResponse.json({ background: String(row.valor), saved: true });
+    }
+    return NextResponse.json({ background: DEFAULT_BG, saved: false });
   } catch {
-    return NextResponse.json({ background: DEFAULT_BG });
+    return NextResponse.json({ background: DEFAULT_BG, saved: false });
   }
 }
 
@@ -37,6 +40,10 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // A aba config não existia na planilha — o append falhava silenciosamente
+    // e o fundo "resetava" a cada visita. Cria se faltar.
+    await ensureTab(CONFIG_TAB, ["chave", "valor"]);
 
     const sheets = google.sheets({ version: "v4", auth });
 

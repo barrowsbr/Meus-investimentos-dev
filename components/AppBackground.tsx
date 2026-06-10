@@ -29,9 +29,19 @@ export default function AppBackground() {
     fetch("/api/config/background")
       .then(r => r.json())
       .then(d => {
-        if (d.background && d.background !== getBackgroundImage()) {
+        const local = localStorage.getItem(STORAGE_KEY);
+        if (d.saved && d.background && d.background !== local) {
+          // servidor tem escolha persistida → vale para todos os dispositivos
           localStorage.setItem(STORAGE_KEY, d.background);
           setBg(d.background);
+        } else if (!d.saved && local) {
+          // servidor sem valor salvo mas há escolha local → re-persiste
+          // (auto-cura de quando o save falhava por falta da aba config)
+          fetch("/api/config/background", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: local }),
+          }).catch(() => {});
         }
       })
       .catch(() => {});
