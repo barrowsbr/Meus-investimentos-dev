@@ -589,32 +589,52 @@ price = df_prices.at[data, ticker] or last_known_price.get(ticker, preco_transac
 
 ---
 
-## 16. Motor TWR Multi-Moeda
+## 16. Motor TWR — GIPS-Compliant Modified Dietz
 
-**Arquivo:** `core/engine.py` → `reconstruct_history_multicurrency()`
+**Arquivo canônico:** `lib/twr-engine.ts` → `calcularTWR()`
 
-**Assinatura:**
-```python
-def reconstruct_history_multicurrency(
-    df_bruto: pd.DataFrame,                    # Transações RV — load_assets()
-    df_proventos: pd.DataFrame,                # Dividendos — load_proventos()
-    days_lookback: int,                        # Janela visual (~1825 = 5 anos)
-    df_prices_external: pd.DataFrame = None,  # Preços históricos (otimização)
-    df_rf_raw: pd.DataFrame = None,           # Transações RF — load_fixed_income()
-    df_cambio: pd.DataFrame = None,           # Remessas — load_cambio()
-    manual_rf_values: dict = None             # {Ticker: valor_atual} da fixa_aberta
-) -> MultiCurrencyResult
+> **Python legado** (`core/engine.py`) está em quarentena e NÃO é usado em produção.
+> O motor TS abaixo é a **única implementação** de TWR/MWR do projeto.
+
+**Método:** Modified Dietz com convenção **Start-of-Day (SoD) sempre**.
+
+```typescript
+// Para cada dia:
+const base = prevNav + flow;          // SoD: fluxo entra no início do dia
+const forceZero = base <= 0;          // único caso: base indefinida (sem capital)
+const ret = forceZero ? 0 : ((nav + income) - base) / base;
+cumTwr *= (1 + ret);                  // chain-link diário → TWR acumulado
 ```
 
-**Pipeline interno (ordem de execução):**
-1. Agrupa ativos por moeda — excluindo tickers RF de `currency_groups`
-2. Monta custódia diária (quantidade × tempo) via FIFO com mapeamento de fins de semana
-3. Busca preços históricos (Yahoo Finance) para todos os tickers RV
-4. Para cada bucket de moeda: calcula NAV e fluxos usando preço de **mercado**
-5. Integra RF via `FixedIncomeEngine` — apenas no bucket BRL
-6. Retorna `MultiCurrencyResult` com buckets separados por moeda
+**Princípios:**
+- **SoD sempre** — não há threshold condicional. Todo fluxo (aporte/resgate) é
+  reconhecido no início do dia. Isso é o padrão GIPS para TWR diário quando
+  o timing intraday exato é desconhecido.
+- **Sem caps** — não há limite de retorno diário (±50%, ±100%). O retorno é o que
+  o mercado entregou naquele dia.
+- **Sem heurísticas de anomalia** — sem detecção de "fluxo oculto", sem
+  `MAX_UNEXPLAINED_CHANGE`. Se o NAV variou, a variação é real.
+- **forceZero apenas quando base ≤ 0** — o retorno é matematicamente indefinido
+  quando não há capital. Nenhum outro caso força zero.
+- **NAV healing** — se preço vira 0/NaN mas prevNav era válido, forward-fill
+  `nav = max(0, prevNav + flow)` para não perder a série.
 
-**Tickers especiais:**
+**Métricas produzidas:**
+| Métrica | Fórmula |
+|---------|---------|
+| TWR (%) | `Π(1 + ret_d) - 1` — chain-link dos retornos diários |
+| TWR anualizado | `(1 + TWR)^(252/dias_úteis) - 1` |
+| MWR/XIRR | Newton-Raphson sobre fluxos reais (cashflows + NAV final) |
+| Ganho Econômico | `navFinal - navInicial - flowsFromFirst + firstMeaningfulFlow + incomeFromFirst` |
+
+**Janela temporal (windowed views):**
+- Para YTD/1M/6M, o motor inclui **1 dia antes** do início da janela (pre-window day)
+  para que `prevNav > 0` no primeiro dia real — eliminando forceZero estrutural.
+- Transações e income **antes da janela** são pulados (`txIdx`/`incIdx` avançados).
+  Eles estabelecem a posição de abertura via custódia, mas não contam como fluxos
+  nem income dentro da janela.
+
+**Tickers especiais (preservado do engine original):**
 ```python
 # BTC-USD: comprado em BRL mas cotado em USD
 DIRECT_BRL_TICKERS = ['BTC-USD', 'BTC']
@@ -707,44 +727,33 @@ if first_valid > global_first_valid:
 
 ---
 
-## 19. Flow Timing (SoD vs EoD)
+## 19. Flow Timing — SoD Sempre (GIPS)
 
-**Arquivo:** `core/engine.py`
+**Arquivo canônico:** `lib/twr-engine.ts`
 
-Define quando, dentro do dia, o aporte/resgate é reconhecido para o cálculo de retorno.
+O motor TS usa **SoD (Start-of-Day) para todos os fluxos**, sem threshold condicional.
 
-| Timing | Significado | Efeito no retorno do dia |
-|--------|-------------|--------------------------|
-| EoD (End-of-Day) | Fluxo entra no fim | NÃO participa do retorno desse dia |
-| SoD (Start-of-Day) | Fluxo entra no início | PARTICIPA do retorno desse dia |
-
-**Classificação automática:**
-```python
-# Aporte > 1% do NAV anterior → SoD
-# Motivo: aporte grande sobre capital pequeno inflaria o retorno ficticiamente
-if flow_day > 0 and nav_prev > 0:
-    if flow_day / nav_prev > 0.01:   # threshold: 1%
-        flow_timing = 'SoD'
-    else:
-        flow_timing = 'EoD'
+```typescript
+// base = prevNav + flow (SoD: fluxo entra no início do dia)
+// ret  = ((nav + income) - base) / base
 ```
 
-**FIX v9.0 — Correção de divergência fluxo vs NAV:**
-```python
-# Se variação real do NAV diverge do fluxo registrado em > 10% → corrige
-variacao_nav = nav_curr - nav_prev
-if abs(variacao_nav - flow_day) > abs(flow_day) * 0.10:
-    flow_day = variacao_nav   # fluxo = variação real
-```
+| Timing | Usado quando | Motor |
+|--------|-------------|-------|
+| SoD (Start-of-Day) | **Sempre** | `lib/twr-engine.ts` (produção) |
+| SoD/EoD condicional | Legado — NÃO usar | `core/engine.py` (quarentena) |
 
-**FIX v12.1 — Detecção de fluxo oculto:**
-```python
-# Variação > 20% do NAV esperado com fluxo < 5% → trata como fluxo não registrado
-nav_expected = nav_prev + flow_day
-variation = (nav_curr - nav_expected) / nav_expected
-if abs(variation) > 0.20 and abs(flow_day) < nav_prev * 0.05:
-    flow_day += nav_curr - nav_expected   # absorve variação inexplicada
-```
+**Por que SoD sempre?**
+- GIPS recomenda SoD para TWR diário quando o timing intraday é desconhecido.
+- Elimina o threshold `FLOW_INFLOW_THRESHOLD` (1%) que criava descontinuidades:
+  um aporte de 0.99% do NAV era tratado diferente de 1.01%, gerando artefatos.
+- O efeito prático é mínimo em frequência diária (diferença SoD vs EoD < 0.01%/dia).
+
+**Heurísticas removidas (v9.0, v12.1):**
+- Correção de divergência fluxo/NAV — não é necessária quando a custódia diária
+  é computada deterministicamente a partir das transações.
+- Detecção de fluxo oculto (`MAX_UNEXPLAINED_CHANGE`) — variações de NAV sem fluxo
+  são retorno real do mercado, não anomalias a corrigir.
 
 ---
 
@@ -922,17 +931,25 @@ patrimonio_total = patrimonio_rv + patrimonio_rf_engine + caixa_spot
 
 ## 24. Constantes Críticas do Sistema
 
-| Constante | Valor | Arquivo | Uso |
-|-----------|-------|---------|-----|
-| `SELIC_PROXY_ANNUAL` | `0.15` (15% a.a.) | `fixed_income_engine.py` | RF aberta sem taxa real |
-| `BUSINESS_DAYS_YEAR` | `252` | `fixed_income_engine.py` | Conversão dias corridos → úteis |
-| `FLOW_INFLOW_THRESHOLD` | `0.01` (1% do NAV) | `engine.py` | Trigger de SoD timing |
-| `MAX_UNEXPLAINED_CHANGE` | `0.20` (20%) | `engine.py` | Detecção de fluxo oculto |
-| `FLOW_PERCENT_THRESHOLD` | `0.005` (0.5%) | `engine.py` | Mínimo para registrar fluxo RF |
-| `FLOW_MIN_ABSOLUTE` | `R$ 10,00` | `engine.py` | Valor absoluto mínimo de fluxo RF |
-| `SELIC_DAILY_RATE` | `0.15 / 252` | `engine.py` | Projeção RF dentro do engine |
-| `CURRENCY_FALLBACK` | `{BRL:1, USD:5.50, EUR:6.00}` | `config.py` | Quando Yahoo Finance falha |
-| `DIRECT_BRL_TICKERS` | `['BTC-USD', 'BTC']` | `engine.py` | Cripto comprado em BRL mas cotado em USD |
+### Motor TS (produção — `lib/twr-engine.ts`)
+
+| Constante | Valor | Uso |
+|-----------|-------|-----|
+| `BUSINESS_DAYS_PER_YEAR` | `252` | Anualização TWR (ANBIMA) |
+
+O motor TS não usa thresholds de fluxo nem caps de retorno. A única condição
+de `forceZero` é `base ≤ 0` (sem constante — é a definição matemática).
+
+### Python legado (quarentena — `core/engine.py`)
+
+| Constante | Valor | Uso |
+|-----------|-------|-----|
+| `SELIC_PROXY_ANNUAL` | `0.15` (15% a.a.) | RF aberta sem taxa real |
+| `BUSINESS_DAYS_YEAR` | `252` | Conversão dias corridos → úteis |
+| `FLOW_INFLOW_THRESHOLD` | `0.01` (1% do NAV) | ~~Trigger de SoD timing~~ (removido no motor TS) |
+| `MAX_UNEXPLAINED_CHANGE` | `0.20` (20%) | ~~Detecção de fluxo oculto~~ (removido no motor TS) |
+| `CURRENCY_FALLBACK` | `{BRL:1, USD:5.50, EUR:6.00}` | Quando Yahoo Finance falha |
+| `DIRECT_BRL_TICKERS` | `['BTC-USD', 'BTC']` | Cripto comprado em BRL mas cotado em USD |
 
 ---
 
