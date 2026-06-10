@@ -11,8 +11,8 @@ import {
   LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
   Settings, Newspaper, Bot, ListOrdered, ChevronDown,
-  TrendingDown, Globe, Radio, ChevronRight,
-  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Egg, Zap,
+  TrendingDown, Radio, ChevronRight,
+  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Egg, Zap, PieChart,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -104,6 +104,7 @@ const NAV_GROUPS: NavGroup[] = [
     accentColor: "#3b82f6",
     items: [
       { href: "/performance",  label: "Performance", icon: TrendingUp },
+      { href: "/setores",      label: "Setores",     icon: PieChart },
       { href: "/evolucao",     label: "Evolução",    icon: Activity },
       { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
       { href: "/simulacoes",   label: "Simulações",  icon: Target },
@@ -127,14 +128,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "mais",
     label: "Mais",
-    desc: "Notícias, Polymarket, Agente IA e configurações",
+    desc: "Radar, Inteligência, Agente IA e configurações",
     icon: Newspaper,
     accentColor: "#06b6d4",
     items: [
-      { href: "/noticias",       label: "Notícias",       icon: Newspaper },
-      { href: "/polymarket",     label: "Polymarket",     icon: BarChart2 },
-      { href: "/moedas",         label: "Moedas",         icon: Globe },
-      { href: "/bolsas",         label: "Bolsas",         icon: BarChart3 },
+      { href: "/bolsas",         label: "Radar",          icon: BarChart3 },
+      { href: "/noticias",       label: "Inteligência",   icon: Newspaper },
+      { href: "/polymarket",     label: "Preditivos",     icon: BarChart2 },
       { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
       { href: "/easter-eggs",    label: "Easter Eggs",    icon: Egg },
       { href: "/configuracoes",  label: "Configurações",  icon: Settings },
@@ -643,8 +643,8 @@ function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: 
             </div>
           ))}
         </div>
-        <Link href="/moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
-          <Globe size={11} style={{ color: "#d4a574" }} />
+        <Link href="/bolsas?tab=moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
+          <ArrowLeftRight size={11} style={{ color: "#d4a574" }} />
           <span className="text-[0.6rem] font-semibold" style={{ color: "#d4a574" }}>Ver todas as moedas</span>
         </Link>
       </div>
