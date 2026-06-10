@@ -4,11 +4,12 @@ import { useState, useEffect, useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, BarChart, Bar, Cell, ReferenceLine,
-  LineChart, Line,
+  LineChart, Line, ComposedChart,
 } from "recharts";
 import {
-  TrendingUp, TrendingDown, BarChart2, Activity, Scale,
-  Calendar, Target, AlertTriangle, DollarSign, Zap, RefreshCw,
+  TrendingUp, BarChart2, Activity,
+  Calendar, AlertTriangle, DollarSign, RefreshCw,
+  Play, Loader2,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -142,13 +143,6 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
 };
 
-const SECTOR_COLORS: Record<string, string> = {
-  "Ações Brasil": "#3b82f6", "Ações Internacional": "#8b5cf6",
-  "ETF USA": "#06b6d4", "ETF": "#10b981", "FIIs": "#f59e0b",
-  "Cripto": "#f97316", "Commodities": "#eab308", "BDRs": "#ec4899",
-  "Renda Fixa": "#6366f1", "Renda Fixa USD": "#a78bfa",
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(s: string) {
@@ -193,14 +187,238 @@ function RatingBadge({ value, thresholds, labels }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "drawdown" | "rolling" | "monthly" | "fluxos" | "attribution";
+// ── Predictive methods ───────────────────────────────────────────────────────
+
+const PRED_API = process.env.NEXT_PUBLIC_API_URL || "";
+
+interface PredMethod {
+  id: string;
+  title: string;
+  tag: string;
+  color: string;
+  detail: string;
+}
+
+const PRED_METHODS: PredMethod[] = [
+  { id: "monte-carlo", title: "Monte Carlo (GBM)", tag: "Estocástico", color: "#34d399", detail: "10.000 simulações · Drift + Difusão" },
+  { id: "arima", title: "ARIMA(p,d,q)", tag: "Série Temporal", color: "#60a5fa", detail: "Auto-ARIMA · ADF · IC 80/95%" },
+  { id: "garch", title: "GARCH(1,1)", tag: "Volatilidade", color: "#f59e0b", detail: "Variância condicional · VaR · Forecast" },
+  { id: "var", title: "VAR(p) Multivariado", tag: "Multivariado", color: "#ec4899", detail: "IRF · Decomposição de Variância" },
+];
+
+type PredResult = Record<string, unknown> | null;
+
+function MonteCarloChart({ data }: { data: Record<string, unknown> }) {
+  const perc = data.percentiles as { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] };
+  const samplePaths = data.sample_paths as number[][] | undefined;
+  if (!perc) return null;
+  const chartData = perc.p50.map((_, i) => {
+    const point: Record<string, number> = { t: i, p5: perc.p5[i], p50: perc.p50[i], p95: perc.p95[i] };
+    if (samplePaths) samplePaths.forEach((path, j) => { point[`s${j}`] = path[i]; });
+    return point;
+  });
+  const params = data.params as { mu_annual: number; sigma_annual: number } | undefined;
+  const pathCount = samplePaths?.length ?? 0;
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={340}>
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1c1c1e" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#52525b" }} label={{ value: "Dias", position: "bottom", fontSize: 10, fill: "#52525b" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#52525b" }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          {Array.from({ length: pathCount }).map((_, j) => (
+            <Line key={`s${j}`} type="monotone" dataKey={`s${j}`} stroke="#34d39918" strokeWidth={0.5} dot={false} isAnimationActive={false} legendType="none" />
+          ))}
+          <Line type="monotone" dataKey="p95" stroke="#34d39960" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P95" />
+          <Line type="monotone" dataKey="p5" stroke="#34d39960" strokeWidth={1} dot={false} strokeDasharray="4 2" name="P5" />
+          <Line type="monotone" dataKey="p50" stroke="#34d399" strokeWidth={2.5} dot={false} name="Mediana" />
+        </LineChart>
+      </ResponsiveContainer>
+      {params && (
+        <div className="flex flex-wrap gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+          <span>μ anual: {(params.mu_annual * 100).toFixed(2)}%</span>
+          <span>σ anual: {(params.sigma_annual * 100).toFixed(2)}%</span>
+          <span>{String(data.n_simulations)} simulações · {pathCount} caminhos</span>
+          <span>Obs: {String(data.observations_used)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArimaChart({ data }: { data: Record<string, unknown> }) {
+  const historical = data.historical as number[] | undefined;
+  const forecast = data.forecast as number[] | undefined;
+  const ci95l = data.ci_95_lower as number[] | undefined;
+  const ci95u = data.ci_95_upper as number[] | undefined;
+  const ci80l = data.ci_80_lower as number[] | undefined;
+  const ci80u = data.ci_80_upper as number[] | undefined;
+  if (!historical || !forecast) return null;
+  const chartData = [
+    ...historical.map((v, i) => ({ t: i, historical: v })),
+    ...forecast.map((v, i) => ({ t: historical.length + i, forecast: v, ci80l: ci80l?.[i], ci80u: ci80u?.[i], ci95l: ci95l?.[i], ci95u: ci95u?.[i] })),
+  ];
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+          <Area type="monotone" dataKey="ci95u" stroke="none" fill="#60a5fa10" name="IC 95%" />
+          <Area type="monotone" dataKey="ci95l" stroke="none" fill="transparent" name="" />
+          <Area type="monotone" dataKey="ci80u" stroke="none" fill="#60a5fa18" name="IC 80%" />
+          <Area type="monotone" dataKey="ci80l" stroke="none" fill="transparent" name="" />
+          <Line type="monotone" dataKey="historical" stroke="#a1a1aa" strokeWidth={1.5} dot={false} name="Histórico" />
+          <Line type="monotone" dataKey="forecast" stroke="#60a5fa" strokeWidth={2} dot={false} name="Previsão" />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className="flex gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        <span>Ordem: ARIMA{JSON.stringify(data.order)}</span>
+        <span>AIC: {Number(data.aic).toFixed(1)}</span>
+        <span>ADF p-value: {Number(data.adf_pvalue).toFixed(4)}</span>
+        <span>{data.stationary ? "Estacionária" : "Não-estacionária (d=1)"}</span>
+      </div>
+    </div>
+  );
+}
+
+function GarchChart({ data }: { data: Record<string, unknown> }) {
+  const condVol = data.conditional_vol as number[] | undefined;
+  const realVol = data.realized_vol as number[] | undefined;
+  const volForecast = data.vol_forecast as number[] | undefined;
+  if (!condVol) return null;
+  const maxHist = Math.max(condVol.length, realVol?.length ?? 0);
+  const chartData = [
+    ...Array.from({ length: maxHist }).map((_, i) => ({
+      t: i,
+      conditional: condVol[i] != null ? +(condVol[i] * 100).toFixed(2) : undefined,
+      realized: realVol && realVol[i] != null ? +(realVol[i] * 100).toFixed(2) : undefined,
+    })),
+    ...(volForecast ?? []).map((v, i) => ({ t: maxHist + i, forecast: +(v * 100).toFixed(2) })),
+  ];
+  const params = data.params as { alpha: number; beta: number; persistence: number } | undefined;
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit="%" />
+          <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Line type="monotone" dataKey="conditional" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="Vol Condicional" />
+          <Line type="monotone" dataKey="realized" stroke="#71717a" strokeWidth={1} dot={false} name="Vol Realizada (21d)" />
+          <Line type="monotone" dataKey="forecast" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="6 3" name="Forecast" />
+        </LineChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-4 mt-3 text-[10px] text-zinc-500 font-mono">
+        {params && <>
+          <span>α: {params.alpha.toFixed(4)}</span>
+          <span>β: {params.beta.toFixed(4)}</span>
+          <span>Persistência: {params.persistence.toFixed(4)}</span>
+        </>}
+        <span>VaR 95% anual: {((data.var_95_annual as number) * 100).toFixed(2)}%</span>
+        <span>Vol atual: {((data.current_vol_annual as number) * 100).toFixed(1)}% a.a.</span>
+      </div>
+    </div>
+  );
+}
+
+function VarChart({ data }: { data: Record<string, unknown> }) {
+  const variables = data.variables as string[] | undefined;
+  const forecast = data.forecast as Record<string, number[]> | undefined;
+  const irf = data.irf as Record<string, Record<string, number[]>> | undefined;
+  if (!variables || !forecast) return null;
+  const colors = ["#ec4899", "#60a5fa", "#34d399", "#f59e0b"];
+  const forecastData = Array.from({ length: (forecast[variables[0]] ?? []).length }).map((_, i) => {
+    const point: Record<string, number | string> = { t: i };
+    variables.forEach(v => { point[v] = forecast[v]?.[i] ?? 0; });
+    return point;
+  });
+  const irfShock = variables[0];
+  const irfData = irf && irf[irfShock]
+    ? Array.from({ length: (irf[irfShock][variables[0]] ?? []).length }).map((_, i) => {
+        const point: Record<string, number | string> = { t: i };
+        variables.forEach(v => { point[v] = (irf[irfShock]?.[v]?.[i] ?? 0) * 10000; });
+        return point;
+      })
+    : [];
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-2">Previsão multivariada ({data.lag_order as number} lags)</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={forecastData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} />
+            <YAxis tick={{ fontSize: 10, fill: "#71717a" }} />
+            <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            {variables.map((v, i) => (
+              <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      {irfData.length > 0 && (
+        <div>
+          <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-2">Impulso-Resposta (choque em {irfShock}) · bps</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={irfData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="t" tick={{ fontSize: 10, fill: "#71717a" }} label={{ value: "Períodos", position: "bottom", fontSize: 10, fill: "#71717a" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#71717a" }} unit=" bps" />
+              <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              {variables.map((v, i) => (
+                <Line key={v} type="monotone" dataKey={v} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={v} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <div className="flex gap-4 text-[10px] text-zinc-500 font-mono">
+        <span>Variáveis: {variables.join(", ")}</span>
+        <span>Lags: {String(data.lag_order)}</span>
+        <span>Obs: {String(data.observations_used)}</span>
+      </div>
+    </div>
+  );
+}
+
+function PredResultChart({ methodId, data }: { methodId: string; data: Record<string, unknown> }) {
+  const interpretation = data.interpretation as string | undefined;
+  let chart: React.ReactNode = null;
+  switch (methodId) {
+    case "monte-carlo": chart = <MonteCarloChart data={data} />; break;
+    case "arima": chart = <ArimaChart data={data} />; break;
+    case "garch": chart = <GarchChart data={data} />; break;
+    case "var": chart = <VarChart data={data} />; break;
+  }
+  return (
+    <>
+      {chart}
+      {interpretation && (
+        <div className="mt-4 rounded-lg border border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">Leitura do Modelo</p>
+          <p className="text-[12px] text-zinc-400 leading-relaxed">{interpretation}</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+type Tab = "overview" | "drawdown" | "monthly" | "previsoes";
 const TAB_LABELS: Record<Tab, string> = {
   overview: "Retorno",
   drawdown: "Drawdown",
-  rolling: "Rolling",
   monthly: "Mensal",
-  fluxos: "Fluxos",
-  attribution: "Atribuição",
+  previsoes: "Previsões",
 };
 
 type CurrencyView = "BRL" | "USD";
@@ -221,6 +439,10 @@ export default function PerformancePage() {
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
+  const [predMethod, setPredMethod] = useState(PRED_METHODS[0].id);
+  const [predResult, setPredResult] = useState<PredResult>(null);
+  const [predLoading, setPredLoading] = useState(false);
+  const [predError, setPredError] = useState<string | null>(null);
 
   const isUsd = currencyView === "USD";
   const currSymbol = isUsd ? "US$" : "R$";
@@ -305,12 +527,21 @@ export default function PerformancePage() {
     (data?.drawdownData ?? []).map(d => ({ date: formatDateShort(d.date), drawdown: d.drawdown })),
   [data]);
 
-  const rollingData = useMemo(() =>
-    (data?.rolling ?? []).filter((_, i) => i % 5 === 0).map(r => ({
-      date: formatDateShort(r.date),
-      "1M": r["1M"], "3M": r["3M"], "6M": r["6M"], "1A": r["1A"],
-    })),
-  [data]);
+  const runPrediction = async () => {
+    setPredLoading(true);
+    setPredError(null);
+    setPredResult(null);
+    try {
+      const res = await fetch(`${PRED_API}/api/preditivo/${predMethod}`);
+      const json = await res.json();
+      if (json.error) setPredError(json.error);
+      else setPredResult(json);
+    } catch (e) {
+      setPredError(e instanceof Error ? e.message : "Erro de conexão");
+    } finally {
+      setPredLoading(false);
+    }
+  };
 
   const monthlyGrid = useMemo(() => {
     if (activeMonthly.length === 0) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, number>> };
@@ -915,28 +1146,62 @@ export default function PerformancePage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════════
-           TAB: ROLLING RETURNS
+           TAB: PREVISÕES
          ══════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "rolling" && (
+      {activeTab === "previsoes" && (
         <div className="glass-card p-5">
-          <h2 className="section-title mb-2"><Activity size={15} />Rolling Returns — Retorno Móvel</h2>
-          <p className="text-xs text-zinc-600 mb-4">Retorno acumulado em janelas móveis de 1, 3, 6 e 12 meses. Mostra consistência de performance ao longo do tempo.</p>
-          <ResponsiveContainer width="100%" height={340}>
-            <LineChart data={rollingData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" />
-              <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                interval={Math.floor(rollingData.length / 6)} />
-              <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v.toFixed(0)}%`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }} formatter={(v: number, name: string) => [`${v.toFixed(2)}%`, `Rolling ${name}`]} />
-              <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
-              <Line type="monotone" dataKey="1M" stroke="#60a5fa" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="3M" stroke="#34d399" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="6M" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="1A" stroke="#a78bfa" strokeWidth={2} dot={false} />
-              <Legend wrapperStyle={{ fontSize: 11, color: "#71717a" }} formatter={v => `Rolling ${v}`} />
-            </LineChart>
-          </ResponsiveContainer>
+          <h2 className="section-title mb-4"><Activity size={15} />Previsões — Modelos Econométricos</h2>
+
+          {/* Method selector + run */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            {PRED_METHODS.map(m => (
+              <button key={m.id} onClick={() => { setPredMethod(m.id); setPredResult(null); setPredError(null); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                  predMethod === m.id
+                    ? "text-zinc-100 border-opacity-50"
+                    : "text-zinc-500 hover:text-zinc-300 border-zinc-800/50 bg-zinc-900/40"
+                }`}
+                style={predMethod === m.id ? { background: `${m.color}15`, borderColor: `${m.color}40`, color: m.color } : {}}>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={predMethod === m.id ? { background: `${m.color}20` } : { background: "rgba(63,63,70,0.3)" }}>
+                  {m.tag}
+                </span>
+                {m.title}
+              </button>
+            ))}
+            <button onClick={runPrediction} disabled={predLoading}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 disabled:opacity-50">
+              {predLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+              {predLoading ? "Calculando..." : "Executar"}
+            </button>
+          </div>
+
+          {/* Method detail */}
+          {(() => {
+            const m = PRED_METHODS.find(x => x.id === predMethod)!;
+            return (
+              <p className="text-[10px] text-zinc-600 font-mono mb-4">
+                {m.detail} · Fonte: db_cotacoes · Horizonte padrão: 252 dias úteis · Confiança: 95%
+              </p>
+            );
+          })()}
+
+          {/* Error */}
+          {predError && (
+            <div className="rounded-lg p-3 mb-4 text-[11px] text-red-400 bg-red-500/8 border border-red-500/15">
+              {predError}
+            </div>
+          )}
+
+          {/* Result */}
+          {predResult && <PredResultChart methodId={predMethod} data={predResult} />}
+
+          {/* Empty state */}
+          {!predResult && !predLoading && !predError && (
+            <div className="w-full aspect-[16/7] rounded-lg border border-zinc-800/30 bg-zinc-900/20 flex items-center justify-center">
+              <span className="text-[11px] text-zinc-600 font-mono">Selecione um método e clique em Executar</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1034,81 +1299,6 @@ export default function PerformancePage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════════
-           TAB: FLOW LEDGER
-         ══════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "fluxos" && (
-        <div className="glass-card p-5">
-          <h2 className="section-title mb-4"><Zap size={15} />Ledger de Fluxos — Aportes e Resgates</h2>
-          {data.flowLedger.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    {["Data", "Fluxo", "NAV Antes", "NAV Após", "Ret Dia", "TWR Acum"].map(h => (
-                      <th key={h} className="text-left py-2 px-3 text-zinc-500 font-semibold uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.flowLedger.map((f, i) => (
-                    <tr key={i} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                      <td className="py-2 px-3 text-zinc-400 font-mono">{formatDateShort(f.date)}</td>
-                      <td className={`py-2 px-3 font-semibold ${f.flow >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {f.flow >= 0 ? "+" : ""}{brl(f.flow)}
-                      </td>
-                      <td className="py-2 px-3 text-zinc-400">{compactBRL(f.nav_before)}</td>
-                      <td className="py-2 px-3 text-zinc-200 font-medium">{compactBRL(f.nav)}</td>
-                      <td className={`py-2 px-3 font-mono ${f.daily_return >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {f.daily_return >= 0 ? "+" : ""}{f.daily_return.toFixed(3)}%
-                      </td>
-                      <td className={`py-2 px-3 font-mono font-semibold ${f.cumulative_twr >= 0 ? "text-blue-400" : "text-red-400"}`}>
-                        {f.cumulative_twr >= 0 ? "+" : ""}{f.cumulative_twr.toFixed(2)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-zinc-600 text-sm">Nenhum fluxo significativo encontrado no período.</p>
-          )}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════════
-           TAB: ATTRIBUTION
-         ══════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "attribution" && (
-        <div className="glass-card p-5">
-          <h2 className="section-title mb-4"><BarChart2 size={15} />Atribuição de Retorno por Setor</h2>
-          {data.attribution.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={Math.max(200, data.attribution.length * 36)}>
-                <BarChart layout="vertical" data={data.attribution} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => `${v.toFixed(1)}%`} />
-                  <YAxis type="category" dataKey="setor" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#fafafa" }} itemStyle={{ color: "#fafafa" }}
-                    formatter={(v: number) => [`${v.toFixed(2)}%`, "Contribuição"]} />
-                  <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-                  <Bar dataKey="contrib_pct" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                    {data.attribution.map((entry, i) => (
-                      <Cell key={i} fill={SECTOR_COLORS[entry.setor] ?? (entry.contrib_pct >= 0 ? "#34d399" : "#f87171")} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <p className="text-[10px] text-zinc-600 mt-3">
-                * Atribuição estimada baseada no peso de cada setor no custo total do portfólio aplicado ao retorno TWR global.
-              </p>
-            </>
-          ) : (
-            <p className="text-zinc-600 text-sm">Dados insuficientes para calcular atribuição.</p>
-          )}
-        </div>
-      )}
 
       {/* ── Data quality warnings ── */}
       {data.errors.length > 0 && (

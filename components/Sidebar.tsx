@@ -25,7 +25,6 @@ import {
   Scale,
   Zap,
   Crosshair,
-  BrainCircuit,
   Egg,
 } from "lucide-react";
 
@@ -68,7 +67,6 @@ const navGroups: NavGroup[] = [
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
       { href: "/simulacoes",           label: "Simulações",     icon: Target },
       { href: "/trades",               label: "Trades",         icon: Zap },
-      { href: "/preditivo",            label: "Preditivo",      icon: BrainCircuit },
     ],
   },
   {
