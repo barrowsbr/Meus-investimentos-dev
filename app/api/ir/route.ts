@@ -3,6 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { toNumber } from "@/lib/format";
 import { processarVendas, type RawTx, type CorpEvent, type PtaxLookup } from "@/lib/tax/engine";
 import { apurar } from "@/lib/tax/apurador";
+import { apurarCambioIr } from "@/lib/tax/cambio-ir";
 import { regra } from "@/lib/tax/rules";
 
 export const dynamic = "force-dynamic";
@@ -94,10 +95,11 @@ export async function GET(request: Request) {
   const year = yearParam ? parseInt(yearParam, 10) : null;
 
   try {
-    const [ativos, ptaxRows, eventosRows] = await Promise.all([
+    const [ativos, ptaxRows, eventosRows, cambioRows] = await Promise.all([
       fetchTab("meus_ativos"),
       fetchTab("p_tax").catch(() => []),
       fetchTab("eventos_corp").catch(() => []), // aba opcional
+      fetchTab("cambio").catch(() => []),
     ]);
 
     const ptax = buildPtaxLookup(ptaxRows);
@@ -128,12 +130,15 @@ export async function GET(request: Request) {
       .filter(e => e.modalidade === "acoes_swing" && e.month === mesAtual)
       .reduce((s, e) => s + e.proceedsBRL, 0);
 
+    const cambioIr = apurarCambioIr(cambioRows);
+
     const extras = {
       posicoes: posicoesEnriquecidas,
       fxHoje,
       mesAtual,
       acoesVendasMesAtual,
       limiteIsencaoAcoes: regra("acoes_swing", hoje).isencaoMensalVendas ?? 20000,
+      cambioIr,
     };
 
     if (year) {

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   Receipt, TrendingUp, AlertCircle, Calendar, RefreshCw,
   Scale, ChevronDown, ChevronUp, Globe, Calculator, FileText,
+  Bot, Copy, CalendarPlus, ExternalLink, ArrowLeftRight, Check,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -35,11 +37,23 @@ interface Posicao {
   qty: number; pmNative: number; pmBRL: number; bucket: OffsetBucket;
   aliquota: number; isentavel: boolean; valorAtualBRL: number;
 }
+interface LiquidacaoBRL {
+  data: string; usdAlienado: number; recebidoBRL: number; taxaEfetiva: number;
+  pmDolarNaData: number; custoBRL: number; ganhoBRL: number;
+}
+interface AnoCambial {
+  ano: string; usdAlienado: number; recebidoBRL: number; custoBRL: number; ganhoBRL: number;
+  isentoEspecie: boolean; aliquotaEspecie: number; irEspecie: number; liquidacoes: LiquidacaoBRL[];
+}
+interface CambioIr {
+  anos: AnoCambial[]; pmDolarFinal: number; usdEstoqueFinal: number; limiteIsencaoEspecieUSD: number;
+}
 interface IrResponse {
   year: number | null; meses: MesApuracao[]; exterior: AnoExterior[];
   prejuizoFinal: Record<OffsetBucket, number>; irTotalMensal: number; irTotalExterior: number;
   posicoes: Posicao[]; fxHoje: number; mesAtual: string;
   acoesVendasMesAtual: number; limiteIsencaoAcoes: number;
+  cambioIr?: CambioIr;
 }
 
 interface BemDireito {
@@ -234,6 +248,214 @@ function Simulador({ data }: { data: IrResponse }) {
   );
 }
 
+// ─── Utilitários DARF (lembrete .ics + copiar dados + Sicalc) ─────────────────
+function darfIcs(m: MesApuracao): string {
+  const dt = m.vencimento.replace(/-/g, "");
+  return [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//meus-investimentos//impostos//PT",
+    "BEGIN:VEVENT", `UID:darf-${m.mes}@meus-investimentos`,
+    `DTSTART;VALUE=DATE:${dt}`,
+    `SUMMARY:Pagar DARF ${m.darfCodigo} — ${brl(m.irTotal)} (apuração ${m.mes})`,
+    `DESCRIPTION:Código da receita ${m.darfCodigo} · Período de apuração ${m.mes} · Valor ${brl(m.irTotal)} · Gerar guia no SicalcWeb.`,
+    "BEGIN:VALARM", "TRIGGER:-P2D", "ACTION:DISPLAY", "DESCRIPTION:DARF vence em 2 dias", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+function DarfActions({ m }: { m: MesApuracao }) {
+  const [copied, setCopied] = useState(false);
+  const ultimoDia = (() => {
+    const [y, mm] = m.mes.split("-").map(Number);
+    return new Date(Date.UTC(y, mm, 0)).toISOString().slice(0, 10).split("-").reverse().join("/");
+  })();
+  const copiar = async () => {
+    const txt = [
+      `Código da receita: ${m.darfCodigo}`,
+      `Período de apuração: ${ultimoDia}`,
+      `Vencimento: ${m.vencimento.split("-").reverse().join("/")}`,
+      `Valor principal: ${m.irTotal.toFixed(2).replace(".", ",")}`,
+    ].join("\n");
+    try { await navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard indisponível */ }
+  };
+  const baixarIcs = () => {
+    const blob = new Blob([darfIcs(m)], { type: "text/calendar" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `darf-${m.mes}.ics`; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const btn = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.05] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.08] transition-all border border-white/[0.06]";
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      <button onClick={copiar} className={btn}>{copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}{copied ? "Copiado!" : "Copiar dados p/ Sicalc"}</button>
+      <button onClick={baixarIcs} className={btn}><CalendarPlus size={12} />Lembrete (.ics)</button>
+      <a href="https://sicalc.receita.economia.gov.br/sicalc/principal" target="_blank" rel="noopener noreferrer" className={btn}><ExternalLink size={12} />Emitir no SicalcWeb</a>
+    </div>
+  );
+}
+
+// ─── Saldo a compensar ────────────────────────────────────────────────────────
+function SaldoCompensar({ prejuizo }: { prejuizo: Record<OffsetBucket, number> }) {
+  const buckets = (["swing", "day", "fii", "exterior"] as OffsetBucket[]);
+  const total = buckets.reduce((s, b) => s + (prejuizo[b] ?? 0), 0);
+  return (
+    <div className="glass-card overflow-hidden mb-5">
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
+        <Scale size={14} className="text-amber-400" />
+        <h2 className="text-sm font-semibold text-zinc-300">Saldo a Compensar — prejuízos acumulados</h2>
+        <span className="ml-auto text-sm font-bold text-amber-400">{brl(total)}</span>
+      </div>
+      <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {buckets.map(b => (
+          <div key={b} className={`rounded-xl p-3 ${(prejuizo[b] ?? 0) > 0.01 ? "bg-amber-500/[0.07] border border-amber-500/15" : "bg-white/[0.02]"}`}>
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{BUCKET_LABEL[b]}</div>
+            <div className={`text-base font-bold mt-1 ${(prejuizo[b] ?? 0) > 0.01 ? "text-amber-400" : "text-zinc-700"}`}>{brl(prejuizo[b] ?? 0)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="px-4 pb-4 text-[11px] text-zinc-600 leading-relaxed">
+        <span className="text-zinc-400 font-medium">Regras:</span>{" "}
+        o prejuízo <strong>não expira</strong> — carrega de mês a mês e <strong>de um ano para o outro</strong>, indefinidamente,
+        desde que registrado nas declarações anuais (ficha Renda Variável da DIRPF).
+        Compensa <strong>somente dentro da mesma modalidade</strong>: swing (ações/ETF/BDR) ≠ day trade ≠ FII ≠ exterior.
+        Em mês isento de ações (vendas ≤ R$20k), o prejuízo das ações <strong>não</strong> gera saldo compensável.
+      </div>
+    </div>
+  );
+}
+
+// ─── Câmbio: liquidações para BRL ────────────────────────────────────────────
+function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | null }) {
+  const anos = year ? cambio.anos.filter(a => a.ano === String(year)) : cambio.anos;
+  if (anos.length === 0) return null;
+  return (
+    <div className="glass-card overflow-hidden mb-5">
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
+        <ArrowLeftRight size={14} className="text-cyan-400" />
+        <h2 className="text-sm font-semibold text-zinc-300">Câmbio — liquidações USD → R$ (ganho cambial)</h2>
+      </div>
+      {anos.map(a => (
+        <div key={a.ano} className="px-4 py-3 border-b border-white/[0.04] last:border-0">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-semibold text-zinc-300">{a.ano}</span>
+            <div className="flex items-center gap-5 text-xs text-zinc-600">
+              <span>alienado <span className="text-zinc-400">US$ {a.usdAlienado.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</span></span>
+              <span>recebido <span className="text-zinc-400">{brl(a.recebidoBRL)}</span></span>
+              <span>ganho cambial <span className={a.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}>{a.ganhoBRL >= 0 ? "+" : ""}{brl(a.ganhoBRL)}</span></span>
+              {a.isentoEspecie
+                ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">≤ US$5k/ano → isento (espécie)</span>
+                : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">se espécie: {brl(a.irEspecie)} ({(a.aliquotaEspecie * 100).toFixed(1)}%)</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="px-4 py-3 text-[11px] text-zinc-600 leading-relaxed bg-white/[0.01]">
+        <span className="text-zinc-400 font-medium">Enquadramento depende da origem dos dólares:</span>{" "}
+        <strong>(a)</strong> venda de aplicação financeira no exterior → o câmbio <strong>já foi tributado</strong> nos 15% anuais
+        (custo PTAX da compra × venda PTAX da venda, Lei 14.754/23) — a conversão não gera novo imposto;{" "}
+        <strong>(b)</strong> conta-corrente/cartão não remunerados → variação cambial <strong>isenta</strong>;{" "}
+        <strong>(c)</strong> moeda em espécie → isento até US$ 5.000 de alienações/ano, acima disso tabela progressiva (15–22,5%).
+        Ganho calculado pelo custo médio do dólar das suas remessas.
+      </div>
+    </div>
+  );
+}
+
+// ─── Agente Tributarista (IA) ────────────────────────────────────────────────
+const MD_COMPONENTS = {
+  h1: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h3 className="text-sm font-bold text-zinc-200 mt-3 mb-1" {...p} />,
+  h2: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h3 className="text-sm font-bold text-zinc-200 mt-3 mb-1" {...p} />,
+  h3: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h4 className="text-xs font-bold text-zinc-300 mt-2 mb-1" {...p} />,
+  p: (p: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-xs text-zinc-400 leading-relaxed mb-2" {...p} />,
+  ul: (p: React.HTMLAttributes<HTMLUListElement>) => <ul className="text-xs text-zinc-400 list-disc pl-4 mb-2 space-y-1" {...p} />,
+  ol: (p: React.HTMLAttributes<HTMLOListElement>) => <ol className="text-xs text-zinc-400 list-decimal pl-4 mb-2 space-y-1" {...p} />,
+  strong: (p: React.HTMLAttributes<HTMLElement>) => <strong className="text-zinc-200 font-semibold" {...p} />,
+  table: (p: React.HTMLAttributes<HTMLTableElement>) => <div className="overflow-x-auto mb-2"><table className="text-xs w-full" {...p} /></div>,
+  th: (p: React.HTMLAttributes<HTMLTableCellElement>) => <th className="text-left text-[10px] text-zinc-500 uppercase font-semibold py-1 pr-3" {...p} />,
+  td: (p: React.HTMLAttributes<HTMLTableCellElement>) => <td className="py-1 pr-3 text-zinc-400 border-t border-white/[0.04]" {...p} />,
+  code: (p: React.HTMLAttributes<HTMLElement>) => <code className="text-[11px] bg-white/[0.06] px-1 py-0.5 rounded text-cyan-300" {...p} />,
+};
+
+function r2(v: number): number { return Math.round(v * 100) / 100; }
+
+function AgenteTributarista({ data, year }: { data: IrResponse; year: number | null }) {
+  const [pergunta, setPergunta] = useState("");
+  const [resp, setResp] = useState<{ analise: string; model: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const dossie = useMemo(() => ({
+    anoFiltro: year, mesAtual: data.mesAtual, hoje: new Date().toISOString().slice(0, 10),
+    vendasAcoesMesAtual: r2(data.acoesVendasMesAtual),
+    limiteIsencaoAcoes: data.limiteIsencaoAcoes,
+    meses: data.meses
+      .filter(m => m.irTotal > 0.005 || m.acoesVendas > 0.005 || Math.abs(m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado) > 0.005)
+      .map(m => ({
+        mes: m.mes, vendasAcoes: r2(m.acoesVendas), resAcoes: r2(m.acoesResultado),
+        resEtfBdr: r2(m.etfBdrResultado), resFii: r2(m.fiiResultado), resDay: r2(m.dayResultado),
+        isentoAcoes: m.isencaoAcoes, irDevido: r2(m.irTotal), vencimentoDarf: m.vencimento,
+        buckets: m.buckets.map(b => ({ bucket: b.bucket, resultado: r2(b.resultado), prejAnterior: r2(b.prejuizoAcumIni), base: r2(b.baseTributavel), aliq: b.aliquota, ir: r2(b.irDevido), prejFinal: r2(b.prejuizoAcumFim) })),
+      })),
+    exteriorAnual: data.exterior.map(a => ({ ano: a.ano, resultadoBRL: r2(a.resultado), prejAnterior: r2(a.prejuizoAcumIni), base: r2(a.baseTributavel), ir15pct: r2(a.irDevido) })),
+    prejuizoAcumuladoPorBucket: Object.fromEntries(Object.entries(data.prejuizoFinal ?? {}).map(([k, v]) => [k, r2(v as number)])),
+    cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, usdAlienado: r2(a.usdAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
+    posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda })),
+  }), [data, year]);
+
+  const validar = async () => {
+    setLoading(true); setErr(null); setResp(null);
+    try {
+      const r = await fetch("/api/ir/agente", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dossie, pergunta: pergunta || undefined }),
+      });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      setResp(j);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="glass-card overflow-hidden mb-5 border-cyan-500/15">
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
+        <Bot size={15} className="text-cyan-400" />
+        <h2 className="text-sm font-semibold text-zinc-300">Agente Tributarista — validação contábil da apuração</h2>
+      </div>
+      <div className="p-4">
+        <div className="flex flex-col md:flex-row gap-2">
+          <input
+            value={pergunta} onChange={e => setPergunta(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !loading) validar(); }}
+            placeholder="Pergunta opcional (ex: 'se eu vender meus FIIs hoje, quanto pago?') — ou deixe vazio para validação completa"
+            className="flex-1 bg-white/[0.04] rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none border border-white/[0.06] placeholder:text-zinc-700"
+          />
+          <button onClick={validar} disabled={loading}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 hover:bg-cyan-500/25 transition-all disabled:opacity-50 whitespace-nowrap">
+            {loading ? "Analisando…" : "Validar apuração"}
+          </button>
+        </div>
+        <p className="text-[10px] text-zinc-700 mt-2">
+          O agente recebe a apuração completa (meses, buckets, prejuízos, exterior, câmbio, posições) e valida alíquotas, isenções e compensações com base legal.
+        </p>
+        {err && <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">{err}</div>}
+        {loading && (
+          <div className="mt-3 p-4 bg-white/[0.02] rounded-xl text-xs text-zinc-500 flex items-center gap-2">
+            <RefreshCw size={12} className="animate-spin" /> Auditando apuração com o especialista…
+          </div>
+        )}
+        {resp && (
+          <div className="mt-3 p-4 bg-white/[0.02] rounded-xl border border-white/[0.04]">
+            <ReactMarkdown components={MD_COMPONENTS}>{resp.analise}</ReactMarkdown>
+            <div className="text-[10px] text-zinc-700 mt-2 pt-2 border-t border-white/[0.04]">Análise: {resp.model} · apoio técnico, não substitui contador habilitado</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Declaração anual (DIRPF) ─────────────────────────────────────────────────
 function Declaracao({ ano }: { ano: number }) {
   const [d, setD] = useState<DirpfResponse | null>(null);
@@ -394,8 +616,9 @@ export default function ImpostosPage() {
         <AlertCircle size={15} className="text-indigo-400 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-zinc-500 leading-relaxed">
           <span className="text-zinc-300 font-medium">Regras aplicadas:</span>{" "}
-          Custo por <strong>preço médio ponderado</strong>. Ações 15% (isenção se vendas ≤ R$20k/mês); ETF/BDR 15% sem isenção; FII e day-trade 20%; exterior 15% anual com PTAX (Lei 14.754/23).
-          Prejuízo compensa só dentro da mesma modalidade (swing ≠ day ≠ FII ≠ exterior).
+          Custo por <strong>preço médio ponderado</strong>. Ações 15% (isenção se vendas ≤ R$20k/mês); ETF/BDR 15% sem isenção; FII e day-trade 20%; exterior 15% anual com PTAX — o câmbio já está dentro do ganho (Lei 14.754/23).
+          Prejuízo compensa só dentro da mesma modalidade e <strong>carrega entre anos sem expirar</strong>.
+          Liquidações USD→R$: ver seção Câmbio (isenção US$5k/ano em espécie; conta não remunerada isenta).
         </div>
       </div>
 
@@ -435,6 +658,7 @@ export default function ImpostosPage() {
                   ))}
                 </div>
               </div>
+              <DarfActions m={darfMes} />
             </div>
           )}
 
@@ -466,6 +690,10 @@ export default function ImpostosPage() {
             <div className="glass-card p-8 text-center text-zinc-600 text-sm mb-5">Nenhuma venda registrada{year ? ` em ${year}` : ""}.</div>
           )}
 
+          <SaldoCompensar prejuizo={data.prejuizoFinal ?? { swing: 0, day: 0, fii: 0, exterior: 0, rf: 0 }} />
+
+          {data.cambioIr && <CambioIrSection cambio={data.cambioIr} year={year} />}
+
           {(data.exterior ?? []).length > 0 && (
             <div className="glass-card overflow-hidden mb-5">
               <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2"><Globe size={14} className="text-pink-400" /><h2 className="text-sm font-semibold text-zinc-300">Apuração Anual — Exterior (Lei 14.754/23)</h2></div>
@@ -482,6 +710,8 @@ export default function ImpostosPage() {
               ))}
             </div>
           )}
+
+          <AgenteTributarista data={data} year={year} />
 
           <Declaracao ano={year ?? new Date().getFullYear() - 1} />
 
