@@ -365,6 +365,13 @@ export function enriquecerPosicoes(
   return positions;
 }
 
+// Chave canônica para casar proventos × posições: o import B3 grava "ITUB4"
+// enquanto as transações usam "ITUB4.SA" — sem normalizar, o Retorno Total
+// por ativo perde os proventos no formato divergente.
+export function tickerBase(t: string): string {
+  return t.toUpperCase().trim().replace(/\.SA$/, "");
+}
+
 export function calcularProventosBRL(
   proventos: Row[],
   fx: FxRates
@@ -392,7 +399,7 @@ export function calcularProventosBRL(
     const valorBRL = sign * valorAbs * fator;
     totalBRL += valorBRL;
 
-    const ticker = String(getVal(row, "ticker", "símbolo", "simbolo") ?? "").toUpperCase().trim();
+    const ticker = tickerBase(String(getVal(row, "ticker", "símbolo", "simbolo") ?? ""));
     if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
 
     if (isImposto) {
@@ -445,7 +452,7 @@ export function calcularSnapshot(
   // (= valorização não realizada + lucro realizado + proventos líquidos).
   // lucroPct continua sendo a "Valorização %" (só preço/câmbio, não realizado).
   for (const p of positions) {
-    p.proventosBRL = prov.porTicker[p.ticker] ?? 0;
+    p.proventosBRL = prov.porTicker[tickerBase(p.ticker)] ?? 0;
     if (p.lucroBRL !== null) {
       p.retornoTotalBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
       p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;

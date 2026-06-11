@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
-import { calcularSnapshot, calcularCarteiraFIFO } from "@/lib/portfolio";
+import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual, getMoedaExposicao } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
@@ -283,7 +283,7 @@ export async function GET() {
       if (p.lucroPct === null) continue;
       const lucroNaoRealizadoBRL = p.lucroBRL ?? 0;
       const lucroRealizadoBRL = p.lucroRealizado * fxFactor(p.moeda, fxAtual);
-      const proventosAtivo = proventosPorTicker[p.ticker] ?? 0;
+      const proventosAtivo = proventosPorTicker[tickerBase(p.ticker)] ?? 0;
       const resultadoTotal = lucroNaoRealizadoBRL + lucroRealizadoBRL + proventosAtivo;
 
       const nativeFx = fxFactor(p.moeda, fxAtual);
@@ -311,7 +311,7 @@ export async function GET() {
       if (activeTickerSet.has(ticker)) continue;
       const qtdTotal = pos.lotes.reduce((s, l) => s + l.qty, 0);
       if (qtdTotal >= 0.000001) continue;
-      const proventosAtivo = proventosPorTicker[ticker] ?? 0;
+      const proventosAtivo = proventosPorTicker[tickerBase(ticker)] ?? 0;
       if (Math.abs(pos.lucroRealizado) < 0.01 && proventosAtivo < 0.01) continue;
       const setor = identificarSetor(ticker);
       const nativeFx = fxFactor(pos.moeda, fxAtual);
@@ -345,7 +345,7 @@ export async function GET() {
       const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
       const isCaixa = isCashTicker(ticker);
       const custo = isCaixa ? 0 : (rfCostBasis[normTicker(ticker)] ?? 0);
-      const proventosAtivo = proventosPorTicker[ticker] ?? proventosPorTicker[ticker.toUpperCase()] ?? 0;
+      const proventosAtivo = proventosPorTicker[tickerBase(ticker)] ?? 0;
       const lucroNaoRealizado = (!isCaixa && custo > 0) ? valorBRL - custo : 0;
       const resultadoTotal = lucroNaoRealizado + proventosAtivo;
       const retNaoRealizadoPct = custo > 0 ? (lucroNaoRealizado / custo) * 100 : 0;
@@ -395,7 +395,7 @@ export async function GET() {
       if (agg.venda < agg.compra * 0.95) continue;
       const display = agg.display;
       const lucroRealizado = agg.venda - agg.compra - agg.imposto;
-      const proventosAtivo = proventosPorTicker[display] ?? proventosPorTicker[display.toUpperCase()] ?? proventosPorTicker[key] ?? 0;
+      const proventosAtivo = proventosPorTicker[tickerBase(display)] ?? proventosPorTicker[tickerBase(key)] ?? 0;
       const resultadoTotal = lucroRealizado + proventosAtivo;
       const nativeFx = fxFactor(agg.moeda, fxAtual);
       const retRealizadoProventosPct = agg.compra > 0 ? ((lucroRealizado + (nativeFx > 0 ? proventosAtivo / nativeFx : 0)) / agg.compra) * 100 : 0;

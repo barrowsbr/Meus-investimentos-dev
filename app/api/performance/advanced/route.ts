@@ -3,7 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
-import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
+import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfolio";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 
@@ -459,8 +459,11 @@ export async function GET(request: Request) {
     const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "";
     const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
+    // Match por base normalizada (sem .SA): o import B3 grava "ITUB4" enquanto
+    // as transações usam "ITUB4.SA" — match literal zerava proventos no filtro.
+    const keptBase = new Set([...keptTickers].map(tickerBase));
     const proventosF = filtroAtivo
-      ? proventos.filter(r => keptTickers.has(String(r["ticker"] ?? "").toUpperCase().trim()))
+      ? proventos.filter(r => keptBase.has(tickerBase(String(r["ticker"] ?? ""))))
       : proventos;
     const fixaAbertaF = includeRF ? fixaAberta : [];
 
