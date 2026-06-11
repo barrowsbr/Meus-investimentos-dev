@@ -438,6 +438,7 @@ export default function PerformancePage() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
+  const [returnMetric, setReturnMetric] = useState<"twr" | "mwr">("twr");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
@@ -697,8 +698,8 @@ export default function PerformancePage() {
                 </p>
                 <p className="text-[10px] text-zinc-500 mt-1">TIR {pct(mwrPct)} a.a.</p>
               </div>
-              <div title="Resultado Total: não realizado + realizado + proventos (canônico do Resumo)">
-                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Resultado Total</p>
+              <div title="MTM (mark-to-market) amplo: variação de preço (não realizada + realizada) + proventos — canônico do Resumo. Obs.: no extrato IBKR o MTM estrito exclui dividendos (listados à parte)">
+                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">MTM</p>
                 <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
@@ -817,23 +818,46 @@ export default function PerformancePage() {
           }`}>
           <Calendar size={12} /> Personalizado
         </button>
-        <div className="ml-auto flex items-center rounded-lg border border-zinc-800 overflow-hidden">
-          <button onClick={() => setChartMode("benchmarks")}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-              chartMode === "benchmarks"
-                ? "bg-indigo-900/50 text-indigo-300"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-            }`}>
-            Benchmarks
-          </button>
-          <button onClick={() => setChartMode("fx")}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
-              chartMode === "fx"
-                ? "bg-amber-900/50 text-amber-300"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-            }`}>
-            <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
-          </button>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden"
+            title="TWR: retorno dos ativos (comparável a índices). MWR: retorno do SEU dinheiro, ponderado pelos aportes (estilo IBKR)">
+            <button onClick={() => setReturnMetric("twr")}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                returnMetric === "twr"
+                  ? "bg-emerald-900/50 text-emerald-300"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+              }`}>
+              TWR
+            </button>
+            <button onClick={() => { setReturnMetric("mwr"); setChartMode("benchmarks"); }}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
+                returnMetric === "mwr"
+                  ? "bg-purple-900/50 text-purple-300"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+              }`}>
+              MWR
+            </button>
+          </div>
+          <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden">
+            <button onClick={() => setChartMode("benchmarks")}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                chartMode === "benchmarks"
+                  ? "bg-indigo-900/50 text-indigo-300"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+              }`}>
+              Benchmarks
+            </button>
+            <button onClick={() => setChartMode("fx")}
+              disabled={returnMetric === "mwr"}
+              title={returnMetric === "mwr" ? "Decomposição cambial só se aplica ao TWR" : undefined}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed ${
+                chartMode === "fx"
+                  ? "bg-amber-900/50 text-amber-300"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+              }`}>
+              <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
+            </button>
+          </div>
         </div>
         <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
           <RefreshCw size={14} />
@@ -909,6 +933,10 @@ export default function PerformancePage() {
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="gradMwr" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                   <ReferenceLine y={0} stroke="#27272a" strokeWidth={1} />
@@ -918,16 +946,19 @@ export default function PerformancePage() {
                   <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Portfólio (TWR)" : name === "mwr" ? "MWR" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
+                      name === "portfolio" ? "Portfólio (TWR)" : name === "mwr" ? "Portfólio (MWR)" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "MWR" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
+                  <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "Portfólio (MWR)" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
                     wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
-                  <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
-                    strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                  {/* MWR dia a dia (money-weighted, estilo IBKR PortfolioAnalyst) */}
-                  <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="transparent"
-                    strokeWidth={1.8} strokeDasharray="6 3" dot={false} connectNulls />
+                  {/* Linha principal = métrica selecionada no toggle TWR | MWR */}
+                  {returnMetric === "twr" ? (
+                    <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
+                      strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  ) : (
+                    <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="url(#gradMwr)"
+                      strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                  )}
                   {chartMode === "benchmarks" && (
                     <>
                       <Area type="monotone" dataKey="cdi" stroke="#6366f1" fill="url(#gradCDI)"
