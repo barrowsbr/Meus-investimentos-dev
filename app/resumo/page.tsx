@@ -1491,6 +1491,8 @@ export default function ResumoPage() {
                 try {
                   const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
                   if (res.ok) {
+                    const j = await res.json();
+                    if (!j.saved_to_sheets) alert(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
                     bumpDataVersion();
                     const fresh = await fetch(withDataVersion(`${API_URL}/api/composicao/resumo`));
                     if (fresh.ok) setComposicao(await fresh.json());
@@ -1785,6 +1787,8 @@ export default function ResumoPage() {
                   try {
                     const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
                     if (res.ok) {
+                      const j = await res.json();
+                      if (!j.saved_to_sheets) alert(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
                       bumpDataVersion();
                       const fresh = await fetch(withDataVersion(`${API_URL}/api/composicao/resumo`));
                       if (fresh.ok) setComposicao(await fresh.json());

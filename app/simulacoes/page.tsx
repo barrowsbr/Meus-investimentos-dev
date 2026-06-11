@@ -1165,6 +1165,8 @@ function EtfLookThrough({ alloc, positions }: {
   const [loadingComp, setLoadingComp] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sources, setSources] = useState<Record<string, string>>({});
+  const [staleInfo, setStaleInfo] = useState<{ stale: boolean; updatedAt: string } | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   const etfPositions = useMemo(
     () => positions.filter(p => p.setor === "ETF" || p.setor === "ETF USA"),
@@ -1191,6 +1193,7 @@ function EtfLookThrough({ alloc, positions }: {
         const srcs: Record<string, string> = lt?.sources ?? {};
         setCompositions(comps);
         setSources(srcs);
+        setStaleInfo({ stale: lt?.stale ?? false, updatedAt: lt?.updated_at ?? "" });
       })
       .catch(() => setCompositions({}))
       .finally(() => setLoadingComp(false));
@@ -1320,9 +1323,14 @@ function EtfLookThrough({ alloc, positions }: {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setRefreshWarning(null);
     try {
       const res = await fetch("/api/composicao/etf-refresh", { method: "POST" });
       if (res.ok) {
+        const j = await res.json();
+        if (!j.saved_to_sheets) {
+          setRefreshWarning(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
+        }
         bumpDataVersion();
         const fresh = await fetch(withDataVersion("/api/composicao/resumo"));
         if (fresh.ok) {
@@ -1330,6 +1338,7 @@ function EtfLookThrough({ alloc, positions }: {
           if (d.look_through?.compositions) {
             setCompositions(d.look_through.compositions);
             setSources(d.look_through.sources ?? {});
+            setStaleInfo({ stale: d.look_through.stale ?? false, updatedAt: d.look_through.updated_at ?? "" });
           }
         }
       }
@@ -1389,6 +1398,17 @@ function EtfLookThrough({ alloc, positions }: {
                   {refreshing ? "…" : "Atualizar"}
                 </button>
               </div>
+
+              {(staleInfo?.stale || refreshWarning) && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-[10px]" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)", color: "#fbbf24" }}>
+                  <span className="shrink-0">⚠</span>
+                  <span>
+                    {refreshWarning ?? (
+                      <>Composições desatualizadas{staleInfo?.updatedAt ? ` (última gravação: ${staleInfo.updatedAt})` : ""} ou de origem embutida — clique em &quot;Atualizar&quot; para buscar holdings atuais.</>
+                    )}
+                  </span>
+                </div>
+              )}
 
               <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
                 {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => (

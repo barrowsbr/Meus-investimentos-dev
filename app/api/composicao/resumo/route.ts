@@ -453,13 +453,21 @@ export async function GET() {
     }));
 
     let ltResult: Awaited<ReturnType<typeof computeLookThrough>>;
-    const { stored, updatedAt } = await loadFromGSheets();
+    const { stored, storedSources, updatedAt } = await loadFromGSheets();
     if (Object.keys(stored).length > 0) {
-      ltResult = computeFromStored(stored, ltPositions, 50);
+      ltResult = computeFromStored(stored, ltPositions, 50, storedSources);
       if (updatedAt) ltResult.updated_at = updatedAt;
     } else {
       ltResult = await computeLookThrough(ltPositions, 50);
     }
+    // Merece refresh manual: stored com 30+ dias, origem embedded (hardcoded
+    // Q1-2025) ou proveniência desconhecida ("stored" seco = aba escrita pelo
+    // pipeline legado, sem coluna source legível).
+    const ltAgeDays = ltResult.updated_at
+      ? (Date.now() - new Date(ltResult.updated_at.replace(" ", "T")).getTime()) / 86400000
+      : null;
+    const ltStale = (ltAgeDays !== null && ltAgeDays > 30)
+      || Object.values(ltResult.sources).some(s => s === "stored" || s.includes("embedded"));
 
     const lookThroughCompositions: Record<string, { ticker: string; valor_brl: number; components: Array<{ ativo: string; name: string; peso: number }> }> = {};
     for (const [etfTicker, data] of Object.entries(ltResult.per_etf)) {
@@ -569,6 +577,7 @@ export async function GET() {
           total_look_through_brl: ltResult.total_look_through_brl,
           sources: ltResult.sources,
           updated_at: ltResult.updated_at,
+          stale: ltStale,
         },
         country_allocation: countryAllocation,
         rf_posicoes: rfPosicoes,

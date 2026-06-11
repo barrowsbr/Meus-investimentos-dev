@@ -15,7 +15,7 @@
  *   - loadFromGSheets()      → reads 'composicao', returns stored holdings
  */
 
-import { fetchTab } from "./gsheets";
+import { fetchTab, getServiceAccountAuth } from "./gsheets";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,14 +59,13 @@ const LOOKTHROUGH_SECTORS = new Set(["ETF USA", "ETF"]);
 const PROVIDER_URLS: Record<string, { provider: string; url: string; type: "xlsx" | "csv" }> = {
   SPY: { provider: "SSGA", url: "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx", type: "xlsx" },
   QQQ: { provider: "Invesco", url: "https://www.invesco.com/us/financial-products/etfs/holdings/main/holdings/0?audienceType=Investor&action=download&ticker=QQQ", type: "csv" },
-  "VWRA.L": { provider: "iShares", url: "https://www.ishares.com/uk/individual/en/products/251902/ISHARES-MSCI-WORLD-ETF/1467271812596.ajax?fileType=csv&fileName=VWRA_holdings&dataType=fund", type: "csv" },
+  // VWRA.L (Vanguard FTSE All-World UCITS) NÃO tem URL aqui de propósito:
+  // a antiga apontava para o iShares MSCI World — fundo ERRADO (sem emergentes).
+  // VWRA cai para Yahoo top-10 + bucket OUTROS, que é honesto.
   IVV: { provider: "iShares", url: "https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf/1467271812596.ajax?fileType=csv&fileName=IVV_holdings&dataType=fund", type: "csv" },
 };
-PROVIDER_URLS["VWRA"] = PROVIDER_URLS["VWRA.L"];
 PROVIDER_URLS["IVVB11"] = PROVIDER_URLS["IVV"];
 PROVIDER_URLS["VOO"] = PROVIDER_URLS["SPY"];
-
-const ETF_CONFIG = new Set(["SPY", "QQQ", "VWRA.L", "VWRA", "IVV", "IVVB11", "VOO", "VT", "VNQ", "SCHD", "FLJP"]);
 
 // ── Embedded fallback (Q1-2025, approximate) ─────────────────────────────────
 
@@ -203,6 +202,28 @@ async function fetchAlphaVantage(ticker: string): Promise<Holding[] | null> {
 
 // ── Tier 2: Live provider (CSV/XLSX) ─────────────────────────────────────────
 
+// Divide uma linha CSV respeitando campos entre aspas (nomes como
+// "Berkshire Hathaway Inc, Class B" não podem desalinhar as colunas).
+function splitCSVLine(line: string): string[] {
+  const cols: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      cols.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
 function parseCSVHoldings(text: string): Holding[] | null {
   const lines = text.split("\n");
   let headerIdx = -1;
@@ -215,18 +236,21 @@ function parseCSVHoldings(text: string): Holding[] | null {
   }
   if (headerIdx < 0) return null;
 
-  const headers = lines[headerIdx].split(",").map(h => h.trim().replace(/"/g, "").toLowerCase());
+  const headers = splitCSVLine(lines[headerIdx]).map(h => h.replace(/"/g, "").toLowerCase());
   const tickerCol = headers.findIndex(h => ["ticker", "symbol", "ativo"].some(k => h.includes(k)));
   const nameCol = headers.findIndex(h => ["name", "nome", "description", "holding"].some(k => h.includes(k)));
-  const weightCol = headers.findIndex(h => ["weight", "peso", "%", "percentage", "market value"].some(k => h.includes(k)));
+  // Peso de verdade primeiro; "market value" só como último recurso (a
+  // normalização por totalWeight torna valores de mercado equivalentes a pesos).
+  let weightCol = headers.findIndex(h => ["weight", "peso", "percentage", "%"].some(k => h.includes(k)));
+  if (weightCol < 0) weightCol = headers.findIndex(h => h.includes("market value"));
 
   if (weightCol < 0) return null;
 
   const holdings: Holding[] = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
-    const cols = lines[i].split(",").map(c => c.trim().replace(/"/g, ""));
+    const cols = splitCSVLine(lines[i]).map(c => c.replace(/"/g, ""));
     if (cols.length <= weightCol) continue;
-    const weight = parseFloat(cols[weightCol]);
+    const weight = parseFloat(cols[weightCol].replace(/[%$\s]/g, ""));
     if (isNaN(weight) || weight <= 0) continue;
     const ticker = tickerCol >= 0 ? cols[tickerCol] : "";
     const name = nameCol >= 0 ? cols[nameCol] : ticker;
@@ -342,12 +366,13 @@ export async function fetchHoldings(ticker: string): Promise<{ holdings: Holding
 
 // ── Load stored compositions from GSheets ──────────────────────���─────────────
 
-export async function loadFromGSheets(): Promise<{ stored: Record<string, Holding[]>; updatedAt: string }> {
+export async function loadFromGSheets(): Promise<{ stored: Record<string, Holding[]>; storedSources: Record<string, string>; updatedAt: string }> {
   try {
     const rows = await fetchTab("composicao");
-    if (!rows || rows.length === 0) return { stored: {}, updatedAt: "" };
+    if (!rows || rows.length === 0) return { stored: {}, storedSources: {}, updatedAt: "" };
 
     const result: Record<string, Holding[]> = {};
+    const storedSources: Record<string, string> = {};
     let updatedAt = "";
 
     for (const row of rows) {
@@ -362,11 +387,13 @@ export async function loadFromGSheets(): Promise<{ stored: Record<string, Holdin
         name: String(row["name"] ?? row["nome"] ?? ticker),
         weight_pct: weight,
       });
+      const src = String(row["source"] ?? "").trim();
+      if (src && !storedSources[etf]) storedSources[etf] = src;
       if (!updatedAt && row["updated_at"]) updatedAt = String(row["updated_at"]);
     }
-    return { stored: result, updatedAt };
+    return { stored: result, storedSources, updatedAt };
   } catch {
-    return { stored: {}, updatedAt: "" };
+    return { stored: {}, storedSources: {}, updatedAt: "" };
   }
 }
 
@@ -375,11 +402,12 @@ export async function loadFromGSheets(): Promise<{ stored: Record<string, Holdin
 export async function saveToGSheets(perEtf: PerEtfResult): Promise<boolean> {
   try {
     const { google } = await import("googleapis");
-    const apiKey = process.env.GOOGLE_API_KEY;
+    // Escrita no Sheets exige service account — API key é rejeitada (401).
+    const auth = getServiceAccountAuth();
     const spreadsheetId = process.env.SPREADSHEET_ID;
-    if (!apiKey || !spreadsheetId) return false;
+    if (!auth || !spreadsheetId) return false;
 
-    const sheets = google.sheets({ version: "v4", auth: apiKey });
+    const sheets = google.sheets({ version: "v4", auth });
     const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
 
     const rows: string[][] = [["etf", "ticker", "name", "weight_pct", "source", "updated_at"]];
@@ -431,18 +459,17 @@ export async function computeLookThrough(
   const sources: Record<string, string> = {};
   let totalLookThroughBRL = 0;
 
-  // Fetch all ETF holdings in parallel
+  // Fetch all ETF holdings in parallel — qualquer ETF tenta as camadas
+  // (Alpha Vantage cobre qualquer ETF US; Yahoo cobre o resto com top-10).
   const fetchResults = await Promise.allSettled(
     eligible.map(async (pos) => {
       const t = pos.ticker.toUpperCase().replace(".SA", "");
-      const lookupKeys = [t, pos.ticker, pos.ticker.replace(".SA", "")];
+      const lookupKeys = [...new Set([t, pos.ticker.toUpperCase()])];
       let result: { holdings: Holding[] | null; source: string } = { holdings: null, source: "none" };
 
       for (const key of lookupKeys) {
-        if (ETF_CONFIG.has(key) || PROVIDER_URLS[key]) {
-          result = await fetchHoldings(key);
-          if (result.holdings) break;
-        }
+        result = await fetchHoldings(key);
+        if (result.holdings) break;
       }
 
       return { pos, result, lookupKey: t };
@@ -576,7 +603,8 @@ export async function computeLookThrough(
 export function computeFromStored(
   storedCompositions: Record<string, Holding[]>,
   positions: PortfolioPosition[],
-  topN: number = 50
+  topN: number = 50,
+  storedSources: Record<string, string> = {}
 ): LookThroughOutput {
   const eligible = positions.filter(
     p => LOOKTHROUGH_SECTORS.has(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0
@@ -591,9 +619,11 @@ export function computeFromStored(
   for (const pos of eligible) {
     const keys = [pos.ticker.toUpperCase(), pos.ticker.replace(".SA", "").toUpperCase(), pos.ticker];
     let holdings: Holding[] | null = null;
+    let matchedKey = "";
     for (const key of keys) {
       if (storedCompositions[key] && storedCompositions[key].length > 0) {
         holdings = storedCompositions[key].slice(0, topN);
+        matchedKey = key;
         break;
       }
     }
@@ -602,7 +632,10 @@ export function computeFromStored(
       const coveredPct = holdings.reduce((s, h) => s + h.weight_pct, 0);
       supported.push(pos.ticker);
       totalLookThroughBRL += pos.valorAtualBRL;
-      sources[pos.ticker] = "stored";
+      // Preserva a proveniência original ("stored:embedded" denuncia dado
+      // hardcoded antigo; "stored:alphavantage"/"stored:live" são confiáveis).
+      const origSrc = storedSources[matchedKey];
+      sources[pos.ticker] = origSrc ? `stored:${origSrc}` : "stored";
 
       const finalHoldings = [...holdings];
       const uncoveredPct = Math.max(0, 100 - coveredPct);
@@ -619,7 +652,7 @@ export function computeFromStored(
         value_brl: pos.valorAtualBRL,
         covered_pct: coveredPct,
         status: "ok",
-        source: "stored",
+        source: sources[pos.ticker],
       };
     } else {
       unsupported.push(pos.ticker);
