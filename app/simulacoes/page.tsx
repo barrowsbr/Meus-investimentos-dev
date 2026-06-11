@@ -12,6 +12,7 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
+import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
@@ -1182,7 +1183,7 @@ function EtfLookThrough({ alloc, positions }: {
   useEffect(() => {
     if (!expanded || compositions !== null || etfPositions.length === 0) return;
     setLoadingComp(true);
-    fetch("/api/composicao/resumo")
+    fetch(withDataVersion("/api/composicao/resumo"))
       .then(r => r.json())
       .then(d => {
         const lt = d.look_through;
@@ -1322,7 +1323,8 @@ function EtfLookThrough({ alloc, positions }: {
     try {
       const res = await fetch("/api/composicao/etf-refresh", { method: "POST" });
       if (res.ok) {
-        const fresh = await fetch("/api/composicao/resumo");
+        bumpDataVersion();
+        const fresh = await fetch(withDataVersion("/api/composicao/resumo"));
         if (fresh.ok) {
           const d = await fresh.json();
           if (d.look_through?.compositions) {

@@ -9,6 +9,7 @@ import {
   Landmark, ShieldAlert, Plus, Trash2, CheckCircle2, RefreshCw, History,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
+import { bumpDataVersion } from "@/lib/data-version";
 import { brl, compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import PageHeader from "@/components/PageHeader";
@@ -86,6 +87,7 @@ function NovaMargem({ resp, onSaved }: { resp: AlavancagemResponse; onSaved: () 
       const j = await r.json();
       if (j.error) throw new Error(j.error);
       setValor(""); setObs("");
+      bumpDataVersion();
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao salvar");
@@ -154,6 +156,7 @@ function MargemCard({ e, onChanged }: { e: MarginEntryMetrics; onChanged: () => 
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error);
+      bumpDataVersion();
       onChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro");

@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, ArrowUpDown, Database,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { bumpDataVersion } from "@/lib/data-version";
 import { getBackgroundImage, setBackgroundImage } from "@/components/AppBackground";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -138,6 +139,9 @@ function ImportSection() {
       const data = await res.json();
       setResult(data);
       if (forceApply) setDryRun(false);
+      // Escrita real na planilha → invalida o CDN cache dos endpoints de leitura
+      const aplicou = forceApply || !dryRun;
+      if (res.ok && aplicou && !data.error) bumpDataVersion();
     } catch (e) {
       setResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
     } finally {
