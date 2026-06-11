@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
-import { compactBRL, pct } from "@/lib/format";
+import { compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
@@ -930,65 +930,70 @@ export default function SimulacoesPage() {
 
         {/* ── Right: Allocation comparison ── */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Summary cards — tamanho do investimento projetado (R$ e moedas nativas) */}
+          {/* Summary cards — Patrimônio / Caixa USD / Novo Patrimônio */}
           {hasSim && (() => {
+            const usdFx = data?.usdbrl ?? 5.7;
+
+            const initialCaixaUSD = rfPositions
+              .filter(r => r.isCaixa && r.moeda === "USD")
+              .reduce((s, r) => s + r.atual, 0);
+            const initialCaixaBRL = rfPositions
+              .filter(r => r.isCaixa && r.moeda === "BRL")
+              .reduce((s, r) => s + r.atual, 0);
+
             const validOps = ops.filter(o => o.ticker && o.quantidade > 0 && o.preco > 0);
-            const SYM: Record<string, string> = {
-              BRL: "R$", USD: "US$", EUR: "€", GBP: "£", JPY: "¥", CHF: "CHF",
-              CAD: "C$", AUD: "A$", HKD: "HK$", SGD: "S$", MXN: "MX$",
-            };
-            const fmtNative = (moeda: string, v: number) =>
-              `${SYM[moeda] ?? moeda} ${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 })}`;
+            const consumedUSD = validOps
+              .filter(o => o.moeda === "USD")
+              .reduce((s, o) => s + (o.tipo === "compra" ? 1 : -1) * o.quantidade * o.preco, 0);
+            const consumedBRL = validOps
+              .filter(o => o.moeda === "BRL")
+              .reduce((s, o) => s + (o.tipo === "compra" ? 1 : -1) * o.quantidade * o.preco, 0);
 
-            // Líquido por moeda nativa (compras − vendas) e totais em BRL
-            const porMoeda: Record<string, number> = {};
-            let comprasBRL = 0, vendasBRL = 0;
-            for (const op of validOps) {
-              const sign = op.tipo === "compra" ? 1 : -1;
-              const totalNativo = op.quantidade * op.preco;
-              porMoeda[op.moeda] = (porMoeda[op.moeda] ?? 0) + sign * totalNativo;
-              const fx = fxMap[op.moeda] ?? 1;
-              if (op.tipo === "compra") comprasBRL += totalNativo * fx;
-              else vendasBRL += totalNativo * fx;
-            }
-            const investimentoBRL = comprasBRL - vendasBRL;
-            const moedas = Object.entries(porMoeda)
-              .filter(([, v]) => Math.abs(v) > 0.005)
-              .sort((a, b) => Math.abs(b[1] * (fxMap[b[0]] ?? 1)) - Math.abs(a[1] * (fxMap[a[0]] ?? 1)));
+            const remainingUSD = initialCaixaUSD - consumedUSD;
+            const remainingBRL = initialCaixaBRL - consumedBRL;
+            const isMargin = remainingUSD < 0;
 
-            const brutoAtual = currentAlloc.total;
-            const brutoSim = simAlloc.total;
-            const deltaBruto = brutoSim - brutoAtual;
+            const novoPatrimonio = simAlloc.total - consumedUSD * usdFx - consumedBRL;
+
+            const fmtUSD = (v: number) =>
+              `$ ${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
             return (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="glass-card p-3 text-center">
-                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Investimento Projetado</div>
-                  <div className={`text-sm font-bold ${investimentoBRL >= 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                    {investimentoBRL >= 0 ? "" : "+"}{compactBRL(Math.abs(investimentoBRL))}{investimentoBRL < 0 ? " liberado" : ""}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Card 1: Patrimônio Atual */}
+                <div className="glass-card p-4 text-center">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Patrimônio Atual</div>
+                  <div className="text-lg font-bold text-zinc-100">{compactBRL(currentAlloc.total)}</div>
+                </div>
+
+                {/* Card 2: Caixa USD (IBKR) */}
+                <div className="glass-card p-4 text-center">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">
+                    {isMargin ? "Margin Necessária · IBKR" : "Caixa USD · IBKR"}
                   </div>
-                  <div className="text-[9px] text-zinc-600 mt-1">
-                    compras {compactBRL(comprasBRL)}{vendasBRL > 0 ? ` · vendas ${compactBRL(vendasBRL)}` : ""}
+                  <div className={`text-lg font-bold ${isMargin ? "text-red-400" : remainingUSD > 0 ? "text-emerald-400" : "text-zinc-400"}`}>
+                    {isMargin ? "−" : ""}{fmtUSD(remainingUSD)}
+                  </div>
+                  {consumedUSD !== 0 && (
+                    <div className="text-[10px] text-zinc-600 mt-1 font-mono">
+                      {fmtUSD(initialCaixaUSD)} → {isMargin ? "−" : ""}{fmtUSD(remainingUSD)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 3: Novo Patrimônio */}
+                <div className="glass-card p-4 text-center">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Novo Patrimônio</div>
+                  <div className="text-lg font-bold text-amber-400">{compactBRL(novoPatrimonio)}</div>
+                  <div className="text-[10px] text-zinc-600 mt-1">
+                    {remainingBRL > 0 && <span>Caixa BR {compactBRL(remainingBRL)}</span>}
+                    {isMargin && (
+                      <span className={remainingBRL > 0 ? "ml-2" : ""}>
+                        <span className="text-red-400/70">Margin {fmtUSD(Math.abs(remainingUSD))}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="glass-card p-3">
-                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1 text-center">Por Moeda Nativa</div>
-                  <div className="space-y-0.5">
-                    {moedas.length === 0 && <div className="text-xs text-zinc-600 text-center">—</div>}
-                    {moedas.slice(0, 3).map(([moeda, v]) => (
-                      <div key={moeda} className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-500">{moeda}{v < 0 ? " (venda)" : ""}</span>
-                        <span className={`font-bold font-mono ${v >= 0 ? "text-zinc-200" : "text-emerald-400"}`}>{fmtNative(moeda, v)}</span>
-                      </div>
-                    ))}
-                    {moedas.length > 3 && <div className="text-[9px] text-zinc-600 text-center">+{moedas.length - 3} moedas</div>}
-                  </div>
-                </div>
-                <DualCard label="Patrimônio" atual={compactBRL(brutoAtual)} sim={compactBRL(brutoSim)} color="#60a5fa" />
-                <SummaryCard
-                  label="Variação"
-                  value={`${deltaBruto >= 0 ? "+" : ""}${compactBRL(deltaBruto)} (${brutoAtual > 0 ? `${deltaBruto >= 0 ? "+" : ""}${pct(deltaBruto / brutoAtual * 100, 1)}` : "—"})`}
-                  trend={deltaBruto >= 0 ? "up" : "down"}
-                />
               </div>
             );
           })()}
@@ -1025,7 +1030,6 @@ export default function SimulacoesPage() {
                     <div key={r.setor} className="flex items-center gap-2 text-xs">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SETOR_ECONOMICO_COLORS[r.setor] ?? "#64748b" }} />
                       <span className="text-zinc-400 w-36 truncate">{r.setor}</span>
-                      {/* barra divergente a partir do centro */}
                       <div className="flex-1 h-3 relative">
                         <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-700" />
                         <div
@@ -1577,34 +1581,3 @@ function EtfLookThrough({ alloc, positions }: {
   );
 }
 
-// ── Small helper component ───────────────────────────────────────────────────
-
-function DualCard({ label, atual, sim, color, sub }: {
-  label: string; atual: string; sim: string; color: string; sub?: string;
-}) {
-  return (
-    <div className="glass-card p-3">
-      <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 text-center">{label}</div>
-      <div className="flex items-center justify-center gap-1.5">
-        <span className="text-xs font-semibold text-zinc-500">{atual}</span>
-        <ArrowRight size={10} className="text-zinc-700 shrink-0" />
-        <span className="text-sm font-bold" style={{ color }}>{sim}</span>
-      </div>
-      {sub && <div className="text-[9px] text-zinc-600 text-center mt-1">{sub}</div>}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, accent, trend }: {
-  label: string; value: string; accent?: boolean; trend?: "up" | "down";
-}) {
-  const trendColor = trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-zinc-100";
-  return (
-    <div className="glass-card p-3 text-center">
-      <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">{label}</div>
-      <div className={`text-sm font-bold ${accent ? "text-amber-400" : trend ? trendColor : "text-zinc-100"}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
