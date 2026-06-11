@@ -30,6 +30,7 @@ export async function appendRows(tabName: string, rows: string[][]): Promise<voi
     spreadsheetId: SPREADSHEET_ID,
     range: resolved,
     valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
     requestBody: { values: rows },
   });
 }
