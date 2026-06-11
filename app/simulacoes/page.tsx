@@ -930,23 +930,60 @@ export default function SimulacoesPage() {
 
         {/* ── Right: Allocation comparison ── */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Summary cards — Investido (bruto) × Net (real) × Alavancagem */}
+          {/* Summary cards — tamanho do investimento projetado (R$ e moedas nativas) */}
           {hasSim && (() => {
-            const divida = data?.alavancagem?.dividaBRL ?? 0;
+            const validOps = ops.filter(o => o.ticker && o.quantidade > 0 && o.preco > 0);
+            const SYM: Record<string, string> = {
+              BRL: "R$", USD: "US$", EUR: "€", GBP: "£", JPY: "¥", CHF: "CHF",
+              CAD: "C$", AUD: "A$", HKD: "HK$", SGD: "S$", MXN: "MX$",
+            };
+            const fmtNative = (moeda: string, v: number) =>
+              `${SYM[moeda] ?? moeda} ${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 })}`;
+
+            // Líquido por moeda nativa (compras − vendas) e totais em BRL
+            const porMoeda: Record<string, number> = {};
+            let comprasBRL = 0, vendasBRL = 0;
+            for (const op of validOps) {
+              const sign = op.tipo === "compra" ? 1 : -1;
+              const totalNativo = op.quantidade * op.preco;
+              porMoeda[op.moeda] = (porMoeda[op.moeda] ?? 0) + sign * totalNativo;
+              const fx = fxMap[op.moeda] ?? 1;
+              if (op.tipo === "compra") comprasBRL += totalNativo * fx;
+              else vendasBRL += totalNativo * fx;
+            }
+            const investimentoBRL = comprasBRL - vendasBRL;
+            const moedas = Object.entries(porMoeda)
+              .filter(([, v]) => Math.abs(v) > 0.005)
+              .sort((a, b) => Math.abs(b[1] * (fxMap[b[0]] ?? 1)) - Math.abs(a[1] * (fxMap[a[0]] ?? 1)));
+
             const brutoAtual = currentAlloc.total;
             const brutoSim = simAlloc.total;
-            const netAtual = brutoAtual - divida;
-            const netSim = brutoSim - divida;
-            const alavAtual = brutoAtual > 0 ? (divida / brutoAtual) * 100 : 0;
-            const alavSim = brutoSim > 0 ? (divida / brutoSim) * 100 : 0;
             const deltaBruto = brutoSim - brutoAtual;
             return (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <DualCard label="Investido (Bruto)" atual={compactBRL(brutoAtual)} sim={compactBRL(brutoSim)} color="#60a5fa" />
-                <DualCard label="Net (dinheiro real)" atual={compactBRL(netAtual)} sim={compactBRL(netSim)} color="#34d399"
-                  sub={divida > 0 ? `dívida margin −${compactBRL(divida)}` : "sem margem aberta"} />
-                <DualCard label="Alavancagem" atual={`${alavAtual.toFixed(1)}%`} sim={`${alavSim.toFixed(1)}%`} color="#fbbf24"
-                  sub={divida > 0 ? "dívida / bruto" : "—"} />
+                <div className="glass-card p-3 text-center">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Investimento Projetado</div>
+                  <div className={`text-sm font-bold ${investimentoBRL >= 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {investimentoBRL >= 0 ? "" : "+"}{compactBRL(Math.abs(investimentoBRL))}{investimentoBRL < 0 ? " liberado" : ""}
+                  </div>
+                  <div className="text-[9px] text-zinc-600 mt-1">
+                    compras {compactBRL(comprasBRL)}{vendasBRL > 0 ? ` · vendas ${compactBRL(vendasBRL)}` : ""}
+                  </div>
+                </div>
+                <div className="glass-card p-3">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1 text-center">Por Moeda Nativa</div>
+                  <div className="space-y-0.5">
+                    {moedas.length === 0 && <div className="text-xs text-zinc-600 text-center">—</div>}
+                    {moedas.slice(0, 3).map(([moeda, v]) => (
+                      <div key={moeda} className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-500">{moeda}{v < 0 ? " (venda)" : ""}</span>
+                        <span className={`font-bold font-mono ${v >= 0 ? "text-zinc-200" : "text-emerald-400"}`}>{fmtNative(moeda, v)}</span>
+                      </div>
+                    ))}
+                    {moedas.length > 3 && <div className="text-[9px] text-zinc-600 text-center">+{moedas.length - 3} moedas</div>}
+                  </div>
+                </div>
+                <DualCard label="Patrimônio" atual={compactBRL(brutoAtual)} sim={compactBRL(brutoSim)} color="#60a5fa" />
                 <SummaryCard
                   label="Variação"
                   value={`${deltaBruto >= 0 ? "+" : ""}${compactBRL(deltaBruto)} (${brutoAtual > 0 ? `${deltaBruto >= 0 ? "+" : ""}${pct(deltaBruto / brutoAtual * 100, 1)}` : "—"})`}
