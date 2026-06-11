@@ -77,6 +77,7 @@ interface UsdView {
   summary: Summary;
   chart: ChartPoint[];
   monthlyReturns: MonthlyReturn[];
+  fxDecomposition?: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
 }
 
 interface PerformanceResponse {
@@ -1059,45 +1060,50 @@ export default function PerformancePage() {
           {/* TWR vs MWR + FX Decomposition */}
           <div className="glass-card p-5">
             <h2 className="section-title mb-4"><Activity size={15} />TWR vs MWR — Comparação ({currSymbol})</h2>
-            <div className={`grid grid-cols-1 ${!isUsd ? "md:grid-cols-2" : ""} gap-6`}>
-              <div className="space-y-3">
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                  <p className="text-xs font-bold text-blue-400 mb-1">TWR — Time-Weighted Return</p>
-                  <p className="text-xs text-zinc-500">Elimina o efeito dos aportes e resgates. Mede a qualidade das decisões de investimento independente do timing dos aportes.</p>
-                  <p className="text-sm font-bold text-blue-300 mt-2">{pct(twrPct)} total · {pct(s.twrAnualizado * 100)} a.a.</p>
-                </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3">
-                  <p className="text-xs font-bold text-purple-400 mb-1">MWR / IRR — Money-Weighted Return</p>
-                  <p className="text-xs text-zinc-500">Inclui o impacto do timing dos aportes. Reflete o retorno real do seu dinheiro investido.</p>
-                  <p className="text-sm font-bold text-purple-300 mt-2">{pct(mwrPct)} a.a.</p>
-                </div>
-              </div>
-              {!isUsd && (
-                <div>
-                  <h3 className="text-xs font-semibold text-zinc-400 mb-3">
-                    <DollarSign size={13} className="inline" /> Decomposição: Ativo vs Cambial
-                  </h3>
-                  <p className="text-[10px] text-zinc-600 mb-3">
-                    R<sub>total</sub> = R<sub>ativo</sub> + R<sub>fx</sub> + (R<sub>ativo</sub> × R<sub>fx</sub>) — o último termo é o <span className="text-purple-400">efeito cruzado</span>
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { label: "R. Total", value: data.fxDecomposition.r_total * 100, color: "#60a5fa" },
-                      { label: "Ativo (puro)", value: data.fxDecomposition.r_ativo * 100, color: "#34d399" },
-                      { label: "Câmbio principal", value: data.fxDecomposition.r_fx * 100, color: "#f59e0b" },
-                      { label: "Efeito cruzado", value: data.fxDecomposition.r_combinado * 100, color: "#8b5cf6" },
-                    ].map(item => (
-                      <div key={item.label} className="text-center p-3 rounded-xl bg-zinc-900/50">
-                        <p className="text-[10px] text-zinc-500 mb-1">{item.label}</p>
-                        <p className="text-lg font-bold" style={{ color: item.color }}>
-                          {item.value >= 0 ? "+" : ""}{item.value.toFixed(2)}%
-                        </p>
-                      </div>
-                    ))}
+            {(() => {
+              const fxD = isUsd && data.usdView?.fxDecomposition
+                ? data.usdView.fxDecomposition
+                : data.fxDecomposition;
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-400 mb-1">TWR — Time-Weighted Return</p>
+                      <p className="text-xs text-zinc-500">Elimina o efeito dos aportes e resgates. Mede a qualidade das decisões de investimento independente do timing dos aportes.</p>
+                      <p className="text-sm font-bold text-blue-300 mt-2">{pct(twrPct)} total · {pct(s.twrAnualizado * 100)} a.a.</p>
+                    </div>
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3">
+                      <p className="text-xs font-bold text-purple-400 mb-1">MWR / IRR — Money-Weighted Return</p>
+                      <p className="text-xs text-zinc-500">Inclui o impacto do timing dos aportes. Reflete o retorno real do seu dinheiro investido.</p>
+                      <p className="text-sm font-bold text-purple-300 mt-2">{pct(mwrPct)} a.a.</p>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-zinc-400 mb-3">
+                      <DollarSign size={13} className="inline" /> Decomposição: Ativo vs Cambial {isUsd ? "(visão USD)" : ""}
+                    </h3>
+                    <p className="text-[10px] text-zinc-600 mb-3">
+                      R<sub>total</sub> = R<sub>ativo</sub> + R<sub>fx</sub> + (R<sub>ativo</sub> × R<sub>fx</sub>) — o último termo é o <span className="text-purple-400">efeito cruzado</span>
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { label: `R. Total (${currSymbol})`, value: fxD.r_total * 100, color: "#60a5fa" },
+                        { label: "Ativo (puro)", value: fxD.r_ativo * 100, color: "#34d399" },
+                        { label: isUsd ? "Câmbio (BRL→USD)" : "Câmbio (USD→BRL)", value: fxD.r_fx * 100, color: "#f59e0b" },
+                        { label: "Efeito cruzado", value: fxD.r_combinado * 100, color: "#8b5cf6" },
+                      ].map(item => (
+                        <div key={item.label} className="text-center p-3 rounded-xl bg-zinc-900/50">
+                          <p className="text-[10px] text-zinc-500 mb-1">{item.label}</p>
+                          <p className="text-lg font-bold" style={{ color: item.color }}>
+                            {item.value >= 0 ? "+" : ""}{item.value.toFixed(2)}%
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
 
           {/* Currency decomposition (BRL only) */}

@@ -726,13 +726,49 @@ export async function GET(request: Request) {
       const ibovUsdMap = new Map(ibovUsd.map(p => [p.date, p.twr]));
 
       const mwrDiarioUsd = calcularMWRDiario(pts);
-      const chart = usdTwrPoints.map(p => ({
-        date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
-        mwr_twr: mwrDiarioUsd.get(p.date) ?? null,
-        sp500_twr: sp500Map.get(p.date) ?? null,
-        cdi_twr: cdiUsdMap.get(p.date) ?? null,
-        ibov_twr: ibovUsdMap.get(p.date) ?? null,
-      }));
+
+      // FX decomposition for USD investor: inverse of BRL view.
+      // fx_twr = USDBRL_start / USDBRL_now − 1 (BRL→USD conversion effect)
+      // ativo_twr = (1 + usd_twr) / (1 + fx_twr) − 1 (asset return in local ccy)
+      const baseFxUsd = (() => {
+        for (const p of meaningfulPoints) {
+          const fx = alignedFx[p.date]?.USDBRL;
+          if (fx && fx > 0) return fx;
+        }
+        return null;
+      })();
+
+      const chart = usdTwrPoints.map(p => {
+        let fx_twr: number | null = null;
+        let ativo_twr: number | null = null;
+        if (baseFxUsd) {
+          const curFx = alignedFx[p.date]?.USDBRL;
+          if (curFx) {
+            fx_twr = baseFxUsd / curFx - 1;
+            ativo_twr = (1 + p.twr) / (1 + fx_twr) - 1;
+          }
+        }
+        return {
+          date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
+          mwr_twr: mwrDiarioUsd.get(p.date) ?? null,
+          sp500_twr: sp500Map.get(p.date) ?? null,
+          cdi_twr: cdiUsdMap.get(p.date) ?? null,
+          ibov_twr: ibovUsdMap.get(p.date) ?? null,
+          fx_twr,
+          ativo_twr,
+        };
+      });
+
+      // Summary-level FX decomposition for USD view
+      const usdFxDecomp = (() => {
+        const r_total = twrTotalUsd;
+        if (!baseFxUsd) return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
+        const lastDate = meaningfulPoints[meaningfulPoints.length - 1]?.date;
+        const endFx = lastDate ? alignedFx[lastDate]?.USDBRL : null;
+        const r_fx = endFx ? baseFxUsd / endFx - 1 : 0;
+        const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
+        return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
+      })();
 
       // Monthly returns in USD
       const usdMonthlyMap: Record<string, { sf: number; ef: number; sd: string }> = {};
@@ -795,6 +831,7 @@ export async function GET(request: Request) {
         },
         chart: thinSeries(chart),
         monthlyReturns: usdMonthly,
+        fxDecomposition: usdFxDecomp,
       };
     })();
 
