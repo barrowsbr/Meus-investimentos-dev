@@ -671,7 +671,7 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        const ge = isUnfiltered && ganhoCanonical != null
+        const ge = isUnfiltered && !isUsd && ganhoCanonical != null
           ? ganhoCanonical
           : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
@@ -1030,7 +1030,7 @@ export default function PerformancePage() {
                     const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
                     const isAllT = lookback === 0 && !customMode;
                     const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
-                    const ge = isUnfiltered && ganhoCanonical != null
+                    const ge = isUnfiltered && !isUsd && ganhoCanonical != null
                       ? ganhoCanonical
                       : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
                     return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];

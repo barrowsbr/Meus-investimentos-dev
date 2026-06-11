@@ -3,7 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
-import { calcularSnapshot, calcularRendaFixaBRL } from "@/lib/portfolio";
+import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfolio";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 
@@ -459,8 +459,11 @@ export async function GET(request: Request) {
     const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "";
     const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
+    // Match por base normalizada (sem .SA): o import B3 grava "ITUB4" enquanto
+    // as transações usam "ITUB4.SA" — match literal zerava proventos no filtro.
+    const keptBase = new Set([...keptTickers].map(tickerBase));
     const proventosF = filtroAtivo
-      ? proventos.filter(r => keptTickers.has(String(r["ticker"] ?? "").toUpperCase().trim()))
+      ? proventos.filter(r => keptBase.has(tickerBase(String(r["ticker"] ?? ""))))
       : proventos;
     const fixaAbertaF = includeRF ? fixaAberta : [];
 
@@ -742,6 +745,7 @@ export async function GET(request: Request) {
       const usdMonthly = Object.entries(usdMonthlyMap).sort(([a], [b]) => a.localeCompare(b))
         .map(([month, { sf, ef }]) => ({ month, return_pct: sf > 0 ? ((ef / sf) - 1) * 100 : 0 }));
 
+      const fxDiv = lastFx.USDBRL || 5.7;
       return {
         summary: {
           twrTotal: twrTotalUsd,
@@ -750,6 +754,21 @@ export async function GET(request: Request) {
           navFinal: pts[pts.length - 1].nav,
           navInicial: pts[0].nav,
           totalInvestido: pts.reduce((s, p) => s + Math.max(0, p.flow), 0),
+          custoPosicoesAtuais: twr.custoPosicoesAtuais / fxDiv,
+          custoFIFOSnapshot: snapshot.positions
+            .filter(p => !isRendaFixa(p.setor))
+            .reduce((s, p) => s + p.custoTotalBRL, 0) / fxDiv,
+          resultadoTotal: snapshot.retornoTotalRVBRL / fxDiv,
+          resultadoTotalPct: snapshot.retornoTotalRVPct,
+          patrimonio: {
+            total: patrimonio.total / fxDiv,
+            rv: patrimonio.rv / fxDiv,
+            rf: patrimonio.rf / fxDiv,
+            caixa: patrimonio.caixa / fxDiv,
+            divida: (patrimonio.divida ?? 0) / fxDiv,
+            net: (patrimonio.net ?? patrimonio.total) / fxDiv,
+            alavancagemPct: patrimonio.alavancagemPct ?? 0,
+          },
           duracaoAnos: twr.duracaoAnos,
           primeiraData: twr.primeiraData,
           ultimaData: twr.ultimaData,
@@ -766,10 +785,6 @@ export async function GET(request: Request) {
           var95: usdRisk.var95,
           var99: usdRisk.var99,
           riskFreeRate: usdRisk.riskFreeRate,
-          // Same accounting identity as the BRL engine: anchor day (firstIdx
-          // === 0, windowed view) measures from end of day 0 and excludes
-          // anchor-day flows/income; otherwise day 0 is the first purchase
-          // day and its flow counts. NET flows — vendas/saques increase gain.
           ganhoEconomico: (() => {
             const anchor = firstIdx === 0;
             const start = anchor ? 1 : 0;
