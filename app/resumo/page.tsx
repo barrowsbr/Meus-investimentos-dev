@@ -17,6 +17,7 @@ import {
   Building2, Wallet, Plus, Trash2, Save, Loader2,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
+import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { brl, compactBRL, pct, shortMonth, currency } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, isRendaFixa, isRendaVariavel } from "@/lib/sectors";
@@ -123,7 +124,7 @@ export default function ResumoPage() {
   const [etfRefreshing, setEtfRefreshing] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/composicao/resumo`)
+    fetch(withDataVersion(`${API_URL}/api/composicao/resumo`))
       .then(r => r.json())
       .then(setComposicao)
       .catch(() => {})
@@ -1490,7 +1491,10 @@ export default function ResumoPage() {
                 try {
                   const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
                   if (res.ok) {
-                    const fresh = await fetch(`${API_URL}/api/composicao/resumo`);
+                    const j = await res.json();
+                    if (!j.saved_to_sheets) alert(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
+                    bumpDataVersion();
+                    const fresh = await fetch(withDataVersion(`${API_URL}/api/composicao/resumo`));
                     if (fresh.ok) setComposicao(await fresh.json());
                   }
                 } catch { /* ignore */ }
@@ -1783,7 +1787,10 @@ export default function ResumoPage() {
                   try {
                     const res = await fetch(`${API_URL}/api/composicao/etf-refresh`, { method: "POST" });
                     if (res.ok) {
-                      const fresh = await fetch(`${API_URL}/api/composicao/resumo`);
+                      const j = await res.json();
+                      if (!j.saved_to_sheets) alert(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
+                      bumpDataVersion();
+                      const fresh = await fetch(withDataVersion(`${API_URL}/api/composicao/resumo`));
                       if (fresh.ok) setComposicao(await fresh.json());
                     }
                   } catch { /* ignore */ }
@@ -1988,7 +1995,11 @@ function CaixaManager({ fx }: { fx?: { USDBRL: number; EURBRL: number; CADBRL: n
       const d = await res.json();
       if (res.ok) {
         setDirty(false);
-        setMessage({ type: "ok", text: `Salvo — ${d.saved} posição(ões) de caixa` });
+        setMessage({ type: "ok", text: `Salvo — ${d.saved} posição(ões) de caixa. Recalculando…` });
+        // Invalida o CDN cache (cotacoes/composicao/performance) e recarrega
+        // para o novo caixa entrar nos cálculos imediatamente.
+        bumpDataVersion();
+        setTimeout(() => window.location.reload(), 900);
       } else {
         setMessage({ type: "err", text: d.error ?? "Erro ao salvar" });
       }

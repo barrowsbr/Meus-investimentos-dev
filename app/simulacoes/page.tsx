@@ -12,6 +12,7 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
+import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
@@ -46,6 +47,7 @@ interface Allocation {
   setor: Record<string, number>;
   moeda: Record<string, number>;
   classe: Record<string, number>;
+  rfRv: Record<string, number>;
   tipo: Record<string, number>;
   custodia: Record<string, number>;
   setorEconomico: Record<string, number>;
@@ -90,6 +92,11 @@ const CLASSE_COLORS: Record<string, string> = {
   "Commodities": "#d97706",
 };
 
+const RF_RV_COLORS: Record<string, string> = {
+  "Renda Variável": "#3b82f6",
+  "Renda Fixa": "#22c55e",
+};
+
 const CUSTODIA_COLORS: Record<string, string> = {
   Brasil: "#22c55e", Exterior: "#3b82f6", Cripto: "#f59e0b",
 };
@@ -98,6 +105,15 @@ const CASH_TICKERS = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+// Números vindos do Sheets chegam formatados pt-BR ("561,2") — Number() daria NaN.
+function numBR(v: unknown): number {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "").trim();
+  if (!s) return 0;
+  const n = s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s);
+  return isNaN(n) ? 0 : n;
 }
 
 function getSetor(ticker: string): string {
@@ -183,6 +199,7 @@ function buildAllocation(
   const setor: Record<string, number> = {};
   const moeda: Record<string, number> = {};
   const classe: Record<string, number> = {};
+  const rfRv: Record<string, number> = {};
   const tipo: Record<string, number> = {};
   const custodia: Record<string, number> = {};
   const setorEconomico: Record<string, number> = {};
@@ -201,6 +218,10 @@ function buildAllocation(
     const cl = getClasse(p.setor);
     classe[cl] = (classe[cl] ?? 0) + v;
 
+    // Visão binária: tudo que não é RF (incl. cripto/commodities) conta como RV
+    const bin = cl === "Renda Fixa" ? "Renda Fixa" : "Renda Variável";
+    rfRv[bin] = (rfRv[bin] ?? 0) + v;
+
     const tp = getTipo(p.setor);
     tipo[tp] = (tipo[tp] ?? 0) + v;
 
@@ -218,7 +239,7 @@ function buildAllocation(
     .sort((a, b) => b.valorAtualBRL - a.valorAtualBRL)
     .map(p => ({ ticker: p.ticker.replace(/\.SA$/, ""), setor: p.setor, valor: p.valorAtualBRL, pct: total > 0 ? (p.valorAtualBRL / total) * 100 : 0 }));
 
-  return { setor, moeda, classe, tipo, custodia, setorEconomico, allPositions, total };
+  return { setor, moeda, classe, rfRv, tipo, custodia, setorEconomico, allPositions, total };
 }
 
 // ── DonutChart ───────────────────────────────────────────────────────────────
@@ -294,6 +315,7 @@ export default function SimulacoesPage() {
   const [loadMenuOpen, setLoadMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [quoteCache, setQuoteCache] = useState<Record<string, QuoteInfo>>({});
   const fetchingRef = useRef<Set<string>>(new Set());
   const [rfPositions, setRfPositions] = useState<{ ticker: string; atual: number; moeda: string; isCaixa: boolean }[]>([]);
@@ -335,8 +357,8 @@ export default function SimulacoesPage() {
             id: uid(),
             tipo: (String(r.tipo ?? "compra").toLowerCase() as "compra" | "venda"),
             ticker: String(r.ticker ?? "").toUpperCase(),
-            quantidade: Number(r.quantidade) || 0,
-            preco: Number(r.preco) || 0,
+            quantidade: numBR(r.quantidade),
+            preco: numBR(r.preco),
             moeda: String(r.moeda ?? "BRL").toUpperCase(),
             notas: String(r.notas ?? ""),
           }));
@@ -360,14 +382,23 @@ export default function SimulacoesPage() {
   }, []);
 
   const saveScenario = useCallback(async () => {
-    if (!scenarioName.trim() || ops.length === 0) return;
+    const name = scenarioName.trim();
+    if (!name) {
+      setSaveMsg({ type: "err", text: "Dê um nome ao cenário antes de salvar" });
+      return;
+    }
+    if (ops.length === 0) {
+      setSaveMsg({ type: "err", text: "Adicione ao menos uma operação antes de salvar" });
+      return;
+    }
     setSaving(true);
+    setSaveMsg(null);
     try {
-      await fetch("/api/simulacoes", {
+      const res = await fetch("/api/simulacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cenario: scenarioName,
+          cenario: name,
           operacoes: ops.map(o => ({
             tipo: o.tipo,
             ticker: o.ticker,
@@ -378,8 +409,16 @@ export default function SimulacoesPage() {
           })),
         }),
       });
-      setSavedScenarios(prev => ({ ...prev, [scenarioName]: [...ops] }));
-    } catch { /* ignore */ }
+      const d = await res.json();
+      if (res.ok && !d.error) {
+        setSavedScenarios(prev => ({ ...prev, [name]: [...ops] }));
+        setSaveMsg({ type: "ok", text: `Cenário "${name}" salvo (${d.saved} ops)` });
+      } else {
+        setSaveMsg({ type: "err", text: d.error ?? `Erro HTTP ${res.status}` });
+      }
+    } catch {
+      setSaveMsg({ type: "err", text: "Erro de rede ao salvar" });
+    }
     setSaving(false);
   }, [scenarioName, ops]);
 
@@ -389,6 +428,7 @@ export default function SimulacoesPage() {
     setScenarioName(name);
     setOps(scenario.map(o => ({ ...o, id: uid() })));
     setLoadMenuOpen(false);
+    setSaveMsg(null);
   }, [savedScenarios]);
 
   const deleteScenario = useCallback(async (name: string) => {
@@ -671,7 +711,7 @@ export default function SimulacoesPage() {
               <input
                 type="text"
                 value={scenarioName}
-                onChange={e => setScenarioName(e.target.value)}
+                onChange={e => { setScenarioName(e.target.value); setSaveMsg(null); }}
                 className="flex-1 bg-transparent text-sm font-bold text-zinc-100 outline-none border-b border-transparent focus:border-amber-400/30 transition-colors"
                 placeholder="Nome do cenário"
               />
@@ -715,13 +755,18 @@ export default function SimulacoesPage() {
                 )}
               </div>
               <button
-                onClick={() => { setOps([]); setScenarioName("Novo Cenário"); }}
+                onClick={() => { setOps([]); setScenarioName("Novo Cenário"); setSaveMsg(null); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-zinc-500 transition-all hover:text-zinc-300"
                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
               >
-                <RefreshCw size={11} /> Limpar
+                <Plus size={11} /> Novo
               </button>
             </div>
+            {saveMsg && (
+              <div className={`mt-2 text-[10px] font-semibold ${saveMsg.type === "ok" ? "text-emerald-400" : "text-red-400"}`}>
+                {saveMsg.text}
+              </div>
+            )}
           </div>
 
           {/* Operations list */}
@@ -958,8 +1003,26 @@ export default function SimulacoesPage() {
             const fmtUSD = (v: number) =>
               `$ ${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
+            // Somatório líquido (compras − vendas) por moeda nativa das operações
+            const SYM: Record<string, string> = {
+              BRL: "R$", USD: "US$", EUR: "€", GBP: "£", JPY: "¥", CHF: "CHF",
+              CAD: "C$", AUD: "A$", HKD: "HK$", SGD: "S$", MXN: "MX$",
+            };
+            const porMoeda: Record<string, number> = {};
+            for (const op of validOps) {
+              const sign = op.tipo === "compra" ? 1 : -1;
+              porMoeda[op.moeda] = (porMoeda[op.moeda] ?? 0) + sign * op.quantidade * op.preco;
+            }
+            const moedas = Object.entries(porMoeda)
+              .filter(([, v]) => Math.abs(v) > 0.005)
+              .sort((a, b) => Math.abs(b[1] * (fxMap[b[0]] ?? 1)) - Math.abs(a[1] * (fxMap[a[0]] ?? 1)));
+            const totalOpsBRL = moedas.reduce((s, [m, v]) => s + v * (fxMap[m] ?? 1), 0);
+            const totalOpsUSD = usdFx > 0 ? totalOpsBRL / usdFx : 0;
+            const fmtNative = (m: string, v: number) =>
+              `${SYM[m] ?? m} ${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 })}`;
+
             return (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {/* Card 1: Patrimônio Atual */}
                 <div className="glass-card p-4 text-center">
                   <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Patrimônio Atual</div>
@@ -981,7 +1044,29 @@ export default function SimulacoesPage() {
                   )}
                 </div>
 
-                {/* Card 3: Novo Patrimônio */}
+                {/* Card 3: Operações por Moeda (somatório do que foi adicionado) */}
+                <div className="glass-card p-4">
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 text-center">Operações por Moeda</div>
+                  <div className="space-y-0.5">
+                    {moedas.length === 0 && <div className="text-xs text-zinc-600 text-center">—</div>}
+                    {moedas.slice(0, 3).map(([m, v]) => (
+                      <div key={m} className="flex items-center justify-between text-[11px]">
+                        <span className="text-zinc-500">{m}{v < 0 ? " (venda)" : ""}</span>
+                        <span className={`font-bold font-mono ${v >= 0 ? "text-zinc-200" : "text-emerald-400"}`}>{fmtNative(m, v)}</span>
+                      </div>
+                    ))}
+                    {moedas.length > 3 && <div className="text-[9px] text-zinc-600 text-center">+{moedas.length - 3} moedas</div>}
+                  </div>
+                  {moedas.length > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t border-white/5 text-[10px] text-center">
+                      <span className="text-amber-400 font-bold font-mono">{compactBRL(totalOpsBRL)}</span>
+                      <span className="text-zinc-600 mx-1">·</span>
+                      <span className="text-sky-400 font-bold font-mono">{totalOpsUSD >= 0 ? "" : "−"}US$ {Math.abs(totalOpsUSD).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 4: Novo Patrimônio */}
                 <div className="glass-card p-4 text-center">
                   <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">Novo Patrimônio</div>
                   <div className="text-lg font-bold text-amber-400">{compactBRL(novoPatrimonio)}</div>
@@ -1052,6 +1137,7 @@ export default function SimulacoesPage() {
 
           {/* Allocation grids */}
           {[
+            { title: "Renda Fixa × Renda Variável", colors: RF_RV_COLORS, key: "rfRv" as const },
             { title: "Setor Econômico", colors: SETOR_ECONOMICO_COLORS, key: "setorEconomico" as const },
             { title: "Tipo de Ativo", colors: SETOR_COLORS, key: "setor" as const },
             { title: "Moeda / Exposição Cambial", colors: MOEDA_COLORS, key: "moeda" as const },
@@ -1164,6 +1250,8 @@ function EtfLookThrough({ alloc, positions }: {
   const [loadingComp, setLoadingComp] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sources, setSources] = useState<Record<string, string>>({});
+  const [staleInfo, setStaleInfo] = useState<{ stale: boolean; updatedAt: string } | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   const etfPositions = useMemo(
     () => positions.filter(p => p.setor === "ETF" || p.setor === "ETF USA"),
@@ -1182,7 +1270,7 @@ function EtfLookThrough({ alloc, positions }: {
   useEffect(() => {
     if (!expanded || compositions !== null || etfPositions.length === 0) return;
     setLoadingComp(true);
-    fetch("/api/composicao/resumo")
+    fetch(withDataVersion("/api/composicao/resumo"))
       .then(r => r.json())
       .then(d => {
         const lt = d.look_through;
@@ -1190,6 +1278,7 @@ function EtfLookThrough({ alloc, positions }: {
         const srcs: Record<string, string> = lt?.sources ?? {};
         setCompositions(comps);
         setSources(srcs);
+        setStaleInfo({ stale: lt?.stale ?? false, updatedAt: lt?.updated_at ?? "" });
       })
       .catch(() => setCompositions({}))
       .finally(() => setLoadingComp(false));
@@ -1319,15 +1408,22 @@ function EtfLookThrough({ alloc, positions }: {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setRefreshWarning(null);
     try {
       const res = await fetch("/api/composicao/etf-refresh", { method: "POST" });
       if (res.ok) {
-        const fresh = await fetch("/api/composicao/resumo");
+        const j = await res.json();
+        if (!j.saved_to_sheets) {
+          setRefreshWarning(j.warning ?? "Holdings atualizados mas não persistidos na planilha.");
+        }
+        bumpDataVersion();
+        const fresh = await fetch(withDataVersion("/api/composicao/resumo"));
         if (fresh.ok) {
           const d = await fresh.json();
           if (d.look_through?.compositions) {
             setCompositions(d.look_through.compositions);
             setSources(d.look_through.sources ?? {});
+            setStaleInfo({ stale: d.look_through.stale ?? false, updatedAt: d.look_through.updated_at ?? "" });
           }
         }
       }
@@ -1387,6 +1483,17 @@ function EtfLookThrough({ alloc, positions }: {
                   {refreshing ? "…" : "Atualizar"}
                 </button>
               </div>
+
+              {(staleInfo?.stale || refreshWarning) && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-[10px]" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)", color: "#fbbf24" }}>
+                  <span className="shrink-0">⚠</span>
+                  <span>
+                    {refreshWarning ?? (
+                      <>Composições desatualizadas{staleInfo?.updatedAt ? ` (última gravação: ${staleInfo.updatedAt})` : ""} ou de origem embutida — clique em &quot;Atualizar&quot; para buscar holdings atuais.</>
+                    )}
+                  </span>
+                </div>
+              )}
 
               <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
                 {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => (

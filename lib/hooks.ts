@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { PortfolioSnapshot, Position } from "./portfolio";
 import type { FxRates } from "./cotacoes";
+import { withDataVersion } from "./data-version";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -16,7 +17,7 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_URL}/api/sheets/${tab}`)
+    fetch(withDataVersion(`${API_URL}/api/sheets/${tab}`))
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok || body.error) {
@@ -254,7 +255,7 @@ export function usePortfolio() {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_URL}/api/cotacoes`)
+    fetch(withDataVersion(`${API_URL}/api/cotacoes`))
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok || body.error) {

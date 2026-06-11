@@ -69,6 +69,9 @@ export async function POST() {
       sources: ltResult.sources,
       updated_at: ltResult.updated_at,
       saved_to_sheets: savedOk,
+      ...(savedOk ? {} : {
+        warning: "Holdings buscados mas NÃO persistidos na aba composicao — verifique GOOGLE_SERVICE_ACCOUNT_JSON.",
+      }),
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";

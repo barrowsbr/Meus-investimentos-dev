@@ -16,6 +16,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import MetricCard from "@/components/MetricCard";
 import { brl, compactBRL, pct } from "@/lib/format";
+import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -465,7 +466,7 @@ export default function PerformancePage() {
       ? `from=${customFrom}&to=${customTo}`
       : `lookback=${lookback}`;
     const tickerQ = tickerFilter ? `&ticker=${encodeURIComponent(tickerFilter)}` : "";
-    fetch(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setorQuery)}${tickerQ}`)
+    fetch(withDataVersion(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setorQuery)}${tickerQ}`))
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -478,11 +479,11 @@ export default function PerformancePage() {
   }, [lookback, classe, setorQuery, tickerFilter, customMode, customFrom, customTo]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/twr/decomposicao`)
+    fetch(withDataVersion(`${API_URL}/api/twr/decomposicao`))
       .then(r => r.json())
       .then(body => setDecomp(body))
       .catch(() => {});
-    fetch(`${API_URL}/api/composicao/resumo`)
+    fetch(withDataVersion(`${API_URL}/api/composicao/resumo`))
       .then(r => r.json())
       .then(body => {
         if (body.resumo && body.rentabilidade) {
@@ -560,7 +561,8 @@ export default function PerformancePage() {
   const handleRefresh = () => {
     setLoading(true);
     setData(null);
-    fetch(`${API_URL}/api/performance/advanced?lookback=${lookback}`)
+    bumpDataVersion();
+    fetch(withDataVersion(`${API_URL}/api/performance/advanced?lookback=${lookback}`))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
