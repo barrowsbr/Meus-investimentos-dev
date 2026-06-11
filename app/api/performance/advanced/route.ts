@@ -96,6 +96,77 @@ function calcularMWR(cashFlows: Array<{ date: string; amount: number }>): number
   return (isFinite(r) && Math.abs(r) <= 10) ? r : 0;
 }
 
+// ── MWR diário acumulado (estilo IBKR PortfolioAnalyst) ──────────────────────
+// Para cada dia t resolve o XIRR dos fluxos do investidor até t — NAV inicial
+// e aportes líquidos (flow − income) como saídas, NAV_t como entrada — e
+// converte a taxa anualizada em retorno ACUMULADO do período: (1+r)^anos − 1.
+// Mesma convenção do MWR total do twr-engine (fluxos após o dia-âncora; o NAV
+// do dia 0 já embute os fluxos desse dia). Warm-start na taxa do dia anterior
+// mantém o Newton em poucas iterações por ponto.
+function calcularMWRDiario(
+  points: Array<{ date: string; nav: number; flow: number; income: number }>,
+): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  if (points.length === 0) return out;
+
+  const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+  const baseMs = new Date(points[0].date + "T12:00:00Z").getTime();
+  const cf: Array<[number, number]> = [];
+  if (points[0].nav > 0) cf.push([0, -points[0].nav]);
+  out.set(points[0].date, 0);
+
+  let warm = 0.05;
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    const t = (new Date(p.date + "T12:00:00Z").getTime() - baseMs) / MS_PER_YEAR;
+    const netFlow = p.flow - p.income;
+    if (t > 0 && Math.abs(netFlow) > 0.01) cf.push([t, -netFlow]);
+    if (p.nav <= 0 || t <= 0) {
+      out.set(p.date, null);
+      continue;
+    }
+
+    const navT = p.nav;
+    const npv = (r: number): number => {
+      if (r <= -0.999) return Infinity;
+      let s = navT / Math.pow(1 + r, t);
+      for (const [tt, amt] of cf) s += amt / Math.pow(1 + r, tt);
+      return s;
+    };
+    const npvDeriv = (r: number): number => {
+      let s = -t * navT / Math.pow(1 + r, t + 1);
+      for (const [tt, amt] of cf) s -= tt * amt / Math.pow(1 + r, tt + 1);
+      return s;
+    };
+
+    let r = warm;
+    let ok = false;
+    for (const guess of [warm, 0.05, 0, 0.3, -0.3]) {
+      r = guess;
+      for (let k = 0; k < 80; k++) {
+        const f = npv(r);
+        const df = npvDeriv(r);
+        if (!isFinite(f) || !isFinite(df) || Math.abs(df) < 1e-14) break;
+        let step = f / df;
+        if (Math.abs(step) > 1.0) step = Math.sign(step);
+        const rNew = Math.max(-0.999, Math.min(100, r - step));
+        if (Math.abs(rNew - r) < 1e-9) { r = rNew; ok = true; break; }
+        r = rNew;
+      }
+      if (ok && Math.abs(npv(r)) < Math.max(1, navT) * 1e-6) break;
+      ok = false;
+    }
+
+    if (ok && isFinite(r)) {
+      warm = r;
+      out.set(p.date, Math.pow(1 + r, t) - 1);
+    } else {
+      out.set(p.date, null);
+    }
+  }
+  return out;
+}
+
 // ── Drawdown series ───────────────────────────────────────────────────────────
 
 function calcularDrawdown(points: TwrDayPoint[]): Array<{ date: string; drawdown: number; nav: number }> {
@@ -651,8 +722,10 @@ export async function GET(request: Request) {
       const cdiUsdMap = new Map(cdiUsd.map(p => [p.date, p.twr]));
       const ibovUsdMap = new Map(ibovUsd.map(p => [p.date, p.twr]));
 
+      const mwrDiarioUsd = calcularMWRDiario(pts);
       const chart = usdTwrPoints.map(p => ({
         date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
+        mwr_twr: mwrDiarioUsd.get(p.date) ?? null,
         sp500_twr: sp500Map.get(p.date) ?? null,
         cdi_twr: cdiUsdMap.get(p.date) ?? null,
         ibov_twr: ibovUsdMap.get(p.date) ?? null,
@@ -761,6 +834,7 @@ export async function GET(request: Request) {
         const cdiMap = new Map(cdiNorm.map(p => [p.date, p.twr]));
         const ibovMap = new Map(ibovNorm.map(p => [p.date, p.twr]));
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
+        const mwrDiario = calcularMWRDiario(meaningfulPoints);
 
         // FX decomposition: use USDBRL at the START of the period as base,
         // so all three lines (portfolio, ativo, fx) begin at 0%.
@@ -784,6 +858,7 @@ export async function GET(request: Request) {
           }
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
+            mwr_twr: mwrDiario.get(p.date) ?? null,
             cdi_twr: cdiMap.get(p.date) ?? null,
             ibov_twr: ibovMap.get(p.date) ?? null,
             sp500_twr: sp500Map.get(p.date) ?? null,

@@ -66,7 +66,7 @@ interface Summary {
   troughTwr?: number;
 }
 
-interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null }
+interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null }
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
@@ -517,6 +517,7 @@ export default function PerformancePage() {
       date: formatDateShort(p.date),
       fullDate: p.date,
       portfolio: +(p.twr * 100).toFixed(2),
+      mwr: p.mwr_twr != null ? +(p.mwr_twr * 100).toFixed(2) : null,
       cdi: p.cdi_twr != null ? +(p.cdi_twr * 100).toFixed(2) : null,
       ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
       sp500: p.sp500_twr != null ? +(p.sp500_twr * 100).toFixed(2) : null,
@@ -917,13 +918,16 @@ export default function PerformancePage() {
                   <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Portfólio" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
+                      name === "portfolio" ? "Portfólio (TWR)" : name === "mwr" ? "MWR" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Portfólio" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
+                  <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "MWR" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
                     wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
                   <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
                     strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  {/* MWR dia a dia (money-weighted, estilo IBKR PortfolioAnalyst) */}
+                  <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="transparent"
+                    strokeWidth={1.8} strokeDasharray="6 3" dot={false} connectNulls />
                   {chartMode === "benchmarks" && (
                     <>
                       <Area type="monotone" dataKey="cdi" stroke="#6366f1" fill="url(#gradCDI)"
