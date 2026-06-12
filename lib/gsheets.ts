@@ -36,9 +36,17 @@ export async function appendRows(tabName: string, rows: string[][]): Promise<voi
 }
 
 // Write/overwrite a full sheet tab (requires service account write access)
+// Faz backup automático antes de sobrescrever.
 export async function writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void> {
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+
+  // Backup antes de destruir os dados
+  try {
+    const { backupTab: doBackup } = await import("./backup");
+    await doBackup(tabName);
+  } catch { /* backup falhou — prossegue com a escrita */ }
+
   const sheets = google.sheets({ version: "v4", auth });
   const resolved = await resolveTabName(tabName);
   await sheets.spreadsheets.values.clear({
