@@ -126,9 +126,11 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
 
 // ─── RF (renda fixa) timeline for TWR integration ────────────────────────────
 
-const SELIC_ANNUAL_RATE = 0.1475;
 const RF_BIZ_DAYS_YEAR = 252;
-const SELIC_DAILY_RATE = Math.pow(1 + SELIC_ANNUAL_RATE, 1 / RF_BIZ_DAYS_YEAR) - 1;
+// Acrual de RF em USD: aproximação T-bill/money market. O true-up na data de
+// atualização do saldo manual absorve o erro de aproximação.
+const USD_RF_ANNUAL = 0.045;
+const USD_RF_DAILY = Math.pow(1 + USD_RF_ANNUAL, 1 / RF_BIZ_DAYS_YEAR) - 1;
 const CASH_TICKERS_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
 interface RfParsedTx {
@@ -170,55 +172,76 @@ function rfBizDays(startStr: string, endStr: string): number {
   return Math.max(0, Math.round((ms / (24 * 60 * 60 * 1000)) * RF_BIZ_DAYS_YEAR / 365));
 }
 
-function solveImpliedRate(
-  lots: { invested: number; bizDays: number }[],
-  targetValue: number
-): number {
-  if (lots.length === 0 || targetValue <= 0) return SELIC_DAILY_RATE;
-  const totalInvested = lots.reduce((s, l) => s + l.invested, 0);
-  if (totalInvested <= 0) return SELIC_DAILY_RATE;
-  if (targetValue < totalInvested * 0.5) return 0;
-  let r = SELIC_DAILY_RATE;
-  for (let iter = 0; iter < 20; iter++) {
-    let f = -targetValue;
-    let df = 0;
-    for (const l of lots) {
-      const factor = Math.pow(1 + r, l.bizDays);
-      f += l.invested * factor;
-      df += l.invested * l.bizDays * Math.pow(1 + r, l.bizDays - 1);
-    }
-    if (Math.abs(df) < 1e-12) break;
-    const step = f / df;
-    r -= step;
-    r = Math.max(0, Math.min(r, 0.002));
-    if (Math.abs(step) < 1e-9) break;
-  }
-  return r;
-}
-
+// IMUTABILIDADE (regra de fundo): o modelo antigo resolvia uma taxa implícita
+// para o NAV bater com o saldo manual NA DATA FINAL — cada atualização do
+// saldo reescrevia TODO o caminho passado (TWR, vol, Sharpe e drawdown mudavam
+// retroativamente). Agora cada posição ACRUA pela taxa real do dia (CDI do BCB
+// para BRL; aproximação T-bill para USD) e a diferença vs o saldo manual é
+// reconhecida como TRUE-UP no dia da atualização (coluna `data` da
+// fixa_aberta) — exatamente como um fundo trata evento de reprecificação.
+// O passado nunca muda quando o saldo manual é atualizado.
 export function buildRfTimeline(
   rfTransacoes: Row[],
   fixaAberta: Row[],
   dates: string[],
-  fxHistory: FxHistory
-): { navByDate: Record<string, number>; flowByDate: Record<string, number> } {
+  fxHistory: FxHistory,
+  cdiDiario?: Record<string, number>,
+): { navByDate: Record<string, number>; flowByDate: Record<string, number>; navFxByDate: Record<string, number> } {
   const navByDate: Record<string, number> = {};
   const flowByDate: Record<string, number> = {};
-  if (dates.length === 0) return { navByDate, flowByDate };
+  const navFxByDate: Record<string, number> = {};
+  if (dates.length === 0) return { navByDate, flowByDate, navFxByDate };
 
   const txs = parseRfTxs(rfTransacoes);
   const lastDate = dates[dates.length - 1];
   const { series: fxSeries } = buildAlignedFx(dates, fxHistory);
-  const dateIdx = new Map(dates.map((d, i) => [d, i]));
 
-  const manualValues = new Map<string, { atual: number; moeda: string }>();
+  const temCdiReal = cdiDiario != null && Object.keys(cdiDiario).length > 0;
+  // Taxa do dia por moeda. Com CDI real, feriados não têm entrada na série →
+  // acrual 0 (correto). No fallback (tabela SELIC), acrua em dias úteis.
+  const rateOf = (date: string, moeda: string): number => {
+    if (moeda === "BRL") {
+      if (temCdiReal) return cdiDiario![date] ?? 0;
+      return isWeekday(date) ? getSelicDiaria(date) : 0;
+    }
+    return isWeekday(date) ? USD_RF_DAILY : 0;
+  };
+
+  // Acrual PRÉ-JANELA (dias-calendário fora do grid): para BRL usa CDI real
+  // quando a data está coberta; fora da cobertura cai na tabela SELIC
+  // (~0,1pp/ano de erro, absorvido pelo true-up). Acrua de fromExcl
+  // (exclusivo) até toIncl (inclusivo).
+  const accrueTo = (
+    bal: number, fromExcl: string, toIncl: string,
+    moeda: string, fixedRate: number | null,
+  ): number => {
+    if (bal <= 0 || fromExcl >= toIncl) return bal;
+    const d = new Date(fromExcl + "T12:00:00Z");
+    const end = new Date(toIncl + "T12:00:00Z");
+    while (true) {
+      d.setDate(d.getDate() + 1);
+      if (d > end) break;
+      const ymd = d.toISOString().split("T")[0];
+      let r: number;
+      if (fixedRate != null) r = isWeekday(ymd) ? fixedRate : 0;
+      else if (moeda === "BRL") r = cdiDiario?.[ymd] ?? (isWeekday(ymd) ? getSelicDiaria(ymd) : 0);
+      else r = isWeekday(ymd) ? USD_RF_DAILY : 0;
+      bal *= 1 + r;
+    }
+    return bal;
+  };
+
+  const manualValues = new Map<string, { atual: number; moeda: string; dataAtualizacao: string }>();
   for (const row of fixaAberta) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? ""));
     if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
     if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-    if (atual > 0) manualValues.set(ticker, { atual, moeda });
+    // Sem data de atualização, o true-up cai no último dia do grid — o ajuste
+    // aparece como retorno de HOJE (visível e honesto), nunca reescreve o passado.
+    const dataAtualizacao = toYMD(row["data"] ?? row["atualizacao"] ?? row["atualização"]) || lastDate;
+    if (atual > 0) manualValues.set(ticker, { atual, moeda, dataAtualizacao });
   }
 
   const byTicker = new Map<string, RfParsedTx[]>();
@@ -227,13 +250,21 @@ export function buildRfTimeline(
     byTicker.get(tx.ticker)!.push(tx);
   }
 
-  interface TickerInfo {
-    compras: { date: string; valor: number }[];
-    vendas: { date: string; valor: number }[];
-    dailyRate: number;
+  interface TickerState {
     moeda: string;
+    // Fluxos por data de grid (bizDate): compras positivas, vendas negativas.
+    // bizDate (não a data crua) para o NAV reconhecer a transação no MESMO dia
+    // de grid da série de fluxos — senão fim de semana gera spike + reversão.
+    flowsByDate: Map<string, number>;
+    // Taxa constante realizada (posições encerradas) — null = taxa do dia.
+    fixedRate: number | null;
+    // True-up: no primeiro dia de grid ≥ trueUpDate, o saldo vira manual.atual.
+    trueUpDate: string | null;
+    trueUpValue: number;
+    balance: number;
+    trueUpDone: boolean;
   }
-  const tickerInfos: TickerInfo[] = [];
+  const states: TickerState[] = [];
   const allTickerNames = new Set([...manualValues.keys(), ...byTicker.keys()]);
 
   for (const ticker of allTickerNames) {
@@ -241,54 +272,79 @@ export function buildRfTimeline(
     const manual = manualValues.get(ticker);
     const compras = txList.filter(t => t.tipo === "compra");
     const vendas = txList.filter(t => t.tipo === "venda");
+
     if (compras.length === 0) {
-      // fixa_aberta entry with no purchase history — pre-existing position.
-      // Model as constant NAV (0% daily rate) from window start.
+      // fixa_aberta sem histórico de compra — posição pré-existente. Abertura
+      // sintética no início do grid DESCONTADA pela taxa até a data de
+      // atualização: o caminho acrua e atinge manual.atual exatamente na data
+      // do true-up, sem salto artificial.
       if (manual && manual.atual > 0) {
-        tickerInfos.push({
-          compras: [{ date: dates[0], valor: manual.atual }],
-          vendas: [],
-          dailyRate: 0,
+        const trueUpDate = manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao;
+        let factor = 1;
+        for (let i = 1; i < dates.length && dates[i] <= trueUpDate; i++) {
+          factor *= 1 + rateOf(dates[i], manual.moeda);
+        }
+        const opening = manual.atual / factor;
+        states.push({
           moeda: manual.moeda,
+          flowsByDate: new Map([[dates[0], opening]]),
+          fixedRate: null,
+          trueUpDate,
+          trueUpValue: manual.atual,
+          balance: 0,
+          trueUpDone: false,
         });
-        // Synthetic flow on first date so flow series matches NAV
-        const fx0 = fxSeries[0];
-        flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + manual.atual * fxFactor(manual.moeda, fx0);
+        // Fluxo sintético no primeiro dia para a série de fluxos casar com o NAV
+        flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + opening * fxFactor(manual.moeda, fxSeries[0]);
       }
       continue;
     }
-    const moeda = manual?.moeda ?? compras[0]?.moeda ?? "BRL";
-    const isActive = manual != null;
 
-    let dailyRate = SELIC_DAILY_RATE;
-    if (isActive && manual.atual > 0) {
-      // Solve implied rate so the modeled NAV reaches manual.atual at lastDate.
-      // Include vendas as negative lots — they reduced the principal.
-      const lots = [
-        ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.bizDate, lastDate) })),
-        ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.bizDate, lastDate) })),
-      ];
-      dailyRate = solveImpliedRate(lots, manual.atual);
-    } else if (!isActive && vendas.length > 0) {
+    const moeda = manual?.moeda ?? compras[0]?.moeda ?? "BRL";
+
+    // Posição encerrada: taxa realizada dos próprios fluxos (dados passados,
+    // determinístico e imutável).
+    let fixedRate: number | null = null;
+    if (!manual && vendas.length > 0) {
       const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
       const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
       const holdingDays = rfBizDays(compras[0].bizDate, vendas[vendas.length - 1].bizDate);
       if (holdingDays > 0 && totalInvested > 0 && totalRedeemed > totalInvested * 0.3) {
-        dailyRate = Math.pow(totalRedeemed / totalInvested, 1 / holdingDays) - 1;
-        dailyRate = Math.max(0, Math.min(dailyRate, 0.002));
+        fixedRate = Math.max(0, Math.min(Math.pow(totalRedeemed / totalInvested, 1 / holdingDays) - 1, 0.002));
       }
     }
 
-    // Use bizDate (not the raw date) so the NAV recognizes each transaction on
-    // the SAME grid day the flow series does. The flow loop keys off bizDate;
-    // if the NAV keyed off the raw date, a weekend transaction (with crypto
-    // putting weekend dates in the grid) would move the NAV on Sat/Sun while
-    // the flow landed on Monday — producing a spurious spike + reversal.
-    tickerInfos.push({
-      compras: compras.map(c => ({ date: c.bizDate, valor: c.valor })),
-      vendas: vendas.map(v => ({ date: v.bizDate, valor: v.valor })),
-      dailyRate,
+    const flowsByDate = new Map<string, number>();
+    for (const c of compras) flowsByDate.set(c.bizDate, (flowsByDate.get(c.bizDate) ?? 0) + c.valor);
+    for (const v of vendas) flowsByDate.set(v.bizDate, (flowsByDate.get(v.bizDate) ?? 0) - v.valor);
+
+    // Fluxos ANTERIORES à janela viram saldo de ABERTURA, acruado dia a dia
+    // até a véspera de dates[0] — espelha a custódia RV, onde transações
+    // pré-janela entram no NAV do dia-âncora e nunca como fluxo da janela.
+    // Sem isso, janela filtrada (1A/6M/…) começava a posição em 0 e o
+    // true-up virava um salto artificial gigante no TWR.
+    let opening = 0;
+    let cursor: string | null = null;
+    for (const d of [...flowsByDate.keys()].filter(k => k < dates[0]).sort()) {
+      if (cursor != null) opening = accrueTo(opening, cursor, d, moeda, fixedRate);
+      opening = Math.max(0, opening + flowsByDate.get(d)!);
+      flowsByDate.delete(d);
+      cursor = d;
+    }
+    if (cursor != null) {
+      const vespera = new Date(dates[0] + "T12:00:00Z");
+      vespera.setDate(vespera.getDate() - 1);
+      opening = accrueTo(opening, cursor, vespera.toISOString().split("T")[0], moeda, fixedRate);
+    }
+
+    states.push({
       moeda,
+      flowsByDate,
+      fixedRate,
+      trueUpDate: manual ? (manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao) : null,
+      trueUpValue: manual?.atual ?? 0,
+      balance: opening,
+      trueUpDone: false,
     });
   }
 
@@ -296,9 +352,11 @@ export function buildRfTimeline(
   let rfTxIdx = 0;
   while (rfTxIdx < sortedRfTxs.length && sortedRfTxs[rfTxIdx].bizDate < dates[0]) rfTxIdx++;
 
-  for (const date of dates) {
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    const fx = fxSeries[i];
+
     let dayFlow = 0;
-    const fx = fxSeries[dateIdx.get(date) ?? 0];
     while (rfTxIdx < sortedRfTxs.length && sortedRfTxs[rfTxIdx].bizDate <= date) {
       const rtx = sortedRfTxs[rfTxIdx++];
       const fxF = fxFactor(rtx.moeda, fx);
@@ -307,31 +365,31 @@ export function buildRfTimeline(
     }
     if (Math.abs(dayFlow) > 0.01) flowByDate[date] = dayFlow;
 
-    // NAV = Σ compras compounded − Σ vendas compounded (each from its own date).
-    // Modeling vendas as negative compounding terms keeps NAV consistent with
-    // the flow series: on a venda day NAV drops by exactly the venda amount
-    // (the term starts at valor × (1+r)^0), so the daily return stays ~0
-    // instead of producing a spurious spike.
     let dayNav = 0;
-    for (const info of tickerInfos) {
-      const fxF = fxFactor(info.moeda, fx);
-      let balanceNative = 0;
-      for (const compra of info.compras) {
-        if (compra.date > date) continue;
-        const bd = rfBizDays(compra.date, date);
-        balanceNative += compra.valor * Math.pow(1 + info.dailyRate, bd);
+    let dayNavFx = 0;
+    for (const st of states) {
+      // Crescimento sobre o saldo anterior (entrada acrua a partir do dia
+      // seguinte — mesma convenção do modelo anterior, bd=0 no dia da compra).
+      if (i > 0 && st.balance > 0) {
+        st.balance *= 1 + (st.fixedRate ?? rateOf(date, st.moeda));
       }
-      for (const venda of info.vendas) {
-        if (venda.date > date) continue;
-        const bd = rfBizDays(venda.date, date);
-        balanceNative -= venda.valor * Math.pow(1 + info.dailyRate, bd);
+      const flow = st.flowsByDate.get(date);
+      if (flow != null) st.balance = Math.max(0, st.balance + flow);
+      if (!st.trueUpDone && st.trueUpDate != null && date >= st.trueUpDate) {
+        st.balance = st.trueUpValue;
+        st.trueUpDone = true;
       }
-      if (balanceNative > 0) dayNav += balanceNative * fxF;
+      if (st.balance > 0) {
+        const valBRL = st.balance * fxFactor(st.moeda, fx);
+        dayNav += valBRL;
+        if (st.moeda !== "BRL") dayNavFx += valBRL;
+      }
     }
     navByDate[date] = dayNav;
+    navFxByDate[date] = dayNavFx;
   }
 
-  return { navByDate, flowByDate };
+  return { navByDate, flowByDate, navFxByDate };
 }
 
 // ─── Daily custody reconstruction (FIFO cumulative) ───────────────────────────
@@ -433,6 +491,9 @@ export interface TwrDayPoint {
   ret: number;
   twr: number;
   forceZero: boolean;
+  // Parcela do NAV em moeda estrangeira (em BRL) — usada pela decomposição
+  // cambial ponderada. Opcional: benchmarks sintéticos não preenchem.
+  navFx?: number;
 }
 
 export interface TwrResult {
@@ -453,6 +514,11 @@ export interface TwrResult {
     forceZeroDays: number;
   };
   mwr: number | null;
+  // Contribuição EXATA por setor para o TWR total: ganhos diários por setor
+  // divididos pela base Dietz do dia e encadeados geometricamente
+  // (Σ contrib = twrTotal, identidade telescópica). Substitui a antiga
+  // "atribuição" por peso de custo, que não continha performance nenhuma.
+  contribuicoes: Array<{ setor: string; contrib: number; navMedio: number }>;
   diagnostics: {
     forceZeroDays: number;
     incomeTotal: number;
@@ -470,6 +536,7 @@ export interface TwrInput {
   fxHistory: FxHistory;
   rfNavByDate?: Record<string, number>;
   rfFlowByDate?: Record<string, number>;
+  rfNavFxByDate?: Record<string, number>;
   pmFx?: FxRates;
 }
 
@@ -549,7 +616,7 @@ function calculateMWR(
 // ─── Main TWR calculation ──────────────────────────────────────────────────────
 
 export function calcularTWR(input: TwrInput): TwrResult {
-  const { dates, prices, fxHistory, rfNavByDate, rfFlowByDate, pmFx } = input;
+  const { dates, prices, fxHistory, rfNavByDate, rfFlowByDate, rfNavFxByDate, pmFx } = input;
 
   const EMPTY: TwrResult = {
     points: [], twrTotal: 0, twrAnualizado: 0,
@@ -559,6 +626,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ganhoEconomico: 0,
     ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0 },
     mwr: null,
+    contribuicoes: [],
     diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [], fxFallbackDays: 0, stalePrices: [] },
   };
 
@@ -666,7 +734,23 @@ export function calcularTWR(input: TwrInput): TwrResult {
   // Track tickers at cost fallback (no market price available)
   const tickersAtCostSet = new Set<string>();
 
+  // Setor por ticker (para contribuição). Proventos podem vir com variante de
+  // ticker (ITUB4 × ITUB4.SA) — identificarSetor resolve o mesmo setor.
+  const tickerSetor = new Map<string, string>();
+  for (const tx of inRange) {
+    if (!tickerSetor.has(tx.ticker)) tickerSetor.set(tx.ticker, tx.setor);
+  }
+  const setorOf = (ticker: string): string =>
+    tickerSetor.get(ticker) ?? identificarSetor(ticker);
+  const RF_SECTOR = "Renda Fixa";
+
   const points: TwrDayPoint[] = [];
+  // Ganhos econômicos do dia por setor (gain = Δvalor − flow + income) e NAV
+  // por setor — insumos da contribuição exata calculada no pós-processamento.
+  const sectorGainsByDay: Array<Map<string, number>> = [];
+  const sectorNavByDay: Array<Map<string, number>> = [];
+  let prevVals = new Map<string, number>();
+  let prevNavRF = 0;
   let prevNav = 0;
   let cumTwr = 1.0;
   let totalInvestido = 0;
@@ -690,6 +774,8 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
     // ── RV NAV ──
     let navRV = 0;
+    let navFxRV = 0;
+    const curVals = new Map<string, number>();
     for (const [ticker, qty] of Object.entries(snap)) {
       if (qty < 0.000001) continue;
       const mktPrice = getPrice(ticker, i, prices);
@@ -697,17 +783,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
       if (price == null) continue;
       if (mktPrice == null) tickersAtCostSet.add(ticker);
       const moeda = tickerMoeda.get(ticker) ?? getMoedaEfetiva(ticker, "BRL", identificarSetor(ticker));
-      navRV += qty * price * fxFactor(moeda, fx);
+      const val = qty * price * fxFactor(moeda, fx);
+      navRV += val;
+      curVals.set(ticker, val);
+      if (moeda !== "BRL") navFxRV += val;
     }
 
     // ── RF NAV ──
     const navRF = rfNavByDate?.[date] ?? 0;
     let nav = navRV + navRF;
+    const navFx = navFxRV + (rfNavFxByDate?.[date] ?? 0);
 
     // ── Flows: use MARKET prices (consistent with NAV) — Python engine v10.0 ──
     // Fall back to transaction price if no market price available.
     // Use SPOT FX for flows (same as NAV) to avoid flow/NAV mismatch.
     let flow = 0;
+    const dayFlowByTicker = new Map<string, number>();
     while (txIdx < sortedTxs.length && sortedTxs[txIdx].bizDate <= date) {
       const tx = sortedTxs[txIdx++];
       let marketPrice = getPrice(tx.ticker, i, prices);
@@ -720,18 +811,24 @@ export function calcularTWR(input: TwrInput): TwrResult {
       // value + taxas mas o NAV só ganha value; na venda recebe value − taxas
       // mas o NAV perde value. Em ambos os casos o retorno do dia cai pela
       // taxa — retorno líquido de custos de transação (GIPS).
+      let txFlow: number;
       if (tx.tipo === "Compra") {
-        flow += value + taxasBrl;
+        txFlow = value + taxasBrl;
         totalInvestido += (tx.preco * tx.quantidade + tx.taxas) * txFx;
       } else {
-        flow -= value - taxasBrl;
+        txFlow = -(value - taxasBrl);
       }
+      flow += txFlow;
+      dayFlowByTicker.set(tx.ticker, (dayFlowByTicker.get(tx.ticker) ?? 0) + txFlow);
     }
     // ── Income: dividends/JCP received (incremental, synced with custody) ──
     let income = 0;
+    const dayIncByTicker = new Map<string, number>();
     while (incIdx < sortedInc.length && sortedInc[incIdx].bizDate <= date) {
       const inc = sortedInc[incIdx++];
-      income += inc.valor * fxFactor(inc.moeda, fx);
+      const incBrl = inc.valor * fxFactor(inc.moeda, fx);
+      income += incBrl;
+      dayIncByTicker.set(inc.ticker, (dayIncByTicker.get(inc.ticker) ?? 0) + incBrl);
     }
 
     // ── RF flows (compra/venda of renda fixa) ──
@@ -779,7 +876,37 @@ export function calcularTWR(input: TwrInput): TwrResult {
 
     cumTwr *= (1 + ret);
 
-    points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero });
+    // ── Ganho econômico do dia por setor (insumo da contribuição exata) ──
+    // gain(ticker) = Δvalor − flow + income; Σ por setor = ret × base
+    // (mesma identidade Dietz do retorno do dia — decomposição exata).
+    const dayGains = new Map<string, number>();
+    const gainTickers = new Set([
+      ...curVals.keys(), ...prevVals.keys(),
+      ...dayFlowByTicker.keys(), ...dayIncByTicker.keys(),
+    ]);
+    for (const t of gainTickers) {
+      const g = (curVals.get(t) ?? 0) - (prevVals.get(t) ?? 0)
+        - (dayFlowByTicker.get(t) ?? 0) + (dayIncByTicker.get(t) ?? 0);
+      if (g !== 0) {
+        const s = setorOf(t);
+        dayGains.set(s, (dayGains.get(s) ?? 0) + g);
+      }
+    }
+    const rfGain = navRF - prevNavRF - rfFlow;
+    if (rfGain !== 0) dayGains.set(RF_SECTOR, (dayGains.get(RF_SECTOR) ?? 0) + rfGain);
+    sectorGainsByDay.push(dayGains);
+
+    const dayNavs = new Map<string, number>();
+    for (const [t, v] of curVals) {
+      const s = setorOf(t);
+      dayNavs.set(s, (dayNavs.get(s) ?? 0) + v);
+    }
+    if (navRF > 0) dayNavs.set(RF_SECTOR, (dayNavs.get(RF_SECTOR) ?? 0) + navRF);
+    sectorNavByDay.push(dayNavs);
+
+    points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero, navFx });
+    prevVals = curVals;
+    prevNavRF = navRF;
     prevNav = nav;
   }
 
@@ -803,6 +930,49 @@ export function calcularTWR(input: TwrInput): TwrResult {
   }
 
   const twrTotal = cleanCum - 1;
+
+  // ── Contribuição exata por setor ────────────────────────────────────────────
+  // Identidade telescópica: Π(1+ret_i) − 1 = Σ_i ret_i × Π_{k<i}(1+ret_k).
+  // Com ret_i = Σ_s gain_{s,i}/base_i, a contribuição de cada setor é
+  // Σ_i (gain_{s,i}/base_i) × linkFactor_i e a soma de TODOS os setores é
+  // exatamente twrTotal. Dias com NAV healing geram resíduo → bucket "Ajustes".
+  const contribAcc = new Map<string, number>();
+  {
+    let linkFactor = 1.0;
+    for (let i = firstIdx; i < points.length; i++) {
+      const p = points[i];
+      if (i >= 1 && !p.forceZero) {
+        const base = points[i - 1].nav + p.flow;
+        if (base > 0) {
+          let sum = 0;
+          for (const [s, g] of sectorGainsByDay[i]) {
+            const c = g / base;
+            sum += c;
+            contribAcc.set(s, (contribAcc.get(s) ?? 0) + c * linkFactor);
+          }
+          const resid = p.ret - sum;
+          if (Math.abs(resid) > 1e-12) {
+            contribAcc.set("Ajustes", (contribAcc.get("Ajustes") ?? 0) + resid * linkFactor);
+          }
+        }
+      }
+      if (!p.forceZero) linkFactor *= 1 + p.ret;
+    }
+  }
+  const sectorNavSum = new Map<string, number>();
+  const navDaysCount = points.length - firstIdx;
+  for (let i = firstIdx; i < points.length; i++) {
+    for (const [s, v] of sectorNavByDay[i]) {
+      sectorNavSum.set(s, (sectorNavSum.get(s) ?? 0) + v);
+    }
+  }
+  const contribuicoes = [...contribAcc.entries()]
+    .map(([setor, contrib]) => ({
+      setor,
+      contrib,
+      navMedio: navDaysCount > 0 ? (sectorNavSum.get(setor) ?? 0) / navDaysCount : 0,
+    }))
+    .sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
 
   // Annualize using calendar days / 365 (matching Streamlit calculator.py line 401)
   const startD = new Date(firstMeaningful.date + "T12:00:00Z");
@@ -902,6 +1072,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       forceZeroDays,
     },
     mwr,
+    contribuicoes,
     diagnostics: {
       forceZeroDays,
       incomeTotal: Math.round(incomeTotal),
@@ -976,10 +1147,17 @@ function getSelicDiaria(date: string): number {
   return Math.pow(1 + rate, 1 / 252) - 1;
 }
 
-export function buildCDIBenchmark(dates: string[]): TwrDayPoint[] {
+// cdiDiario: taxas reais do BCB (SGS série 12) por data — quando presente, o
+// benchmark usa o CDI efetivo (feriados sem entrada na série = acrual 0, que é
+// o correto: a tabela SELIC fallback acruava ~9 feriados/ano a mais, inflando
+// o benchmark em ~0,4% a.a.). Sem a série (API fora), cai na tabela embutida.
+export function buildCDIBenchmark(dates: string[], cdiDiario?: Record<string, number>): TwrDayPoint[] {
+  const temCdiReal = cdiDiario != null && Object.keys(cdiDiario).length > 0;
   let cdi = 1.0;
   return dates.map((date, i) => {
-    const ret = (i === 0 || !isWeekday(date)) ? 0 : getSelicDiaria(date);
+    const ret = i === 0 ? 0
+      : temCdiReal ? (cdiDiario![date] ?? 0)
+      : (!isWeekday(date) ? 0 : getSelicDiaria(date));
     cdi *= 1 + ret;
     return { date, nav: cdi, flow: 0, income: 0, ret, twr: cdi - 1, forceZero: false };
   });

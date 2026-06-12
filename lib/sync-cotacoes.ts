@@ -5,7 +5,9 @@ import { yahooTicker } from "./cotacoes";
 import { identificarSetor, isRendaFixaManual } from "./sectors";
 
 const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
-const INDEX_TICKERS = ["^BVSP", "^GSPC"];
+// ^SP500TR = S&P 500 Total Return (com dividendos) — benchmark correto para
+// carteira que mede retorno total. ^GSPC mantido como fallback histórico.
+const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR"];
 
 export interface Anomaly {
   ticker: string;

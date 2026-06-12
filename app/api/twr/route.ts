@@ -8,6 +8,7 @@ import {
   type TwrDayPoint,
 } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
+import { fetchCdiDiario } from "@/lib/bcb";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -135,7 +136,9 @@ export async function GET(request: Request) {
     });
 
     // ── 6. Benchmarks ────────────────────────────────────────────────────────
-    const cdiPoints = buildCDIBenchmark(dates);
+    // CDI real do BCB (SGS 12); em falha, buildCDIBenchmark usa a tabela SELIC.
+    const cdiDiario = await fetchCdiDiario(dates[0], dates[dates.length - 1]);
+    const cdiPoints = buildCDIBenchmark(dates, cdiDiario);
     const ibovPoints = buildPriceBenchmark("IBOV", dates, alignedIbov);
 
     function normalizeBenchmark(
