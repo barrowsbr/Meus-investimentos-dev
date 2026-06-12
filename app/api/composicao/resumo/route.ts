@@ -3,7 +3,7 @@ import { fetchTab } from "@/lib/gsheets";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
-import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual, getMoedaExposicao } from "@/lib/sectors";
+import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
@@ -133,20 +133,8 @@ export async function GET() {
       if (bot) bottomPerformer = { ticker: bot.ticker, lucro_pct: nativeRet(bot), setor: bot.setor };
     }
 
-    // ── 5. Exposição cambial detalhada (includes fixa_aberta) ───────────────
-    const exposicaoCambial: Record<string, number> = {};
-    for (const pos of positions) {
-      const moedaExp = getMoedaExposicao(pos.setor, pos.moeda);
-      const key = pos.setor === "Cripto" ? "Cripto" : moedaExp;
-      exposicaoCambial[key] = (exposicaoCambial[key] ?? 0) + pos.valorAtualBRL;
-    }
-    for (const row of fixaAberta) {
-      const valorRaw = parseFloat(String(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"] ?? "0").replace(",", "."));
-      if (valorRaw <= 0) continue;
-      const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-      const valorBRL = valorRaw * fxFactor(moeda, fxAtual);
-      exposicaoCambial[moeda] = (exposicaoCambial[moeda] ?? 0) + valorBRL;
-    }
+    // ── 5. Exposição cambial detalhada — reusa canônico do snapshot ───────────
+    const exposicaoCambial = snapshot.exposicaoCambial;
 
     // ── 6. Estrutura da carteira (Treemap: Macro > Setor > Ticker) ────────────
     const macroMap = new Map<string, Map<string, Map<string, number>>>();
