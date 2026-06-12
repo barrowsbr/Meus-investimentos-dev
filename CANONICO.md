@@ -129,6 +129,16 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
   mesmo lucro — são agrupamentos diferentes do mesmo cálculo, não fórmulas distintas.
 - **Proventos: bruto vs líquido**: o padrão é **líquido** (canônico). O bruto pode
   ser exibido como detalhe, sempre com o IR explícito ao lado.
+- **View USD em Performance** (`/api/performance/advanced` → `usdView`): a visão em
+  dólar recomputa TWR, MWR, ganhoEconomico e fxDecomposition a partir da série de
+  NAV convertida dia a dia (`NAV_BRL / USDBRL_do_dia`). Não é possível simplesmente
+  dividir os totais BRL por um FX fixo — o câmbio variou ao longo do período, então
+  cada retorno diário é diferente em USD vs BRL. Os campos de snapshot (patrimônio,
+  custoPosicoesAtuais, custoFIFOSnapshot, resultadoTotal) **são** conversões diretas
+  do canônico (`÷ USDBRL_atual`), sem reimplementar fórmula. A decomposição cambial
+  USD inverte a perspectiva: `fx = USDBRL_start / USDBRL_now − 1` (impacto BRL→USD),
+  enquanto a BRL usa `USDBRL_now / USDBRL_start − 1`. Rotulada na UI como
+  "US$ Dólar" / "Patrimônio em dólar" / "visão USD".
 
 > Se você precisa de uma exceção que **não** está nesta lista, ela provavelmente é
 > um bug de divergência. Pare e reconcilie com o canônico antes.
