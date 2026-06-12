@@ -672,9 +672,20 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        const ge = isUnfiltered && !isUsd && ganhoCanonical != null
+        // Seleção de fonte do MTM (documentada em CANONICO.md §5):
+        // 1. Visão geral BRL all-time → canônico do Resumo (mesmo número da DRE)
+        // 2. Filtro por ticker all-time → retornoTotal do snapshot (FIFO do ativo)
+        // 3. Demais (janelas, classes, USD) → ganho econômico do motor TWR
+        const useCanonical = isUnfiltered && !isUsd && ganhoCanonical != null;
+        const ge = useCanonical
           ? ganhoCanonical
           : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        const geFonte = useCanonical ? "Resumo (canônico)" : useSnapshot ? "snapshot do ativo (FIFO)" : "motor TWR (GIPS)";
+        // Cross-check de confiabilidade: na visão geral, canônico e motor TWR
+        // devem contar a mesma história — divergência >10% indica problema de dado.
+        const geDivergePct = useCanonical && s.ganhoEconomico !== 0
+          ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
+          : null;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
         const pctBase = isAllTime ? custoFIFO + (isUnfiltered ? (s.patrimonio?.caixa ?? 0) : 0) : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
@@ -707,6 +718,12 @@ export default function PerformancePage() {
                 <p className="text-[10px] text-zinc-500 mt-1">
                   {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}
                 </p>
+                <p className="text-[9px] text-zinc-600 mt-0.5">fonte: {geFonte}</p>
+                {geDivergePct != null && geDivergePct > 10 && (
+                  <p className="text-[9px] text-amber-500/80 mt-0.5" title="O valor canônico do Resumo e o ganho econômico do motor TWR divergem — verifique os Avisos de dados no fim da página">
+                    ⚠ diverge {geDivergePct.toFixed(0)}% do motor TWR
+                  </p>
+                )}
               </div>
             </div>
 
