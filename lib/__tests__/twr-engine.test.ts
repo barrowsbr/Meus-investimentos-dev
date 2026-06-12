@@ -309,7 +309,7 @@ describe("buildRfTimeline (imutabilidade)", () => {
     expect(v2.navByDate[gridAfter("2025-09-15")]).toBeCloseTo(10999, 0);
   });
 
-  it("acrua a CDI real depois do true-up (saldo manual continua rendendo)", () => {
+  it("congela no saldo manual após o true-up (não acrua além do último dado real)", () => {
     const dates = businessDays("2025-06-02", "2025-06-30");
     const cdi: Record<string, number> = Object.fromEntries(dates.map(d => [d, 0.001]));
     const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
@@ -317,10 +317,10 @@ describe("buildRfTimeline (imutabilidade)", () => {
       txs, [aberta("CDB Banco X", 10050, "2025-06-16")], dates, fxHist(dates), cdi,
     );
     const trueUpDay = dates.find(d => d >= "2025-06-16")!;
-    const diasDepois = dates.filter(d => d > trueUpDay).length;
     const last = dates[dates.length - 1];
     expect(navByDate[trueUpDay]).toBeCloseTo(10050, 0);
-    expect(navByDate[last]).toBeCloseTo(10050 * Math.pow(1.001, diasDepois), 0);
+    // Após o true-up o saldo congela — sem dados novos, não injetamos retorno.
+    expect(navByDate[last]).toBeCloseTo(10050, 0);
   });
 
   it("janela filtrada: compra pré-janela vira saldo de abertura (sem degrau no true-up)", () => {

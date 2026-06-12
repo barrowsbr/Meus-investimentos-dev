@@ -274,28 +274,19 @@ export function buildRfTimeline(
     const vendas = txList.filter(t => t.tipo === "venda");
 
     if (compras.length === 0) {
-      // fixa_aberta sem histórico de compra — posição pré-existente. Abertura
-      // sintética no início do grid DESCONTADA pela taxa até a data de
-      // atualização: o caminho acrua e atinge manual.atual exatamente na data
-      // do true-up, sem salto artificial.
+      // fixa_aberta sem histórico de compra — posição pré-existente. Sem dados
+      // para estimar retorno: NAV constante no saldo manual (só câmbio varia).
       if (manual && manual.atual > 0) {
-        const trueUpDate = manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao;
-        let factor = 1;
-        for (let i = 1; i < dates.length && dates[i] <= trueUpDate; i++) {
-          factor *= 1 + rateOf(dates[i], manual.moeda);
-        }
-        const opening = manual.atual / factor;
         states.push({
           moeda: manual.moeda,
-          flowsByDate: new Map([[dates[0], opening]]),
+          flowsByDate: new Map([[dates[0], manual.atual]]),
           fixedRate: null,
-          trueUpDate,
+          trueUpDate: dates[0],
           trueUpValue: manual.atual,
           balance: 0,
           trueUpDone: false,
         });
-        // Fluxo sintético no primeiro dia para a série de fluxos casar com o NAV
-        flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + opening * fxFactor(manual.moeda, fxSeries[0]);
+        flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + manual.atual * fxFactor(manual.moeda, fxSeries[0]);
       }
       continue;
     }
@@ -368,9 +359,11 @@ export function buildRfTimeline(
     let dayNav = 0;
     let dayNavFx = 0;
     for (const st of states) {
-      // Crescimento sobre o saldo anterior (entrada acrua a partir do dia
-      // seguinte — mesma convenção do modelo anterior, bd=0 no dia da compra).
-      if (i > 0 && st.balance > 0) {
+      // Acrual: só ATÉ o true-up. Depois do snap ao saldo manual, congelamos
+      // — acumular além inflaria o NAV acima do que o snapshot enxerga,
+      // divergindo o MTM e injetando retorno sem dado real.
+      // Posições sem true-up (encerradas ou sem saldo manual) acruam sempre.
+      if (i > 0 && st.balance > 0 && !st.trueUpDone) {
         st.balance *= 1 + (st.fixedRate ?? rateOf(date, st.moeda));
       }
       const flow = st.flowsByDate.get(date);
