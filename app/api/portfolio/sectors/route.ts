@@ -274,6 +274,7 @@ export async function GET(request: Request) {
               custoTotalBRL: entry.value_brl,
               lucroBRL: 0,
               lucroPct: 0,
+              retornoTotalPct: 0,
               moeda: "USD",
               tipo: "RV",
             });
