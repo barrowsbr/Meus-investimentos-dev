@@ -27,6 +27,7 @@ interface Position {
   custoTotalBRL: number;
   lucroBRL: number;
   lucroPct: number;
+  retornoTotalPct: number;
   moeda: string;
   tipo: string;
 }
@@ -372,7 +373,8 @@ export default function SetoresPage() {
                     {isExpanded && (
                       <div className="ml-8 mr-2 mb-2">
                         {s.posicoes.map((p) => {
-                          const positivePnL = p.lucroBRL >= 0;
+                          const retTotal = p.retornoTotalPct ?? p.lucroPct;
+                          const positivePnL = retTotal >= 0;
                           return (
                             <div
                               key={p.ticker}
@@ -401,7 +403,7 @@ export default function SetoresPage() {
                                   ) : (
                                     <TrendingDown size={9} />
                                   )}
-                                  {p.lucroPct !== 0 ? `${positivePnL ? "+" : ""}${p.lucroPct.toFixed(1)}%` : "—"}
+                                  {retTotal !== 0 ? `${positivePnL ? "+" : ""}${retTotal.toFixed(1)}%` : "—"}
                                 </span>
                               )}
                               {p.tipo !== "RV" && (

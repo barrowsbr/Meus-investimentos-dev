@@ -152,6 +152,7 @@ export async function GET(request: Request) {
       custoTotalBRL: number;
       lucroBRL: number;
       lucroPct: number;
+      retornoTotalPct: number;
       moeda: string;
       tipo: string;
     }
@@ -186,6 +187,7 @@ export async function GET(request: Request) {
         custoTotalBRL: p.custoTotalBRL,
         lucroBRL: p.lucroBRL ?? 0,
         lucroPct: p.lucroPct ?? 0,
+        retornoTotalPct: p.retornoTotalPct ?? 0,
         moeda: p.moeda,
         tipo: "RV",
       });
@@ -222,6 +224,7 @@ export async function GET(request: Request) {
         custoTotalBRL: valorBRL,
         lucroBRL: 0,
         lucroPct: 0,
+        retornoTotalPct: 0,
         moeda,
         tipo: isCaixa ? "Caixa" : "RF",
       });

@@ -181,22 +181,22 @@ Itens que **ainda não** seguem 100% o canônico. Tratar incrementalmente:
   realizado das posições), RF do motor canônico (`/api/renda-fixa/posicoes`) +
   RF-posições do snapshot, proventos/decomposição/exposição/patrimônio do snapshot.
   Bate com `/renda-variavel` e `/renda-fixa`. ✅ **Use o Resumo como padrão-ouro.**
-- [ ] **Resumo — aba "Rentabilidade por Ativo"**: usa `retorno_*_pct` do route
-  (moeda nativa). Reconciliar/rotular vs `position.retornoTotalPct` (BRL canônico).
-- [ ] **Resumo — Posições Encerradas**: lista de vendidos vem de
+- [x] **Resumo — aba "Rentabilidade por Ativo"**: usa `retorno_*_pct` na moeda
+  nativa, rotulado explicitamente na UI ("Retorno em moeda nativa") e no footer
+  da tabela. Exceção legítima documentada em §5. ✅
+- [x] **Resumo — Posições Encerradas**: lista de vendidos vem de
   `composicao.rentabilidade` (status "Vendido"). É dado de listagem (snapshot não
-  rastreia posições zeradas), não cálculo canônico — aceitável, mas avaliar mover
-  para o motor de RF/RV de encerradas.
-- [ ] **`/api/composicao/resumo` recomputa `exposicao_cambial`** por conta própria.
-  Já bate com o snapshot, mas é código duplicado — fazer o route reusar
-  `snapshot.exposicaoCambial`.
-- [ ] **Setores**: badge de % por ativo usa só valorização (preço). Avaliar expor
-  Retorno Total quando fizer sentido.
+  rastreia posições zeradas), não cálculo canônico — aceitável como design. ✅
+- [x] **`/api/composicao/resumo` recomputa `exposicao_cambial`**: removido o
+  cálculo duplicado — agora reusa `snapshot.exposicaoCambial` diretamente. ✅
+- [x] **Setores**: badge de % por ativo agora mostra `retornoTotalPct` (Retorno
+  Total, inclui proventos) em vez de `lucroPct` (só valorização). ✅
 - [x] **Performance (TWR/MWR)** — agora canônico: motor GIPS-compliant Modified
   Dietz em `lib/twr-engine.ts` (`calcularTWR`). SoD sempre, sem caps, sem
   heurísticas. forceZero apenas quando base ≤ 0. Documentado em `CALCULOS.md §16/§19`.
-- [ ] **Outras páginas** (Trades, etc.): auditar contra o Resumo
-  canônico e migrar números recalculados para os campos do snapshot.
+- [x] **Outras páginas** (Trades, Proventos, RF, Evolução, Financas, Performance):
+  auditoria completa — todas leem campos canônicos do snapshot, nenhuma recalcula
+  métricas por conta própria. ✅
 
 ---
 
