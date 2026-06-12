@@ -264,6 +264,9 @@ function calcularAttributionBySector(
 
 // ── Volatility and risk metrics ───────────────────────────────────────────────
 
+// Fallbacks: o Sharpe/Sortino BRL usa o CDI efetivo do período (rfBRLPeriodo,
+// calculado na rota); esta constante só entra sem dados de CDI ou < 1 mês.
+// USD: aproximação T-bill — não há série de UST na golden source ainda.
 const RISK_FREE_BRL = 0.10;
 const RISK_FREE_USD = 0.05;
 
@@ -413,6 +416,31 @@ export async function GET(request: Request) {
       });
     }
     const alignedFx = Object.fromEntries(dates.map(d => [d, hist.fxHistory[d]]));
+
+    // Avisos de qualidade de dados gerados nesta rota (fallbacks de FX, preços
+    // congelados, moedas sem taxa). Anexados a hist.errors na resposta — nunca
+    // silenciosos.
+    const extraErrors: string[] = [];
+
+    // Série USDBRL alinhada ao grid (ffill+bfill) — substitui os "?? 5.7"
+    // pontuais. O hardcode só entra se NÃO houver câmbio em nenhuma data,
+    // e isso é reportado.
+    const fxUsdSeries: number[] = (() => {
+      const out: (number | null)[] = dates.map(d => hist.fxHistory[d]?.USDBRL ?? null);
+      let last: number | null = null;
+      for (let i = 0; i < out.length; i++) { if (out[i] != null) last = out[i]; else out[i] = last; }
+      let next: number | null = null;
+      let missing = 0;
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i] != null) next = out[i];
+        else if (next != null) out[i] = next;
+        else { out[i] = 5.7; missing++; }
+      }
+      if (missing > 0) extraErrors.push(`Câmbio USDBRL sem cotação em ${missing} dia(s) do período — usando taxa fixa 5.7`);
+      return out as number[];
+    })();
+    const dateIdxOf = new Map(dates.map((d, i) => [d, i]));
+    const fxUsdAt = (date: string): number => fxUsdSeries[dateIdxOf.get(date) ?? fxUsdSeries.length - 1];
     const alignedIbov = dates.map(d => {
       const idx = dateIdxMap.get(d);
       return idx != null ? hist.ibov[idx] : null;
@@ -423,7 +451,14 @@ export async function GET(request: Request) {
     });
 
     // Compute PM FX rates from cambio data (investor's average remittance cost)
-    const lastFx = hist.fxHistory[dates[dates.length - 1]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
+    const lastFx = (() => {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        const fx = hist.fxHistory[dates[i]];
+        if (fx) return fx;
+      }
+      extraErrors.push("Sem histórico de câmbio no período — patrimônio em moeda estrangeira usa taxa fixa 5.7");
+      return { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
+    })();
     const cambioMetrics = calcularCambioMetrics(cambioRows, lastFx);
     const pmFx = buildPmFxRates(cambioMetrics);
     const runningPm = buildRunningPmDolar(cambioRows);
@@ -501,10 +536,19 @@ export async function GET(request: Request) {
     );
     const caixaBRL = calcularRendaFixaBRL(caixaRows, lastFx);
     // Margin (alavancagem): net = bruto − dívida aberta — o "Net liq" da corretora.
-    const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
+    const marginEntries = parseMarginRows(marginRows);
+    const marginFxMap: Record<string, number> = {
       BRL: 1, USD: lastFx.USDBRL, EUR: lastFx.EURBRL, GBP: lastFx.GBPBRL,
       CAD: lastFx.CADBRL, CHF: lastFx.CHFBRL ?? 0, JPY: lastFx.JPYBRL ?? 0,
-    });
+    };
+    // Moeda de margin sem taxa de câmbio = dívida valeria 0 (invisível) —
+    // reportar em vez de subestimar a alavancagem silenciosamente.
+    for (const moeda of new Set(marginEntries.map(e => e.moeda))) {
+      if ((marginFxMap[moeda] ?? 0) <= 0) {
+        extraErrors.push(`Margin em ${moeda} sem taxa de câmbio disponível — dívida nessa moeda NÃO está no patrimônio líquido`);
+      }
+    }
+    const marginResumo = computeMarginResumo(marginEntries, marginFxMap);
     const alavancagem = aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo);
     const patrimonio = {
       total: snapshot.totalPatrimonioBRL,
@@ -524,8 +568,7 @@ export async function GET(request: Request) {
     // S&P 500 in BRL: multiply USD price by USDBRL at each date
     const sp500BrlPrices = alignedSP500.map((p, i) => {
       if (p == null) return null;
-      const fx = alignedFx[dates[i]]?.USDBRL ?? 5.7;
-      return p * fx;
+      return p * fxUsdSeries[i];
     });
     const sp500BrlPoints = buildPriceBenchmark("SP500BRL", dates, sp500BrlPrices);
 
@@ -554,7 +597,14 @@ export async function GET(request: Request) {
     const dailyReturns = meaningfulPoints
       .filter(p => !p.forceZero && isFinite(p.ret))
       .map(p => p.ret);
-    const riskMetrics = calcularMetricasRisco(dailyReturns);
+    // Taxa livre de risco BRL = CDI efetivo do PRÓPRIO período, anualizado —
+    // não a constante. Sharpe/Sortino de 2020 (SELIC 2%) e de 2024 (10,5%)
+    // passam a usar a régua certa. Fallback para a constante só sem dados de
+    // CDI ou período < 1 mês.
+    const rfBRLPeriodo = (twr.duracaoAnos > 0.08 && cdiTotal > 0)
+      ? Math.pow(1 + cdiTotal, 1 / twr.duracaoAnos) - 1
+      : RISK_FREE_BRL;
+    const riskMetrics = calcularMetricasRisco(dailyReturns, rfBRLPeriodo);
     const drawdownSeries = calcularDrawdown(meaningfulPoints);
     const maxDrawdown = drawdownSeries.length > 0
       ? drawdownSeries.reduce((min, d) => d.drawdown < min ? d.drawdown : min, 0)
@@ -644,7 +694,7 @@ export async function GET(request: Request) {
     const usdView = (() => {
       if (meaningfulPoints.length < 2) return null;
       const pts = meaningfulPoints.map(p => {
-        const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
+        const fx = fxUsdAt(p.date);
         return { date: p.date, nav: p.nav / fx, flow: p.flow / fx, income: p.income / fx };
       });
 
@@ -703,9 +753,9 @@ export async function GET(request: Request) {
       // USD benchmarks: S&P 500 (raw USD), CDI in USD, IBOV in USD
       function convertBenchToUsd(bench: TwrDayPoint[]): TwrDayPoint[] {
         if (bench.length === 0) return bench;
-        const firstFx = alignedFx[bench[0].date]?.USDBRL ?? 5.7;
+        const firstFx = fxUsdAt(bench[0].date);
         return bench.map(p => {
-          const fx = alignedFx[p.date]?.USDBRL ?? 5.7;
+          const fx = fxUsdAt(p.date);
           const brlReturn = p.twr;
           const fxChange = fx / firstFx - 1;
           const usdReturn = (1 + brlReturn) / (1 + fxChange) - 1;
@@ -942,7 +992,20 @@ export async function GET(request: Request) {
       attribution,
       fxDecomposition: fxDecomp,
       diagnostics: twr.diagnostics,
-      errors: hist.errors,
+      errors: (() => {
+        // Diagnósticos do motor viram avisos visíveis no painel "Avisos de dados"
+        const diagErrors: string[] = [];
+        if (twr.diagnostics.fxFallbackDays > 0) {
+          diagErrors.push(`Câmbio ausente em ${twr.diagnostics.fxFallbackDays} dia(s) no motor TWR — taxa fixa aplicada`);
+        }
+        if (twr.diagnostics.tickersAtCost.length > 0) {
+          diagErrors.push(`Sem cotação de mercado (valorados ao custo médio de compra): ${twr.diagnostics.tickersAtCost.join(", ")}`);
+        }
+        for (const sp of twr.diagnostics.stalePrices) {
+          diagErrors.push(`Preço de ${sp.ticker} congelado desde ${sp.lastPriceDate} (sem cotação nova — forward-fill ativo)`);
+        }
+        return [...hist.errors, ...extraErrors, ...diagErrors];
+      })(),
       lookback,
     }, {
       headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=300" },

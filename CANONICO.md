@@ -129,6 +129,16 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
   mesmo lucro — são agrupamentos diferentes do mesmo cálculo, não fórmulas distintas.
 - **Proventos: bruto vs líquido**: o padrão é **líquido** (canônico). O bruto pode
   ser exibido como detalhe, sempre com o IR explícito ao lado.
+- **MTM em Performance — seleção de fonte**: o card MTM escolhe entre 3 fontes
+  conforme o contexto, e a fonte escolhida é **exibida na UI** ("fonte: …"):
+  1. Visão geral BRL all-time → **canônico do Resumo** (`/api/composicao/resumo`:
+     lucros + proventos) — garante o MESMO número da DRE;
+  2. Filtro por ticker all-time → `snapshot.retornoTotalRV*` (FIFO do ativo);
+  3. Janelas de tempo, filtros de classe e visão USD → `ganhoEconomico` do motor
+     TWR (identidade contábil do período medido, `CALCULOS.md §16`).
+  Não são fórmulas concorrentes: cada uma responde a um recorte diferente
+  (estoque atual vs período medido). Cross-check automático: na visão geral, se
+  canônico e motor TWR divergirem >10%, a UI mostra um aviso âmbar.
 - **View USD em Performance** (`/api/performance/advanced` → `usdView`): a visão em
   dólar recomputa TWR, MWR, ganhoEconomico e fxDecomposition a partir da série de
   NAV convertida dia a dia (`NAV_BRL / USDBRL_do_dia`). Não é possível simplesmente

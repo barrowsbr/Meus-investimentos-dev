@@ -149,10 +149,17 @@ export function calcularCarteiraFIFO(
 ): Map<string, PosicaoInterna> {
   const portfolio = new Map<string, PosicaoInterna>();
   const sorted = [...transacoes].sort((a, b) => getData(a) - getData(b));
+  const hojeISO = new Date().toISOString().split("T")[0];
 
   for (const row of sorted) {
     const ticker = getTicker(row);
     if (!ticker) continue;
+
+    // Transação com data futura (typo/import errado) não é posição atual.
+    // O motor TWR já exclui (tx.date <= lastDate); sem este filtro o snapshot
+    // contaria a posição e divergiria da Performance.
+    const dataISO = getDataISO(row);
+    if (dataISO && dataISO > hojeISO) continue;
 
     const tipo = getTipo(row);
     if (tipo !== "Compra" && tipo !== "Venda") continue;

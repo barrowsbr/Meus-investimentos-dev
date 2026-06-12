@@ -208,6 +208,8 @@ export function buildRfTimeline(
 
   const txs = parseRfTxs(rfTransacoes);
   const lastDate = dates[dates.length - 1];
+  const { series: fxSeries } = buildAlignedFx(dates, fxHistory);
+  const dateIdx = new Map(dates.map((d, i) => [d, i]));
 
   const manualValues = new Map<string, { atual: number; moeda: string }>();
   for (const row of fixaAberta) {
@@ -250,7 +252,7 @@ export function buildRfTimeline(
           moeda: manual.moeda,
         });
         // Synthetic flow on first date so flow series matches NAV
-        const fx0 = fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+        const fx0 = fxSeries[0];
         flowByDate[dates[0]] = (flowByDate[dates[0]] ?? 0) + manual.atual * fxFactor(manual.moeda, fx0);
       }
       continue;
@@ -296,7 +298,7 @@ export function buildRfTimeline(
 
   for (const date of dates) {
     let dayFlow = 0;
-    const fx = fxHistory[date] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    const fx = fxSeries[dateIdx.get(date) ?? 0];
     while (rfTxIdx < sortedRfTxs.length && sortedRfTxs[rfTxIdx].bizDate <= date) {
       const rtx = sortedRfTxs[rfTxIdx++];
       const fxF = fxFactor(rtx.moeda, fx);
@@ -386,6 +388,35 @@ function fxFactor(moeda: string, fx: FxRates): number {
   return 1;
 }
 
+// Último recurso quando NÃO existe nenhuma taxa no histórico inteiro.
+// Nunca deve ser usado silenciosamente: buildAlignedFx conta os dias em
+// fallback e o consumidor reporta via diagnostics/errors.
+const FX_LAST_RESORT: FxRates = { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 };
+
+// Série FX alinhada ao grid de datas: ffill (taxa anterior) + bfill (primeira
+// taxa conhecida). fallbackDays > 0 só quando fxHistory não cobre NENHUMA data.
+function buildAlignedFx(
+  dates: string[],
+  fxHistory: FxHistory
+): { series: FxRates[]; fallbackDays: number } {
+  const n = dates.length;
+  const series: (FxRates | null)[] = new Array(n).fill(null);
+  let last: FxRates | null = null;
+  for (let i = 0; i < n; i++) {
+    const fx = fxHistory[dates[i]];
+    if (fx) last = fx;
+    series[i] = fx ?? last;
+  }
+  let next: FxRates | null = null;
+  let fallbackDays = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    if (series[i]) next = series[i];
+    else if (next) series[i] = next;
+    else { series[i] = FX_LAST_RESORT; fallbackDays++; }
+  }
+  return { series: series as FxRates[], fallbackDays };
+}
+
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type PriceMatrix = Record<string, (number | null)[]>;
@@ -426,6 +457,8 @@ export interface TwrResult {
     forceZeroDays: number;
     incomeTotal: number;
     tickersAtCost: string[];
+    fxFallbackDays: number;
+    stalePrices: Array<{ ticker: string; lastPriceDate: string }>;
   };
 }
 
@@ -526,7 +559,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
     ganhoEconomico: 0,
     ganhoDecomposicao: { navFinal: 0, navInicial: 0, flowsFromFirst: 0, firstMeaningfulFlow: 0, incomeFromFirst: 0, forceZeroDays: 0 },
     mwr: null,
-    diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [] },
+    diagnostics: { forceZeroDays: 0, incomeTotal: 0, tickersAtCost: [], fxFallbackDays: 0, stalePrices: [] },
   };
 
   if (dates.length === 0) return EMPTY;
@@ -539,10 +572,19 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const hasRf = rfNavByDate && Object.keys(rfNavByDate).length > 0;
   if (inRange.length === 0 && !hasRf) return EMPTY;
 
+  const { series: fxSeries, fallbackDays: fxFallbackDays } = buildAlignedFx(dates, fxHistory);
+
   // ── Pre-fill price matrix: ffill + bfill (matching Python engine) ──
   // Without this, tickers with >5 day price gaps disappear from NAV.
+  // ANTES do fill, registra o índice do último preço REAL por ticker — usado
+  // para detectar preços congelados (delisting/fonte parada) e reportar em
+  // diagnostics.stalePrices em vez de mascarar silenciosamente.
+  const lastRealPriceIdx = new Map<string, number>();
   for (const ticker of Object.keys(prices)) {
     const arr = prices[ticker];
+    for (let j = arr.length - 1; j >= 0; j--) {
+      if (arr[j] != null) { lastRealPriceIdx.set(ticker, j); break; }
+    }
     let lastKnown: number | null = null;
     for (let j = 0; j < arr.length; j++) {
       if (arr[j] != null) lastKnown = arr[j];
@@ -593,7 +635,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
   // also includes brokerage fees (taxas) in the cost basis.
   const fifoLots = new Map<string, { qty: number; costBrl: number }[]>();
   for (const tx of sortedTxs) {
-    const fxCusto = pmFx ?? fxHistory[tx.bizDate] ?? fxHistory[dates[0]] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    const fxCusto = pmFx ?? fxHistory[tx.bizDate] ?? fxSeries[0];
     const fxF = fxFactor(tx.moeda, fxCusto);
     if (tx.tipo === "Compra") {
       const lots = fifoLots.get(tx.ticker) ?? [];
@@ -644,7 +686,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
   for (let i = 0; i < dates.length; i++) {
     const date = dates[i];
     const snap = custody[i];
-    const fx = fxHistory[date] ?? { USDBRL: 5.7, EURBRL: 6.4, CADBRL: 4.1, GBPBRL: 7.6 } as FxRates;
+    const fx = fxSeries[i];
 
     // ── RV NAV ──
     let navRV = 0;
@@ -823,6 +865,22 @@ export function calcularTWR(input: TwrInput): TwrResult {
   // base ≤ 0 and irrelevant — counting them would inflate the diagnostic.
   const forceZeroDays = points.slice(firstIdx).filter(p => p.forceZero).length;
 
+  // Preços congelados: ticker AINDA em custódia cujo último preço REAL é mais
+  // antigo que 7 dias corridos vs a última data — o ffill está sustentando o
+  // NAV com preço velho (delisting, fonte parada). Reportado, não mascarado.
+  const stalePrices: Array<{ ticker: string; lastPriceDate: string }> = [];
+  const lastCustody = custody[custody.length - 1] ?? {};
+  const lastDateMs = new Date(lastDate + "T12:00:00Z").getTime();
+  for (const [ticker, qty] of Object.entries(lastCustody)) {
+    if (qty < 0.000001) continue;
+    const idx = lastRealPriceIdx.get(ticker);
+    if (idx == null) continue; // sem preço algum → já coberto por tickersAtCost
+    const lastPriceDate = dates[idx];
+    const gapDays = (lastDateMs - new Date(lastPriceDate + "T12:00:00Z").getTime()) / 86400000;
+    if (gapDays > 7) stalePrices.push({ ticker, lastPriceDate });
+  }
+  stalePrices.sort((a, b) => a.ticker.localeCompare(b.ticker));
+
   return {
     points,
     twrTotal,
@@ -848,6 +906,8 @@ export function calcularTWR(input: TwrInput): TwrResult {
       forceZeroDays,
       incomeTotal: Math.round(incomeTotal),
       tickersAtCost: [...tickersAtCostSet].sort(),
+      fxFallbackDays,
+      stalePrices,
     },
   };
 }

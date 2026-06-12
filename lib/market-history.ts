@@ -275,5 +275,29 @@ export async function fetchHistoricalData(
     }
   }
 
+  // FX backfill: antes da primeira observação real, usar a primeira taxa
+  // conhecida (bfill) em vez do default hardcoded — muito mais próximo da
+  // realidade. O default só permanece quando o par não tem NENHUM dado no
+  // período inteiro, e isso é reportado em errors (nunca silencioso).
+  const fxPairs: Array<[string, keyof FxRates]> = [
+    ["BRL=X", "USDBRL"], ["EURBRL=X", "EURBRL"], ["CADBRL=X", "CADBRL"], ["GBPBRL=X", "GBPBRL"],
+  ];
+  for (const [yt, key] of fxPairs) {
+    let firstIdx = -1;
+    let firstVal: number | null = null;
+    for (let i = 0; i < n; i++) {
+      const m = rawByDate.get(allDates[i])!;
+      const v = m.get(yt);
+      if (v != null && v > 0) { firstIdx = i; firstVal = v; break; }
+    }
+    if (firstVal == null) {
+      if (key === "USDBRL") {
+        errors.push(`Câmbio ${key} sem nenhuma cotação no período — usando taxa fixa ${FX_DEFAULT[key]} (valores em moeda estrangeira podem estar distorcidos)`);
+      }
+    } else if (firstIdx > 0) {
+      for (let i = 0; i < firstIdx; i++) fxHistory[allDates[i]][key] = firstVal;
+    }
+  }
+
   return { dates: allDates, prices, fxHistory, ibov: ibovArr, sp500: sp500Arr, errors };
 }
