@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { fetchTab, appendRows } from "@/lib/gsheets";
+import { backupTab } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -760,6 +761,19 @@ async function buildResponse(
     let insertedProventos = 0;
     let insertedTrades = 0;
     const erros: string[] = [];
+    const backups: Record<string, string> = {};
+
+    // Backup antes de qualquer escrita
+    try {
+      const [bkpP, bkpT] = await Promise.all([
+        novosProventos.length > 0 ? backupTab("meus_proventos").then(r => r.backupName) : Promise.resolve(""),
+        novosTrades.length > 0 ? backupTab("meus_ativos").then(r => r.backupName) : Promise.resolve(""),
+      ]);
+      if (bkpP) backups.meus_proventos = bkpP;
+      if (bkpT) backups.meus_ativos = bkpT;
+    } catch (e) {
+      erros.push(`backup: ${e instanceof Error ? e.message : "falha no backup"}`);
+    }
 
     if (novosProventos.length > 0) {
       const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
@@ -812,6 +826,7 @@ async function buildResponse(
     result.inserted = { proventos: insertedProventos, trades: insertedTrades };
     result.verificacao = verificacao;
     result.verificado = verificacoes.length > 0 && verificacoes.every(v => v.ok);
+    if (Object.keys(backups).length > 0) result.backups = backups;
     if (erros.length > 0) {
       result.error = `Falha ao gravar na planilha — ${erros.join("; ")}`;
     } else if (verificacoes.length > 0 && !result.verificado) {

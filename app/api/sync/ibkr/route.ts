@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchTab, appendRows } from "@/lib/gsheets";
+import { backupTab } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -355,6 +356,7 @@ export async function POST(request: Request) {
       };
 
       if (!dryRun && missing.length > 0) {
+        await backupTab("meus_proventos").catch(() => {});
         const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
         const rows = missing.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
         await appendRows("meus_proventos", rows);
@@ -382,6 +384,7 @@ export async function POST(request: Request) {
       };
 
       if (!dryRun && trulyMissing.length > 0) {
+        await backupTab("meus_ativos").catch(() => {});
         const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
         const rows = trulyMissing.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
         await appendRows("meus_ativos", rows);
