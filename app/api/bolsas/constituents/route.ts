@@ -12,7 +12,7 @@ export interface ConstituentData {
   currency: string;
 }
 
-type Region = "us" | "brazil" | "europe_core" | "uk" | "germany" | "france" | "japan" | "china_hk" | "china_sh" | "korea" | "taiwan" | "india" | "canada" | "australia" | "spain" | "italy" | "switzerland" | "netherlands" | "nordic" | "asean_sg" | "mideast" | "africa";
+type Region = "us" | "brazil" | "argentina" | "mexico" | "chile" | "europe_core" | "uk" | "germany" | "france" | "japan" | "china_hk" | "china_sh" | "korea" | "taiwan" | "india" | "canada" | "australia" | "spain" | "italy" | "switzerland" | "netherlands" | "nordic" | "asean_sg" | "mideast" | "africa";
 
 const INDEX_REGION: Record<string, Region> = {
   "^GSPC": "us", "^DJI": "us", "^IXIC": "us", "^RUT": "us",
@@ -37,7 +37,7 @@ const INDEX_REGION: Record<string, Region> = {
   "^STI": "asean_sg", "^JKSE": "asean_sg", "^KLSE": "asean_sg", "^SET.BK": "asean_sg",
   "^TA125.TA": "mideast",
   "^J203.JO": "africa", "^CASE30": "africa",
-  "^MXX": "brazil", "^MERV": "brazil", "^IPSA": "brazil",
+  "^MXX": "mexico", "^MERV": "argentina", "^IPSA": "chile",
   "^ATX": "europe_core", "^BFX": "europe_core", "PSI20.LS": "europe_core",
   "^WIG20": "europe_core", "XU100.IS": "europe_core", "IMOEX.ME": "europe_core",
 };
@@ -53,6 +53,24 @@ const CONSTITUENTS: Record<Region, string[]> = {
     "ABEV3.SA", "WEGE3.SA", "RENT3.SA", "SUZB3.SA", "ELET3.SA", "JBSS3.SA",
     "HAPV3.SA", "RDOR3.SA", "GGBR4.SA", "VIVT3.SA", "TOTS3.SA", "LREN3.SA",
     "PRIO3.SA", "RADL3.SA",
+  ],
+  argentina: [
+    "GGAL.BA", "YPFD.BA", "PAMP.BA", "BMA.BA", "BBAR.BA", "CEPU.BA",
+    "ALUA.BA", "TXAR.BA", "TGSU2.BA", "TGNO4.BA", "TECO2.BA", "TRAN.BA",
+    "EDN.BA", "LOMA.BA", "MIRG.BA", "SUPV.BA", "COME.BA", "CRES.BA",
+    "VALO.BA", "BYMA.BA",
+  ],
+  mexico: [
+    "AMXB.MX", "WALMEX.MX", "FEMSAUBD.MX", "GFNORTEO.MX", "GMEXICOB.MX",
+    "CEMEXCPO.MX", "BIMBOA.MX", "TLEVISACPO.MX", "KIMBERA.MX", "ALSEA.MX",
+    "GAPB.MX", "ASURB.MX", "OMAB.MX", "PINFRA.MX", "GRUMAB.MX",
+    "AC.MX", "KOFUBL.MX", "ORBIA.MX", "ELEKTRA.MX", "LABB.MX",
+  ],
+  chile: [
+    "SQM-B.SN", "FALABELLA.SN", "CENCOSUD.SN", "COPEC.SN", "CMPC.SN",
+    "BSANTANDER.SN", "CHILE.SN", "BCI.SN", "ENELCHILE.SN", "ENELAM.SN",
+    "COLBUN.SN", "CCU.SN", "ANDINA-B.SN", "PARAUCO.SN", "VAPORES.SN",
+    "AGUAS-A.SN", "ENTEL.SN", "RIPLEY.SN", "CAP.SN", "LTM.SN",
   ],
   canada: [
     "RY.TO", "TD.TO", "BNS.TO", "ENB.TO", "CNR.TO", "CP.TO",
@@ -205,7 +223,7 @@ export async function GET(req: NextRequest) {
       if (q && q.price > 0) {
         result.push({
           ticker: t,
-          name: q.name || t.replace(/\.(SA|L|DE|PA|T|HK|KS|TW|NS|AX|SI|BK|JK|MI|MC|SW|AS|CO|ST|HE|OL|JO|SS|SZ|TA|TO|BR|ME|IS|LS)$/, ""),
+          name: q.name || t.replace(/\.(SA|L|DE|PA|T|HK|KS|TW|NS|AX|SI|BK|JK|MI|MC|SW|AS|CO|ST|HE|OL|JO|SS|SZ|TA|TO|BR|ME|IS|LS|BA|MX|SN)$/, ""),
           price: q.price,
           changePct: q.changePercent ?? 0,
           currency: q.currency || "",
