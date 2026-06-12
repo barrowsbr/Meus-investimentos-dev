@@ -284,68 +284,70 @@ describe("navFx", () => {
 });
 
 // ── RF: acrual a taxa real + true-up — o passado NUNCA muda ──────────────────
-describe("buildRfTimeline (imutabilidade)", () => {
+describe("buildRfTimeline (taxa implícita + congelamento)", () => {
   const rfCompra = (ticker: string, valor: number, data: string, moeda = "BRL") =>
     ({ ticker, tipo: "Compra", valor, compra: data, moeda } as Record<string, unknown>);
   const aberta = (ticker: string, atual: number, data: string, moeda = "BRL") =>
     ({ ticker, atual, data, moeda } as Record<string, unknown>);
 
-  it("atualizar o saldo manual não reescreve o NAV anterior à data de atualização", () => {
+  it("taxa implícita: caminho suave atinge o saldo manual na data de atualização", () => {
     const dates = businessDays("2025-06-02", "2025-09-30");
-    const cdi: Record<string, number> = Object.fromEntries(dates.map(d => [d, 0.0005]));
-    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
-
-    const v1 = buildRfTimeline(txs, [aberta("CDB Banco X", 10300, "2025-08-01")], dates, fxHist(dates), cdi);
-    const v2 = buildRfTimeline(txs, [aberta("CDB Banco X", 10999, "2025-09-15")], dates, fxHist(dates), cdi);
-
-    // Antes de 2025-08-01 os dois caminhos são idênticos (acrual puro a CDI):
-    // a mudança do saldo manual só afeta o caminho a partir do true-up antigo.
-    for (const d of dates.filter(d => d < "2025-08-01")) {
-      expect(v2.navByDate[d]).toBeCloseTo(v1.navByDate[d], 6);
-    }
-    // E cada série atinge o próprio saldo manual na respectiva data de true-up.
-    const gridAfter = (target: string) => dates.find(d => d >= target)!;
-    expect(v1.navByDate[gridAfter("2025-08-01")]).toBeCloseTo(10300, 0);
-    expect(v2.navByDate[gridAfter("2025-09-15")]).toBeCloseTo(10999, 0);
-  });
-
-  it("congela no saldo manual após o true-up (não acrua além do último dado real)", () => {
-    const dates = businessDays("2025-06-02", "2025-06-30");
-    const cdi: Record<string, number> = Object.fromEntries(dates.map(d => [d, 0.001]));
     const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
     const { navByDate } = buildRfTimeline(
-      txs, [aberta("CDB Banco X", 10050, "2025-06-16")], dates, fxHist(dates), cdi,
+      txs, [aberta("CDB Banco X", 10300, "2025-08-01")], dates, fxHist(dates),
+    );
+    const gridAfter = (target: string) => dates.find(d => d >= target)!;
+    // NAV atinge o saldo manual na data de true-up
+    expect(navByDate[gridAfter("2025-08-01")]).toBeCloseTo(10300, 0);
+    // Caminho é suave (variação diária constante, < 0.2%)
+    for (let i = 1; i < dates.length; i++) {
+      if (dates[i] > "2025-08-01") break;
+      expect(Math.abs(navByDate[dates[i]] / navByDate[dates[i - 1]] - 1)).toBeLessThan(0.002);
+    }
+  });
+
+  it("congela no saldo manual após a data de atualização", () => {
+    const dates = businessDays("2025-06-02", "2025-06-30");
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
+    const { navByDate } = buildRfTimeline(
+      txs, [aberta("CDB Banco X", 10050, "2025-06-16")], dates, fxHist(dates),
     );
     const trueUpDay = dates.find(d => d >= "2025-06-16")!;
     const last = dates[dates.length - 1];
     expect(navByDate[trueUpDay]).toBeCloseTo(10050, 0);
-    // Após o true-up o saldo congela — sem dados novos, não injetamos retorno.
+    // Após a data de atualização, saldo congela
     expect(navByDate[last]).toBeCloseTo(10050, 0);
   });
 
-  it("janela filtrada: compra pré-janela vira saldo de abertura (sem degrau no true-up)", () => {
-    // Regressão: em janelas filtradas (1A/6M/…), compras de RF anteriores à
-    // janela eram descartadas — o saldo ficava 0 até a data do true-up e
-    // saltava para o valor manual inteiro sem fluxo, criando um degrau
-    // gigante no TWR e corrompendo vol/drawdown/MTM dos filtros.
+  it("sem data de atualização: acrua até o último dia (como produção)", () => {
+    const dates = businessDays("2025-06-02", "2025-06-30");
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
+    // fixa_aberta SEM coluna data → dataAtualizacao = lastDate
+    const fixaAberta = [{ ticker: "CDB Banco X", atual: 10200, moeda: "BRL" } as Record<string, unknown>];
+    const { navByDate } = buildRfTimeline(txs, fixaAberta, dates, fxHist(dates));
+    const last = dates[dates.length - 1];
+    // NAV no último dia ≈ saldo manual (taxa implícita resolve exatamente)
+    expect(navByDate[last]).toBeCloseTo(10200, -1);
+    // Caminho suave sem congelamento (acrua o grid inteiro)
+    expect(navByDate[dates[1]]).toBeGreaterThan(navByDate[dates[0]]);
+  });
+
+  it("janela filtrada: compra pré-janela vira saldo de abertura (sem degrau)", () => {
     const dates = businessDays("2025-06-02", "2025-09-30");
-    const allBiz = businessDays("2025-01-02", "2025-09-30");
-    const cdi: Record<string, number> = Object.fromEntries(allBiz.map(d => [d, 0.0005]));
     const txs = [rfCompra("CDB Banco X", 10000, "2025-01-02")]; // ANTES da janela
     const { navByDate, flowByDate } = buildRfTimeline(
-      txs, [aberta("CDB Banco X", 10800, "2025-08-01")], dates, fxHist(dates), cdi,
+      txs, [aberta("CDB Banco X", 10800, "2025-08-01")], dates, fxHist(dates),
     );
-
-    // Dia-âncora já carrega a posição acruada desde a compra (não começa em 0)
+    // Dia-âncora já carrega a posição acruada desde a compra
     expect(navByDate[dates[0]]).toBeGreaterThan(10000);
     // Compra pré-janela NÃO reaparece como fluxo dentro da janela
     expect(flowByDate[dates[0]] ?? 0).toBe(0);
-    // Sem fluxos na janela, a variação diária fica na ordem do CDI — o
-    // true-up só absorve o resíduo de estimativa, nunca a posição inteira.
+    // Variação diária suave (taxa implícita constante)
     for (let i = 1; i < dates.length; i++) {
+      if (dates[i] > "2025-08-01") break;
       expect(Math.abs(navByDate[dates[i]] / navByDate[dates[i - 1]] - 1)).toBeLessThan(0.01);
     }
-    // E o caminho atinge o saldo manual exatamente na data do true-up
+    // E o caminho atinge o saldo manual na data de atualização
     const trueUpDay = dates.find(d => d >= "2025-08-01")!;
     expect(navByDate[trueUpDay]).toBeCloseTo(10800, 0);
   });

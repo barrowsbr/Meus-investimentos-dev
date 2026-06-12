@@ -172,14 +172,42 @@ function rfBizDays(startStr: string, endStr: string): number {
   return Math.max(0, Math.round((ms / (24 * 60 * 60 * 1000)) * RF_BIZ_DAYS_YEAR / 365));
 }
 
-// IMUTABILIDADE (regra de fundo): o modelo antigo resolvia uma taxa implícita
-// para o NAV bater com o saldo manual NA DATA FINAL — cada atualização do
-// saldo reescrevia TODO o caminho passado (TWR, vol, Sharpe e drawdown mudavam
-// retroativamente). Agora cada posição ACRUA pela taxa real do dia (CDI do BCB
-// para BRL; aproximação T-bill para USD) e a diferença vs o saldo manual é
-// reconhecida como TRUE-UP no dia da atualização (coluna `data` da
-// fixa_aberta) — exatamente como um fundo trata evento de reprecificação.
-// O passado nunca muda quando o saldo manual é atualizado.
+// Taxa diária implícita: resolve r tal que Σ lots × (1+r)^bizDays = targetValue.
+// Dá uma "renda diária" constante — o caminho acrua suavemente de cada
+// compra/venda até a data-alvo (data de atualização do saldo manual).
+function solveImpliedRate(
+  lots: { invested: number; bizDays: number }[],
+  targetValue: number
+): number {
+  const DEFAULT_DAILY = 0.0005;
+  if (lots.length === 0 || targetValue <= 0) return DEFAULT_DAILY;
+  const totalInvested = lots.reduce((s, l) => s + l.invested, 0);
+  if (totalInvested <= 0) return DEFAULT_DAILY;
+  if (targetValue < totalInvested * 0.5) return 0;
+  let r = DEFAULT_DAILY;
+  for (let iter = 0; iter < 20; iter++) {
+    let f = -targetValue;
+    let df = 0;
+    for (const l of lots) {
+      const factor = Math.pow(1 + r, l.bizDays);
+      f += l.invested * factor;
+      df += l.invested * l.bizDays * Math.pow(1 + r, l.bizDays - 1);
+    }
+    if (Math.abs(df) < 1e-12) break;
+    const step = f / df;
+    r -= step;
+    r = Math.max(0, Math.min(r, 0.002));
+    if (Math.abs(step) < 1e-9) break;
+  }
+  return r;
+}
+
+// RF no TWR: taxa diária implícita constante ("renda diária") para posições
+// com histórico de compra + saldo manual. A taxa é resolvida de cada compra
+// até a data de atualização do saldo, dando um caminho suave que atinge o
+// saldo exatamente nessa data. Após a data de atualização, congela (sem dado
+// novo). Posições sem histórico de compra ficam com NAV plano. O lock mensal
+// garante que meses fechados não mudam retroativamente no heatmap.
 export function buildRfTimeline(
   rfTransacoes: Row[],
   fixaAberta: Row[],
@@ -292,11 +320,24 @@ export function buildRfTimeline(
     }
 
     const moeda = manual?.moeda ?? compras[0]?.moeda ?? "BRL";
+    const trueUpTarget = manual
+      ? (manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao)
+      : null;
 
-    // Posição encerrada: taxa realizada dos próprios fluxos (dados passados,
-    // determinístico e imutável).
     let fixedRate: number | null = null;
-    if (!manual && vendas.length > 0) {
+    if (manual && manual.atual > 0) {
+      // Taxa implícita constante: "renda diária" suave de cada compra/venda
+      // até a data de atualização do saldo manual. O caminho acrua e atinge
+      // o saldo exatamente na data do true-up. Sem data de atualização,
+      // trueUpTarget = lastDate e o comportamento é idêntico à produção.
+      const target = trueUpTarget ?? lastDate;
+      const lots = [
+        ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.bizDate, target) })),
+        ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.bizDate, target) })),
+      ];
+      fixedRate = solveImpliedRate(lots, manual.atual);
+    } else if (!manual && vendas.length > 0) {
+      // Posição encerrada: taxa realizada dos próprios fluxos.
       const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
       const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
       const holdingDays = rfBizDays(compras[0].bizDate, vendas[vendas.length - 1].bizDate);
@@ -332,7 +373,7 @@ export function buildRfTimeline(
       moeda,
       flowsByDate,
       fixedRate,
-      trueUpDate: manual ? (manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao) : null,
+      trueUpDate: trueUpTarget,
       trueUpValue: manual?.atual ?? 0,
       balance: opening,
       trueUpDone: false,
