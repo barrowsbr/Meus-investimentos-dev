@@ -832,6 +832,36 @@ export async function GET(request: Request) {
         .map(([month, { sf, ef }]) => ({ month, return_pct: sf > 0 ? ((ef / sf) - 1) * 100 : 0 }));
 
       const fxDiv = lastFx.USDBRL || 5.7;
+
+      // ── Native USD P&L ────────────────────────────────────────────
+      // For foreign-currency positions, compute gain in native currency
+      // then convert to USD — avoids the FX distortion that results
+      // from dividing BRL gain (which embeds pmDólar cost) by current
+      // USDBRL. For the filtered-ticker case (e.g. NVIDIA), this
+      // matches the brokerage's USD P&L exactly.
+      const nativeUsd = (() => {
+        let gains = 0;
+        let custo = 0;
+        let openGainsBRL = 0;
+        for (const p of snapshot.positions) {
+          if (isRendaFixa(p.setor)) continue;
+          openGainsBRL += p.retornoTotalBRL ?? 0;
+          if (p.moeda !== "BRL" && p.fatorBRL > 0) {
+            const unrealized = p.valorAtual != null ? p.valorAtual - p.custoTotal : 0;
+            const dividendsNative = p.proventosBRL / p.fatorBRL;
+            const toUsd = p.fatorBRL / fxDiv;
+            gains += (unrealized + p.lucroRealizado + dividendsNative) * toUsd;
+            custo += p.custoTotal * toUsd;
+          } else {
+            gains += (p.retornoTotalBRL ?? 0) / fxDiv;
+            custo += p.custoTotalBRL / fxDiv;
+          }
+        }
+        const closedBRL = snapshot.retornoTotalRVBRL - openGainsBRL;
+        if (Math.abs(closedBRL) > 1) gains += closedBRL / fxDiv;
+        return { gains, custo, pct: custo > 0 ? (gains / custo) * 100 : 0 };
+      })();
+
       return {
         summary: {
           twrTotal: twrTotalUsd,
@@ -840,12 +870,10 @@ export async function GET(request: Request) {
           navFinal: pts[pts.length - 1].nav,
           navInicial: pts[0].nav,
           totalInvestido: pts.reduce((s, p) => s + Math.max(0, p.flow), 0),
-          custoPosicoesAtuais: twr.custoPosicoesAtuais / fxDiv,
-          custoFIFOSnapshot: snapshot.positions
-            .filter(p => !isRendaFixa(p.setor))
-            .reduce((s, p) => s + p.custoTotalBRL, 0) / fxDiv,
-          resultadoTotal: snapshot.retornoTotalRVBRL / fxDiv,
-          resultadoTotalPct: snapshot.retornoTotalRVPct,
+          custoPosicoesAtuais: nativeUsd.custo,
+          custoFIFOSnapshot: nativeUsd.custo,
+          resultadoTotal: nativeUsd.gains,
+          resultadoTotalPct: nativeUsd.pct,
           patrimonio: {
             total: patrimonio.total / fxDiv,
             rv: patrimonio.rv / fxDiv,
