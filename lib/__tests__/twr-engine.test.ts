@@ -290,45 +290,31 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
   const aberta = (ticker: string, atual: number, data: string, moeda = "BRL") =>
     ({ ticker, atual, data, moeda } as Record<string, unknown>);
 
-  it("taxa implícita: caminho suave atinge o saldo manual na data de atualização", () => {
+  it("taxa implícita: caminho suave atinge o saldo manual no último dia", () => {
     const dates = businessDays("2025-06-02", "2025-09-30");
     const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
     const { navByDate } = buildRfTimeline(
       txs, [aberta("CDB Banco X", 10300, "2025-08-01")], dates, fxHist(dates),
     );
-    const gridAfter = (target: string) => dates.find(d => d >= target)!;
-    // NAV atinge o saldo manual na data de true-up
-    expect(navByDate[gridAfter("2025-08-01")]).toBeCloseTo(10300, 0);
+    const last = dates[dates.length - 1];
+    // NAV atinge o saldo manual no último dia do grid (data da aberta é ignorada)
+    expect(navByDate[last]).toBeCloseTo(10300, -1);
     // Caminho é suave (variação diária constante, < 0.2%)
     for (let i = 1; i < dates.length; i++) {
-      if (dates[i] > "2025-08-01") break;
       expect(Math.abs(navByDate[dates[i]] / navByDate[dates[i - 1]] - 1)).toBeLessThan(0.002);
     }
   });
 
-  it("congela no saldo manual após a data de atualização", () => {
+  it("fixa_aberta = hoje: taxa implícita resolve até o último dia do grid", () => {
     const dates = businessDays("2025-06-02", "2025-06-30");
     const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
     const { navByDate } = buildRfTimeline(
-      txs, [aberta("CDB Banco X", 10050, "2025-06-16")], dates, fxHist(dates),
+      txs, [aberta("CDB Banco X", 10200, "2025-06-16")], dates, fxHist(dates),
     );
-    const trueUpDay = dates.find(d => d >= "2025-06-16")!;
     const last = dates[dates.length - 1];
-    expect(navByDate[trueUpDay]).toBeCloseTo(10050, 0);
-    // Após a data de atualização, saldo congela
-    expect(navByDate[last]).toBeCloseTo(10050, 0);
-  });
-
-  it("sem data de atualização: acrua até o último dia (como produção)", () => {
-    const dates = businessDays("2025-06-02", "2025-06-30");
-    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
-    // fixa_aberta SEM coluna data → dataAtualizacao = lastDate
-    const fixaAberta = [{ ticker: "CDB Banco X", atual: 10200, moeda: "BRL" } as Record<string, unknown>];
-    const { navByDate } = buildRfTimeline(txs, fixaAberta, dates, fxHist(dates));
-    const last = dates[dates.length - 1];
-    // NAV no último dia ≈ saldo manual (taxa implícita resolve exatamente)
+    // A data da fixa_aberta é ignorada — sempre resolve até lastDate
     expect(navByDate[last]).toBeCloseTo(10200, -1);
-    // Caminho suave sem congelamento (acrua o grid inteiro)
+    // Caminho suave o grid inteiro (sem congelamento mid-grid)
     expect(navByDate[dates[1]]).toBeGreaterThan(navByDate[dates[0]]);
   });
 
@@ -338,18 +324,17 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
     const { navByDate, flowByDate } = buildRfTimeline(
       txs, [aberta("CDB Banco X", 10800, "2025-08-01")], dates, fxHist(dates),
     );
+    const last = dates[dates.length - 1];
     // Dia-âncora já carrega a posição acruada desde a compra
     expect(navByDate[dates[0]]).toBeGreaterThan(10000);
     // Compra pré-janela NÃO reaparece como fluxo dentro da janela
     expect(flowByDate[dates[0]] ?? 0).toBe(0);
     // Variação diária suave (taxa implícita constante)
     for (let i = 1; i < dates.length; i++) {
-      if (dates[i] > "2025-08-01") break;
       expect(Math.abs(navByDate[dates[i]] / navByDate[dates[i - 1]] - 1)).toBeLessThan(0.01);
     }
-    // E o caminho atinge o saldo manual na data de atualização
-    const trueUpDay = dates.find(d => d >= "2025-08-01")!;
-    expect(navByDate[trueUpDay]).toBeCloseTo(10800, 0);
+    // NAV atinge o saldo manual no último dia (não na data da aberta)
+    expect(navByDate[last]).toBeCloseTo(10800, -1);
   });
 
   it("posição USD entra em navFxByDate (exposição cambial de RF)", () => {

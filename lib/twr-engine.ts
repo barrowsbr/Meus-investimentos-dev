@@ -266,10 +266,9 @@ export function buildRfTimeline(
     if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
-    // Sem data de atualização, o true-up cai no último dia do grid — o ajuste
-    // aparece como retorno de HOJE (visível e honesto), nunca reescreve o passado.
-    const dataAtualizacao = toYMD(row["data"] ?? row["atualizacao"] ?? row["atualização"]) || lastDate;
-    if (atual > 0) manualValues.set(ticker, { atual, moeda, dataAtualizacao });
+    // Ativo em fixa_aberta = posição aberta → o saldo manual é o valor de HOJE.
+    // A taxa implícita sempre resolve de cada compra até lastDate (hoje).
+    if (atual > 0) manualValues.set(ticker, { atual, moeda, dataAtualizacao: lastDate });
   }
 
   const byTicker = new Map<string, RfParsedTx[]>();
