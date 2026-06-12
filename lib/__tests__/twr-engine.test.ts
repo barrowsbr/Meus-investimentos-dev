@@ -323,6 +323,33 @@ describe("buildRfTimeline (imutabilidade)", () => {
     expect(navByDate[last]).toBeCloseTo(10050 * Math.pow(1.001, diasDepois), 0);
   });
 
+  it("janela filtrada: compra pré-janela vira saldo de abertura (sem degrau no true-up)", () => {
+    // Regressão: em janelas filtradas (1A/6M/…), compras de RF anteriores à
+    // janela eram descartadas — o saldo ficava 0 até a data do true-up e
+    // saltava para o valor manual inteiro sem fluxo, criando um degrau
+    // gigante no TWR e corrompendo vol/drawdown/MTM dos filtros.
+    const dates = businessDays("2025-06-02", "2025-09-30");
+    const allBiz = businessDays("2025-01-02", "2025-09-30");
+    const cdi: Record<string, number> = Object.fromEntries(allBiz.map(d => [d, 0.0005]));
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-01-02")]; // ANTES da janela
+    const { navByDate, flowByDate } = buildRfTimeline(
+      txs, [aberta("CDB Banco X", 10800, "2025-08-01")], dates, fxHist(dates), cdi,
+    );
+
+    // Dia-âncora já carrega a posição acruada desde a compra (não começa em 0)
+    expect(navByDate[dates[0]]).toBeGreaterThan(10000);
+    // Compra pré-janela NÃO reaparece como fluxo dentro da janela
+    expect(flowByDate[dates[0]] ?? 0).toBe(0);
+    // Sem fluxos na janela, a variação diária fica na ordem do CDI — o
+    // true-up só absorve o resíduo de estimativa, nunca a posição inteira.
+    for (let i = 1; i < dates.length; i++) {
+      expect(Math.abs(navByDate[dates[i]] / navByDate[dates[i - 1]] - 1)).toBeLessThan(0.01);
+    }
+    // E o caminho atinge o saldo manual exatamente na data do true-up
+    const trueUpDay = dates.find(d => d >= "2025-08-01")!;
+    expect(navByDate[trueUpDay]).toBeCloseTo(10800, 0);
+  });
+
   it("posição USD entra em navFxByDate (exposição cambial de RF)", () => {
     const dates = businessDays("2025-06-02", "2025-06-13");
     const txs = [rfCompra("CDB Global USD", 1000, "2025-06-02", "USD")];

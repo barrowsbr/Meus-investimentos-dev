@@ -207,6 +207,30 @@ export function buildRfTimeline(
     return isWeekday(date) ? USD_RF_DAILY : 0;
   };
 
+  // Acrual PRÉ-JANELA (dias-calendário fora do grid): para BRL usa CDI real
+  // quando a data está coberta; fora da cobertura cai na tabela SELIC
+  // (~0,1pp/ano de erro, absorvido pelo true-up). Acrua de fromExcl
+  // (exclusivo) até toIncl (inclusivo).
+  const accrueTo = (
+    bal: number, fromExcl: string, toIncl: string,
+    moeda: string, fixedRate: number | null,
+  ): number => {
+    if (bal <= 0 || fromExcl >= toIncl) return bal;
+    const d = new Date(fromExcl + "T12:00:00Z");
+    const end = new Date(toIncl + "T12:00:00Z");
+    while (true) {
+      d.setDate(d.getDate() + 1);
+      if (d > end) break;
+      const ymd = d.toISOString().split("T")[0];
+      let r: number;
+      if (fixedRate != null) r = isWeekday(ymd) ? fixedRate : 0;
+      else if (moeda === "BRL") r = cdiDiario?.[ymd] ?? (isWeekday(ymd) ? getSelicDiaria(ymd) : 0);
+      else r = isWeekday(ymd) ? USD_RF_DAILY : 0;
+      bal *= 1 + r;
+    }
+    return bal;
+  };
+
   const manualValues = new Map<string, { atual: number; moeda: string; dataAtualizacao: string }>();
   for (const row of fixaAberta) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? ""));
@@ -294,13 +318,32 @@ export function buildRfTimeline(
     for (const c of compras) flowsByDate.set(c.bizDate, (flowsByDate.get(c.bizDate) ?? 0) + c.valor);
     for (const v of vendas) flowsByDate.set(v.bizDate, (flowsByDate.get(v.bizDate) ?? 0) - v.valor);
 
+    // Fluxos ANTERIORES à janela viram saldo de ABERTURA, acruado dia a dia
+    // até a véspera de dates[0] — espelha a custódia RV, onde transações
+    // pré-janela entram no NAV do dia-âncora e nunca como fluxo da janela.
+    // Sem isso, janela filtrada (1A/6M/…) começava a posição em 0 e o
+    // true-up virava um salto artificial gigante no TWR.
+    let opening = 0;
+    let cursor: string | null = null;
+    for (const d of [...flowsByDate.keys()].filter(k => k < dates[0]).sort()) {
+      if (cursor != null) opening = accrueTo(opening, cursor, d, moeda, fixedRate);
+      opening = Math.max(0, opening + flowsByDate.get(d)!);
+      flowsByDate.delete(d);
+      cursor = d;
+    }
+    if (cursor != null) {
+      const vespera = new Date(dates[0] + "T12:00:00Z");
+      vespera.setDate(vespera.getDate() - 1);
+      opening = accrueTo(opening, cursor, vespera.toISOString().split("T")[0], moeda, fixedRate);
+    }
+
     states.push({
       moeda,
       flowsByDate,
       fixedRate,
       trueUpDate: manual ? (manual.dataAtualizacao < dates[0] ? dates[0] : manual.dataAtualizacao) : null,
       trueUpValue: manual?.atual ?? 0,
-      balance: 0,
+      balance: opening,
       trueUpDone: false,
     });
   }
