@@ -143,12 +143,19 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
   dólar recomputa TWR, MWR, ganhoEconomico e fxDecomposition a partir da série de
   NAV convertida dia a dia (`NAV_BRL / USDBRL_do_dia`). Não é possível simplesmente
   dividir os totais BRL por um FX fixo — o câmbio variou ao longo do período, então
-  cada retorno diário é diferente em USD vs BRL. Os campos de snapshot (patrimônio,
-  custoPosicoesAtuais, custoFIFOSnapshot, resultadoTotal) **são** conversões diretas
-  do canônico (`÷ USDBRL_atual`), sem reimplementar fórmula. A decomposição cambial
-  USD inverte a perspectiva: `fx = USDBRL_start / USDBRL_now − 1` (impacto BRL→USD),
-  enquanto a BRL usa `USDBRL_now / USDBRL_start − 1`. Rotulada na UI como
-  "US$ Dólar" / "Patrimônio em dólar" / "visão USD".
+  cada retorno diário é diferente em USD vs BRL.
+  - **Patrimônio** (spot): `÷ USDBRL_atual` — correto porque ambos os lados (valor
+    atual) usam o câmbio do momento.
+  - **Custo e MTM nativos**: para posições em moeda estrangeira (USD, EUR…), custo e
+    resultado são computados **na moeda nativa** e depois convertidos a USD pela taxa
+    cruzada atual (`fatorBRL / USDBRL`). Dividir o custo BRL (que embute o pmDólar)
+    por USDBRL_atual introduziria distorção cambial — o MTM não bateria com a
+    corretora. Para posições BRL, a conversão simples `÷ USDBRL` é correta.
+    Implementação: `nativeUsd` no builder do `usdView`.
+  - A decomposição cambial USD inverte a perspectiva:
+    `fx = USDBRL_start / USDBRL_now − 1` (impacto BRL→USD), enquanto a BRL usa
+    `USDBRL_now / USDBRL_start − 1`.
+  - Rotulada na UI como "US$ Dólar" / "Patrimônio em dólar" / "visão USD".
 
 > Se você precisa de uma exceção que **não** está nesta lista, ela provavelmente é
 > um bug de divergência. Pare e reconcilie com o canônico antes.
