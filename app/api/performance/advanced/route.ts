@@ -693,8 +693,12 @@ export async function GET(request: Request) {
       };
     });
 
-    // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico
-    const lockedMonths = await readLockedMonthly();
+    // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico.
+    // Os valores travados são da CARTEIRA COMPLETA — em views filtradas
+    // (classe/setor/ticker) o merge mostraria retornos de outra carteira, então
+    // o lock só se aplica sem filtros de ativo.
+    const isUnfiltered = !tickerFiltro && classe === "tudo" && setoresFiltro.size === 0;
+    const lockedMonths = isUnfiltered ? await readLockedMonthly() : [];
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // ── USD view: convert NAV/flows by USDBRL, recompute TWR/MWR ──────────────
@@ -930,9 +934,15 @@ export async function GET(request: Request) {
     })();
 
     // Trava retornos mensais de meses já fechados (fire-and-forget)
-    const isFullView = !tickerFiltro && classe === "tudo" && !fromParam && !toParam && setoresFiltro.size === 0;
+    const isFullView = isUnfiltered && !fromParam && !toParam;
     if (isFullView) {
-      lockNewMonths(computedMonthly, rawUsdMonthly).catch(() => {});
+      // Janela com lookback corta o primeiro mês no meio — esse mês de
+      // fronteira é PARCIAL e nunca pode ser travado como retorno do mês.
+      const lockableBrl = lookback > 0 ? computedMonthly.slice(1) : computedMonthly;
+      const lockableUsd = rawUsdMonthly == null
+        ? null
+        : (lookback > 0 ? (rawUsdMonthly as Array<{ month: string; return_pct: number }>).slice(1) : rawUsdMonthly);
+      lockNewMonths(lockableBrl, lockableUsd).catch(() => {});
     }
 
     return NextResponse.json({

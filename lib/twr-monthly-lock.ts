@@ -1,4 +1,4 @@
-import { fetchTab, appendRows, ensureTab } from "./gsheets";
+import { fetchTab, appendRows, ensureTab, syncHeaders } from "./gsheets";
 
 const TAB = "twr_mensal";
 const HEADERS = ["month", "return_pct", "return_pct_usd", "locked_at", "version"];
@@ -48,7 +48,11 @@ export async function lockNewMonths(
   const toLock = computed.filter(m => m.month < curMonth && !existingSet.has(m.month));
   if (toLock.length === 0) return 0;
 
-  await ensureTab(TAB, HEADERS);
+  const created = await ensureTab(TAB, HEADERS);
+  // Aba v1 tinha 4 colunas — sem reescrever o header, a coluna "version" não
+  // existe na linha 1 e o fetchTab a descarta: nenhuma linha v2 seria lida e o
+  // lock re-anexaria os mesmos meses para sempre.
+  if (!created) await syncHeaders(TAB, HEADERS);
 
   const rows = toLock.map(m => [
     m.month,

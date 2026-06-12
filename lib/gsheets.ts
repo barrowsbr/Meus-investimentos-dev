@@ -61,6 +61,23 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
   });
 }
 
+// Reescreve a linha 1 (cabeçalho) de uma aba existente. Necessário quando o
+// schema ganha colunas novas: ensureTab não toca em abas que já existem, e
+// fetchTab descarta colunas sem header — dados em colunas extras ficariam
+// invisíveis na leitura.
+export async function syncHeaders(tabName: string, headers: string[]): Promise<void> {
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+  const sheets = google.sheets({ version: "v4", auth });
+  const resolved = await resolveTabName(tabName);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${resolved}!1:1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [headers] },
+  });
+}
+
 // Garante que uma aba exista; cria com a linha de cabeçalho se faltar.
 // Requer service account. Retorna true se a aba foi criada agora.
 export async function ensureTab(tabName: string, headers: string[]): Promise<boolean> {
