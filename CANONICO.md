@@ -83,7 +83,7 @@ Não reimplemente.
 | **Benchmark S&P 500** | **Total return** (`^SP500TR`, com dividendos — como a carteira); datas sem TR encadeiam retornos do `^GSPC` | `db_cotacoes` / `lib/market-history.ts: sp500tr` |
 | **Contribuição por setor** | Ganho Dietz diário do setor ÷ base do dia, **encadeado geometricamente**; identidade: `Σ setores = twrTotal` | `calcularTWR().contribuicoes` |
 | **Decomposição cambial (TWR)** | Efeito câmbio **ponderado pela exposição estrangeira diária do NAV** (`w = navFx/nav` do dia anterior, encadeado) — não 100% do USDBRL | `point.navFx` + `fxTwrByDate` (rota performance) |
-| **RF manual no TWR** | **Acrual a CDI real** (BRL) / T-bill aprox. (USD) + **true-up na data de atualização** do saldo (`fixa_aberta.data`). O passado NUNCA muda quando o saldo manual é atualizado | `buildRfTimeline` (`lib/twr-engine.ts`) |
+| **RF manual no TWR** | **Taxa implícita constante** ("renda diária", Newton): resolve `r` tal que Σ compras×(1+r)^d = saldo da `fixa_aberta` (= valor de HOJE, sempre até lastDate). Sem histórico de compra → NAV plano. Cupons (NTN-B etc.) entram como income separado via `meus_proventos`. Imutabilidade dos meses fechados = lock mensal. Ver `CALCULOS.md §26` | `buildRfTimeline` (`lib/twr-engine.ts`) |
 
 ### Identidades que devem SEMPRE valer (cobertas por teste)
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`
@@ -92,8 +92,8 @@ Não reimplemente.
 - `Σ exposicaoCambial[moeda] = totalPatrimonioBRL`
 - Soma das posições RV = totais RV do snapshot
 - `Σ contribuicoes[setor].contrib = twrTotal` (decomposição exata)
-- RF manual: NAV anterior à data de atualização do saldo é **idêntico** entre
-  duas leituras com saldos manuais diferentes (imutabilidade do passado)
+- RF manual: NAV do último dia do grid = saldo da `fixa_aberta` (a taxa
+  implícita resolve exatamente; caminho diário suave, sem degraus)
 
 Ver `lib/__tests__/portfolio.test.ts` e `lib/__tests__/twr-engine.test.ts`
 (suítes de blindagem).
@@ -215,9 +215,12 @@ Itens que **ainda não** seguem 100% o canônico. Tratar incrementalmente:
   performance); agora é contribuição Dietz exata com `Σ = twrTotal`. ✅
 - [x] **Decomposição cambial ponderada**: era 100% do USDBRL na carteira toda;
   agora pondera pela exposição estrangeira diária do NAV (`navFx/nav`). ✅
-- [x] **RF manual imutável**: era taxa implícita resolvida contra o saldo final
-  (cada atualização reescrevia todo o passado); agora acrual a CDI real +
-  true-up na data de atualização — o passado nunca muda. ✅
+- [x] **RF manual no TWR — decisão final**: o modelo é a **taxa implícita
+  constante** ("renda diária", `CALCULOS.md §26`). A tentativa de acrual a CDI
+  + true-up foi REVERTIDA (12/06/2026): injetava retorno estimado demais e
+  inflou o TWR de 74% → 107%. A recalibragem retroativa do caminho diário é
+  aceita; a imutabilidade dos **meses fechados** é garantida pelo lock mensal
+  (`twr_mensal`), não pelo motor. ✅
 
 ---
 

@@ -203,11 +203,12 @@ function solveImpliedRate(
 }
 
 // RF no TWR: taxa diária implícita constante ("renda diária") para posições
-// com histórico de compra + saldo manual. A taxa é resolvida de cada compra
-// até a data de atualização do saldo, dando um caminho suave que atinge o
-// saldo exatamente nessa data. Após a data de atualização, congela (sem dado
-// novo). Posições sem histórico de compra ficam com NAV plano. O lock mensal
-// garante que meses fechados não mudam retroativamente no heatmap.
+// com histórico de compra + saldo manual. fixa_aberta = posição aberta = saldo
+// de HOJE: a taxa é resolvida de cada compra até lastDate, dando um caminho
+// suave que atinge o saldo exatamente no último dia. Posições sem histórico de
+// compra ficam com NAV plano. Cupons (NTN-B etc.) entram como income separado
+// via meus_proventos. O lock mensal garante que meses fechados não mudam no
+// heatmap. Modelo canônico: CALCULOS.md §26.
 export function buildRfTimeline(
   rfTransacoes: Row[],
   fixaAberta: Row[],

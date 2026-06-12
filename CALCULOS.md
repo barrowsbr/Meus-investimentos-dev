@@ -1086,6 +1086,55 @@ patrimonio_exibido = patrimonio_spot + caixa_spot
 
 ---
 
+## 26. Renda Fixa no TWR — Taxa Implícita ("renda diária")
+
+> Motor: `buildRfTimeline` em `lib/twr-engine.ts`. Modelo CANÔNICO decidido pelo
+> dono (12/06/2026) após reverter a tentativa de acrual a CDI + true-up, que
+> injetava retorno estimado demais e inflava o TWR (74% → 107%).
+
+### O modelo em uma frase
+
+Pega o **investido** (compras na aba `renda_fixa`), pega o **saldo de hoje**
+(aba `fixa_aberta`), resolve uma **taxa diária constante** que leva de um ao
+outro, e aplica dia a dia no TWR — como se fosse o preço de uma ação subindo
+suavemente ("renda diária").
+
+```
+solveImpliedRate (Newton-Raphson):
+  encontra r tal que Σ lote_i × (1+r)^diasUteis_i = saldo_manual
+  r ∈ [0, 0.002] (cap de 0,2%/dia); vendas entram como lotes negativos
+```
+
+### Regras por tipo de posição
+
+| Posição | Dados | Comportamento no TWR |
+|---------|-------|----------------------|
+| **Aberta com histórico** | Compra(s) em `renda_fixa` + saldo em `fixa_aberta` | Taxa implícita constante de cada compra até **hoje** (lastDate). Caminho suave que atinge o saldo manual exatamente no último dia |
+| **Aberta sem histórico** | Só saldo em `fixa_aberta` | **NAV plano** (0% de retorno, só câmbio varia). Sem ponto de partida não há como medir rendimento — conta no patrimônio, não no TWR |
+| **Encerrada** | Compra + Venda/Resgate, sem saldo manual | Taxa **realizada** dos próprios fluxos: `(resgatado/investido)^(1/diasUteis) − 1` (determinística, imutável) |
+
+### Peculiaridades (decisões de produto)
+
+1. **`fixa_aberta` = posição aberta = saldo de HOJE.** A coluna `data` da aba
+   NÃO limita o acrual — a taxa implícita sempre resolve até o último dia do
+   grid. Não existe congelamento no meio do caminho.
+2. **Proventos de RF (ex.: cupons semestrais de NTN-B)** entram como **income
+   separado** no dia do pagamento, se lançados em `meus_proventos` — mesma
+   convenção da RV (preço bruto + proventos somados à parte, sem double-count).
+   O caminho da taxa implícita cobre só o valor do título; o saldo da corretora
+   já vem líquido do cupom pago, então não há dupla contagem.
+3. **Janelas filtradas (1A/6M/…)**: compras anteriores à janela são acruadas
+   (pela mesma taxa) até a véspera do dia-âncora e entram como **saldo de
+   abertura** — nunca como fluxo dentro da janela (espelha a custódia RV).
+   Sem isso a posição começava em 0 e criava degrau gigante no TWR.
+4. **Recalibragem retroativa é aceita**: quando o saldo manual é atualizado,
+   a taxa implícita muda e o caminho diário inteiro muda junto. A
+   **imutabilidade dos meses fechados** é garantida pelo lock mensal
+   (`twr_mensal` via `lib/twr-monthly-lock.ts`), não pelo motor.
+5. **CAIXA/SALDO/CASH/RESERVA** são excluídos da timeline de RF (não rendem).
+
+---
+
 ## Referência Rápida: Qual função usar?
 
 > Tabela atualizada para o motor TypeScript (produção). A versão Python desta
