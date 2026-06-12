@@ -78,7 +78,12 @@ Não reimplemente.
 | **TWR anualizado** | `(1 + TWR)^(365/dias corridos) - 1` | `calcularTWR().twrAnualizado` |
 | **MWR/XIRR** | Newton-Raphson sobre fluxos líquidos do investidor (`flow − income`, proventos = inflow do investidor) + NAV final | `calcularTWR().mwr` |
 | **Ganho Econômico** | Soma telescópica dos ganhos diários do período medido (ver `CALCULOS.md §16`) | `calcularTWR().ganhoEconomico` |
-| **Retorno mensal (heatmap)** | TWR do mês fechado, **travado na primeira computação após o mês fechar**. Imutável — meses passados não mudam. Mês corrente é dinâmico. | `twr_mensal` (aba GSheets) · `lib/twr-monthly-lock.ts` |
+| **Retorno mensal (heatmap)** | TWR do mês fechado **encadeado** (base = fim do mês anterior), **travado na primeira computação após o mês fechar**. Imutável — meses passados não mudam. Mês corrente é dinâmico. Lock só na carteira completa (sem filtros). | `twr_mensal` (aba GSheets) · `lib/twr-monthly-lock.ts` |
+| **Benchmark CDI** | CDI **real diário** do BCB (SGS série 12); feriados não acruam. Fallback: tabela SELIC embutida (reportado em `errors`) | `lib/bcb.ts: fetchCdiDiario` → `buildCDIBenchmark` |
+| **Benchmark S&P 500** | **Total return** (`^SP500TR`, com dividendos — como a carteira); datas sem TR encadeiam retornos do `^GSPC` | `db_cotacoes` / `lib/market-history.ts: sp500tr` |
+| **Contribuição por setor** | Ganho Dietz diário do setor ÷ base do dia, **encadeado geometricamente**; identidade: `Σ setores = twrTotal` | `calcularTWR().contribuicoes` |
+| **Decomposição cambial (TWR)** | Efeito câmbio **ponderado pela exposição estrangeira diária do NAV** (`w = navFx/nav` do dia anterior, encadeado) — não 100% do USDBRL | `point.navFx` + `fxTwrByDate` (rota performance) |
+| **RF manual no TWR** | **Acrual a CDI real** (BRL) / T-bill aprox. (USD) + **true-up na data de atualização** do saldo (`fixa_aberta.data`). O passado NUNCA muda quando o saldo manual é atualizado | `buildRfTimeline` (`lib/twr-engine.ts`) |
 
 ### Identidades que devem SEMPRE valer (cobertas por teste)
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`
@@ -86,8 +91,12 @@ Não reimplemente.
 - Por posição: `retornoTotalBRL = não realizado + realizado + proventos`
 - `Σ exposicaoCambial[moeda] = totalPatrimonioBRL`
 - Soma das posições RV = totais RV do snapshot
+- `Σ contribuicoes[setor].contrib = twrTotal` (decomposição exata)
+- RF manual: NAV anterior à data de atualização do saldo é **idêntico** entre
+  duas leituras com saldos manuais diferentes (imutabilidade do passado)
 
-Ver `lib/__tests__/portfolio.test.ts` (suíte de blindagem).
+Ver `lib/__tests__/portfolio.test.ts` e `lib/__tests__/twr-engine.test.ts`
+(suítes de blindagem).
 
 ---
 
@@ -198,6 +207,17 @@ Itens que **ainda não** seguem 100% o canônico. Tratar incrementalmente:
 - [x] **Outras páginas** (Trades, Proventos, RF, Evolução, Financas, Performance):
   auditoria completa — todas leem campos canônicos do snapshot, nenhuma recalcula
   métricas por conta própria. ✅
+- [x] **Benchmark CDI vivo**: CDI real diário do BCB (SGS 12) via `lib/bcb.ts`,
+  fallback para tabela SELIC embutida com aviso em `errors`. ✅
+- [x] **S&P 500 total return**: benchmark usa `^SP500TR` (com dividendos, como a
+  carteira); fallback encadeia retornos do `^GSPC`. ✅
+- [x] **Atribuição por setor real**: era peso de custo × TWR (sem informação de
+  performance); agora é contribuição Dietz exata com `Σ = twrTotal`. ✅
+- [x] **Decomposição cambial ponderada**: era 100% do USDBRL na carteira toda;
+  agora pondera pela exposição estrangeira diária do NAV (`navFx/nav`). ✅
+- [x] **RF manual imutável**: era taxa implícita resolvida contra o saldo final
+  (cada atualização reescrevia todo o passado); agora acrual a CDI real +
+  true-up na data de atualização — o passado nunca muda. ✅
 
 ---
 

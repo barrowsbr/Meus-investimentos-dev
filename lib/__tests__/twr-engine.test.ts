@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularTWR, businessDays, type PriceMatrix, type FxHistory } from "@/lib/twr-engine";
+import { calcularTWR, businessDays, buildRfTimeline, buildCDIBenchmark, type PriceMatrix, type FxHistory } from "@/lib/twr-engine";
 import type { FxRates } from "@/lib/cotacoes";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -219,5 +219,135 @@ describe("diagnostics", () => {
 
     expect(twr.diagnostics.forceZeroDays).toBe(0);
     expect(twr.twrTotal).toBeCloseTo(0, 6);
+  });
+});
+
+// ── Contribuição por setor: identidade exata Σ contrib = twrTotal ────────────
+describe("contribuições por setor", () => {
+  it("Σ contribuições = twrTotal (identidade telescópica) num cenário misto", () => {
+    const dates = businessDays("2025-06-02", "2025-07-31");
+    const n = dates.length;
+    const transacoes = [
+      compra("PETR4", 100, 10, "2025-06-02"),          // Ações Brasil
+      compra("VOO", 10, 100, "2025-06-02", "USD"),      // ETF USA
+      compra("PETR4", 50, 10.5, "2025-06-20"),          // aporte no meio
+    ];
+    const proventos = [provento("PETR4", 35, "2025-07-01")];
+    const prices: PriceMatrix = {
+      PETR4: dates.map((_, i) => 10 * (1 + 0.08 * i / (n - 1))),   // +8%
+      VOO: dates.map((_, i) => 100 * (1 - 0.03 * i / (n - 1))),    // −3%
+    };
+    const twr = calcularTWR({ transacoes, proventos, dates, prices, fxHistory: fxHist(dates) });
+
+    const soma = twr.contribuicoes.reduce((s, c) => s + c.contrib, 0);
+    expect(soma).toBeCloseTo(twr.twrTotal, 8);
+
+    const setores = new Map(twr.contribuicoes.map(c => [c.setor, c.contrib]));
+    // PETR4 sobe + paga dividendo → contribuição positiva; VOO cai → negativa.
+    expect(setores.get("Ações Brasil")!).toBeGreaterThan(0);
+    const vooSetor = [...setores.entries()].find(([s]) => s !== "Ações Brasil");
+    expect(vooSetor![1]).toBeLessThan(0);
+  });
+
+  it("preço flat + dividendo: contribuição vem 100% do setor do pagador", () => {
+    const dates = businessDays("2025-06-02", "2025-06-30");
+    const transacoes = [
+      compra("PETR4", 100, 10, "2025-06-02"),
+      compra("VOO", 10, 100, "2025-06-02", "USD"),
+    ];
+    const proventos = [provento("PETR4", 20, "2025-06-16")];
+    const prices = flatPrices(dates, { PETR4: 10, VOO: 100 });
+    const twr = calcularTWR({ transacoes, proventos, dates, prices, fxHistory: fxHist(dates) });
+
+    const soma = twr.contribuicoes.reduce((s, c) => s + c.contrib, 0);
+    expect(soma).toBeCloseTo(twr.twrTotal, 8);
+    const br = twr.contribuicoes.find(c => c.setor === "Ações Brasil");
+    expect(br!.contrib).toBeCloseTo(twr.twrTotal, 8);
+  });
+});
+
+// ── navFx: parcela estrangeira do NAV (decomposição cambial ponderada) ───────
+describe("navFx", () => {
+  it("rastreia só os ativos em moeda estrangeira", () => {
+    const dates = businessDays("2025-06-02", "2025-06-06");
+    const transacoes = [
+      compra("PETR4", 100, 10, "2025-06-02"),       // 1000 BRL
+      compra("VOO", 10, 100, "2025-06-02", "USD"),  // 1000 USD × 5 = 5000 BRL
+    ];
+    const prices = flatPrices(dates, { PETR4: 10, VOO: 100 });
+    const twr = calcularTWR({ transacoes, dates, prices, fxHistory: fxHist(dates, 5.0) });
+
+    const last = twr.points[twr.points.length - 1];
+    expect(last.nav).toBeCloseTo(6000, 0);
+    expect(last.navFx).toBeCloseTo(5000, 0);
+  });
+});
+
+// ── RF: acrual a taxa real + true-up — o passado NUNCA muda ──────────────────
+describe("buildRfTimeline (imutabilidade)", () => {
+  const rfCompra = (ticker: string, valor: number, data: string, moeda = "BRL") =>
+    ({ ticker, tipo: "Compra", valor, compra: data, moeda } as Record<string, unknown>);
+  const aberta = (ticker: string, atual: number, data: string, moeda = "BRL") =>
+    ({ ticker, atual, data, moeda } as Record<string, unknown>);
+
+  it("atualizar o saldo manual não reescreve o NAV anterior à data de atualização", () => {
+    const dates = businessDays("2025-06-02", "2025-09-30");
+    const cdi: Record<string, number> = Object.fromEntries(dates.map(d => [d, 0.0005]));
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
+
+    const v1 = buildRfTimeline(txs, [aberta("CDB Banco X", 10300, "2025-08-01")], dates, fxHist(dates), cdi);
+    const v2 = buildRfTimeline(txs, [aberta("CDB Banco X", 10999, "2025-09-15")], dates, fxHist(dates), cdi);
+
+    // Antes de 2025-08-01 os dois caminhos são idênticos (acrual puro a CDI):
+    // a mudança do saldo manual só afeta o caminho a partir do true-up antigo.
+    for (const d of dates.filter(d => d < "2025-08-01")) {
+      expect(v2.navByDate[d]).toBeCloseTo(v1.navByDate[d], 6);
+    }
+    // E cada série atinge o próprio saldo manual na respectiva data de true-up.
+    const gridAfter = (target: string) => dates.find(d => d >= target)!;
+    expect(v1.navByDate[gridAfter("2025-08-01")]).toBeCloseTo(10300, 0);
+    expect(v2.navByDate[gridAfter("2025-09-15")]).toBeCloseTo(10999, 0);
+  });
+
+  it("acrua a CDI real depois do true-up (saldo manual continua rendendo)", () => {
+    const dates = businessDays("2025-06-02", "2025-06-30");
+    const cdi: Record<string, number> = Object.fromEntries(dates.map(d => [d, 0.001]));
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-06-02")];
+    const { navByDate } = buildRfTimeline(
+      txs, [aberta("CDB Banco X", 10050, "2025-06-16")], dates, fxHist(dates), cdi,
+    );
+    const trueUpDay = dates.find(d => d >= "2025-06-16")!;
+    const diasDepois = dates.filter(d => d > trueUpDay).length;
+    const last = dates[dates.length - 1];
+    expect(navByDate[trueUpDay]).toBeCloseTo(10050, 0);
+    expect(navByDate[last]).toBeCloseTo(10050 * Math.pow(1.001, diasDepois), 0);
+  });
+
+  it("posição USD entra em navFxByDate (exposição cambial de RF)", () => {
+    const dates = businessDays("2025-06-02", "2025-06-13");
+    const txs = [rfCompra("CDB Global USD", 1000, "2025-06-02", "USD")];
+    const { navByDate, navFxByDate } = buildRfTimeline(txs, [], dates, fxHist(dates, 5.0));
+    const last = dates[dates.length - 1];
+    expect(navFxByDate[last]).toBeCloseTo(navByDate[last], 4);
+    expect(navFxByDate[last]).toBeGreaterThan(4900);
+  });
+});
+
+// ── Benchmark CDI com série real do BCB ──────────────────────────────────────
+describe("buildCDIBenchmark", () => {
+  it("usa a taxa real do dia e NÃO acrua em feriado (data sem entrada)", () => {
+    const dates = ["2025-06-02", "2025-06-03", "2025-06-04"];
+    const cdi = { "2025-06-03": 0.0005 }; // 02 e 04 = sem entrada (feriado)
+    const pts = buildCDIBenchmark(dates, cdi);
+    expect(pts[1].ret).toBeCloseTo(0.0005, 10);
+    expect(pts[2].ret).toBe(0);
+    expect(pts[2].twr).toBeCloseTo(0.0005, 10);
+  });
+
+  it("sem série do BCB cai na tabela SELIC embutida", () => {
+    const dates = ["2025-07-01", "2025-07-02"];
+    const pts = buildCDIBenchmark(dates);
+    // 15% a.a. (COPOM 18/06/2025) → diária ≈ 0.000555
+    expect(pts[1].ret).toBeCloseTo(Math.pow(1.15, 1 / 252) - 1, 8);
   });
 });

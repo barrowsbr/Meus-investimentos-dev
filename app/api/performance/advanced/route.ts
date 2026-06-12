@@ -7,6 +7,7 @@ import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfo
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 import { readLockedMonthly, lockNewMonths, mergeWithLocked } from "@/lib/twr-monthly-lock";
+import { fetchCdiDiario } from "@/lib/bcb";
 
 function tickerOf(row: Record<string, unknown>): string {
   return String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -207,62 +208,6 @@ function calcularRollingReturns(
   return result;
 }
 
-// ── Attribution analysis (by sector) ─────────────────────────────────────────
-
-function calcularAttributionBySector(
-  points: TwrDayPoint[],
-  transacoes: Row[],
-  rfTransacoes: Row[] = []
-): Array<{ setor: string; macro: string; contrib_pct: number; nav_medio: number }> {
-  // Simplified attribution using transaction weights
-  // Full Brinson-Hood-Beebower requires per-asset prices
-  const sectorWeights: Record<string, number> = {};
-  let totalCost = 0;
-
-  for (const tx of transacoes) {
-    const tipo = String(tx["tipo de transação"] ?? tx["tipo"] ?? "").toLowerCase();
-    if (!tipo.includes("compra")) continue;
-    const valor = parseFloat(String(tx["valor líquido"] ?? tx["valor bruto"] ?? "0").replace(",", "."));
-    const setor = String(tx["setor"] ?? "Outros");
-    if (valor > 0) {
-      sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
-      totalCost += valor;
-    }
-  }
-
-  // Renda fixa: include RF buy cost basis so attribution reflects RF too.
-  // RF txs live in a separate sheet (renda_fixa) without a "setor" column,
-  // so they bucket into "Renda Fixa" / "Renda Fixa USD". CASH tickers excluded.
-  const CASH_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
-  for (const tx of rfTransacoes) {
-    const tipoRaw = String(tx["tipo"] ?? tx["movimentacao"] ?? "").toLowerCase();
-    if (!(tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte"))) continue;
-    const ticker = String(tx["ticker"] ?? tx["ativo"] ?? tx["papel"] ?? "").trim().toUpperCase();
-    if (!ticker || CASH_RF.has(ticker)) continue;
-    const valor = Math.abs(parseFloat(String(tx["valor"] ?? "0").replace(",", ".")) || 0);
-    if (valor <= 0) continue;
-    const moeda = String(tx["moeda"] ?? "BRL").toUpperCase().trim();
-    const setor = moeda === "USD" ? "Renda Fixa USD" : "Renda Fixa";
-    sectorWeights[setor] = (sectorWeights[setor] ?? 0) + valor;
-    totalCost += valor;
-  }
-
-  const twrTotal = points.length > 0 ? points[points.length - 1].twr * 100 : 0;
-  const macroMap: Record<string, string> = {
-    "Ações Brasil": "Brasil", "FIIs": "Brasil", "BDRs": "Brasil", "ETF": "Brasil",
-    "Ações Internacional": "Exterior", "ETF USA": "Exterior",
-    "Renda Fixa": "Renda Fixa", "Renda Fixa USD": "Renda Fixa",
-    "Commodities": "Commodities", "Cripto": "Cripto",
-  };
-
-  return Object.entries(sectorWeights).map(([setor, cost]) => ({
-    setor,
-    macro: macroMap[setor] ?? "Outros",
-    contrib_pct: totalCost > 0 ? (cost / totalCost) * twrTotal : 0,
-    nav_medio: cost,
-  })).sort((a, b) => Math.abs(b.contrib_pct) - Math.abs(a.contrib_pct));
-}
-
 // ── Volatility and risk metrics ───────────────────────────────────────────────
 
 // Fallbacks: o Sharpe/Sortino BRL usa o CDI efetivo do período (rfBRLPeriodo,
@@ -423,6 +368,13 @@ export async function GET(request: Request) {
     // silenciosos.
     const extraErrors: string[] = [];
 
+    // CDI real do BCB (SGS série 12) — benchmark CDI e acrual de RF manual.
+    // Em falha da API, ambos caem na tabela SELIC embutida (e o aviso aparece).
+    const cdiDiario = await fetchCdiDiario(dates[0], dates[dates.length - 1]);
+    if (Object.keys(cdiDiario).length === 0) {
+      extraErrors.push("API do BCB indisponível — CDI usando tabela SELIC embutida (pode estar defasada)");
+    }
+
     // Série USDBRL alinhada ao grid (ffill+bfill) — substitui os "?? 5.7"
     // pontuais. O hardcode só entra se NÃO houver câmbio em nenhuma data,
     // e isso é reportado.
@@ -449,6 +401,10 @@ export async function GET(request: Request) {
     const alignedSP500 = dates.map(d => {
       const idx = dateIdxMap.get(d);
       return idx != null ? hist.sp500[idx] : null;
+    });
+    const alignedSP500TR = dates.map(d => {
+      const idx = dateIdxMap.get(d);
+      return idx != null ? hist.sp500tr[idx] : null;
     });
 
     // Compute PM FX rates from cambio data (investor's average remittance cost)
@@ -503,11 +459,11 @@ export async function GET(request: Request) {
       : proventos;
     const fixaAbertaF = includeRF ? fixaAberta : [];
 
-    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate } = includeRF
-      ? buildRfTimeline(rfTransacoes, fixaAberta, dates, alignedFx)
-      : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number> };
+    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate, navFxByDate: rfNavFxByDate } = includeRF
+      ? buildRfTimeline(rfTransacoes, fixaAberta, dates, alignedFx, cdiDiario)
+      : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number>, navFxByDate: {} as Record<string, number> };
 
-    const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate });
+    const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate, rfNavFxByDate });
 
     // ── Patrimônio total (snapshot completo, preços da golden source) ──────────
     // O TWR/Ganho Econômico mede RETORNO sobre o capital que rende (exclui caixa
@@ -562,12 +518,40 @@ export async function GET(request: Request) {
     };
 
     // CDI, IBOV, S&P 500 benchmarks
-    const cdiPoints = buildCDIBenchmark(dates);
+    const cdiPoints = buildCDIBenchmark(dates, cdiDiario);
     const ibovPoints = buildPriceBenchmark("IBOV", dates, alignedIbov);
-    const sp500UsdPoints = buildPriceBenchmark("SP500", dates, alignedSP500);
 
-    // S&P 500 in BRL: multiply USD price by USDBRL at each date
-    const sp500BrlPrices = alignedSP500.map((p, i) => {
+    // S&P 500 TOTAL RETURN: a carteira mede retorno total (preço + proventos);
+    // o IBOV já é total return, mas o ^GSPC é índice de PREÇO — compará-lo
+    // favorecia a carteira em ~1,3–2% a.a. Série híbrida: retornos do ^SP500TR
+    // onde a série cobre; datas sem TR encadeiam retornos do ^GSPC (fallback).
+    const sp500MergedPrices: (number | null)[] = (() => {
+      const out: (number | null)[] = new Array(dates.length).fill(null);
+      let level: number | null = null;
+      for (let i = 0; i < dates.length; i++) {
+        const tr = alignedSP500TR[i];
+        const pr = alignedSP500[i];
+        if (level == null) {
+          if (tr != null || pr != null) { level = 100; out[i] = level; }
+          continue;
+        }
+        const trPrev = alignedSP500TR[i - 1];
+        const prPrev = alignedSP500[i - 1];
+        let ret = 0;
+        if (tr != null && trPrev != null && trPrev > 0) ret = tr / trPrev - 1;
+        else if (pr != null && prPrev != null && prPrev > 0) ret = pr / prPrev - 1;
+        level *= 1 + ret;
+        out[i] = level;
+      }
+      return out;
+    })();
+    if (alignedSP500TR.every(v => v == null)) {
+      extraErrors.push("^SP500TR sem dados — benchmark S&P 500 usando índice de preço (^GSPC), que subestima o retorno do índice");
+    }
+    const sp500UsdPoints = buildPriceBenchmark("SP500", dates, sp500MergedPrices);
+
+    // S&P 500 in BRL: multiply USD level by USDBRL at each date
+    const sp500BrlPrices = sp500MergedPrices.map((p, i) => {
       if (p == null) return null;
       return p * fxUsdSeries[i];
     });
@@ -638,27 +622,51 @@ export async function GET(request: Request) {
       return false;
     })();
 
-    // FX decomposition — base = USDBRL at START of period (not PM dólar),
-    // so the decomposition is consistent with the chart and always starts at 0%.
+    // FX decomposition — PONDERADA pela participação estrangeira do NAV dia a
+    // dia (w = navFx/nav do dia anterior, encadeado geometricamente). A versão
+    // anterior assumia 100% de exposição cambial: numa carteira mista BRL/USD
+    // superestimava o efeito câmbio e distorcia o "retorno do ativo". USDBRL é
+    // proxy para as demais moedas (exposição predominantemente USD).
+    const fxTwrByDate = (() => {
+      const m = new Map<string, number>();
+      let factor = 1.0;
+      for (let i = 0; i < meaningfulPoints.length; i++) {
+        const p = meaningfulPoints[i];
+        if (i > 0 && hasForexExposure) {
+          const prev = meaningfulPoints[i - 1];
+          const w = prev.nav > 0 ? Math.min(1, Math.max(0, (prev.navFx ?? 0) / prev.nav)) : 0;
+          const fxPrev = fxUsdAt(prev.date);
+          const fxCur = fxUsdAt(p.date);
+          if (fxPrev > 0 && fxCur > 0) factor *= 1 + w * (fxCur / fxPrev - 1);
+        }
+        m.set(p.date, factor - 1);
+      }
+      return m;
+    })();
+
     const fxDecomp = (() => {
       const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
       const r_total = lastPt ? lastPt.twr : 0;
-      if (!hasForexExposure) {
-        return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
-      }
-      let startFx: number | null = null;
-      for (const p of meaningfulPoints) {
-        const fx = alignedFx[p.date]?.USDBRL;
-        if (fx && fx > 0) { startFx = fx; break; }
-      }
-      const endFx = lastPt ? alignedFx[lastPt.date]?.USDBRL : null;
-      const r_fx = startFx && endFx ? endFx / startFx - 1 : 0;
+      const r_fx = lastPt ? (fxTwrByDate.get(lastPt.date) ?? 0) : 0;
       const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
       return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
     })();
 
-    // Attribution
-    const attribution = calcularAttributionBySector(meaningfulPoints, transacoes, rfTransacoes);
+    // Attribution — contribuição EXATA por setor do motor TWR (ganhos diários
+    // Dietz por setor, encadeados; Σ = twrTotal). A versão antiga era peso de
+    // custo × TWR total: não continha performance por setor nenhuma.
+    const MACRO_MAP: Record<string, string> = {
+      "Ações Brasil": "Brasil", "FIIs": "Brasil", "BDRs": "Brasil", "ETF": "Brasil",
+      "Ações Internacional": "Exterior", "ETF USA": "Exterior",
+      "Renda Fixa": "Renda Fixa", "Renda Fixa USD": "Renda Fixa",
+      "Commodities": "Commodities", "Cripto": "Cripto",
+    };
+    const attribution = twr.contribuicoes.map(c => ({
+      setor: c.setor,
+      macro: MACRO_MAP[c.setor] ?? "Outros",
+      contrib_pct: c.contrib * 100,
+      nav_medio: c.navMedio,
+    }));
 
     // Flow ledger
     const flowLedger = buildFlowLedger(twr.points);
@@ -789,26 +797,36 @@ export async function GET(request: Request) {
 
       const mwrDiarioUsd = calcularMWRDiario(pts);
 
-      // FX decomposition for USD investor: inverse of BRL view.
-      // fx_twr = USDBRL_start / USDBRL_now − 1 (BRL→USD conversion effect)
-      // ativo_twr = (1 + usd_twr) / (1 + fx_twr) − 1 (asset return in local ccy)
-      const baseFxUsd = (() => {
-        for (const p of meaningfulPoints) {
-          const fx = alignedFx[p.date]?.USDBRL;
-          if (fx && fx > 0) return fx;
+      // FX decomposition for USD investor — inversa da visão BRL e PONDERADA:
+      // o risco cambial do investidor USD está nos ativos em BRL, então o peso
+      // é (1 − participação estrangeira do NAV) e o retorno FX do dia é
+      // fx_{d-1}/fx_d − 1 (valorização do USD deprecia os ativos BRL em USD).
+      const fxTwrUsdByDate = (() => {
+        const m = new Map<string, number>();
+        let factor = 1.0;
+        for (let i = 0; i < meaningfulPoints.length; i++) {
+          const p = meaningfulPoints[i];
+          if (i > 0) {
+            const prev = meaningfulPoints[i - 1];
+            const wBrl = prev.nav > 0
+              ? Math.min(1, Math.max(0, 1 - (prev.navFx ?? 0) / prev.nav))
+              : 0;
+            const fxPrev = fxUsdAt(prev.date);
+            const fxCur = fxUsdAt(p.date);
+            if (fxPrev > 0 && fxCur > 0) factor *= 1 + wBrl * (fxPrev / fxCur - 1);
+          }
+          m.set(p.date, factor - 1);
         }
-        return null;
+        return m;
       })();
 
       const chart = usdTwrPoints.map(p => {
         let fx_twr: number | null = null;
         let ativo_twr: number | null = null;
-        if (baseFxUsd) {
-          const curFx = alignedFx[p.date]?.USDBRL;
-          if (curFx) {
-            fx_twr = baseFxUsd / curFx - 1;
-            ativo_twr = (1 + p.twr) / (1 + fx_twr) - 1;
-          }
+        const f = fxTwrUsdByDate.get(p.date);
+        if (f != null) {
+          fx_twr = f;
+          ativo_twr = (1 + p.twr) / (1 + f) - 1;
         }
         return {
           date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
@@ -824,10 +842,8 @@ export async function GET(request: Request) {
       // Summary-level FX decomposition for USD view
       const usdFxDecomp = (() => {
         const r_total = twrTotalUsd;
-        if (!baseFxUsd) return { r_total, r_ativo: r_total, r_fx: 0, r_combinado: r_total };
-        const lastDate = meaningfulPoints[meaningfulPoints.length - 1]?.date;
-        const endFx = lastDate ? alignedFx[lastDate]?.USDBRL : null;
-        const r_fx = endFx ? baseFxUsd / endFx - 1 : 0;
+        const lastPt = meaningfulPoints[meaningfulPoints.length - 1];
+        const r_fx = lastPt ? (fxTwrUsdByDate.get(lastPt.date) ?? 0) : 0;
         const r_ativo = (1 + r_total) / (1 + r_fx) - 1;
         return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
       })();
@@ -998,24 +1014,16 @@ export async function GET(request: Request) {
         const sp500Map = new Map(sp500BrlNorm.map(p => [p.date, p.twr]));
         const mwrDiario = calcularMWRDiario(meaningfulPoints);
 
-        // FX decomposition: use USDBRL at the START of the period as base,
-        // so all three lines (portfolio, ativo, fx) begin at 0%.
-        const baseFxRate = (() => {
-          for (const p of meaningfulPoints) {
-            const fx = alignedFx[p.date]?.USDBRL;
-            if (fx && fx > 0) return fx;
-          }
-          return null;
-        })();
-
         const merged = meaningfulPoints.map(p => {
+          // Efeito câmbio ponderado pela exposição estrangeira diária do NAV
+          // (série fxTwrByDate — mesma da decomposição do summary).
           let fx_twr: number | null = null;
           let ativo_twr: number | null = null;
-          if (hasForexExposure && baseFxRate) {
-            const curFx = alignedFx[p.date]?.USDBRL;
-            if (curFx) {
-              fx_twr = curFx / baseFxRate - 1;
-              ativo_twr = (1 + p.twr) / (1 + fx_twr) - 1;
+          if (hasForexExposure) {
+            const f = fxTwrByDate.get(p.date);
+            if (f != null) {
+              fx_twr = f;
+              ativo_twr = (1 + p.twr) / (1 + f) - 1;
             }
           }
           return {
