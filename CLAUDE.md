@@ -13,18 +13,25 @@ Dashboard de investimentos pessoal — Next.js 14 + Tailwind CSS + Google Sheets
 ## Estrutura
 
 ```
-app/                    Páginas e API routes
-  api/sheets/[tab]/     API genérica — retorna dados de qualquer aba
-  portfolio/            Transações de ativos
-  proventos/            Dividendos e rendimentos
-  renda-fixa/           Renda fixa (posições + transações)
-  cambio/               Operações de câmbio
-  financas/             Controle financeiro
-components/             Componentes reutilizáveis
+app/                    Páginas (App Router) e API routes
+  api/                  ~50 rotas: cotacoes, sheets/[tab], twr, performance/advanced,
+                        bolsas/*, composicao/*, ir/*, sync/* (IBKR/B3), cron/cotacoes, ...
+  (Portfólio)           resumo, renda-variavel, renda-fixa, proventos, criptoativos, opcoes
+  (Análise)             performance, setores, evolucao, cambio, simulacoes, trades
+  (Gestão)              impostos, alavancagem, financas, fluxos
+  (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, configuracoes
+components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
-  gsheets.ts            Conexão com Google Sheets
-  hooks.ts              Hook useSheetData para fetching
-  format.ts             Formatação BRL/USD, datas, números
+  portfolio.ts          Motor canônico de portfólio — FIFO + calcularSnapshot
+  twr-engine.ts         Motor TWR/MWR (Modified Dietz, GIPS)
+  renda-fixa.ts         Motor canônico de RF manual (calcularRendaFixaPosicoes)
+  cambio.ts             Remessas e pmDólar (buildPmFxRates → fxCusto)
+  cotacoes.ts           Yahoo Finance + FX (fetchCotacoes, fxToBRL)
+  market-history.ts     Histórico de preços (golden source db_cotacoes)
+  gsheets.ts            Google Sheets — leitura (API key) e escrita (service account)
+  tax/                  Motor de apuração de IR
+  hooks.ts, format.ts, sectors.ts, ...
+backend/ + api/index.py Python serverless — APENAS preditivo/ML, agente IA, fluxos, histórico
 ```
 
 ## Setup Local
@@ -56,13 +63,21 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
 
 1. Push para o GitHub
 2. Importar projeto na Vercel
-3. Configurar Environment Variables: `GOOGLE_API_KEY`, `SPREADSHEET_ID`
+3. Configurar Environment Variables:
+   - **Obrigatórias**: `GOOGLE_API_KEY`, `SPREADSHEET_ID`, `GEMINI_API_KEY`
+   - **Escrita na planilha** (sync IBKR/B3, cron de cotações, backups): `GOOGLE_SERVICE_ACCOUNT_JSON`
+   - **Opcionais**: `APP_PASSWORD` (tela de senha/AuthGate), `ALPHAVANTAGE_API_KEY` (holdings de ETFs US),
+     `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` (cascata do agente IA),
+     `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias)
 4. A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor)
 
 ## Acesso ao Google Sheets
 
 - **Planilha**: `gdados`
-- **Autenticação**: API Key (não precisa de service account)
+- **Leitura**: API Key (`GOOGLE_API_KEY`) — basta a planilha compartilhada por link como Leitor
+- **Escrita**: service account (`GOOGLE_SERVICE_ACCOUNT_JSON`), com a planilha compartilhada
+  com o e-mail do service account como **Editor**. Toda escrita (`writeTab`) faz **backup
+  automático** da aba antes de sobrescrever (`lib/backup.ts`)
 - **Biblioteca**: `googleapis` (Node.js)
 
 ---
@@ -164,7 +179,8 @@ Registro de entradas, saídas e gastos com cartão.
 - Os valores monetários na planilha usam **formato brasileiro** (vírgula como separador decimal)
 - As datas podem estar em formato `dd/mm/yyyy` ou `yyyy-mm-dd`
 - O campo `moeda` assume `BRL` quando ausente ou vazio
-- A planilha é compartilhada com o service account via Google Drive
+- Leitura exige a planilha compartilhada por link (Leitor); escrita exige compartilhamento
+  com o e-mail do service account (Editor) — ver "Acesso ao Google Sheets" acima
 
 ---
 

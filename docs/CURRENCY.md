@@ -1,6 +1,7 @@
 # Regras de Moeda e Conversao Cambial
 
 > Modulo principal: `lib/cotacoes.ts`
+> Cambio de custo (pmDolar): `lib/cambio.ts` (`buildPmFxRates`)
 > Funcoes de moeda: `lib/sectors.ts` (`getMoedaEfetiva`)
 > Formatacao: `lib/format.ts`
 
@@ -39,17 +40,9 @@ const DEFAULTS_FX: FxRates = {
   CADBRL: 4.1,
 };
 
-// Cascata de fallback
-export async function fetchFxRates(): Promise<FxRates> {
-  try {
-    return await fetchFxYahoo();     // 1. Yahoo Finance
-  } catch {
-    try {
-      return await fetchFxAwesome(); // 2. AwesomeAPI
-    } catch {
-      return DEFAULTS_FX;           // 3. Defaults hardcoded
-    }
-  }
+// Cascata de fallback (retorna tambem a fonte usada, p/ exibir na UI)
+export async function fetchFxRates(): Promise<{ fx: FxRates; fxSource: string }> {
+  // 1. Yahoo Finance -> 2. AwesomeAPI -> 3. DEFAULTS_FX (hardcoded)
 }
 ```
 
@@ -138,13 +131,50 @@ export function getMoedaEfetiva(
 
 ---
 
+## 5.1 Cambio de Custo — pmDolar das Remessas (Regra P0)
+
+> **Esta e a regra de FX mais importante do sistema** (ver `CLAUDE.md` e
+> `CANONICO.md §3`). Vale para Resumo, Cambio e DRE.
+
+Para ativos em moeda estrangeira, o **custo** NAO e convertido pelo cambio spot
+nem pela PTAX da data de compra — e convertido pelo **pmDolar/pmEuro real das
+suas remessas** (preco medio pago pelos dolares na aba `cambio`):
+
+```typescript
+// lib/cambio.ts
+export function buildPmFxRates(cambio: CambioMetrics): FxRates {
+  return {
+    USDBRL: cambio.pmDolar,   // total BRL remetido / total USD recebido
+    EURBRL: cambio.pmEuro,
+    GBPBRL: cambio.pmGbp,
+    CADBRL: cambio.pmCad,
+  };
+}
+```
+
+**Uso (duas taxas, dois papeis):**
+
+| Componente | Taxa | Por que |
+|-----------|------|---------|
+| Valor atual (`valorAtualBRL`) | **Spot** (`fxToBRL` com FX de mercado) | valor de mercado e sempre a taxa do momento |
+| Custo (`custoTotalBRL`, `fatorCusto`) | **pmDolar** (`buildPmFxRates` -> `fxCusto`) | retorno real do capital que saiu do bolso |
+
+O `P0` efetivo de cada posicao e exposto em `position.pmFxAquisicao`, e a
+decomposicao 3 fatores (`ganhoAtivoPuroBRL` / `ganhoFXPrincipalBRL` /
+`ganhoCruzadoBRL`) fecha exatamente no `lucroBRL` (ver `CALCULOS.md §20`).
+
+**Fallback** quando nao ha remessa na moeda: PTAX por lote -> cambio atual.
+
+---
+
 ## 6. Conversao no Calculo de Posicoes
 
 ### Custo Total em BRL
 
 ```typescript
-const fator = fxToBRL(moeda, fx);          // moeda efetiva do ativo
-const custoTotalBRL = custoTotal * fator;
+// lib/portfolio.ts (enriquecerPosicoes) — fxCusto = buildPmFxRates(cambio)
+const fatorCusto = fxToBRL(moeda, fxCusto);              // pmDolar (P0)
+custoTotalBRL = soma( lote.qty * lote.pm * (lote.fxBRL ?? fatorCusto) );
 ```
 
 ### Valor Atual em BRL

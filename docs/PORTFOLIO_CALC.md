@@ -134,20 +134,37 @@ export interface Position {
   corretora: string;
   custoMedio: number;       // PM ponderado dos lotes
   custoTotal: number;       // soma de (qty * pm) de cada lote
-  lucroRealizado: number;   // lucro/prejuizo realizado
+  lucroRealizado: number;   // lucro/prejuizo realizado (moeda nativa)
+  lucroRealizadoBRL: number;
   precoAtual: number | null;       // cotacao Yahoo Finance
   quoteCurrency: string | null;    // moeda da cotacao
   valorAtual: number | null;       // quantidade * precoAtual
   valorAtualBRL: number;           // valor atual convertido para BRL
   custoTotalBRL: number;           // custo total convertido para BRL
   lucroBRL: number | null;         // valorAtualBRL - custoTotalBRL
-  lucroPct: number | null;         // lucroBRL / custoTotalBRL * 100
+  lucroPct: number | null;         // Valorizacao % (preco + cambio, SEM proventos)
+  proventosBRL: number;            // proventos liquidos (bruto - IR) do ticker
+  retornoTotalBRL: number | null;  // lucroBRL + proventosBRL
+  retornoTotalPct: number | null;  // Retorno Total % = retornoTotalBRL / custoTotalBRL
+  ganhoAtivoBRL: number | null;    // decomposicao 2 fatores: Ativo
+  ganhoCambioBRL: number | null;   // decomposicao 2 fatores: Cambio
+  // Decomposicao 3 fatores (V0/V1 = capital na moeda funcional; P0/P1 = cambio custo/atual)
+  ganhoAtivoPuroBRL: number | null;   // (V1-V0)*P0
+  ganhoFXPrincipalBRL: number | null; // V0*(P1-P0)
+  ganhoCruzadoBRL: number | null;     // (V1-V0)*(P1-P0)
+  pmFxAquisicao: number | null;       // P0 efetivo (pmDolar real das remessas)
+  fxAtualBRL: number | null;          // P1 (cambio atual)
   dayChange: number | null;        // variacao do dia (moeda original)
   dayChangePct: number | null;     // variacao do dia (%)
   dayChangeBRL: number | null;     // variacao do dia (BRL)
-  fatorBRL: number;                // fator de conversao moeda -> BRL
+  fatorBRL: number;                // fator de conversao moeda -> BRL (spot)
+  fatorCusto: number;              // fator de conversao do CUSTO (pmDolar, regra P0)
 }
 ```
+
+> **Regra de reuso (CANONICO.md):** estes campos sao a fonte canonica. Paginas e
+> rotas devem LER os campos (`retornoTotalPct`, `ganhoAtivoPuroBRL`, ...) — nunca
+> recalcular a formula localmente.
 
 ### Conversao para BRL
 
@@ -180,15 +197,34 @@ export interface PortfolioSnapshot {
   rvPatrimonioBRL: number;       // patrimonio Renda Variavel
   rfPatrimonioBRL: number;       // patrimonio Renda Fixa
   totalPatrimonioBRL: number;    // RV + RF
-  totalProventosBRL: number;     // soma de proventos
-  proventosMensais: Record<string, number>;  // "2025-01" -> valor
-  lucroBRL: number;              // lucro RV
-  lucroPct: number;              // lucro RV %
+  totalProventosBRL: number;     // proventos liquidos acumulados
+  proventosMensais: Record<string, number>;   // "2025-01" -> valor
+  proventosPorTicker: Record<string, number>;
+  totalImpostoProventosBRL: number;           // IR retido na fonte (total)
+  impostoProventosPorTicker: Record<string, number>;
+  lucroBRL: number;              // RV: valorizacao total (preco + cambio)
+  lucroPct: number;              // RV: Valorizacao % (sem proventos)
+  proventosRVBRL: number;        // RV: proventos liquidos acumulados
+  retornoTotalRVBRL: number;     // RV: valorizacao + proventos
+  retornoTotalRVPct: number;     // RV: Retorno Total %
+  ganhoAtivoTotalBRL: number;            // decomposicao 2 fatores
+  ganhoCambioTotalBRL: number;
+  ganhoAtivoPuroTotalBRL: number;        // decomposicao 3 fatores
+  ganhoFXPrincipalTotalBRL: number;
+  ganhoCruzadoTotalBRL: number;
+  dayChangeTotalBRL: number;     // variacao do dia (soma das posicoes)
+  dayChangeTotalPct: number;
   usdbrl: number;
   eurbrl: number;
   cadbrl: number;
+  exposicaoCambial: Record<string, number>;   // buckets por moeda (soma = patrimonio total)
+  setorAlocacao: Record<string, number>;
 }
 ```
+
+> O catalogo "qual campo usar para qual metrica" — com as identidades que devem
+> sempre valer (cobertas por `lib/__tests__/portfolio.test.ts`) — esta em
+> `CANONICO.md §3`.
 
 ### Regras de Composicao
 
@@ -206,8 +242,8 @@ A funcao `getTipo()` normaliza strings da planilha:
 
 | Valor na Planilha | Tipo Normalizado |
 |---|---|
-| compra, buy, aporte, subscri, bonif | `Compra` |
-| venda, sell, resgate | `Venda` |
+| compra, buy, aporte, entrada, subscri, bonif | `Compra` |
+| venda, sell, resgate, saida | `Venda` |
 
 Valores nao reconhecidos sao ignorados (nao sao processados pelo FIFO).
 

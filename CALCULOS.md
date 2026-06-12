@@ -3,6 +3,14 @@
 Referência técnica das lógicas financeiras do projeto.
 Use este arquivo antes de implementar qualquer métrica nova — provavelmente já existe a base certa.
 
+> **Status das seções:** o projeto migrou de Python/Streamlit para TypeScript.
+> Seções marcadas com **⚠️ LEGADO** descrevem o código Python antigo (que **não
+> existe mais neste repositório**) e são mantidas apenas como referência da lógica
+> que foi portada. As seções vigentes são **16, 19, 20 (parte TS) e 24**.
+> A verdade canônica de "qual campo/função usar" está em `CANONICO.md`; a
+> implementação atual vive em `lib/` (TypeScript). Em caso de conflito entre uma
+> seção LEGADO e o código TS, **o código TS vence**.
+
 ---
 
 ## Índice
@@ -22,7 +30,7 @@ Use este arquivo antes de implementar qualquer métrica nova — provavelmente j
 13. [Câmbio e Conversão de Moedas](#13-câmbio-e-conversão-de-moedas)
 14. [Receita de Composição (Patrimônio por Classe)](#14-receita-de-composição-patrimônio-por-classe)
 15. [Regras Gerais e Armadilhas](#15-regras-gerais-e-armadilhas)
-16. [Motor TWR Multi-Moeda](#16-motor-twr-multi-moeda)
+16. [Motor TWR — GIPS-Compliant Modified Dietz](#16-motor-twr--gips-compliant-modified-dietz)
 17. [Arquitetura Multi-Moeda (Buckets)](#17-arquitetura-multi-moeda-buckets)
 18. [Consolidação para BRL + Modos FX](#18-consolidação-para-brl--modos-fx)
 19. [Flow Timing (SoD vs EoD)](#19-flow-timing-sod-vs-eod)
@@ -36,6 +44,9 @@ Use este arquivo antes de implementar qualquer métrica nova — provavelmente j
 ---
 
 ## 1. Posições Abertas (FIFO)
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/finance.py` não existe neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `calcularCarteiraFIFO()`. Ver `docs/PORTFOLIO_CALC.md`.
 
 **Arquivo:** `core/finance.py` → `calcular_carteira_fechada(df)`
 
@@ -83,6 +94,9 @@ df_aberta = df_posicao[df_posicao['Qtd'] > 0]
 
 ## 2. Preço de Mercado e Variação Diária
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/data/market.py` não existe neste repositório.
+> Implementação atual: `lib/cotacoes.ts` → `fetchQuotes()` / `fetchCotacoes()`; histórico via `lib/db-cotacoes.ts` + `lib/market-history.ts`.
+
 **Arquivo:** `core/data/market.py` → `fetch_market_data(tickers)`
 
 **Input:** lista de tickers no formato Yahoo Finance (ex: `['PETR4.SA', 'BRL=X', 'AAPL']`)
@@ -116,6 +130,9 @@ prev_price = map_prices[t] - map_changes[t]
 
 ## 3. P&L do Dia (posição individual)
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/computed.py` não existe neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `enriquecerPosicoes()` (campos `dayChange*` da `Position`).
+
 **Arquivo:** `core/computed.py` → dentro de `get_portfolio_snapshot()`
 
 Dado `current_price`, `day_change_abs` (de `fetch_market_data`) e `qty`, `pm`:
@@ -145,6 +162,9 @@ total_pnl_pct = ((current_price / pm) - 1) * 100     # se pm > 0
 
 ## 4. P&L Total do Portfólio
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/computed.py` não existe neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `calcularSnapshot()` (`dayChangeTotalBRL`, `dayChangeTotalPct`).
+
 **Arquivo:** `core/computed.py` → `get_portfolio_snapshot()`
 
 Soma dos P&Ls individuais **apenas BRL** (não converte USD aqui):
@@ -168,6 +188,9 @@ total_mv  += qty * price_usd * dolar_val
 ---
 
 ## 5. Patrimônio Total (RV + RF)
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `dash/Dash/Home.py` não existe neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `calcularSnapshot()` (`totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`). Ver `CANONICO.md §3`.
 
 **Arquivo:** `dash/Dash/Home.py` → bloco `# STEP 2`
 
@@ -196,6 +219,11 @@ valor_brl = qtd * preco_atual * fator[moeda]
 ---
 
 ## 6. Renda Fixa — Valor Atual (SELIC)
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/finance.py` não existe neste repositório.
+> Implementação atual: `lib/renda-fixa.ts` (`calcularRendaFixaPosicoes`) e, no motor TWR,
+> `lib/twr-engine.ts` (SELIC proxy = **14,75% a.a.** + tabela histórica `SELIC_HISTORICO`,
+> não os 15% fixos abaixo).
 
 **Arquivo:** `core/finance.py` → `summarize_fixed_income(df_rf_raw)`
 
@@ -233,6 +261,10 @@ lucro = atual - investido
 ---
 
 ## 7. Renda Fixa — Motor Híbrido
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/finance.py` não existe neste repositório.
+> Implementação atual: `lib/renda-fixa.ts` → `calcularRendaFixaPosicoes()` (motor canônico
+> da RF manual, exposto via `/api/renda-fixa/posicoes`). Ver `CANONICO.md §2`.
 
 **Arquivo:** `core/finance.py` → `summarize_fixed_income_hybrid(df_saldos, df_transacoes, df_proventos)`
 
@@ -276,6 +308,10 @@ else:
 ---
 
 ## 8. Parsing de Dados Brutos
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/utils.py` não existe neste repositório.
+> Implementação atual: `lib/format.ts` (`toNumber`) para decimais BR e `lib/gsheets.ts`
+> (`fetchTab`: headers lowercase + datas serial → ISO). Ver `docs/GOOGLE_SHEETS.md §4`.
 
 **Arquivo:** `core/utils.py`
 
@@ -322,6 +358,10 @@ df = df.rename(columns={c: col_map[c] for c in df.columns if c in col_map})
 
 ## 9. Filtro RF vs RV (tickers)
 
+> ⚠️ **LEGADO (Python/Streamlit)** — esses arquivos não existem neste repositório.
+> Implementação atual: `lib/sectors.ts` (`identificarSetor`, `isRendaFixa`) e filtro de
+> tickers sem cotação em `lib/cotacoes.ts`. Ver `docs/SECTORS.md`.
+
 **Arquivo:** `core/computed.py`, `scripts/daily_report.py`
 
 Tickers de Renda Fixa/Caixa **não têm cotação no Yahoo Finance** e devem ser excluídos do `fetch_market_data`.
@@ -339,6 +379,11 @@ tickers_para_yahoo = [t for t in df_posicao['Ticker'] if _is_market_ticker(t)]
 ---
 
 ## 10. Snapshot Completo do Portfólio
+
+> ⚠️ **LEGADO (Python/Streamlit)** — esses arquivos não existem neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `calcularSnapshot()`, consumido via
+> `/api/cotacoes` + `usePortfolio()`. Campos completos do `PortfolioSnapshot` em
+> `docs/PORTFOLIO_CALC.md §6` e catálogo canônico em `CANONICO.md §3`.
 
 **Arquivo:** `core/computed.py` → `get_portfolio_snapshot()`
 **Arquivo alternativo (standalone):** `scripts/daily_report.py` → `build_snapshot()`
@@ -384,6 +429,10 @@ snap = get_portfolio_snapshot()
 
 ## 11. Dados Históricos de Preços
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/data/market.py` não existe neste repositório.
+> Implementação atual: `lib/market-history.ts` lê primeiro da aba `db_cotacoes` (golden
+> source, preço bruto de fechamento) e só recorre ao Yahoo para tickers ausentes.
+
 **Arquivo:** `core/data/market.py` → `fetch_historical_data(tickers, start_date)`
 
 **Input:** lista de tickers + data de início (padrão: 5 anos atrás)
@@ -407,6 +456,10 @@ df_prices = fetch_historical_data(tickers, start_date=start)
 ---
 
 ## 12. Proventos / Dividendos
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/data/loader.py` não existe neste repositório.
+> Implementação atual: `lib/portfolio.ts` → `calcularProventosBRL()` (líquido de IR;
+> campos `totalProventosBRL`, `proventosMensais`, `proventosPorTicker` no snapshot).
 
 **Arquivo:** `core/data/loader.py` → `load_proventos()`
 
@@ -434,6 +487,10 @@ tipos_rv  = ['dividendo', 'jcp', 'rendimento fii', 'amortização']
 ---
 
 ## 13. Câmbio e Conversão de Moedas
+
+> ⚠️ **LEGADO (Python/Streamlit)** — exemplos em Python. Implementação atual:
+> `lib/cotacoes.ts` (`fetchFxRates`, `fxToBRL`) com fallback AwesomeAPI; câmbio de
+> custo (pmDólar) em `lib/cambio.ts` (`buildPmFxRates`). Ver `docs/CURRENCY.md`.
 
 **Tickers Yahoo para câmbio:**
 ```python
@@ -472,6 +529,9 @@ CURRENCY_FALLBACK = {'BRL': 1.0, 'USD': 5.50, 'EUR': 6.00, 'CAD': 4.00}
 
 ## 14. Receita de Composição (Patrimônio por Classe)
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `1_Investimentos.py` não existe neste repositório.
+> Implementação atual: `/api/composicao/resumo` (rota TS que reusa `calcularSnapshot`).
+
 **Arquivo:** `1_Investimentos.py` → tab "Composição" (seção 8)
 
 Fluxo canônico para construir o `df_view` com valores em BRL:
@@ -508,6 +568,9 @@ rv_total = df_view[df_view['Valor Hoje (R$)'] > 1.0]['Valor Hoje (R$)'].sum()
 ---
 
 ## 15. Regras Gerais e Armadilhas
+
+> ⚠️ **Exemplos em Python LEGADO**, mas as regras continuam válidas conceitualmente
+> no motor TS (`lib/portfolio.ts`, `lib/twr-engine.ts`, `lib/renda-fixa.ts`).
 
 ### Nunca buscar preço de mercado para RF
 ```python
@@ -673,6 +736,9 @@ custodia_diaria.loc[data_valida:, ticker] += (qtd * sinal)  # sinal: +1 compra, 
 
 ## 17. Arquitetura Multi-Moeda (Buckets)
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/consolidator.py` não existe neste repositório.
+> O conceito de buckets por moeda foi absorvido pelo motor TS `lib/twr-engine.ts`.
+
 **Arquivo:** `core/consolidator.py`
 
 **Invariante fundamental:** valores sempre em moeda nativa dentro do bucket. Conversão para BRL ocorre **somente** em `consolidate_to_brl()`.
@@ -700,6 +766,10 @@ class MultiCurrencyResult:
 ---
 
 ## 18. Consolidação para BRL + Modos FX
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/consolidator.py` não existe neste repositório.
+> A regra de FX (NAV a spot, custo a pmDólar) permanece válida e vive hoje em
+> `lib/twr-engine.ts` + `lib/cambio.ts` (`buildPmFxRates` → `fxCusto`). Ver §20 (parte TS).
 
 **Arquivo:** `core/consolidator.py` → `consolidate_to_brl()`
 
@@ -774,6 +844,10 @@ O motor TS usa **SoD (Start-of-Day) para todos os fluxos**, sem threshold condic
 
 ## 20. Decomposição de Retorno (Ativo vs Cambial)
 
+> ⚠️ A primeira parte desta seção (chain-linking diário) referencia código Python
+> **LEGADO** (`core/performance/decomposition.py`, fora deste repositório). A parte
+> vigente é a subseção **"Decomposição de snapshot (TS — `lib/portfolio.ts`)"** abaixo.
+
 **Arquivo:** `core/performance/decomposition.py`
 
 **Fórmula fundamental:**
@@ -837,6 +911,9 @@ remessa na moeda: PTAX por lote → câmbio atual.
 
 ## 21. Atribuição de Performance por Ativo
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/performance/attribution.py` não existe neste
+> repositório. Atribuição por ativo hoje: `/api/performance/advanced` (motor TS).
+
 **Arquivo:** `core/performance/attribution.py`
 
 ```python
@@ -873,6 +950,11 @@ contribution = weight_avg * return_total
 ---
 
 ## 22. FixedIncomeEngine v5.0 — Avançado
+
+> ⚠️ **LEGADO (Python/Streamlit)** — `core/fixed_income_engine.py` não existe neste
+> repositório (e `lib/fixed-income-engine.ts` foi removido). O motor canônico atual da
+> RF manual é `lib/renda-fixa.ts` (`calcularRendaFixaPosicoes`); a curva diária de RF
+> do TWR vive em `lib/twr-engine.ts` (Newton-Raphson para taxa implícita preservado lá).
 
 **Arquivo:** `core/fixed_income_engine.py`
 
@@ -923,6 +1005,9 @@ if manual_rf_values:
 
 ## 23. CAIXA/SALDO — Tratamento Especial
 
+> ⚠️ **Exemplos em Python LEGADO**, mas a regra continua válida no motor TS
+> (`lib/renda-fixa.ts` / `lib/twr-engine.ts`): caixa não é capitalizado, só soma no patrimônio.
+
 **Regra:** CAIXA e SALDO **nunca** entram no `FixedIncomeEngine`. São extraídos antes e somados diretamente ao patrimônio.
 
 ```python
@@ -970,6 +1055,10 @@ de `forceZero` é `base ≤ 0` (sem constante — é a definição matemática).
 
 ## 25. Patrimônio Spot (Página Performance)
 
+> ⚠️ **LEGADO (Python/Streamlit)** — `pages/3_Performance.py` não existe neste
+> repositório. A página atual é `app/performance/page.tsx`, que lê o patrimônio do
+> snapshot canônico e o TWR de `lib/twr-engine.ts`.
+
 **Arquivo:** `pages/3_Performance.py`
 
 Difere do cálculo da `Home.py`: usa preços spot frescos e separa CAIXA da RF.
@@ -999,31 +1088,37 @@ patrimonio_exibido = patrimonio_spot + caixa_spot
 
 ## Referência Rápida: Qual função usar?
 
+> Tabela atualizada para o motor TypeScript (produção). A versão Python desta
+> tabela foi removida — os arquivos `core/*` não existem mais neste repositório.
+
 | Objetivo | Função | Arquivo |
 |----------|--------|---------|
 | **Cálculo de posições** | | |
-| Posições abertas hoje (FIFO) | `calcular_carteira_fechada(df)` | `core/finance.py` |
-| Snapshot completo (Streamlit) | `get_portfolio_snapshot()` | `core/computed.py` |
-| Snapshot completo (script/CLI) | `build_snapshot()` | `scripts/daily_report.py` |
+| Posições abertas hoje (FIFO) | `calcularCarteiraFIFO(transacoes)` | `lib/portfolio.ts` |
+| Enriquecer posições com cotações | `enriquecerPosicoes(portfolio, quotes, fx, ...)` | `lib/portfolio.ts` |
+| Snapshot completo (canônico) | `calcularSnapshot(...)` → `/api/cotacoes` → `usePortfolio()` | `lib/portfolio.ts` |
 | **Motor de performance (TWR)** | | |
-| Reconstrução histórica multi-moeda | `reconstruct_history_multicurrency(...)` | `core/engine.py` |
-| Consolidar buckets para BRL | `consolidate_to_brl(buckets, fx_rates)` | `core/consolidator.py` |
-| Decomposição ativo vs cambial | `decompose_portfolio(buckets, fx_rates)` | `core/performance/decomposition.py` |
-| Atribuição por ativo | `calculate_asset_attribution(...)` | `core/performance/attribution.py` |
+| TWR, MWR, Ganho Econômico | `calcularTWR(...)` | `lib/twr-engine.ts` |
+| Atribuição/visão avançada | `/api/performance/advanced` | `app/api/performance/advanced/route.ts` |
+| Decomposição ativo vs cambial (snapshot) | campos `ganhoAtivoPuroBRL` / `ganhoFXPrincipalBRL` / `ganhoCruzadoBRL` | `lib/portfolio.ts` |
 | **Renda Fixa** | | |
-| RF com valor manual | `summarize_fixed_income_hybrid(...)` | `core/finance.py` |
-| RF sem valor manual (SELIC) | `summarize_fixed_income(df_rf_raw)` | `core/finance.py` |
-| Curva diária RF (motor completo) | `FixedIncomeEngine(...).build_daily_curve()` | `core/fixed_income_engine.py` |
+| RF manual (posições, realizado, investido) | `calcularRendaFixaPosicoes(...)` → `/api/renda-fixa/posicoes` | `lib/renda-fixa.ts` |
+| Total RF de `fixa_aberta` em BRL | `calcularRendaFixaBRL(fixaAberta, fx)` | `lib/portfolio.ts` |
+| Detectar caixa (CAIXA/SALDO) | `isCashTicker(ticker, tipo)` | `lib/renda-fixa.ts` |
 | **Preços e mercado** | | |
-| Preço e variação do dia | `fetch_market_data(tickers)` | `core/data/market.py` |
-| Histórico de preços (N anos) | `fetch_historical_data(tickers, start)` | `core/data/market.py` |
+| Cotações + FX (orquestrado) | `fetchCotacoes(tickers)` | `lib/cotacoes.ts` |
+| Só cotações | `fetchQuotes(yahooTickers)` | `lib/cotacoes.ts` |
+| Só câmbio (Yahoo → AwesomeAPI → defaults) | `fetchFxRates()` | `lib/cotacoes.ts` |
+| Histórico de preços (golden source) | aba `db_cotacoes` via `lib/market-history.ts` | `lib/market-history.ts` |
+| Ticker interno → Yahoo | `yahooTicker(ticker, moeda, corretora)` | `lib/cotacoes.ts` |
+| **Câmbio** | | |
+| Conversão para BRL (spot) | `fxToBRL(moeda, fx)` | `lib/cotacoes.ts` |
+| pmDólar das remessas (P0, câmbio de custo) | `buildPmFxRates(cambio)` | `lib/cambio.ts` |
 | **Carregamento de dados** | | |
-| Transações RV | `load_assets()` | `core/data/loader.py` |
-| Proventos / dividendos | `load_proventos()` | `core/data/loader.py` |
-| Transações RF | `load_fixed_income()` | `core/data/loader.py` |
-| Saldos RF manuais | `load_fixed_income_manual()` | `core/data/loader.py` |
-| Remessas de câmbio | `load_cambio()` | `core/data/loader.py` |
+| Ler aba da planilha | `fetchTab(tabName)` | `lib/gsheets.ts` |
+| Escrever na planilha (backup automático) | `writeTab(...)` / `appendRows(...)` | `lib/gsheets.ts` |
 | **Utilitários** | | |
-| Verificar se ticker é RV | `_is_market_ticker(ticker)` | `core/computed.py` |
-| Converter decimal BR | `parse_decimal_br(value)` | `core/utils.py` |
-| Formatar valor BR | `format_decimal_br(value, n)` | `core/utils.py` |
+| Classificar setor / RF vs RV | `identificarSetor(t)` / `isRendaFixa(s)` | `lib/sectors.ts` |
+| Moeda efetiva (overrides) | `getMoedaEfetiva(ticker, moeda, setor)` | `lib/sectors.ts` |
+| Converter decimal BR | `toNumber(value)` | `lib/format.ts` |
+| Formatar BRL/USD | `brl(v)` / `usd(v)` / `currency(v, moeda)` | `lib/format.ts` |

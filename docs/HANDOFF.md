@@ -12,8 +12,13 @@ O sistema consolida dados de investimentos pessoais armazenados em uma planilha 
 - **Portfolio de Renda Variavel** -- posicoes, lucro/prejuizo, cotacoes em tempo real
 - **Renda Fixa** -- posicoes manuais (fixa_aberta) + ativos RF negociados (SHV, BIL)
 - **Proventos** -- dividendos, JCP, rendimentos
-- **Cambio** -- operacoes de conversao de moeda
+- **Cambio** -- operacoes de conversao de moeda e pmDolar das remessas
+- **Performance** -- TWR/MWR (Modified Dietz GIPS), decomposicao cambial, benchmarks
+- **Impostos** -- apuracao de IR (lib/tax), DIRPF, DARF
+- **Radar de mercados** -- bolsas globais, moedas, cripto, setores
+- **Simulacoes, trades, alavancagem, agente IA, noticias, mercados preditivos**
 - **Financas pessoais** -- cartoes, contas, gastos
+- **Sincronizacao** -- importacao IBKR/B3, cron diario de cotacoes (db_cotacoes), backups automaticos
 
 ---
 
@@ -37,28 +42,44 @@ O sistema consolida dados de investimentos pessoais armazenados em uma planilha 
 
 ```
 app/
-  layout.tsx              Layout global (Tailwind dark theme)
-  page.tsx                Dashboard principal
-  portfolio/page.tsx      Transacoes de ativos
-  proventos/page.tsx      Dividendos e rendimentos
-  renda-fixa/page.tsx     Renda fixa
-  cambio/page.tsx         Operacoes de cambio
-  financas/page.tsx       Controle financeiro
+  layout.tsx              Layout global (Tailwind dark theme, AuthGate)
+  page.tsx                Home
 
-  api/
-    cotacoes/route.ts     Endpoint principal -- portfolio + cotacoes (cache 15 min)
-    sheets/[tab]/route.ts Endpoint generico -- retorna dados de qualquer aba permitida
-    health/route.ts       Health check -- valida env vars + conexao com Sheets
+  Paginas (grupos do Sidebar):
+    Portfolio:  resumo, renda-variavel, renda-fixa, proventos, criptoativos, opcoes
+    Analise:    performance, setores, evolucao, cambio, simulacoes, trades
+    Gestao:     impostos, alavancagem, financas, fluxos
+    Mais:       bolsas (Radar), noticias, polymarket, agente-ia, configuracoes
+    Sem menu:   portfolio, moedas, performance-avancada, preditivo
+
+  api/                    ~50 rotas. Principais grupos:
+    cotacoes/             Snapshot canonico do portfolio (cache 15 min)
+    sheets/[tab]/         Dados brutos de qualquer aba permitida (cache 5 min)
+    twr/                  Motor TWR/MWR + decomposicao
+    performance/advanced/ Visao avancada (atribuicao, visao USD)
+    composicao/           Resumo canonico, holdings de ETFs
+    bolsas/, moedas/      Radar de mercados globais
+    ir/                   Apuracao de impostos, DIRPF
+    sync/                 Importacao IBKR / B3 / cotacoes
+    cron/cotacoes/        Cron diario (dias uteis 23h UTC) -> db_cotacoes
+    auth/, backup/, debug/, chat/, noticias/, reddit/, simulacoes/ ...
 
 lib/
-  gsheets.ts              Conexao com Google Sheets API (API Key)
-  portfolio.ts            Calculadora FIFO, enriquecimento de posicoes, snapshot
+  portfolio.ts            Motor canonico -- FIFO, enriquecimento, calcularSnapshot
+  twr-engine.ts           Motor TWR/MWR (Modified Dietz, GIPS)
+  renda-fixa.ts           Motor canonico de RF manual
+  cambio.ts               Remessas e pmDolar (buildPmFxRates)
   cotacoes.ts             Yahoo Finance quotes + taxas de cambio
-  sectors.ts              Classificacao de setores por ticker
-  hooks.ts                Hooks client-side (usePortfolio, useSheetData)
-  format.ts               Formatacao BRL/USD, datas, numeros
+  market-history.ts       Historico de precos (golden source db_cotacoes)
+  gsheets.ts              Google Sheets -- leitura (API Key) e escrita (service account)
+  backup.ts               Backup automatico antes de escritas
+  tax/                    Motor de apuracao de IR
+  sectors.ts, hooks.ts, format.ts, ...
 
-components/               Componentes reutilizaveis (cards, tabelas, graficos)
+backend/ + api/index.py   Python serverless (FastAPI) -- APENAS preditivo/ML, agente IA,
+                          fluxos e historico (ver CLAUDE.md "Fonte unica")
+
+components/               Sidebar, AuthGate, graficos (CandleChart, HoloGlobe, Sunburst...)
 ```
 
 ### 3.1 Fluxo de Dados
@@ -94,13 +115,21 @@ Google Sheets (gdados)
 
 ## 4. Variaveis de Ambiente
 
-| Variavel | Descricao |
-|----------|-----------|
-| `GOOGLE_API_KEY` | Chave de API do Google (acesso a Sheets) |
-| `SPREADSHEET_ID` | ID da planilha `gdados` |
+| Variavel | Obrigatoria | Descricao |
+|----------|-------------|-----------|
+| `GOOGLE_API_KEY` | sim | Chave de API do Google (leitura do Sheets) |
+| `SPREADSHEET_ID` | sim | ID da planilha `gdados` |
+| `GEMINI_API_KEY` | sim | Agente IA (Gemini) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | p/ escrita | JSON do service account -- necessario para sync IBKR/B3, cron de cotacoes e backups |
+| `APP_PASSWORD` | nao | Senha da tela de acesso (AuthGate) |
+| `ALPHAVANTAGE_API_KEY` | nao | Holdings completos de ETFs US |
+| `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` | nao | Cascata de fallback do agente IA |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | nao | API oficial do Reddit (pagina Noticias) |
+| `NEXT_PUBLIC_API_URL` | nao | URL do backend Python quando rodando separado (vazio em producao) |
 
-> A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor).
-> Nao e necessario service account -- autenticacao via API Key.
+> **Leitura**: planilha compartilhada com "Qualquer pessoa com o link" (Leitor) + API Key.
+> **Escrita**: planilha compartilhada com o e-mail do service account (Editor) +
+> `GOOGLE_SERVICE_ACCOUNT_JSON`. Toda escrita faz backup automatico antes (`lib/backup.ts`).
 
 ---
 
@@ -222,54 +251,52 @@ Abas principais:
 ### Vercel
 
 ```json
-// vercel.json
+// vercel.json (resumo do real)
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "functions": { "api/index.py": { "maxDuration": 30 } },
+  "crons": [{ "path": "/api/cron/cotacoes", "schedule": "0 23 * * 1-5" }],
+  "rewrites": [
+    { "source": "/api/fluxos",           "destination": "/api/index" },
+    { "source": "/api/historico/:path*", "destination": "/api/index" },
+    { "source": "/api/agent/:path*",     "destination": "/api/index" },
+    { "source": "/api/preditivo/:path*", "destination": "/api/index" }
+  ]
 }
 ```
 
+> **Regra dura**: rewrites para Python so podem existir em paths SEM rota TS
+> equivalente (ver CLAUDE.md "Fonte unica"). Crons so sao registrados no deploy
+> de producao da `main`.
+
 Passos:
-1. Push para o GitHub
+1. Push para o GitHub (producao = branch `main`)
 2. Importar projeto na Vercel
-3. Configurar Environment Variables: `GOOGLE_API_KEY`, `SPREADSHEET_ID`
+3. Configurar Environment Variables (ver secao 4)
 4. A planilha deve estar compartilhada publicamente (Leitor)
 
 ### Desenvolvimento Local
 
 ```bash
 npm install
-# Criar .env.local com GOOGLE_API_KEY e SPREADSHEET_ID
-npm run dev
+# Criar .env.local a partir de .env.local.example
+npx vercel dev   # frontend + backend Python no mesmo dominio (recomendado)
+# ou: npm run dev (so frontend; backend separado via uvicorn)
 ```
 
 ---
 
 ## 9. Endpoints da API
 
+> O app tem ~50 rotas em `app/api/`. Abaixo, as principais. A lista completa esta
+> na arvore da secao 3.
+
 ### `GET /api/cotacoes`
 
-Endpoint principal. Retorna o snapshot completo do portfolio:
-
-```typescript
-interface Response {
-  positions: Position[];       // posicoes enriquecidas
-  rvPatrimonioBRL: number;     // patrimonio RV em BRL
-  rfPatrimonioBRL: number;     // patrimonio RF em BRL
-  totalPatrimonioBRL: number;  // total
-  totalProventosBRL: number;   // proventos acumulados
-  proventosMensais: Record<string, number>;
-  lucroBRL: number;
-  lucroPct: number;
-  usdbrl: number;
-  eurbrl: number;
-  cadbrl: number;
-  fx: FxRates;
-  timestamp: string;
-  tickerMap: Record<string, string>;  // ticker original -> ticker Yahoo
-}
-```
+Endpoint principal. Retorna o `PortfolioSnapshot` canonico completo (posicoes
+enriquecidas, patrimonio RV/RF, proventos, retorno total, decomposicao cambial,
+exposicao por moeda, FX). Campos completos em `docs/PORTFOLIO_CALC.md §6` e
+catalogo canonico em `CANONICO.md §3`.
 
 ### `GET /api/sheets/[tab]`
 
@@ -280,9 +307,23 @@ meus_ativos, meus_proventos, renda_fixa, fixa_aberta, cambio,
 db_cotacoes, composicao, p_tax, lb_historic, financas, financas_pessoal
 ```
 
-### `GET /api/health`
+### Outros endpoints relevantes
 
-Health check. Verifica env vars e conexao com Sheets.
+| Endpoint | Funcao |
+|----------|--------|
+| `GET /api/twr` | TWR/MWR/Ganho Economico (`lib/twr-engine.ts`) |
+| `GET /api/performance/advanced` | Visao avancada + visao USD |
+| `GET /api/composicao/resumo` | Resumo canonico (DRE) |
+| `GET /api/renda-fixa/posicoes` | Motor canonico de RF manual |
+| `POST /api/sync/ibkr`, `/api/sync/b3` | Importacao de corretoras (escreve na planilha) |
+| `GET /api/cron/cotacoes` | Cron diario -> aba `db_cotacoes` |
+| `GET /api/debug/auditoria` | Auditoria do motor TWR (identidades) |
+| `GET /api/health` | Health check (env vars + conexao Sheets) |
+
+### Backend Python (rewrites)
+
+`/api/fluxos`, `/api/historico/*`, `/api/agent/*`, `/api/preditivo/*` sao servidos
+pelo FastAPI (`api/index.py` -> `backend/`). Nenhum calculo de portfolio vive la.
 
 ---
 

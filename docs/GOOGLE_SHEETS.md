@@ -79,10 +79,10 @@ Transacoes de compra e venda de acoes, ETFs, FIIs, BDRs e cripto.
 **Normalizacao de colunas no codigo:**
 
 ```typescript
-// Ticker: busca em "simbolo", "simbolo", "ticker", "symbol"
-// Tipo: busca em "tipo de transacao", "tipo de transacao", "tipo_transacao", "tipo"
+// Ticker: busca em "símbolo", "simbolo", "ticker", "symbol"
+// Tipo: busca em "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo"
 // Quantidade: busca em "quantidade", "qtd", "quantity"
-// Preco: busca em "preco", "preco", "price"
+// Preco: busca em "preço", "preco", "price"
 // Taxas: busca em "taxa de corretagem", "taxas", "taxa"
 // Moeda: busca em "moeda", "currency" (default: "BRL")
 // Data: busca em "data", "date", "compra"
@@ -92,8 +92,8 @@ Transacoes de compra e venda de acoes, ETFs, FIIs, BDRs e cripto.
 
 | Valor na Planilha | Interpretacao |
 |---|---|
-| compra, buy, aporte, subscri, bonif | Compra |
-| venda, sell, resgate | Venda |
+| compra, buy, aporte, entrada, subscri, bonif | Compra |
+| venda, sell, resgate, saida | Venda |
 
 ---
 
