@@ -673,29 +673,36 @@ export async function GET(request: Request) {
       if (p.twr < troughTwr) { troughTwr = p.twr; troughDate = p.date; }
     }
 
-    // Monthly returns (points are already sorted by date)
-    const monthlyMap: Record<string, { startFactor: number; endFactor: number }> = {};
+    // Monthly returns — chain months so each uses the previous month's end as base
+    const monthlyEndFactors: Array<{ month: string; endFactor: number }> = [];
     for (const p of meaningfulPoints) {
       const month = p.date.slice(0, 7);
       const factor = 1 + p.twr;
-      if (!monthlyMap[month]) {
-        monthlyMap[month] = { startFactor: factor, endFactor: factor };
+      const last = monthlyEndFactors[monthlyEndFactors.length - 1];
+      if (!last || last.month !== month) {
+        monthlyEndFactors.push({ month, endFactor: factor });
       } else {
-        monthlyMap[month].endFactor = factor;
+        last.endFactor = factor;
       }
     }
-    const computedMonthly = Object.entries(monthlyMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, { startFactor, endFactor }]) => ({
-        month,
-        return_pct: startFactor > 0 ? ((endFactor / startFactor) - 1) * 100 : 0,
-      }));
+    const computedMonthly = monthlyEndFactors.map((m, i) => {
+      const prevFactor = i === 0 ? 1.0 : monthlyEndFactors[i - 1].endFactor;
+      return {
+        month: m.month,
+        return_pct: prevFactor > 0 ? ((m.endFactor / prevFactor) - 1) * 100 : 0,
+      };
+    });
 
-    // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico
-    const lockedMonths = await readLockedMonthly();
+    // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico.
+    // Os valores travados são da CARTEIRA COMPLETA — em views filtradas
+    // (classe/setor/ticker) o merge mostraria retornos de outra carteira, então
+    // o lock só se aplica sem filtros de ativo.
+    const isUnfiltered = !tickerFiltro && classe === "tudo" && setoresFiltro.size === 0;
+    const lockedMonths = isUnfiltered ? await readLockedMonthly() : [];
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // ── USD view: convert NAV/flows by USDBRL, recompute TWR/MWR ──────────────
+    let rawUsdMonthly: Array<{ month: string; return_pct: number }> | null = null;
     const usdView = (() => {
       if (meaningfulPoints.length < 2) return null;
       const pts = meaningfulPoints.map(p => {
@@ -825,16 +832,23 @@ export async function GET(request: Request) {
         return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
       })();
 
-      // Monthly returns in USD
-      const usdMonthlyMap: Record<string, { sf: number; ef: number; sd: string }> = {};
+      // Monthly returns in USD — chain months (same logic as BRL)
+      const usdMonthlyEnds: Array<{ month: string; endFactor: number }> = [];
       for (const p of usdTwrPoints) {
         const m = p.date.slice(0, 7);
         const f = 1 + p.twr;
-        if (!usdMonthlyMap[m]) usdMonthlyMap[m] = { sf: f, ef: f, sd: p.date };
-        else { if (p.date < usdMonthlyMap[m].sd) { usdMonthlyMap[m].sf = f; usdMonthlyMap[m].sd = p.date; } usdMonthlyMap[m].ef = f; }
+        const last = usdMonthlyEnds[usdMonthlyEnds.length - 1];
+        if (!last || last.month !== m) {
+          usdMonthlyEnds.push({ month: m, endFactor: f });
+        } else {
+          last.endFactor = f;
+        }
       }
-      const computedUsdMonthly = Object.entries(usdMonthlyMap).sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, { sf, ef }]) => ({ month, return_pct: sf > 0 ? ((ef / sf) - 1) * 100 : 0 }));
+      const computedUsdMonthly = usdMonthlyEnds.map((m, i) => {
+        const prev = i === 0 ? 1.0 : usdMonthlyEnds[i - 1].endFactor;
+        return { month: m.month, return_pct: prev > 0 ? ((m.endFactor / prev) - 1) * 100 : 0 };
+      });
+      rawUsdMonthly = computedUsdMonthly;
       const usdMonthly = mergeWithLocked(lockedMonths, computedUsdMonthly, "usd");
 
       const fxDiv = lastFx.USDBRL || 5.7;
@@ -920,10 +934,15 @@ export async function GET(request: Request) {
     })();
 
     // Trava retornos mensais de meses já fechados (fire-and-forget)
-    const isFullView = !tickerFiltro && classe === "tudo" && !fromParam && !toParam && setoresFiltro.size === 0;
+    const isFullView = isUnfiltered && !fromParam && !toParam;
     if (isFullView) {
-      const computedUsdMonthly = usdView?.monthlyReturns ?? null;
-      lockNewMonths(computedMonthly, computedUsdMonthly).catch(() => {});
+      // Janela com lookback corta o primeiro mês no meio — esse mês de
+      // fronteira é PARCIAL e nunca pode ser travado como retorno do mês.
+      const lockableBrl = lookback > 0 ? computedMonthly.slice(1) : computedMonthly;
+      const lockableUsd = rawUsdMonthly == null
+        ? null
+        : (lookback > 0 ? (rawUsdMonthly as Array<{ month: string; return_pct: number }>).slice(1) : rawUsdMonthly);
+      lockNewMonths(lockableBrl, lockableUsd).catch(() => {});
     }
 
     return NextResponse.json({

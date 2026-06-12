@@ -1,7 +1,8 @@
-import { fetchTab, appendRows, ensureTab } from "./gsheets";
+import { fetchTab, appendRows, ensureTab, syncHeaders } from "./gsheets";
 
 const TAB = "twr_mensal";
-const HEADERS = ["month", "return_pct", "return_pct_usd", "locked_at"];
+const HEADERS = ["month", "return_pct", "return_pct_usd", "locked_at", "version"];
+const CURRENT_VERSION = 2; // v2: chained monthly returns (prev month end as base)
 
 interface LockedMonth {
   month: string;
@@ -15,11 +16,14 @@ export async function readLockedMonthly(): Promise<LockedMonth[]> {
   if (_cache) return _cache;
   try {
     const rows = await fetchTab(TAB);
-    _cache = rows.map(r => ({
-      month: String(r["month"] ?? ""),
-      return_pct: Number(r["return_pct"] ?? 0),
-      return_pct_usd: r["return_pct_usd"] != null && r["return_pct_usd"] !== "" ? Number(r["return_pct_usd"]) : null,
-    })).filter(r => r.month.match(/^\d{4}-\d{2}$/));
+    _cache = rows
+      .filter(r => Number(r["version"] ?? 1) === CURRENT_VERSION)
+      .map(r => ({
+        month: String(r["month"] ?? ""),
+        return_pct: Number(r["return_pct"] ?? 0),
+        return_pct_usd: r["return_pct_usd"] != null && r["return_pct_usd"] !== "" ? Number(r["return_pct_usd"]) : null,
+      }))
+      .filter(r => r.month.match(/^\d{4}-\d{2}$/));
     return _cache;
   } catch {
     return [];
@@ -44,13 +48,18 @@ export async function lockNewMonths(
   const toLock = computed.filter(m => m.month < curMonth && !existingSet.has(m.month));
   if (toLock.length === 0) return 0;
 
-  await ensureTab(TAB, HEADERS);
+  const created = await ensureTab(TAB, HEADERS);
+  // Aba v1 tinha 4 colunas — sem reescrever o header, a coluna "version" não
+  // existe na linha 1 e o fetchTab a descarta: nenhuma linha v2 seria lida e o
+  // lock re-anexaria os mesmos meses para sempre.
+  if (!created) await syncHeaders(TAB, HEADERS);
 
   const rows = toLock.map(m => [
     m.month,
     m.return_pct.toFixed(6),
     usdMap.has(m.month) ? usdMap.get(m.month)!.toFixed(6) : "",
     now.toISOString(),
+    String(CURRENT_VERSION),
   ]);
 
   await appendRows(TAB, rows);

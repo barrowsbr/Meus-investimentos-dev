@@ -955,6 +955,10 @@ const SELIC_HISTORICO: [string, number][] = [
   ["2025-01-30", 0.1325],
   ["2025-03-20", 0.1425],
   ["2025-05-08", 0.1475],
+  ["2025-06-18", 0.1500],
+  // ATENÇÃO: tabela manual — decisões do COPOM posteriores precisam ser
+  // adicionadas aqui, ou o benchmark CDI fica defasado silenciosamente.
+  // Solução definitiva: ingerir CDI da API SGS do BCB na golden source.
 ];
 
 function isWeekday(date: string): boolean {
