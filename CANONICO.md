@@ -78,6 +78,7 @@ Não reimplemente.
 | **TWR anualizado** | `(1 + TWR)^(365/dias corridos) - 1` | `calcularTWR().twrAnualizado` |
 | **MWR/XIRR** | Newton-Raphson sobre fluxos líquidos do investidor (`flow − income`, proventos = inflow do investidor) + NAV final | `calcularTWR().mwr` |
 | **Ganho Econômico** | Soma telescópica dos ganhos diários do período medido (ver `CALCULOS.md §16`) | `calcularTWR().ganhoEconomico` |
+| **Retorno mensal (heatmap)** | TWR do mês fechado, **travado na primeira computação após o mês fechar**. Imutável — meses passados não mudam. Mês corrente é dinâmico. | `twr_mensal` (aba GSheets) · `lib/twr-monthly-lock.ts` |
 
 ### Identidades que devem SEMPRE valer (cobertas por teste)
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`

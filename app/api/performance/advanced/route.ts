@@ -6,6 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/li
 import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfolio";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
+import { readLockedMonthly, lockNewMonths, mergeWithLocked } from "@/lib/twr-monthly-lock";
 
 function tickerOf(row: Record<string, unknown>): string {
   return String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -683,12 +684,16 @@ export async function GET(request: Request) {
         monthlyMap[month].endFactor = factor;
       }
     }
-    const monthlyReturns = Object.entries(monthlyMap)
+    const computedMonthly = Object.entries(monthlyMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, { startFactor, endFactor }]) => ({
         month,
         return_pct: startFactor > 0 ? ((endFactor / startFactor) - 1) * 100 : 0,
       }));
+
+    // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico
+    const lockedMonths = await readLockedMonthly();
+    const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // ── USD view: convert NAV/flows by USDBRL, recompute TWR/MWR ──────────────
     const usdView = (() => {
@@ -828,8 +833,9 @@ export async function GET(request: Request) {
         if (!usdMonthlyMap[m]) usdMonthlyMap[m] = { sf: f, ef: f, sd: p.date };
         else { if (p.date < usdMonthlyMap[m].sd) { usdMonthlyMap[m].sf = f; usdMonthlyMap[m].sd = p.date; } usdMonthlyMap[m].ef = f; }
       }
-      const usdMonthly = Object.entries(usdMonthlyMap).sort(([a], [b]) => a.localeCompare(b))
+      const computedUsdMonthly = Object.entries(usdMonthlyMap).sort(([a], [b]) => a.localeCompare(b))
         .map(([month, { sf, ef }]) => ({ month, return_pct: sf > 0 ? ((ef / sf) - 1) * 100 : 0 }));
+      const usdMonthly = mergeWithLocked(lockedMonths, computedUsdMonthly, "usd");
 
       const fxDiv = lastFx.USDBRL || 5.7;
 
@@ -912,6 +918,13 @@ export async function GET(request: Request) {
         fxDecomposition: usdFxDecomp,
       };
     })();
+
+    // Trava retornos mensais de meses já fechados (fire-and-forget)
+    const isFullView = !tickerFiltro && classe === "tudo" && !fromParam && !toParam && setoresFiltro.size === 0;
+    if (isFullView) {
+      const computedUsdMonthly = usdView?.monthlyReturns ?? null;
+      lockNewMonths(computedMonthly, computedUsdMonthly).catch(() => {});
+    }
 
     return NextResponse.json({
       summary: {
