@@ -1111,7 +1111,7 @@ solveImpliedRate (Newton-Raphson):
 |---------|-------|----------------------|
 | **Aberta com histórico** | Compra(s) em `renda_fixa` + saldo em `fixa_aberta` | Taxa implícita constante de cada compra até **hoje** (lastDate). Caminho suave que atinge o saldo manual exatamente no último dia |
 | **Aberta sem histórico** | Só saldo em `fixa_aberta` | **NAV plano** (0% de retorno, só câmbio varia). Sem ponto de partida não há como medir rendimento — conta no patrimônio, não no TWR |
-| **Encerrada** | Compra + Venda/Resgate, sem saldo manual | Taxa **realizada** dos próprios fluxos: `(resgatado/investido)^(1/diasUteis) − 1` (determinística, imutável) |
+| **Encerrada** | Compra + Venda/Resgate, sem saldo manual | Taxa **realizada** dos próprios fluxos (líquidos de IR): `(resgatadoLiq/investido)^(1/diasUteis) − 1`. NAV **zera obrigatoriamente** no dia da última venda (hard-close) |
 
 ### Peculiaridades (decisões de produto)
 
@@ -1132,6 +1132,28 @@ solveImpliedRate (Newton-Raphson):
    **imutabilidade dos meses fechados** é garantida pelo lock mensal
    (`twr_mensal` via `lib/twr-monthly-lock.ts`), não pelo motor.
 5. **CAIXA/SALDO/CASH/RESERVA** são excluídos da timeline de RF (não rendem).
+6. **A taxa implícita é POR DIA ÚTIL e só acrua em dia útil.** O grid do
+   `db_cotacoes` tem dias corridos (cripto cota sáb/dom); `rfBizDays` conta
+   seg–sex reais e o loop só aplica `fixedRate` quando `isWeekday`. Regressão
+   histórica: taxa/dia útil aplicada em dias corridos = acrual ~45% maior →
+   posições encerradas não zeravam no resgate e o resíduo fantasma acruava
+   para sempre (+R$ 10k de NAV inexistente, MTM divergindo 20%).
+7. **Linhas `Imposto` da aba `renda_fixa` reduzem o flow do resgate** — o
+   retorno medido é **líquido de IR**, mesma convenção do canônico
+   (`composicao/resumo`) e dos proventos com `decisao=IMPOSTO`.
+8. **Hard-close**: posição sem saldo manual cujos resgates líquidos ≥ 95% das
+   compras é encerrada — o NAV é forçado a 0 a partir da última venda (a menos
+   que exista compra posterior, i.e. reaplicação). Garante GE da posição =
+   exatamente `resgatadoLiq − investido`, igual ao canônico.
+
+### Validador de simetria
+
+`GET /api/debug/mtm-recon` reconcilia o **ganho econômico do motor TWR** com o
+**ganho canônico do Resumo** e decompõe a diferença por componente (RV, RF,
+proventos) + efeitos estruturais conhecidos (flows a preço de mercado vs preço
+de execução; FX spot nos flows vs pmDólar no custo). Esperado: componente RF
+≈ 0, divergência total < 5% (só os efeitos estruturais). Componente grande
+aponta ONDE os dados/motores divergem.
 
 ---
 
