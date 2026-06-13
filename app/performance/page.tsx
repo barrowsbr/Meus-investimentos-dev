@@ -866,9 +866,7 @@ export default function PerformancePage() {
               Benchmarks
             </button>
             <button onClick={() => setChartMode("fx")}
-              disabled={returnMetric === "mwr"}
-              title={returnMetric === "mwr" ? "Decomposição cambial só se aplica ao TWR" : undefined}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed ${
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
                 chartMode === "fx"
                   ? "bg-amber-900/50 text-amber-300"
                   : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
@@ -989,6 +987,13 @@ export default function PerformancePage() {
                   )}
                   {chartMode === "fx" && (
                     <>
+                      {returnMetric === "twr" ? (
+                        <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="url(#gradMwr)"
+                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} connectNulls />
+                      ) : (
+                        <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
+                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
+                      )}
                       <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradAtivo)"
                         strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
                       <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFx)"
