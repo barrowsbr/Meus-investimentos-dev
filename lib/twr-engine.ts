@@ -137,7 +137,7 @@ interface RfParsedTx {
   date: string;
   bizDate: string;
   ticker: string;
-  tipo: "compra" | "venda" | "imposto";
+  tipo: "compra" | "venda";
   valor: number;
   moeda: string;
 }
@@ -153,13 +153,15 @@ function parseRfTxs(rows: Row[]): RfParsedTx[] {
     if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
     if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
-    let tipo: "compra" | "venda" | "imposto" | null = null;
+    let tipo: "compra" | "venda" | null = null;
     if (tipoRaw.includes("compra") || tipoRaw.includes("aplica") || tipoRaw.includes("aporte")) tipo = "compra";
     else if (tipoRaw.includes("venda") || tipoRaw.includes("resgate") || tipoRaw.includes("vencimento")) tipo = "venda";
-    // IR retido no resgate: reduz o valor recebido — o retorno medido é LÍQUIDO
-    // de imposto, mesma convenção do canônico (composicao/resumo) e dos
-    // proventos com decisao=IMPOSTO.
-    else if (/imposto|irrf|tributo|iof/.test(tipoRaw)) tipo = "imposto";
+    // Linhas de IMPOSTO (IR retido no resgate) são IGNORADAS de propósito:
+    // imposto sobre ganho de capital é do INVESTIDOR, não da carteira —
+    // convenção de fundo (GIPS): a carteira acrua e resgata BRUTO. Descontar
+    // o IR do retorno distorcia o TWR (ex.: R$ 109 de IR numa carteira de
+    // R$ 7k = −1,5% compostos para sempre). O retorno é líquido apenas de
+    // custos de transação (corretagem) e de IR na fonte sobre proventos.
     if (!tipo) continue;
     const valor = Math.abs(toNumber(row["valor"]) ?? 0);
     if (valor < 0.01) continue;
@@ -321,7 +323,6 @@ export function buildRfTimeline(
     const manual = manualValues.get(ticker);
     const compras = txList.filter(t => t.tipo === "compra");
     const vendas = txList.filter(t => t.tipo === "venda");
-    const impostos = txList.filter(t => t.tipo === "imposto");
 
     if (compras.length === 0) {
       // fixa_aberta sem histórico de compra — posição pré-existente. Sem dados
@@ -348,9 +349,8 @@ export function buildRfTimeline(
       : null;
 
     const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
-    // Resgate LÍQUIDO: vendas menos IR retido — retorno após impostos.
-    const totalRedeemedLiq = vendas.reduce((s, v) => s + v.valor, 0)
-      - impostos.reduce((s, t) => s + t.valor, 0);
+    // Resgate BRUTO: o IR do resgate é do investidor, não da carteira (GIPS).
+    const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
 
     let fixedRate: number | null = null;
     let closeDate: string | null = null;
@@ -363,28 +363,24 @@ export function buildRfTimeline(
       const lots = [
         ...compras.map(c => ({ invested: c.valor, bizDays: rfBizDays(c.bizDate, target) })),
         ...vendas.map(v => ({ invested: -v.valor, bizDays: rfBizDays(v.bizDate, target) })),
-        ...impostos.map(t => ({ invested: -t.valor, bizDays: rfBizDays(t.bizDate, target) })),
       ];
       fixedRate = solveImpliedRate(lots, manual.atual);
     } else if (!manual && vendas.length > 0) {
-      // Posição encerrada: taxa realizada dos próprios fluxos (líquidos de IR).
+      // Posição encerrada: taxa realizada dos próprios fluxos (brutos).
       const lastVenda = vendas.reduce((m, v) => v.bizDate > m ? v.bizDate : m, vendas[0].bizDate);
       const holdingDays = rfBizDays(compras[0].bizDate, lastVenda);
-      if (holdingDays > 0 && totalInvested > 0 && totalRedeemedLiq > totalInvested * 0.3) {
-        fixedRate = Math.max(0, Math.min(Math.pow(totalRedeemedLiq / totalInvested, 1 / holdingDays) - 1, 0.002));
+      if (holdingDays > 0 && totalInvested > 0 && totalRedeemed > totalInvested * 0.3) {
+        fixedRate = Math.max(0, Math.min(Math.pow(totalRedeemed / totalInvested, 1 / holdingDays) - 1, 0.002));
       }
       // Resgate (quase) total = posição encerrada: saldo zera na última venda.
       // Não fecha se houver compra POSTERIOR à última venda (reaplicação).
       const temCompraPosterior = compras.some(c => c.bizDate > lastVenda);
-      if (totalRedeemedLiq >= totalInvested * 0.95 && !temCompraPosterior) closeDate = lastVenda;
+      if (totalRedeemed >= totalInvested * 0.95 && !temCompraPosterior) closeDate = lastVenda;
     }
 
     const flowsByDate = new Map<string, number>();
     for (const c of compras) flowsByDate.set(c.bizDate, (flowsByDate.get(c.bizDate) ?? 0) + c.valor);
     for (const v of vendas) flowsByDate.set(v.bizDate, (flowsByDate.get(v.bizDate) ?? 0) - v.valor);
-    // IR retido devolve parte do flow de saída: o flow líquido do dia do
-    // resgate vira −(venda − imposto), igual ao que o investidor recebeu.
-    for (const t of impostos) flowsByDate.set(t.bizDate, (flowsByDate.get(t.bizDate) ?? 0) + t.valor);
 
     // Fluxos ANTERIORES à janela viram saldo de ABERTURA, acruado dia a dia
     // até a véspera de dates[0] — espelha a custódia RV, onde transações
@@ -430,9 +426,7 @@ export function buildRfTimeline(
       const rtx = sortedRfTxs[rfTxIdx++];
       const fxF = fxFactor(rtx.moeda, fx);
       if (rtx.tipo === "compra") dayFlow += rtx.valor * fxF;
-      else if (rtx.tipo === "venda") dayFlow -= rtx.valor * fxF;
-      // imposto: devolve parte da saída — flow do resgate fica líquido de IR
-      else dayFlow += rtx.valor * fxF;
+      else dayFlow -= rtx.valor * fxF;
     }
     if (Math.abs(dayFlow) > 0.01) flowByDate[date] = dayFlow;
 

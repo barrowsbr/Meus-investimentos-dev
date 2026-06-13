@@ -1138,22 +1138,32 @@ solveImpliedRate (Newton-Raphson):
    histórica: taxa/dia útil aplicada em dias corridos = acrual ~45% maior →
    posições encerradas não zeravam no resgate e o resíduo fantasma acruava
    para sempre (+R$ 10k de NAV inexistente, MTM divergindo 20%).
-7. **Linhas `Imposto` da aba `renda_fixa` reduzem o flow do resgate** — o
-   retorno medido é **líquido de IR**, mesma convenção do canônico
-   (`composicao/resumo`) e dos proventos com `decisao=IMPOSTO`.
-8. **Hard-close**: posição sem saldo manual cujos resgates líquidos ≥ 95% das
-   compras é encerrada — o NAV é forçado a 0 a partir da última venda (a menos
-   que exista compra posterior, i.e. reaplicação). Garante GE da posição =
-   exatamente `resgatadoLiq − investido`, igual ao canônico.
+7. **IR de resgate NÃO entra no retorno** (convenção de gestor de fundo/GIPS):
+   linhas `Imposto` da aba `renda_fixa` são ignoradas pelo motor — imposto
+   sobre ganho de capital é do **investidor**, não da carteira; a carteira
+   acrua e resgata **bruto** (como um fundo, que não paga IR em CDB). Descontar
+   o IR do retorno distorcia o TWR: R$ 109 de IR num resgate quando a carteira
+   tinha R$ 7k = −1,5% compostos para sempre. O retorno segue **líquido** de
+   custos de transação (corretagem, GIPS obrigatório) e de **IR na fonte sobre
+   proventos** (`decisao=IMPOSTO` em `meus_proventos` — o caixa nunca recebe
+   o bruto, ex.: withholding de 30% dos EUA). Já o canônico/DRE mostra lucro
+   líquido de IR — são perguntas diferentes (habilidade da carteira vs
+   dinheiro no bolso) e a diferença é quantificada no `mtm-recon`.
+8. **Hard-close**: posição sem saldo manual cujos resgates ≥ 95% das compras
+   é encerrada — o NAV é forçado a 0 a partir da última venda (a menos que
+   exista compra posterior, i.e. reaplicação). Garante GE da posição =
+   exatamente `resgatado − investido`, sem resíduo fantasma.
 
 ### Validador de simetria
 
 `GET /api/debug/mtm-recon` reconcilia o **ganho econômico do motor TWR** com o
 **ganho canônico do Resumo** e decompõe a diferença por componente (RV, RF,
 proventos) + efeitos estruturais conhecidos (flows a preço de mercado vs preço
-de execução; FX spot nos flows vs pmDólar no custo). Esperado: componente RF
-≈ 0, divergência total < 5% (só os efeitos estruturais). Componente grande
-aponta ONDE os dados/motores divergem.
+de execução; FX spot nos flows vs pmDólar no custo; IR de resgate de RF —
+motor bruto vs DRE líquida). Esperado: componente RF ≈ Σ IR de resgates e
+divergência total ≲ 6–7% (só os efeitos estruturais; aferido em 5,9% em
+13/06/2026). Componente grande além disso aponta ONDE os dados/motores
+divergem — o aviso âmbar da UI dispara em >10%.
 
 ---
 

@@ -382,7 +382,7 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
     expect(flows).toBeCloseTo(-1000, 0);
   });
 
-  it("imposto no resgate reduz o flow de saída (retorno líquido de IR)", () => {
+  it("IR de resgate NÃO entra no retorno — carteira acrua e resgata BRUTO (GIPS)", () => {
     const dates = calendarDays("2025-01-02", "2025-08-29");
     const txs = [
       rfCompra("CDB Banco X", 10000, "2025-01-02"),
@@ -390,11 +390,12 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
       rfImposto("CDB Banco X", 200, "2025-06-16"),
     ];
     const { navByDate, flowByDate } = buildRfTimeline(txs, [], dates, fxHist(dates));
-    // Flow líquido do dia do resgate = −(11000 − 200)
-    expect(flowByDate["2025-06-16"]).toBeCloseTo(-10800, 0);
-    // Ganho econômico = 800 (líquido de IR), igual ao canônico do Resumo
+    // Flow do resgate = valor BRUTO; o IR é do investidor, fora da carteira.
+    // Descontar IR do retorno distorcia o TWR (perda fantasma no dia da venda).
+    expect(flowByDate["2025-06-16"]).toBeCloseTo(-11000, 0);
+    // Ganho econômico da carteira = 1000 (bruto)
     const flows = Object.values(flowByDate).reduce((s, v) => s + v, 0);
-    expect(flows).toBeCloseTo(-800, 0);
+    expect(flows).toBeCloseTo(-1000, 0);
     expect(navByDate[dates[dates.length - 1]]).toBe(0);
   });
 

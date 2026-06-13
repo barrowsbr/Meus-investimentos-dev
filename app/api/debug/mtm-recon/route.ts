@@ -276,6 +276,12 @@ export async function GET() {
           // O impacto no GE é o valor com sinal trocado.
           flowsPrecoMercadoVsExecucao: Math.round(-effectMktPrice),
           flowsFxSpotVsPmDolar: Math.round(-effectFxCusto),
+          // Motor mede RF BRUTA de IR de resgate (convenção de fundo/GIPS:
+          // imposto sobre ganho é do investidor); o canônico (DRE) é líquido.
+          // O componente RF da divergência deve ser ≈ este valor.
+          irResgateRfMotorBrutoVsCanonicoLiquido: Math.round(
+            rfEncerradasDetalhe.reduce((s, r) => s + r.imposto, 0)
+          ),
         },
       },
       rfDetalhe: { abertas: rfAbertasDetalhe, encerradas: rfEncerradasDetalhe },

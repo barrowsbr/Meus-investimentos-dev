@@ -150,9 +150,10 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
   (estoque atual vs período medido). Cross-check automático: na visão geral, se
   canônico e motor TWR divergirem >10%, a UI mostra um aviso âmbar. Para
   investigar uma divergência: `GET /api/debug/mtm-recon` decompõe a diferença
-  por componente (RV, RF, proventos) e quantifica os dois efeitos estruturais
+  por componente (RV, RF, proventos) e quantifica os efeitos estruturais
   residuais (flows a preço de mercado vs execução; FX spot vs pmDólar no
-  custo) — esperado < 5% no total, componente RF ≈ 0.
+  custo; IR de resgate de RF — motor bruto/GIPS vs DRE líquida) — esperado
+  ≲ 6–7% no total, componente RF ≈ Σ IR de resgates.
 - **View USD em Performance** (`/api/performance/advanced` → `usdView`): a visão em
   dólar recomputa TWR, MWR, ganhoEconomico e fxDecomposition a partir da série de
   NAV convertida dia a dia (`NAV_BRL / USDBRL_do_dia`). Não é possível simplesmente
