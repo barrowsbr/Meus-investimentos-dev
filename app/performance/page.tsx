@@ -127,7 +127,7 @@ interface DecomposicaoResponse {
 function computeYTDDays(): number {
   const now = new Date();
   const jan1 = new Date(now.getFullYear(), 0, 1);
-  return Math.ceil((now.getTime() - jan1.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor((now.getTime() - jan1.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 const WINDOWS = [
