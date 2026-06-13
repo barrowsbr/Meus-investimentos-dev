@@ -710,7 +710,7 @@ export async function GET(request: Request) {
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // Monthly MTM snapshots — R$ gain per month using period-end prices/FX
-    const monthlyMTM: Array<{ month: string; gain: number; navEnd: number }> = (() => {
+    const monthlyMTM: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = (() => {
       const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
       for (const p of meaningfulPoints) {
         const m = p.date.slice(0, 7);
@@ -718,10 +718,12 @@ export async function GET(request: Request) {
         if (b) { b.navEnd = p.nav; b.flows += p.flow; b.income += p.income; }
         else buckets.set(m, { navEnd: p.nav, flows: p.flow, income: p.income });
       }
-      const out: Array<{ month: string; gain: number; navEnd: number }> = [];
+      const out: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = [];
       let prev = 0;
       for (const [month, { navEnd, flows, income }] of buckets) {
-        out.push({ month, gain: navEnd + income - prev - flows, navEnd });
+        const gain = navEnd + income - prev - flows;
+        const base = prev > 0 ? prev : Math.abs(flows);
+        out.push({ month, gain, gainPct: base > 0 ? (gain / base) * 100 : 0, navEnd });
         prev = navEnd;
       }
       return out;
@@ -885,7 +887,7 @@ export async function GET(request: Request) {
       rawUsdMonthly = computedUsdMonthly;
       const usdMonthly = mergeWithLocked(lockedMonths, computedUsdMonthly, "usd");
 
-      const usdMTM: Array<{ month: string; gain: number; navEnd: number }> = (() => {
+      const usdMTM: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = (() => {
         const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
         for (const p of pts) {
           const m = p.date.slice(0, 7);
@@ -893,10 +895,12 @@ export async function GET(request: Request) {
           if (b) { b.navEnd = p.nav; b.flows += p.flow; b.income += p.income; }
           else buckets.set(m, { navEnd: p.nav, flows: p.flow, income: p.income });
         }
-        const out: Array<{ month: string; gain: number; navEnd: number }> = [];
+        const out: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = [];
         let prev = 0;
         for (const [month, { navEnd, flows, income }] of buckets) {
-          out.push({ month, gain: navEnd + income - prev - flows, navEnd });
+          const gain = navEnd + income - prev - flows;
+          const base = prev > 0 ? prev : Math.abs(flows);
+          out.push({ month, gain, gainPct: base > 0 ? (gain / base) * 100 : 0, navEnd });
           prev = navEnd;
         }
         return out;
