@@ -1202,6 +1202,17 @@ diferença é quantificada como efeito conhecido no `GET /api/debug/mtm-recon`
 Bônus da régua: o benchmark CDI do gráfico também é bruto de IR — a
 comparação carteira × CDI fica maçã com maçã.
 
+### A base do MTM % na visão "tudo" ("sobre R$ X")
+
+`base = custo FIFO RV (pmFx + taxas) + custo das posições RF abertas (por
+ticker, floor 0) + caixa`. É o **capital investido a custo**, não o
+patrimônio: `patrimônio = base + lucro não realizado` (identidade exata —
+aferido: 212,8k + 25,3k = 238,1k). Colocar o patrimônio na base diluiria o
+retorno (lucro ÷ (investido + lucro)). Regressão corrigida em 13/06/2026: o
+custo de RF era somado como net de TODOS os flows históricos (compras −
+resgates), que ficava negativo e era descartado — a RF aberta sumia da base
+(`costBasisAtual` em `buildRfTimeline`).
+
 ### TWR × MWR — qual número responde qual pergunta
 
 | Pergunta | Métrica | Onde ver |

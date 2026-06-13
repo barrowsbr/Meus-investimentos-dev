@@ -459,11 +459,11 @@ export async function GET(request: Request) {
       : proventos;
     const fixaAbertaF = includeRF ? fixaAberta : [];
 
-    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate, navFxByDate: rfNavFxByDate } = includeRF
+    const { navByDate: rfNavByDate, flowByDate: rfFlowByDate, navFxByDate: rfNavFxByDate, costBasisAtual: rfCostBasis } = includeRF
       ? buildRfTimeline(rfTransacoes, fixaAberta, dates, alignedFx, cdiDiario)
-      : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number>, navFxByDate: {} as Record<string, number> };
+      : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number>, navFxByDate: {} as Record<string, number>, costBasisAtual: 0 };
 
-    const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate, rfNavFxByDate });
+    const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate, rfNavFxByDate, rfCostBasis });
 
     // ── Patrimônio total (snapshot completo, preços da golden source) ──────────
     // O TWR/Ganho Econômico mede RETORNO sobre o capital que rende (exclui caixa

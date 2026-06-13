@@ -233,11 +233,15 @@ export function buildRfTimeline(
   dates: string[],
   fxHistory: FxHistory,
   cdiDiario?: Record<string, number>,
-): { navByDate: Record<string, number>; flowByDate: Record<string, number>; navFxByDate: Record<string, number> } {
+): { navByDate: Record<string, number>; flowByDate: Record<string, number>; navFxByDate: Record<string, number>; costBasisAtual: number } {
   const navByDate: Record<string, number> = {};
   const flowByDate: Record<string, number> = {};
   const navFxByDate: Record<string, number> = {};
-  if (dates.length === 0) return { navByDate, flowByDate, navFxByDate };
+  // Custo investido das posições RF ATUAIS (abertas), em BRL — POR TICKER com
+  // floor em 0, igual ao canônico. Somar flows líquidos globalmente (custo −
+  // resgates históricos) zerava o custo da RF aberta na base do "Investido".
+  let costBasisAtual = 0;
+  if (dates.length === 0) return { navByDate, flowByDate, navFxByDate, costBasisAtual };
 
   const txs = parseRfTxs(rfTransacoes);
   const lastDate = dates[dates.length - 1];
@@ -328,6 +332,10 @@ export function buildRfTimeline(
       // fixa_aberta sem histórico de compra — posição pré-existente. Sem dados
       // para estimar retorno: NAV constante no saldo manual (só câmbio varia).
       if (manual && manual.atual > 0) {
+        // Sem custo conhecido, o próprio saldo é o capital presente — entra
+        // na base do "Investido" pela mesma lógica do caixa (capital sem
+        // retorno medido ainda é capital).
+        costBasisAtual += manual.atual * fxFactor(manual.moeda, fxSeries[fxSeries.length - 1]);
         states.push({
           moeda: manual.moeda,
           flowsByDate: new Map([[dates[0], manual.atual]]),
@@ -351,6 +359,13 @@ export function buildRfTimeline(
     const totalInvested = compras.reduce((s, c) => s + c.valor, 0);
     // Resgate BRUTO: o IR do resgate é do investidor, não da carteira (GIPS).
     const totalRedeemed = vendas.reduce((s, v) => s + v.valor, 0);
+
+    // Posição ABERTA (tem saldo manual): custo líquido remanescente por
+    // ticker, floor 0 — entra na base do "Investido" (custo FIFO + RF + caixa).
+    if (manual && manual.atual > 0) {
+      costBasisAtual += Math.max(0, totalInvested - totalRedeemed)
+        * fxFactor(moeda, fxSeries[fxSeries.length - 1]);
+    }
 
     let fixedRate: number | null = null;
     let closeDate: string | null = null;
@@ -465,7 +480,7 @@ export function buildRfTimeline(
     navFxByDate[date] = dayNavFx;
   }
 
-  return { navByDate, flowByDate, navFxByDate };
+  return { navByDate, flowByDate, navFxByDate, costBasisAtual };
 }
 
 // ─── Daily custody reconstruction (FIFO cumulative) ───────────────────────────
@@ -613,6 +628,10 @@ export interface TwrInput {
   rfNavByDate?: Record<string, number>;
   rfFlowByDate?: Record<string, number>;
   rfNavFxByDate?: Record<string, number>;
+  // Custo das posições RF ATUAIS (costBasisAtual de buildRfTimeline). Quando
+  // presente substitui o fallback de net-flows, que zerava o custo da RF
+  // aberta sempre que os resgates históricos superavam as compras atuais.
+  rfCostBasis?: number;
   pmFx?: FxRates;
 }
 
@@ -1096,12 +1115,18 @@ export function calcularTWR(input: TwrInput): TwrResult {
     firstMeaningful.nav, firstMeaningful.date,
   );
 
-  // RF cost (net invested from rfFlowByDate)
-  let rfCostBasis = 0;
-  if (rfFlowByDate) {
-    for (const v of Object.values(rfFlowByDate)) rfCostBasis += v;
+  // Custo da RF aberta: preferir o costBasisAtual do buildRfTimeline (por
+  // ticker, floor 0). O fallback de net-flows fica para compat, mas zera o
+  // custo da RF aberta quando resgates históricos superam as compras atuais.
+  if (input.rfCostBasis != null) {
+    custoPosicoesAtuais += input.rfCostBasis;
+  } else {
+    let rfCostBasis = 0;
+    if (rfFlowByDate) {
+      for (const v of Object.values(rfFlowByDate)) rfCostBasis += v;
+    }
+    if (rfCostBasis > 0) custoPosicoesAtuais += rfCostBasis;
   }
-  if (rfCostBasis > 0) custoPosicoesAtuais += rfCostBasis;
 
   let incomeTotal = 0;
   for (const p of points) incomeTotal += p.income;
