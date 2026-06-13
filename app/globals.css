@@ -237,6 +237,43 @@ body {
   z-index: 2;
 }
 
+/* ─── Performance Hero ─── */
+@keyframes heroShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes heroGlow {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.9; }
+}
+
+.perf-accent {
+  background-size: 200% 100%;
+  animation: heroShimmer 4s ease-in-out infinite;
+}
+
+.perf-glow {
+  animation: heroGlow 5s ease-in-out infinite;
+}
+
+.perf-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(75, 82, 100, 0.3);
+  background: linear-gradient(150deg, rgba(16,18,30,0.97) 0%, rgba(10,12,18,0.99) 40%, rgba(14,16,26,0.97) 100%);
+}
+
+.perf-risk-cell {
+  background: rgba(255,255,255,0.012);
+  border-radius: 0.5rem;
+  transition: background 0.2s ease;
+}
+.perf-risk-cell:hover {
+  background: rgba(255,255,255,0.04);
+}
+
 .holo-scanlines::after {
   content: "";
   position: absolute;
