@@ -370,11 +370,18 @@ export async function GET(request: Request) {
     if (corretoraFiltro && !fromParam && lookback === 0) {
       let earliest = "9999";
       for (const row of transacoesCorretora) {
-        const raw = String(row["data"] ?? row["date"] ?? "").trim();
+        const val = row["data"] ?? row["date"];
+        if (!val) continue;
         let d = "";
-        const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (br) d = `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
-        else if (/^\d{4}-\d{2}-\d{2}/.test(raw)) d = raw.slice(0, 10);
+        if (typeof val === "number") {
+          const dt = new Date((val - 25569) * 86400 * 1000);
+          d = dt.toISOString().split("T")[0];
+        } else {
+          const s = String(val).trim();
+          const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (br) d = `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+          else if (/^\d{4}-\d{2}-\d{2}/.test(s)) d = s.slice(0, 10);
+        }
         if (d && d < earliest) earliest = d;
       }
       if (earliest < "9999") {
