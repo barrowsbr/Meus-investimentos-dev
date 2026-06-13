@@ -434,7 +434,7 @@ export default function PerformancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lookback, setLookback] = useState(0);
-  const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
+  const [classe, setClasse] = useState<"tudo" | "rv" | "rf">("tudo");
   const [setores, setSetores] = useState<string[]>([]);
   const setorQuery = setores.join(",");
   const [tickerFilter, setTickerFilter] = useState("");
@@ -638,20 +638,17 @@ export default function PerformancePage() {
           { id: "tudo", label: "Tudo", show: true },
           { id: "rv", label: "Renda Variável", show: f.rvSetores.length > 0 },
           { id: "rf", label: "Renda Fixa", show: f.temRF },
-          { id: "cripto", label: "Cripto", show: f.temCripto },
         ];
         const ts = f.tickerSectors;
         const filteredTickers = (f.tickers ?? []).filter(t => {
           if (!ts) return true;
           const setor = ts[t];
           if (!setor) return true;
-          const isCripto = setor === "Cripto";
           const isRF = ["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"].includes(setor);
           const isRFPrec = setor === "Renda Fixa USD";
-          if (classe === "cripto") return isCripto;
           if (classe === "rf") return isRFPrec;
           if (classe === "rv") {
-            if (isCripto || isRF) return false;
+            if (isRF) return false;
             if (setores.length > 0) return setores.includes(setor);
             return true;
           }
@@ -777,10 +774,9 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        const ge = useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
-        const geDivergePct = isUnfiltered && !isUsd && ganhoCanonical != null && s.ganhoEconomico !== 0
-          ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
-          : null;
+        const ge = isUnfiltered && !isUsd && ganhoCanonical != null
+          ? ganhoCanonical
+          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
         const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
@@ -856,9 +852,6 @@ export default function PerformancePage() {
                     <p className="text-[9px] text-zinc-600 mt-0.5">
                       {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(1)}% / {compactCurr(pctBase)}
                     </p>
-                    {geDivergePct != null && geDivergePct > 10 && (
-                      <p className="text-[8px] text-amber-500/60 mt-0.5" title="Diverge do motor TWR — veja Avisos de dados">⚠ {geDivergePct.toFixed(0)}%</p>
-                    )}
                   </div>
                 </div>
 

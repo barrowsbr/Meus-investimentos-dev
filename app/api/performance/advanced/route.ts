@@ -274,7 +274,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawLookback = parseInt(searchParams.get("lookback") ?? "1825", 10);
   const lookback = rawLookback <= 0 ? 0 : rawLookback;
-  // Filtro por classe (tudo|rv|rf|cripto) e, dentro de RV, por setor.
+  // Filtro por classe (tudo|rv|rf) e, dentro de RV, por setor (inclui Cripto).
   const classe = (searchParams.get("classe") ?? "tudo").toLowerCase();
   // Aceita múltiplos setores separados por vírgula (ex: "Ações Brasil,FIIs")
   const setorFiltro = searchParams.get("setor") ?? "";
@@ -495,7 +495,7 @@ export async function GET(request: Request) {
       const tk = tickerOf(row);
       if (!tk) continue;
       const setor = identificarSetor(tk);
-      if (setor === "Cripto") { temCripto = true; continue; }
+      if (setor === "Cripto") { temCripto = true; rvSetores.add(setor); continue; }
       if (isRendaFixaPrecificavel(setor)) { temPricedRF = true; continue; }
       if (isRendaFixa(setor)) continue;
       rvSetores.add(setor);
@@ -505,11 +505,9 @@ export async function GET(request: Request) {
     function keepRvTicker(tk: string): boolean {
       if (tickerFiltro && tk !== tickerFiltro) return false;
       const setor = identificarSetor(tk);
-      const isCripto = setor === "Cripto";
       if (classe === "rf") return isRendaFixaPrecificavel(setor);
       if (isRendaFixa(setor)) return false;
-      if (classe === "cripto") return isCripto;
-      if (classe === "rv") return isCripto ? false : (setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true);
+      if (classe === "rv") return setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true;
       return setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true;
     }
 
