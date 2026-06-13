@@ -708,7 +708,7 @@ export default function PerformancePage() {
           ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
           : null;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
-        const pctBase = isAllTime ? custoFIFO + (isUnfiltered ? (s.patrimonio?.caixa ?? 0) : 0) : s.navInicial;
+        const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
           : pctBase > 0 ? (ge / pctBase) * 100 : 0;
