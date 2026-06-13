@@ -693,13 +693,17 @@ export async function GET(request: Request) {
         last.endFactor = factor;
       }
     }
+    // Janelas de tempo (YTD, 1A, …) incluem 1 dia-âncora ANTES do windowStart
+    // para o motor TWR ter prevNav > 0 no primeiro dia real. Esse dia-âncora
+    // cria um mês parcial espúrio (ex: dez/2025 no YTD 2026) — filtrá-lo.
+    const windowStartMonth = isWindowed ? windowStart.slice(0, 7) : "";
     const computedMonthly = monthlyEndFactors.map((m, i) => {
       const prevFactor = i === 0 ? 1.0 : monthlyEndFactors[i - 1].endFactor;
       return {
         month: m.month,
         return_pct: prevFactor > 0 ? ((m.endFactor / prevFactor) - 1) * 100 : 0,
       };
-    });
+    }).filter(m => m.month >= windowStartMonth);
 
     // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico.
     // Os valores travados são da CARTEIRA COMPLETA ALL-TIME — em views com janela
@@ -716,6 +720,7 @@ export async function GET(request: Request) {
       const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
       for (const p of meaningfulPoints) {
         const m = p.date.slice(0, 7);
+        if (m < windowStartMonth) continue;
         const b = buckets.get(m);
         if (b) { b.navEnd = p.nav; b.flows += p.flow; b.income += p.income; }
         else buckets.set(m, { navEnd: p.nav, flows: p.flow, income: p.income });
