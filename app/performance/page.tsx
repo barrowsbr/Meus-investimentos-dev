@@ -774,10 +774,9 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        const ge = useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
-        const geDivergePct = isUnfiltered && !isUsd && ganhoCanonical != null && s.ganhoEconomico !== 0
-          ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
-          : null;
+        const ge = isUnfiltered && !isUsd && ganhoCanonical != null
+          ? ganhoCanonical
+          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
         const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
@@ -853,9 +852,6 @@ export default function PerformancePage() {
                     <p className="text-[9px] text-zinc-600 mt-0.5">
                       {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(1)}% / {compactCurr(pctBase)}
                     </p>
-                    {geDivergePct != null && geDivergePct > 10 && (
-                      <p className="text-[8px] text-amber-500/60 mt-0.5" title="Diverge do motor TWR — veja Avisos de dados">⚠ {geDivergePct.toFixed(0)}%</p>
-                    )}
                   </div>
                 </div>
 
