@@ -70,6 +70,7 @@ interface ChartPoint { date: string; nav: number; flow?: number; ret: number; tw
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
+interface MonthlyMTM { month: string; gain: number; navEnd: number }
 interface FlowEntry { date: string; flow: number; nav: number; nav_before: number; daily_return: number; cumulative_twr: number }
 interface AttributionEntry { setor: string; macro: string; contrib_pct: number; nav_medio: number }
 
@@ -77,6 +78,7 @@ interface UsdView {
   summary: Summary;
   chart: ChartPoint[];
   monthlyReturns: MonthlyReturn[];
+  monthlyMTM?: MonthlyMTM[];
   fxDecomposition?: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
 }
 
@@ -87,6 +89,7 @@ interface PerformanceResponse {
   drawdownData: DrawdownPoint[];
   rolling: RollingPoint[];
   monthlyReturns: MonthlyReturn[];
+  monthlyMTM?: MonthlyMTM[];
   flowLedger: FlowEntry[];
   attribution: AttributionEntry[];
   fxDecomposition: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
@@ -444,6 +447,7 @@ export default function PerformancePage() {
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
+  const [monthlyView, setMonthlyView] = useState<"twr" | "mtm">("twr");
   const [predMethod, setPredMethod] = useState(PRED_METHODS[0].id);
   const [predResult, setPredResult] = useState<PredResult>(null);
   const [predLoading, setPredLoading] = useState(false);
@@ -560,6 +564,23 @@ export default function PerformancePage() {
     const years = Object.keys(byYearMonth).map(Number).sort((a, b) => a - b);
     return { years, byYearMonth };
   }, [activeMonthly]);
+
+  const activeMTM = useMemo(() => {
+    if (!data) return [];
+    return isUsd && data.usdView?.monthlyMTM ? data.usdView.monthlyMTM : (data.monthlyMTM ?? []);
+  }, [data, isUsd]);
+
+  const mtmGrid = useMemo(() => {
+    if (activeMTM.length === 0) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, { gain: number; navEnd: number }>> };
+    const byYearMonth: Record<number, Record<number, { gain: number; navEnd: number }>> = {};
+    for (const m of activeMTM) {
+      const [y, mo] = m.month.split("-").map(Number);
+      if (!byYearMonth[y]) byYearMonth[y] = {};
+      byYearMonth[y][mo] = { gain: m.gain, navEnd: m.navEnd };
+    }
+    const years = Object.keys(byYearMonth).map(Number).sort((a, b) => a - b);
+    return { years, byYearMonth };
+  }, [activeMTM]);
 
   const handleRefresh = () => {
     setLoading(true);
@@ -866,9 +887,7 @@ export default function PerformancePage() {
               Benchmarks
             </button>
             <button onClick={() => setChartMode("fx")}
-              disabled={returnMetric === "mwr"}
-              title={returnMetric === "mwr" ? "Decomposição cambial só se aplica ao TWR" : undefined}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed ${
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
                 chartMode === "fx"
                   ? "bg-amber-900/50 text-amber-300"
                   : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
@@ -989,6 +1008,13 @@ export default function PerformancePage() {
                   )}
                   {chartMode === "fx" && (
                     <>
+                      {returnMetric === "twr" ? (
+                        <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="url(#gradMwr)"
+                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} connectNulls />
+                      ) : (
+                        <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
+                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
+                      )}
                       <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradAtivo)"
                         strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
                       <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFx)"
@@ -1288,92 +1314,215 @@ export default function PerformancePage() {
          ══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === "monthly" && (
         <div className="glass-card p-5">
-          <h2 className="section-title mb-4"><Calendar size={15} />Retornos Mensais — Heatmap</h2>
-          <p className="text-xs text-zinc-600 mb-5">Cada célula representa o retorno do portfólio naquele mês. Verde = positivo, vermelho = negativo.</p>
-
-          {monthlyGrid.years.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr>
-                    <th className="text-left pr-3 pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] w-12">Ano</th>
-                    {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map(m => (
-                      <th key={m} className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] min-w-[52px]">{m}</th>
-                    ))}
-                    <th className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] pl-3 w-16">Ano</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyGrid.years.map(year => {
-                    const mths = monthlyGrid.byYearMonth[year] ?? {};
-                    const yearVals = Object.values(mths);
-                    const yearTotal = yearVals.length > 0
-                      ? yearVals.reduce((acc, v) => acc * (1 + v / 100), 1) * 100 - 100
-                      : null;
-                    return (
-                      <tr key={year} className="group">
-                        <td className="pr-3 py-1 text-zinc-400 font-bold text-[11px]">{year}</td>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
-                          const v = mths[mo];
-                          if (v === undefined) {
-                            return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-9 bg-zinc-900/40" /></td>;
-                          }
-                          const isPos = v >= 0;
-                          const intensity = Math.min(Math.abs(v) / 5, 1);
-                          const bg = isPos
-                            ? `rgba(52,211,153,${0.12 + intensity * 0.55})`
-                            : `rgba(248,113,113,${0.12 + intensity * 0.55})`;
-                          const textColor = isPos ? "#34d399" : "#f87171";
-                          return (
-                            <td key={mo} className="py-1 px-0.5">
-                              <div
-                                className="rounded-md h-9 flex items-center justify-center font-semibold cursor-default transition-transform hover:scale-105"
-                                style={{ background: bg, color: textColor }}
-                                title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
-                              >
-                                {v >= 0 ? "+" : ""}{v.toFixed(1)}%
-                              </div>
-                            </td>
-                          );
-                        })}
-                        <td className="py-1 pl-3">
-                          {yearTotal !== null && (
-                            <div
-                              className="rounded-md h-9 flex items-center justify-center font-bold text-[11px] border"
-                              style={{
-                                borderColor: yearTotal >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
-                                color: yearTotal >= 0 ? "#34d399" : "#f87171",
-                                background: yearTotal >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
-                              }}
-                            >
-                              {yearTotal >= 0 ? "+" : ""}{yearTotal.toFixed(1)}%
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title"><Calendar size={15} />Retornos Mensais — Heatmap</h2>
+            <div className="flex rounded-lg overflow-hidden border border-zinc-800/60">
+              <button onClick={() => setMonthlyView("twr")}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  monthlyView === "twr"
+                    ? "bg-indigo-900/50 text-indigo-300"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                }`}>
+                TWR (%)
+              </button>
+              <button onClick={() => setMonthlyView("mtm")}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
+                  monthlyView === "mtm"
+                    ? "bg-amber-900/50 text-amber-300"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                }`}>
+                <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />MTM ({currSymbol})
+              </button>
             </div>
-          ) : (
-            <p className="text-zinc-600 text-sm text-center py-8">Sem dados mensais disponíveis</p>
+          </div>
+          <p className="text-xs text-zinc-600 mb-5">
+            {monthlyView === "twr"
+              ? "Cada célula representa o retorno TWR do portfólio naquele mês. Verde = positivo, vermelho = negativo."
+              : "Cada célula representa o ganho absoluto (MTM) do mês, usando preços e câmbio do último dia útil do período — cenário fechado."}
+          </p>
+
+          {/* ── TWR (%) heatmap ── */}
+          {monthlyView === "twr" && (
+            <>
+              {monthlyGrid.years.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left pr-3 pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] w-12">Ano</th>
+                        {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map(m => (
+                          <th key={m} className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] min-w-[52px]">{m}</th>
+                        ))}
+                        <th className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] pl-3 w-16">Ano</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyGrid.years.map(year => {
+                        const mths = monthlyGrid.byYearMonth[year] ?? {};
+                        const yearVals = Object.values(mths);
+                        const yearTotal = yearVals.length > 0
+                          ? yearVals.reduce((acc, v) => acc * (1 + v / 100), 1) * 100 - 100
+                          : null;
+                        return (
+                          <tr key={year} className="group">
+                            <td className="pr-3 py-1 text-zinc-400 font-bold text-[11px]">{year}</td>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
+                              const v = mths[mo];
+                              if (v === undefined) {
+                                return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-9 bg-zinc-900/40" /></td>;
+                              }
+                              const isPos = v >= 0;
+                              const intensity = Math.min(Math.abs(v) / 5, 1);
+                              const bg = isPos
+                                ? `rgba(52,211,153,${0.12 + intensity * 0.55})`
+                                : `rgba(248,113,113,${0.12 + intensity * 0.55})`;
+                              const textColor = isPos ? "#34d399" : "#f87171";
+                              return (
+                                <td key={mo} className="py-1 px-0.5">
+                                  <div
+                                    className="rounded-md h-9 flex items-center justify-center font-semibold cursor-default transition-transform hover:scale-105"
+                                    style={{ background: bg, color: textColor }}
+                                    title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
+                                  >
+                                    {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="py-1 pl-3">
+                              {yearTotal !== null && (
+                                <div
+                                  className="rounded-md h-9 flex items-center justify-center font-bold text-[11px] border"
+                                  style={{
+                                    borderColor: yearTotal >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
+                                    color: yearTotal >= 0 ? "#34d399" : "#f87171",
+                                    background: yearTotal >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
+                                  }}
+                                >
+                                  {yearTotal >= 0 ? "+" : ""}{yearTotal.toFixed(1)}%
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-zinc-600 text-sm text-center py-8">Sem dados mensais disponíveis</p>
+              )}
+
+              {monthlyGrid.years.length > 0 && (() => {
+                const all = Object.values(monthlyGrid.byYearMonth).flatMap(m => Object.values(m));
+                const pos = all.filter(v => v >= 0).length;
+                const neg = all.filter(v => v < 0).length;
+                const avg = all.length > 0 ? all.reduce((s, v) => s + v, 0) / all.length : 0;
+                return (
+                  <p className="text-xs text-zinc-600 mt-4">
+                    Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{avg.toFixed(2)}%</span>
+                    {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
+                    {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
+                    {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
+                  </p>
+                );
+              })()}
+            </>
           )}
 
-          {monthlyGrid.years.length > 0 && (() => {
-            const all = Object.values(monthlyGrid.byYearMonth).flatMap(m => Object.values(m));
-            const pos = all.filter(v => v >= 0).length;
-            const neg = all.filter(v => v < 0).length;
-            const avg = all.length > 0 ? all.reduce((s, v) => s + v, 0) / all.length : 0;
-            return (
-              <p className="text-xs text-zinc-600 mt-4">
-                Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{avg.toFixed(2)}%</span>
-                {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
-                {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
-                {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
-              </p>
-            );
-          })()}
+          {/* ── MTM (R$) heatmap — cenário fechado ── */}
+          {monthlyView === "mtm" && (
+            <>
+              {mtmGrid.years.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left pr-3 pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] w-12">Ano</th>
+                        {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map(m => (
+                          <th key={m} className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] min-w-[60px]">{m}</th>
+                        ))}
+                        <th className="text-center pb-3 text-zinc-600 font-semibold uppercase tracking-wider text-[9px] pl-3 w-20">Ano</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mtmGrid.years.map(year => {
+                        const mths = mtmGrid.byYearMonth[year] ?? {};
+                        const yearGain = Object.values(mths).reduce((s, v) => s + v.gain, 0);
+                        const lastMonth = Math.max(...Object.keys(mths).map(Number));
+                        const yearEndNav = mths[lastMonth]?.navEnd ?? 0;
+                        return (
+                          <tr key={year} className="group">
+                            <td className="pr-3 py-1 text-zinc-400 font-bold text-[11px]">{year}</td>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
+                              const cell = mths[mo];
+                              if (!cell) {
+                                return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-9 bg-zinc-900/40" /></td>;
+                              }
+                              const v = cell.gain;
+                              const isPos = v >= 0;
+                              const absK = Math.abs(v) / 1000;
+                              const intensity = Math.min(absK / 5, 1);
+                              const bg = isPos
+                                ? `rgba(52,211,153,${0.12 + intensity * 0.55})`
+                                : `rgba(248,113,113,${0.12 + intensity * 0.55})`;
+                              const textColor = isPos ? "#34d399" : "#f87171";
+                              const label = absK >= 10
+                                ? `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(0)}k`
+                                : `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(1)}k`;
+                              return (
+                                <td key={mo} className="py-1 px-0.5">
+                                  <div
+                                    className="rounded-md h-9 flex flex-col items-center justify-center cursor-default transition-transform hover:scale-105"
+                                    style={{ background: bg, color: textColor }}
+                                    title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${fmtCurr(v)} · Patrimônio: ${fmtCurr(cell.navEnd)}`}
+                                  >
+                                    <span className="font-semibold text-[11px] leading-tight">{label}</span>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="py-1 pl-3">
+                              <div
+                                className="rounded-md h-9 flex flex-col items-center justify-center font-bold text-[10px] border"
+                                style={{
+                                  borderColor: yearGain >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
+                                  color: yearGain >= 0 ? "#34d399" : "#f87171",
+                                  background: yearGain >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
+                                }}
+                                title={`Patrimônio dez/${year}: ${fmtCurr(yearEndNav)}`}
+                              >
+                                <span>{yearGain >= 0 ? "+" : ""}{compactCurr(yearGain)}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-zinc-600 text-sm text-center py-8">Sem dados de MTM disponíveis</p>
+              )}
+
+              {mtmGrid.years.length > 0 && (() => {
+                const all = Object.values(mtmGrid.byYearMonth).flatMap(m => Object.values(m).map(c => c.gain));
+                const pos = all.filter(v => v >= 0).length;
+                const neg = all.filter(v => v < 0).length;
+                const total = all.reduce((s, v) => s + v, 0);
+                const avg = all.length > 0 ? total / all.length : 0;
+                return (
+                  <p className="text-xs text-zinc-600 mt-4">
+                    Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{compactCurr(avg)}</span>
+                    {" · "}Total: <span className="text-zinc-400 font-semibold">{total >= 0 ? "+" : ""}{compactCurr(total)}</span>
+                    {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
+                    {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
+                    {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
+                  </p>
+                );
+              })()}
+            </>
+          )}
         </div>
       )}
 
