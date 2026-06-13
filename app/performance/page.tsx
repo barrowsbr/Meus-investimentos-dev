@@ -805,52 +805,32 @@ export default function PerformancePage() {
 
         return (
           <div className="relative mb-4 animate-fade-in">
-            <div className="perf-hero-card" style={{
-              boxShadow: `0 0 120px -40px ${trendColor}10, 0 30px 60px -15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)`
-            }}>
-              {/* ─ Animated shimmer accent ─ */}
-              <div className="h-[2px] perf-accent" style={{
-                background: `linear-gradient(90deg, transparent 0%, ${trendColor}30 20%, ${trendColor}aa 50%, ${trendColor}30 80%, transparent 100%)`,
-              }} />
-
-              {/* ─ Ambient radial glow ─ */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-44 pointer-events-none perf-glow" style={{
-                background: `radial-gradient(ellipse at 50% -30%, ${trendColor}0c, transparent 70%)`
-              }} />
-
-              <div className="relative px-4 pt-5 pb-4 sm:px-6">
+            <div className="surface">
+              <div className="px-4 pt-5 pb-4 sm:px-6">
                 {/* ── Primary Metrics ── */}
                 <div className="flex items-center justify-center gap-0 mb-4">
                   {/* MWR — left wing */}
                   <div className="flex-1 text-right pr-4 sm:pr-6" title="Money-Weighted Return (XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed; MWR < TWR = o contrário">
-                    <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-purple-400/60 mb-1">MWR</p>
-                    <p className={`text-lg sm:text-2xl font-extrabold tracking-tight leading-none ${mwrTotal >= 0 ? "text-purple-300" : "text-red-400"}`}>
+                    <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-zinc-500 mb-1">MWR</p>
+                    <p className={`text-xl sm:text-2xl font-semibold tabular-nums tracking-tight leading-none ${mwrTotal >= 0 ? "text-purple-300" : "text-red-400"}`}>
                       {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
                     </p>
                     <p className="text-[9px] text-zinc-600 mt-0.5">TIR {pct(mwrPct)}</p>
                   </div>
 
                   {/* TWR — hero centerpiece */}
-                  <div className="flex-shrink-0 text-center px-4 sm:px-8 relative" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
-                    <div className="absolute inset-0 rounded-2xl" style={{
-                      background: `radial-gradient(circle at 50% 60%, ${trendColor}06, transparent 70%)`
-                    }} />
-                    <p className="relative text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-bold mb-1.5" style={{ color: `${trendColor}80` }}>TWR</p>
-                    <p className="relative text-4xl sm:text-5xl font-black tracking-tighter leading-none" style={{
-                      background: `linear-gradient(180deg, #ffffff 20%, ${trendColor}cc 100%)`,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      filter: `drop-shadow(0 4px 24px ${trendColor}20)`,
-                    }}>
+                  <div className="flex-shrink-0 text-center px-4 sm:px-8" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
+                    <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-bold text-zinc-500 mb-1.5">TWR</p>
+                    <p className="text-4xl sm:text-5xl font-semibold tabular-nums tracking-tight leading-none" style={{ color: trendColor }}>
                       {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
                     </p>
-                    <p className="relative text-[10px] text-zinc-500 mt-1.5 font-medium tracking-wide">CAGR {pct(s.twrAnualizado * 100)}</p>
+                    <p className="text-[10px] text-zinc-500 mt-1.5 font-medium tracking-wide">CAGR {pct(s.twrAnualizado * 100)}</p>
                   </div>
 
                   {/* MTM — right wing */}
                   <div className="flex-1 pl-4 sm:pl-6" title="MTM (mark-to-market): variação de preço + proventos">
-                    <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-amber-400/60 mb-1">MTM</p>
-                    <p className={`text-lg sm:text-2xl font-extrabold tracking-tight leading-none ${ge >= 0 ? "text-amber-300" : "text-red-400"}`}>
+                    <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-zinc-500 mb-1">MTM</p>
+                    <p className={`text-xl sm:text-2xl font-semibold tabular-nums tracking-tight leading-none ${ge >= 0 ? "text-amber-300" : "text-red-400"}`}>
                       {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                     </p>
                     <p className="text-[9px] text-zinc-600 mt-0.5">
@@ -862,8 +842,8 @@ export default function PerformancePage() {
                   </div>
                 </div>
 
-                {/* ── Gradient separator ── */}
-                <div className="h-px bg-gradient-to-r from-transparent via-zinc-600/25 to-transparent" />
+                {/* ── Separator ── */}
+                <div className="divider-h" />
 
                 {/* ── Context strip ── */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3">
@@ -872,14 +852,13 @@ export default function PerformancePage() {
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {benchmarks.map(b => (
-                      <span key={b.label} className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] backdrop-blur-sm" style={{
-                        background: `linear-gradient(135deg, ${b.color}0a, ${b.color}04)`,
-                        border: `1px solid ${b.color}18`,
-                        boxShadow: `0 0 12px ${b.color}06`,
+                      <span key={b.label} className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px]" style={{
+                        background: `${b.color}0d`,
+                        border: `1px solid ${b.color}22`,
                       }}>
                         <span className="text-zinc-400 font-medium">{b.label}</span>
-                        <span className="font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
-                        <span className={`font-bold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        <span className="font-semibold tabular-nums" style={{ color: b.color }}>{pct(b.value * 100)}</span>
+                        <span className={`font-semibold tabular-nums ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                           α{b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
                         </span>
                       </span>
@@ -896,17 +875,17 @@ export default function PerformancePage() {
                   </div>
                 </div>
 
-                {/* ── Gradient separator ── */}
-                <div className="h-px bg-gradient-to-r from-transparent via-zinc-600/25 to-transparent" />
+                {/* ── Separator ── */}
+                <div className="divider-h" />
 
-                {/* ── Integrated Risk Dashboard ── */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-3">
+                {/* ── Risk Metrics Strip ── */}
+                <div className="kpi-strip mt-3">
                   {riskItems.map((r, i) => (
-                    <div key={i} className="perf-risk-cell px-2 py-2 text-center" title={r.title}>
+                    <div key={i} className="text-center" title={r.title}>
                       <p className="text-[7px] sm:text-[8px] text-zinc-500 uppercase tracking-wider font-bold mb-0.5 truncate">
                         {r.label}{r.sub ? <span className="text-zinc-600 normal-case font-normal"> ({r.sub})</span> : null}
                       </p>
-                      <p className="text-xs sm:text-sm font-bold text-zinc-200 leading-tight">{r.val}</p>
+                      <p className="text-xs sm:text-sm font-semibold tabular-nums text-zinc-200 leading-tight">{r.val}</p>
                       {r.badge && <div className="mt-1">{r.badge}</div>}
                     </div>
                   ))}
