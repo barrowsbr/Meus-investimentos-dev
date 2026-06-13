@@ -465,7 +465,7 @@ export async function GET(request: Request) {
       return setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true;
     }
 
-    const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro && !corretoraFiltro;
+    const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro;
     const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "" || !!corretoraFiltro;
     const transacoesF = filtroAtivo ? transacoesCorretora.filter(r => keepRvTicker(tickerOf(r))) : transacoesCorretora;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
@@ -475,10 +475,20 @@ export async function GET(request: Request) {
     const proventosF = filtroAtivo
       ? proventos.filter(r => keptBase.has(tickerBase(String(r["ticker"] ?? ""))))
       : proventos;
-    const fixaAbertaF = includeRF ? fixaAberta : [];
+    // fixa_aberta não tem coluna corretora — exclui quando filtro de corretora ativo
+    const fixaAbertaF = includeRF ? (corretoraFiltro ? [] : fixaAberta) : [];
+    // renda_fixa TEM coluna corretora — filtra por ela
+    const rfTransacoesF = includeRF
+      ? (corretoraFiltro
+          ? rfTransacoes.filter(r => {
+              const cor = String(r["corretora"] ?? "").trim();
+              return cor.toLowerCase() === corretoraFiltro.toLowerCase();
+            })
+          : rfTransacoes)
+      : [];
 
     const { navByDate: rfNavByDate, flowByDate: rfFlowByDate, navFxByDate: rfNavFxByDate, costBasisAtual: rfCostBasis } = includeRF
-      ? buildRfTimeline(rfTransacoes, fixaAberta, dates, alignedFx, cdiDiario)
+      ? buildRfTimeline(rfTransacoesF, fixaAbertaF, dates, alignedFx, cdiDiario)
       : { navByDate: {} as Record<string, number>, flowByDate: {} as Record<string, number>, navFxByDate: {} as Record<string, number>, costBasisAtual: 0 };
 
     const twr = calcularTWR({ transacoes: transacoesF, proventos: proventosF, dates, prices: alignedPrices, fxHistory: alignedFx, pmFx, rfNavByDate, rfFlowByDate, rfNavFxByDate, rfCostBasis });
