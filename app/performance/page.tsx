@@ -693,18 +693,14 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        // Seleção de fonte do MTM (documentada em CANONICO.md §5):
-        // 1. Visão geral BRL all-time → canônico do Resumo (mesmo número da DRE)
-        // 2. Filtro por ticker all-time → retornoTotal do snapshot (FIFO do ativo)
-        // 3. Demais (janelas, classes, USD) → ganho econômico do motor TWR
-        const useCanonical = isUnfiltered && !isUsd && ganhoCanonical != null;
-        const ge = useCanonical
-          ? ganhoCanonical
-          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
-        const geFonte = useCanonical ? "Resumo (canônico)" : useSnapshot ? "snapshot do ativo (FIFO)" : "motor TWR (GIPS)";
-        // Cross-check de confiabilidade: na visão geral, canônico e motor TWR
-        // devem contar a mesma história — divergência >10% indica problema de dado.
-        const geDivergePct = useCanonical && s.ganhoEconomico !== 0
+        // Seleção de fonte do MTM (CANONICO.md §5, revisado):
+        // Motor TWR = fund accounting: cada dia usa o FX de db_cotacoes daquele dia,
+        // meses passados ficam congelados (FX do último dia útil do período).
+        // Resumo usa FX de HOJE para tudo — recalcula retroativamente.
+        // O motor TWR é a fonte única; Resumo serve apenas de cross-check.
+        const ge = useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        const geFonte = useSnapshot ? "snapshot do ativo (FIFO)" : "motor TWR (GIPS)";
+        const geDivergePct = isUnfiltered && !isUsd && ganhoCanonical != null && s.ganhoEconomico !== 0
           ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
           : null;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
