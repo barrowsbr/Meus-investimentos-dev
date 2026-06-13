@@ -475,8 +475,14 @@ export async function GET(request: Request) {
     const proventosF = filtroAtivo
       ? proventos.filter(r => keptBase.has(tickerBase(String(r["ticker"] ?? ""))))
       : proventos;
-    // fixa_aberta não tem coluna corretora — exclui quando filtro de corretora ativo
-    const fixaAbertaF = includeRF ? (corretoraFiltro ? [] : fixaAberta) : [];
+    const fixaAbertaF = includeRF
+      ? (corretoraFiltro
+          ? fixaAberta.filter(r => {
+              const cor = String(r["corretora"] ?? "").trim();
+              return cor.toLowerCase() === corretoraFiltro.toLowerCase();
+            })
+          : fixaAberta)
+      : [];
     // renda_fixa TEM coluna corretora — filtra por ela
     const rfTransacoesF = includeRF
       ? (corretoraFiltro
