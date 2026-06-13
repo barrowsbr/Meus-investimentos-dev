@@ -359,10 +359,31 @@ export async function GET(request: Request) {
     // For windowed views, include 1 extra day BEFORE the window so the TWR
     // engine starts with prevNav > 0. Without it, day 1 is always forceZero
     // (prevNav=0) and any real market movement on that day is lost.
-    const isWindowed = lookback > 0 || fromParam || toParam;
-    const windowStart = (fromParam || toParam)
+    let windowStart = (fromParam || toParam)
       ? (fromParam || "0000")
       : lookback > 0 ? startDateFromLookback(lookback) : "0000";
+
+    // Filtro de corretora: recorta o grid de datas à primeira transação daquela
+    // corretora. Sem isso, db_cotacoes tem preços do ticker desde antes (ex: VOO
+    // desde 2023) e o grid inclui anos anteriores à abertura da conta.
+    let corretoraClipped = false;
+    if (corretoraFiltro && !fromParam && lookback === 0) {
+      let earliest = "9999";
+      for (const row of transacoesCorretora) {
+        const raw = String(row["data"] ?? row["date"] ?? "").trim();
+        let d = "";
+        const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (br) d = `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+        else if (/^\d{4}-\d{2}-\d{2}/.test(raw)) d = raw.slice(0, 10);
+        if (d && d < earliest) earliest = d;
+      }
+      if (earliest < "9999") {
+        windowStart = earliest;
+        corretoraClipped = true;
+      }
+    }
+    const isWindowed = lookback > 0 || fromParam || toParam || corretoraClipped;
+
     const allDates = hist.dates.filter(d => d <= (toParam || today()));
     let dates: string[];
     if (isWindowed) {
