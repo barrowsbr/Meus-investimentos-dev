@@ -32,7 +32,7 @@ interface Summary {
   totalInvestido: number;
   custoPosicoesAtuais?: number;
   patrimonio?: { total: number; rv: number; rf: number; caixa: number; divida?: number; net?: number; alavancagemPct?: number };
-  filtros?: { classe: string; setor: string; ticker: string; rvSetores: string[]; tickers: string[]; temCripto: boolean; temRF: boolean };
+  filtros?: { classe: string; setor: string; ticker: string; corretora: string; rvSetores: string[]; tickers: string[]; tickerSectors: Record<string, string>; corretoras: string[]; temCripto: boolean; temRF: boolean };
   duracaoAnos: number;
   primeiraData: string;
   ultimaData: string;
@@ -438,6 +438,7 @@ export default function PerformancePage() {
   const [setores, setSetores] = useState<string[]>([]);
   const setorQuery = setores.join(",");
   const [tickerFilter, setTickerFilter] = useState("");
+  const [corretoraFilter, setCorretoraFilter] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -472,7 +473,8 @@ export default function PerformancePage() {
       ? `from=${customFrom}&to=${customTo}`
       : `lookback=${lookback}`;
     const tickerQ = tickerFilter ? `&ticker=${encodeURIComponent(tickerFilter)}` : "";
-    fetch(withDataVersion(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setorQuery)}${tickerQ}`))
+    const corretoraQ = corretoraFilter ? `&corretora=${encodeURIComponent(corretoraFilter)}` : "";
+    fetch(withDataVersion(`${API_URL}/api/performance/advanced?${rangeQuery}&classe=${classe}&setor=${encodeURIComponent(setorQuery)}${tickerQ}${corretoraQ}`))
       .then(r => r.json())
       .then(body => {
         if (cancelled) return;
@@ -482,7 +484,7 @@ export default function PerformancePage() {
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [lookback, classe, setorQuery, tickerFilter, customMode, customFrom, customTo]);
+  }, [lookback, classe, setorQuery, tickerFilter, corretoraFilter, customMode, customFrom, customTo]);
 
   useEffect(() => {
     fetch(withDataVersion(`${API_URL}/api/twr/decomposicao`))
@@ -628,7 +630,7 @@ export default function PerformancePage() {
         </span>
       </div>
 
-      {/* ── Filtro por classe / setor / ativo ── */}
+      {/* ── Filtro por classe / setor / ativo / corretora ── */}
       {(() => {
         const f = data?.summary.filtros;
         if (!f) return null;
@@ -638,6 +640,24 @@ export default function PerformancePage() {
           { id: "rf", label: "Renda Fixa", show: f.temRF },
           { id: "cripto", label: "Cripto", show: f.temCripto },
         ];
+        const ts = f.tickerSectors;
+        const filteredTickers = (f.tickers ?? []).filter(t => {
+          if (!ts) return true;
+          const setor = ts[t];
+          if (!setor) return true;
+          const isCripto = setor === "Cripto";
+          const isRF = ["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"].includes(setor);
+          const isRFPrec = setor === "Renda Fixa USD";
+          if (classe === "cripto") return isCripto;
+          if (classe === "rf") return isRFPrec;
+          if (classe === "rv") {
+            if (isCripto || isRF) return false;
+            if (setores.length > 0) return setores.includes(setor);
+            return true;
+          }
+          if (setores.length > 0) return setores.includes(setor);
+          return true;
+        });
         return (
           <div className="mb-6 space-y-2">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -660,8 +680,25 @@ export default function PerformancePage() {
                 }`}
               >
                 <option value="">Todos os ativos</option>
-                {(f.tickers ?? []).map(t => <option key={t} value={t}>{t}</option>)}
+                {filteredTickers.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
+              {(f.corretoras ?? []).length > 1 && (
+                <>
+                  <span className="text-zinc-700 mx-1">|</span>
+                  <select
+                    value={corretoraFilter}
+                    onChange={e => setCorretoraFilter(e.target.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold outline-none transition-all ${
+                      corretoraFilter
+                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                        : "bg-zinc-900/60 text-zinc-400 border border-zinc-800/50"
+                    }`}
+                  >
+                    <option value="">Todas corretoras</option>
+                    {f.corretoras.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </>
+              )}
             </div>
             {classe === "rv" && !tickerFilter && f.rvSetores.length > 1 && (
               <div className="flex flex-wrap items-center gap-1">
@@ -690,7 +727,7 @@ export default function PerformancePage() {
       {(() => {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
-        const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
+        const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
         // Seleção de fonte do MTM (CANONICO.md §5, revisado):
@@ -1067,7 +1104,7 @@ export default function PerformancePage() {
                   { label: (lookback === 0 && !customMode) ? "Investido" : "NAV inicial", value: compactCurr((lookback === 0 && !customMode) ? ((tickerFilter && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) : s.navInicial) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
-                    const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
+                    const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
                     const isAllT = lookback === 0 && !customMode;
                     const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
                     const ge = isUnfiltered && !isUsd && ganhoCanonical != null
