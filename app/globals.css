@@ -29,49 +29,29 @@ body {
 @layer components {
   /* Base glass card for charts and content sections */
   .glass-card {
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     background: rgba(20, 22, 32, 0.85);
     border: 1px solid rgba(75, 82, 100, 0.55);
-    border-radius: 1rem;
+    border-radius: 6px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.07),
       0 10px 34px rgba(0, 0, 0, 0.30);
-    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    transition: box-shadow 0.25s ease;
   }
   .glass-card:hover {
-    border-color: rgba(212, 165, 116, 0.24);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.10),
-      0 14px 42px rgba(0, 0, 0, 0.38);
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 12px 36px rgba(0, 0, 0, 0.34);
   }
 
-  /* Glow emanation from top of metric cards */
+  /* Glow emanation from top of metric cards — removed pseudo-elements for cleaner terminal style */
   .metric-glow {
     position: relative;
     overflow: hidden;
   }
-  .metric-glow::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 15%;
-    right: 15%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--glow-color, #d4a574), transparent);
-    opacity: 0.55;
-  }
-  .metric-glow::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 80px;
-    background: radial-gradient(ellipse at 50% -10%, var(--glow-color, #d4a574), transparent 68%);
-    opacity: 0.055;
-    pointer-events: none;
-  }
+  /* .metric-glow::before and .metric-glow::after removed: were adding 80px radial gradients
+     and shimmer lines that created visual noise on metric cards. */
 
   /* Sidebar metallic brushed-vertical texture */
   .sidebar-metallic {
@@ -111,10 +91,52 @@ body {
   }
 
   .stat-label {
-    @apply text-[10px] text-zinc-500 uppercase tracking-wider font-medium;
+    @apply text-[11px] text-zinc-500 uppercase font-medium;
+    letter-spacing: 0.08em;
   }
   .stat-value {
     @apply text-lg font-bold text-zinc-100;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ─── New structural containers ─── */
+
+  /* Flush panel — no blur, no shadow, use where glass-card is too heavy */
+  .surface {
+    background: rgba(13, 14, 20, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+  }
+
+  /* Subtle inset — for nested content regions */
+  .well {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+  }
+
+  /* Horizontal metric bar — items share a single bordered container */
+  .kpi-strip {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: rgba(13, 14, 20, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .kpi-strip > * {
+    flex: 1;
+    padding: 10px 14px;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .kpi-strip > *:last-child {
+    border-right: none;
+  }
+
+  /* Hairline horizontal separator */
+  .divider-h {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -237,42 +259,6 @@ body {
   z-index: 2;
 }
 
-/* ─── Performance Hero ─── */
-@keyframes heroShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes heroGlow {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 0.9; }
-}
-
-.perf-accent {
-  background-size: 200% 100%;
-  animation: heroShimmer 4s ease-in-out infinite;
-}
-
-.perf-glow {
-  animation: heroGlow 5s ease-in-out infinite;
-}
-
-.perf-hero-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(75, 82, 100, 0.3);
-  background: linear-gradient(150deg, rgba(16,18,30,0.97) 0%, rgba(10,12,18,0.99) 40%, rgba(14,16,26,0.97) 100%);
-}
-
-.perf-risk-cell {
-  background: rgba(255,255,255,0.012);
-  border-radius: 0.5rem;
-  transition: background 0.2s ease;
-}
-.perf-risk-cell:hover {
-  background: rgba(255,255,255,0.04);
-}
 
 .holo-scanlines::after {
   content: "";
@@ -296,3 +282,4 @@ body {
   background: linear-gradient(90deg, transparent, rgba(212,165,116,0.2), transparent);
   margin: 0.5rem 0;
 }
+
