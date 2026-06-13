@@ -793,114 +793,117 @@ export default function PerformancePage() {
           ? s.resultadoTotalPct
           : pctBase > 0 ? (ge / pctBase) * 100 : 0;
 
+        const rfPct = ((s.riskFreeRate ?? 0.10) * 100).toFixed(0);
+        const benchmarks = [
+          { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
+          { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
+          ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
+        ];
+
         return (
-          <div className="glass-card p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
-            {/* 3 main metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 pb-5 border-b border-zinc-800/40">
-              <div title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">TWR Acumulado</p>
-                <p className="text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: trendColor }}>
+          <div className="glass-card p-4 sm:p-5 mb-4 animate-fade-in" style={{ borderColor: `${trendColor}15` }}>
+            {/* Row 1: Three primary metrics — compact columns with dividers */}
+            <div className="grid grid-cols-3 gap-0 mb-3 pb-3 border-b border-zinc-800/30">
+              <div className="pr-3" title="Time-Weighted Return: encadeia os retornos diários neutralizando o efeito do tamanho e timing dos aportes — é a métrica comparável a índices">
+                <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">TWR</p>
+                <p className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight" style={{ color: trendColor }}>
                   {twrPct >= 0 ? "+" : ""}{twrPct.toFixed(2)}%
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">CAGR {pct(s.twrAnualizado * 100)} a.a.</p>
+                <p className="text-[9px] text-zinc-600">CAGR {pct(s.twrAnualizado * 100)}</p>
               </div>
-              <div title="Money-Weighted Return (XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed (mais capital nos períodos bons); MWR < TWR = o contrário. Compare a TIR a.a. com o CAGR do TWR — o acumulado projeta a TIR sobre o período inteiro. Verificação independente: /api/debug/auditoria → mwrVerificacao">
-                <p className="text-[10px] text-purple-400/70 uppercase tracking-wider font-semibold mb-1">MWR Acumulado</p>
-                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${mwrTotal >= 0 ? "text-purple-400" : "text-red-400"}`}>
+              <div className="px-3 border-l border-zinc-800/30" title="Money-Weighted Return (XIRR): retorno ponderado pelo dinheiro investido. MWR > TWR = aportes bem-timed; MWR < TWR = o contrário">
+                <p className="text-[9px] text-purple-400/60 uppercase tracking-wider font-semibold mb-0.5">MWR</p>
+                <p className={`text-xl sm:text-2xl font-extrabold tracking-tight leading-tight ${mwrTotal >= 0 ? "text-purple-400" : "text-red-400"}`}>
                   {mwrTotal >= 0 ? "+" : ""}{mwrTotal.toFixed(2)}%
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">TIR {pct(mwrPct)} a.a.</p>
+                <p className="text-[9px] text-zinc-600">TIR {pct(mwrPct)}</p>
               </div>
-              <div title="MTM (mark-to-market) amplo: variação de preço (não realizada + realizada) + proventos — canônico do Resumo. Obs.: no extrato IBKR o MTM estrito exclui dividendos (listados à parte)">
-                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">MTM</p>
-                <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
+              <div className="pl-3 border-l border-zinc-800/30" title="MTM (mark-to-market): variação de preço + proventos">
+                <p className="text-[9px] text-amber-400/60 uppercase tracking-wider font-semibold mb-0.5">MTM</p>
+                <p className={`text-xl sm:text-2xl font-extrabold tracking-tight leading-tight ${ge >= 0 ? "text-amber-400" : "text-red-400"}`}>
                   {ge >= 0 ? "+" : ""}{compactCurr(ge)}
                 </p>
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(2)}% sobre {compactCurr(pctBase)}
+                <p className="text-[9px] text-zinc-600">
+                  {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(1)}%{" / "}{compactCurr(pctBase)}
                 </p>
-                <p className="text-[9px] text-zinc-600 mt-0.5">fonte: {geFonte}</p>
                 {geDivergePct != null && geDivergePct > 10 && (
-                  <p className="text-[9px] text-amber-500/80 mt-0.5" title="O valor canônico do Resumo e o ganho econômico do motor TWR divergem — verifique os Avisos de dados no fim da página">
-                    ⚠ diverge {geDivergePct.toFixed(0)}% do motor TWR
-                  </p>
+                  <p className="text-[8px] text-amber-500/70" title="Diverge do motor TWR — veja Avisos de dados">⚠ diverge {geDivergePct.toFixed(0)}%</p>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5">
-              {/* Left: Benchmarks + details */}
-              <div>
-                <div className="flex items-center gap-4 text-xs text-zinc-500 mb-3">
-                  <span>{formatDuracao(s.duracaoAnos)}</span>
-                  <span className="text-zinc-700">·</span>
-                  <span>{formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
-                    { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
-                    ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
-                  ].map(b => (
-                    <div key={b.label} className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: `${b.color}10`, border: `1px solid ${b.color}20` }}>
-                      <span className="text-[10px] text-zinc-500">{b.label}</span>
-                      <span className="text-xs font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
-                      <span className={`text-[10px] font-semibold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        α {b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {/* Row 2: Context bar — duration, benchmarks, patrimônio in one line */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[10px] text-zinc-500">
+                {formatDuracao(s.duracaoAnos)} · {formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}
+              </span>
+              <span className="text-zinc-800 hidden sm:inline">|</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {benchmarks.map(b => (
+                  <span key={b.label} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px]" style={{ background: `${b.color}0c`, border: `1px solid ${b.color}18` }}>
+                    <span className="text-zinc-500">{b.label}</span>
+                    <span className="font-bold" style={{ color: b.color }}>{pct(b.value * 100)}</span>
+                    <span className={`font-semibold ${b.alpha >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      α{b.alpha >= 0 ? "+" : ""}{(b.alpha * 100).toFixed(1)}%
+                    </span>
+                  </span>
+                ))}
               </div>
-
-              {/* Right: Patrimônio — Net = bruto − dívida de margin (Net liq da corretora) */}
-              <div className="flex flex-col gap-3 lg:border-l lg:border-zinc-800/50 lg:pl-5 min-w-[180px]">
-                <div>
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">
-                    Patrimônio{(s.patrimonio?.divida ?? 0) > 0 ? " (Net)" : ""}
-                  </p>
-                  <p className="text-xl font-bold text-zinc-100">{compactCurr(s.patrimonio?.net ?? navAtual)}</p>
-                  {(s.patrimonio?.divida ?? 0) > 0 && (
-                    <p className="text-[10px] text-zinc-500 mt-0.5">
-                      Bruto {compactCurr(navAtual)}<br />
-                      <span className="text-red-400/80">Margin −{compactCurr(s.patrimonio!.divida!)}</span>{" "}
-                      <span className="text-amber-400/80">({(s.patrimonio!.alavancagemPct ?? 0).toFixed(1)}%)</span>
-                    </p>
-                  )}
-                </div>
+              <div className="ml-auto flex items-center gap-2 group relative" title={`Patrimônio${(s.patrimonio?.divida ?? 0) > 0 ? " líquido (bruto " + compactCurr(navAtual) + " − margin " + compactCurr(s.patrimonio!.divida!) + ")" : ""}`}>
+                <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">
+                  Patrimônio{(s.patrimonio?.divida ?? 0) > 0 ? " Net" : ""}
+                </span>
+                <span className="text-sm font-bold text-zinc-100">{compactCurr(s.patrimonio?.net ?? navAtual)}</span>
+                {(s.patrimonio?.divida ?? 0) > 0 && (
+                  <span className="text-[9px] text-amber-400/70">({(s.patrimonio!.alavancagemPct ?? 0).toFixed(1)}%)</span>
+                )}
               </div>
             </div>
           </div>
         );
       })()}
 
-      {/* ── Risk Metrics ── */}
+      {/* ── Risk Metrics — compact single-card strip ── */}
       {(() => {
         const rfPct = ((s.riskFreeRate ?? 0.10) * 100).toFixed(0);
-        const metrics = [
-          { label: "Volatilidade", value: `${(s.volatility * 100).toFixed(1)}%`, tip: "Desvio padrão anualizado dos retornos diários. Mede a dispersão — quanto mais alto, mais o portfólio oscila.",
-            badge: <RatingBadge value={-(s.volatility * 100)} thresholds={[-30, -20, -10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} /> },
-          { label: "Max Drawdown", value: `${s.maxDrawdown.toFixed(1)}%`, tip: "Maior queda do pico ao vale no período. Mede o pior cenário histórico de perda.",
-            badge: <RatingBadge value={s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} /> },
-          { label: `Sharpe (rf ${rfPct}%)`, value: s.sharpe.toFixed(2), tip: `Retorno excedente sobre a taxa livre de risco (${rfPct}% a.a.) ÷ volatilidade. Negativo = rendeu menos que renda fixa ajustado pelo risco.`,
-            badge: <RatingBadge value={s.sharpe} thresholds={[0, 0.5, 1]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} /> },
-          { label: `Sortino (rf ${rfPct}%)`, value: s.sortino.toFixed(2), tip: `Similar ao Sharpe, mas só penaliza volatilidade negativa (quedas). Retorno excedente (${rfPct}% a.a.) ÷ downside deviation.`,
-            badge: <RatingBadge value={s.sortino} thresholds={[0, 0.7, 1.5]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} /> },
-          { label: "VaR 95%", value: `${s.var95.toFixed(2)}%`, tip: "Value at Risk: em 95% dos dias, a perda diária não ultrapassou este valor.", badge: null },
-          { label: "VaR 99%", value: `${s.var99.toFixed(2)}%`, tip: "Value at Risk: em 99% dos dias, a perda diária não ultrapassou este valor.", badge: null },
-        ];
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-            {metrics.map(m => (
-              <div key={m.label} className="glass-card p-4 group relative">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">{m.label}</p>
-                <p className="text-xl font-bold text-zinc-100 mb-1">{m.value}</p>
-                {m.badge}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[10px] text-zinc-300 leading-relaxed w-56 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50" style={{ background: "rgba(10,10,18,0.95)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
-                  {m.tip}
-                </div>
+          <div className="glass-card mb-4 overflow-hidden">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 divide-x divide-zinc-800/30">
+              {/* Volatilidade */}
+              <div className="p-3 group relative" title="Desvio padrão anualizado dos retornos diários">
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Volatilidade</p>
+                <p className="text-base font-bold text-zinc-100">{(s.volatility * 100).toFixed(1)}%</p>
+                <RatingBadge value={-(s.volatility * 100)} thresholds={[-30, -20, -10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} />
               </div>
-            ))}
+              {/* Max Drawdown */}
+              <div className="p-3 group relative" title="Maior queda do pico ao vale no período">
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Max Drawdown</p>
+                <p className="text-base font-bold text-zinc-100">{s.maxDrawdown.toFixed(1)}%</p>
+                <RatingBadge value={s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} />
+              </div>
+              {/* Sharpe */}
+              <div className="p-3 group relative" title={`Retorno excedente sobre rf (${rfPct}% a.a.) ÷ volatilidade`}>
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Sharpe <span className="text-zinc-600 normal-case">(rf {rfPct}%)</span></p>
+                <p className="text-base font-bold text-zinc-100">{s.sharpe.toFixed(2)}</p>
+                <RatingBadge value={s.sharpe} thresholds={[0, 0.5, 1]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} />
+              </div>
+              {/* Sortino */}
+              <div className="p-3 group relative" title={`Similar ao Sharpe, mas só penaliza volatilidade negativa (rf ${rfPct}% a.a.)`}>
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Sortino <span className="text-zinc-600 normal-case">(rf {rfPct}%)</span></p>
+                <p className="text-base font-bold text-zinc-100">{s.sortino.toFixed(2)}</p>
+                <RatingBadge value={s.sortino} thresholds={[0, 0.7, 1.5]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} />
+              </div>
+              {/* VaR 95% */}
+              <div className="p-3" title="Value at Risk: em 95% dos dias, a perda diária não ultrapassou este valor">
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">VaR 95%</p>
+                <p className="text-base font-bold text-zinc-100">{s.var95.toFixed(2)}%</p>
+              </div>
+              {/* VaR 99% */}
+              <div className="p-3" title="Value at Risk: em 99% dos dias, a perda diária não ultrapassou este valor">
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">VaR 99%</p>
+                <p className="text-base font-bold text-zinc-100">{s.var99.toFixed(2)}%</p>
+              </div>
+            </div>
           </div>
         );
       })()}

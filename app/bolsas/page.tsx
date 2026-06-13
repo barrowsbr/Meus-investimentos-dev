@@ -1707,24 +1707,27 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
   }, [index.country]);
 
   interface CountryIndicator { id: string; label: string; format: string; value: number; year: number }
-  const [countryTeSlug, setCountryTeSlug] = useState<string | null>(null);
+  const [countryTeUrl, setCountryTeUrl] = useState<string | null>(null);
   const [countryIndicators, setCountryIndicators] = useState<CountryIndicator[]>([]);
   const [countryCurrency, setCountryCurrency] = useState<string | null>(null);
   const [countryFx, setCountryFx] = useState<{ vsUSD: number | null; vsBRL: number | null } | null>(null);
   const [countryLoading, setCountryLoading] = useState(false);
 
   useEffect(() => {
-    if (isCustom || !index.country) { setCountryTeSlug(null); setCountryIndicators([]); setCountryFx(null); return; }
+    if (isCustom || !index.country) { setCountryTeUrl(null); setCountryIndicators([]); setCountryFx(null); return; }
+    setCountryTeUrl(null);
+    setCountryIndicators([]);
+    setCountryFx(null);
     setCountryLoading(true);
     fetch(`/api/bolsas/country?country=${encodeURIComponent(index.country)}`)
       .then(r => r.json())
       .then(d => {
-        setCountryTeSlug(d.teSlug ?? null);
+        setCountryTeUrl(d.teUrl ?? null);
         setCountryIndicators(d.indicators ?? []);
         setCountryCurrency(d.currency ?? null);
         setCountryFx(d.exchangeRate ?? null);
       })
-      .catch(() => { setCountryTeSlug(null); setCountryIndicators([]); setCountryFx(null); })
+      .catch(() => { setCountryTeUrl(null); setCountryIndicators([]); setCountryFx(null); })
       .finally(() => setCountryLoading(false));
   }, [index.country, isCustom]);
 
@@ -1782,9 +1785,9 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
             <ExternalLink size={11} />
             Yahoo Finance
           </a>
-          {countryTeSlug && (
+          {countryTeUrl && (
             <a
-              href={`https://tradingeconomics.com/${countryTeSlug}`}
+              href={countryTeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25"
@@ -2081,9 +2084,9 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
               <Landmark size={11} />
               {index.flag} Indicadores Econômicos — {index.country}
             </span>
-            {countryTeSlug && (
+            {countryTeUrl && (
               <a
-                href={`https://tradingeconomics.com/${countryTeSlug}/indicators`}
+                href={`${countryTeUrl}/indicators`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[9px] text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"

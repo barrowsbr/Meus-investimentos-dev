@@ -321,13 +321,33 @@ export async function GET(request: Request) {
         })
       : transacoes;
 
+    // Quando filtro de corretora ativo, restringe tickerMeta aos tickers daquela
+    // corretora — assim fetchHistoricalData busca apenas os ativos relevantes e
+    // o grid de datas começa no primeiro dado da corretora (não de todas).
+    const tickerMetaFiltered = corretoraFiltro
+      ? (() => {
+          const m = new Map<string, { moeda: string; corretora: string }>();
+          for (const row of transacoesCorretora) {
+            const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
+            if (!ticker) continue;
+            if (!m.has(ticker)) {
+              m.set(ticker, {
+                moeda: String(row["moeda"] ?? "BRL").toUpperCase().trim(),
+                corretora: String(row["corretora"] ?? "").trim(),
+              });
+            }
+          }
+          return m;
+        })()
+      : tickerMeta;
+
     // tickerSectors: setor de cada ticker para filtro no frontend
     const tickerSectors: Record<string, string> = {};
-    for (const tk of tickerMeta.keys()) {
+    for (const tk of tickerMetaFiltered.keys()) {
       tickerSectors[tk] = identificarSetor(tk);
     }
 
-    const tickerList = [...tickerMeta.entries()].map(([ticker, info]) => ({ ticker, ...info }));
+    const tickerList = [...tickerMetaFiltered.entries()].map(([ticker, info]) => ({ ticker, ...info }));
     // Custom date range (from/to) overrides lookback. Fetch full history when a
     // custom 'from' is given so the window is fully covered.
     const fetchLookback = (fromParam || toParam) ? 0 : (lookback > 0 ? lookback + 10 : 0);
@@ -505,7 +525,7 @@ export async function GET(request: Request) {
     // Usa o último preço conhecido da golden source por ticker (mesmo cálculo do
     // Resumo), garantindo um único patrimônio consistente entre as páginas.
     const goldenQuotes: Record<string, { price: number; change: number; changePercent: number; currency: string; name: string }> = {};
-    for (const [ticker, meta] of tickerMeta) {
+    for (const [ticker, meta] of tickerMetaFiltered) {
       const arr = hist.prices[ticker];
       if (!arr) continue;
       let last: number | null = null;
@@ -644,7 +664,7 @@ export async function GET(request: Request) {
     // Does the filtered portfolio have any foreign currency exposure?
     const hasForexExposure = (() => {
       for (const tk of keptTickers) {
-        const meta = tickerMeta.get(tk);
+        const meta = tickerMetaFiltered.get(tk);
         if (meta && meta.moeda !== "BRL") return true;
       }
       if (includeRF) {
@@ -1086,7 +1106,7 @@ export async function GET(request: Request) {
           ticker: tickerFiltro,
           corretora: corretoraFiltro,
           rvSetores: [...rvSetores].sort(),
-          tickers: [...tickerMeta.keys()].sort(),
+          tickers: [...tickerMetaFiltered.keys()].sort(),
           tickerSectors,
           corretoras: [...corretoras].sort(),
           temCripto,
