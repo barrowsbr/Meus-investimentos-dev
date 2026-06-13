@@ -345,6 +345,75 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
     expect(navFxByDate[last]).toBeCloseTo(navByDate[last], 4);
     expect(navFxByDate[last]).toBeGreaterThan(4900);
   });
+
+  // Grid com TODOS os dias corridos (cripto cota sáb/dom) — é o grid real do
+  // db_cotacoes. A regressão: taxa por dia útil aplicada em dias corridos
+  // estourava o alvo e deixava resíduo fantasma após o resgate.
+  const calendarDays = (start: string, end: string): string[] => {
+    const out: string[] = [];
+    const d = new Date(start + "T12:00:00Z");
+    const e = new Date(end + "T12:00:00Z");
+    while (d <= e) {
+      out.push(d.toISOString().split("T")[0]);
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  };
+  const rfVenda = (ticker: string, valor: number, data: string, moeda = "BRL") =>
+    ({ ticker, tipo: "Venda", valor, compra: data, moeda } as Record<string, unknown>);
+  const rfImposto = (ticker: string, valor: number, data: string, moeda = "BRL") =>
+    ({ ticker, tipo: "Imposto", valor, compra: data, moeda } as Record<string, unknown>);
+
+  it("posição encerrada: NAV zera no resgate e NÃO deixa resíduo fantasma", () => {
+    const dates = calendarDays("2025-01-02", "2025-12-30");
+    const txs = [
+      rfCompra("CDB Banco X", 10000, "2025-01-02"),
+      rfVenda("CDB Banco X", 11000, "2025-06-16"),
+    ];
+    const { navByDate, flowByDate } = buildRfTimeline(txs, [], dates, fxHist(dates));
+    // Após o resgate total, NAV = 0 para sempre (nada de acruar fantasma)
+    expect(navByDate["2025-06-17"]).toBe(0);
+    expect(navByDate[dates[dates.length - 1]]).toBe(0);
+    // Caminho até a venda não estoura o valor resgatado (taxa por dia útil
+    // aplicada só em dias úteis, mesmo com grid de dias corridos)
+    expect(navByDate["2025-06-13"]).toBeLessThan(11000 * 1.01);
+    // Ganho econômico da posição = Σflows = −(venda − compra) = −1000
+    const flows = Object.values(flowByDate).reduce((s, v) => s + v, 0);
+    expect(flows).toBeCloseTo(-1000, 0);
+  });
+
+  it("imposto no resgate reduz o flow de saída (retorno líquido de IR)", () => {
+    const dates = calendarDays("2025-01-02", "2025-08-29");
+    const txs = [
+      rfCompra("CDB Banco X", 10000, "2025-01-02"),
+      rfVenda("CDB Banco X", 11000, "2025-06-16"),
+      rfImposto("CDB Banco X", 200, "2025-06-16"),
+    ];
+    const { navByDate, flowByDate } = buildRfTimeline(txs, [], dates, fxHist(dates));
+    // Flow líquido do dia do resgate = −(11000 − 200)
+    expect(flowByDate["2025-06-16"]).toBeCloseTo(-10800, 0);
+    // Ganho econômico = 800 (líquido de IR), igual ao canônico do Resumo
+    const flows = Object.values(flowByDate).reduce((s, v) => s + v, 0);
+    expect(flows).toBeCloseTo(-800, 0);
+    expect(navByDate[dates[dates.length - 1]]).toBe(0);
+  });
+
+  it("grid com fins de semana: caminho da taxa implícita atinge o saldo sem overshoot", () => {
+    const dates = calendarDays("2025-01-02", "2025-06-30");
+    const txs = [rfCompra("CDB Banco X", 10000, "2025-01-02")];
+    const { navByDate } = buildRfTimeline(
+      txs, [aberta("CDB Banco X", 10500, "2025-06-30")], dates, fxHist(dates),
+    );
+    const last = dates[dates.length - 1];
+    expect(navByDate[last]).toBeCloseTo(10500, -1);
+    // Em nenhum dia o NAV passa do saldo manual além de tolerância mínima —
+    // antes o overshoot chegava perto do true-up e caía num degrau no fim.
+    for (const d of dates) {
+      expect(navByDate[d]).toBeLessThan(10500 * 1.005);
+    }
+    // Fim de semana não acrua (taxa é por dia útil)
+    expect(navByDate["2025-03-09"]).toBeCloseTo(navByDate["2025-03-07"], 6); // sáb/dom = sexta
+  });
 });
 
 // ── Benchmark CDI com série real do BCB ──────────────────────────────────────
