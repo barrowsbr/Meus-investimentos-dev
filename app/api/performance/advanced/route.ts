@@ -702,11 +702,13 @@ export async function GET(request: Request) {
     });
 
     // Meses fechados usam valor travado (imutável); mês corrente é sempre dinâmico.
-    // Os valores travados são da CARTEIRA COMPLETA — em views filtradas
-    // (classe/setor/ticker) o merge mostraria retornos de outra carteira, então
-    // o lock só se aplica sem filtros de ativo.
-    const isUnfiltered = !tickerFiltro && classe === "tudo" && setoresFiltro.size === 0;
-    const lockedMonths = isUnfiltered ? await readLockedMonthly() : [];
+    // Os valores travados são da CARTEIRA COMPLETA ALL-TIME — em views com janela
+    // de tempo (YTD, 1A, custom) ou filtros de ativo, o motor TWR roda sobre um
+    // subconjunto e os fatores encadeados são diferentes; aplicar os travados
+    // causaria divergência com o TWR acumulado do card principal.
+    const isAllTimeUnfiltered = !tickerFiltro && classe === "tudo" && setoresFiltro.size === 0
+      && lookback === 0 && !fromParam && !toParam;
+    const lockedMonths = isAllTimeUnfiltered ? await readLockedMonthly() : [];
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // Monthly MTM snapshots — R$ gain per month using period-end prices/FX
@@ -990,7 +992,7 @@ export async function GET(request: Request) {
     })();
 
     // Trava retornos mensais de meses já fechados (fire-and-forget)
-    const isFullView = isUnfiltered && !fromParam && !toParam;
+    const isFullView = isAllTimeUnfiltered;
     if (isFullView) {
       // Janela com lookback corta o primeiro mês no meio — esse mês de
       // fronteira é PARCIAL e nunca pode ser travado como retorno do mês.
