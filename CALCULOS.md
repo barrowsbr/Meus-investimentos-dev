@@ -1149,6 +1149,7 @@ solveImpliedRate (Newton-Raphson):
    o bruto, ex.: withholding de 30% dos EUA). Já o canônico/DRE mostra lucro
    líquido de IR — são perguntas diferentes (habilidade da carteira vs
    dinheiro no bolso) e a diferença é quantificada no `mtm-recon`.
+   Régua completa de custos/impostos: **§27**.
 8. **Hard-close**: posição sem saldo manual cujos resgates ≥ 95% das compras
    é encerrada — o NAV é forçado a 0 a partir da última venda (a menos que
    exista compra posterior, i.e. reaplicação). Garante GE da posição =
@@ -1164,6 +1165,57 @@ motor bruto vs DRE líquida). Esperado: componente RF ≈ Σ IR de resgates e
 divergência total ≲ 6–7% (só os efeitos estruturais; aferido em 5,9% em
 13/06/2026). Componente grande além disso aponta ONDE os dados/motores
 divergem — o aviso âmbar da UI dispara em >10%.
+
+---
+
+## 27. Régua do retorno — custos e impostos (convenção de fundo / GIPS)
+
+> Decisão do dono (13/06/2026), após medir que descontar o IR de resgate do
+> retorno distorcia o TWR mais do que medi-lo bruto. A régua abaixo é a de um
+> **gestor de fundo profissional** (GIPS) e vale para TODO o motor de
+> performance (`lib/twr-engine.ts`).
+
+### A régua
+
+| Custo | No retorno (TWR/MWR)? | Por quê |
+|-------|------------------------|---------|
+| **Corretagem / custos de transação** (`taxa de corretagem` em `meus_ativos`) | **Desconta** | GIPS obrigatório: é custo da carteira — entra no flow da compra/venda e vira drag no retorno do dia |
+| **IR na fonte sobre proventos** (`decisao=IMPOSTO` em `meus_proventos`, ex.: withholding 30% EUA, IR de JCP) | **Desconta** (income negativo) | O caixa nunca recebe o bruto — o que entra na carteira já é líquido |
+| **IR sobre ganho de capital no resgate** (linhas `Imposto` em `renda_fixa`) | **NÃO desconta** (carteira bruta) | Imposto sobre ganho é do **investidor**, não da carteira. Um fundo não paga IR ao resgatar CDB — acrua e resgata bruto; o IR acontece na "conta do cotista" |
+
+### Por que NÃO descontar o IR de resgate (a lição aprendida)
+
+O TWR dá o mesmo peso a cada dia, independente do tamanho da carteira. Um
+evento de IR de **R$ 109** num resgate de fev/2022, quando a carteira tinha
+**R$ 7 mil**, vira **−1,5% num dia** — e o TWR compõe isso para sempre.
+Medido com dados reais: **8,4 dos 8,6pp** de queda do TWR (72,8% → 64,2%)
+vinham só dos IRs de resgate descontados como "perda" da carteira. O imposto
+é real, mas é evento do investidor — no retorno da carteira ele é ruído de
+timing, não habilidade.
+
+Consequência documentada: o **TWR é bruto de IR de resgate** e a **DRE/Resumo
+é líquida** (lucro = venda − compra − imposto). Não é inconsistência — são
+perguntas diferentes ("a carteira rendeu?" vs "quanto sobrou no bolso?"). A
+diferença é quantificada como efeito conhecido no `GET /api/debug/mtm-recon`
+(`irResgateRfMotorBrutoVsCanonicoLiquido`).
+
+Bônus da régua: o benchmark CDI do gráfico também é bruto de IR — a
+comparação carteira × CDI fica maçã com maçã.
+
+### TWR × MWR — qual número responde qual pergunta
+
+| Pergunta | Métrica | Onde ver |
+|----------|---------|----------|
+| "Minha seleção de ativos foi boa? Bati o benchmark?" | **TWR** (peso igual por dia, ignora timing dos aportes) | Performance, toggle TWR |
+| "**O MEU dinheiro** rendeu acima do CDI?" | **MWR/XIRR** (pondera pelo capital investido em cada momento) | Performance, toggle MWR |
+
+Exemplo real desta carteira (medido em 13/06/2026, grid nov/2021→jun/2026):
+TWR 72,6% (12,7% a.a.) vs CDI 77,2% — a estratégia empatou com o IBOV e ficou
+um pouco abaixo de um CDI excepcional (juros 13–15%). Mas o **MWR foi 16,3%
+a.a., acima do CDI**: havia pouco capital no ano ruim (2022: carteira +0,1%
+vs CDI +13%) e os aportes grandes pegaram 2023/2025 bons. As duas leituras
+são verdadeiras ao mesmo tempo; para "estou ganhando do CDI?", a resposta
+está no MWR.
 
 ---
 
