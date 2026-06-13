@@ -434,7 +434,7 @@ export default function PerformancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lookback, setLookback] = useState(0);
-  const [classe, setClasse] = useState<"tudo" | "rv" | "rf" | "cripto">("tudo");
+  const [classe, setClasse] = useState<"tudo" | "rv" | "rf">("tudo");
   const [setores, setSetores] = useState<string[]>([]);
   const setorQuery = setores.join(",");
   const [tickerFilter, setTickerFilter] = useState("");
@@ -638,20 +638,17 @@ export default function PerformancePage() {
           { id: "tudo", label: "Tudo", show: true },
           { id: "rv", label: "Renda Variável", show: f.rvSetores.length > 0 },
           { id: "rf", label: "Renda Fixa", show: f.temRF },
-          { id: "cripto", label: "Cripto", show: f.temCripto },
         ];
         const ts = f.tickerSectors;
         const filteredTickers = (f.tickers ?? []).filter(t => {
           if (!ts) return true;
           const setor = ts[t];
           if (!setor) return true;
-          const isCripto = setor === "Cripto";
           const isRF = ["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez"].includes(setor);
           const isRFPrec = setor === "Renda Fixa USD";
-          if (classe === "cripto") return isCripto;
           if (classe === "rf") return isRFPrec;
           if (classe === "rv") {
-            if (isCripto || isRF) return false;
+            if (isRF) return false;
             if (setores.length > 0) return setores.includes(setor);
             return true;
           }
