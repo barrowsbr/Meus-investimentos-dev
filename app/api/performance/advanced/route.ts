@@ -280,6 +280,7 @@ export async function GET(request: Request) {
   const setorFiltro = searchParams.get("setor") ?? "";
   const setoresFiltro = new Set(setorFiltro.split(",").map(s => s.trim()).filter(Boolean));
   const tickerFiltro = (searchParams.get("ticker") ?? "").toUpperCase().trim();
+  const corretoraFiltro = (searchParams.get("corretora") ?? "").trim();
   const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const fromParam = isYmd(searchParams.get("from")) ? searchParams.get("from")! : "";
   const toParam = isYmd(searchParams.get("to")) ? searchParams.get("to")! : "";
@@ -298,15 +299,32 @@ export async function GET(request: Request) {
     }
 
     const tickerMeta = new Map<string, { moeda: string; corretora: string }>();
+    const corretoras = new Set<string>();
     for (const row of transacoes) {
       const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
       if (!ticker) continue;
+      const cor = String(row["corretora"] ?? "").trim();
+      if (cor) corretoras.add(cor);
       if (!tickerMeta.has(ticker)) {
         tickerMeta.set(ticker, {
           moeda: String(row["moeda"] ?? "BRL").toUpperCase().trim(),
-          corretora: String(row["corretora"] ?? "").trim(),
+          corretora: cor,
         });
       }
+    }
+
+    // Filtro por corretora: filtra transações cuja corretora bate
+    const transacoesCorretora = corretoraFiltro
+      ? transacoes.filter(r => {
+          const cor = String(r["corretora"] ?? "").trim();
+          return cor.toLowerCase() === corretoraFiltro.toLowerCase();
+        })
+      : transacoes;
+
+    // tickerSectors: setor de cada ticker para filtro no frontend
+    const tickerSectors: Record<string, string> = {};
+    for (const tk of tickerMeta.keys()) {
+      tickerSectors[tk] = identificarSetor(tk);
     }
 
     const tickerList = [...tickerMeta.entries()].map(([ticker, info]) => ({ ticker, ...info }));
@@ -425,7 +443,7 @@ export async function GET(request: Request) {
     const rvSetores = new Set<string>();
     let temCripto = false;
     let temPricedRF = false; // SHV/BIL — RF com cotação, na meus_ativos
-    for (const row of transacoes) {
+    for (const row of transacoesCorretora) {
       const tk = tickerOf(row);
       if (!tk) continue;
       const setor = identificarSetor(tk);
@@ -448,8 +466,8 @@ export async function GET(request: Request) {
     }
 
     const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro;
-    const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "";
-    const transacoesF = filtroAtivo ? transacoes.filter(r => keepRvTicker(tickerOf(r))) : transacoes;
+    const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "" || !!corretoraFiltro;
+    const transacoesF = filtroAtivo ? transacoesCorretora.filter(r => keepRvTicker(tickerOf(r))) : transacoesCorretora;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
     // Match por base normalizada (sem .SA): o import B3 grava "ITUB4" enquanto
     // as transações usam "ITUB4.SA" — match literal zerava proventos no filtro.
@@ -709,7 +727,7 @@ export async function GET(request: Request) {
     // de tempo (YTD, 1A, custom) ou filtros de ativo, o motor TWR roda sobre um
     // subconjunto e os fatores encadeados são diferentes; aplicar os travados
     // causaria divergência com o TWR acumulado do card principal.
-    const isAllTimeUnfiltered = !tickerFiltro && classe === "tudo" && setoresFiltro.size === 0
+    const isAllTimeUnfiltered = !tickerFiltro && !corretoraFiltro && classe === "tudo" && setoresFiltro.size === 0
       && lookback === 0 && !fromParam && !toParam;
     const lockedMonths = isAllTimeUnfiltered ? await readLockedMonthly() : [];
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
@@ -1044,8 +1062,11 @@ export async function GET(request: Request) {
           classe,
           setor: setorFiltro,
           ticker: tickerFiltro,
+          corretora: corretoraFiltro,
           rvSetores: [...rvSetores].sort(),
           tickers: [...tickerMeta.keys()].sort(),
+          tickerSectors,
+          corretoras: [...corretoras].sort(),
           temCripto,
           temRF,
         },
