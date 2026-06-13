@@ -465,7 +465,7 @@ export async function GET(request: Request) {
       return setoresFiltro.size > 0 ? setoresFiltro.has(setor) : true;
     }
 
-    const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro;
+    const includeRF = (classe === "tudo" || classe === "rf") && !tickerFiltro && !corretoraFiltro;
     const filtroAtivo = classe !== "tudo" || setoresFiltro.size > 0 || tickerFiltro !== "" || !!corretoraFiltro;
     const transacoesF = filtroAtivo ? transacoesCorretora.filter(r => keepRvTicker(tickerOf(r))) : transacoesCorretora;
     const keptTickers = new Set(transacoesF.map(r => tickerOf(r)));
