@@ -723,6 +723,53 @@ export default function PerformancePage() {
         );
       })()}
 
+      {/* ── Window selector (period filters) ── */}
+      <div className="flex items-center gap-1.5 mb-6 flex-wrap">
+        {WINDOWS.map(w => (
+          <button key={w.label} onClick={() => { setCustomMode(false); setLookback(w.days); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              !customMode && lookback === w.days
+                ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+            }`}>
+            {w.label}
+          </button>
+        ))}
+        <button onClick={() => setCustomMode(v => !v)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border inline-flex items-center gap-1.5 ${
+            customMode
+              ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+              : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+          }`}>
+          <Calendar size={12} /> Personalizado
+        </button>
+      </div>
+
+      {/* ── Intervalo personalizado ── */}
+      {customMode && (
+        <div className="flex flex-wrap items-end gap-3 mb-6 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/50 animate-fade-in">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">De</span>
+            <input type="date" value={customFrom} max={customTo || undefined}
+              onChange={e => setCustomFrom(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Até</span>
+            <input type="date" value={customTo} min={customFrom || undefined}
+              onChange={e => setCustomTo(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
+          </label>
+          {data?.summary.filtros && (
+            <span className="text-[10px] text-zinc-600 pb-2">
+              {customFrom && customTo
+                ? `Intervalo aplicado · ${formatDate(s.primeiraData)} → ${formatDate(s.ultimaData)}`
+                : "Escolha as datas de início e fim"}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ── Hero Performance Card ── */}
       {(() => {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
@@ -858,38 +905,18 @@ export default function PerformancePage() {
         );
       })()}
 
-      {/* ── Sub-tabs ── */}
-      <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 mb-4 flex-wrap border border-zinc-800/50">
-        {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === tab ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-            }`}>
-            {TAB_LABELS[tab]}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Window selector (period filters) ── */}
-      <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-        {WINDOWS.map(w => (
-          <button key={w.label} onClick={() => { setCustomMode(false); setLookback(w.days); }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-              !customMode && lookback === w.days
-                ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
-                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-            }`}>
-            {w.label}
-          </button>
-        ))}
-        <button onClick={() => setCustomMode(v => !v)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border inline-flex items-center gap-1.5 ${
-            customMode
-              ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-          }`}>
-          <Calendar size={12} /> Personalizado
-        </button>
+      {/* ── Sub-tabs + chart toggles ── */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 border border-zinc-800/50">
+          {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === tab ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+              }`}>
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden"
             title="TWR: retorno dos ativos (comparável a índices). MWR: retorno do SEU dinheiro, ponderado pelos aportes (estilo IBKR)">
@@ -928,36 +955,11 @@ export default function PerformancePage() {
               <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
             </button>
           </div>
+          <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+            <RefreshCw size={14} />
+          </button>
         </div>
-        <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
-          <RefreshCw size={14} />
-        </button>
       </div>
-
-      {/* ── Intervalo personalizado ── */}
-      {customMode && (
-        <div className="flex flex-wrap items-end gap-3 mb-6 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/50 animate-fade-in">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">De</span>
-            <input type="date" value={customFrom} max={customTo || undefined}
-              onChange={e => setCustomFrom(e.target.value)}
-              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Até</span>
-            <input type="date" value={customTo} min={customFrom || undefined}
-              onChange={e => setCustomTo(e.target.value)}
-              className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50" />
-          </label>
-          {data?.summary.filtros && (
-            <span className="text-[10px] text-zinc-600 pb-2">
-              {customFrom && customTo
-                ? `Intervalo aplicado · ${formatDate(s.primeiraData)} → ${formatDate(s.ultimaData)}`
-                : "Escolha as datas de início e fim"}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════════
            TAB: RETORNO (overview)
