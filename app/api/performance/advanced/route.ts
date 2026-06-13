@@ -733,17 +733,20 @@ export async function GET(request: Request) {
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
 
     // Monthly MTM snapshots — R$ gain per month using period-end prices/FX
+    // Em janelas (YTD/1A/…), o dia-âncora (prevNav) estabelece o NAV de
+    // abertura — sem ele, o primeiro mês computaria gain = NAV inteiro.
     const monthlyMTM: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = (() => {
       const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
+      let anchorNav = 0;
       for (const p of meaningfulPoints) {
+        if (isWindowed && p.date < windowStart) { anchorNav = p.nav; continue; }
         const m = p.date.slice(0, 7);
-        if (isWindowed && p.date < windowStart) continue;
         const b = buckets.get(m);
         if (b) { b.navEnd = p.nav; b.flows += p.flow; b.income += p.income; }
         else buckets.set(m, { navEnd: p.nav, flows: p.flow, income: p.income });
       }
       const out: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = [];
-      let prev = 0;
+      let prev = anchorNav;
       for (const [month, { navEnd, flows, income }] of buckets) {
         const gain = navEnd + income - prev - flows;
         const base = prev > 0 ? prev : Math.abs(flows);
@@ -892,9 +895,10 @@ export async function GET(request: Request) {
         return { r_total, r_ativo, r_fx, r_combinado: (1 + r_ativo) * (1 + r_fx) - 1 };
       })();
 
-      // Monthly returns in USD — chain months (same logic as BRL)
+      // Monthly returns in USD — chain months (same logic as BRL, skip anchor)
       const usdMonthlyEnds: Array<{ month: string; endFactor: number }> = [];
       for (const p of usdTwrPoints) {
+        if (isWindowed && p.date < windowStart) continue;
         const m = p.date.slice(0, 7);
         const f = 1 + p.twr;
         const last = usdMonthlyEnds[usdMonthlyEnds.length - 1];
@@ -913,14 +917,16 @@ export async function GET(request: Request) {
 
       const usdMTM: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = (() => {
         const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
+        let anchorNav = 0;
         for (const p of pts) {
+          if (isWindowed && p.date < windowStart) { anchorNav = p.nav; continue; }
           const m = p.date.slice(0, 7);
           const b = buckets.get(m);
           if (b) { b.navEnd = p.nav; b.flows += p.flow; b.income += p.income; }
           else buckets.set(m, { navEnd: p.nav, flows: p.flow, income: p.income });
         }
         const out: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = [];
-        let prev = 0;
+        let prev = anchorNav;
         for (const [month, { navEnd, flows, income }] of buckets) {
           const gain = navEnd + income - prev - flows;
           const base = prev > 0 ? prev : Math.abs(flows);
