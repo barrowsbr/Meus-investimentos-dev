@@ -139,21 +139,23 @@ genuinamente diferente — não por conveniência. Toda exceção precisa:
   mesmo lucro — são agrupamentos diferentes do mesmo cálculo, não fórmulas distintas.
 - **Proventos: bruto vs líquido**: o padrão é **líquido** (canônico). O bruto pode
   ser exibido como detalhe, sempre com o IR explícito ao lado.
-- **MTM em Performance — seleção de fonte**: o card MTM escolhe entre 3 fontes
-  conforme o contexto, e a fonte escolhida é **exibida na UI** ("fonte: …"):
-  1. Visão geral BRL all-time → **canônico do Resumo** (`/api/composicao/resumo`:
-     lucros + proventos) — garante o MESMO número da DRE;
-  2. Filtro por ticker all-time → `snapshot.retornoTotalRV*` (FIFO do ativo);
-  3. Janelas de tempo, filtros de classe e visão USD → `ganhoEconomico` do motor
-     TWR (identidade contábil do período medido, `CALCULOS.md §16`).
-  Não são fórmulas concorrentes: cada uma responde a um recorte diferente
-  (estoque atual vs período medido). Cross-check automático: na visão geral, se
-  canônico e motor TWR divergirem >10%, a UI mostra um aviso âmbar. Para
-  investigar uma divergência: `GET /api/debug/mtm-recon` decompõe a diferença
-  por componente (RV, RF, proventos) e quantifica os efeitos estruturais
-  residuais (flows a preço de mercado vs execução; FX spot vs pmDólar no
-  custo; IR de resgate de RF — motor bruto/GIPS vs DRE líquida) — esperado
-  ≲ 6–7% no total, componente RF ≈ Σ IR de resgates.
+- **MTM em Performance — fonte única: motor TWR (fund accounting)**:
+  o card MTM usa **sempre** o `ganhoEconomico` do motor TWR (exceto filtro por
+  ticker, que usa `snapshot.retornoTotalRV*` / FIFO do ativo). A fonte é
+  exibida na UI ("fonte: …").
+
+  **Justificativa (revisão jun/2026):** o Resumo (`ganhoCanonical`) recalcula
+  TODOS os lucros não realizados com o FX de HOJE — ou seja, quando o dólar
+  sobe, o resultado de posições compradas há anos "muda" retroativamente.
+  O motor TWR funciona como NAV contábil de fundo: cada dia usa o FX de
+  `db_cotacoes` daquele dia, e os meses passados ficam congelados com o FX
+  do último dia útil do período. Isso garante que o retorno de um mês
+  fechado nunca muda quando o câmbio se move depois.
+
+  Cross-check: na visão geral sem filtros, se canônico (Resumo) e motor TWR
+  divergirem >10%, a UI mostra um aviso âmbar. Para investigar:
+  `GET /api/debug/mtm-recon` decompõe a diferença por componente e quantifica
+  os efeitos estruturais residuais.
 - **View USD em Performance** (`/api/performance/advanced` → `usdView`): a visão em
   dólar recomputa TWR, MWR, ganhoEconomico e fxDecomposition a partir da série de
   NAV convertida dia a dia (`NAV_BRL / USDBRL_do_dia`). Não é possível simplesmente

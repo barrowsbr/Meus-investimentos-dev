@@ -70,7 +70,7 @@ interface ChartPoint { date: string; nav: number; flow?: number; ret: number; tw
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
-interface MonthlyMTM { month: string; gain: number; navEnd: number }
+interface MonthlyMTM { month: string; gain: number; gainPct: number; navEnd: number }
 interface FlowEntry { date: string; flow: number; nav: number; nav_before: number; daily_return: number; cumulative_twr: number }
 interface AttributionEntry { setor: string; macro: string; contrib_pct: number; nav_medio: number }
 
@@ -571,12 +571,12 @@ export default function PerformancePage() {
   }, [data, isUsd]);
 
   const mtmGrid = useMemo(() => {
-    if (activeMTM.length === 0) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, { gain: number; navEnd: number }>> };
-    const byYearMonth: Record<number, Record<number, { gain: number; navEnd: number }>> = {};
+    if (activeMTM.length === 0) return { years: [] as number[], byYearMonth: {} as Record<number, Record<number, { gain: number; gainPct: number; navEnd: number }>> };
+    const byYearMonth: Record<number, Record<number, { gain: number; gainPct: number; navEnd: number }>> = {};
     for (const m of activeMTM) {
       const [y, mo] = m.month.split("-").map(Number);
       if (!byYearMonth[y]) byYearMonth[y] = {};
-      byYearMonth[y][mo] = { gain: m.gain, navEnd: m.navEnd };
+      byYearMonth[y][mo] = { gain: m.gain, gainPct: m.gainPct, navEnd: m.navEnd };
     }
     const years = Object.keys(byYearMonth).map(Number).sort((a, b) => a - b);
     return { years, byYearMonth };
@@ -693,22 +693,18 @@ export default function PerformancePage() {
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        // Seleção de fonte do MTM (documentada em CANONICO.md §5):
-        // 1. Visão geral BRL all-time → canônico do Resumo (mesmo número da DRE)
-        // 2. Filtro por ticker all-time → retornoTotal do snapshot (FIFO do ativo)
-        // 3. Demais (janelas, classes, USD) → ganho econômico do motor TWR
-        const useCanonical = isUnfiltered && !isUsd && ganhoCanonical != null;
-        const ge = useCanonical
-          ? ganhoCanonical
-          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
-        const geFonte = useCanonical ? "Resumo (canônico)" : useSnapshot ? "snapshot do ativo (FIFO)" : "motor TWR (GIPS)";
-        // Cross-check de confiabilidade: na visão geral, canônico e motor TWR
-        // devem contar a mesma história — divergência >10% indica problema de dado.
-        const geDivergePct = useCanonical && s.ganhoEconomico !== 0
+        // Seleção de fonte do MTM (CANONICO.md §5, revisado):
+        // Motor TWR = fund accounting: cada dia usa o FX de db_cotacoes daquele dia,
+        // meses passados ficam congelados (FX do último dia útil do período).
+        // Resumo usa FX de HOJE para tudo — recalcula retroativamente.
+        // O motor TWR é a fonte única; Resumo serve apenas de cross-check.
+        const ge = useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        const geFonte = useSnapshot ? "snapshot do ativo (FIFO)" : "motor TWR (GIPS)";
+        const geDivergePct = isUnfiltered && !isUsd && ganhoCanonical != null && s.ganhoEconomico !== 0
           ? Math.abs((ganhoCanonical! - s.ganhoEconomico) / s.ganhoEconomico) * 100
           : null;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
-        const pctBase = isAllTime ? custoFIFO + (isUnfiltered ? (s.patrimonio?.caixa ?? 0) : 0) : s.navInicial;
+        const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
           ? s.resultadoTotalPct
           : pctBase > 0 ? (ge / pctBase) * 100 : 0;
@@ -1457,9 +1453,11 @@ export default function PerformancePage() {
                             {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
                               const cell = mths[mo];
                               if (!cell) {
-                                return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-9 bg-zinc-900/40" /></td>;
+                                return <td key={mo} className="py-1 px-0.5"><div className="rounded-md h-11 bg-zinc-900/40" /></td>;
                               }
                               const v = cell.gain;
+                              const pct = cell.gainPct;
+                              const twrPctMonth = monthlyGrid.byYearMonth[year]?.[mo];
                               const isPos = v >= 0;
                               const absK = Math.abs(v) / 1000;
                               const intensity = Math.min(absK / 5, 1);
@@ -1470,30 +1468,39 @@ export default function PerformancePage() {
                               const label = absK >= 10
                                 ? `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(0)}k`
                                 : `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(1)}k`;
+                              const moLabel = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1];
+                              const tip = `${moLabel}/${year}: ${v >= 0 ? "+" : ""}${fmtCurr(v)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)${twrPctMonth != null ? ` · TWR ${twrPctMonth >= 0 ? "+" : ""}${twrPctMonth.toFixed(2)}%` : ""} · Patrimônio: ${fmtCurr(cell.navEnd)}`;
                               return (
                                 <td key={mo} className="py-1 px-0.5">
                                   <div
-                                    className="rounded-md h-9 flex flex-col items-center justify-center cursor-default transition-transform hover:scale-105"
+                                    className="rounded-md h-11 flex flex-col items-center justify-center cursor-default transition-transform hover:scale-105"
                                     style={{ background: bg, color: textColor }}
-                                    title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${fmtCurr(v)} · Patrimônio: ${fmtCurr(cell.navEnd)}`}
+                                    title={tip}
                                   >
-                                    <span className="font-semibold text-[11px] leading-tight">{label}</span>
+                                    <span className="font-semibold text-[11px] leading-none">{label}</span>
+                                    <span className="text-[9px] leading-none mt-0.5 opacity-75">{pct >= 0 ? "+" : ""}{pct.toFixed(1)}%</span>
                                   </div>
                                 </td>
                               );
                             })}
                             <td className="py-1 pl-3">
-                              <div
-                                className="rounded-md h-9 flex flex-col items-center justify-center font-bold text-[10px] border"
-                                style={{
-                                  borderColor: yearGain >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
-                                  color: yearGain >= 0 ? "#34d399" : "#f87171",
-                                  background: yearGain >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
-                                }}
-                                title={`Patrimônio dez/${year}: ${fmtCurr(yearEndNav)}`}
-                              >
-                                <span>{yearGain >= 0 ? "+" : ""}{compactCurr(yearGain)}</span>
-                              </div>
+                              {(() => {
+                                const yearPct = Object.values(mths).reduce((acc, c) => acc * (1 + c.gainPct / 100), 1) * 100 - 100;
+                                return (
+                                  <div
+                                    className="rounded-md h-11 flex flex-col items-center justify-center font-bold text-[10px] border"
+                                    style={{
+                                      borderColor: yearGain >= 0 ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
+                                      color: yearGain >= 0 ? "#34d399" : "#f87171",
+                                      background: yearGain >= 0 ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
+                                    }}
+                                    title={`Patrimônio fim/${year}: ${fmtCurr(yearEndNav)}`}
+                                  >
+                                    <span>{yearGain >= 0 ? "+" : ""}{compactCurr(yearGain)}</span>
+                                    <span className="text-[9px] opacity-75 mt-0.5">{yearPct >= 0 ? "+" : ""}{yearPct.toFixed(1)}%</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );
