@@ -1,18 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import type { ElementType } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 
 const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
 import {
-  LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
-  Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
-  Settings, Newspaper, Bot, ListOrdered, ChevronDown,
-  TrendingDown, Radio, ChevronRight,
-  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Zap, PieChart,
+  TrendingUp, ArrowLeftRight, ChevronDown,
+  TrendingDown, ChevronRight, ExternalLink,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -48,18 +44,6 @@ class ErrorBoundary extends React.Component<
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type IconComponent = React.ComponentType<any>;
-interface NavItem { href: string; label: string; icon: IconComponent }
-interface NavGroup {
-  id: string;
-  label: string;
-  desc: string;
-  icon: IconComponent;
-  accentColor: string;
-  items: NavItem[];
-}
-
 interface TickerItem {
   ticker: string;
   label: string;
@@ -78,69 +62,6 @@ interface NewsArticle {
   imagem?: string;
 }
 
-// ── Nav config ───────────────────────────────────────────────────────────────
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    id: "composicao",
-    label: "Composição",
-    desc: "Portfolio, alocação e posições",
-    icon: LayoutDashboard,
-    accentColor: "#E8A33D",
-    items: [
-      { href: "/resumo",          label: "Resumo",         icon: LayoutDashboard },
-      { href: "/renda-variavel",  label: "Renda Variável", icon: BarChart2 },
-      { href: "/renda-fixa",      label: "Renda Fixa",     icon: Landmark },
-      { href: "/proventos",       label: "Proventos",      icon: Coins },
-      { href: "/criptoativos",    label: "Criptoativos",   icon: Bitcoin },
-      { href: "/opcoes",          label: "Opções",         icon: Crosshair },
-    ],
-  },
-  {
-    id: "analise",
-    label: "Análise",
-    desc: "Performance, retorno e risco",
-    icon: TrendingUp,
-    accentColor: "#3b82f6",
-    items: [
-      { href: "/performance",  label: "Performance", icon: TrendingUp },
-      { href: "/setores",      label: "Setores",     icon: PieChart },
-      { href: "/evolucao",     label: "Evolução",    icon: Activity },
-      { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
-      { href: "/simulacoes",   label: "Simulações",  icon: Target },
-      { href: "/trades",       label: "Trades",      icon: Zap },
-      { href: "/preditivo",    label: "Preditivo",   icon: BrainCircuit },
-    ],
-  },
-  {
-    id: "gestao",
-    label: "Gestão",
-    desc: "Impostos, fluxos e finanças pessoais",
-    icon: Receipt,
-    accentColor: "#8b5cf6",
-    items: [
-      { href: "/impostos",      label: "Impostos",      icon: Receipt },
-      { href: "/alavancagem",  label: "Alavancagem",  icon: Scale },
-      { href: "/financas",     label: "Fin. Pessoais", icon: Wallet },
-      { href: "/fluxos",       label: "Fluxos",        icon: ListOrdered },
-    ],
-  },
-  {
-    id: "mais",
-    label: "Mais",
-    desc: "Radar, Inteligência, Agente IA e configurações",
-    icon: Newspaper,
-    accentColor: "#06b6d4",
-    items: [
-      { href: "/bolsas",         label: "Radar",          icon: BarChart3 },
-      { href: "/noticias",       label: "Inteligência",   icon: Newspaper },
-      { href: "/polymarket",     label: "Preditivos",     icon: BarChart2 },
-      { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
-            { href: "/configuracoes",  label: "Configurações",  icon: Settings },
-    ],
-  },
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function cleanTicker(t: string | null | undefined): string {
@@ -155,80 +76,6 @@ function fmtPrice(price: number, moeda: string): string {
   }
   const decimals = price >= 1000 ? 0 : 2;
   return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
-}
-
-// ── Tile stats helper ────────────────────────────────────────────────────────
-
-function getTileStat(href: string, data: PortfolioResponse | null | undefined): string | undefined {
-  if (!data) return undefined;
-  switch (href) {
-    case "/resumo":
-      return typeof data.totalPatrimonioBRL === "number" ? compactBRL(data.totalPatrimonioBRL) : undefined;
-    case "/performance": {
-      const p = data.dayChangeTotalPct;
-      return typeof p === "number" ? `${p >= 0 ? "+" : ""}${p.toFixed(1)}% hoje` : undefined;
-    }
-    case "/cambio":
-      return typeof data.usdbrl === "number" ? `R$ ${data.usdbrl.toFixed(2)}` : undefined;
-    case "/renda-variavel": {
-      const count = (data.positions ?? []).filter(
-        pos => pos && !isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
-      ).length;
-      return count > 0 ? `${count} ativos` : undefined;
-    }
-    case "/renda-fixa": {
-      const count = (data.positions ?? []).filter(
-        pos => pos && isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
-      ).length;
-      return count > 0 ? `${count} títulos` : undefined;
-    }
-    default:
-      return undefined;
-  }
-}
-
-// ── NavTile ─────────────────────────────────────────────────────────────────
-
-function NavTile({ href, label, icon: Icon, accentColor, stat }: {
-  href: string; label: string; icon: IconComponent; accentColor: string; stat?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex flex-col items-center gap-2 rounded-2xl px-2 py-4 transition-all duration-200 active:scale-[0.96]"
-      style={{
-        background: "var(--panel)",
-        border: "1px solid rgba(255,255,255,0.06)",
-      }}
-      onMouseEnter={e => {
-        const el = e.currentTarget;
-        el.style.background = `${accentColor}0a`;
-        el.style.borderColor = `${accentColor}28`;
-        el.style.boxShadow = `0 4px 20px ${accentColor}10`;
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget;
-        el.style.background = "var(--panel)";
-        el.style.borderColor = "rgba(255,255,255,0.06)";
-        el.style.boxShadow = "none";
-      }}
-    >
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
-        style={{ background: `${accentColor}10` }}
-      >
-        <Icon size={18} style={{ color: accentColor }} strokeWidth={1.7} />
-      </div>
-      <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors text-center leading-tight">
-        {label}
-      </span>
-      {stat && (
-        <span className="text-[9px] font-bold tabular-nums -mt-0.5" style={{ color: `${accentColor}99` }}>
-          {stat}
-        </span>
-      )}
-    </Link>
-  );
 }
 
 // ── TickerTape ───────────────────────────────────────────────────────────────
@@ -851,42 +698,6 @@ export default function HomePage() {
             </div>
           </ErrorBoundary>
         )}
-
-        {/* ── Navigation Tiles ── */}
-        <div className="w-full flex flex-col gap-5 animate-fade-in animate-delay-2">
-          {NAV_GROUPS.map(group => {
-            const GroupIcon = group.icon;
-            return (
-              <div key={group.id}>
-                <div className="flex items-center gap-2.5 mb-2.5 px-1">
-                  <GroupIcon size={12} style={{ color: group.accentColor }} strokeWidth={2} />
-                  <span
-                    className="text-[10px] font-bold tracking-[1.5px] uppercase"
-                    style={{ color: `${group.accentColor}aa` }}
-                  >
-                    {group.label}
-                  </span>
-                  <div
-                    className="h-px flex-1"
-                    style={{ background: `linear-gradient(90deg, ${group.accentColor}20, transparent)` }}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {group.items.map(item => (
-                    <NavTile
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      icon={item.icon}
-                      accentColor={group.accentColor}
-                      stat={getTileStat(item.href, data)}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
 
         {/* Footer */}
         <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
