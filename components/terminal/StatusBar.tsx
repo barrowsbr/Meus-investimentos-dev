@@ -10,7 +10,7 @@ const HOTKEYS: [string, string][] = [
 export default function StatusBar() {
   return (
     <div
-      className="flex items-center gap-3 md:gap-[18px] px-4 shrink-0 overflow-hidden"
+      className="hidden min-[1100px]:flex items-center gap-3 md:gap-[18px] px-4 shrink-0 overflow-hidden"
       style={{ height: 28, borderTop: "1px solid var(--line-strong)", background: "var(--rail)" }}
     >
       {HOTKEYS.map(([k, l]) => (
