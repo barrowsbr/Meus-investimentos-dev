@@ -960,19 +960,13 @@ export function calcularTWR(input: TwrInput): TwrResult {
     // the end of day 0 (GIPS inception-at-first-valuation).
     //
     // After day 0, return is undefined only when base ≤ 0 (no capital).
-    // Guard: cap daily returns at ±200% — anything beyond that is almost
-    // certainly bad data (corrupt price, FX spike, stale ffill gap).
-    // A real 3× daily move is already extraordinary; 2× keeps the TWR
-    // chain finite while the data is investigated via /api/debug/auditoria.
-    const MAX_DAILY_RET = 2.0;
+    // No caps, no ad-hoc thresholds.
     const base = prevNav + flow;
     let ret = 0;
     const forceZero = i > 0 && base <= 0;
 
     if (i > 0 && !forceZero) {
       ret = ((nav + income) - base) / base;
-      if (ret > MAX_DAILY_RET) ret = MAX_DAILY_RET;
-      else if (ret < -MAX_DAILY_RET) ret = -MAX_DAILY_RET;
     }
 
     cumTwr *= (1 + ret);
@@ -1286,9 +1280,7 @@ export function buildPriceBenchmark(
     if (price == null) return { date, nav: 0, flow: 0, income: 0, ret: 0, twr: 0, forceZero: false };
 
     if (base == null) base = price;
-    let ret = prevPrice != null && prevPrice > 0 ? (price - prevPrice) / prevPrice : 0;
-    if (ret > 2.0) ret = 2.0;
-    else if (ret < -2.0) ret = -2.0;
+    const ret = prevPrice != null && prevPrice > 0 ? (price - prevPrice) / prevPrice : 0;
     cumTwr *= 1 + ret;
     prevPrice = price;
 

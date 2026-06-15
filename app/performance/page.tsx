@@ -769,8 +769,7 @@ export default function PerformancePage() {
 
       {/* ── Hero Performance Command Center ── */}
       {(() => {
-        const mwrRaw = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
-        const mwrTotal = isFinite(mwrRaw) ? mwrRaw : 0;
+        const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;

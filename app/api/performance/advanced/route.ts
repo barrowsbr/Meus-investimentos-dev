@@ -226,27 +226,19 @@ function calcularMetricasRisco(dailyReturns: number[], riskFreeAnnual = RISK_FRE
   const volatility = stdDev * Math.sqrt(annualize);
 
   const annualReturn = Math.pow(1 + mean, annualize) - 1;
-  const safeAnnualReturn = isFinite(annualReturn) ? annualReturn : 0;
-  const sharpe = volatility > 0 && isFinite(safeAnnualReturn) ? (safeAnnualReturn - riskFreeAnnual) / volatility : 0;
+  const sharpe = volatility > 0 ? (annualReturn - riskFreeAnnual) / volatility : 0;
 
   const downside = dailyReturns.filter(r => r < 0);
   const downsideStd = downside.length > 0
     ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) * Math.sqrt(annualize)
     : 0;
-  const sortino = downsideStd > 0 && isFinite(safeAnnualReturn) ? (safeAnnualReturn - riskFreeAnnual) / downsideStd : 0;
+  const sortino = downsideStd > 0 ? (annualReturn - riskFreeAnnual) / downsideStd : 0;
 
   const sorted = [...dailyReturns].sort((a, b) => a - b);
   const var95 = sorted[Math.floor(n * 0.05)] ?? 0;
   const var99 = sorted[Math.floor(n * 0.01)] ?? 0;
 
-  return {
-    volatility: isFinite(volatility) ? volatility : 0,
-    sharpe: isFinite(sharpe) ? sharpe : 0,
-    sortino: isFinite(sortino) ? sortino : 0,
-    var95: var95 * 100,
-    var99: var99 * 100,
-    riskFreeRate: riskFreeAnnual,
-  };
+  return { volatility, sharpe, sortino, var95: var95 * 100, var99: var99 * 100, riskFreeRate: riskFreeAnnual };
 }
 
 // ── Flow ledger ───────────────────────────────────────────────────────────────
@@ -454,10 +446,6 @@ export async function GET(request: Request) {
     // e isso é reportado.
     const fxUsdSeries: number[] = (() => {
       const out: (number | null)[] = dates.map(d => hist.fxHistory[d]?.USDBRL ?? null);
-      // Reject FX values outside plausible range (data corruption guard)
-      for (let i = 0; i < out.length; i++) {
-        if (out[i] != null && (out[i]! < 1.0 || out[i]! > 20.0)) out[i] = null;
-      }
       let last: number | null = null;
       for (let i = 0; i < out.length; i++) { if (out[i] != null) last = out[i]; else out[i] = last; }
       let next: number | null = null;
