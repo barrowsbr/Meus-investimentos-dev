@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção A — Warm Minimal</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #F5F2ED;
+    --bg-card: #FFFFFF;
+    --bg-sidebar: #1A1816;
+    --text: #32302F;
+    --text-muted: #8A8580;
+    --text-light: #B5AFA8;
+    --accent: #C87941;
+    --accent-light: #F0DCC8;
+    --positive: #2D6A4F;
+    --negative: #C1292E;
+    --border: #E5E0D8;
+    --border-light: #F0EBE4;
+  }
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: var(--bg-sidebar); color: #E8E4DD; padding: 24px 0; flex-shrink: 0; min-height: 100vh; }
+  .sidebar-logo { padding: 0 24px 32px; font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--accent); letter-spacing: -0.02em; }
+  .sidebar-section { padding: 0 12px; margin-bottom: 24px; }
+  .sidebar-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6B6560; padding: 0 12px; margin-bottom: 8px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; color: #9B9590; cursor: pointer; transition: all 0.15s; }
+  .sidebar-item:hover { background: rgba(255,255,255,0.05); color: #E8E4DD; }
+  .sidebar-item.active { background: rgba(200,121,65,0.12); color: var(--accent); }
+  .sidebar-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+  .sidebar-item.active .sidebar-dot { opacity: 1; }
+
+  /* Main */
+  .main { flex: 1; padding: 32px 40px; max-width: 1200px; }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--text); letter-spacing: -0.02em; margin-bottom: 4px; }
+  .page-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+
+  /* KPI Strip */
+  .kpi-strip { display: flex; gap: 0; margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+  .kpi-item { flex: 1; }
+  .kpi-item + .kpi-item { padding-left: 24px; border-left: 1px solid var(--border-light); }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  .kpi-value { font-family: 'DM Serif Display', serif; font-size: 32px; letter-spacing: -0.02em; line-height: 1; }
+  .kpi-value.positive { color: var(--positive); }
+  .kpi-value.negative { color: var(--negative); }
+  .kpi-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+  /* Benchmark pills */
+  .benchmarks { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .bench-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 12px; background: var(--bg-card); border: 1px solid var(--border); }
+  .bench-label { color: var(--text-muted); }
+  .bench-value { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .bench-alpha { font-weight: 600; }
+  .bench-alpha.pos { color: var(--positive); }
+  .bench-alpha.neg { color: var(--negative); }
+
+  /* Content grid */
+  .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+
+  /* Cards (minimal) */
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; margin-bottom: 16px; }
+
+  /* Chart placeholder */
+  .chart-area { height: 220px; background: linear-gradient(180deg, rgba(45,106,79,0.06) 0%, transparent 100%); border-radius: 6px; display: flex; align-items: flex-end; padding: 16px; position: relative; }
+  .chart-line { width: 100%; height: 120px; border-bottom: 2px solid var(--positive); border-radius: 0 0 40% 20%; opacity: 0.6; position: relative; }
+  .chart-line::before { content: 'Retorno acumulado (TWR)'; position: absolute; top: -24px; left: 0; font-size: 11px; color: var(--text-muted); }
+
+  /* Risk metrics */
+  .risk-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-card); margin-bottom: 32px; }
+  .risk-item { padding: 14px 12px; text-align: center; }
+  .risk-item + .risk-item { border-left: 1px solid var(--border-light); }
+  .risk-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-light); margin-bottom: 4px; }
+  .risk-value { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .risk-badge { display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; font-weight: 600; }
+  .risk-badge.good { background: rgba(45,106,79,0.1); color: var(--positive); }
+  .risk-badge.ok { background: rgba(200,121,65,0.1); color: var(--accent); }
+  .risk-badge.bad { background: rgba(193,41,46,0.1); color: var(--negative); }
+
+  /* Table */
+  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+  .table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); font-variant-numeric: tabular-nums; }
+  .table tr:hover td { background: rgba(200,121,65,0.03); }
+  .table .ticker { font-weight: 600; color: var(--text); }
+  .table .pos { color: var(--positive); }
+  .table .neg { color: var(--negative); }
+
+  /* Tag de conceito */
+  .concept-tag { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(200,121,65,0.3); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">Meus Investimentos</div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Portfólio</div>
+    <div class="sidebar-item active"><span class="sidebar-dot"></span> Resumo</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Renda Variável</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Renda Fixa</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Proventos</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Criptoativos</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Análise</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Performance</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Setores</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Evolução</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Câmbio</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Gestão</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Impostos</div>
+    <div class="sidebar-item"><span class="sidebar-dot"></span> Simulações</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="page-title">Performance</div>
+  <div class="page-subtitle">01/03/2023 → 14/06/2026 · 3a 3m · Metodologia GIPS</div>
+
+  <div class="kpi-strip">
+    <div class="kpi-item">
+      <div class="kpi-label">TWR</div>
+      <div class="kpi-value positive">+45,23%</div>
+      <div class="kpi-sub">CAGR 13,2%</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">MWR</div>
+      <div class="kpi-value positive">+38,71%</div>
+      <div class="kpi-sub">TIR 11,8%</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">Ganho Financeiro</div>
+      <div class="kpi-value positive">+R$ 124.580</div>
+      <div class="kpi-sub">+45,2% / R$ 275.400</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">Patrimônio</div>
+      <div class="kpi-value">R$ 399.980</div>
+      <div class="kpi-sub">RV 68% · RF 24% · Cripto 8%</div>
+    </div>
+  </div>
+
+  <div class="benchmarks">
+    <div class="bench-pill">
+      <span class="bench-label">CDI</span>
+      <span class="bench-value">+38,2%</span>
+      <span class="bench-alpha pos">α +7,0%</span>
+    </div>
+    <div class="bench-pill">
+      <span class="bench-label">IBOV</span>
+      <span class="bench-value">+22,1%</span>
+      <span class="bench-alpha pos">α +23,1%</span>
+    </div>
+    <div class="bench-pill">
+      <span class="bench-label">S&P 500</span>
+      <span class="bench-value">+51,3%</span>
+      <span class="bench-alpha neg">α −6,1%</span>
+    </div>
+  </div>
+
+  <div class="risk-strip">
+    <div class="risk-item">
+      <div class="risk-label">Volatilidade</div>
+      <div class="risk-value">14,2%</div>
+      <div class="risk-badge ok">Moderada</div>
+    </div>
+    <div class="risk-item">
+      <div class="risk-label">Max Drawdown</div>
+      <div class="risk-value">−12,8%</div>
+      <div class="risk-badge ok">Moderado</div>
+    </div>
+    <div class="risk-item">
+      <div class="risk-label">Sharpe</div>
+      <div class="risk-value">1,24</div>
+      <div class="risk-badge good">Bom</div>
+    </div>
+    <div class="risk-item">
+      <div class="risk-label">Sortino</div>
+      <div class="risk-value">1,87</div>
+      <div class="risk-badge good">Excelente</div>
+    </div>
+    <div class="risk-item">
+      <div class="risk-label">VaR 95%</div>
+      <div class="risk-value">−1,32%</div>
+    </div>
+    <div class="risk-item">
+      <div class="risk-label">VaR 99%</div>
+      <div class="risk-value">−2,14%</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 32px;">
+    <div class="chart-area">
+      <svg width="100%" height="140" viewBox="0 0 800 140" preserveAspectRatio="none" style="position:absolute;bottom:16px;left:16px;right:16px;width:calc(100% - 32px)">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2D6A4F" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="#2D6A4F" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,120 Q50,115 100,105 T200,95 T300,80 T400,70 T500,45 T600,50 T700,30 T800,15" stroke="#2D6A4F" stroke-width="2" fill="none"/>
+        <path d="M0,120 Q50,115 100,105 T200,95 T300,80 T400,70 T500,45 T600,50 T700,30 T800,15 L800,140 L0,140 Z" fill="url(#g1)"/>
+        <path d="M0,120 Q100,118 200,110 T400,95 T600,85 T800,75" stroke="#C87941" stroke-width="1.5" fill="none" stroke-dasharray="4,4" opacity="0.5"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Posições — Renda Variável</div>
+    <table class="table">
+      <thead>
+        <tr><th>Ativo</th><th>Setor</th><th style="text-align:right">Valor</th><th style="text-align:right">Custo</th><th style="text-align:right">Ganho</th><th style="text-align:right">Dia</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="ticker">PETR4</td><td>Energia</td><td style="text-align:right">R$ 42.350</td><td style="text-align:right">R$ 31.200</td><td class="pos" style="text-align:right">+35,7%</td><td class="pos" style="text-align:right">+1,2%</td></tr>
+        <tr><td class="ticker">VOO</td><td>ETF US</td><td style="text-align:right">R$ 38.900</td><td style="text-align:right">R$ 28.500</td><td class="pos" style="text-align:right">+36,5%</td><td class="neg" style="text-align:right">−0,3%</td></tr>
+        <tr><td class="ticker">WEGE3</td><td>Industrial</td><td style="text-align:right">R$ 28.100</td><td style="text-align:right">R$ 22.800</td><td class="pos" style="text-align:right">+23,2%</td><td class="pos" style="text-align:right">+0,8%</td></tr>
+        <tr><td class="ticker">IVVB11</td><td>ETF BR</td><td style="text-align:right">R$ 25.400</td><td style="text-align:right">R$ 20.100</td><td class="pos" style="text-align:right">+26,4%</td><td class="pos" style="text-align:right">+0,1%</td></tr>
+        <tr><td class="ticker">HGLG11</td><td>FII</td><td style="text-align:right">R$ 18.200</td><td style="text-align:right">R$ 19.500</td><td class="neg" style="text-align:right">−6,7%</td><td class="neg" style="text-align:right">−0,5%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="concept-tag">Direção A — Warm Minimal</div>
+</body>
+</html>

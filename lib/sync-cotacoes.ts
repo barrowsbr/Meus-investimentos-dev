@@ -8,6 +8,68 @@ const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
 // ^SP500TR = S&P 500 Total Return (com dividendos) — benchmark correto para
 // carteira que mede retorno total. ^GSPC mantido como fallback histórico.
 const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR"];
+const CRYPTO_TICKERS = new Set(["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "ADA-USD", "XRP-USD"]);
+
+function isWeekend(dateStr: string): boolean {
+  const d = new Date(dateStr + "T12:00:00Z");
+  return d.getUTCDay() === 0 || d.getUTCDay() === 6;
+}
+
+// Yahoo returns scrambled prices when exchanges are closed (weekends, holidays).
+// Detect bad dates using canary tickers and remove non-crypto data from them.
+function detectAndPurgeBadDates(data: GoldenSourceData): Set<string> {
+  const badDates = new Set<string>();
+
+  for (const date of data.dates) {
+    if (isWeekend(date)) badDates.add(date);
+  }
+
+  // SPY canary: >40% deviation from last good value = US holiday scramble
+  let lastGoodSpy = 0;
+  for (const date of data.dates) {
+    if (badDates.has(date)) continue;
+    const spy = data.prices[date]?.["SPY"];
+    if (spy == null || spy <= 0) continue;
+    if (lastGoodSpy > 0 && Math.abs(spy - lastGoodSpy) / lastGoodSpy > 0.40) {
+      badDates.add(date);
+    } else {
+      lastGoodSpy = spy;
+    }
+  }
+
+  // ITUB4.SA canary: >40% deviation = Brazilian holiday scramble
+  let lastGoodItub = 0;
+  for (const date of data.dates) {
+    if (badDates.has(date)) continue;
+    const itub = data.prices[date]?.["ITUB4.SA"];
+    if (itub == null || itub <= 0) continue;
+    if (lastGoodItub > 0 && Math.abs(itub - lastGoodItub) / lastGoodItub > 0.40) {
+      badDates.add(date);
+    } else {
+      lastGoodItub = itub;
+    }
+  }
+
+  // ^BVSP sanity: should be 50k+ (currently ~130k)
+  for (const date of data.dates) {
+    const bvsp = data.prices[date]?.["^BVSP"];
+    if (bvsp != null && bvsp > 0 && bvsp < 50000) {
+      badDates.add(date);
+    }
+  }
+
+  // Purge all non-crypto data from bad dates
+  for (const date of badDates) {
+    const prices = data.prices[date];
+    if (!prices) continue;
+    for (const ticker of Object.keys(prices)) {
+      if (CRYPTO_TICKERS.has(ticker)) continue;
+      delete prices[ticker];
+    }
+  }
+
+  return badDates;
+}
 
 export interface Anomaly {
   ticker: string;
@@ -23,6 +85,7 @@ export interface SyncReport {
   tickerErrors?: string[];
   anomalies: Anomaly[];
   anomalyCount: number;
+  badDatesPurged: number;
   tickers: string[];
 }
 
@@ -160,6 +223,9 @@ export async function runCotacoesSync(
     prices,
   };
 
+  // Purge scrambled data from weekends and holidays before writing
+  const badDates = detectAndPurgeBadDates(merged);
+
   const anomalies = detectAnomalies(merged);
   await writeGoldenSource(merged);
 
@@ -170,6 +236,7 @@ export async function runCotacoesSync(
     tickerErrors: tickerErrors.length > 0 ? tickerErrors : undefined,
     anomalies: anomalies.slice(0, 50),
     anomalyCount: anomalies.length,
+    badDatesPurged: badDates.size,
     tickers: merged.tickers,
   };
 }
