@@ -128,7 +128,7 @@ export default function CambioPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                 active ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
               }`}
-              style={active ? { background: "rgba(212,165,116,0.12)", boxShadow: "0 2px 8px rgba(212,165,116,0.08)" } : {}}
+              style={active ? { background: "rgba(232,163,61,0.12)", boxShadow: "0 2px 8px rgba(232,163,61,0.08)" } : {}}
             >
               <Icon size={14} />
               {t.label}
@@ -332,7 +332,7 @@ export default function CambioPage() {
                 value={`R$ ${cambio.pmDolar.toFixed(4)}`}
                 sub={`Spot R$ ${spot.toFixed(4)} · ${cambio.deltaPmUsd >= 0 ? "+" : ""}${cambio.deltaPmUsd.toFixed(1)}%`}
                 icon={<DollarSign size={18} />}
-                glowColor="#d4a574"
+                glowColor="#E8A33D"
               />
             </div>
             <div className="animate-fade-in animate-delay-1">
@@ -372,7 +372,7 @@ export default function CambioPage() {
             <h2 className="section-title mb-5">Comparativo de Taxas</h2>
             <div className="grid grid-cols-3 gap-6">
               {[
-                { label: "PM Dólar", value: cambio.pmDolar, color: "#d4a574" },
+                { label: "PM Dólar", value: cambio.pmDolar, color: "#E8A33D" },
                 { label: "Spot", value: spot, color: "#3b82f6" },
                 { label: "PTAX", value: ptax?.USDBRL ?? 0, color: "#8b5cf6" },
               ].map((item) => {
@@ -403,7 +403,7 @@ export default function CambioPage() {
                   <XAxis dataKey="data" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatDate(v).substring(0, 5)} />
                   <YAxis domain={["auto", "auto"]} tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`R$ ${v.toFixed(4)}`, "VET"]} labelFormatter={(l) => formatDate(l)} />
-                  <ReferenceLine y={cambio.pmDolar} stroke="#d4a574" strokeDasharray="5 5" label={{ value: `PM ${cambio.pmDolar.toFixed(2)}`, fill: "#d4a574", fontSize: 10, position: "right" }} />
+                  <ReferenceLine y={cambio.pmDolar} stroke="#E8A33D" strokeDasharray="5 5" label={{ value: `PM ${cambio.pmDolar.toFixed(2)}`, fill: "#E8A33D", fontSize: 10, position: "right" }} />
                   <Line type="monotone" dataKey="taxa" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#3b82f6" }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -740,7 +740,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
             </div>
             <p className="text-[10px] text-zinc-500 mt-1">(V1−V0) × P0 — rendimento do ativo convertido ao câmbio de custo.</p>
           </div>
-          <div className="rounded-xl p-4" style={{ background: "rgba(212,165,116,0.05)", border: "1px solid rgba(212,165,116,0.15)" }}>
+          <div className="rounded-xl p-4" style={{ background: "rgba(232,163,61,0.05)", border: "1px solid rgba(232,163,61,0.15)" }}>
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
               <span className="text-xs font-bold text-zinc-200">FX Principal</span>
@@ -765,7 +765,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
         {/* Barra de proporção entre os fatores */}
         <div className="h-2.5 w-full rounded-full overflow-hidden flex mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
           <div style={{ width: `${pctFatorPuro}%`, background: "#3b82f6" }} />
-          <div style={{ width: `${pctFatorPrincipal}%`, background: "#d4a574" }} />
+          <div style={{ width: `${pctFatorPrincipal}%`, background: "#E8A33D" }} />
           <div style={{ width: `${pctFatorCruzado}%`, background: "#a855f7" }} />
         </div>
         <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-4">
@@ -1008,7 +1008,7 @@ function FxDecomposition({ positions }: {
             ]} />
           <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
           <Bar dataKey="ativo" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} maxBarSize={18} />
-          <Bar dataKey="fx" stackId="a" fill="#d4a574" radius={[0, 0, 0, 0]} maxBarSize={18} />
+          <Bar dataKey="fx" stackId="a" fill="#E8A33D" radius={[0, 0, 0, 0]} maxBarSize={18} />
           <Bar dataKey="cruzado" stackId="a" fill="#a855f7" radius={[0, 4, 4, 0]} maxBarSize={18} />
         </BarChart>
       </ResponsiveContainer>

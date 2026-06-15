@@ -1,0 +1,9 @@
+style(ui): varredura global de acento dourado -> ambar (inline) em todas as paginas
+
+Completa a "pele" terminal: as classes legadas ja viravam painel reto pela ponte
+no globals.css; aqui troco os acentos dourados INLINE que a ponte nao pega
+(#d4a574 -> #E8A33D, #f5d49a -> #F0B860, #c49060 -> #C9852E, rgba 212,165,116 ->
+232,163,61) em app/ e components/. Apenas valores de cor (40/40 linhas), sem
+mexer em logica/dados. Agora todas as paginas ficam consistentes no acento ambar.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

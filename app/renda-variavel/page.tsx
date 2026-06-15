@@ -215,7 +215,7 @@ export default function RendaVariavelPage() {
             value={compactBRL(metrics.totalInvestido)}
             sub={`${metrics.rv.length} ativos · PM do dólar`}
             icon={<Briefcase size={18} />}
-            glowColor="#d4a574"
+            glowColor="#E8A33D"
           />
         </div>
         <div className="animate-fade-in animate-delay-1">

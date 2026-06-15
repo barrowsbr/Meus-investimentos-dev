@@ -1109,10 +1109,10 @@ export default function ResumoPage() {
                       <Cell key={i} fill={SECTOR_COLORS[entry.setor] || "#3b82f6"} fillOpacity={0.85} />
                     ))}
                   </Bar>
-                  <Line yAxisId="right" type="monotone" dataKey="acumulado_pct" stroke="#d4a574" strokeWidth={2}
-                    dot={{ fill: "#d4a574", r: 3 }} name="acumulado_pct" />
-                  <ReferenceLine yAxisId="right" y={80} stroke="#d4a574" strokeDasharray="6 3" strokeOpacity={0.45}
-                    label={{ value: "80%", position: "right", fontSize: 9, fill: "#d4a574" }} />
+                  <Line yAxisId="right" type="monotone" dataKey="acumulado_pct" stroke="#E8A33D" strokeWidth={2}
+                    dot={{ fill: "#E8A33D", r: 3 }} name="acumulado_pct" />
+                  <ReferenceLine yAxisId="right" y={80} stroke="#E8A33D" strokeDasharray="6 3" strokeOpacity={0.45}
+                    label={{ value: "80%", position: "right", fontSize: 9, fill: "#E8A33D" }} />
                 </ComposedChart>
               </ResponsiveContainer>
               {composicao?.pareto && composicao.pareto.length > 0 && (

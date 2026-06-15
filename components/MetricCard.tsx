@@ -24,7 +24,7 @@ export default function MetricCard({
   const trendColor =
     trend === "up" ? "text-positive" : trend === "down" ? "text-negative" : "";
 
-  const color = glowColor || "#d4a574";
+  const color = glowColor || "#E8A33D";
   // Derive a subtle gradient border from glowColor when no explicit gradient is given
   const gradient =
     borderGradient ||

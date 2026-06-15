@@ -86,7 +86,7 @@ export default function PortfolioPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
         <div className="animate-fade-in">
-          <MetricCard label="Investido (RV)" value={compactBRL(metrics.totalInvestido)} sub="Custo com PM do dólar" icon={<Briefcase size={18} />} glowColor="#d4a574" />
+          <MetricCard label="Investido (RV)" value={compactBRL(metrics.totalInvestido)} sub="Custo com PM do dólar" icon={<Briefcase size={18} />} glowColor="#E8A33D" />
         </div>
         <div className="animate-fade-in animate-delay-1">
           <MetricCard label="Valor Atual (RV)" value={compactBRL(data.rvPatrimonioBRL)} sub={`${metrics.rv.length} ativos`} icon={<Target size={18} />} glowColor="#3b82f6" />

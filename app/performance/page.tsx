@@ -1077,15 +1077,15 @@ export default function PerformancePage() {
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="gradNav" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d4a574" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#d4a574" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#E8A33D" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#E8A33D" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                     <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
-                    <Area type="monotone" dataKey="nav" stroke="#d4a574" fill="url(#gradNav)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="nav" stroke="#E8A33D" fill="url(#gradNav)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (

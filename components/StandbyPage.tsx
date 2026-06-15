@@ -12,7 +12,7 @@ export default function StandbyPage({
   title,
   description,
   icon,
-  accentColor = "#d4a574",
+  accentColor = "#E8A33D",
   features = [],
 }: Props) {
   return (

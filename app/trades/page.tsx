@@ -180,7 +180,7 @@ export default function TradesPage() {
               <button
                 onClick={addTrade}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all"
-                style={{ background: "rgba(212,165,116,0.1)", border: "1px solid rgba(212,165,116,0.2)", color: "#d4a574" }}
+                style={{ background: "rgba(232,163,61,0.1)", border: "1px solid rgba(232,163,61,0.2)", color: "#E8A33D" }}
               >
                 <Plus size={12} /> Nova
               </button>
@@ -205,7 +205,7 @@ export default function TradesPage() {
                           value={t.tipo}
                           onChange={e => updateTrade(t.id, "tipo", e.target.value)}
                           className="bg-transparent text-[10px] font-bold rounded-md px-2 py-1 outline-none cursor-pointer"
-                          style={{ border: "1px solid rgba(212,165,116,0.3)", color: t.tipo === "day-trade" ? "#f59e0b" : "#8b5cf6" }}
+                          style={{ border: "1px solid rgba(232,163,61,0.3)", color: t.tipo === "day-trade" ? "#f59e0b" : "#8b5cf6" }}
                         >
                           <option value="day-trade">Day Trade</option>
                           <option value="swing">Swing</option>

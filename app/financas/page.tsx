@@ -1123,7 +1123,7 @@ export default function FinancasPage() {
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all duration-200 ${
               activeTab === tab.id
-                ? "bg-accent/12 text-accent shadow-[inset_0_0_20px_rgba(212,165,116,0.05)]"
+                ? "bg-accent/12 text-accent shadow-[inset_0_0_20px_rgba(232,163,61,0.05)]"
                 : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
             }`}
           >
