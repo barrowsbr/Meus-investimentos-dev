@@ -8,50 +8,6 @@ const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
 // ^SP500TR = S&P 500 Total Return (com dividendos) — benchmark correto para
 // carteira que mede retorno total. ^GSPC mantido como fallback histórico.
 const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR"];
-const CRYPTO_TICKERS = new Set(["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "ADA-USD", "XRP-USD"]);
-
-function isWeekend(dateStr: string): boolean {
-  const d = new Date(dateStr + "T12:00:00Z");
-  return d.getUTCDay() === 0 || d.getUTCDay() === 6;
-}
-
-// Yahoo returns scrambled prices when exchanges are closed.
-// Validate NEW data before inserting — reject weekends, holiday scrambles, out-of-range FX.
-function isScrambledDate(
-  dateStr: string,
-  newPrices: Record<string, number>,
-  lastGoodCanaries: { spy: number; itub: number },
-): boolean {
-  if (isWeekend(dateStr)) return true;
-
-  const spy = newPrices["SPY"];
-  if (spy != null && spy > 0 && lastGoodCanaries.spy > 0) {
-    if (Math.abs(spy - lastGoodCanaries.spy) / lastGoodCanaries.spy > 0.40) return true;
-  }
-
-  const itub = newPrices["ITUB4.SA"];
-  if (itub != null && itub > 0 && lastGoodCanaries.itub > 0) {
-    if (Math.abs(itub - lastGoodCanaries.itub) / lastGoodCanaries.itub > 0.40) return true;
-  }
-
-  const bvsp = newPrices["^BVSP"];
-  if (bvsp != null && bvsp > 0 && bvsp < 50000) return true;
-
-  return false;
-}
-
-// Build last known good canary values from existing (validated) data
-function buildCanaryBaseline(existing: GoldenSourceData): { spy: number; itub: number } {
-  let spy = 0, itub = 0;
-  for (let i = existing.dates.length - 1; i >= 0; i--) {
-    const p = existing.prices[existing.dates[i]];
-    if (!p) continue;
-    if (!spy && p["SPY"] > 0) spy = p["SPY"];
-    if (!itub && p["ITUB4.SA"] > 0) itub = p["ITUB4.SA"];
-    if (spy && itub) break;
-  }
-  return { spy, itub };
-}
 
 export interface Anomaly {
   ticker: string;
@@ -64,7 +20,6 @@ export interface SyncReport {
   action: string;
   status: ReturnType<typeof goldenSourceStatus>;
   newPoints: number;
-  rejectedDates: number;
   tickerErrors?: string[];
   anomalies: Anomaly[];
   anomalyCount: number;
@@ -108,7 +63,7 @@ function detectAnomalies(data: GoldenSourceData): Anomaly[] {
 }
 
 // Runs a backfill or incremental update of the golden source (db_cotacoes).
-// On-demand only (no cron) — triggered by /api/cotacoes/refresh when app opens.
+// Shared by the manual endpoint (POST) and the scheduled cron job.
 export async function runCotacoesSync(
   action: "backfill" | "update" = "update",
   lookbackYears = 5
@@ -166,7 +121,7 @@ export async function runCotacoesSync(
     })
   );
 
-  // 5. Carry forward existing data unchanged — it's already validated
+  // 5. Merge — always carry forward existing data, overlay new
   const prices: Record<string, Record<string, number>> = {};
   const tickerSet = new Set<string>();
   const dateSet = new Set<string>();
@@ -179,8 +134,7 @@ export async function runCotacoesSync(
     existing.tickers.forEach((t) => tickerSet.add(t));
   }
 
-  // 6. Group new Yahoo data by date for validation
-  const newByDate = new Map<string, { ticker: string; price: number }[]>();
+  let newPoints = 0;
   const tickerErrors: string[] = [];
   for (const res of fetchResults) {
     if (res.status !== "fulfilled") continue;
@@ -191,48 +145,11 @@ export async function runCotacoesSync(
       continue;
     }
     for (const { date, price } of rows) {
-      if (!newByDate.has(date)) newByDate.set(date, []);
-      newByDate.get(date)!.push({ ticker: orig, price });
-    }
-  }
-
-  // 7. Validate new data per-date before inserting — reject scrambled dates entirely
-  const canaries = buildCanaryBaseline(existing);
-  let newPoints = 0;
-  let rejectedDates = 0;
-  const sortedNewDates = [...newByDate.keys()].sort();
-
-  for (const date of sortedNewDates) {
-    const entries = newByDate.get(date)!;
-    const dateSnapshot: Record<string, number> = {};
-    for (const { ticker, price } of entries) dateSnapshot[ticker] = price;
-
-    if (isScrambledDate(date, dateSnapshot, canaries)) {
-      // Only keep crypto from scrambled dates
-      rejectedDates++;
-      for (const { ticker, price } of entries) {
-        if (!CRYPTO_TICKERS.has(ticker)) continue;
-        dateSet.add(date);
-        if (!prices[date]) prices[date] = {};
-        if (prices[date][ticker] == null) {
-          prices[date][ticker] = price;
-          newPoints++;
-        }
-      }
-      continue;
-    }
-
-    // Good date — update canary baselines
-    if (dateSnapshot["SPY"] > 0) canaries.spy = dateSnapshot["SPY"];
-    if (dateSnapshot["ITUB4.SA"] > 0) canaries.itub = dateSnapshot["ITUB4.SA"];
-
-    // Insert only new points (never overwrite existing)
-    for (const { ticker, price } of entries) {
       dateSet.add(date);
       if (!prices[date]) prices[date] = {};
-      if (prices[date][ticker] == null) {
-        prices[date][ticker] = price;
+      if (prices[date][orig] == null) {
         newPoints++;
+        prices[date][orig] = price;
       }
     }
   }
@@ -244,9 +161,7 @@ export async function runCotacoesSync(
   };
 
   const anomalies = detectAnomalies(merged);
-  if (newPoints > 0) {
-    await writeGoldenSource(merged);
-  }
+  await writeGoldenSource(merged);
 
   return {
     action,
@@ -255,7 +170,6 @@ export async function runCotacoesSync(
     tickerErrors: tickerErrors.length > 0 ? tickerErrors : undefined,
     anomalies: anomalies.slice(0, 50),
     anomalyCount: anomalies.length,
-    rejectedDates,
     tickers: merged.tickers,
   };
 }
