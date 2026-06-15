@@ -427,8 +427,8 @@ function EnvSection() {
 // ── Golden Source (db_cotacoes) Section ──────────────────────────────────────
 
 interface GsAnomaly { ticker: string; date: string; type: string; detail: string }
-interface GsStatus { empty?: boolean; firstDate?: string; lastDate?: string; tickerCount?: number; dateCount?: number; points?: number; coverage?: number; tickers?: string[] }
-interface GsResult { action: string; status: GsStatus; newPoints: number; tickerErrors?: string[]; anomalies?: GsAnomaly[]; anomalyCount?: number }
+interface GsStatus { empty?: boolean; firstDate?: string; lastDate?: string; tickerCount?: number; dateCount?: number; points?: number; coverage?: number; tickers?: string[]; anomalies?: GsAnomaly[]; anomalyCount?: number }
+interface GsResult { action: string; status: GsStatus; newPoints: number; weekendSkipped?: number; tickerErrors?: string[]; anomalies?: GsAnomaly[]; anomalyCount?: number }
 
 interface RebuildResult {
   ok: boolean;
@@ -452,12 +452,20 @@ function GoldenSourceSection() {
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildResult, setRebuildResult] = useState<RebuildResult | null>(null);
   const [confirmRebuild, setConfirmRebuild] = useState(false);
+  const [anomalies, setAnomalies] = useState<GsAnomaly[]>([]);
+  const [anomalyCount, setAnomalyCount] = useState(0);
+  const [anomalyFilter, setAnomalyFilter] = useState<"todos" | "large_move" | "gap" | "negative">("todos");
+  const [showAnomalies, setShowAnomalies] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     fetch("/api/sync/cotacoes")
       .then(r => r.json())
-      .then(d => setStatus(d))
+      .then(d => {
+        setStatus(d);
+        setAnomalies(d.anomalies ?? []);
+        setAnomalyCount(d.anomalyCount ?? 0);
+      })
       .catch(() => setStatus(null))
       .finally(() => setLoading(false));
   }, []);
@@ -470,6 +478,8 @@ function GoldenSourceSection() {
       const data = await res.json();
       setSyncResult(data);
       if (data.status) setStatus(data.status);
+      if (data.anomalies) setAnomalies(data.anomalies);
+      if (typeof data.anomalyCount === "number") setAnomalyCount(data.anomalyCount);
       bumpDataVersion();
     } catch {
       setSyncResult({ action: "error", status: {}, newPoints: 0, anomalies: [], anomalyCount: 0 });
@@ -545,6 +555,83 @@ function GoldenSourceSection() {
               <p className="text-xs text-zinc-300 font-mono">{s.value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Anomalias detectadas na base atual */}
+      {!loading && anomalyCount > 0 && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 overflow-hidden">
+          <button
+            onClick={() => setShowAnomalies(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.04] transition-colors"
+          >
+            <span className="flex items-center gap-2 text-xs font-semibold text-amber-300">
+              <AlertCircle size={14} />
+              {anomalyCount} {anomalyCount === 1 ? "anomalia detectada" : "anomalias detectadas"} nos dados
+            </span>
+            {showAnomalies ? <ChevronUp size={14} className="text-amber-400/60" /> : <ChevronDown size={14} className="text-amber-400/60" />}
+          </button>
+
+          {showAnomalies && (
+            <div className="px-4 pb-4 pt-1 space-y-3 border-t border-amber-500/15">
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Possíveis problemas nos preços puxados do Yahoo: saltos &gt;25% (split/bonificação ou erro),
+                lacunas &gt;10 dias sem cotação, ou preços negativos. Revise antes de confiar na performance.
+              </p>
+
+              {/* Filtro por tipo */}
+              <div className="flex flex-wrap gap-1 bg-zinc-900/60 rounded-lg p-0.5 w-fit">
+                {([
+                  { key: "todos", label: `Todos (${anomalies.length})` },
+                  { key: "large_move", label: `Saltos (${anomalies.filter(a => a.type === "large_move").length})` },
+                  { key: "gap", label: `Lacunas (${anomalies.filter(a => a.type === "gap").length})` },
+                  { key: "negative", label: `Negativos (${anomalies.filter(a => a.type === "negative").length})` },
+                ] as const).map(f => (
+                  <button key={f.key} onClick={() => setAnomalyFilter(f.key)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                      anomalyFilter === f.key ? "bg-amber-500/20 text-amber-200" : "text-zinc-500 hover:text-zinc-300"
+                    }`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tabela de anomalias */}
+              <div className="overflow-x-auto rounded-lg border border-zinc-800 max-h-[320px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-zinc-800 bg-zinc-900/95 backdrop-blur">
+                      <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Tipo</th>
+                      <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Ticker</th>
+                      <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Data</th>
+                      <th className="text-left py-2 px-2.5 text-zinc-500 font-semibold uppercase tracking-wider text-[10px]">Detalhe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {anomalies
+                      .filter(a => anomalyFilter === "todos" || a.type === anomalyFilter)
+                      .map((a, i) => {
+                        const badge = a.type === "large_move"
+                          ? { c: "bg-orange-500/10 text-orange-400", l: "Salto" }
+                          : a.type === "gap"
+                          ? { c: "bg-blue-500/10 text-blue-400", l: "Lacuna" }
+                          : { c: "bg-red-500/10 text-red-400", l: "Negativo" };
+                        return (
+                          <tr key={i} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                            <td className="py-1.5 px-2.5">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.c}`}>{badge.l}</span>
+                            </td>
+                            <td className="py-1.5 px-2.5 font-semibold text-zinc-200">{a.ticker}</td>
+                            <td className="py-1.5 px-2.5 text-zinc-400 font-mono">{a.date}</td>
+                            <td className="py-1.5 px-2.5 text-zinc-500">{a.detail}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -671,6 +758,7 @@ function GoldenSourceSection() {
             <p className="flex items-center gap-1.5">
               <CheckCircle2 size={13} />
               Sincronização concluída — {syncResult.newPoints} pontos novos
+              {syncResult.weekendSkipped ? `, ${syncResult.weekendSkipped} pontos de fim de semana ignorados` : ""}
               {syncResult.anomalyCount ? `, ${syncResult.anomalyCount} anomalias detectadas` : ""}
             </p>
           )}

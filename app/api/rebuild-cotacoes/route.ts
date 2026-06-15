@@ -44,12 +44,40 @@ export async function POST(request: Request) {
   }
   for (const t of [...FX_TICKERS, ...INDEX_TICKERS]) yahooMap.set(t, t);
 
-  // 2. Fetch ALL history from Yahoo
+  // 2. Determine start date: earliest transaction or lookbackYears, whichever is older
   const endStr = new Date().toISOString().split("T")[0];
-  const start = new Date();
-  start.setFullYear(start.getFullYear() - lookbackYears);
-  const startStr = start.toISOString().split("T")[0];
-  const lookbackDays = Math.ceil((Date.now() - start.getTime()) / 86400000);
+
+  let earliestTx = "";
+  for (const row of transacoes) {
+    const val = row["data"] ?? row["date"];
+    if (!val) continue;
+    let d = "";
+    if (typeof val === "number") {
+      const dt = new Date(Math.floor((val as number) - 25569) * 86400000);
+      d = dt.toISOString().split("T")[0];
+    } else {
+      const s = String(val).trim();
+      const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (br) d = `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+      else if (/^\d{4}-\d{2}-\d{2}/.test(s)) d = s.slice(0, 10);
+    }
+    if (d && (!earliestTx || d < earliestTx)) earliestTx = d;
+  }
+
+  const lookbackStart = new Date();
+  lookbackStart.setFullYear(lookbackStart.getFullYear() - lookbackYears);
+  const lookbackStr = lookbackStart.toISOString().split("T")[0];
+
+  // Use whichever is earlier: the lookback or 30 days before the first transaction
+  let startStr = lookbackStr;
+  if (earliestTx) {
+    const txStart = new Date(earliestTx);
+    txStart.setDate(txStart.getDate() - 30);
+    const txStartStr = txStart.toISOString().split("T")[0];
+    if (txStartStr < startStr) startStr = txStartStr;
+  }
+
+  const lookbackDays = Math.ceil((Date.now() - new Date(startStr).getTime()) / 86400000);
 
   const allTickers = [...yahooMap.keys()];
   const fetchResults = await Promise.allSettled(

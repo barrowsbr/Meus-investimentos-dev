@@ -9,6 +9,16 @@ const FX_TICKERS = ["BRL=X", "EURBRL=X", "CADBRL=X", "GBPBRL=X"];
 // carteira que mede retorno total. ^GSPC mantido como fallback histórico.
 const INDEX_TICKERS = ["^BVSP", "^GSPC", "^SP500TR"];
 
+// Fim de semana: bolsas fechadas. Qualquer preço de ação/ETF/FII/índice/FX num
+// sábado/domingo é lixo do Yahoo (preço embaralhado). Só cripto negocia 24/7.
+// Guarda PREVENTIVA: só impede ADICIONAR linhas ruins; nunca apaga/altera dado
+// já existente (preserva imutabilidade do que já foi validado).
+function isWeekend(dateStr: string): boolean {
+  const d = new Date(dateStr + "T12:00:00Z");
+  const day = d.getUTCDay();
+  return day === 0 || day === 6;
+}
+
 export interface Anomaly {
   ticker: string;
   date: string;
@@ -20,13 +30,14 @@ export interface SyncReport {
   action: string;
   status: ReturnType<typeof goldenSourceStatus>;
   newPoints: number;
+  weekendSkipped?: number;
   tickerErrors?: string[];
   anomalies: Anomaly[];
   anomalyCount: number;
   tickers: string[];
 }
 
-function detectAnomalies(data: GoldenSourceData): Anomaly[] {
+export function detectAnomalies(data: GoldenSourceData): Anomaly[] {
   const anomalies: Anomaly[] = [];
   const dayMs = 86400000;
   for (const ticker of data.tickers) {
@@ -98,17 +109,39 @@ export async function runCotacoesSync(
   const existing = await readGoldenSource();
   const existingStatus = goldenSourceStatus(existing);
 
-  // 3. Date range
+  // 3. Date range — for backfill, go back to earliest transaction (not just lookbackDays)
   const endStr = new Date().toISOString().split("T")[0];
   let startStr: string;
   if (action === "update" && !existingStatus.empty) {
     const last = new Date(existingStatus.lastDate);
-    last.setDate(last.getDate() - 3); // small overlap for safety
+    last.setDate(last.getDate() - 3);
     startStr = last.toISOString().split("T")[0];
   } else {
-    const start = new Date();
-    start.setDate(start.getDate() - lookbackDays);
-    startStr = start.toISOString().split("T")[0];
+    let earliestTx = "";
+    for (const row of transacoes) {
+      const val = row["data"] ?? row["date"];
+      if (!val) continue;
+      let d = "";
+      if (typeof val === "number") {
+        const dt = new Date(Math.floor((val as number) - 25569) * 86400000);
+        d = dt.toISOString().split("T")[0];
+      } else {
+        const s = String(val).trim();
+        const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (br) d = `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+        else if (/^\d{4}-\d{2}-\d{2}/.test(s)) d = s.slice(0, 10);
+      }
+      if (d && (!earliestTx || d < earliestTx)) earliestTx = d;
+    }
+    const lookbackDate = new Date();
+    lookbackDate.setDate(lookbackDate.getDate() - lookbackDays);
+    startStr = lookbackDate.toISOString().split("T")[0];
+    if (earliestTx) {
+      const txStart = new Date(earliestTx);
+      txStart.setDate(txStart.getDate() - 30);
+      const txStartStr = txStart.toISOString().split("T")[0];
+      if (txStartStr < startStr) startStr = txStartStr;
+    }
   }
 
   // 4. Fetch from Yahoo
@@ -135,6 +168,7 @@ export async function runCotacoesSync(
   }
 
   let newPoints = 0;
+  let weekendSkipped = 0;
   const tickerErrors: string[] = [];
   for (const res of fetchResults) {
     if (res.status !== "fulfilled") continue;
@@ -144,7 +178,10 @@ export async function runCotacoesSync(
       tickerErrors.push(orig);
       continue;
     }
+    const isCrypto = identificarSetor(orig) === "Cripto";
     for (const { date, price } of rows) {
+      // Bolsa fechada no fim de semana → preço de não-cripto é lixo. Não adiciona.
+      if (isWeekend(date) && !isCrypto) { weekendSkipped++; continue; }
       dateSet.add(date);
       if (!prices[date]) prices[date] = {};
       if (prices[date][orig] == null) {
@@ -167,6 +204,7 @@ export async function runCotacoesSync(
     action,
     status: goldenSourceStatus(merged),
     newPoints,
+    weekendSkipped: weekendSkipped > 0 ? weekendSkipped : undefined,
     tickerErrors: tickerErrors.length > 0 ? tickerErrors : undefined,
     anomalies: anomalies.slice(0, 50),
     anomalyCount: anomalies.length,
