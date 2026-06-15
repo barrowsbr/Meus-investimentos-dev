@@ -145,7 +145,7 @@ export default function FluxosPage() {
             label="Total Fluxos"
             value={String(s.totalFluxos)}
             icon={<ArrowLeftRight size={18} />}
-            glowColor="#d4a574"
+            glowColor="#E8A33D"
           />
         </div>
       )}

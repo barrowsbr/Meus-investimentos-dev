@@ -816,7 +816,7 @@ function BackgroundSection() {
           return (
             <button key={opt.label} onClick={() => select(opt.path)}
               className="relative rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
-              style={{ width: 120, height: 80, border: active ? "2px solid #d4a574" : "2px solid rgba(255,255,255,0.08)", boxShadow: active ? "0 0 12px rgba(212,165,116,0.2)" : "none" }}>
+              style={{ width: 120, height: 80, border: active ? "2px solid #E8A33D" : "2px solid rgba(255,255,255,0.08)", boxShadow: active ? "0 0 12px rgba(232,163,61,0.2)" : "none" }}>
               {opt.path ? (
                 <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${opt.path}')`, filter: "brightness(0.5)" }} />
               ) : (
@@ -830,7 +830,7 @@ function BackgroundSection() {
           );
         })}
         {isCustom && (
-          <div className="relative rounded-xl overflow-hidden" style={{ width: 120, height: 80, border: "2px solid #d4a574", boxShadow: "0 0 12px rgba(212,165,116,0.2)" }}>
+          <div className="relative rounded-xl overflow-hidden" style={{ width: 120, height: 80, border: "2px solid #E8A33D", boxShadow: "0 0 12px rgba(232,163,61,0.2)" }}>
             <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${current}')`, filter: "brightness(0.5)" }} />
             <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 flex items-center gap-1">
               <Check size={10} className="text-amber-400" /><span className="text-[10px] font-semibold text-amber-400 truncate">Custom</span>

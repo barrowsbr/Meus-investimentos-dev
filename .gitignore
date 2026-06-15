@@ -24,3 +24,6 @@ node_modules/
 # Design handoff Barroots Terminal (referência local — não versionar)
 /Barroots Design System.zip
 /design_handoff_terminal/
+
+# Arquivo temporário de mensagem de commit
+.commitmsg.tmp

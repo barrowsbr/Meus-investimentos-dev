@@ -912,15 +912,22 @@ export default function PerformancePage() {
 
       {/* ── Sub-tabs + chart toggles ── */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 border border-zinc-800/50">
-          {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === tab ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-              }`}>
-              {TAB_LABELS[tab]}
-            </button>
-          ))}
+        <div className="flex">
+          {(Object.keys(TAB_LABELS) as Tab[]).map(tab => {
+            const on = activeTab === tab;
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className="font-mono uppercase whitespace-nowrap"
+                style={{
+                  padding: "8px 14px",
+                  borderBottom: `2px solid ${on ? "var(--accent)" : "var(--line)"}`,
+                  color: on ? "var(--text)" : "var(--muted)",
+                  fontSize: 11, fontWeight: 600, letterSpacing: ".05em",
+                }}>
+                {TAB_LABELS[tab]}
+              </button>
+            );
+          })}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden"
@@ -1077,15 +1084,15 @@ export default function PerformancePage() {
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="gradNav" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d4a574" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#d4a574" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#E8A33D" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#E8A33D" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" />
                     <XAxis dataKey="date" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
-                    <Area type="monotone" dataKey="nav" stroke="#d4a574" fill="url(#gradNav)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="nav" stroke="#E8A33D" fill="url(#gradNav)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (

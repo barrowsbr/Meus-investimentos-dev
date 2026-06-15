@@ -16,7 +16,7 @@ import { fetchMetaculus } from "@/lib/metaculus";
 const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
 
 const CAT_META: Record<string, { color: string; icon: typeof BarChart2; desc: string }> = {
-  "📊 Correlatos ao Portfólio": { color: "#d4a574", icon: Briefcase, desc: "Apostas ligadas aos seus ativos" },
+  "📊 Correlatos ao Portfólio": { color: "#E8A33D", icon: Briefcase, desc: "Apostas ligadas aos seus ativos" },
   "🏦 Macro & Finanças":       { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
   "🏦 Macro & Economia":       { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
   "🌍 Geopolítica":            { color: "#f59e0b", icon: Globe, desc: "Eleições, conflitos, relações internacionais" },

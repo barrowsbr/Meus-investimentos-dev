@@ -218,8 +218,8 @@ export default function SetoresPage() {
             onClick={() => setConsolidated(false)}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold transition-colors"
             style={{
-              background: !consolidated ? "rgba(212,165,116,0.12)" : "transparent",
-              color: !consolidated ? "#f5d49a" : "#71717a",
+              background: !consolidated ? "rgba(232,163,61,0.12)" : "transparent",
+              color: !consolidated ? "#F0B860" : "#71717a",
             }}
           >
             <Eye size={13} />

@@ -118,18 +118,20 @@ export default function TradesPage() {
       />
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit mb-6">
-        {([["todos", "Todos"], ["day-trade", "Day Trade"], ["swing", "Swing Trade"]] as const).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setFilterTipo(id)}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              filterTipo === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex mb-6" style={{ borderBottom: "1px solid var(--line)" }}>
+        {([["todos", "Todos"], ["day-trade", "Day Trade"], ["swing", "Swing Trade"]] as const).map(([id, label]) => {
+          const on = filterTipo === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setFilterTipo(id)}
+              className="font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* KPIs */}
@@ -180,7 +182,7 @@ export default function TradesPage() {
               <button
                 onClick={addTrade}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all"
-                style={{ background: "rgba(212,165,116,0.1)", border: "1px solid rgba(212,165,116,0.2)", color: "#d4a574" }}
+                style={{ background: "rgba(232,163,61,0.1)", border: "1px solid rgba(232,163,61,0.2)", color: "#E8A33D" }}
               >
                 <Plus size={12} /> Nova
               </button>
@@ -205,7 +207,7 @@ export default function TradesPage() {
                           value={t.tipo}
                           onChange={e => updateTrade(t.id, "tipo", e.target.value)}
                           className="bg-transparent text-[10px] font-bold rounded-md px-2 py-1 outline-none cursor-pointer"
-                          style={{ border: "1px solid rgba(212,165,116,0.3)", color: t.tipo === "day-trade" ? "#f59e0b" : "#8b5cf6" }}
+                          style={{ border: "1px solid rgba(232,163,61,0.3)", color: t.tipo === "day-trade" ? "#f59e0b" : "#8b5cf6" }}
                         >
                           <option value="day-trade">Day Trade</option>
                           <option value="swing">Swing</option>

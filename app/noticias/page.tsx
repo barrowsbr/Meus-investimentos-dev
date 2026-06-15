@@ -350,13 +350,15 @@ export default function NoticiasPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1.5 mb-5 bg-white/[0.03] p-1 rounded-2xl border border-white/[0.06] overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-shrink-0 flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all duration-200 ${
-              tab === t.id ? "bg-accent/12 text-accent" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
-            }`}>{t.icon}{t.label}</button>
-        ))}
+      <div className="flex mb-5 overflow-x-auto scrollbar-hide" style={{ borderBottom: "1px solid var(--line)" }}>
+        {TABS.map(t => {
+          const on = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className="flex-shrink-0 flex items-center gap-1.5 font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 12px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}>{t.icon}{t.label}</button>
+          );
+        })}
       </div>
 
       {error && !["reddit","previsoes"].includes(tab) && (

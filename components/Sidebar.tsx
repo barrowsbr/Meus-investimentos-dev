@@ -113,7 +113,7 @@ export default function Sidebar() {
           <h1
             className="font-bold text-lg tracking-tight"
             style={{
-              background: "linear-gradient(135deg, #d4a574 0%, #f5d49a 50%, #c49060 100%)",
+              background: "linear-gradient(135deg, #E8A33D 0%, #F0B860 50%, #C9852E 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -163,13 +163,13 @@ export default function Sidebar() {
                           <span
                             className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
                             style={{
-                              background: "linear-gradient(180deg, #f5d49a, #d4a574, #c49060)",
-                              boxShadow: "0 0 8px rgba(212,165,116,0.6)",
+                              background: "linear-gradient(180deg, #F0B860, #E8A33D, #C9852E)",
+                              boxShadow: "0 0 8px rgba(232,163,61,0.6)",
                             }}
                           />
                           <span
                             className="absolute inset-0 rounded-xl pointer-events-none"
-                            style={{ boxShadow: "inset 0 0 0 1px rgba(212,165,116,0.18)" }}
+                            style={{ boxShadow: "inset 0 0 0 1px rgba(232,163,61,0.18)" }}
                           />
                         </>
                       )}
@@ -178,7 +178,7 @@ export default function Sidebar() {
                         strokeWidth={active ? 2.0 : 1.6}
                         style={
                           active
-                            ? { filter: "drop-shadow(0 0 4px rgba(212,165,116,0.45))" }
+                            ? { filter: "drop-shadow(0 0 4px rgba(232,163,61,0.45))" }
                             : undefined
                         }
                       />
@@ -229,8 +229,8 @@ export default function Sidebar() {
                 style={
                   active
                     ? {
-                        background: "rgba(212,165,116,0.15)",
-                        boxShadow: "0 0 12px rgba(212,165,116,0.2)",
+                        background: "rgba(232,163,61,0.15)",
+                        boxShadow: "0 0 12px rgba(232,163,61,0.2)",
                       }
                     : { background: "transparent" }
                 }
@@ -240,10 +240,10 @@ export default function Sidebar() {
                   strokeWidth={active ? 2.2 : 1.4}
                   className="transition-all duration-300 ease-out"
                   style={{
-                    color: active ? "#f5d49a" : "#6b7280",
+                    color: active ? "#F0B860" : "#6b7280",
                     transform: active ? "scale(1.1)" : "scale(1)",
                     filter: active
-                      ? "drop-shadow(0 0 6px rgba(212,165,116,0.5))"
+                      ? "drop-shadow(0 0 6px rgba(232,163,61,0.5))"
                       : "none",
                   }}
                 />
@@ -251,8 +251,8 @@ export default function Sidebar() {
               <span
                 className="absolute bottom-1.5 w-1 h-1 rounded-full transition-all duration-300 ease-out"
                 style={{
-                  background: active ? "#f5d49a" : "transparent",
-                  boxShadow: active ? "0 0 6px rgba(212,165,116,0.6)" : "none",
+                  background: active ? "#F0B860" : "transparent",
+                  boxShadow: active ? "0 0 6px rgba(232,163,61,0.6)" : "none",
                   transform: active ? "scale(1)" : "scale(0)",
                 }}
               />

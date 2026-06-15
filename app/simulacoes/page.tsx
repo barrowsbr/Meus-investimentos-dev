@@ -783,7 +783,7 @@ export default function SimulacoesPage() {
               <button
                 onClick={addOp}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all"
-                style={{ background: "rgba(212,165,116,0.1)", border: "1px solid rgba(212,165,116,0.2)", color: "#d4a574" }}
+                style={{ background: "rgba(232,163,61,0.1)", border: "1px solid rgba(232,163,61,0.2)", color: "#E8A33D" }}
               >
                 <Plus size={12} /> Adicionar
               </button>
@@ -1198,7 +1198,7 @@ export default function SimulacoesPage() {
                   <div key={p.ticker} className="flex items-center gap-2 py-1">
                     <span className="text-xs font-bold text-zinc-200 w-20 truncate">{p.ticker}</span>
                     <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(p.pct * 2, 100)}%`, background: SETOR_ECONOMICO_COLORS[getSetorEconomico(p.ticker, p.setor, quoteCache[p.ticker.toUpperCase()]?.sector)] ?? "rgba(212,165,116,0.5)" }} />
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(p.pct * 2, 100)}%`, background: SETOR_ECONOMICO_COLORS[getSetorEconomico(p.ticker, p.setor, quoteCache[p.ticker.toUpperCase()]?.sector)] ?? "rgba(232,163,61,0.5)" }} />
                     </div>
                     <span className="text-[10px] text-zinc-400 font-mono w-12 text-right">{p.pct.toFixed(1)}%</span>
                     <span className="text-[10px] text-zinc-500 font-mono w-16 text-right">{compactBRL(p.valor)}</span>
@@ -1495,16 +1495,20 @@ function EtfLookThrough({ alloc, positions }: {
                 </div>
               )}
 
-              <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
-                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setActiveTab(id)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${activeTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex" style={{ borderBottom: "1px solid var(--line)" }}>
+                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => {
+                  const on = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActiveTab(id)}
+                      className="font-mono uppercase whitespace-nowrap"
+                      style={{ padding: "8px 12px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em" }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
               {activeTab === "por-etf" && (

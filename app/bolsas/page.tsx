@@ -374,24 +374,24 @@ export default function BolsasPage() {
         </p>
 
         {/* Tab Bar */}
-        <div className="flex gap-1 mt-4 ml-[66px] bg-zinc-900/60 rounded-xl p-1 w-fit border border-zinc-800/50">
+        <div className="flex mt-4 ml-[66px]" style={{ borderBottom: "1px solid var(--line)" }}>
           {([
             { key: "bolsas" as RadarTab, label: "Bolsas", icon: <BarChart3 size={13} /> },
             { key: "moedas" as RadarTab, label: "Moedas", icon: <Globe size={13} /> },
             { key: "crypto" as RadarTab, label: "Crypto", icon: <Bitcoin size={13} /> },
-          ]).map(t => (
-            <button
-              key={t.key}
-              onClick={() => { setActiveTab(t.key); setSearch(""); setMoedasSearch(""); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === t.key
-                  ? "bg-zinc-700/80 text-zinc-100 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-              }`}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
+          ]).map(t => {
+            const on = activeTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => { setActiveTab(t.key); setSearch(""); setMoedasSearch(""); }}
+                className="flex items-center gap-1.5 font-mono uppercase whitespace-nowrap"
+                style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
+              >
+                {t.icon} {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

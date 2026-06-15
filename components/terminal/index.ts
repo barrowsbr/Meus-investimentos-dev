@@ -4,6 +4,7 @@ export { default as TerminalShell } from "./TerminalShell";
 export { default as Rail } from "./Rail";
 export { default as CommandBar } from "./CommandBar";
 export { default as StatusBar } from "./StatusBar";
+export { default as BottomNav } from "./BottomNav";
 export { default as Panel } from "./Panel";
 export { default as KpiStrip } from "./KpiStrip";
 export type { Kpi, Tone } from "./KpiStrip";
