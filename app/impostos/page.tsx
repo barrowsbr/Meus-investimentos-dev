@@ -732,14 +732,14 @@ export default function ImpostosPage() {
           </div>
 
           {/* ── Tabs ── */}
-          <div className="flex gap-1 p-1 rounded-xl mb-5 w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex mb-5 overflow-x-auto scrollbar-hide" style={{ borderBottom: "1px solid var(--line)" }}>
             {TABS.map(t => {
               const active = tab === t.id;
               const Icon = t.icon;
               return (
                 <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${active ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
-                  style={active ? { background: `${t.cor}1f`, boxShadow: `0 2px 8px ${t.cor}14` } : {}}>
+                  className="flex items-center gap-1.5 font-mono uppercase whitespace-nowrap"
+                  style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`, color: active ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}>
                   {t.flag ? <span className="text-sm leading-none">{t.flag}</span> : <Icon size={13} />}
                   {t.label}
                 </button>

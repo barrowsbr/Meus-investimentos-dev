@@ -912,15 +912,22 @@ export default function PerformancePage() {
 
       {/* ── Sub-tabs + chart toggles ── */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 border border-zinc-800/50">
-          {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === tab ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-              }`}>
-              {TAB_LABELS[tab]}
-            </button>
-          ))}
+        <div className="flex">
+          {(Object.keys(TAB_LABELS) as Tab[]).map(tab => {
+            const on = activeTab === tab;
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className="font-mono uppercase whitespace-nowrap"
+                style={{
+                  padding: "8px 14px",
+                  borderBottom: `2px solid ${on ? "var(--accent)" : "var(--line)"}`,
+                  color: on ? "var(--text)" : "var(--muted)",
+                  fontSize: 11, fontWeight: 600, letterSpacing: ".05em",
+                }}>
+                {TAB_LABELS[tab]}
+              </button>
+            );
+          })}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden"

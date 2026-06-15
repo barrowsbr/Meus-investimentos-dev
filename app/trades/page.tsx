@@ -118,18 +118,20 @@ export default function TradesPage() {
       />
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit mb-6">
-        {([["todos", "Todos"], ["day-trade", "Day Trade"], ["swing", "Swing Trade"]] as const).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setFilterTipo(id)}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              filterTipo === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex mb-6" style={{ borderBottom: "1px solid var(--line)" }}>
+        {([["todos", "Todos"], ["day-trade", "Day Trade"], ["swing", "Swing Trade"]] as const).map(([id, label]) => {
+          const on = filterTipo === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setFilterTipo(id)}
+              className="font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* KPIs */}

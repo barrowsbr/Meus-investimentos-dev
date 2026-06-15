@@ -1116,21 +1116,21 @@ export default function FinancasPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1.5 mb-5 bg-white/[0.03] p-1 rounded-2xl border border-white/[0.06]">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all duration-200 ${
-              activeTab === tab.id
-                ? "bg-accent/12 text-accent shadow-[inset_0_0_20px_rgba(232,163,61,0.05)]"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
-            }`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+      <div className="flex mb-5" style={{ borderBottom: "1px solid var(--line)" }}>
+        {tabs.map(tab => {
+          const on = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex-1 flex items-center justify-center gap-1.5 font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 12px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content */}

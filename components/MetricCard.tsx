@@ -6,71 +6,39 @@ interface Props {
   sub?: string;
   icon?: ReactNode;
   trend?: "up" | "down" | "neutral";
+  /** Aceitos por compatibilidade com chamadas existentes; ignorados no terminal. */
   glowColor?: string;
   borderGradient?: string;
   compact?: boolean;
 }
 
-export default function MetricCard({
-  label,
-  value,
-  sub,
-  icon,
-  trend,
-  glowColor,
-  borderGradient,
-  compact,
-}: Props) {
-  const trendColor =
-    trend === "up" ? "text-positive" : trend === "down" ? "text-negative" : "";
-
-  const color = glowColor || "#E8A33D";
-  // Derive a subtle gradient border from glowColor when no explicit gradient is given
-  const gradient =
-    borderGradient ||
-    `linear-gradient(135deg, ${color}55 0%, ${color}18 45%, ${color}38 100%)`;
-
+/**
+ * Card de métrica no idioma terminal: painel reto + hairline, valor mono/tnum,
+ * rótulo micro-uppercase. Sem gradiente/brilho/raio. Mantém a API antiga
+ * (glowColor/borderGradient são aceitos, mas não pintam mais a borda).
+ */
+export default function MetricCard({ label, value, sub, icon, trend, compact }: Props) {
+  const valueColor = trend === "up" ? "var(--pos)" : trend === "down" ? "var(--neg)" : "var(--text)";
   return (
     <div
-      className="rounded-2xl p-px transition-transform duration-200 hover:scale-[1.01] group"
-      style={{
-        background: gradient,
-        boxShadow: `0 4px 28px ${color}18, inset 0 1px 0 rgba(255,255,255,0.04)`,
-      }}
+      className="flex flex-col gap-1.5 h-full"
+      style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: compact ? "10px 12px" : "12px 16px" }}
     >
-      <div
-        className="metric-glow rounded-[calc(1rem-1px)] p-3 sm:p-4 md:p-5 flex flex-col gap-1 sm:gap-1.5 h-full backdrop-blur-md"
-        style={{
-          background: "rgba(19, 20, 26, 0.90)",
-          "--glow-color": color,
-        } as React.CSSProperties}
-      >
-        <div className="flex items-center justify-between">
-          <span className="stat-label text-zinc-300">{label}</span>
-          {icon && (
-            <span
-              className="transition-colors duration-200"
-              style={{ color: `${color}80` }}
-            >
-              {icon}
-            </span>
-          )}
-        </div>
-
-        <span
-          className={`${
-            compact ? "text-base sm:text-lg md:text-xl" : "text-lg sm:text-xl md:text-2xl"
-          } font-bold tracking-tight text-zinc-100 ${trendColor}`}
-        >
-          {value}
-        </span>
-
-        {sub && (
-          <span className="text-[10px] md:text-xs text-zinc-400 leading-relaxed">
-            {sub}
-          </span>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <span className="t-label">{label}</span>
+        {icon && <span style={{ color: "var(--muted)" }}>{icon}</span>}
       </div>
+      <span
+        className="font-mono tnum font-bold"
+        style={{ fontSize: compact ? 16 : 18, color: valueColor, lineHeight: 1.1, letterSpacing: "-.01em" }}
+      >
+        {value}
+      </span>
+      {sub && (
+        <span className="leading-snug" style={{ fontSize: 10, color: "var(--muted)" }}>
+          {sub}
+        </span>
+      )}
     </div>
   );
 }

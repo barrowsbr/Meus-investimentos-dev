@@ -1495,16 +1495,20 @@ function EtfLookThrough({ alloc, positions }: {
                 </div>
               )}
 
-              <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-lg w-fit">
-                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setActiveTab(id)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${activeTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex" style={{ borderBottom: "1px solid var(--line)" }}>
+                {([["por-etf", "Por ETF"], ["combinada", "Combinada"], ["rv-completa", "RV Completa"], ["portfolio-completo", "Portfólio Completo"]] as const).map(([id, label]) => {
+                  const on = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActiveTab(id)}
+                      className="font-mono uppercase whitespace-nowrap"
+                      style={{ padding: "8px 12px", marginBottom: -1, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em" }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
               {activeTab === "por-etf" && (

@@ -114,7 +114,7 @@ export default function CambioPage() {
       />
 
       {/* ── Tab selector ── */}
-      <div className="flex gap-1 p-1 rounded-xl mb-6 w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex mb-6" style={{ borderBottom: "1px solid var(--line)" }}>
         {([
           { id: "operacoes" as Tab, label: "Operações", icon: ArrowLeftRight },
           { id: "exposicao" as Tab, label: "Exposição Cambial", icon: ShieldAlert },
@@ -125,10 +125,8 @@ export default function CambioPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                active ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-              }`}
-              style={active ? { background: "rgba(232,163,61,0.12)", boxShadow: "0 2px 8px rgba(232,163,61,0.08)" } : {}}
+              className="flex items-center gap-2 font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`, color: active ? "var(--text)" : "var(--muted)", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
             >
               <Icon size={14} />
               {t.label}
