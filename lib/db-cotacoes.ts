@@ -1,6 +1,5 @@
 import { google } from "googleapis";
 import { getServiceAccountAuth, resetSheetNamesCache, listSheetNames } from "./gsheets";
-import { backupTab } from "./backup";
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 const API_KEY = process.env.GOOGLE_API_KEY!;
@@ -82,14 +81,6 @@ export async function writeGoldenSource(data: GoldenSourceData): Promise<void> {
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON");
   const sheets = google.sheets({ version: "v4", auth });
-
-  // Safety: snapshot the current tab before overwriting, so a bad write can
-  // always be recovered. (Skipped on first-ever write when the tab is empty.)
-  try {
-    await backupTab(TAB);
-  } catch {
-    /* backup is best-effort — never block the write on it */
-  }
 
   const sorted = [...data.tickers].sort((a, b) => {
     const aSpecial = a.includes("=") || a.startsWith("^");
