@@ -1,0 +1,16 @@
+export { default as TerminalProvider, useTerminal, useTheme, useFilters, usePalette, THEME_COLORS } from "./TerminalProvider";
+export type { Theme, Filters, Periodo, Moeda } from "./TerminalProvider";
+export { default as TerminalShell } from "./TerminalShell";
+export { default as Rail } from "./Rail";
+export { default as CommandBar } from "./CommandBar";
+export { default as StatusBar } from "./StatusBar";
+export { default as Panel } from "./Panel";
+export { default as KpiStrip } from "./KpiStrip";
+export type { Kpi, Tone } from "./KpiStrip";
+export { default as Blotter } from "./Blotter";
+export type { BlotterColumn } from "./Blotter";
+export { default as MiniBars } from "./MiniBars";
+export type { MiniBarItem } from "./MiniBars";
+export { default as Spark } from "./Spark";
+export { NAV, MOBILE_ITEMS, navItemForPath } from "./nav";
+export type { NavItem, NavGroup } from "./nav";
