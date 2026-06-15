@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção C — Neo-Brutalist / Swiss</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #FAFAFA;
+    --surface: #FFFFFF;
+    --ink: #1A1A1A;
+    --ink-secondary: #6B6B6B;
+    --accent: #2400FF;
+    --accent-bg: #E8E4FF;
+    --positive: #00802B;
+    --positive-bg: #D4FFDF;
+    --negative: #CC0000;
+    --negative-bg: #FFE0E0;
+    --border: #1A1A1A;
+    --border-light: #E0E0E0;
+    --yellow: #FFD60A;
+    --yellow-bg: #FFF9DB;
+    --radius: 0px;
+    --shadow: 4px 4px 0px #1A1A1A;
+    --shadow-sm: 2px 2px 0px #1A1A1A;
+  }
+
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--ink);
+    color: #FFFFFF;
+    padding: 24px 0;
+    flex-shrink: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.5px;
+    padding: 0 20px 28px;
+    border-bottom: 2px solid #333;
+    text-transform: uppercase;
+  }
+
+  .logo span {
+    color: var(--yellow);
+  }
+
+  .nav-group {
+    padding: 16px 0 0;
+  }
+
+  .nav-group-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #666;
+    padding: 0 20px 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #AAA;
+    cursor: pointer;
+    transition: all 0.1s;
+    border-left: 4px solid transparent;
+  }
+
+  .nav-item:hover {
+    color: #FFF;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .nav-item.active {
+    color: var(--yellow);
+    background: rgba(255, 214, 10, 0.08);
+    border-left-color: var(--yellow);
+    font-weight: 700;
+  }
+
+  /* ── Main ── */
+  main {
+    margin-left: 220px;
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 1200px;
+  }
+
+  /* ── Page header ── */
+  .page-header {
+    margin-bottom: 32px;
+  }
+
+  .page-header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+  }
+
+  .page-header .subtitle {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    margin-top: 6px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── Filter pills ── */
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+
+  .filter-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 16px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.1s;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .filter-pill:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px var(--ink);
+  }
+
+  .filter-pill.active {
+    background: var(--ink);
+    color: #FFF;
+    box-shadow: none;
+    transform: translate(2px, 2px);
+  }
+
+  .filter-pill.accent {
+    background: var(--yellow);
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+
+  /* ── Hero card ── */
+  .hero {
+    background: var(--surface);
+    border: 3px solid var(--border);
+    box-shadow: 6px 6px 0px var(--ink);
+    padding: 32px;
+    margin-bottom: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+  .hero-left {
+    padding-right: 32px;
+    border-right: 2px solid var(--border-light);
+  }
+
+  .hero-right {
+    padding-left: 32px;
+  }
+
+  .hero-overline {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+    margin-bottom: 8px;
+  }
+
+  .hero-number {
+    font-family: 'Space Mono', monospace;
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: -3px;
+    line-height: 1;
+    color: var(--positive);
+  }
+
+  .hero-number.negative {
+    color: var(--negative);
+  }
+
+  .hero-detail {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    margin-top: 8px;
+  }
+
+  .hero-detail strong {
+    color: var(--ink);
+  }
+
+  .hero-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 4px;
+  }
+
+  .hero-metric-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+    margin-bottom: 4px;
+  }
+
+  .hero-metric-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .hero-metric-sub {
+    font-size: 12px;
+    color: var(--ink-secondary);
+    margin-top: 2px;
+  }
+
+  /* ── Grid section ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 24px;
+  }
+
+  .card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px var(--ink);
+  }
+
+  .card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  /* ── Risk metrics ── */
+  .risk-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .risk-row:last-child {
+    border-bottom: none;
+  }
+
+  .risk-label {
+    font-size: 14px;
+    color: var(--ink-secondary);
+  }
+
+  .risk-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    margin-left: 8px;
+    display: inline-block;
+  }
+
+  .tag-good {
+    background: var(--positive-bg);
+    color: var(--positive);
+    border: 1px solid var(--positive);
+  }
+
+  .tag-warn {
+    background: var(--yellow-bg);
+    color: #997A00;
+    border: 1px solid #997A00;
+  }
+
+  .tag-bad {
+    background: var(--negative-bg);
+    color: var(--negative);
+    border: 1px solid var(--negative);
+  }
+
+  /* ── Benchmarks table ── */
+  .bench-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .bench-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+    text-align: left;
+    padding: 8px 0;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .bench-table th:not(:first-child) {
+    text-align: right;
+  }
+
+  .bench-table td {
+    font-size: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .bench-table td:not(:first-child) {
+    text-align: right;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .alpha-positive { color: var(--positive); }
+  .alpha-negative { color: var(--negative); }
+
+  /* ── Chart placeholder ── */
+  .chart-area {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 28px;
+    min-height: 280px;
+    position: relative;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .chart-tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .chart-tab {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 6px 14px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    margin-left: -2px;
+  }
+
+  .chart-tab:first-child {
+    margin-left: 0;
+  }
+
+  .chart-tab.active {
+    background: var(--accent);
+    color: #FFF;
+    border-color: var(--accent);
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: 200px;
+  }
+
+  .chart-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3;
+  }
+
+  .chart-fill {
+    fill: var(--accent-bg);
+    opacity: 0.4;
+  }
+
+  .chart-bench-line {
+    fill: none;
+    stroke: var(--ink-secondary);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+  }
+
+  .chart-grid-line {
+    stroke: var(--border-light);
+    stroke-width: 1;
+  }
+
+  /* ── Positions table ── */
+  .positions-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .positions-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-bottom: 3px solid var(--border);
+    border-top: 3px solid var(--border);
+  }
+
+  .positions-table th:not(:first-child) {
+    text-align: right;
+  }
+
+  .positions-table td {
+    font-size: 14px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .positions-table td:not(:first-child) {
+    text-align: right;
+    font-family: 'Space Mono', monospace;
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .positions-table tr:hover {
+    background: var(--yellow-bg);
+  }
+
+  .ticker-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ticker-dot {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .ticker-dot.pos { background: var(--positive); }
+  .ticker-dot.neg { background: var(--negative); }
+
+  .ticker-name {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.5px;
+  }
+
+  .ticker-sector {
+    font-size: 12px;
+    color: var(--ink-secondary);
+  }
+
+  /* ── Patrimônio strip ── */
+  .patrimonio-strip {
+    background: var(--ink);
+    color: #FFF;
+    border: 3px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 20px 28px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .patrimonio-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #888;
+  }
+
+  .patrimonio-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-top: 4px;
+  }
+
+  .patrimonio-bar {
+    display: flex;
+    gap: 0;
+    width: 280px;
+    height: 16px;
+    border: 2px solid #444;
+    overflow: hidden;
+  }
+
+  .bar-rv { background: var(--accent); width: 68%; }
+  .bar-rf { background: var(--yellow); width: 24%; }
+  .bar-cr { background: var(--negative); width: 8%; }
+
+  .patrimonio-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+  }
+
+  .legend-item {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  /* ── Badge ── */
+  .badge-label {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    background: var(--yellow);
+    color: var(--ink);
+    padding: 4px 12px;
+    border: 2px solid var(--ink);
+    box-shadow: var(--shadow-sm);
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside>
+  <div class="logo">Meus<br><span>Investimentos</span></div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Portfolio</div>
+    <div class="nav-item">Resumo</div>
+    <div class="nav-item">Renda Variavel</div>
+    <div class="nav-item">Renda Fixa</div>
+    <div class="nav-item">Proventos</div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Analise</div>
+    <div class="nav-item active">Performance</div>
+    <div class="nav-item">Setores</div>
+    <div class="nav-item">Evolucao</div>
+    <div class="nav-item">Cambio</div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Gestao</div>
+    <div class="nav-item">Impostos</div>
+    <div class="nav-item">Simulacoes</div>
+    <div class="nav-item">Configuracoes</div>
+  </div>
+</aside>
+
+<!-- Main content -->
+<main>
+
+  <!-- Page header -->
+  <div class="page-header">
+    <h1>Performance</h1>
+    <div class="subtitle">01 mar 2023 — 14 jun 2026 · 3a 3m · GIPS</div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="filter-pill active">Tudo</div>
+    <div class="filter-pill">Renda Variavel</div>
+    <div class="filter-pill">Renda Fixa</div>
+    <div style="width: 20px"></div>
+    <div class="filter-pill">Desde o inicio</div>
+    <div class="filter-pill accent">1 Ano</div>
+    <div class="filter-pill">YTD</div>
+    <div class="filter-pill">6M</div>
+    <div class="filter-pill">3M</div>
+    <div class="filter-pill">1M</div>
+  </div>
+
+  <!-- Hero card -->
+  <div class="hero">
+    <div class="hero-left">
+      <div class="hero-overline">TWR — Time-Weighted Return</div>
+      <div class="hero-number">+45,23%</div>
+      <div class="hero-detail">
+        CAGR <strong>13,2%</strong> a.a. desde a primeira operacao
+      </div>
+
+      <div class="hero-metrics" style="margin-top: 28px;">
+        <div>
+          <div class="hero-metric-label">MWR (XIRR)</div>
+          <div class="hero-metric-value" style="color: var(--positive);">+38,71%</div>
+          <div class="hero-metric-sub">TIR 11.8% a.a.</div>
+        </div>
+        <div>
+          <div class="hero-metric-label">Ganho Financeiro</div>
+          <div class="hero-metric-value" style="color: var(--positive);">+R$ 124,6k</div>
+          <div class="hero-metric-sub">+45.2% sobre R$ 275.4k investido</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="hero-overline">Benchmarks vs. Portfolio</div>
+      <table class="bench-table">
+        <thead>
+          <tr>
+            <th>Benchmark</th>
+            <th>Retorno</th>
+            <th>Alpha</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>CDI (DI acumulado)</td>
+            <td>+38,2%</td>
+            <td class="alpha-positive">+7,0%</td>
+          </tr>
+          <tr>
+            <td>Ibovespa</td>
+            <td>+22,1%</td>
+            <td class="alpha-positive">+23,1%</td>
+          </tr>
+          <tr>
+            <td>S&P 500 (BRL)</td>
+            <td>+51,3%</td>
+            <td class="alpha-negative">-6,1%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Patrimonio strip -->
+  <div class="patrimonio-strip">
+    <div>
+      <div class="patrimonio-label">Patrimonio Total</div>
+      <div class="patrimonio-value">R$ 399.980</div>
+    </div>
+    <div>
+      <div class="patrimonio-bar">
+        <div class="bar-rv"></div>
+        <div class="bar-rf"></div>
+        <div class="bar-cr"></div>
+      </div>
+      <div class="patrimonio-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--accent);"></div>
+          RV 68%
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--yellow);"></div>
+          RF 24%
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--negative);"></div>
+          Cripto 8%
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk + Chart row -->
+  <div class="grid-2">
+    <!-- Risk metrics -->
+    <div class="card">
+      <div class="card-title">Metricas de Risco</div>
+      <div class="risk-row">
+        <span class="risk-label">Volatilidade</span>
+        <span>
+          <span class="risk-value">14,2%</span>
+          <span class="tag tag-warn">Moderada</span>
+        </span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">Max Drawdown</span>
+        <span>
+          <span class="risk-value">-12,8%</span>
+          <span class="tag tag-warn">Moderado</span>
+        </span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">Sharpe (rf 10%)</span>
+        <span>
+          <span class="risk-value">1,24</span>
+          <span class="tag tag-good">Bom</span>
+        </span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">Sortino (rf 10%)</span>
+        <span>
+          <span class="risk-value">1,87</span>
+          <span class="tag tag-good">Excelente</span>
+        </span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">VaR 95%</span>
+        <span class="risk-value">-1,32%</span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">VaR 99%</span>
+        <span class="risk-value">-2,14%</span>
+      </div>
+    </div>
+
+    <!-- Drawdown card -->
+    <div class="card">
+      <div class="card-title">Maiores Drawdowns</div>
+      <div class="risk-row">
+        <span class="risk-label">#1 · mar-abr/23</span>
+        <span class="risk-value" style="color: var(--negative);">-12,8%</span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">#2 · set/23</span>
+        <span class="risk-value" style="color: var(--negative);">-7,3%</span>
+      </div>
+      <div class="risk-row">
+        <span class="risk-label">#3 · jan/24</span>
+        <span class="risk-value" style="color: var(--negative);">-5,1%</span>
+      </div>
+      <div style="margin-top: 24px; padding-top: 16px; border-top: 2px solid var(--border);">
+        <div class="hero-metric-label">Recuperacao media</div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin-top: 4px;">
+          23 dias
+        </div>
+      </div>
+      <div style="margin-top: 16px;">
+        <div class="hero-metric-label">Dias positivos</div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin-top: 4px;">
+          58,3%
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-area">
+    <div class="chart-header">
+      <div class="chart-title">Retorno acumulado</div>
+      <div class="chart-tabs">
+        <div class="chart-tab active">Benchmarks</div>
+        <div class="chart-tab">FX</div>
+        <div class="chart-tab">Drawdown</div>
+      </div>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 800 200" preserveAspectRatio="none">
+      <!-- Grid lines -->
+      <line x1="0" y1="50" x2="800" y2="50" class="chart-grid-line"/>
+      <line x1="0" y1="100" x2="800" y2="100" class="chart-grid-line"/>
+      <line x1="0" y1="150" x2="800" y2="150" class="chart-grid-line"/>
+
+      <!-- Benchmark line (CDI) -->
+      <polyline class="chart-bench-line"
+        points="0,180 100,170 200,155 300,140 400,125 500,110 600,98 700,85 800,75"/>
+
+      <!-- Portfolio fill -->
+      <polygon class="chart-fill"
+        points="0,200 0,175 80,168 160,160 240,140 320,145 400,120 480,105 560,80 640,65 720,50 800,30 800,200"/>
+
+      <!-- Portfolio line -->
+      <polyline class="chart-line"
+        points="0,175 80,168 160,160 240,140 320,145 400,120 480,105 560,80 640,65 720,50 800,30"/>
+    </svg>
+  </div>
+
+  <!-- Positions table -->
+  <div class="card" style="padding: 0; box-shadow: var(--shadow);">
+    <div class="card-title" style="padding: 20px 24px; margin-bottom: 0; border-bottom: none;">
+      Posicoes — Renda Variavel
+    </div>
+    <table class="positions-table">
+      <thead>
+        <tr>
+          <th style="padding-left: 24px;">Ativo</th>
+          <th>Peso</th>
+          <th>Investido</th>
+          <th>Atual</th>
+          <th>Retorno</th>
+          <th style="padding-right: 24px;">TWR</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding-left: 24px;">
+            <div class="ticker-cell">
+              <div class="ticker-dot pos"></div>
+              <div>
+                <div class="ticker-name">IVVB11</div>
+                <div class="ticker-sector">ETF Internacional</div>
+              </div>
+            </div>
+          </td>
+          <td>23,4%</td>
+          <td>R$ 64.500</td>
+          <td>R$ 93.600</td>
+          <td style="color: var(--positive);">+R$ 29.100</td>
+          <td style="padding-right: 24px; color: var(--positive);">+45,1%</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 24px;">
+            <div class="ticker-cell">
+              <div class="ticker-dot pos"></div>
+              <div>
+                <div class="ticker-name">PETR4</div>
+                <div class="ticker-sector">Energia</div>
+              </div>
+            </div>
+          </td>
+          <td>15,8%</td>
+          <td>R$ 45.200</td>
+          <td>R$ 63.100</td>
+          <td style="color: var(--positive);">+R$ 17.900</td>
+          <td style="padding-right: 24px; color: var(--positive);">+39,6%</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 24px;">
+            <div class="ticker-cell">
+              <div class="ticker-dot pos"></div>
+              <div>
+                <div class="ticker-name">VOO</div>
+                <div class="ticker-sector">ETF US · USD</div>
+              </div>
+            </div>
+          </td>
+          <td>12,1%</td>
+          <td>R$ 38.800</td>
+          <td>R$ 48.300</td>
+          <td style="color: var(--positive);">+R$ 9.500</td>
+          <td style="padding-right: 24px; color: var(--positive);">+24,5%</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 24px;">
+            <div class="ticker-cell">
+              <div class="ticker-dot neg"></div>
+              <div>
+                <div class="ticker-name">VALE3</div>
+                <div class="ticker-sector">Mineracao</div>
+              </div>
+            </div>
+          </td>
+          <td>8,2%</td>
+          <td>R$ 35.600</td>
+          <td>R$ 32.700</td>
+          <td style="color: var(--negative);">-R$ 2.900</td>
+          <td style="padding-right: 24px; color: var(--negative);">-8,1%</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 24px;">
+            <div class="ticker-cell">
+              <div class="ticker-dot pos"></div>
+              <div>
+                <div class="ticker-name">BTC</div>
+                <div class="ticker-sector">Cripto</div>
+              </div>
+            </div>
+          </td>
+          <td>5,3%</td>
+          <td>R$ 15.200</td>
+          <td>R$ 21.100</td>
+          <td style="color: var(--positive);">+R$ 5.900</td>
+          <td style="padding-right: 24px; color: var(--positive);">+38,8%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<div class="badge-label">Direcao C — Neo-Brutalist</div>
+
+</body>
+</html>
