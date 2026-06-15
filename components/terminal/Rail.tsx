@@ -34,10 +34,13 @@ export default function Rail({ open = false, onNavigate }: Props) {
           borderRight: "1px solid var(--line)",
         }}
       >
-        {/* Marca */}
+        {/* Marca — pt respects iOS safe area so the drawer doesn't sit under the notch */}
         <div
-          className="flex items-center gap-2.5 px-4 pt-4 pb-3.5"
-          style={{ borderBottom: "1px solid var(--line)" }}
+          className="flex items-center gap-2.5 px-4 pb-3.5"
+          style={{
+            paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))",
+            borderBottom: "1px solid var(--line)",
+          }}
         >
           <Image src="/barroots-mark.png" alt="Barroots" width={24} height={24} className="object-contain" />
           <span
