@@ -1,234 +1,904 @@
 "use client";
 
-import { useMemo } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import type { ElementType } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+
+const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
+import {
+  LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
+  Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet,
+  Settings, Newspaper, Bot, ListOrdered, ChevronDown,
+  TrendingDown, Radio, ChevronRight,
+  ExternalLink, Target, Scale, Crosshair, BrainCircuit, Zap, PieChart,
+} from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import { compactBRL } from "@/lib/format";
+import type { PortfolioResponse } from "@/lib/hooks";
+import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
-import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
-import PageHeader from "@/components/PageHeader";
-import { Panel, KpiStrip, Blotter, MiniBars, usePalette, useFilters } from "@/components/terminal";
-import type { Kpi, BlotterColumn, MiniBarItem } from "@/components/terminal";
+import type { PolyEvent } from "@/lib/polymarket";
 
-const cleanTicker = (t?: string | null) =>
-  !t ? "—" : t.replace(/\.SA$/, "").replace(/-USD$/, "").replace(/-BRL$/, "").replace(/=X$/, "");
+// ── Error Boundary ──────────────────────────────────────────────────────────
 
-const signPct = (v: number | null | undefined, d = 2) =>
-  typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(d).replace(".", ",")}%` : "—";
-
-interface PosRow {
-  ticker: string;
-  setor: string;
-  moeda: string;
-  valorBRL: number;
-  peso: number;
-  dia: number | null;
-  retorno: number | null;
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return this.props.fallback ?? (
+        <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+          <p className="text-xs text-red-400 font-semibold mb-1">Erro ao renderizar</p>
+          <p className="text-[10px] text-zinc-500 break-all">{this.state.error.message}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
-const TT_STYLE = {
-  background: "var(--panel)",
-  border: "1px solid var(--line-strong)",
-  borderRadius: 0,
-  fontSize: 11,
-  fontFamily: "var(--font-mono)",
-} as const;
+// ── Types ────────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type IconComponent = React.ComponentType<any>;
+interface NavItem { href: string; label: string; icon: IconComponent }
+interface NavGroup {
+  id: string;
+  label: string;
+  desc: string;
+  icon: IconComponent;
+  accentColor: string;
+  items: NavItem[];
+}
+
+interface TickerItem {
+  ticker: string;
+  label: string;
+  price: number;
+  changePct: number;
+  moeda: string;
+}
+
+interface NewsArticle {
+  titulo: string;
+  link: string;
+  data: string;
+  fonte: string;
+  ticker: string;
+  categoria: string;
+  imagem?: string;
+}
+
+// ── Nav config ───────────────────────────────────────────────────────────────
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "composicao",
+    label: "Composição",
+    desc: "Portfolio, alocação e posições",
+    icon: LayoutDashboard,
+    accentColor: "#E8A33D",
+    items: [
+      { href: "/resumo",          label: "Resumo",         icon: LayoutDashboard },
+      { href: "/renda-variavel",  label: "Renda Variável", icon: BarChart2 },
+      { href: "/renda-fixa",      label: "Renda Fixa",     icon: Landmark },
+      { href: "/proventos",       label: "Proventos",      icon: Coins },
+      { href: "/criptoativos",    label: "Criptoativos",   icon: Bitcoin },
+      { href: "/opcoes",          label: "Opções",         icon: Crosshair },
+    ],
+  },
+  {
+    id: "analise",
+    label: "Análise",
+    desc: "Performance, retorno e risco",
+    icon: TrendingUp,
+    accentColor: "#3b82f6",
+    items: [
+      { href: "/performance",  label: "Performance", icon: TrendingUp },
+      { href: "/setores",      label: "Setores",     icon: PieChart },
+      { href: "/evolucao",     label: "Evolução",    icon: Activity },
+      { href: "/cambio",       label: "Câmbio",      icon: ArrowLeftRight },
+      { href: "/simulacoes",   label: "Simulações",  icon: Target },
+      { href: "/trades",       label: "Trades",      icon: Zap },
+      { href: "/preditivo",    label: "Preditivo",   icon: BrainCircuit },
+    ],
+  },
+  {
+    id: "gestao",
+    label: "Gestão",
+    desc: "Impostos, fluxos e finanças pessoais",
+    icon: Receipt,
+    accentColor: "#8b5cf6",
+    items: [
+      { href: "/impostos",      label: "Impostos",      icon: Receipt },
+      { href: "/alavancagem",  label: "Alavancagem",  icon: Scale },
+      { href: "/financas",     label: "Fin. Pessoais", icon: Wallet },
+      { href: "/fluxos",       label: "Fluxos",        icon: ListOrdered },
+    ],
+  },
+  {
+    id: "mais",
+    label: "Mais",
+    desc: "Radar, Inteligência, Agente IA e configurações",
+    icon: Newspaper,
+    accentColor: "#06b6d4",
+    items: [
+      { href: "/bolsas",         label: "Radar",          icon: BarChart3 },
+      { href: "/noticias",       label: "Inteligência",   icon: Newspaper },
+      { href: "/polymarket",     label: "Preditivos",     icon: BarChart2 },
+      { href: "/agente-ia",      label: "Agente IA",      icon: Bot },
+            { href: "/configuracoes",  label: "Configurações",  icon: Settings },
+    ],
+  },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function cleanTicker(t: string | null | undefined): string {
+  if (!t) return "—";
+  return t.replace(/\.SA$/, "").replace(/-USD$/, "").replace(/-BRL$/, "").replace(/=X$/, "");
+}
+
+function fmtPrice(price: number, moeda: string): string {
+  if (!isFinite(price)) return "—";
+  if (moeda === "BRL") {
+    return `R$${price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  const decimals = price >= 1000 ? 0 : 2;
+  return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+}
+
+// ── Tile stats helper ────────────────────────────────────────────────────────
+
+function getTileStat(href: string, data: PortfolioResponse | null | undefined): string | undefined {
+  if (!data) return undefined;
+  switch (href) {
+    case "/resumo":
+      return typeof data.totalPatrimonioBRL === "number" ? compactBRL(data.totalPatrimonioBRL) : undefined;
+    case "/performance": {
+      const p = data.dayChangeTotalPct;
+      return typeof p === "number" ? `${p >= 0 ? "+" : ""}${p.toFixed(1)}% hoje` : undefined;
+    }
+    case "/cambio":
+      return typeof data.usdbrl === "number" ? `R$ ${data.usdbrl.toFixed(2)}` : undefined;
+    case "/renda-variavel": {
+      const count = (data.positions ?? []).filter(
+        pos => pos && !isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
+      ).length;
+      return count > 0 ? `${count} ativos` : undefined;
+    }
+    case "/renda-fixa": {
+      const count = (data.positions ?? []).filter(
+        pos => pos && isRendaFixa(pos.setor ?? "") && (pos.quantidade ?? 0) > 0
+      ).length;
+      return count > 0 ? `${count} títulos` : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+// ── NavTile ─────────────────────────────────────────────────────────────────
+
+function NavTile({ href, label, icon: Icon, accentColor, stat }: {
+  href: string; label: string; icon: IconComponent; accentColor: string; stat?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col items-center gap-2 rounded-2xl px-2 py-4 transition-all duration-200 active:scale-[0.96]"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget;
+        el.style.background = `${accentColor}0a`;
+        el.style.borderColor = `${accentColor}28`;
+        el.style.boxShadow = `0 4px 20px ${accentColor}10`;
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget;
+        el.style.background = "var(--panel)";
+        el.style.borderColor = "rgba(255,255,255,0.06)";
+        el.style.boxShadow = "none";
+      }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
+        style={{ background: `${accentColor}10` }}
+      >
+        <Icon size={18} style={{ color: accentColor }} strokeWidth={1.7} />
+      </div>
+      <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors text-center leading-tight">
+        {label}
+      </span>
+      {stat && (
+        <span className="text-[9px] font-bold tabular-nums -mt-0.5" style={{ color: `${accentColor}99` }}>
+          {stat}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+// ── TickerTape ───────────────────────────────────────────────────────────────
+
+function TickerTape({ items }: { items: TickerItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const best5 = useMemo(() => items.slice(0, 5), [items]);
+  const worst5 = useMemo(() => [...items].reverse().slice(0, 5), [items]);
+  const duration = Math.max(18, items.length * 4);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="w-full max-w-lg">
+      {/* Scrolling tape */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-stretch overflow-hidden h-[44px] transition-all"
+        style={{
+          background: "var(--panel)",
+          backdropFilter: "blur(16px)",
+          border: `1px solid ${expanded ? "var(--accent)" : "var(--line)"}`,
+          borderRadius: 0,
+          boxShadow: expanded ? "0 8px 32px rgba(232,163,61,0.08)" : "0 4px 20px rgba(0,0,0,0.25)",
+        }}
+      >
+        {/* Badge */}
+        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r border-white/[0.06]"
+          style={{ background: "rgba(232,163,61,0.06)" }}>
+          <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "#E8A33D" }} />
+          <span className="text-[0.52rem] font-extrabold tracking-[2px] whitespace-nowrap" style={{ color: "#E8A33D" }}>AO VIVO</span>
+        </div>
+
+        {/* Viewport */}
+        <div className="flex-1 overflow-hidden flex items-center"
+          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)" }}>
+          <div
+            className="inline-flex items-center whitespace-nowrap"
+            style={{ animation: `tickerScroll ${duration}s linear infinite` }}
+          >
+            {[...items, ...items].map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-4">
+                <span className="text-[0.73rem] font-extrabold font-mono text-zinc-200 tracking-[0.5px]">{p.label}</span>
+                <span className="text-[0.66rem] font-medium font-mono tnum text-zinc-500">{fmtPrice(p.price, p.moeda)}</span>
+                <span className={`text-[0.7rem] font-bold font-mono tnum ${(p.changePct ?? 0) > 0 ? "text-emerald-400" : (p.changePct ?? 0) < 0 ? "text-red-400" : "text-zinc-500"}`}>
+                  {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
+                </span>
+                {i < items.length * 2 - 1 && <span className="text-white/[0.05] text-[0.85rem] pl-1">|</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="shrink-0 flex items-center pr-3">
+          <ChevronDown size={11} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {/* Expandable performers grid */}
+      <div
+        className="overflow-hidden transition-all duration-400"
+        style={{
+          maxHeight: expanded ? "400px" : "0px",
+          background: "var(--panel)",
+          backdropFilter: "blur(16px)",
+          border: expanded ? "1px solid var(--line)" : "1px solid transparent",
+          borderTop: "none",
+          borderRadius: 0,
+        }}
+      >
+        <div className="p-3 grid grid-cols-2 gap-2">
+          {/* Best */}
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.04)" }}>
+              ▲ MELHORES
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
+              {best5.map(p => (
+                <React.Fragment key={p.ticker}>
+                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
+                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
+                  <span className="text-[0.6rem] font-bold text-emerald-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(1)}%</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+          {/* Worst */}
+          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.04)" }}>
+              ▼ PIORES
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
+              {worst5.map(p => (
+                <React.Fragment key={p.ticker}>
+                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
+                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
+                  <span className="text-[0.6rem] font-bold text-red-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0).toFixed(1)}%</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── RadarDoDia ───────────────────────────────────────────────────────────────
+
+function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItems: TickerItem[] }) {
+  const [news, setNews] = useState<{ best: NewsArticle | null; worst: NewsArticle | null }>({ best: null, worst: null });
+  const [polyEvents, setPolyEvents] = useState<PolyEvent[]>([]);
+  const [polyIdx, setPolyIdx] = useState(0);
+  const [polyLoading, setPolyLoading] = useState(true);
+
+  const best = tickerItems[0] ?? null;
+  const worst = tickerItems.length > 0 ? tickerItems[tickerItems.length - 1] : null;
+
+  const bestTicker = best?.ticker ?? "";
+  const worstTicker = worst?.ticker ?? "";
+
+  useEffect(() => {
+    if (!bestTicker && !worstTicker) return;
+    const tickers = [bestTicker, worstTicker].filter((t, i, a) => t && a.indexOf(t) === i);
+
+    fetch(`/api/noticias?tickers=${tickers.join(",")}`)
+      .then(r => r.json())
+      .then(d => {
+        const articles: NewsArticle[] = d.articles ?? [];
+        setNews({
+          best: bestTicker ? articles.find(a => a.ticker === bestTicker) ?? null : null,
+          worst: worstTicker ? articles.find(a => a.ticker === worstTicker) ?? null : null,
+        });
+      })
+      .catch(() => {});
+  }, [bestTicker, worstTicker]);
+
+  const positionCount = data?.positions?.length ?? 0;
+  const positionTickers = useMemo(
+    () => {
+      try {
+        return (data?.positions ?? []).map(p => p?.ticker ?? "").filter(Boolean).join(",");
+      } catch { return ""; }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [positionCount]
+  );
+
+  useEffect(() => {
+    if (!positionTickers) return;
+    let cancelled = false;
+    import("@/lib/polymarket")
+      .then(({ fetchPolymarket }) => {
+        const tickers = positionTickers.split(",");
+        return fetchPolymarket(tickers);
+      })
+      .then(resp => {
+        if (cancelled) return;
+        const cats = resp?.categories;
+        if (!cats || typeof cats !== "object") return;
+        const all = Object.values(cats).flat();
+        const filtered = all.filter(e => e && Array.isArray(e.odds) && e.odds.length > 0 && (e.volume ?? 0) >= 100);
+        const shuffled = filtered.sort(() => Math.random() - 0.5).slice(0, 12);
+        setPolyEvents(shuffled);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPolyLoading(false); });
+    return () => { cancelled = true; };
+  }, [positionTickers]);
+
+  const nextPoly = useCallback(() => {
+    setPolyIdx(i => polyEvents.length > 0 ? (i + 1) % polyEvents.length : 0);
+  }, [polyEvents.length]);
+
+  const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+
+  return (
+    <div className="w-full max-w-lg rounded-2xl overflow-hidden" style={{
+      background: "var(--panel)",
+      backdropFilter: "blur(16px)",
+      border: "1px solid rgba(255,255,255,0.09)",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+    }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/[0.05]">
+        <div className="flex items-center gap-2">
+          <span className="w-[6px] h-[6px] rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-400">Radar do Dia</span>
+        </div>
+        <span className="text-[0.63rem] text-zinc-600">{today}</span>
+      </div>
+
+      {/* News row: best vs worst */}
+      {(best || worst) && (
+        <div className="grid grid-cols-2 h-[120px] border-b border-white/[0.05]">
+          <NewsCard article={news.best} ticker={best?.label ?? ""} changePct={best?.changePct ?? 0} isBest />
+          <NewsCard article={news.worst} ticker={worst?.label ?? ""} changePct={worst?.changePct ?? 0} isBest={false} />
+        </div>
+      )}
+
+      {/* Polymarket section */}
+      <div className="flex items-center gap-2.5 px-4 py-2 border-b border-white/[0.04]">
+        <div className="flex-1 h-px bg-white/[0.04]" />
+        <span className="text-[0.6rem] font-extrabold tracking-[1.2px] uppercase text-cyan-400/80 whitespace-nowrap">Mercado Preditivo</span>
+        <div className="flex-1 h-px bg-white/[0.04]" />
+      </div>
+
+      {polyLoading ? (
+        <div className="px-4 py-6 text-center">
+          <span className="text-[0.75rem] text-zinc-600 animate-pulse">Carregando eventos...</span>
+        </div>
+      ) : polyEvents.length === 0 ? (
+        <div className="px-4 py-4 flex items-center gap-3 opacity-55">
+          <span className="text-xl">🔌</span>
+          <div>
+            <p className="text-[0.78rem] font-semibold text-zinc-400">Polymarket indisponível</p>
+            <p className="text-[0.68rem] text-zinc-600">Dados voltarão automaticamente</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {polyEvents.map((ev, i) => (
+            <a
+              key={ev.id}
+              href={ev.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-3 border-b border-white/[0.04] hover:bg-cyan-400/[0.03] transition-colors"
+              style={{ display: i === polyIdx ? "block" : "none" }}
+            >
+              <p className="text-[0.87rem] font-semibold text-zinc-200 leading-[1.42] mb-2.5">{ev.title}</p>
+              <div className="flex flex-col gap-[5px] mb-2">
+                {(Array.isArray(ev.odds) ? ev.odds : []).slice(0, 3).map((o, j) => {
+                  if (!o) return null;
+                  const colorMap = {
+                    0: { bg: "rgba(232,163,61,0.14)", border: "rgba(232,163,61,0.4)", text: "text-amber-400" },
+                    1: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)", text: "text-indigo-400" },
+                    2: { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.3)", text: "text-violet-400" },
+                  } as const;
+                  const barColors = colorMap[j as 0 | 1 | 2] ?? colorMap[2];
+                  const pct = typeof o.percent === "number" ? o.percent : 0;
+                  return (
+                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+                      <div className="absolute left-0 top-0 bottom-0 rounded-lg" style={{
+                        width: `${pct}%`,
+                        background: barColors.bg,
+                        borderRight: `2px solid ${barColors.border}`,
+                      }} />
+                      <span className={`relative z-[1] text-[0.75rem] text-zinc-300 flex-1 truncate ${j === 0 ? "font-bold" : ""}`}>
+                        {String(o.outcome ?? "").slice(0, 35)}
+                      </span>
+                      <span className={`relative z-[1] text-[0.77rem] font-bold shrink-0 ${barColors.text}`}>
+                        {pct.toFixed(0)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-[0.67rem] text-zinc-600">
+                <span>
+                  Vol <b className="text-zinc-500">
+                    {(ev.volume ?? 0) >= 1_000_000 ? `$${((ev.volume ?? 0) / 1_000_000).toFixed(1)}M`
+                      : (ev.volume ?? 0) >= 1_000 ? `$${((ev.volume ?? 0) / 1_000).toFixed(0)}k`
+                      : `$${ev.volume ?? 0}`}
+                  </b>
+                  {ev.days_left != null && (
+                    ev.days_left === 0 ? " · resolve hoje"
+                      : ev.days_left <= 7 ? ` · ${ev.days_left}d restantes`
+                      : ` · resolve em ${ev.days_left}d`
+                  )}
+                </span>
+                <span className="font-semibold" style={{ color: "#E8A33D" }}>Ver no Polymarket →</span>
+              </div>
+            </a>
+          ))}
+
+          {/* Nav */}
+          <div className="flex items-center justify-between px-4 py-[7px]">
+            <span className="text-[0.63rem] text-zinc-600">{polyIdx + 1} / {polyEvents.length}</span>
+            <button
+              onClick={nextPoly}
+              className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:border-[#E8A33D]/30 hover:bg-[#E8A33D]/[0.06]"
+              style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)", color: "rgba(232,163,61,0.7)" }}
+            >
+              <ChevronRight size={11} />
+              Próximo
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function NewsCard({ article, ticker, changePct, isBest }: {
+  article: NewsArticle | null; ticker: string; changePct: number; isBest: boolean;
+}) {
+  const badge = isBest ? "bg-emerald-400/[0.18] text-emerald-400 border-emerald-400/[0.28]" : "bg-red-400/[0.18] text-red-400 border-red-400/[0.28]";
+  const arr = isBest ? "▲" : "▼";
+  const sign = (changePct ?? 0) >= 0 ? "+" : "";
+  const overlay = isBest
+    ? "linear-gradient(to top,rgba(4,14,8,0.96) 0%,rgba(4,14,8,0.55) 55%,rgba(4,14,8,0.15) 100%)"
+    : "linear-gradient(to top,rgba(20,4,4,0.96) 0%,rgba(20,4,4,0.55) 55%,rgba(20,4,4,0.15) 100%)";
+
+  const inner = (
+    <div className="relative h-full flex flex-col justify-end overflow-hidden group">
+      {article?.imagem && (
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.06]"
+          style={{ backgroundImage: `url(${article.imagem})`, filter: "brightness(0.38) saturate(0.6)" }}
+        />
+      )}
+      <div className="absolute inset-0" style={{ background: overlay }} />
+      <div className="relative z-[2] p-[10px_12px] flex flex-col gap-1">
+        <span className={`inline-flex items-center gap-1 self-start text-[0.6rem] font-extrabold uppercase tracking-[0.8px] px-1.5 py-0.5 rounded-[5px] border ${badge}`}>
+          {arr} {ticker} {sign}{(changePct ?? 0).toFixed(1)}%
+        </span>
+        {article?.titulo && (
+          <p className="text-[0.76rem] font-semibold text-zinc-100 leading-[1.35] line-clamp-2" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {article.titulo}
+          </p>
+        )}
+        {article?.fonte && (
+          <p className="text-[0.6rem] text-zinc-600 font-medium">{article.fonte}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  if (article?.link) {
+    return (
+      <a href={article.link} target="_blank" rel="noopener noreferrer"
+        className={`block h-full transition-all ${!isBest ? "" : "border-r border-white/[0.05]"}`}>
+        {inner}
+      </a>
+    );
+  }
+  return <div className={`h-full ${!isBest ? "" : "border-r border-white/[0.05]"}`}>{inner}</div>;
+}
+
+// ── FxExpandCard (Dollar) ────────────────────────────────────────────────────
+
+function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
+  usdbrl: number | null; usdDayChangePct: number | null; expanded: boolean; onToggle: () => void;
+}) {
+  const isUsdUp = (usdDayChangePct ?? 0) >= 0;
+  return (
+    <button
+      onClick={onToggle}
+      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer w-full h-full"
+      style={{
+        background: "var(--panel)",
+        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
+        boxShadow: `0 4px 24px ${isUsdUp ? "rgba(16,185,129,0.06)" : "rgba(248,113,113,0.06)"}, inset 0 1px 0 rgba(255,255,255,0.04)`,
+      }}
+    >
+      <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+      {usdbrl === null ? (
+        <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
+      ) : (
+        <span className="text-sm font-bold font-mono tnum text-zinc-100">R$ {Number(usdbrl).toFixed(3)}</span>
+      )}
+      {usdDayChangePct !== null && (
+        <div className="flex items-center gap-1 mt-1">
+          <span className={`text-[9px] font-semibold ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
+            {isUsdUp ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
+          </span>
+          <ChevronDown size={9} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      )}
+    </button>
+  );
+}
+
+function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: boolean }) {
+  const fxPairs = useMemo(() => {
+    const fx = data?.fx;
+    if (!fx || typeof fx !== "object") return [];
+    const pairs: { label: string; value: number; prefix: string; decimals: number }[] = [];
+    if (typeof fx.EURBRL === "number") pairs.push({ label: "EUR/BRL", value: fx.EURBRL, prefix: "R$", decimals: 4 });
+    if (typeof fx.CADBRL === "number") pairs.push({ label: "CAD/BRL", value: fx.CADBRL, prefix: "R$", decimals: 4 });
+    if (typeof fx.GBPBRL === "number") pairs.push({ label: "GBP/BRL", value: fx.GBPBRL, prefix: "R$", decimals: 4 });
+    return pairs;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.fx?.EURBRL, data?.fx?.CADBRL, data?.fx?.GBPBRL]);
+
+  return (
+    <div
+      className="w-full overflow-hidden transition-all duration-300 rounded-2xl"
+      style={{
+        maxHeight: expanded ? "200px" : "0px",
+        marginTop: expanded ? "8px" : "0px",
+        opacity: expanded ? 1 : 0,
+      }}
+    >
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          background: "var(--panel)",
+          border: "1px solid rgba(255,255,255,0.09)",
+        }}
+      >
+        <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
+          {fxPairs.map(pair => (
+            <div key={pair.label} className="flex flex-col items-center py-2.5 px-2">
+              <span className="text-[0.52rem] font-bold text-zinc-500 uppercase tracking-[1px] mb-1">{pair.label}</span>
+              <span className="text-[0.8rem] font-bold text-zinc-200">
+                {pair.prefix} {Number(pair.value).toFixed(pair.decimals)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Link href="/bolsas?tab=moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
+          <ArrowLeftRight size={11} style={{ color: "#E8A33D" }} />
+          <span className="text-[0.6rem] font-semibold" style={{ color: "#E8A33D" }}>Ver todas as moedas</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── MetricCard ──────────────────────────────────────────────────────────────
+
+function MetricCard({ children, borderColor }: { children: React.ReactNode; borderColor: string }) {
+  return (
+    <div
+      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
+      style={{
+        background: "var(--panel)",
+        border: `1px solid ${borderColor}`,
+        boxShadow: "none",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { data, loading } = usePortfolio();
-  const palette = usePalette();
-  const { filters } = useFilters();
+  const [fxExpanded, setFxExpanded] = useState(false);
+  type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno" | "blackhole";
+  const [holoMode, setHoloMode] = useState<HoloMode>("globe");
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
   const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
-  const dayPct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
-  const dayBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
+  const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
+  const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
+  const isDayUp = (dayChangeBRL ?? 0) >= 0;
 
-  // Maiores posições (RV+RF), por valor de mercado.
-  const positions = useMemo<PosRow[]>(() => {
-    const total = totalBRL ?? 0;
-    return (data?.positions ?? [])
-      .filter((p) => (p.valorAtualBRL ?? 0) > 1)
-      .map((p) => ({
-        ticker: cleanTicker(p.ticker),
-        setor: p.setor ?? "—",
-        moeda: p.moeda ?? "BRL",
-        valorBRL: p.valorAtualBRL ?? 0,
-        peso: total > 0 ? ((p.valorAtualBRL ?? 0) / total) * 100 : 0,
-        dia: typeof p.dayChangePct === "number" ? p.dayChangePct : null,
-        retorno: typeof p.retornoTotalPct === "number" ? p.retornoTotalPct : null,
-      }))
-      .sort((a, b) => b.valorBRL - a.valorBRL);
-  }, [data, totalBRL]);
+  const tickerItems = useMemo<TickerItem[]>(() => {
+    if (!data?.positions || !Array.isArray(data.positions)) return [];
+    const items: TickerItem[] = [];
+    try {
+      for (const p of data.positions) {
+        if (!p || typeof p !== "object") continue;
+        if (!p.ticker) continue;
+        if ((p.quantidade ?? 0) <= 0) continue;
+        if (isRendaFixa(p.setor ?? "")) continue;
+        if (!p.precoAtual || p.precoAtual <= 0) continue;
+        if (p.dayChangePct == null || typeof p.dayChangePct !== "number") continue;
+        items.push({
+          ticker: p.ticker,
+          label: cleanTicker(p.ticker),
+          price: p.precoAtual,
+          changePct: p.dayChangePct,
+          moeda: p.moeda ?? "BRL",
+        });
+      }
+      items.sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0));
+    } catch {
+      // Silently handle any unexpected data shape
+    }
+    return items;
+  }, [data?.positions]);
 
-  // Contribuição do dia (top movimentos por |P&L do dia|).
-  const contrib = useMemo<MiniBarItem[]>(() => {
-    return (data?.positions ?? [])
-      .filter((p) => typeof p.dayChangePct === "number" && (p.valorAtualBRL ?? 0) > 1 && !isRendaFixa(p.setor ?? ""))
-      .map((p) => ({ ticker: cleanTicker(p.ticker), pct: p.dayChangePct as number, pnl: p.dayChangeBRL ?? 0 }))
-      .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
-      .slice(0, 6)
-      .map((p) => ({ k: p.ticker, v: Number(p.pct.toFixed(2)), c: p.pct >= 0 ? palette.pos : palette.neg }));
-  }, [data, palette]);
-
-  // Pares de câmbio (radar) — dados reais do snapshot.
-  const fxPairs = useMemo(() => {
-    const fx = data?.fx;
-    const chg = data?.fxDayChange ?? {};
-    if (!fx) return [];
-    const rows: { k: string; v: number; d: number | null }[] = [];
-    const add = (label: string, val: unknown, code: string) => {
-      if (typeof val === "number" && val > 0)
-        rows.push({ k: label, v: val, d: typeof chg[code]?.changePct === "number" ? chg[code].changePct : null });
-    };
-    add("USD/BRL", fx.USDBRL, "USD");
-    add("EUR/BRL", fx.EURBRL, "EUR");
-    add("GBP/BRL", fx.GBPBRL, "GBP");
-    add("CAD/BRL", fx.CADBRL, "CAD");
-    return rows;
-  }, [data]);
-
-  // Série patrimonial (12m) do histórico (lb_historic).
-  const curve = useMemo(() => {
-    return (data?.lbHistoric ?? [])
-      .filter((p) => p && typeof p.patrimonio === "number" && p.patrimonio > 0)
-      .map((p) => ({ data: p.data, patrimonio: p.patrimonio }));
-  }, [data]);
-
-  const showUSD = filters.moeda === "USD";
-
-  const kpis: Kpi[] = [
-    {
-      label: "Patrimônio",
-      value: loading || totalBRL === null ? "—" : showUSD && totalUSD !== null ? `US$ ${Math.round(totalUSD).toLocaleString("pt-BR")}` : compactBRL(totalBRL),
-      sub: totalUSD !== null ? (showUSD ? compactBRL(totalBRL ?? 0) : `US$ ${Math.round(totalUSD).toLocaleString("pt-BR")}`) : undefined,
-    },
-    {
-      label: "Δ Dia",
-      value: dayPct === null ? "—" : signPct(dayPct),
-      tone: (dayPct ?? 0) >= 0 ? "pos" : "neg",
-      sub: dayBRL !== null ? `${dayBRL >= 0 ? "+" : ""}${compactBRL(dayBRL)}` : undefined,
-    },
-    {
-      label: "Retorno RV",
-      value: typeof data?.retornoTotalRVPct === "number" ? signPct(data.retornoTotalRVPct, 1) : "—",
-      tone: (data?.retornoTotalRVPct ?? 0) >= 0 ? "pos" : "neg",
-      sub: "total c/ proventos",
-    },
-    {
-      label: "Proventos 12m",
-      value: typeof data?.totalProventosBRL === "number" ? compactBRL(data.totalProventosBRL) : "—",
-    },
-    {
-      label: "Dólar",
-      value: usdbrl !== null ? `R$ ${usdbrl.toFixed(3).replace(".", ",")}` : "—",
-      sub: typeof data?.fxDayChange?.USD?.changePct === "number" ? signPct(data.fxDayChange.USD.changePct) : undefined,
-      tone: (data?.fxDayChange?.USD?.changePct ?? 0) >= 0 ? "pos" : "neg",
-    },
-    {
-      label: "Ativos",
-      value: positions.length || "—",
-    },
-  ];
-
-  const cols: BlotterColumn<PosRow>[] = [
-    { key: "ticker", header: "Ativo", render: (r) => <span className="font-mono font-bold" style={{ color: "var(--text)" }}>{r.ticker}</span> },
-    { key: "setor", header: "Classe", render: (r) => <span style={{ color: "var(--muted)", fontSize: 11 }}>{r.setor}</span> },
-    { key: "moeda", header: "Moeda", render: (r) => <span className="font-mono" style={{ color: "var(--muted)" }}>{r.moeda}</span> },
-    { key: "valor", header: "Valor (BRL)", align: "right", render: (r) => <span className="font-mono tnum" style={{ color: "var(--text-2)" }}>{Math.round(r.valorBRL).toLocaleString("pt-BR")}</span> },
-    {
-      key: "peso",
-      header: "Peso",
-      align: "right",
-      render: (r) => (
-        <div className="flex items-center gap-2 justify-end">
-          <div style={{ width: 40, height: 4, background: "var(--bar-track)", overflow: "hidden" }}>
-            <div style={{ width: `${Math.min(100, r.peso)}%`, height: "100%", background: "var(--accent)" }} />
-          </div>
-          <span className="font-mono tnum" style={{ color: "var(--text-2)", width: 38, textAlign: "right" }}>{r.peso.toFixed(1).replace(".", ",")}</span>
-        </div>
-      ),
-    },
-    { key: "dia", header: "Δ Dia", align: "right", render: (r) => <span className="font-mono tnum" style={{ color: (r.dia ?? 0) >= 0 ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>{signPct(r.dia)}</span> },
-    { key: "retorno", header: "Retorno", align: "right", render: (r) => <span className="font-mono tnum" style={{ color: (r.retorno ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>{signPct(r.retorno, 1)}</span> },
-  ];
+  const handleLogoClick = useCallback(() => {
+    const cycle: HoloMode[] = ["globe", "sol", "mercurio", "venus", "terra", "marte", "jupiter", "saturno", "urano", "netuno", "blackhole"];
+    setHoloMode(prev => {
+      const idx = cycle.indexOf(prev);
+      return cycle[(idx + 1) % cycle.length];
+    });
+  }, []);
 
   return (
-    <>
-      <PageHeader title="Home" description="Visão do dia" />
-      <KpiStrip kpis={kpis} />
+    <ErrorBoundary>
+    <div className="relative min-h-screen flex flex-col items-center">
+      <div className="w-full max-w-lg px-4 py-10 flex flex-col items-center">
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5 mt-3.5">
-        <Panel
-          title="Patrimônio · 12m"
-          right={
-            typeof data?.retornoTotalRVPct === "number" ? (
-              <span className="font-mono" style={{ fontSize: 10.5, color: "var(--pos)" }}>{signPct(data.retornoTotalRVPct, 1)} RV</span>
-            ) : null
-          }
-        >
-          {curve.length > 1 ? (
-            <ResponsiveContainer width="100%" height={170}>
-              <AreaChart data={curve} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="patrFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={palette.accent} stopOpacity={0.26} />
-                    <stop offset="100%" stopColor={palette.accent} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="data" hide />
-                <YAxis hide domain={["dataMin", "dataMax"]} />
-                <Tooltip
-                  contentStyle={TT_STYLE}
-                  itemStyle={TOOLTIP_ITEM_STYLE}
-                  labelStyle={TOOLTIP_LABEL_STYLE}
-                  formatter={(v: number | string) => [compactBRL(Number(v)), "Patrimônio"]}
-                />
-                <Area type="monotone" dataKey="patrimonio" stroke={palette.accent} strokeWidth={2} fill="url(#patrFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
+        {/* ── Hero ── */}
+        <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center w-full">
+          {/* Clickable logo */}
+          <button
+            onClick={handleLogoClick}
+            className="relative group cursor-pointer transition-all duration-300 mb-1"
+            aria-label="Abrir globo de mercados"
+          >
+            <Image
+              src="/midias/carregamento.png"
+              alt="Meus Investimentos"
+              width={96}
+              height={96}
+              className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(232,163,61,0.3)] group-hover:scale-105"
+              priority
+            />
+          </button>
+
+          {/* ── 3D Globe — inline below logo ── */}
+          <HoloGlobe mode={holoMode} />
+
+          <h1
+            className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
+            style={{ color: "var(--text)", letterSpacing: "-.01em" }}
+          >
+            Olá, Lucas
+          </h1>
+
+          <div className="flex items-center justify-center gap-2.5 mt-1.5">
+            <p className="text-zinc-500 text-sm">Gestão integrada de investimentos</p>
+            <a
+              href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all hover:scale-105 group"
+              style={{
+                background: "rgba(255,75,75,0.06)",
+                border: "1px solid rgba(255,75,75,0.14)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/midias/streamlit-logo.svg" alt="" width={14} height={14} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/60 group-hover:text-red-400 transition-colors">v1</span>
+              <ExternalLink size={8} className="text-red-400/30 group-hover:text-red-400/60 transition-colors" />
+            </a>
+          </div>
+        </div>
+
+        {/* ── Live Metrics ── */}
+        <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
+          {/* Patrimônio Total */}
+          <MetricCard borderColor="rgba(232,163,61,0.15)">
+            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
+            {loading || totalBRL === null ? (
+              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            ) : (
+              <>
+                <span className="text-sm font-bold font-mono tnum text-zinc-100">{compactBRL(totalBRL)}</span>
+                {totalUSD !== null && (
+                  <span className="text-[9px] text-zinc-500 mt-1">
+                    US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : Number(totalUSD).toFixed(0)}
+                  </span>
+                )}
+              </>
+            )}
+          </MetricCard>
+
+          {/* Retorno dia */}
+          <MetricCard borderColor={isDayUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}>
+            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
+            {loading || dayChangePct === null ? (
+              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
+            ) : (
+              <>
+                <div className="flex items-center gap-1">
+                  {isDayUp
+                    ? <TrendingUp size={12} className="text-emerald-400" />
+                    : <TrendingDown size={12} className="text-red-400" />}
+                  <span className={`text-sm font-bold font-mono tnum ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
+                    {pct(dayChangePct)}
+                  </span>
+                </div>
+                {dayChangeBRL !== null && (
+                  <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
+                    {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
+                  </span>
+                )}
+              </>
+            )}
+          </MetricCard>
+
+          {/* Dólar */}
+          {loading || !data ? (
+            <MetricCard borderColor="rgba(255,255,255,0.10)">
+              <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
+              <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
+            </MetricCard>
           ) : (
-            <div className="grid place-items-center font-mono" style={{ height: 170, color: "var(--muted)", fontSize: 12 }}>
-              {loading ? "Carregando…" : "Sem histórico patrimonial — preencha lb_historic."}
+            <FxDollarButton
+              usdbrl={usdbrl}
+              usdDayChangePct={typeof data.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null}
+              expanded={fxExpanded}
+              onToggle={() => setFxExpanded(e => !e)}
+            />
+          )}
+        </div>
+
+        {/* FX expand panel */}
+        {!loading && data && (
+          <FxExpandPanel data={data} expanded={fxExpanded} />
+        )}
+
+        {/* ── Ticker Tape ── */}
+        {!loading && tickerItems.length > 0 && (
+          <ErrorBoundary>
+            <div className="w-full flex justify-center mb-4 animate-fade-in animate-delay-1">
+              <TickerTape items={tickerItems} />
             </div>
-          )}
-        </Panel>
+          </ErrorBoundary>
+        )}
 
-        <Panel title="Radar de mercado" pad={0}>
-          {fxPairs.length ? (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <tbody>
-                {fxPairs.map((p, i) => (
-                  <tr key={p.k} style={{ borderBottom: i < fxPairs.length - 1 ? "1px solid var(--line)" : "none" }}>
-                    <td className="font-mono font-bold" style={{ padding: "11px 16px", color: "var(--text)" }}>{p.k}</td>
-                    <td className="font-mono tnum" style={{ padding: "11px 16px", textAlign: "right", color: "var(--text-2)" }}>
-                      {p.v.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 4 })}
-                    </td>
-                    <td
-                      className="font-mono tnum"
-                      style={{ padding: "11px 16px", textAlign: "right", width: 84, fontWeight: 600, color: (p.d ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}
-                    >
-                      {p.d === null ? "—" : `${(p.d ?? 0) >= 0 ? "▲" : "▼"} ${signPct(p.d)}`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="font-mono" style={{ padding: "20px 16px", color: "var(--muted)", fontSize: 12 }}>{loading ? "Carregando…" : "—"}</div>
-          )}
-        </Panel>
+        {/* ── Radar do Dia ── */}
+        {!loading && data && tickerItems.length > 0 && (
+          <ErrorBoundary>
+            <div className="w-full flex justify-center mb-5 animate-fade-in animate-delay-2">
+              <RadarDoDia data={data} tickerItems={tickerItems} />
+            </div>
+          </ErrorBoundary>
+        )}
+
+        {/* ── Navigation Tiles ── */}
+        <div className="w-full flex flex-col gap-5 animate-fade-in animate-delay-2">
+          {NAV_GROUPS.map(group => {
+            const GroupIcon = group.icon;
+            return (
+              <div key={group.id}>
+                <div className="flex items-center gap-2.5 mb-2.5 px-1">
+                  <GroupIcon size={12} style={{ color: group.accentColor }} strokeWidth={2} />
+                  <span
+                    className="text-[10px] font-bold tracking-[1.5px] uppercase"
+                    style={{ color: `${group.accentColor}aa` }}
+                  >
+                    {group.label}
+                  </span>
+                  <div
+                    className="h-px flex-1"
+                    style={{ background: `linear-gradient(90deg, ${group.accentColor}20, transparent)` }}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {group.items.map(item => (
+                    <NavTile
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      accentColor={group.accentColor}
+                      stat={getTileStat(item.href, data)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(45,47,58,0.5))" }} />
+          <span className="text-[9px] text-zinc-600 font-medium tracking-widest uppercase">
+            v1.0 · Personal
+          </span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(45,47,58,0.5), transparent)" }} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5 mt-3.5">
-        <Panel title="Maiores posições" pad={0}>
-          <Blotter columns={cols} rows={positions.slice(0, 6)} rowKey={(r) => r.ticker} emptyLabel={loading ? "Carregando…" : "Sem posições."} />
-        </Panel>
-        <Panel title="Contribuição do dia · %">
-          {contrib.length ? <MiniBars items={contrib} /> : <div className="font-mono" style={{ color: "var(--muted)", fontSize: 12 }}>{loading ? "Carregando…" : "—"}</div>}
-        </Panel>
-      </div>
-    </>
+    </div>
+    </ErrorBoundary>
   );
 }
