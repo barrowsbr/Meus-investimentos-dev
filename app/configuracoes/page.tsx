@@ -430,9 +430,28 @@ interface GsAnomaly { ticker: string; date: string; type: string; detail: string
 interface GsStatus { empty?: boolean; firstDate?: string; lastDate?: string; tickerCount?: number; dateCount?: number; points?: number; coverage?: number; tickers?: string[] }
 interface GsResult { action: string; status: GsStatus; newPoints: number; tickerErrors?: string[]; anomalies?: GsAnomaly[]; anomalyCount?: number }
 
+interface RebuildResult {
+  ok: boolean;
+  dryRun?: boolean;
+  tickers?: number;
+  dates?: number;
+  rawPoints?: number;
+  acceptedPoints?: number;
+  rejectedDates?: number;
+  tickerErrors?: string[];
+  firstDate?: string;
+  lastDate?: string;
+  message?: string;
+}
+
 function GoldenSourceSection() {
   const [status, setStatus] = useState<GsStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<GsResult | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildResult, setRebuildResult] = useState<RebuildResult | null>(null);
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -442,6 +461,54 @@ function GoldenSourceSection() {
       .catch(() => setStatus(null))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/sync/cotacoes", { method: "POST" });
+      const data = await res.json();
+      setSyncResult(data);
+      if (data.status) setStatus(data.status);
+      bumpDataVersion();
+    } catch {
+      setSyncResult({ action: "error", status: {}, newPoints: 0, anomalies: [], anomalyCount: 0 });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleRebuild(dryRun: boolean) {
+    setRebuilding(true);
+    setRebuildResult(null);
+    try {
+      const res = await fetch("/api/rebuild-cotacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lookbackYears: 4, dryRun }),
+      });
+      const data = await res.json();
+      setRebuildResult(data);
+      if (!dryRun && data.ok) {
+        setConfirmRebuild(false);
+        bumpDataVersion();
+        setStatus({
+          empty: false,
+          firstDate: data.firstDate,
+          lastDate: data.lastDate,
+          tickerCount: data.tickers,
+          dateCount: data.dates,
+          coverage: data.acceptedPoints && data.dates
+            ? Math.round((data.acceptedPoints / (data.dates * data.tickers)) * 1000) / 10
+            : undefined,
+        });
+      }
+    } catch {
+      setRebuildResult({ ok: false, message: "Erro de conexão" });
+    } finally {
+      setRebuilding(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -478,6 +545,135 @@ function GoldenSourceSection() {
               <p className="text-xs text-zinc-300 font-mono">{s.value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-3 pt-1">
+        <button
+          onClick={handleSync}
+          disabled={syncing || rebuilding}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-40 transition-colors"
+        >
+          {syncing
+            ? <><RefreshCw size={13} className="animate-spin" />Sincronizando...</>
+            : <><RefreshCw size={13} />Atualizar cotações</>
+          }
+        </button>
+
+        {!confirmRebuild ? (
+          <button
+            onClick={() => { setConfirmRebuild(true); setRebuildResult(null); }}
+            disabled={syncing || rebuilding}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 disabled:opacity-40 transition-colors"
+          >
+            <Database size={13} />Reconstruir base do zero
+          </button>
+        ) : (
+          <div className="flex-1 min-w-[280px] rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="text-xs text-red-300">
+                <p className="font-semibold mb-1">Reconstruir base de cotações</p>
+                <p className="text-red-400/70">
+                  Faz backup da aba atual, apaga tudo, e rebusca 4 anos de histórico do Yahoo Finance.
+                  Filtra weekends e feriados corrompidos automaticamente.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleRebuild(true)}
+                disabled={rebuilding}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 disabled:opacity-40 transition-colors"
+              >
+                {rebuilding && rebuildResult === null
+                  ? <><RefreshCw size={12} className="animate-spin" />Simulando...</>
+                  : <><AlertCircle size={12} />Simular (dry run)</>
+                }
+              </button>
+
+              <button
+                onClick={() => handleRebuild(false)}
+                disabled={rebuilding}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/25 disabled:opacity-40 transition-colors"
+              >
+                {rebuilding && rebuildResult?.dryRun !== true
+                  ? <><RefreshCw size={12} className="animate-spin" />Reconstruindo...</>
+                  : <><Database size={12} />Executar rebuild</>
+                }
+              </button>
+
+              <button
+                onClick={() => { setConfirmRebuild(false); setRebuildResult(null); }}
+                disabled={rebuilding}
+                className="px-3 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            {/* Rebuild result */}
+            {rebuildResult && (
+              <div className={`rounded-lg px-3 py-2 text-xs ${
+                rebuildResult.ok
+                  ? rebuildResult.dryRun
+                    ? "bg-amber-500/10 border border-amber-500/20 text-amber-300"
+                    : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
+                  : "bg-red-500/10 border border-red-500/20 text-red-300"
+              }`}>
+                {!rebuildResult.ok ? (
+                  <p className="flex items-center gap-1.5"><XCircle size={13} />{rebuildResult.message}</p>
+                ) : rebuildResult.dryRun ? (
+                  <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 font-semibold"><AlertCircle size={13} />Simulação — nada foi escrito</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                      <div><span className="text-zinc-500">Tickers:</span> <span className="font-mono">{rebuildResult.tickers}</span></div>
+                      <div><span className="text-zinc-500">Datas:</span> <span className="font-mono">{rebuildResult.dates}</span></div>
+                      <div><span className="text-zinc-500">Pontos:</span> <span className="font-mono">{rebuildResult.acceptedPoints?.toLocaleString()}</span></div>
+                      <div><span className="text-zinc-500">Rejeitados:</span> <span className="font-mono">{rebuildResult.rejectedDates} datas</span></div>
+                    </div>
+                    {rebuildResult.tickerErrors && rebuildResult.tickerErrors.length > 0 && (
+                      <p className="text-red-400 mt-1">Sem dados: {rebuildResult.tickerErrors.join(", ")}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 font-semibold"><CheckCircle2 size={13} />Base reconstruída com sucesso</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                      <div><span className="text-zinc-500">Tickers:</span> <span className="font-mono">{rebuildResult.tickers}</span></div>
+                      <div><span className="text-zinc-500">Datas:</span> <span className="font-mono">{rebuildResult.dates}</span></div>
+                      <div><span className="text-zinc-500">Pontos:</span> <span className="font-mono">{rebuildResult.acceptedPoints?.toLocaleString()}</span></div>
+                      <div><span className="text-zinc-500">Período:</span> <span className="font-mono">{rebuildResult.firstDate} → {rebuildResult.lastDate}</span></div>
+                    </div>
+                    {rebuildResult.tickerErrors && rebuildResult.tickerErrors.length > 0 && (
+                      <p className="text-amber-400 mt-1">Sem dados do Yahoo: {rebuildResult.tickerErrors.join(", ")}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Sync result */}
+      {syncResult && (
+        <div className={`rounded-lg px-3 py-2 text-xs ${
+          syncResult.action === "error"
+            ? "bg-red-500/10 border border-red-500/20 text-red-300"
+            : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
+        }`}>
+          {syncResult.action === "error" ? (
+            <p className="flex items-center gap-1.5"><XCircle size={13} />Erro ao sincronizar</p>
+          ) : (
+            <p className="flex items-center gap-1.5">
+              <CheckCircle2 size={13} />
+              Sincronização concluída — {syncResult.newPoints} pontos novos
+              {syncResult.anomalyCount ? `, ${syncResult.anomalyCount} anomalias detectadas` : ""}
+            </p>
+          )}
         </div>
       )}
     </div>
