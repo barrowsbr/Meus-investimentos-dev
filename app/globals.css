@@ -2,165 +2,223 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  color-scheme: dark;
-  background-color: #0C0E14;
+/* ============================================================================
+   BARROOTS TERMINAL — Design tokens (produção)
+   Dois temas via atributo no <html>: data-theme="ambar" (padrão) ou
+   data-theme="grafite". Idioma visual: instrumento de mesa de operações —
+   geometria reta, mono-first, grade hairline, acento contido.
+   ============================================================================ */
+
+:root,
+[data-theme="ambar"] {
+  /* superfícies */
+  --bg:            #08080A;
+  --panel:         #0D0E12;
+  --rail:          #0A0B0E;
+  --input:         #0B0C10;
+  --sel:           rgba(232,163,61,.07);
+  --hover:         rgba(255,255,255,.025);
+
+  /* linhas (a "grade" é a assinatura do terminal) */
+  --line:          #1E2027;
+  --line-strong:   #2B2E37;
+
+  /* acento da marca (traço funcional, não ambiente) */
+  --accent:        #E8A33D;
+  --accent-wash:   rgba(232,163,61,.12);
+
+  /* texto */
+  --text:          #DEE1E8;
+  --text-2:        #AEB2BC;
+  --muted:         #71757F;
+  --faint:         #4C5059;
+
+  /* sinal de mercado (única cor "viva") */
+  --pos:           #3FB950;
+  --neg:           #F0504A;
+  --info:          #5BA8FF;
+
+  --bar-track:     rgba(255,255,255,.06);
+
+  /* categóricas (donut/treemap/setor) — mesmas nos dois temas */
+  --cat-1:#E8A33D; --cat-2:#8b5cf6; --cat-3:#06b6d4; --cat-4:#db2777;
+  --cat-5:#f97316; --cat-6:#10b981; --cat-7:#3b82f6; --cat-8:#eab308;
 }
 
+[data-theme="grafite"] {
+  --bg:            #0A0C10;
+  --panel:         #11141A;
+  --rail:          #0C0E13;
+  --input:         #0D1015;
+  --sel:           rgba(78,168,255,.07);
+  --hover:         rgba(255,255,255,.025);
+
+  --line:          #1E232C;
+  --line-strong:   #2A313D;
+
+  --accent:        #4EA8FF;
+  --accent-wash:   rgba(78,168,255,.12);
+
+  --text:          #DDE2EA;
+  --text-2:        #A9AFBA;
+  --muted:         #6E737E;
+  --faint:         #494E58;
+
+  --pos:           #34D399;
+  --neg:           #FB7185;
+  --info:          #7FB8FF;
+
+  --bar-track:     rgba(255,255,255,.06);
+}
+
+/* ── Fundações ─────────────────────────────────────────────────────────────
+   Geometria RETA. Sem border-radius, sem vidro/blur, sem brilho, sem sombra.
+   Fontes ligadas ao next/font (variáveis injetadas no <html> pelo layout). */
+:root {
+  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 0px;
+  --tracking-label: .13em;
+  --tracking-brand: .16em;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--bg);
+}
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top, rgba(26, 32, 48, 0.78) 0%, rgba(13, 15, 22, 0.97) 45%, #0C0E14 100%);
-  color: #F4F7FF;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #333542; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #44465A; }
+/* Números SEMPRE em mono com tabular-nums (alinhamento de coluna). */
+.tnum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* Hide scrollbar for tab bars */
+/* Scrollbar fino de terminal */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); }
+::-webkit-scrollbar-thumb:hover { background: #3a3e49; }
+
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Micro-rótulo (cabeçalhos, KPIs, status) */
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--faint);
+}
+
+/* Painel-base: fundo + hairline reta, sem raio/sombra */
+.t-panel { background: var(--panel); border: 1px solid var(--line); }
+
+/* Tick ao vivo (ponto/cursor pulsante) — única animação tolerada no chrome */
+@keyframes tBlink { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+.t-blink { animation: tBlink 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .t-blink { animation: none; } }
+
+/* ============================================================================
+   PONTE DE MIGRAÇÃO — classes legadas reescritas para o idioma terminal.
+   Páginas ainda não migradas usam .glass-card / .metric-glow / etc.; aqui elas
+   passam a renderizar como painéis retos hairline (sem vidro/brilho/raio),
+   então toda a app adota o visual sem editar cada página. Remover quando todas
+   as páginas usarem os primitivos <Panel>/<KpiStrip>/<Blotter>.
+   ============================================================================ */
 @layer components {
-  /* Base glass card for charts and content sections */
   .glass-card {
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    background: rgba(20, 22, 32, 0.85);
-    border: 1px solid rgba(75, 82, 100, 0.55);
-    border-radius: 1rem;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 10px 34px rgba(0, 0, 0, 0.30);
-    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
+    transition: border-color 0.2s ease;
   }
-  .glass-card:hover {
-    border-color: rgba(212, 165, 116, 0.24);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.10),
-      0 14px 42px rgba(0, 0, 0, 0.38);
-  }
+  .glass-card:hover { border-color: var(--line-strong); box-shadow: none; }
 
-  /* Glow emanation from top of metric cards */
-  .metric-glow {
-    position: relative;
-    overflow: hidden;
-  }
-  .metric-glow::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 15%;
-    right: 15%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--glow-color, #d4a574), transparent);
-    opacity: 0.55;
-  }
-  .metric-glow::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 80px;
-    background: radial-gradient(ellipse at 50% -10%, var(--glow-color, #d4a574), transparent 68%);
-    opacity: 0.055;
-    pointer-events: none;
-  }
+  /* glow do card de métrica — neutralizado */
+  .metric-glow { position: relative; overflow: hidden; }
+  .metric-glow::before,
+  .metric-glow::after { content: none; }
 
-  /* Sidebar metallic brushed-vertical texture */
-  .sidebar-metallic {
-    background:
-      repeating-linear-gradient(
-        180deg,
-        transparent,
-        transparent 1px,
-        rgba(255, 255, 255, 0.012) 1px,
-        rgba(255, 255, 255, 0.012) 2px
-      ),
-      linear-gradient(180deg,
-        #12131D 0%,
-        #0F1018 25%,
-        #0D0E16 55%,
-        #0F1018 80%,
-        #12131D 100%
-      );
-  }
+  /* sidebar metálica — chapada (rail é substituído pelo <Rail>) */
+  .sidebar-metallic { background: var(--rail); }
 
-  /* Active nav item — golden premium glow */
+  /* item de nav ativo — acento contido */
   .nav-active {
-    background: linear-gradient(135deg, rgba(212, 165, 116, 0.14) 0%, rgba(212, 165, 116, 0.06) 100%);
-    color: #d4a574;
-    box-shadow:
-      inset 0 0 24px rgba(212, 165, 116, 0.07),
-      inset 1px 0 0 rgba(212, 165, 116, 0.0),
-      0 0 16px rgba(212, 165, 116, 0.08);
+    background: var(--accent-wash);
+    color: var(--accent);
+    box-shadow: none;
   }
 
   .tag {
-    @apply text-[10px] px-2 py-0.5 rounded-full font-medium;
+    @apply text-[10px] px-2 py-0.5 font-medium;
+    border-radius: 0;
   }
 
   .section-title {
-    @apply text-sm font-semibold text-zinc-300 tracking-wide flex items-center gap-2;
+    font-family: var(--font-mono);
+    @apply text-[10px] font-bold uppercase flex items-center gap-2;
+    letter-spacing: var(--tracking-label);
+    color: var(--text-2);
   }
 
   .stat-label {
-    @apply text-[10px] text-zinc-500 uppercase tracking-wider font-medium;
+    font-family: var(--font-mono);
+    @apply text-[9px] uppercase font-semibold;
+    letter-spacing: var(--tracking-label);
+    color: var(--faint);
   }
   .stat-value {
-    @apply text-lg font-bold text-zinc-100;
+    font-family: var(--font-mono);
+    @apply text-lg font-bold;
+    color: var(--text);
   }
 }
 
-/* ─── Animations ─── */
+/* ─── Animações utilitárias (mantidas; não-decorativas) ─── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
-@keyframes pulse-soft {
-  0%, 100% { opacity: 0.4; }
-  50%       { opacity: 0.7; }
-}
-
 @keyframes ambientPulse {
-  0%, 100% { opacity: 0.6; }
+  0%, 100% { opacity: 0.55; }
   50%       { opacity: 1; }
 }
 
-.animate-fade-in  { animation: fadeIn  0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in  { animation: fadeIn  0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-slide-in { animation: slideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-ambient  { animation: ambientPulse 6s ease-in-out infinite; }
+.animate-ambient  { animation: ambientPulse 1.8s ease-in-out infinite; }
 
-.animate-delay-1 { animation-delay:  60ms; }
-.animate-delay-2 { animation-delay: 120ms; }
-.animate-delay-3 { animation-delay: 180ms; }
-.animate-delay-4 { animation-delay: 240ms; }
-.animate-delay-5 { animation-delay: 300ms; }
-.animate-delay-6 { animation-delay: 360ms; }
+.animate-delay-1 { animation-delay:  50ms; }
+.animate-delay-2 { animation-delay: 100ms; }
+.animate-delay-3 { animation-delay: 150ms; }
+.animate-delay-4 { animation-delay: 200ms; }
+.animate-delay-5 { animation-delay: 250ms; }
+.animate-delay-6 { animation-delay: 300ms; }
 
-/* ─── Skeleton loader ─── */
-.skeleton {
-  background: linear-gradient(90deg, #1F212C 25%, #2F3140 50%, #1F212C 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s ease-in-out infinite;
-  border-radius: 8px;
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-slide-in, .animate-ambient { animation: none; }
 }
 
-@keyframes skeleton-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+/* ─── Skeleton: retângulo de painel com hairline (sem shimmer dourado) ─── */
+.skeleton {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0;
 }
 
 @keyframes tickerScroll {
@@ -168,131 +226,54 @@ body {
   to { transform: translateX(-50%); }
 }
 
-/* ─── Hologram animations ─── */
+/* ─── HoloGlobe / animações de cena 3D (mantidas para componentes que as usam) ─── */
 @keyframes logoTilt {
   0%   { transform: perspective(600px) rotateY(0deg); }
   100% { transform: perspective(600px) rotateY(-18deg); }
 }
-
 @keyframes holoAppear {
   0%   { opacity: 0; transform: perspective(800px) rotateY(8deg) scale(0.85); clip-path: inset(50% 0 50% 0); }
   40%  { opacity: 0.7; clip-path: inset(5% 0 5% 0); }
   100% { opacity: 1; transform: perspective(800px) rotateY(2deg) scale(1); clip-path: inset(0 0 0 0); }
 }
-
 @keyframes holoDisappear {
   0%   { opacity: 1; transform: perspective(800px) rotateY(2deg) scale(1); clip-path: inset(0 0 0 0); }
   60%  { opacity: 0.5; clip-path: inset(10% 0 10% 0); }
   100% { opacity: 0; transform: perspective(800px) rotateY(8deg) scale(0.85); clip-path: inset(50% 0 50% 0); }
 }
-
 @keyframes scanLines {
   0%   { transform: translateY(-100%); }
   100% { transform: translateY(100%); }
 }
-
-@keyframes holoFlicker {
-  0%, 100% { opacity: 0.92; }
-  5%       { opacity: 0.78; }
-  10%      { opacity: 0.95; }
-  50%      { opacity: 0.88; }
-  52%      { opacity: 0.72; }
-  54%      { opacity: 0.93; }
-}
-
-@keyframes holoBeam {
-  0%, 100% { opacity: 0.35; }
-  50%      { opacity: 0.55; }
-}
-
-.logo-idle {
-  transform: perspective(600px) rotateY(0deg);
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.logo-tilted {
-  animation: logoTilt 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.holo-panel-enter {
-  animation: holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.holo-panel-exit {
-  animation: holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards;
-}
-
+.logo-idle { transform: perspective(600px) rotateY(0deg); transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.logo-tilted { animation: logoTilt 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.holo-panel-enter { animation: holoAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.holo-panel-exit { animation: holoDisappear 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
 .holo-scanlines::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 255, 255, 0.03) 2px,
-    rgba(0, 255, 255, 0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 2;
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.03) 2px, rgba(0,255,255,0.03) 4px);
+  pointer-events: none; z-index: 2;
 }
-
-/* ─── Performance Hero ─── */
-@keyframes heroShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes heroGlow {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 0.9; }
-}
-
-.perf-accent {
-  background-size: 200% 100%;
-  animation: heroShimmer 4s ease-in-out infinite;
-}
-
-.perf-glow {
-  animation: heroGlow 5s ease-in-out infinite;
-}
-
-.perf-hero-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(75, 82, 100, 0.3);
-  background: linear-gradient(150deg, rgba(16,18,30,0.97) 0%, rgba(10,12,18,0.99) 40%, rgba(14,16,26,0.97) 100%);
-}
-
-.perf-risk-cell {
-  background: rgba(255,255,255,0.012);
-  border-radius: 0.5rem;
-  transition: background 0.2s ease;
-}
-.perf-risk-cell:hover {
-  background: rgba(255,255,255,0.04);
-}
-
 .holo-scanlines::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 255, 255, 0.08) 0%,
-    transparent 12%,
-    transparent 88%,
-    rgba(0, 255, 255, 0.08) 100%
-  );
-  animation: scanLines 3s linear infinite;
-  pointer-events: none;
-  z-index: 3;
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,255,255,0.08) 0%, transparent 12%, transparent 88%, rgba(0,255,255,0.08) 100%);
+  animation: scanLines 3s linear infinite; pointer-events: none; z-index: 3;
 }
 
-/* ─── Section dividers ─── */
+/* ─── Divisória de seção (hairline reta) ─── */
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212,165,116,0.2), transparent);
+  background: var(--line);
   margin: 0.5rem 0;
 }
+
+/* ─── Interações do chrome terminal ─── */
+.t-rail-item:hover:not([data-active="true"]) {
+  background: var(--hover) !important;
+  color: var(--text-2) !important;
+}
+.t-rail-item:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.t-blotter-row:hover { background: var(--hover); }

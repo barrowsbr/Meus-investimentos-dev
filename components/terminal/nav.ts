@@ -1,0 +1,82 @@
+import {
+  Home, LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
+  Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
+  Newspaper, ListOrdered, Target, PieChart, Scale, Zap, Crosshair, BrainCircuit,
+} from "lucide-react";
+import type { ComponentType } from "react";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type IconType = ComponentType<any>;
+
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: IconType;
+  sub?: string;
+  mobileShow?: boolean;
+}
+export interface NavGroup {
+  label?: string;
+  items: NavItem[];
+}
+
+// Ordem e rótulos conforme README §8 do handoff Barroots Terminal.
+export const NAV: NavGroup[] = [
+  { items: [{ href: "/", label: "Home", icon: Home, sub: "Visão do dia", mobileShow: true }] },
+  {
+    label: "Portfólio",
+    items: [
+      { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos seus investimentos", mobileShow: true },
+      { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2, sub: "Ações, ETFs, BDRs e FIIs" },
+      { href: "/renda-fixa", label: "Renda Fixa", icon: Landmark, sub: "Tesouro, CDBs, LCI/LCA e debêntures" },
+      { href: "/proventos", label: "Proventos", icon: Coins, sub: "Dividendos, JCP e rendimentos" },
+      { href: "/criptoativos", label: "Criptoativos", icon: Bitcoin, sub: "Bitcoin e demais criptoativos" },
+      { href: "/opcoes", label: "Opções", icon: Crosshair, sub: "Posições em opções e estruturas" },
+    ],
+  },
+  {
+    label: "Análise",
+    items: [
+      { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
+      { href: "/setores", label: "Setores", icon: PieChart, sub: "Exposição setorial, geográfica e look-through" },
+      { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
+      { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
+      { href: "/simulacoes", label: "Simulações", icon: Target, sub: "Projeções e cenários de carteira" },
+      { href: "/trades", label: "Trades", icon: Zap, sub: "Histórico de operações e desempenho" },
+      { href: "/preditivo", label: "Preditivo", icon: BrainCircuit, sub: "Modelos preditivos e sinais (ML)" },
+    ],
+  },
+  {
+    label: "Gestão",
+    items: [
+      { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
+      { href: "/alavancagem", label: "Alavancagem", icon: Scale, sub: "Margem, garantias e nível de risco" },
+      { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
+      { href: "/fluxos", label: "Fluxos", icon: ListOrdered, sub: "Entradas, saídas e movimentações" },
+    ],
+  },
+  {
+    label: "Mais",
+    items: [
+      { href: "/bolsas", label: "Radar", icon: BarChart3, sub: "Índices, moedas e commodities globais" },
+      { href: "/noticias", label: "Inteligência", icon: Newspaper, sub: "Inteligência de mercado e notícias" },
+      { href: "/polymarket", label: "Preditivos", icon: Activity, sub: "Mercados preditivos relacionados à carteira" },
+      { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira", mobileShow: true },
+      { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
+    ],
+  },
+];
+
+const ALL_ITEMS = NAV.flatMap((g) => g.items);
+
+export const MOBILE_ITEMS = ALL_ITEMS.filter((i) => i.mobileShow);
+
+/** Resolve a rota atual (pathname) para o item de nav correspondente. */
+export function navItemForPath(pathname: string): NavItem | undefined {
+  if (pathname === "/") return ALL_ITEMS[0];
+  // match mais longo primeiro (ex.: /performance-avancada → /performance)
+  const candidates = ALL_ITEMS.filter((i) => i.href !== "/" && pathname.startsWith(i.href)).sort(
+    (a, b) => b.href.length - a.href.length,
+  );
+  return candidates[0];
+}

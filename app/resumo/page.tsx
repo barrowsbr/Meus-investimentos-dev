@@ -73,11 +73,6 @@ const SECTOR_COLORS: Record<string, string> = {
   "Tesouro Direto": "#10b981", "CDBs": "#0ea5e9", "LCI/LCA": "#06b6d4", "Debêntures": "#3b82f6", "Caixa": "#64748b",
 };
 
-const MACRO_COLORS: Record<string, string> = {
-  "Brasil": "#3b82f6", "Exterior": "#8b5cf6", "Renda Fixa": "#6366f1",
-  "Commodities": "#eab308", "Cripto": "#f97316", "Outros": "#52525b",
-};
-
 const CURRENCY_COLORS: Record<string, string> = {
   BRL: "#3b82f6", USD: "#10b981", "USD (RF)": "#1d4ed8", EUR: "#8b5cf6", GBP: "#f59e0b", CAD: "#ef4444", Cripto: "#f97316",
 };
@@ -813,19 +808,24 @@ export default function ResumoPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
            TAB NAVIGATION
          ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="overflow-x-auto -mx-4 px-4 mb-6 scrollbar-hide">
-        <div className="flex gap-1 bg-zinc-900/60 rounded-xl p-1 border border-zinc-800/50 min-w-fit">
-          {TABS.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-zinc-700/80 text-zinc-100 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-              }`}>
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+      <div className="overflow-x-auto -mx-4 px-4 mb-5 scrollbar-hide" style={{ borderBottom: "1px solid var(--line)" }}>
+        <div className="flex min-w-fit">
+          {TABS.map(tab => {
+            const on = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className="flex items-center gap-1.5 font-mono whitespace-nowrap uppercase"
+                style={{
+                  padding: "9px 14px", marginBottom: -1,
+                  borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`,
+                  color: on ? "var(--text)" : "var(--muted)",
+                  fontSize: 11, fontWeight: 600, letterSpacing: ".05em",
+                }}>
+                {tab.icon}
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -834,19 +834,22 @@ export default function ResumoPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       {composicao && macros.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-5">
-          {["global", ...macros].map(f => (
-            <button key={f} onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${activeFilter === f
-                ? "border-transparent text-zinc-900"
-                : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              }`}
-              style={activeFilter === f ? {
-                background: f === "global" ? "#d4a574" : (MACRO_COLORS[f] || "#d4a574"),
-              } : undefined}
-            >
-              {f === "global" ? "Global" : f}
-            </button>
-          ))}
+          {["global", ...macros].map(f => {
+            const on = activeFilter === f;
+            return (
+              <button key={f} onClick={() => setActiveFilter(f)}
+                className="font-mono uppercase"
+                style={{
+                  padding: "5px 12px", fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em",
+                  border: `1px solid ${on ? "var(--accent)" : "var(--line)"}`,
+                  background: on ? "var(--accent-wash)" : "transparent",
+                  color: on ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                {f === "global" ? "Global" : f}
+              </button>
+            );
+          })}
         </div>
       )}
 

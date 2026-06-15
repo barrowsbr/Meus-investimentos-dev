@@ -8,19 +8,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#0D0E11",
-        card: "#13141A",
-        "card-hover": "#191B22",
-        border: "#1E2028",
-        accent: "#d4a574",
-        "accent-light": "#e8c9a0",
-        positive: "#4ade80",
-        negative: "#f87171",
-        info: "#60a5fa",
-        warning: "#fbbf24",
+        // Paleta Barroots Terminal (tema âmbar). O chrome e os componentes
+        // migrados usam as CSS vars (--bg/--panel/--line/...) e trocam de tema;
+        // estas constantes alinham as classes utilitárias legadas ao mesmo visual.
+        bg: "#08080A",
+        card: "#0D0E12",
+        "card-hover": "#11131A",
+        border: "#1E2027",
+        accent: "#E8A33D",
+        "accent-light": "#F0B860",
+        positive: "#3FB950",
+        negative: "#F0504A",
+        info: "#5BA8FF",
+        warning: "#E8A33D",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains)", "JetBrains Mono", "ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        // terminal = cantos retos; neutraliza rounded-* das páginas legadas.
+        // `full` permanece para pontos/indicadores circulares.
+        DEFAULT: "0px", sm: "0px", md: "0px",
+        lg: "0px", xl: "0px", "2xl": "0px", "3xl": "0px", full: "9999px",
       },
     },
   },

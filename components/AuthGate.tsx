@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import Image from "next/image";
-import { Lock, User, Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
@@ -38,7 +38,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-
     try {
       const res = await fetch("/api/auth/validate", {
         method: "POST",
@@ -63,140 +62,108 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (!mounted) return null;
   if (authed) return <>{children}</>;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0" style={{ background: "#0D0E11" }} />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 35%, rgba(212,165,116,0.10) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(20,184,166,0.06) 0%, transparent 55%)",
-        }}
-      />
+  const inputStyle: React.CSSProperties = {
+    background: "var(--input)",
+    border: "1px solid var(--line-strong)",
+    color: "var(--text)",
+    fontFamily: "var(--font-mono)",
+  };
 
-      {/* Login card */}
-      <div className="relative z-10 w-full max-w-sm animate-fade-in">
-        {/* Logo + brand */}
-        <div className="flex flex-col items-center mb-8">
-          <Image
-            src="/midias/carregamento.png"
-            alt="Meus Investimentos"
-            width={120}
-            height={120}
-            className="h-20 w-auto mb-5"
-            priority
-          />
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{
-              background: "linear-gradient(135deg, #d4a574 0%, #f5d49a 50%, #c49060 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Meus Investimentos
-          </h1>
-          <p className="text-[11px] text-zinc-600 mt-1.5 tracking-widest uppercase">
-            Painel Financeiro Pessoal
-          </p>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "var(--bg)" }}>
+      <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)" }}>
+        {/* Marca */}
+        <div className="flex items-center gap-3" style={{ padding: "26px 32px 20px", borderBottom: "1px solid var(--line)" }}>
+          <Image src="/barroots-mark.png" alt="Barroots" width={36} height={36} className="object-contain" />
+          <div>
+            <div className="font-mono" style={{ fontSize: 14, fontWeight: 700, letterSpacing: ".12em", color: "var(--text)" }}>
+              BARROOTS
+            </div>
+            <div className="font-mono" style={{ fontSize: 9.5, letterSpacing: ".2em", color: "var(--faint)", marginTop: 2 }}>
+              TERMINAL · v2.0
+            </div>
+          </div>
         </div>
 
-        {/* Form card */}
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-2xl p-px"
-          style={{
-            background: "linear-gradient(145deg, rgba(212,165,116,0.35) 0%, rgba(212,165,116,0.08) 50%, rgba(212,165,116,0.22) 100%)",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
-          }}
-        >
+        <form onSubmit={handleSubmit} style={{ padding: "24px 32px 28px" }}>
           <div
-            className="rounded-[calc(1rem-1px)] p-6 backdrop-blur-xl"
-            style={{ background: "rgba(17,18,24,0.92)" }}
+            className="font-mono"
+            style={{ fontSize: 10, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 14 }}
           >
-            <div className="flex items-center gap-2 mb-5">
-              <ShieldCheck size={15} className="text-[#d4a574]" />
-              <span className="text-sm font-semibold text-zinc-200">Acesso restrito</span>
+            Acesso restrito
+          </div>
+
+          {/* Usuário */}
+          <label className="block mb-3">
+            <span className="t-label block mb-1.5">Usuário</span>
+            <input
+              type="text"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="characters"
+              placeholder="usuário"
+              className="w-full px-3 py-2.5 text-sm outline-none focus:border-[color:var(--accent)]"
+              style={inputStyle}
+            />
+          </label>
+
+          {/* Senha */}
+          <label className="block mb-3.5">
+            <span className="t-label block mb-1.5">Senha</span>
+            <div className="relative flex items-center" style={inputStyle}>
+              <span className="pl-3" style={{ color: "var(--accent)", fontFamily: "var(--font-mono)" }}>&gt;</span>
+              <input
+                type={showPass ? "text" : "password"}
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••"
+                className="flex-1 bg-transparent border-0 px-2 py-2.5 text-sm outline-none"
+                style={{ color: "var(--text)", fontFamily: "var(--font-mono)", letterSpacing: ".15em" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((s) => !s)}
+                className="px-3"
+                style={{ color: "var(--muted)" }}
+                tabIndex={-1}
+                aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
             </div>
+          </label>
 
-            {/* Usuário */}
-            <label className="block mb-3.5">
-              <span className="text-[11px] text-zinc-500 font-medium mb-1.5 block uppercase tracking-wide">
-                Usuário
-              </span>
-              <div className="relative">
-                <User
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none"
-                />
-                <input
-                  type="text"
-                  value={user}
-                  onChange={(e) => setUser(e.target.value)}
-                  autoComplete="username"
-                  autoCapitalize="characters"
-                  placeholder="Seu usuário"
-                  className="w-full bg-white/[0.03] border border-zinc-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-700 outline-none transition-colors focus:border-[#d4a574]/50 focus:bg-white/[0.05]"
-                />
-              </div>
-            </label>
+          {error && (
+            <p className="font-mono mb-2" style={{ fontSize: 11, color: "var(--neg)" }}>
+              {error}
+            </p>
+          )}
 
-            {/* Senha */}
-            <label className="block mb-2">
-              <span className="text-[11px] text-zinc-500 font-medium mb-1.5 block uppercase tracking-wide">
-                Senha
-              </span>
-              <div className="relative">
-                <Lock
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none"
-                />
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={pass}
-                  onChange={(e) => setPass(e.target.value)}
-                  autoComplete="current-password"
-                  placeholder="••••"
-                  className="w-full bg-white/[0.03] border border-zinc-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-700 outline-none transition-colors focus:border-[#d4a574]/50 focus:bg-white/[0.05]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
-                  tabIndex={-1}
-                  aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </label>
+          <button
+            type="submit"
+            disabled={submitting || !user || !pass}
+            className="w-full font-mono uppercase disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              padding: "12px",
+              border: "1px solid var(--accent)",
+              background: "var(--accent-wash)",
+              color: "var(--accent)",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: ".12em",
+            }}
+          >
+            {submitting ? "Verificando…" : "Entrar ↵"}
+          </button>
 
-            {/* Error */}
-            {error && (
-              <p className="text-red-400 text-xs mt-2 mb-1 animate-fade-in">{error}</p>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={submitting || !user || !pass}
-              className="w-full mt-4 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-zinc-900 transition-all duration-200 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{
-                background: "linear-gradient(135deg, #f5d49a 0%, #d4a574 50%, #c49060 100%)",
-                boxShadow: "0 4px 20px rgba(212,165,116,0.25)",
-              }}
-            >
-              {submitting ? "Verificando…" : "Entrar"}
-              {!submitting && <ArrowRight size={15} />}
-            </button>
+          <div className="font-mono" style={{ fontSize: 9.5, color: "var(--faint)", marginTop: 18, lineHeight: 1.7 }}>
+            ● SESSÃO SEGURA · DADOS LOCAIS
+            <br />
+            FONTE db_cotacoes · GOOGLE SHEETS
           </div>
         </form>
-
-        <p className="text-center text-[10px] text-zinc-700 mt-6 tracking-wider uppercase">
-          v1.0 · Personal
-        </p>
       </div>
     </div>
   );
