@@ -4,84 +4,102 @@ import { readGoldenSource, writeGoldenSource } from "@/lib/db-cotacoes";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const CRYPTO = new Set(["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "ADA-USD", "XRP-USD"]);
-
-function isWeekend(dateStr: string): boolean {
-  const d = new Date(dateStr + "T12:00:00Z");
-  return d.getUTCDay() === 0 || d.getUTCDay() === 6;
-}
-
 export async function POST() {
   const data = await readGoldenSource();
-  let removed = 0;
-  const badDates = new Set<string>();
+  const fixes: string[] = [];
 
-  // 1) Weekends — Yahoo returns scrambled stock prices
+  // ── VWRA.L: Yahoo alternates between GBX (pence) and GBP ──────────────
+  // Normal range ~90-150 GBP. Values >180 are clearly in GBX → divide by 100.
+  // Values that double then halve are the GBX/GBP flip.
+  let vwraFixed = 0;
+  let prevVwra = 0;
   for (const date of data.dates) {
-    if (isWeekend(date)) badDates.add(date);
+    const p = data.prices[date]?.["VWRA.L"];
+    if (p == null) continue;
+    if (prevVwra > 0) {
+      const ratio = p / prevVwra;
+      if (ratio > 1.5 && ratio < 2.5) {
+        // Doubled — likely GBX instead of GBP
+        data.prices[date]["VWRA.L"] = p / 100 * (prevVwra / (p / 100) > 1.3 ? 1 : 1);
+        // Actually just delete the outlier — next good price will fill naturally
+        delete data.prices[date]["VWRA.L"];
+        vwraFixed++;
+        continue;
+      }
+      if (ratio < 0.65 && ratio > 0.35 && prevVwra > 180) {
+        // Previous was GBX, this one is normal — fix previous day
+        // But previous day is already written, skip and just note
+      }
+    }
+    prevVwra = p;
   }
-
-  // 2) Detect scrambled dates using SPY as canary.
-  //    If SPY deviates >40% from last known good value, the date is scrambled.
-  //    This catches US holidays, multi-day scrambled sequences, etc.
-  let lastGoodSpy = 0;
+  // Simpler approach: remove all VWRA.L values >180 (clearly GBX not GBP)
+  // and any values that spike >50% from neighbor
+  let lastGoodVwra = 0;
   for (const date of data.dates) {
-    if (badDates.has(date)) continue;
-    const spy = data.prices[date]?.["SPY"];
-    if (spy == null || spy <= 0) continue;
-    if (lastGoodSpy > 0 && Math.abs(spy - lastGoodSpy) / lastGoodSpy > 0.40) {
-      badDates.add(date);
-    } else {
-      lastGoodSpy = spy;
+    const p = data.prices[date]?.["VWRA.L"];
+    if (p == null) continue;
+    if (p > 180) {
+      delete data.prices[date]["VWRA.L"];
+      vwraFixed++;
+      continue;
     }
+    if (lastGoodVwra > 0 && Math.abs(p - lastGoodVwra) / lastGoodVwra > 0.30) {
+      delete data.prices[date]["VWRA.L"];
+      vwraFixed++;
+      continue;
+    }
+    lastGoodVwra = p;
   }
+  if (vwraFixed > 0) fixes.push(`VWRA.L: removed ${vwraFixed} GBX/outlier prices`);
 
-  // 3) Same for ITUB4.SA as canary for Brazilian holidays.
-  //    B3 closes but NYSE stays open — .SA tickers get scrambled.
-  let lastGoodItub = 0;
+  // ── DPM.TO: stock split artifact — prices oscillate between ~10 and ~22 ──
+  // Check for >40% swings and remove the outliers
+  let dpmFixed = 0;
+  let lastGoodDpm = 0;
   for (const date of data.dates) {
-    if (badDates.has(date)) continue;
-    const itub = data.prices[date]?.["ITUB4.SA"];
-    if (itub == null || itub <= 0) continue;
-    if (lastGoodItub > 0 && Math.abs(itub - lastGoodItub) / lastGoodItub > 0.40) {
-      badDates.add(date);
-    } else {
-      lastGoodItub = itub;
+    const p = data.prices[date]?.["DPM.TO"];
+    if (p == null) continue;
+    if (lastGoodDpm > 0 && Math.abs(p - lastGoodDpm) / lastGoodDpm > 0.40) {
+      delete data.prices[date]["DPM.TO"];
+      dpmFixed++;
+      continue;
     }
+    lastGoodDpm = p;
   }
+  if (dpmFixed > 0) fixes.push(`DPM.TO: removed ${dpmFixed} split-artifact prices`);
 
-  // 4) Same for ^BVSP (Ibovespa) — should be in 60k-250k range
+  // ── XPML11.SA: corrupt data on 2026-01-14 (1.068 instead of ~110) + 2026-06-15 (190) ──
+  let xpmlFixed = 0;
+  let lastGoodXpml = 0;
   for (const date of data.dates) {
-    const bvsp = data.prices[date]?.["^BVSP"];
-    if (bvsp != null && bvsp > 0 && bvsp < 50000) {
-      badDates.add(date);
+    const p = data.prices[date]?.["XPML11.SA"];
+    if (p == null) continue;
+    // Normal range for XPML11 is roughly 80-140
+    if (p < 50 || p > 160) {
+      delete data.prices[date]["XPML11.SA"];
+      xpmlFixed++;
+      continue;
     }
-  }
-
-  // 5) Remove ALL non-crypto data from bad dates.
-  //    (FX on scrambled dates is also unreliable — seen Jun 3-14 2026)
-  for (const date of badDates) {
-    const prices = data.prices[date];
-    if (!prices) continue;
-    for (const ticker of Object.keys(prices)) {
-      if (CRYPTO.has(ticker)) continue;
-      delete prices[ticker];
-      removed++;
+    if (lastGoodXpml > 0 && Math.abs(p - lastGoodXpml) / lastGoodXpml > 0.30) {
+      delete data.prices[date]["XPML11.SA"];
+      xpmlFixed++;
+      continue;
     }
+    lastGoodXpml = p;
   }
+  if (xpmlFixed > 0) fixes.push(`XPML11.SA: removed ${xpmlFixed} corrupt prices`);
 
-  if (removed === 0) {
-    return NextResponse.json({ ok: true, message: "Nothing to fix", removed: 0 });
+  const totalFixed = vwraFixed + dpmFixed + xpmlFixed;
+  if (totalFixed === 0) {
+    return NextResponse.json({ ok: true, message: "Nothing to fix", fixes: [] });
   }
 
   await writeGoldenSource(data);
 
   return NextResponse.json({
     ok: true,
-    removed,
-    badDates: badDates.size,
-    weekends: [...badDates].filter(isWeekend).length,
-    holidays: [...badDates].filter(d => !isWeekend(d)).length,
-    sampleHolidays: [...badDates].filter(d => !isWeekend(d)).sort().slice(0, 20),
+    totalFixed,
+    fixes,
   });
 }

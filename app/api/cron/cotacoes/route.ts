@@ -4,10 +4,9 @@ import { runCotacoesSync } from "@/lib/sync-cotacoes";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-// Scheduled incremental update of the golden source (db_cotacoes).
-// Triggered by the Vercel Cron defined in vercel.json. Vercel automatically
-// sends `Authorization: Bearer ${CRON_SECRET}` when CRON_SECRET is set — we
-// verify it so the endpoint can't be triggered by anyone else.
+// Manual incremental update of the golden source (db_cotacoes).
+// No longer scheduled via cron — sync happens on-demand when the app opens
+// (via /api/cotacoes/refresh). This endpoint is kept for manual triggers.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
@@ -23,6 +22,7 @@ export async function GET(request: Request) {
       ok: true,
       ranAt: new Date().toISOString(),
       newPoints: report.newPoints,
+      rejectedDates: report.rejectedDates,
       anomalyCount: report.anomalyCount,
       tickerErrors: report.tickerErrors,
     });
