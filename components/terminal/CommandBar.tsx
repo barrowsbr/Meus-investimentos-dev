@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useTerminal, type Periodo, type Moeda } from "./TerminalProvider";
+import { useGlobeOverlay } from "@/components/GlobeOverlayContext";
 
 const PERIODOS: Periodo[] = ["1D", "1S", "1M", "YTD", "12M", "Máx"];
 const MOEDAS: Moeda[] = ["BRL", "USD"];
@@ -15,6 +16,7 @@ interface Props {
 
 export default function CommandBar({ title, onMenu }: Props) {
   const { theme, setTheme, filters, setFilter } = useTerminal();
+  const { setOpen: setGlobeOpen, originRef } = useGlobeOverlay();
   const [now, setNow] = useState<string>("");
 
   useEffect(() => {
@@ -70,8 +72,16 @@ export default function CommandBar({ title, onMenu }: Props) {
 
       <div className="flex-1 sm:hidden" />
 
-      {/* Logo */}
-      <Image src="/midias/carregamento.png" alt="" width={26} height={26} className="shrink-0 object-contain" />
+      {/* Logo — dispara o globo holográfico (overlay global) */}
+      <button
+        ref={originRef}
+        onClick={() => setGlobeOpen(true)}
+        aria-label="Abrir globo de mercados"
+        className="shrink-0 grid place-items-center transition-opacity hover:opacity-80"
+        style={{ width: 30, height: 30 }}
+      >
+        <Image src="/midias/carregamento.png" alt="" width={26} height={26} className="object-contain" />
+      </button>
 
       {/* Seletor de tema */}
       <div className="flex gap-[3px] p-[3px]" style={{ border: "1px solid var(--line)", background: "var(--input)" }}>
