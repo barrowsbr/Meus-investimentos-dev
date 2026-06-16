@@ -75,7 +75,7 @@ export default function CommandBar({ title, onMenu }: Props) {
 
       {/* Seletor de tema */}
       <div className="flex gap-[3px] p-[3px]" style={{ border: "1px solid var(--line)", background: "var(--input)" }}>
-        {(["ambar", "grafite"] as const).map((k) => (
+        {(["ambar", "jornal"] as const).map((k) => (
           <button
             key={k}
             onClick={() => setTheme(k)}
@@ -88,7 +88,7 @@ export default function CommandBar({ title, onMenu }: Props) {
               color: theme === k ? "var(--accent)" : "var(--muted)",
             }}
           >
-            {k === "ambar" ? "Âmbar" : "Grafite"}
+            {k === "ambar" ? "Âmbar" : "Jornal"}
           </button>
         ))}
       </div>

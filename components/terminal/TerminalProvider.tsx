@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 
 // ── Tema ─────────────────────────────────────────────────────────────────────
-export type Theme = "ambar" | "grafite";
+export type Theme = "ambar" | "jornal";
 const THEME_KEY = "barroots_theme";
 
 /**
@@ -15,9 +15,9 @@ export const THEME_COLORS: Record<Theme, Record<string, string>> = {
     accent: "#E8A33D", pos: "#3FB950", neg: "#F0504A", info: "#5BA8FF",
     text: "#DEE1E8", muted: "#71757F", line: "#1E2027", panel: "#0D0E12",
   },
-  grafite: {
-    accent: "#4EA8FF", pos: "#34D399", neg: "#FB7185", info: "#7FB8FF",
-    text: "#DDE2EA", muted: "#6E737E", line: "#1E232C", panel: "#11141A",
+  jornal: {
+    accent: "#1E3A5F", pos: "#15803D", neg: "#B91C1C", info: "#1D4ED8",
+    text: "#1A1A1A", muted: "#6B6560", line: "#D6D0C4", panel: "#FFFFFF",
   },
 };
 
@@ -71,7 +71,7 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
-      if (savedTheme === "ambar" || savedTheme === "grafite") setThemeState(savedTheme);
+      if (savedTheme === "ambar" || savedTheme === "jornal") setThemeState(savedTheme);
       const savedFilters = localStorage.getItem(FILTERS_KEY);
       if (savedFilters) setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(savedFilters) });
     } catch {
