@@ -8,27 +8,25 @@ import {
 import { usePortfolio } from "@/lib/hooks";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { fetchPolymarket, polyToUnified, findPortfolioImpact } from "@/lib/polymarket";
-import type { PolyEvent, UnifiedPrediction } from "@/lib/polymarket";
-import { fetchKalshi } from "@/lib/kalshi";
-import { fetchMetaculus } from "@/lib/metaculus";
+import { polyToUnified } from "@/lib/polymarket";
+import type { UnifiedPrediction } from "@/lib/polymarket";
 
 const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
 
 const CAT_META: Record<string, { color: string; icon: typeof BarChart2; desc: string }> = {
   "📊 Correlatos ao Portfólio": { color: "#E8A33D", icon: Briefcase, desc: "Apostas ligadas aos seus ativos" },
-  "🏦 Macro & Finanças":       { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
-  "🏦 Macro & Economia":       { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
-  "🌍 Geopolítica":            { color: "#f59e0b", icon: Globe, desc: "Eleições, conflitos, relações internacionais" },
-  "🤖 Tech & IA":              { color: "#a78bfa", icon: Cpu, desc: "Big tech, IA, regulação, inovação" },
-  "⭐ Em Destaque":             { color: "#34d399", icon: Star, desc: "Mercados de alto volume" },
-  "⭐ Outros":                  { color: "#34d399", icon: Star, desc: "Outros mercados relevantes" },
+  "🏦 Macro & Finanças": { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
+  "🏦 Macro & Economia": { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
+  "🌍 Geopolítica": { color: "#f59e0b", icon: Globe, desc: "Eleições, conflitos, relações internacionais" },
+  "🤖 Tech & IA": { color: "#a78bfa", icon: Cpu, desc: "Big tech, IA, regulação, inovação" },
+  "⭐ Em Destaque": { color: "#34d399", icon: Star, desc: "Mercados de alto volume" },
+  "⭐ Outros": { color: "#34d399", icon: Star, desc: "Outros mercados relevantes" },
 };
 
 const SOURCE_BADGE: Record<string, { color: string; label: string }> = {
   polymarket: { color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/25", label: "Polymarket" },
-  kalshi:     { color: "text-violet-400 bg-violet-500/10 border-violet-500/25", label: "Kalshi" },
-  metaculus:  { color: "text-amber-400 bg-amber-500/10 border-amber-500/25", label: "Metaculus" },
+  kalshi: { color: "text-violet-400 bg-violet-500/10 border-violet-500/25", label: "Kalshi" },
+  metaculus: { color: "text-amber-400 bg-amber-500/10 border-amber-500/25", label: "Metaculus" },
 };
 
 function UnifiedCard({ pred }: { pred: UnifiedPrediction }) {
@@ -102,16 +100,17 @@ export default function MercadosPreditivosPage() {
       const counts = { polymarket: 0, kalshi: 0, metaculus: 0 };
 
       const [polyRes, kalshiRes, metaculusRes] = await Promise.allSettled([
-        fetchPolymarket(portfolioTickers).then(r => {
-          const events = Object.values(r.categories).flat();
-          return events.map(ev => {
+        fetch(`/api/preditivos/polymarket?tickers=${portfolioTickers.join(",")}`).then(r => r.json()).then(data => {
+          if (!data.categories) return [];
+          const events = Object.values(data.categories).flat();
+          return (events as Array<any>).map(ev => {
             const u = polyToUnified(ev);
-            u.category = Object.entries(r.categories).find(([, evs]) => evs.some(e => e.id === ev.id))?.[0] ?? "";
+            u.category = Object.entries(data.categories).find(([, evs]: any) => evs.some((e: any) => e.id === ev.id))?.[0] ?? "";
             return u;
           });
         }),
-        fetchKalshi(),
-        fetchMetaculus().then(qs => qs.map(q => ({ id: q.id, source: q.source, title: q.title, url: q.url, category: q.category, odds: q.odds, forecasters: q.forecasters, end_date: q.end_date, days_left: q.days_left, portfolio_impact: q.portfolio_impact } as UnifiedPrediction))),
+        fetch(`/api/preditivos/kalshi`).then(r => r.json()).then(data => data || []),
+        fetch(`/api/preditivos/metaculus`).then(r => r.json()).then(qs => (qs || []).map((q: any) => ({ id: q.id, source: q.source, title: q.title, url: q.url, category: q.category, odds: q.odds, forecasters: q.forecasters, end_date: q.end_date, days_left: q.days_left, portfolio_impact: q.portfolio_impact } as UnifiedPrediction))),
       ]);
 
       if (polyRes.status === "fulfilled") { allPreds.push(...polyRes.value); counts.polymarket = polyRes.value.length; }
