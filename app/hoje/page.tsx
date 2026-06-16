@@ -297,6 +297,41 @@ export default function HojePage() {
       .map((k) => ({ k, label: labels[k] ?? k, level: levels[k] ?? null, pct: fx[k].changePct }));
   }, [data?.fxDayChange, data?.usdbrl, data?.fx]);
 
+  // ── Efeito do câmbio HOJE — decompõe o resultado do dia em preço × câmbio ──
+  // Para cada posição em moeda estrangeira: efeito câmbio = valor de ontem (BRL)
+  // × variação % da moeda no dia. Efeito preço = resto. A soma reconcilia com o
+  // total do dia (dayChangeTotalBRL, canônico).
+  const fxToday = useMemo(() => {
+    const fxFracByCcy = (ccy: string): number => {
+      const c = data?.fxDayChange?.[ccy];
+      return typeof c?.changePct === "number" ? c.changePct / 100 : 0;
+    };
+    let fxEffect = 0;
+    const perAsset: { ticker: string; moeda: string; fxBRL: number }[] = [];
+    for (const p of data?.positions ?? []) {
+      if (!p?.ticker || (p.quantidade ?? 0) <= 0) continue;
+      const moeda = p.moeda ?? "BRL";
+      if (moeda === "BRL") continue;
+      const fxFrac = fxFracByCcy(moeda);
+      if (fxFrac === 0) continue;
+      const assetFrac = typeof p.dayChangePct === "number" ? p.dayChangePct / 100 : 0;
+      const valueBRL = p.valorAtualBRL ?? 0;
+      const denom = (1 + assetFrac) * (1 + fxFrac);
+      const valueYestBRL = denom !== 0 ? valueBRL / denom : valueBRL;
+      const eff = valueYestBRL * fxFrac;
+      if (Math.abs(eff) < 0.5) continue;
+      fxEffect += eff;
+      perAsset.push({ ticker: cleanTicker(p.ticker), moeda, fxBRL: eff });
+    }
+    perAsset.sort((a, b) => Math.abs(b.fxBRL) - Math.abs(a.fxBRL));
+    return { fxEffect, priceEffect: total - fxEffect, perAsset };
+  }, [data?.positions, data?.fxDayChange, total]);
+
+  // ── Efeito do câmbio ACUMULADO (campos canônicos do snapshot — DRE do Resumo) ──
+  const fxAccum = data?.ganhoCambioTotalBRL ?? 0;
+  const priceAccum = data?.ganhoAtivoPuroTotalBRL ?? 0;
+  const hasFx = fxToday.perAsset.length > 0 || Math.abs(fxAccum) > 1 || Math.abs(fxToday.fxEffect) > 1;
+
   if (loading) {
     return (
       <div className="mx-auto w-full" style={{ maxWidth: 760 }}>
@@ -435,6 +470,82 @@ export default function HojePage() {
           <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 10 }}>
             Movimento das moedas no dia — referência para a parcela internacional da carteira.
           </p>
+        </section>
+      )}
+
+      {/* ── Efeito do câmbio: quanto do resultado veio de preço × moeda ── */}
+      {hasFx && (
+        <section>
+          <Kicker>Efeito do câmbio</Kicker>
+
+          <p className="font-mono" style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 4 }}>
+            No resultado de hoje
+          </p>
+          {(() => {
+            const m = Math.max(Math.abs(fxToday.priceEffect), Math.abs(fxToday.fxEffect), 1);
+            return (
+              <>
+                <LedgerRow label="Preço" value={fxToday.priceEffect} maxAbs={m} sub="ativos + renda fixa" />
+                <LedgerRow label="Câmbio" value={fxToday.fxEffect} maxAbs={m} sub={usdMovePct != null ? `dólar ${pctSigned(usdMovePct)}` : "moedas estáveis"} />
+              </>
+            );
+          })()}
+          <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
+            Do resultado de hoje ({signedBRL(total)}),{" "}
+            <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.fxEffect)}</strong> vieram da variação das moedas
+            sobre a parcela internacional; o restante, do preço dos ativos. A soma reconcilia com o total.
+          </p>
+
+          {fxToday.perAsset.length > 0 && (
+            <>
+              <p className="font-mono" style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--faint)", margin: "16px 0 4px" }}>
+                Câmbio por ativo, hoje
+              </p>
+              {fxToday.perAsset.slice(0, 8).map((a) => {
+                const pos = a.fxBRL >= 0;
+                return (
+                  <div
+                    key={a.ticker}
+                    className="grid items-center"
+                    style={{ gridTemplateColumns: "minmax(58px,auto) 1fr auto", gap: 12, padding: "6px 0", borderBottom: "1px solid var(--line)" }}
+                  >
+                    <span className="font-mono" style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}>{a.ticker}</span>
+                    <span className="font-mono" style={{ fontSize: 10, letterSpacing: ".08em", color: "var(--muted)" }}>{a.moeda}</span>
+                    <span className="font-mono tnum text-right" style={{ fontSize: 12.5, fontWeight: 700, color: pos ? "var(--pos)" : "var(--neg)" }}>
+                      {signedBRL(a.fxBRL)}
+                    </span>
+                  </div>
+                );
+              })}
+              <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
+                Parcela do resultado de cada ativo estrangeiro atribuível só à moeda (não ao preço).
+              </p>
+            </>
+          )}
+
+          {(Math.abs(fxAccum) > 1 || Math.abs(priceAccum) > 1) && (
+            <>
+              <p className="font-mono" style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--faint)", margin: "16px 0 4px" }}>
+                No acumulado da carteira
+              </p>
+              {(() => {
+                const m = Math.max(Math.abs(priceAccum), Math.abs(fxAccum), 1);
+                const pmDolar = data?.cambio?.pmDolar ?? 0;
+                const fxSub = usdLevel && pmDolar > 0
+                  ? `dólar R$ ${usdLevel.toFixed(2).replace(".", ",")} vs PM R$ ${pmDolar.toFixed(2).replace(".", ",")}`
+                  : undefined;
+                return (
+                  <>
+                    <LedgerRow label="Preço" value={priceAccum} maxAbs={m} strong sub="valorização dos ativos" />
+                    <LedgerRow label="Câmbio" value={fxAccum} maxAbs={m} strong sub={fxSub} />
+                  </>
+                );
+              })()}
+              <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
+                Decomposição canônica do ganho da carteira — quanto veio do preço dos ativos vs. da valorização das moedas (mesma base do Resumo).
+              </p>
+            </>
+          )}
         </section>
       )}
 
