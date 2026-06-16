@@ -677,13 +677,7 @@ export default function HomePage() {
         )}
 
         {/* Footer */}
-        <div className="mt-10 flex items-center gap-4 w-full animate-fade-in animate-delay-2">
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, transparent, rgba(45,47,58,0.5))" }} />
-          <span className="text-[9px] text-zinc-600 font-medium tracking-widest uppercase">
-            v1.0 · Personal
-          </span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(45,47,58,0.5), transparent)" }} />
-        </div>
+        <div className="mt-10" />
       </div>
 
     </div>
