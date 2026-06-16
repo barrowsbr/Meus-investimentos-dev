@@ -553,8 +553,8 @@ export default function HomePage() {
 
   return (
     <ErrorBoundary>
-    <div className="relative min-h-screen flex flex-col items-center">
-      <div className="w-full max-w-lg px-4 py-10 flex flex-col items-center">
+    <div className="relative h-full flex flex-col items-center overflow-hidden" style={{ overscrollBehavior: "none" }}>
+      <div className="w-full max-w-lg px-4 py-10 flex flex-col items-center overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
 
         {/* ── Hero ── */}
         <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center w-full">

@@ -28,6 +28,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
         <main
           key={pathname}
           className="flex-1 min-h-0 overflow-auto animate-fade-in px-4 py-4 md:px-[22px] md:py-[18px]"
+          style={{ overscrollBehavior: "none" }}
         >
           {children}
           {/* respiro p/ a barra inferior no mobile (some no desktop) */}
