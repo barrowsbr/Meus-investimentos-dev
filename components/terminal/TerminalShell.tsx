@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Rail from "./Rail";
 import CommandBar from "./CommandBar";
-import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import { navItemForPath } from "./nav";
 import { GlobeOverlayProvider } from "@/components/GlobeOverlayContext";
@@ -37,7 +36,6 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
           {/* respiro p/ a barra inferior no mobile (some no desktop) */}
           <div className="min-[1100px]:hidden" style={{ height: "calc(60px + env(safe-area-inset-bottom))" }} aria-hidden />
         </main>
-        <StatusBar />
         <BottomNav />
       </div>
       <HoloOverlay />

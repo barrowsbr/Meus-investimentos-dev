@@ -114,7 +114,7 @@ export default function MercadosPreditivosPage() {
       ]);
 
       if (polyRes.status === "fulfilled") { allPreds.push(...polyRes.value); counts.polymarket = polyRes.value.length; }
-      if (kalshiRes.status === "fulfilled") { allPreds.push(...kalshiRes.value.map(k => ({ ...k } as UnifiedPrediction))); counts.kalshi = kalshiRes.value.length; }
+      if (kalshiRes.status === "fulfilled") { allPreds.push(...kalshiRes.value.map((k: UnifiedPrediction) => ({ ...k }))); counts.kalshi = kalshiRes.value.length; }
       if (metaculusRes.status === "fulfilled") { allPreds.push(...metaculusRes.value); counts.metaculus = metaculusRes.value.length; }
 
       if (!cancelled) {
