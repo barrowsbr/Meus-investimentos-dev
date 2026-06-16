@@ -7,6 +7,8 @@ import CommandBar from "./CommandBar";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import { navItemForPath } from "./nav";
+import { GlobeOverlayProvider } from "@/components/GlobeOverlayContext";
+import HoloOverlay from "@/components/HoloOverlay";
 
 export default function TerminalShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -15,6 +17,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
   const title = item?.label ?? "Terminal";
 
   return (
+    <GlobeOverlayProvider>
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <Rail open={railOpen} onNavigate={() => setRailOpen(false)} />
 
@@ -37,6 +40,8 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
         <StatusBar />
         <BottomNav />
       </div>
+      <HoloOverlay />
     </div>
+    </GlobeOverlayProvider>
   );
 }
