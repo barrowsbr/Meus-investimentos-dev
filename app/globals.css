@@ -47,32 +47,32 @@
 }
 
 [data-theme="jornal"] {
-  --bg:            #F5F0E8;
-  --panel:         #FFFFFF;
-  --rail:          #EDE8DF;
-  --input:         #F0ECE4;
+  --bg:            #F2EBDD;
+  --panel:         transparent;
+  --rail:          #EAE3D4;
+  --input:         rgba(0,0,0,.04);
   --sel:           rgba(30,58,95,.07);
-  --hover:         rgba(0,0,0,.03);
+  --hover:         rgba(0,0,0,.04);
 
-  --line:          #D6D0C4;
-  --line-strong:   #C4BDB0;
+  --line:          transparent;
+  --line-strong:   rgba(0,0,0,.15);
 
-  --accent:        #1E3A5F;
-  --accent-wash:   rgba(30,58,95,.10);
+  --accent:        #1A1A1A;
+  --accent-wash:   rgba(0,0,0,.06);
 
-  --text:          #1A1A1A;
-  --text-2:        #3D3D3D;
-  --muted:         #6B6560;
-  --faint:         #9B9590;
+  --text:          #0A0A0A;
+  --text-2:        #1A1A1A;
+  --muted:         #444;
+  --faint:         #777;
 
   --pos:           #15803D;
-  --neg:           #B91C1C;
+  --neg:           #991B1B;
   --info:          #1D4ED8;
 
-  --bar-track:     rgba(0,0,0,.06);
+  --bar-track:     rgba(0,0,0,.08);
 
-  --cat-1:#B8860B; --cat-2:#6D28D9; --cat-3:#0E7490; --cat-4:#BE185D;
-  --cat-5:#C2410C; --cat-6:#047857; --cat-7:#1D4ED8; --cat-8:#A16207;
+  --cat-1:#8B6914; --cat-2:#5B21B6; --cat-3:#0E7490; --cat-4:#9D174D;
+  --cat-5:#9A3412; --cat-6:#065F46; --cat-7:#1E40AF; --cat-8:#854D0E;
 }
 
 /* ── Fundações ─────────────────────────────────────────────────────────────
@@ -84,6 +84,11 @@
   --radius: 0px;
   --tracking-label: .13em;
   --tracking-brand: .16em;
+}
+/* Jornal override — precisa vir depois de :root para ter precedência. */
+[data-theme="jornal"] {
+  --font-sans: var(--font-playfair), "Playfair Display", "Georgia", "Times New Roman", serif;
+  --font-mono: var(--font-playfair), "Playfair Display", "Georgia", serif;
 }
 
 html {
@@ -190,6 +195,30 @@ body {
     @apply text-lg font-bold;
     color: var(--text);
   }
+}
+
+/* ============================================================================
+   JORNAL — overrides para o tema claro estilo jornal do velho oeste.
+   Cards desaparecem (fundo/borda transparentes); informação direta sobre papel.
+   Fonte serifada (Playfair Display) aplicada via variáveis --font-sans/--font-mono
+   definidas no bloco [data-theme="jornal"] acima.
+   ============================================================================ */
+[data-theme="jornal"] .t-panel,
+[data-theme="jornal"] .glass-card,
+[data-theme="jornal"] .skeleton {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+[data-theme="jornal"] .glass-card:hover {
+  border-color: transparent !important;
+}
+[data-theme="jornal"] .t-rail-item:hover:not([data-active="true"]) {
+  background: rgba(0,0,0,.05) !important;
+}
+/* Separadores de seção viram hairlines sutis (não desaparecem, só suavizam). */
+[data-theme="jornal"] .section-divider {
+  background: rgba(0,0,0,.08);
 }
 
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */
