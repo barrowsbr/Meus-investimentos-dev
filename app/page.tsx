@@ -1,12 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import Link from "next/link";
 import Image from "next/image";
-import {
-  TrendingUp, ArrowLeftRight, ChevronDown,
-  TrendingDown, ChevronRight, ExternalLink,
-} from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
@@ -29,7 +25,7 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.error) {
       return this.props.fallback ?? (
-        <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+        <div className="p-4 text-center" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
           <p className="text-xs text-red-400 font-semibold mb-1">Erro ao renderizar</p>
           <p className="text-[10px] text-zinc-500 break-all">{this.state.error.message}</p>
         </div>
@@ -56,7 +52,6 @@ interface NewsArticle {
   fonte: string;
   ticker: string;
   categoria: string;
-  imagem?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,141 +70,145 @@ function fmtPrice(price: number, moeda: string): string {
   return `$${price.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
+function timeAgo(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffH = Math.floor((now.getTime() - d.getTime()) / 3600000);
+    if (diffH < 1) return "agora";
+    if (diffH < 24) return `há ${diffH}h`;
+    return `há ${Math.floor(diffH / 24)}d`;
+  } catch { return ""; }
+}
+
 // ── TickerTape ───────────────────────────────────────────────────────────────
 
 function TickerTape({ items }: { items: TickerItem[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const best5 = useMemo(() => items.slice(0, 5), [items]);
-  const worst5 = useMemo(() => [...items].reverse().slice(0, 5), [items]);
   const duration = Math.max(18, items.length * 4);
-
   if (items.length === 0) return null;
 
   return (
-    <div className="w-full max-w-lg">
-      {/* Scrolling tape */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-stretch overflow-hidden h-[44px] transition-all"
-        style={{
-          background: "var(--panel)",
-          backdropFilter: "blur(16px)",
-          border: `1px solid ${expanded ? "var(--accent)" : "var(--line)"}`,
-          borderRadius: 0,
-          boxShadow: expanded ? "0 8px 32px rgba(232,163,61,0.08)" : "0 4px 20px rgba(0,0,0,0.25)",
-        }}
-      >
-        {/* Badge */}
-        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r border-white/[0.06]"
-          style={{ background: "rgba(232,163,61,0.06)" }}>
-          <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "#E8A33D" }} />
-          <span className="text-[0.52rem] font-extrabold tracking-[2px] whitespace-nowrap" style={{ color: "#E8A33D" }}>AO VIVO</span>
-        </div>
+    <div
+      className="w-full flex items-stretch overflow-hidden"
+      style={{
+        height: 38,
+        background: "var(--panel)",
+        border: "1px solid var(--line)",
+      }}
+    >
+      <div className="shrink-0 flex items-center gap-1.5 px-3 border-r"
+        style={{ borderColor: "var(--line)", background: "rgba(232,163,61,0.06)" }}>
+        <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
+        <span className="text-[9px] font-extrabold tracking-[2px] whitespace-nowrap font-mono" style={{ color: "var(--accent)" }}>AO VIVO</span>
+      </div>
 
-        {/* Viewport */}
-        <div className="flex-1 overflow-hidden flex items-center"
-          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%)" }}>
-          <div
-            className="inline-flex items-center whitespace-nowrap"
-            style={{ animation: `tickerScroll ${duration}s linear infinite` }}
-          >
-            {[...items, ...items].map((p, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-4">
-                <span className="text-[0.73rem] font-extrabold font-mono text-zinc-200 tracking-[0.5px]">{p.label}</span>
-                <span className="text-[0.66rem] font-medium font-mono tnum text-zinc-500">{fmtPrice(p.price, p.moeda)}</span>
-                <span className={`text-[0.7rem] font-bold font-mono tnum ${(p.changePct ?? 0) > 0 ? "text-emerald-400" : (p.changePct ?? 0) < 0 ? "text-red-400" : "text-zinc-500"}`}>
-                  {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
-                </span>
-                {i < items.length * 2 - 1 && <span className="text-white/[0.05] text-[0.85rem] pl-1">|</span>}
+      <div className="flex-1 overflow-hidden flex items-center"
+        style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
+        <div
+          className="inline-flex items-center whitespace-nowrap"
+          style={{ animation: `tickerScroll ${duration}s linear infinite` }}
+        >
+          {[...items, ...items].map((p, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
+              <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
+              <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
+              <span className={`font-bold tnum`} style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
               </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="shrink-0 flex items-center pr-3">
-          <ChevronDown size={11} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
-        </div>
-      </button>
-
-      {/* Expandable performers grid */}
-      <div
-        className="overflow-hidden transition-all duration-400"
-        style={{
-          maxHeight: expanded ? "400px" : "0px",
-          background: "var(--panel)",
-          backdropFilter: "blur(16px)",
-          border: expanded ? "1px solid var(--line)" : "1px solid transparent",
-          borderTop: "none",
-          borderRadius: 0,
-        }}
-      >
-        <div className="p-3 grid grid-cols-2 gap-2">
-          {/* Best */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-emerald-400 flex items-center gap-1.5 border-b border-emerald-400/10" style={{ background: "rgba(52,211,153,0.04)" }}>
-              ▲ MELHORES
-            </div>
-            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
-              {best5.map(p => (
-                <React.Fragment key={p.ticker}>
-                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
-                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
-                  <span className="text-[0.6rem] font-bold text-emerald-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(1)}%</span>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-          {/* Worst */}
-          <div className="rounded-xl overflow-hidden min-w-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="px-2.5 py-2 text-[0.52rem] font-extrabold tracking-[2px] text-red-400 flex items-center gap-1.5 border-b border-red-400/10" style={{ background: "rgba(248,113,113,0.04)" }}>
-              ▼ PIORES
-            </div>
-            <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto" }}>
-              {worst5.map(p => (
-                <React.Fragment key={p.ticker}>
-                  <span className="text-[0.7rem] font-bold text-zinc-200 truncate px-2.5 py-[6px] border-b border-white/[0.03]">{p.label}</span>
-                  <span className="text-[0.6rem] font-medium text-zinc-600 text-right truncate px-1 py-[6px] border-b border-white/[0.03] tabular-nums">{fmtPrice(p.price, p.moeda)}</span>
-                  <span className="text-[0.6rem] font-bold text-red-400 text-right whitespace-nowrap pr-2.5 py-[6px] border-b border-white/[0.03] tabular-nums">{(p.changePct ?? 0).toFixed(1)}%</span>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
+            </span>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ── RadarDoDia ───────────────────────────────────────────────────────────────
+// ── RadarDoDia (left column) ────────────────────────────────────────────────
 
-function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItems: TickerItem[] }) {
-  const [news, setNews] = useState<{ best: NewsArticle | null; worst: NewsArticle | null }>({ best: null, worst: null });
+function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+
+  const top3 = useMemo(() => {
+    if (tickerItems.length === 0) return [];
+    const best = tickerItems.slice(0, 2);
+    const worst = tickerItems.slice(-1);
+    return [...best, ...worst].slice(0, 3);
+  }, [tickerItems]);
+
+  const tickerStr = useMemo(() => top3.map(t => t.ticker).join(","), [top3]);
+
+  useEffect(() => {
+    if (!tickerStr) return;
+    fetch(`/api/noticias?tickers=${tickerStr}`)
+      .then(r => r.json())
+      .then(d => setArticles(d.articles ?? []))
+      .catch(() => {});
+  }, [tickerStr]);
+
+  const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).toUpperCase().replace(".", "");
+
+  return (
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
+        <div className="flex items-center gap-2">
+          <span className="w-[6px] h-[6px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
+          <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
+            Radar do Dia · Destaques
+          </span>
+        </div>
+        <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{today}</span>
+      </div>
+
+      {top3.map((item, idx) => {
+        const article = articles.find(a => a.ticker === item.ticker || a.ticker === item.label);
+        const isUp = (item.changePct ?? 0) >= 0;
+        return (
+          <a
+            key={item.ticker}
+            href={article?.link ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 px-4 py-3 transition-colors"
+            style={{
+              borderBottom: idx < top3.length - 1 ? "1px solid var(--line)" : undefined,
+              cursor: article?.link ? "pointer" : "default",
+            }}
+          >
+            <span
+              className="shrink-0 inline-flex items-center gap-1 px-2 py-1 font-mono text-[10px] font-bold tracking-wide"
+              style={{
+                background: isUp ? "rgba(63,185,80,0.12)" : "rgba(240,80,74,0.12)",
+                color: isUp ? "var(--pos)" : "var(--neg)",
+                border: `1px solid ${isUp ? "rgba(63,185,80,0.25)" : "rgba(240,80,74,0.25)"}`,
+                marginTop: 2,
+              }}
+            >
+              {isUp ? "▲" : "▼"} {item.label} {(item.changePct ?? 0) >= 0 ? "+" : ""}{(item.changePct ?? 0).toFixed(1)} %
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold leading-snug line-clamp-2" style={{ fontSize: 14, color: "var(--text)" }}>
+                {article?.titulo ?? `${item.label} ${isUp ? "em alta" : "em queda"} no pregão`}
+              </p>
+              {article && (
+                <p className="font-mono text-[10px] mt-1" style={{ color: "var(--faint)" }}>
+                  {article.fonte}{article.data ? ` · ${timeAgo(article.data)}` : ""}
+                </p>
+              )}
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── MercadoPreditivo (right column) ─────────────────────────────────────────
+
+function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
   const [polyEvents, setPolyEvents] = useState<PolyEvent[]>([]);
   const [polyIdx, setPolyIdx] = useState(0);
   const [polyLoading, setPolyLoading] = useState(true);
-
-  const best = tickerItems[0] ?? null;
-  const worst = tickerItems.length > 0 ? tickerItems[tickerItems.length - 1] : null;
-
-  const bestTicker = best?.ticker ?? "";
-  const worstTicker = worst?.ticker ?? "";
-
-  useEffect(() => {
-    if (!bestTicker && !worstTicker) return;
-    const tickers = [bestTicker, worstTicker].filter((t, i, a) => t && a.indexOf(t) === i);
-
-    fetch(`/api/noticias?tickers=${tickers.join(",")}`)
-      .then(r => r.json())
-      .then(d => {
-        const articles: NewsArticle[] = d.articles ?? [];
-        setNews({
-          best: bestTicker ? articles.find(a => a.ticker === bestTicker) ?? null : null,
-          worst: worstTicker ? articles.find(a => a.ticker === worstTicker) ?? null : null,
-        });
-      })
-      .catch(() => {});
-  }, [bestTicker, worstTicker]);
 
   const positionCount = data?.positions?.length ?? 0;
   const positionTickers = useMemo(
@@ -226,18 +225,14 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
     if (!positionTickers) return;
     let cancelled = false;
     import("@/lib/polymarket")
-      .then(({ fetchPolymarket }) => {
-        const tickers = positionTickers.split(",");
-        return fetchPolymarket(tickers);
-      })
+      .then(({ fetchPolymarket }) => fetchPolymarket(positionTickers.split(",")))
       .then(resp => {
         if (cancelled) return;
         const cats = resp?.categories;
         if (!cats || typeof cats !== "object") return;
         const all = Object.values(cats).flat();
         const filtered = all.filter(e => e && Array.isArray(e.odds) && e.odds.length > 0 && (e.volume ?? 0) >= 100);
-        const shuffled = filtered.sort(() => Math.random() - 0.5).slice(0, 12);
-        setPolyEvents(shuffled);
+        setPolyEvents(filtered.sort(() => Math.random() - 0.5).slice(0, 12));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setPolyLoading(false); });
@@ -248,266 +243,91 @@ function RadarDoDia({ data, tickerItems }: { data: PortfolioResponse; tickerItem
     setPolyIdx(i => polyEvents.length > 0 ? (i + 1) % polyEvents.length : 0);
   }, [polyEvents.length]);
 
-  const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+  const ev = polyEvents[polyIdx] ?? null;
 
   return (
-    <div className="w-full max-w-lg rounded-2xl overflow-hidden" style={{
-      background: "var(--panel)",
-      backdropFilter: "blur(16px)",
-      border: "1px solid rgba(255,255,255,0.09)",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-    }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/[0.05]">
-        <div className="flex items-center gap-2">
-          <span className="w-[6px] h-[6px] rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-[0.68rem] font-extrabold tracking-[1.6px] uppercase text-zinc-400">Radar do Dia</span>
-        </div>
-        <span className="text-[0.63rem] text-zinc-600">{today}</span>
-      </div>
-
-      {/* News row: best vs worst */}
-      {(best || worst) && (
-        <div className="grid grid-cols-2 h-[120px] border-b border-white/[0.05]">
-          <NewsCard article={news.best} ticker={best?.label ?? ""} changePct={best?.changePct ?? 0} isBest />
-          <NewsCard article={news.worst} ticker={worst?.label ?? ""} changePct={worst?.changePct ?? 0} isBest={false} />
-        </div>
-      )}
-
-      {/* Polymarket section */}
-      <div className="flex items-center gap-2.5 px-4 py-2 border-b border-white/[0.04]">
-        <div className="flex-1 h-px bg-white/[0.04]" />
-        <span className="text-[0.6rem] font-extrabold tracking-[1.2px] uppercase text-cyan-400/80 whitespace-nowrap">Mercado Preditivo</span>
-        <div className="flex-1 h-px bg-white/[0.04]" />
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
+        <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
+          Mercado Preditivo
+        </span>
+        <span className="font-mono text-[10px] font-bold tracking-wider uppercase" style={{ color: "var(--accent)" }}>
+          POLYMARKET
+        </span>
       </div>
 
       {polyLoading ? (
+        <div className="px-4 py-8 text-center">
+          <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Carregando eventos...</span>
+        </div>
+      ) : !ev ? (
         <div className="px-4 py-6 text-center">
-          <span className="text-[0.75rem] text-zinc-600 animate-pulse">Carregando eventos...</span>
-        </div>
-      ) : polyEvents.length === 0 ? (
-        <div className="px-4 py-4 flex items-center gap-3 opacity-55">
-          <span className="text-xl">🔌</span>
-          <div>
-            <p className="text-[0.78rem] font-semibold text-zinc-400">Polymarket indisponível</p>
-            <p className="text-[0.68rem] text-zinc-600">Dados voltarão automaticamente</p>
-          </div>
+          <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>Polymarket indisponível</p>
         </div>
       ) : (
-        <>
-          {polyEvents.map((ev, i) => (
-            <a
-              key={ev.id}
-              href={ev.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block px-4 py-3 border-b border-white/[0.04] hover:bg-cyan-400/[0.03] transition-colors"
-              style={{ display: i === polyIdx ? "block" : "none" }}
-            >
-              <p className="text-[0.87rem] font-semibold text-zinc-200 leading-[1.42] mb-2.5">{ev.title}</p>
-              <div className="flex flex-col gap-[5px] mb-2">
-                {(Array.isArray(ev.odds) ? ev.odds : []).slice(0, 3).map((o, j) => {
-                  if (!o) return null;
-                  const colorMap = {
-                    0: { bg: "rgba(232,163,61,0.14)", border: "rgba(232,163,61,0.4)", text: "text-amber-400" },
-                    1: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)", text: "text-indigo-400" },
-                    2: { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.3)", text: "text-violet-400" },
-                  } as const;
-                  const barColors = colorMap[j as 0 | 1 | 2] ?? colorMap[2];
-                  const pct = typeof o.percent === "number" ? o.percent : 0;
-                  return (
-                    <div key={j} className="relative flex items-center gap-2 py-[5px] px-[9px] rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
-                      <div className="absolute left-0 top-0 bottom-0 rounded-lg" style={{
-                        width: `${pct}%`,
-                        background: barColors.bg,
-                        borderRight: `2px solid ${barColors.border}`,
-                      }} />
-                      <span className={`relative z-[1] text-[0.75rem] text-zinc-300 flex-1 truncate ${j === 0 ? "font-bold" : ""}`}>
-                        {String(o.outcome ?? "").slice(0, 35)}
-                      </span>
-                      <span className={`relative z-[1] text-[0.77rem] font-bold shrink-0 ${barColors.text}`}>
-                        {pct.toFixed(0)}%
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between text-[0.67rem] text-zinc-600">
-                <span>
-                  Vol <b className="text-zinc-500">
-                    {(ev.volume ?? 0) >= 1_000_000 ? `$${((ev.volume ?? 0) / 1_000_000).toFixed(1)}M`
-                      : (ev.volume ?? 0) >= 1_000 ? `$${((ev.volume ?? 0) / 1_000).toFixed(0)}k`
-                      : `$${ev.volume ?? 0}`}
-                  </b>
-                  {ev.days_left != null && (
-                    ev.days_left === 0 ? " · resolve hoje"
-                      : ev.days_left <= 7 ? ` · ${ev.days_left}d restantes`
-                      : ` · resolve em ${ev.days_left}d`
-                  )}
-                </span>
-                <span className="font-semibold" style={{ color: "#E8A33D" }}>Ver no Polymarket →</span>
-              </div>
-            </a>
-          ))}
-
-          {/* Nav */}
-          <div className="flex items-center justify-between px-4 py-[7px]">
-            <span className="text-[0.63rem] text-zinc-600">{polyIdx + 1} / {polyEvents.length}</span>
-            <button
-              onClick={nextPoly}
-              className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400 px-3 py-1 rounded-full transition-all hover:border-[#E8A33D]/30 hover:bg-[#E8A33D]/[0.06]"
-              style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)", color: "rgba(232,163,61,0.7)" }}
-            >
-              <ChevronRight size={11} />
-              Próximo
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function NewsCard({ article, ticker, changePct, isBest }: {
-  article: NewsArticle | null; ticker: string; changePct: number; isBest: boolean;
-}) {
-  const badge = isBest ? "bg-emerald-400/[0.18] text-emerald-400 border-emerald-400/[0.28]" : "bg-red-400/[0.18] text-red-400 border-red-400/[0.28]";
-  const arr = isBest ? "▲" : "▼";
-  const sign = (changePct ?? 0) >= 0 ? "+" : "";
-  const overlay = isBest
-    ? "linear-gradient(to top,rgba(4,14,8,0.96) 0%,rgba(4,14,8,0.55) 55%,rgba(4,14,8,0.15) 100%)"
-    : "linear-gradient(to top,rgba(20,4,4,0.96) 0%,rgba(20,4,4,0.55) 55%,rgba(20,4,4,0.15) 100%)";
-
-  const inner = (
-    <div className="relative h-full flex flex-col justify-end overflow-hidden group">
-      {article?.imagem && (
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.06]"
-          style={{ backgroundImage: `url(${article.imagem})`, filter: "brightness(0.38) saturate(0.6)" }}
-        />
-      )}
-      <div className="absolute inset-0" style={{ background: overlay }} />
-      <div className="relative z-[2] p-[10px_12px] flex flex-col gap-1">
-        <span className={`inline-flex items-center gap-1 self-start text-[0.6rem] font-extrabold uppercase tracking-[0.8px] px-1.5 py-0.5 rounded-[5px] border ${badge}`}>
-          {arr} {ticker} {sign}{(changePct ?? 0).toFixed(1)}%
-        </span>
-        {article?.titulo && (
-          <p className="text-[0.76rem] font-semibold text-zinc-100 leading-[1.35] line-clamp-2" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
-            {article.titulo}
+        <div className="px-4 py-4">
+          <p className="font-semibold leading-snug mb-3" style={{ fontSize: 15, color: "var(--text)" }}>
+            {ev.title}
           </p>
-        )}
-        {article?.fonte && (
-          <p className="text-[0.6rem] text-zinc-600 font-medium">{article.fonte}</p>
-        )}
-      </div>
-    </div>
-  );
-
-  if (article?.link) {
-    return (
-      <a href={article.link} target="_blank" rel="noopener noreferrer"
-        className={`block h-full transition-all ${!isBest ? "" : "border-r border-white/[0.05]"}`}>
-        {inner}
-      </a>
-    );
-  }
-  return <div className={`h-full ${!isBest ? "" : "border-r border-white/[0.05]"}`}>{inner}</div>;
-}
-
-// ── FxExpandCard (Dollar) ────────────────────────────────────────────────────
-
-function FxDollarButton({ usdbrl, usdDayChangePct, expanded, onToggle }: {
-  usdbrl: number | null; usdDayChangePct: number | null; expanded: boolean; onToggle: () => void;
-}) {
-  const isUsdUp = (usdDayChangePct ?? 0) >= 0;
-  return (
-    <button
-      onClick={onToggle}
-      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02] cursor-pointer w-full h-full"
-      style={{
-        background: "var(--panel)",
-        border: `1px solid ${isUsdUp ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)"}`,
-        boxShadow: `0 4px 24px ${isUsdUp ? "rgba(16,185,129,0.06)" : "rgba(248,113,113,0.06)"}, inset 0 1px 0 rgba(255,255,255,0.04)`,
-      }}
-    >
-      <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
-      {usdbrl === null ? (
-        <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
-      ) : (
-        <span className="text-sm font-bold font-mono tnum text-zinc-100">R$ {Number(usdbrl).toFixed(3)}</span>
-      )}
-      {usdDayChangePct !== null && (
-        <div className="flex items-center gap-1 mt-1">
-          <span className={`text-[9px] font-semibold ${isUsdUp ? "text-emerald-400" : "text-red-400"}`}>
-            {isUsdUp ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
-          </span>
-          <ChevronDown size={9} className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+          <div className="flex flex-col gap-[6px] mb-3">
+            {(Array.isArray(ev.odds) ? ev.odds : []).slice(0, 3).map((o, j) => {
+              if (!o) return null;
+              const barColors = [
+                { bg: "rgba(232,163,61,0.14)", border: "rgba(232,163,61,0.4)", text: "var(--accent)" },
+                { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)", text: "#818cf8" },
+                { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.3)", text: "#a78bfa" },
+              ];
+              const c = barColors[j] ?? barColors[2];
+              const p = typeof o.percent === "number" ? o.percent : 0;
+              return (
+                <div key={j} className="relative flex items-center gap-2 py-[6px] px-3 font-mono" style={{ background: "var(--hover)", fontSize: 12 }}>
+                  <div className="absolute left-0 top-0 bottom-0" style={{
+                    width: `${p}%`,
+                    background: c.bg,
+                    borderRight: `2px solid ${c.border}`,
+                  }} />
+                  <span className={`relative z-[1] flex-1 truncate ${j === 0 ? "font-bold" : ""}`} style={{ color: "var(--text)" }}>
+                    {String(o.outcome ?? "").slice(0, 35)}
+                  </span>
+                  <span className="relative z-[1] font-bold shrink-0" style={{ color: c.text }}>
+                    {p.toFixed(0)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between font-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
+            <span>
+              Vol <b style={{ color: "var(--text-2)" }}>
+                {(ev.volume ?? 0) >= 1_000_000 ? `$${((ev.volume ?? 0) / 1_000_000).toFixed(1)}M`
+                  : (ev.volume ?? 0) >= 1_000 ? `$${((ev.volume ?? 0) / 1_000).toFixed(0)}k`
+                  : `$${ev.volume ?? 0}`}
+              </b>
+              {ev.days_left != null && (
+                ev.days_left === 0 ? " · resolve hoje"
+                  : ev.days_left <= 7 ? ` · ${ev.days_left}d restantes`
+                  : ` · resolve ${ev.days_left}d`
+              )}
+            </span>
+            <span className="font-semibold" style={{ color: "var(--accent)" }}>Ver no Polymarket →</span>
+          </div>
         </div>
       )}
-    </button>
-  );
-}
 
-function FxExpandPanel({ data, expanded }: { data: PortfolioResponse; expanded: boolean }) {
-  const fxPairs = useMemo(() => {
-    const fx = data?.fx;
-    if (!fx || typeof fx !== "object") return [];
-    const pairs: { label: string; value: number; prefix: string; decimals: number }[] = [];
-    if (typeof fx.EURBRL === "number") pairs.push({ label: "EUR/BRL", value: fx.EURBRL, prefix: "R$", decimals: 4 });
-    if (typeof fx.CADBRL === "number") pairs.push({ label: "CAD/BRL", value: fx.CADBRL, prefix: "R$", decimals: 4 });
-    if (typeof fx.GBPBRL === "number") pairs.push({ label: "GBP/BRL", value: fx.GBPBRL, prefix: "R$", decimals: 4 });
-    return pairs;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.fx?.EURBRL, data?.fx?.CADBRL, data?.fx?.GBPBRL]);
-
-  return (
-    <div
-      className="w-full overflow-hidden transition-all duration-300 rounded-2xl"
-      style={{
-        maxHeight: expanded ? "200px" : "0px",
-        marginTop: expanded ? "8px" : "0px",
-        opacity: expanded ? 1 : 0,
-      }}
-    >
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "var(--panel)",
-          border: "1px solid rgba(255,255,255,0.09)",
-        }}
-      >
-        <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
-          {fxPairs.map(pair => (
-            <div key={pair.label} className="flex flex-col items-center py-2.5 px-2">
-              <span className="text-[0.52rem] font-bold text-zinc-500 uppercase tracking-[1px] mb-1">{pair.label}</span>
-              <span className="text-[0.8rem] font-bold text-zinc-200">
-                {pair.prefix} {Number(pair.value).toFixed(pair.decimals)}
-              </span>
-            </div>
-          ))}
+      {polyEvents.length > 1 && (
+        <div className="flex items-center justify-between px-4 py-2" style={{ borderTop: "1px solid var(--line)" }}>
+          <span className="font-mono text-[10px]" style={{ color: "var(--faint)" }}>{polyIdx + 1} / {polyEvents.length}</span>
+          <button
+            onClick={nextPoly}
+            className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold px-2 py-1 transition-colors"
+            style={{ color: "var(--accent)", border: "1px solid var(--line)" }}
+          >
+            <ChevronRight size={10} />
+            Próximo
+          </button>
         </div>
-        <Link href="/bolsas?tab=moedas" className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
-          <ArrowLeftRight size={11} style={{ color: "#E8A33D" }} />
-          <span className="text-[0.6rem] font-semibold" style={{ color: "#E8A33D" }}>Ver todas as moedas</span>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ── MetricCard ──────────────────────────────────────────────────────────────
-
-function MetricCard({ children, borderColor }: { children: React.ReactNode; borderColor: string }) {
-  return (
-    <div
-      className="rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]"
-      style={{
-        background: "var(--panel)",
-        border: `1px solid ${borderColor}`,
-        boxShadow: "none",
-      }}
-    >
-      {children}
+      )}
     </div>
   );
 }
@@ -516,7 +336,6 @@ function MetricCard({ children, borderColor }: { children: React.ReactNode; bord
 
 export default function HomePage() {
   const { data, loading } = usePortfolio();
-  const [fxExpanded, setFxExpanded] = useState(false);
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -524,6 +343,10 @@ export default function HomePage() {
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
   const isDayUp = (dayChangeBRL ?? 0) >= 0;
+  const usdDayChangePct = typeof data?.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null;
+
+  const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase().replace(".", "");
+  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(".", "");
 
   const tickerItems = useMemo<TickerItem[]>(() => {
     if (!data?.positions || !Array.isArray(data.positions)) return [];
@@ -545,141 +368,136 @@ export default function HomePage() {
         });
       }
       items.sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0));
-    } catch {
-      // Silently handle any unexpected data shape
-    }
+    } catch { /* */ }
     return items;
   }, [data?.positions]);
 
   return (
     <ErrorBoundary>
-    <div className="relative h-full flex flex-col items-center overflow-hidden" style={{ overscrollBehavior: "none" }}>
-      <div className="w-full max-w-lg px-4 py-10 flex flex-col items-center overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
+    <div className="h-full overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
+      <div className="w-full space-y-0">
 
-        {/* ── Hero ── */}
-        <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center w-full">
-          <Image
-            src="/midias/carregamento.png"
-            alt="Meus Investimentos"
-            width={96}
-            height={96}
-            className="h-20 w-auto drop-shadow-lg mb-1"
-            priority
-          />
+        {/* ── Row 1: Hero + Metrics ── */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-0 animate-fade-in">
+          {/* Left: Logo + greeting */}
+          <div className="flex items-center gap-4">
+            <Image
+              src="/midias/carregamento.png"
+              alt="Meus Investimentos"
+              width={72}
+              height={72}
+              className="shrink-0 object-contain"
+              priority
+            />
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl md:text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-.01em" }}>
+                  Olá, Lucas
+                </h1>
+                <a
+                  href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 transition-opacity hover:opacity-80"
+                  style={{
+                    background: "rgba(63,185,80,0.10)",
+                    border: "1px solid rgba(63,185,80,0.25)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--pos)",
+                  }}
+                >
+                  V1 <ExternalLink size={8} />
+                </a>
+              </div>
+              <p className="font-mono text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                {weekday} · {dateStr} · Gestão integrada de investimentos
+              </p>
+            </div>
+          </div>
 
-          <h1
-            className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"
-            style={{ color: "var(--text)", letterSpacing: "-.01em" }}
+          {/* Right: Metrics strip */}
+          <div
+            className="flex items-stretch divide-x"
+            style={{ border: "1px solid var(--line)", background: "var(--panel)" }}
           >
-            Olá, Lucas
-          </h1>
+            {/* Patrimônio */}
+            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Patrimônio</span>
+              {loading || totalBRL === null ? (
+                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
+              ) : (
+                <>
+                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>{compactBRL(totalBRL)}</span>
+                  {totalUSD !== null && (
+                    <span className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
+                      US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(0)}k` : Number(totalUSD).toFixed(0)}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
 
-          <div className="flex items-center justify-center gap-2.5 mt-1.5">
-            <p className="text-zinc-500 text-sm">Gestão integrada de investimentos</p>
-            <a
-              href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all hover:scale-105 group"
-              style={{
-                background: "rgba(255,75,75,0.06)",
-                border: "1px solid rgba(255,75,75,0.14)",
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/midias/streamlit-logo.svg" alt="" width={14} height={14} />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/60 group-hover:text-red-400 transition-colors">v1</span>
-              <ExternalLink size={8} className="text-red-400/30 group-hover:text-red-400/60 transition-colors" />
-            </a>
+            {/* Retorno Dia */}
+            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Retorno Dia</span>
+              {loading || dayChangePct === null ? (
+                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
+              ) : (
+                <>
+                  <span className="font-mono text-lg font-bold tnum" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)" }}>
+                    {pct(dayChangePct)}
+                  </span>
+                  {dayChangeBRL !== null && (
+                    <span className="font-mono text-[9px] mt-0.5" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
+                      {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Dólar */}
+            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Dólar</span>
+              {loading || usdbrl === null ? (
+                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
+              ) : (
+                <>
+                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>
+                    R$ {Number(usdbrl).toFixed(3)}
+                  </span>
+                  {usdDayChangePct !== null && (
+                    <span className="font-mono text-[9px] mt-0.5" style={{ color: (usdDayChangePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
+                      {(usdDayChangePct ?? 0) >= 0 ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* ── Live Metrics ── */}
-        <div className="w-full grid grid-cols-3 gap-3 mb-4 animate-fade-in animate-delay-1">
-          {/* Patrimônio Total */}
-          <MetricCard borderColor="rgba(232,163,61,0.15)">
-            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Patrimônio</span>
-            {loading || totalBRL === null ? (
-              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
-            ) : (
-              <>
-                <span className="text-sm font-bold font-mono tnum text-zinc-100">{compactBRL(totalBRL)}</span>
-                {totalUSD !== null && (
-                  <span className="text-[9px] text-zinc-500 mt-1">
-                    US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(1)}k` : Number(totalUSD).toFixed(0)}
-                  </span>
-                )}
-              </>
-            )}
-          </MetricCard>
-
-          {/* Retorno dia */}
-          <MetricCard borderColor={isDayUp ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)"}>
-            <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Retorno Dia</span>
-            {loading || dayChangePct === null ? (
-              <span className="text-sm font-bold text-zinc-600 animate-pulse">—</span>
-            ) : (
-              <>
-                <div className="flex items-center gap-1">
-                  {isDayUp
-                    ? <TrendingUp size={12} className="text-emerald-400" />
-                    : <TrendingDown size={12} className="text-red-400" />}
-                  <span className={`text-sm font-bold font-mono tnum ${isDayUp ? "text-emerald-400" : "text-red-400"}`}>
-                    {pct(dayChangePct)}
-                  </span>
-                </div>
-                {dayChangeBRL !== null && (
-                  <span className={`text-[9px] font-semibold mt-1 ${isDayUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
-                    {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
-                  </span>
-                )}
-              </>
-            )}
-          </MetricCard>
-
-          {/* Dólar */}
-          {loading || !data ? (
-            <MetricCard borderColor="rgba(255,255,255,0.10)">
-              <span className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider mb-1.5">Dólar</span>
-              <span className="text-sm font-bold text-zinc-500 animate-pulse">—</span>
-            </MetricCard>
-          ) : (
-            <FxDollarButton
-              usdbrl={usdbrl}
-              usdDayChangePct={typeof data.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null}
-              expanded={fxExpanded}
-              onToggle={() => setFxExpanded(e => !e)}
-            />
-          )}
-        </div>
-
-        {/* FX expand panel */}
-        {!loading && data && (
-          <FxExpandPanel data={data} expanded={fxExpanded} />
-        )}
-
-        {/* ── Ticker Tape ── */}
+        {/* ── Row 2: Ticker Tape ── */}
         {!loading && tickerItems.length > 0 && (
           <ErrorBoundary>
-            <div className="w-full flex justify-center mb-4 animate-fade-in animate-delay-1">
+            <div className="mt-4 animate-fade-in animate-delay-1">
               <TickerTape items={tickerItems} />
             </div>
           </ErrorBoundary>
         )}
 
-        {/* ── Radar do Dia ── */}
+        {/* ── Row 3: Radar + Polymarket (two columns) ── */}
         {!loading && data && tickerItems.length > 0 && (
           <ErrorBoundary>
-            <div className="w-full flex justify-center mb-5 animate-fade-in animate-delay-2">
-              <RadarDoDia data={data} tickerItems={tickerItems} />
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 animate-fade-in animate-delay-2">
+              <RadarDoDia tickerItems={tickerItems} />
+              <MercadoPreditivo data={data} />
             </div>
           </ErrorBoundary>
         )}
 
-        {/* Footer */}
-        <div className="mt-10" />
       </div>
-
     </div>
     </ErrorBoundary>
   );
