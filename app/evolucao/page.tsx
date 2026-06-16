@@ -25,7 +25,7 @@ interface Evolucao {
   porInstituicao: Record<string, Record<string, number>>;
 }
 
-const TOOLTIP_STYLE = { background: "#13141A", border: "1px solid #1E2028", borderRadius: 12, color: "#fafafa", fontSize: 12, padding: "8px 12px" };
+const TOOLTIP_STYLE = { background: "#13141A", border: "1px solid #1E2028", borderRadius: 12, color: "var(--text)", fontSize: 12, padding: "8px 12px" };
 const AXIS = { fill: "#52525b", fontSize: 10 };
 const TIPO_COR: Record<string, string> = {
   "Banco/Caixa": "#64748b", "Investimentos BR": "#6366f1", "Exterior": "#ec4899", "Cripto": "#f59e0b", "Outros": "#a1a1aa",

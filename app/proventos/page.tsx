@@ -22,7 +22,7 @@ const TOOLTIP_STYLE = {
   background: "#09090b",
   border: "1px solid #27272a",
   borderRadius: 12,
-  color: "#fafafa",
+  color: "var(--text)",
   fontSize: 12,
 };
 
@@ -770,7 +770,7 @@ export default function ProventosPage() {
                     ))}
                   </Pie>
                   <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
-                  <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "#a1a1aa", paddingTop: 4 }} />
+                  <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "var(--muted)", paddingTop: 4 }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : <p className="text-zinc-600 text-sm text-center py-8">Sem dados.</p>}
@@ -864,7 +864,7 @@ export default function ProventosPage() {
                 <XAxis dataKey="month" tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactBRL(v)} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number, name: string) => [brl(v), name]} />
-                <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "#71717a" }} />
+                <Legend iconSize={7} wrapperStyle={{ fontSize: 10, color: "var(--muted)" }} />
                 {byOriginChart.origins.map((origin, i) => (
                   <Bar key={origin} dataKey={origin} stackId="origin" fill={ORIGIN_COLORS[origin] || PALETTE[i % PALETTE.length]} radius={i === 0 ? [3, 3, 0, 0] : undefined} />
                 ))}

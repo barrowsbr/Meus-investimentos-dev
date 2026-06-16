@@ -17,7 +17,7 @@ const TOOLTIP_STYLE = {
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "10px",
   fontSize: "12px",
-  color: "#e4e4e7",
+  color: "var(--text)",
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
 } as const;
 

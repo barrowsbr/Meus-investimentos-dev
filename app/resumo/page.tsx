@@ -79,7 +79,7 @@ const CURRENCY_COLORS: Record<string, string> = {
 
 const TOOLTIP_STYLE = {
   background: "#13141A", border: "1px solid #1E2028", borderRadius: 12,
-  color: "#fafafa", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+  color: "var(--text)", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────

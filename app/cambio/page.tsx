@@ -22,7 +22,7 @@ const TOOLTIP_STYLE = {
   background: "#18181b",
   border: "1px solid #27272a",
   borderRadius: 12,
-  color: "#fafafa",
+  color: "var(--text)",
   fontSize: 12,
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
 };
@@ -459,7 +459,7 @@ export default function CambioPage() {
                         tickFormatter={v => `${v >= 0 ? "+" : ""}${(v / 1000).toFixed(0)}k`} />
                       <Tooltip contentStyle={{
                         background: "#18181b", border: "1px solid #27272a",
-                        borderRadius: 12, color: "#fafafa", fontSize: 12,
+                        borderRadius: 12, color: "var(--text)", fontSize: 12,
                       }}
                         itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                         formatter={(v: number, name: string) => [
@@ -829,7 +829,7 @@ function ExposicaoCambialTab({ portfolio }: { portfolio: PortfolioResponse }) {
                           </span>
                         ))}
                       {caixa >= 1 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "#a1a1aa", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", border: "1px solid rgba(255,255,255,0.08)" }}>
                           Caixa {compactBRL(caixa)}
                         </span>
                       )}

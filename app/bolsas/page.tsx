@@ -1429,7 +1429,7 @@ function SectorTreemap({ symbol, indexName }: { symbol: string; indexName: strin
                         className="font-extrabold leading-tight truncate w-full"
                         style={{
                           fontSize: isSmall ? 10 : r.w > 120 ? 15 : 12,
-                          color: "#fff",
+                          color: "var(--text)",
                           textShadow: `0 0 8px ${color}, 0 1px 4px rgba(0,0,0,0.9)`,
                         }}
                       >
