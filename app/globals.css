@@ -97,7 +97,7 @@ html {
 }
 html[data-theme="jornal"] {
   color-scheme: light;
-  zoom: 1.12;
+  zoom: 1.15;
 }
 body {
   min-height: 100vh;
@@ -243,6 +243,54 @@ body {
 /* Antialiasing: em fundo claro, subpixel fica melhor que grayscale */
 [data-theme="jornal"] body {
   -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  /* Playfair tem hastes finas; peso-base maior dá "tinta sobre papel" sólida. */
+  font-weight: 500;
+}
+
+/* ----------------------------------------------------------------------------
+   CONTRASTE — remapeia os cinzas neutros do Tailwind (pensados para fundo
+   ESCURO) para tons de TINTA sobre o papel claro. Mantém 4 níveis de hierarquia
+   sem achatar tudo em preto. Cores semânticas (emerald/red/amber/cyan/etc.)
+   NÃO são tocadas — só as famílias neutras zinc/gray/slate/neutral.
+   O ancestral [data-theme="jornal"] dá especificidade > utilities, sem !important.
+   ---------------------------------------------------------------------------- */
+
+/* Nível 1 — conteúdo principal (era claro sobre escuro) → tinta quase preta */
+[data-theme="jornal"] .text-white,
+[data-theme="jornal"] .text-zinc-50,  [data-theme="jornal"] .text-zinc-100,
+[data-theme="jornal"] .text-zinc-200, [data-theme="jornal"] .text-zinc-300,
+[data-theme="jornal"] .text-gray-100, [data-theme="jornal"] .text-gray-200,
+[data-theme="jornal"] .text-gray-300, [data-theme="jornal"] .text-slate-100,
+[data-theme="jornal"] .text-slate-200,[data-theme="jornal"] .text-slate-300,
+[data-theme="jornal"] .text-neutral-100,[data-theme="jornal"] .text-neutral-200,
+[data-theme="jornal"] .text-neutral-300,
+[data-theme="jornal"] .text-zinc-800, [data-theme="jornal"] .text-zinc-900 {
+  color: #0a0a0a;
+}
+
+/* Nível 2 — texto secundário → cinza-chumbo escuro */
+[data-theme="jornal"] .text-zinc-400, [data-theme="jornal"] .text-zinc-500,
+[data-theme="jornal"] .text-gray-400, [data-theme="jornal"] .text-gray-500,
+[data-theme="jornal"] .text-slate-400,[data-theme="jornal"] .text-slate-500,
+[data-theme="jornal"] .text-neutral-400,[data-theme="jornal"] .text-neutral-500 {
+  color: #2b2b2b;
+}
+
+/* Nível 3 — rótulos/legendas mutadas → ainda bem legíveis */
+[data-theme="jornal"] .text-zinc-600,
+[data-theme="jornal"] .text-gray-600,
+[data-theme="jornal"] .text-slate-600,
+[data-theme="jornal"] .text-neutral-600 {
+  color: #444;
+}
+
+/* Nível 4 — o mais fraco → cinza médio com contraste AA garantido */
+[data-theme="jornal"] .text-zinc-700,
+[data-theme="jornal"] .text-gray-700,
+[data-theme="jornal"] .text-slate-700,
+[data-theme="jornal"] .text-neutral-700 {
+  color: #555;
 }
 
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */

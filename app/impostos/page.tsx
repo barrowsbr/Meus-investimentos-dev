@@ -83,7 +83,7 @@ const BUCKET_LABEL: Record<OffsetBucket, string> = {
 };
 const TOOLTIP_STYLE = {
   background: "rgba(15,23,42,0.95)", border: "1px solid rgba(99,102,241,0.25)",
-  borderRadius: "12px", color: "#e2e8f0", fontSize: "12px",
+  borderRadius: "12px", color: "var(--text)", fontSize: "12px",
 };
 
 // Temas por região — a identidade visual de cada aba.

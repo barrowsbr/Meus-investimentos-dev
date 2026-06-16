@@ -17,7 +17,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 const TOOLTIP_STYLE = {
   background: "#18181b", border: "1px solid #27272a", borderRadius: 12,
-  color: "#fafafa", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+  color: "var(--text)", fontSize: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
 };
 
 // ─── Tipos (espelham /api/alavancagem) ────────────────────────────────────────

@@ -145,7 +145,7 @@ const TOOLTIP_STYLE = {
   background: "#09090b",
   border: "1px solid #27272a",
   borderRadius: 12,
-  color: "#fafafa",
+  color: "var(--text)",
   fontSize: 12,
 };
 
@@ -1034,7 +1034,7 @@ export default function PerformancePage() {
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
                   <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "Portfólio (MWR)" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
-                    wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+                    wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
                   {/* Linha principal = métrica selecionada no toggle TWR | MWR */}
                   {returnMetric === "twr" ? (
                     <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
@@ -1129,7 +1129,7 @@ export default function PerformancePage() {
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
                   ...(s.ganhoDecomposicao ? [
-                    { label: "── Decomposição ──", value: "", color: "#71717a" },
+                    { label: "── Decomposição ──", value: "", color: "var(--muted)" },
                     { label: "NAV final (engine)", value: compactCurr(s.ganhoDecomposicao.navFinal) },
                     { label: "NAV inicial (engine)", value: compactCurr(s.ganhoDecomposicao.navInicial) },
                     { label: "Fluxos no período", value: compactCurr(s.ganhoDecomposicao.flowsFromFirst) },
