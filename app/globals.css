@@ -55,21 +55,21 @@
   --hover:         rgba(0,0,0,.04);
 
   --line:          transparent;
-  --line-strong:   rgba(0,0,0,.15);
+  --line-strong:   rgba(0,0,0,.22);
 
-  --accent:        #1A1A1A;
-  --accent-wash:   rgba(0,0,0,.06);
+  --accent:        #000;
+  --accent-wash:   rgba(0,0,0,.08);
 
-  --text:          #0A0A0A;
-  --text-2:        #1A1A1A;
-  --muted:         #444;
-  --faint:         #777;
+  --text:          #000;
+  --text-2:        #111;
+  --muted:         #333;
+  --faint:         #555;
 
-  --pos:           #15803D;
-  --neg:           #991B1B;
-  --info:          #1D4ED8;
+  --pos:           #0C6B2E;
+  --neg:           #7F1D1D;
+  --info:          #1E3A8A;
 
-  --bar-track:     rgba(0,0,0,.08);
+  --bar-track:     rgba(0,0,0,.10);
 
   --cat-1:#8B6914; --cat-2:#5B21B6; --cat-3:#0E7490; --cat-4:#9D174D;
   --cat-5:#9A3412; --cat-6:#065F46; --cat-7:#1E40AF; --cat-8:#854D0E;
@@ -97,6 +97,7 @@ html {
 }
 html[data-theme="jornal"] {
   color-scheme: light;
+  zoom: 1.12;
 }
 body {
   min-height: 100vh;
@@ -200,9 +201,11 @@ body {
 /* ============================================================================
    JORNAL — overrides para o tema claro estilo jornal do velho oeste.
    Cards desaparecem (fundo/borda transparentes); informação direta sobre papel.
-   Fonte serifada (Playfair Display) aplicada via variáveis --font-sans/--font-mono
-   definidas no bloco [data-theme="jornal"] acima.
+   Fonte serifada (Playfair Display) aplicada via variáveis --font-sans/--font-mono.
+   Zoom 1.12 no <html> escala tudo (inclusive inline px) para melhor leitura.
    ============================================================================ */
+
+/* Cards/painéis invisíveis */
 [data-theme="jornal"] .t-panel,
 [data-theme="jornal"] .glass-card,
 [data-theme="jornal"] .skeleton {
@@ -213,12 +216,33 @@ body {
 [data-theme="jornal"] .glass-card:hover {
   border-color: transparent !important;
 }
-[data-theme="jornal"] .t-rail-item:hover:not([data-active="true"]) {
-  background: rgba(0,0,0,.05) !important;
+
+/* Micro-rótulos (9-10px no terminal) ficam maiores e mais escuros */
+[data-theme="jornal"] .t-label,
+[data-theme="jornal"] .stat-label,
+[data-theme="jornal"] .section-title {
+  color: #333 !important;
+  font-weight: 700 !important;
 }
-/* Separadores de seção viram hairlines sutis (não desaparecem, só suavizam). */
+
+/* Hover do rail */
+[data-theme="jornal"] .t-rail-item:hover:not([data-active="true"]) {
+  background: rgba(0,0,0,.06) !important;
+}
+
+/* Tags ficam com borda sutil para delimitar sem "card" */
+[data-theme="jornal"] .tag {
+  border: 1px solid rgba(0,0,0,.12);
+}
+
+/* Separadores de seção: hairline preta sutil */
 [data-theme="jornal"] .section-divider {
-  background: rgba(0,0,0,.08);
+  background: rgba(0,0,0,.10);
+}
+
+/* Antialiasing: em fundo claro, subpixel fica melhor que grayscale */
+[data-theme="jornal"] body {
+  -webkit-font-smoothing: auto;
 }
 
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */

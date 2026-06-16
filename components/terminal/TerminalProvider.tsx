@@ -16,8 +16,8 @@ export const THEME_COLORS: Record<Theme, Record<string, string>> = {
     text: "#DEE1E8", muted: "#71757F", line: "#1E2027", panel: "#0D0E12",
   },
   jornal: {
-    accent: "#1E3A5F", pos: "#15803D", neg: "#B91C1C", info: "#1D4ED8",
-    text: "#1A1A1A", muted: "#6B6560", line: "#D6D0C4", panel: "#FFFFFF",
+    accent: "#000000", pos: "#0C6B2E", neg: "#7F1D1D", info: "#1E3A8A",
+    text: "#000000", muted: "#333333", line: "transparent", panel: "transparent",
   },
 };
 
