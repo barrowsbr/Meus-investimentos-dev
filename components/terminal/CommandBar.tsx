@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useTerminal, type Periodo, type Moeda } from "./TerminalProvider";
 
@@ -68,6 +69,9 @@ export default function CommandBar({ title, onMenu }: Props) {
       </div>
 
       <div className="flex-1 sm:hidden" />
+
+      {/* Logo */}
+      <Image src="/midias/carregamento.png" alt="" width={22} height={22} className="shrink-0 object-contain" />
 
       {/* Seletor de tema */}
       <div className="flex gap-[3px] p-[3px]" style={{ border: "1px solid var(--line)", background: "var(--input)" }}>
