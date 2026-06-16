@@ -293,6 +293,154 @@ body {
   color: #555;
 }
 
+/* ============================================================================
+   JORNAL — editorial card-kill layer
+   Flattens ALL card-creating patterns (backgrounds, borders, rounding, shadows,
+   blur) across every page — matching the editorial look of /hoje.
+   Broad attribute selectors catch both Tailwind classes and inline styles.
+   ============================================================================ */
+
+/* ── Rounded corners → square (editorial = straight geometry) ── */
+[data-theme="jornal"] [class*="rounded-"],
+[data-theme="jornal"] [style*="border-radius"] {
+  border-radius: 0 !important;
+}
+
+/* ── Semi-transparent white backgrounds/borders → invisible ── */
+[data-theme="jornal"] [class*="bg-white"] {
+  background-color: transparent !important;
+}
+[data-theme="jornal"] [class*="border-white"] {
+  border-color: transparent !important;
+}
+
+/* ── Dark neutral backgrounds (dark-theme cards) → transparent ── */
+[data-theme="jornal"] [class*="bg-zinc-9"],
+[data-theme="jornal"] [class*="bg-zinc-8"],
+[data-theme="jornal"] [class*="bg-zinc-7"],
+[data-theme="jornal"] [class*="bg-gray-9"],
+[data-theme="jornal"] [class*="bg-gray-8"],
+[data-theme="jornal"] [class*="bg-slate-9"],
+[data-theme="jornal"] [class*="bg-slate-8"],
+[data-theme="jornal"] [class*="bg-neutral-9"],
+[data-theme="jornal"] [class*="bg-neutral-8"],
+[data-theme="jornal"] [class*="bg-black"] {
+  background-color: transparent !important;
+}
+
+/* ── Dark neutral borders (card outlines) → invisible ── */
+[data-theme="jornal"] [class*="border-zinc-8"],
+[data-theme="jornal"] [class*="border-zinc-7"],
+[data-theme="jornal"] [class*="border-zinc-6"],
+[data-theme="jornal"] [class*="border-gray-8"],
+[data-theme="jornal"] [class*="border-gray-7"],
+[data-theme="jornal"] [class*="border-slate-8"],
+[data-theme="jornal"] [class*="border-slate-7"],
+[data-theme="jornal"] [class*="border-neutral-8"],
+[data-theme="jornal"] [class*="border-neutral-7"] {
+  border-color: transparent !important;
+}
+
+/* ── Shadows → flat on paper ── */
+[data-theme="jornal"] [class*="shadow"] {
+  box-shadow: none !important;
+}
+
+/* ── Hover states → subtle ink tint instead of white overlay ── */
+[data-theme="jornal"] [class*="hover\:bg-white"]:hover,
+[data-theme="jornal"] [class*="hover\:bg-zinc"]:hover {
+  background-color: rgba(0,0,0,0.04) !important;
+}
+
+/* ── Divide lines → subtle editorial hairline ── */
+[data-theme="jornal"] [class*="divide-white"] > :not([hidden]) ~ :not([hidden]),
+[data-theme="jornal"] [class*="divide-zinc"] > :not([hidden]) ~ :not([hidden]),
+[data-theme="jornal"] [class*="divide-gray"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(0,0,0,0.10) !important;
+}
+
+/* ── Inline rgba(255,...) white overlays → transparent ── */
+[data-theme="jornal"] [style*="rgba(255"] {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ── Inline border-radius → square ── */
+[data-theme="jornal"] [style*="border-radius"] {
+  border-radius: 0 !important;
+}
+
+/* ── Inline backdrop-filter (glassmorphism) → none ── */
+[data-theme="jornal"] [style*="backdrop-filter"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── Inline box-shadow → none ── */
+[data-theme="jornal"] [style*="box-shadow"] {
+  box-shadow: none !important;
+}
+
+/* ── Recharts/SVG: keep chart areas visible but remove card wrappers ── */
+[data-theme="jornal"] .recharts-wrapper {
+  border-radius: 0 !important;
+}
+
+/* ── Inline color overrides: white/light text on jornal → dark ink ── */
+[data-theme="jornal"] [style*="color: #fff"],
+[data-theme="jornal"] [style*="color: #faf"],
+[data-theme="jornal"] [style*="color: #e4e"],
+[data-theme="jornal"] [style*="color: #dee"],
+[data-theme="jornal"] [style*="color: #d4d"],
+[data-theme="jornal"] [style*="color: #f4f"],
+[data-theme="jornal"] [style*="color: rgb(255"],
+[data-theme="jornal"] [style*="color: rgba(255"],
+[data-theme="jornal"] [style*="color:#fff"],
+[data-theme="jornal"] [style*="color:#faf"],
+[data-theme="jornal"] [style*="color:#f4f"],
+[data-theme="jornal"] [style*="color:#e4e"] {
+  color: #0a0a0a !important;
+}
+[data-theme="jornal"] [style*="color: #a1a"],
+[data-theme="jornal"] [style*="color: #aeb"],
+[data-theme="jornal"] [style*="color: #717"],
+[data-theme="jornal"] [style*="color: #4c5"],
+[data-theme="jornal"] [style*="color:#a1a"],
+[data-theme="jornal"] [style*="color:#aeb"],
+[data-theme="jornal"] [style*="color:#717"],
+[data-theme="jornal"] [style*="color:#4c5"] {
+  color: #333 !important;
+}
+
+/* ── Recharts tooltips → paper-style in jornal ── */
+[data-theme="jornal"] .recharts-default-tooltip,
+[data-theme="jornal"] .recharts-tooltip-wrapper div[style] {
+  background: var(--bg) !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  color: #0a0a0a !important;
+  border-radius: 0 !important;
+}
+[data-theme="jornal"] .recharts-tooltip-item {
+  color: #222 !important;
+}
+[data-theme="jornal"] .recharts-tooltip-label {
+  color: #0a0a0a !important;
+}
+[data-theme="jornal"] .recharts-cartesian-grid line {
+  stroke: rgba(0,0,0,0.08) !important;
+}
+[data-theme="jornal"] .recharts-text {
+  fill: #333 !important;
+}
+
+/* ── Select/dropdown dark backgrounds → paper ── */
+[data-theme="jornal"] select,
+[data-theme="jornal"] option {
+  background: var(--bg) !important;
+  color: #0a0a0a !important;
+}
+
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
