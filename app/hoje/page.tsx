@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePortfolio } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
@@ -172,8 +172,11 @@ function buildLede(
 
 export default function HojePage() {
   const { data, loading } = usePortfolio();
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [rawNews, setRawNews] = useState<NewsItem[]>([]);
   const [newsState, setNewsState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const newsFetchedRef = useRef(false);
+  const [aiLede, setAiLede] = useState<string | null>(null);
+  const ledeFetchedRef = useRef(false);
 
   // Contribuições do dia, por ativo (campo canônico dayChangeBRL).
   const contribs = useMemo<Contrib[]>(() => {
@@ -226,39 +229,45 @@ export default function HojePage() {
   }, [data?.positions]);
 
   useEffect(() => {
-    if (!newsTickers || newsState !== "idle") return;
+    // Dispara UMA vez quando os tickers estão prontos. (Não depender de newsState
+    // nem dos movers aqui: re-rodar o efeito acionava a cleanup e cancelava o
+    // próprio fetch em andamento — por isso ficava preso em "Buscando…".)
+    if (!newsTickers || newsFetchedRef.current) return;
+    newsFetchedRef.current = true;
     let cancelled = false;
     setNewsState("loading");
     fetch(`/api/noticias?tickers=${encodeURIComponent(newsTickers)}`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
-        const arts: NewsItem[] = Array.isArray(d?.articles) ? d.articles : [];
-        const moverSet = new Set([topGain?.ticker, topLoss?.ticker].filter(Boolean) as string[]);
-        // Prioriza: papéis que se moveram hoje → carteira → alto/médio impacto → recência.
-        const impactOrder = { alto: 0, medio: 1, baixo: 2 } as const;
-        const ranked = arts
-          .filter((a) => a.impacto !== "baixo" || a.categoria === "portfolio")
-          .sort((a, b) => {
-            const am = moverSet.has(cleanTicker(a.ticker)) ? 0 : 1;
-            const bm = moverSet.has(cleanTicker(b.ticker)) ? 0 : 1;
-            if (am !== bm) return am - bm;
-            const ap = a.categoria === "portfolio" ? 0 : 1;
-            const bp = b.categoria === "portfolio" ? 0 : 1;
-            if (ap !== bp) return ap - bp;
-            const ai = impactOrder[a.impacto] - impactOrder[b.impacto];
-            if (ai !== 0) return ai;
-            return (Date.parse(b.data) || 0) - (Date.parse(a.data) || 0);
-          })
-          .slice(0, 10);
-        setNews(ranked);
+        setRawNews(Array.isArray(d?.articles) ? d.articles : []);
         setNewsState("done");
       })
       .catch(() => {
         if (!cancelled) setNewsState("error");
       });
     return () => { cancelled = true; };
-  }, [newsTickers, newsState, topGain?.ticker, topLoss?.ticker]);
+  }, [newsTickers]);
+
+  // Ranking reativo aos movers do dia (sem refazer o fetch).
+  const news = useMemo<NewsItem[]>(() => {
+    const moverSet = new Set([topGain?.ticker, topLoss?.ticker].filter(Boolean) as string[]);
+    const impactOrder = { alto: 0, medio: 1, baixo: 2 } as const;
+    return rawNews
+      .filter((a) => a.impacto !== "baixo" || a.categoria === "portfolio")
+      .sort((a, b) => {
+        const am = moverSet.has(cleanTicker(a.ticker)) ? 0 : 1;
+        const bm = moverSet.has(cleanTicker(b.ticker)) ? 0 : 1;
+        if (am !== bm) return am - bm;
+        const ap = a.categoria === "portfolio" ? 0 : 1;
+        const bp = b.categoria === "portfolio" ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        const ai = impactOrder[a.impacto] - impactOrder[b.impacto];
+        if (ai !== 0) return ai;
+        return (Date.parse(b.data) || 0) - (Date.parse(a.data) || 0);
+      })
+      .slice(0, 10);
+  }, [rawNews, topGain?.ticker, topLoss?.ticker]);
 
   // ── Dateline ──
   const now = new Date();
@@ -332,6 +341,30 @@ export default function HojePage() {
   const priceAccum = data?.ganhoAtivoPuroTotalBRL ?? 0;
   const hasFx = fxToday.perAsset.length > 0 || Math.abs(fxAccum) > 1 || Math.abs(fxToday.fxEffect) > 1;
 
+  // ── Comentário do dia (manchete) — gerado por IA (Grok, com fallback) ──
+  // Envia só os números canônicos já computados; a IA apenas redige a leitura
+  // editorial (não recalcula nada). Enquanto carrega/falha, usa a frase templada.
+  useEffect(() => {
+    if (loading || !data || ledeFetchedRef.current) return;
+    ledeFetchedRef.current = true;
+    let cancelled = false;
+    const payload = {
+      resultadoBRL: Math.round(total),
+      resultadoPct: Number(totalPct.toFixed(2)),
+      patrimonioBRL: Math.round(totalPatrim),
+      dolar: usdLevel,
+      dolarVarPct: usdMovePct,
+      maiorAlta: topGain ? { ativo: topGain.ticker, contribBRL: Math.round(topGain.value), varPct: Number(topGain.pctMove.toFixed(2)) } : null,
+      maiorBaixa: topLoss ? { ativo: topLoss.ticker, contribBRL: Math.round(topLoss.value), varPct: Number(topLoss.pctMove.toFixed(2)) } : null,
+    };
+    fetch("/api/hoje/comentario", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && typeof d?.comment === "string" && d.comment.trim()) setAiLede(d.comment.trim()); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, data]);
+
   if (loading) {
     return (
       <div className="mx-auto w-full" style={{ maxWidth: 760 }}>
@@ -393,7 +426,12 @@ export default function HojePage() {
         </p>
 
         <div className="mt-5">
-          <Lede text={buildLede(total, totalPct, topGain, topLoss, usdMovePct)} />
+          <Lede text={aiLede ?? buildLede(total, totalPct, topGain, topLoss, usdMovePct)} />
+          {aiLede && (
+            <p className="font-mono" style={{ fontSize: 9.5, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--faint)", marginTop: 8 }}>
+              Comentário do dia · IA
+            </p>
+          )}
         </div>
       </section>
 
