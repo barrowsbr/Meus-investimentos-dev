@@ -3,9 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import dynamic from "next/dynamic";
-
-const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
 import {
   TrendingUp, ArrowLeftRight, ChevronDown,
   TrendingDown, ChevronRight, ExternalLink,
@@ -520,8 +517,6 @@ function MetricCard({ children, borderColor }: { children: React.ReactNode; bord
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [fxExpanded, setFxExpanded] = useState(false);
-  type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "marte" | "jupiter" | "saturno" | "urano" | "netuno" | "blackhole";
-  const [holoMode, setHoloMode] = useState<HoloMode>("globe");
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -556,14 +551,6 @@ export default function HomePage() {
     return items;
   }, [data?.positions]);
 
-  const handleLogoClick = useCallback(() => {
-    const cycle: HoloMode[] = ["globe", "sol", "mercurio", "venus", "terra", "marte", "jupiter", "saturno", "urano", "netuno", "blackhole"];
-    setHoloMode(prev => {
-      const idx = cycle.indexOf(prev);
-      return cycle[(idx + 1) % cycle.length];
-    });
-  }, []);
-
   return (
     <ErrorBoundary>
     <div className="relative min-h-screen flex flex-col items-center">
@@ -571,24 +558,14 @@ export default function HomePage() {
 
         {/* ── Hero ── */}
         <div className="text-center mb-6 pt-16 animate-fade-in flex flex-col items-center w-full">
-          {/* Clickable logo */}
-          <button
-            onClick={handleLogoClick}
-            className="relative group cursor-pointer transition-all duration-300 mb-1"
-            aria-label="Abrir globo de mercados"
-          >
-            <Image
-              src="/midias/carregamento.png"
-              alt="Meus Investimentos"
-              width={96}
-              height={96}
-              className="h-20 w-auto drop-shadow-lg transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(232,163,61,0.3)] group-hover:scale-105"
-              priority
-            />
-          </button>
-
-          {/* ── 3D Globe — inline below logo ── */}
-          <HoloGlobe mode={holoMode} />
+          <Image
+            src="/midias/carregamento.png"
+            alt="Meus Investimentos"
+            width={96}
+            height={96}
+            className="h-20 w-auto drop-shadow-lg mb-1"
+            priority
+          />
 
           <h1
             className="text-3xl md:text-4xl font-bold mb-1.5 leading-tight mt-4"

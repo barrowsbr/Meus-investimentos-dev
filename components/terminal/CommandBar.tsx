@@ -71,7 +71,7 @@ export default function CommandBar({ title, onMenu }: Props) {
       <div className="flex-1 sm:hidden" />
 
       {/* Logo */}
-      <Image src="/midias/carregamento.png" alt="" width={22} height={22} className="shrink-0 object-contain" />
+      <Image src="/midias/carregamento.png" alt="" width={26} height={26} className="shrink-0 object-contain" />
 
       {/* Seletor de tema */}
       <div className="flex gap-[3px] p-[3px]" style={{ border: "1px solid var(--line)", background: "var(--input)" }}>
