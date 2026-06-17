@@ -293,6 +293,31 @@ export default function HojePage() {
   const maxAbs = Math.max(...contribs.map((c) => Math.abs(c.value)), 1);
   const maxAbsSetor = Math.max(...bySetor.map((s) => Math.abs(s.value)), 1);
 
+  // Resultado por corretora (IBKR em USD nativo, demais em BRL).
+  const byCorretora = useMemo(() => {
+    if (!data?.positions) return [];
+    const map = new Map<string, { corretora: string; changeBRL: number; changeNative: number; moeda: string; count: number }>();
+    for (const p of data.positions) {
+      if (!p?.ticker || (p.quantidade ?? 0) <= 0) continue;
+      if (typeof p.dayChangeBRL !== "number") continue;
+      const corr = (p.corretora || "Outros").trim();
+      const existing = map.get(corr);
+      const nativeChg = typeof p.dayChange === "number" ? p.dayChange : 0;
+      if (existing) {
+        existing.changeBRL += p.dayChangeBRL;
+        existing.changeNative += nativeChg;
+        existing.count++;
+      } else {
+        map.set(corr, { corretora: corr, changeBRL: p.dayChangeBRL, changeNative: nativeChg, moeda: p.moeda ?? "BRL", count: 1 });
+      }
+    }
+    return [...map.values()]
+      .filter(c => Math.abs(c.changeBRL) > 0.5)
+      .sort((a, b) => Math.abs(b.changeBRL) - Math.abs(a.changeBRL));
+  }, [data?.positions]);
+
+  const maxAbsCorretora = Math.max(...byCorretora.map(c => Math.abs(c.changeBRL)), 1);
+
   // Pares de câmbio com movimento no dia.
   const fxRows = useMemo(() => {
     const fx = data?.fxDayChange ?? {};
@@ -433,7 +458,66 @@ export default function HojePage() {
             </p>
           )}
         </div>
+
+        {/* ── Sub-manchete: destaques rápidos ── */}
+        {(topGain || topLoss) && (
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line-strong)" }}>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {topGain && (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--pos)" }}>
+                    Destaque
+                  </span>
+                  <span className="font-mono" style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>
+                    {topGain.ticker}
+                  </span>
+                  <span className="font-mono tnum" style={{ fontSize: 13, fontWeight: 700, color: "var(--pos)" }}>
+                    {pctSigned(topGain.pctMove)} ({signedBRL(topGain.value)})
+                  </span>
+                </div>
+              )}
+              {topLoss && (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--neg)" }}>
+                    Pressão
+                  </span>
+                  <span className="font-mono" style={{ fontSize: 14, fontWeight: 800, color: "var(--text)" }}>
+                    {topLoss.ticker}
+                  </span>
+                  <span className="font-mono tnum" style={{ fontSize: 13, fontWeight: 700, color: "var(--neg)" }}>
+                    {pctSigned(topLoss.pctMove)} ({signedBRL(topLoss.value)})
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
+
+      {/* ── Resultado por corretora ── */}
+      {byCorretora.length > 0 && (
+        <section>
+          <Kicker>Resultado por corretora</Kicker>
+          {byCorretora.map((c) => {
+            const isIBKR = c.corretora.toLowerCase().includes("ibkr") || c.corretora.toLowerCase().includes("interactive");
+            const isUSD = isIBKR || c.moeda === "USD";
+            return (
+              <LedgerRow
+                key={c.corretora}
+                label={c.corretora}
+                value={c.changeBRL}
+                maxAbs={maxAbsCorretora}
+                sub={isUSD && Math.abs(c.changeNative) > 0.01
+                  ? `US$ ${c.changeNative >= 0 ? "+" : "−"}${Math.abs(c.changeNative).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${c.count} ativos`}
+              />
+            );
+          })}
+          <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
+            Variação do dia agrupada por corretora. IBKR exibida em dólar nativo.
+          </p>
+        </section>
+      )}
 
       {/* ── De onde vem o resultado ── */}
       <section>
