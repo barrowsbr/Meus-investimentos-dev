@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  Newspaper, ListOrdered, Target, PieChart, Scale, Zap, Crosshair, BrainCircuit, Sunrise,
+  Newspaper, ListOrdered, Target, Scale, Zap, Crosshair, BrainCircuit, Sunrise,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -39,7 +39,6 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/hoje", label: "Hoje", icon: Sunrise, sub: "O que está acontecendo hoje e de onde vem o resultado" },
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
-      { href: "/setores", label: "Setores", icon: PieChart, sub: "Exposição setorial, geográfica e look-through" },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
       { href: "/simulacoes", label: "Simulações", icon: Target, sub: "Projeções e cenários de carteira" },
