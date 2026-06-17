@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { llmComplete } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 45;
+export const maxDuration = 55;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,13 +104,18 @@ async function fetchFeed(url: string): Promise<string> {
   return res.text();
 }
 
+interface ParsedItem extends NewsItem {
+  _lang: "pt" | "en";
+}
+
 function parseRSS(
   xml: string,
   ticker: string,
   categoria: NewsItem["categoria"],
+  lang: "pt" | "en",
   maxItems = 6
-): NewsItem[] {
-  const items: NewsItem[] = [];
+): ParsedItem[] {
+  const items: ParsedItem[] = [];
   const matches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
 
   for (const m of matches.slice(0, maxItems)) {
@@ -125,7 +131,7 @@ function parseRSS(
     const data = extractTag(block, "pubDate");
     const fonte = extractSourceName(block) || "Google News";
 
-    items.push({ titulo, link, data, fonte, ticker, categoria, impacto: scoreImpact(titulo) });
+    items.push({ titulo, link, data, fonte, ticker, categoria, impacto: scoreImpact(titulo), _lang: lang });
   }
 
   return items;
@@ -138,6 +144,7 @@ interface FeedDef {
   ticker: string;
   categoria: NewsItem["categoria"];
   max: number;
+  lang: "pt" | "en";
 }
 
 function buildFeeds(tickers: string[]): FeedDef[] {
@@ -145,36 +152,36 @@ function buildFeeds(tickers: string[]): FeedDef[] {
 
   // General market
   feeds.push(
-    { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), ticker: "Mercado", categoria: "mercado", max: 8 },
-    { url: newsUrl("ações dividendos investimentos brasil"), ticker: "Investimentos", categoria: "mercado", max: 5 },
-    { url: newsUrl("S&P 500 Nasdaq Dow Jones stock market"), ticker: "Wall Street", categoria: "mercado", max: 5 },
+    { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), ticker: "Mercado", categoria: "mercado", max: 8, lang: "pt" },
+    { url: newsUrl("ações dividendos investimentos brasil"), ticker: "Investimentos", categoria: "mercado", max: 5, lang: "pt" },
+    { url: newsUrl("S&P 500 Nasdaq Dow Jones stock market"), ticker: "Wall Street", categoria: "mercado", max: 5, lang: "pt" },
   );
 
   // Economy
   feeds.push(
-    { url: newsUrl("economia brasil banco central selic"), ticker: "Economia", categoria: "economia", max: 5 },
-    { url: newsUrl("dólar câmbio moeda taxa real"), ticker: "Câmbio", categoria: "economia", max: 4 },
-    { url: newsUrl("renda fixa tesouro direto CDB debêntures"), ticker: "Renda Fixa", categoria: "economia", max: 3 },
+    { url: newsUrl("economia brasil banco central selic"), ticker: "Economia", categoria: "economia", max: 5, lang: "pt" },
+    { url: newsUrl("dólar câmbio moeda taxa real"), ticker: "Câmbio", categoria: "economia", max: 4, lang: "pt" },
+    { url: newsUrl("renda fixa tesouro direto CDB debêntures"), ticker: "Renda Fixa", categoria: "economia", max: 3, lang: "pt" },
   );
 
   // Macro calendar
   feeds.push(
-    { url: newsUrl("COPOM selic decisão taxa juros reunião"), ticker: "COPOM", categoria: "macro", max: 5 },
-    { url: newsUrl("FOMC federal reserve interest rate decision meeting", "en"), ticker: "FOMC", categoria: "macro", max: 5 },
-    { url: newsUrl("inflação IPCA índice preços consumidor"), ticker: "IPCA", categoria: "macro", max: 4 },
-    { url: newsUrl("payroll employment jobs report labor market", "en"), ticker: "Payroll", categoria: "macro", max: 3 },
-    { url: newsUrl("CPI inflation consumer prices report", "en"), ticker: "CPI", categoria: "macro", max: 3 },
-    { url: newsUrl("PIB produto interno bruto crescimento economia"), ticker: "PIB", categoria: "macro", max: 3 },
+    { url: newsUrl("COPOM selic decisão taxa juros reunião"), ticker: "COPOM", categoria: "macro", max: 5, lang: "pt" },
+    { url: newsUrl("FOMC federal reserve interest rate decision meeting", "en"), ticker: "FOMC", categoria: "macro", max: 5, lang: "en" },
+    { url: newsUrl("inflação IPCA índice preços consumidor"), ticker: "IPCA", categoria: "macro", max: 4, lang: "pt" },
+    { url: newsUrl("payroll employment jobs report labor market", "en"), ticker: "Payroll", categoria: "macro", max: 3, lang: "en" },
+    { url: newsUrl("CPI inflation consumer prices report", "en"), ticker: "CPI", categoria: "macro", max: 3, lang: "en" },
+    { url: newsUrl("PIB produto interno bruto crescimento economia"), ticker: "PIB", categoria: "macro", max: 3, lang: "pt" },
   );
 
   // Sectors
   feeds.push(
-    { url: newsUrl("petróleo energia petrobras eletrobras"), ticker: "Energia", categoria: "setor", max: 4 },
-    { url: newsUrl("bancos itaú bradesco banco brasil financeiro"), ticker: "Financeiro", categoria: "setor", max: 4 },
-    { url: newsUrl("varejo consumo mercado livre magazine luiza"), ticker: "Varejo", categoria: "setor", max: 3 },
-    { url: newsUrl("mineração vale minério ferro siderurgia"), ticker: "Mineração", categoria: "setor", max: 3 },
-    { url: newsUrl("nvidia apple microsoft google big tech AI", "en"), ticker: "Tech", categoria: "setor", max: 4 },
-    { url: newsUrl("saúde hapvida rede d'or farmacêutica SUS"), ticker: "Saúde", categoria: "setor", max: 3 },
+    { url: newsUrl("petróleo energia petrobras eletrobras"), ticker: "Energia", categoria: "setor", max: 4, lang: "pt" },
+    { url: newsUrl("bancos itaú bradesco banco brasil financeiro"), ticker: "Financeiro", categoria: "setor", max: 4, lang: "pt" },
+    { url: newsUrl("varejo consumo mercado livre magazine luiza"), ticker: "Varejo", categoria: "setor", max: 3, lang: "pt" },
+    { url: newsUrl("mineração vale minério ferro siderurgia"), ticker: "Mineração", categoria: "setor", max: 3, lang: "pt" },
+    { url: newsUrl("nvidia apple microsoft google big tech AI", "en"), ticker: "Tech", categoria: "setor", max: 4, lang: "en" },
+    { url: newsUrl("saúde hapvida rede d'or farmacêutica SUS"), ticker: "Saúde", categoria: "setor", max: 3, lang: "pt" },
   );
 
   // Portfolio tickers — ALL of them
@@ -182,16 +189,47 @@ function buildFeeds(tickers: string[]): FeedDef[] {
     const clean = t.replace(".SA", "");
     const isIntl = !t.endsWith(".SA") && !t.match(/^\d/);
     const query = isIntl ? `${clean} stock market news` : `${clean} ações bolsa`;
-    const lang = isIntl ? "en" : "pt";
+    const lang: "pt" | "en" = isIntl ? "en" : "pt";
     feeds.push({
-      url: newsUrl(query, lang as "pt" | "en"),
+      url: newsUrl(query, lang),
       ticker: clean,
       categoria: "portfolio",
       max: 3,
+      lang,
     });
   }
 
   return feeds;
+}
+
+// ─── Batch translate English headlines to Portuguese ─────────────────────────
+
+async function translateHeadlines(items: ParsedItem[]): Promise<void> {
+  const english = items.filter(i => i._lang === "en");
+  if (english.length === 0) return;
+
+  const titles = english.map((e, i) => `${i}|${e.titulo}`);
+  const prompt =
+    `Traduza cada manchete abaixo para português do Brasil, mantendo siglas (Fed, FOMC, S&P, etc.) e nomes próprios intactos.\n` +
+    `Responda SOMENTE com as linhas traduzidas, uma por linha, no formato "NÚMERO|tradução" (mesmo formato da entrada).\n` +
+    `Não adicione explicações.\n\n` +
+    titles.join("\n");
+
+  try {
+    const { text } = await llmComplete("Você é um tradutor de manchetes financeiras. Traduza de inglês para português do Brasil.", prompt);
+    const lines = text.split("\n").filter(l => l.includes("|"));
+    for (const line of lines) {
+      const sep = line.indexOf("|");
+      if (sep < 0) continue;
+      const idx = parseInt(line.slice(0, sep).trim(), 10);
+      const translated = line.slice(sep + 1).trim();
+      if (!isNaN(idx) && idx >= 0 && idx < english.length && translated.length > 3) {
+        english[idx].titulo = translated;
+      }
+    }
+  } catch {
+    // Falha na tradução — mantém os títulos originais em inglês.
+  }
 }
 
 // ─── Fetch all feeds concurrently ─────────────────────────────────────────────
@@ -199,14 +237,14 @@ function buildFeeds(tickers: string[]): FeedDef[] {
 async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
   const feeds = buildFeeds(tickers);
   const BATCH = 12;
-  const all: NewsItem[] = [];
+  const all: ParsedItem[] = [];
 
   for (let i = 0; i < feeds.length; i += BATCH) {
     const batch = feeds.slice(i, i + BATCH);
     const results = await Promise.allSettled(
       batch.map(async f => {
         const xml = await fetchFeed(f.url);
-        return parseRSS(xml, f.ticker, f.categoria, f.max);
+        return parseRSS(xml, f.ticker, f.categoria, f.lang, f.max);
       })
     );
     for (const r of results) {
@@ -216,7 +254,7 @@ async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
 
   // Deduplicate by link + title
   const seen = new Set<string>();
-  const deduped: NewsItem[] = [];
+  const deduped: ParsedItem[] = [];
   for (const item of all) {
     const linkKey = item.link.slice(0, 80);
     const titleKey = item.titulo.toLowerCase().slice(0, 60);
@@ -226,6 +264,9 @@ async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
       deduped.push(item);
     }
   }
+
+  // Translate English headlines to Portuguese
+  await translateHeadlines(deduped);
 
   // Sort: high impact first, then by date
   const impactOrder = { alto: 0, medio: 1, baixo: 2 };

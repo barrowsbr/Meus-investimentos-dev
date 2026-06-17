@@ -111,7 +111,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
           style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
           <div
             className="inline-flex items-center whitespace-nowrap"
-            style={{ animation: expanded ? "none" : `tickerScroll ${duration}s linear infinite` }}
+            style={{ animation: `tickerScroll ${duration}s linear infinite` }}
           >
             {[...items, ...items].map((p, i) => (
               <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
@@ -464,13 +464,13 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right: Metrics strip */}
+          {/* Right: Metrics strip — 2x2 on mobile, 4 inline on desktop */}
           <div
-            className="flex items-stretch divide-x"
+            className="grid grid-cols-2 md:grid-cols-4"
             style={{ border: "1px solid var(--line)", background: "var(--panel)" }}
           >
             {/* Patrimônio */}
-            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Patrimônio</span>
               {loading || totalBRL === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
@@ -487,7 +487,7 @@ export default function HomePage() {
             </div>
 
             {/* Retorno Dia */}
-            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderBottom: "1px solid var(--line)" }}>
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Retorno Dia</span>
               {loading || dayChangePct === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
@@ -506,7 +506,7 @@ export default function HomePage() {
             </div>
 
             {/* Dólar */}
-            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderRight: "1px solid var(--line)" }}>
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Dólar</span>
               {loading || usdbrl === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
@@ -525,7 +525,7 @@ export default function HomePage() {
             </div>
 
             {/* Nasdaq 100 */}
-            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+            <div className="flex flex-col items-center justify-center px-4 py-3">
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Nasdaq 100</span>
               {!nasdaq ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
