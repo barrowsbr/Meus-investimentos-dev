@@ -434,6 +434,81 @@ body {
   fill: #333 !important;
 }
 
+/* ── Performance page: editorial jornal overrides ── */
+/* Hero card → flat editorial panel with double rule */
+[data-theme="jornal"] .perf-hero-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-top: 3px double rgba(0,0,0,.30) !important;
+  border-bottom: 1px solid rgba(0,0,0,.18) !important;
+  padding-top: 1rem;
+}
+[data-theme="jornal"] .perf-hero-card [style*="background: linear-gradient"],
+[data-theme="jornal"] .perf-hero-card [style*="background: radial-gradient"] {
+  background: none !important;
+}
+/* Kill shimmer accent line */
+[data-theme="jornal"] .perf-accent {
+  background: rgba(0,0,0,.15) !important;
+  height: 1px !important;
+}
+/* Kill ambient radial glow */
+[data-theme="jornal"] .perf-glow {
+  display: none !important;
+}
+/* Gradient text → solid ink */
+[data-theme="jornal"] .perf-hero-card [style*="-webkit-text-fill-color"],
+[data-theme="jornal"] .perf-hero-card [style*="WebkitTextFillColor"] {
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  filter: none !important;
+}
+/* Risk cells — subtle border instead of card */
+[data-theme="jornal"] .perf-risk-cell {
+  border: 1px solid rgba(0,0,0,.10) !important;
+  background: transparent !important;
+}
+/* Rating badges → ink-on-paper */
+[data-theme="jornal"] [class*="bg-red-500\\/15"],
+[data-theme="jornal"] [class*="bg-amber-500\\/15"],
+[data-theme="jornal"] [class*="bg-sky-500\\/15"],
+[data-theme="jornal"] [class*="bg-emerald-500\\/15"] {
+  background: rgba(0,0,0,.04) !important;
+}
+/* Benchmark pills → simple bordered labels */
+[data-theme="jornal"] .perf-hero-card [style*="box-shadow: 0 0 12px"] {
+  box-shadow: none !important;
+  border: 1px solid rgba(0,0,0,.15) !important;
+  background: transparent !important;
+}
+/* Heatmap cells — jornal-appropriate palette */
+[data-theme="jornal"] .perf-heatmap-pos {
+  background: rgba(12,107,46,.15) !important;
+  color: #0C6B2E !important;
+}
+[data-theme="jornal"] .perf-heatmap-neg {
+  background: rgba(127,29,29,.12) !important;
+  color: #7F1D1D !important;
+}
+/* Chart grid lines — subtle on paper */
+[data-theme="jornal"] .recharts-cartesian-grid line {
+  stroke: rgba(0,0,0,.06) !important;
+}
+/* Chart reference lines */
+[data-theme="jornal"] .recharts-reference-line line {
+  stroke: rgba(0,0,0,.12) !important;
+}
+/* Area chart gradient fills — subtle on paper */
+[data-theme="jornal"] .recharts-area-area {
+  opacity: 0.3;
+}
+/* Prediction empty state */
+[data-theme="jornal"] [class*="aspect-\\[16\\/7\\]"] {
+  background: transparent !important;
+  border-color: rgba(0,0,0,.12) !important;
+}
+
 /* ── Select/dropdown dark backgrounds → paper ── */
 [data-theme="jornal"] select,
 [data-theme="jornal"] option {
