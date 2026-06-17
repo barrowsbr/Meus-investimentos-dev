@@ -85,41 +85,73 @@ function timeAgo(dateStr: string): string {
 // ── TickerTape ───────────────────────────────────────────────────────────────
 
 function TickerTape({ items }: { items: TickerItem[] }) {
+  const [expanded, setExpanded] = useState(false);
   const duration = Math.max(18, items.length * 4);
   if (items.length === 0) return null;
 
-  return (
-    <div
-      className="w-full flex items-stretch overflow-hidden"
-      style={{
-        height: 38,
-        background: "var(--panel)",
-        border: "1px solid var(--line)",
-      }}
-    >
-      <div className="shrink-0 flex items-center gap-1.5 px-3 border-r"
-        style={{ borderColor: "var(--line)", background: "rgba(232,163,61,0.06)" }}>
-        <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
-        <span className="text-[9px] font-extrabold tracking-[2px] whitespace-nowrap font-mono" style={{ color: "var(--accent)" }}>AO VIVO</span>
-      </div>
+  const best5 = items.slice(0, 5);
+  const worst5 = [...items].reverse().slice(0, 5);
 
-      <div className="flex-1 overflow-hidden flex items-center"
-        style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
-        <div
-          className="inline-flex items-center whitespace-nowrap"
-          style={{ animation: `tickerScroll ${duration}s linear infinite` }}
-        >
-          {[...items, ...items].map((p, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
-              <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
-              <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
-              <span className={`font-bold tnum`} style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
-                {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
-              </span>
-            </span>
-          ))}
+  return (
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-stretch overflow-hidden"
+        style={{ height: 38, cursor: "pointer" }}
+      >
+        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r"
+          style={{ borderColor: "var(--line)", background: "rgba(232,163,61,0.06)" }}>
+          <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
+          <span className="text-[9px] font-extrabold tracking-[2px] whitespace-nowrap font-mono" style={{ color: "var(--accent)" }}>
+            {expanded ? "▼" : "▶"}
+          </span>
         </div>
-      </div>
+
+        <div className="flex-1 overflow-hidden flex items-center"
+          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
+          <div
+            className="inline-flex items-center whitespace-nowrap"
+            style={{ animation: expanded ? "none" : `tickerScroll ${duration}s linear infinite` }}
+          >
+            {[...items, ...items].map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
+                <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
+                <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
+                <span className="font-bold tnum" style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                  {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="grid grid-cols-2 gap-0" style={{ borderTop: "1px solid var(--line)" }}>
+          <div style={{ borderRight: "1px solid var(--line)" }}>
+            <div className="px-3 py-1.5" style={{ borderBottom: "1px solid var(--line)", background: "rgba(63,185,80,0.06)" }}>
+              <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--pos)" }}>Top 5 Altas</span>
+            </div>
+            {best5.map((p) => (
+              <div key={p.ticker} className="flex items-center justify-between px-3 py-1.5 font-mono" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
+                <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
+                <span className="font-bold tnum" style={{ color: "var(--pos)" }}>+{(p.changePct).toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="px-3 py-1.5" style={{ borderBottom: "1px solid var(--line)", background: "rgba(240,80,74,0.06)" }}>
+              <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--neg)" }}>Top 5 Baixas</span>
+            </div>
+            {worst5.map((p) => (
+              <div key={p.ticker} className="flex items-center justify-between px-3 py-1.5 font-mono" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
+                <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
+                <span className="font-bold tnum" style={{ color: "var(--neg)" }}>{(p.changePct).toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -334,8 +366,24 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
+interface IndexQuote {
+  price: number;
+  changePct: number;
+}
+
 export default function HomePage() {
   const { data, loading } = usePortfolio();
+  const [nasdaq, setNasdaq] = useState<IndexQuote | null>(null);
+
+  useEffect(() => {
+    fetch("/api/bolsas")
+      .then((r) => r.json())
+      .then((d) => {
+        const ndx = (d?.indices ?? []).find((i: { symbol: string }) => i.symbol === "^NDX");
+        if (ndx) setNasdaq({ price: ndx.price, changePct: ndx.changePct });
+      })
+      .catch(() => {});
+  }, []);
 
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -472,6 +520,23 @@ export default function HomePage() {
                       {(usdDayChangePct ?? 0) >= 0 ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
                     </span>
                   )}
+                </>
+              )}
+            </div>
+
+            {/* Nasdaq 100 */}
+            <div className="flex flex-col items-center justify-center px-5 py-3 min-w-[130px]">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Nasdaq 100</span>
+              {!nasdaq ? (
+                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
+              ) : (
+                <>
+                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>
+                    {nasdaq.price >= 10000 ? `${(nasdaq.price / 1000).toFixed(1)}k` : nasdaq.price.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                  <span className="font-mono text-[9px] mt-0.5" style={{ color: nasdaq.changePct >= 0 ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
+                    {nasdaq.changePct >= 0 ? "+" : ""}{nasdaq.changePct.toFixed(2)}%
+                  </span>
                 </>
               )}
             </div>
