@@ -40,6 +40,7 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "ir/dirpf": return import("@/app/api/ir/dirpf/handler");
     case "market/ohlc": return import("@/app/api/market/ohlc/handler");
     case "moedas": return import("@/app/api/moedas/handler");
+    case "portfolio/historico": return import("@/app/api/portfolio/historico/handler");
     case "portfolio/sectors": return import("@/app/api/portfolio/sectors/handler");
     case "preditivos/kalshi": return import("@/app/api/preditivos/kalshi/handler");
     case "preditivos/metaculus": return import("@/app/api/preditivos/metaculus/handler");
