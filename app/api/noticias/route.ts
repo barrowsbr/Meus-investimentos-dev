@@ -216,7 +216,12 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
     titles.join("\n");
 
   try {
-    const { text } = await llmComplete("Você é um tradutor de manchetes financeiras. Traduza de inglês para português do Brasil.", prompt);
+    const result = await Promise.race([
+      llmComplete("Você é um tradutor de manchetes financeiras. Traduza de inglês para português do Brasil.", prompt),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+    if (!result) return;
+    const { text } = result as { text: string };
     const lines = text.split("\n").filter(l => l.includes("|"));
     for (const line of lines) {
       const sep = line.indexOf("|");
@@ -228,7 +233,7 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
       }
     }
   } catch {
-    // Falha na tradução — mantém os títulos originais em inglês.
+    // Timeout ou falha — mantém títulos originais em inglês.
   }
 }
 
