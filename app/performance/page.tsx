@@ -442,8 +442,10 @@ export default function PerformancePage() {
   const [customMode, setCustomMode] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [chartMode, setChartMode] = useState<"benchmarks" | "fx">("benchmarks");
-  const [returnMetric, setReturnMetric] = useState<"twr" | "mwr">("twr");
+  const [showTwr, setShowTwr] = useState(true);
+  const [showMwr, setShowMwr] = useState(false);
+  const [showBenchmarks, setShowBenchmarks] = useState(true);
+  const [showFxDecomp, setShowFxDecomp] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
@@ -930,41 +932,39 @@ export default function PerformancePage() {
           })}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden"
-            title="TWR: retorno dos ativos (comparável a índices). MWR: retorno do SEU dinheiro, ponderado pelos aportes (estilo IBKR)">
-            <button onClick={() => setReturnMetric("twr")}
+          {/* Layer 1: TWR e/ou MWR (multi-select) */}
+          <div className="flex items-center border overflow-hidden" style={{ borderColor: "var(--line)" }}
+            title="TWR: retorno dos ativos (comparável a índices). MWR: retorno do SEU dinheiro, ponderado pelos aportes. Selecione ambos para comparar.">
+            <button onClick={() => setShowTwr(v => { if (!v || showMwr) return !v; return v; })}
               className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                returnMetric === "twr"
+                showTwr
                   ? "bg-emerald-900/50 text-emerald-300"
                   : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
               }`}>
               TWR
             </button>
-            <button onClick={() => { setReturnMetric("mwr"); setChartMode("benchmarks"); }}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
-                returnMetric === "mwr"
-                  ? "bg-purple-900/50 text-purple-300"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}>
-              MWR
+            <button onClick={() => setShowMwr(v => { if (!v || showTwr) return !v; return v; })}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l`}
+              style={{ borderColor: "var(--line)" }}>
+              <span className={showMwr ? "text-purple-300" : "text-zinc-500 hover:text-zinc-300"}>MWR</span>
             </button>
           </div>
-          <div className="flex items-center rounded-lg border border-zinc-800 overflow-hidden">
-            <button onClick={() => setChartMode("benchmarks")}
+          {/* Layer 2+3: Benchmarks / FX Decomposição (exclusive) */}
+          <div className="flex items-center border overflow-hidden" style={{ borderColor: "var(--line)" }}>
+            <button onClick={() => { setShowBenchmarks(v => !v); if (!showBenchmarks) setShowFxDecomp(false); }}
               className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                chartMode === "benchmarks"
+                showBenchmarks
                   ? "bg-indigo-900/50 text-indigo-300"
                   : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
               }`}>
               Benchmarks
             </button>
-            <button onClick={() => setChartMode("fx")}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-zinc-800 ${
-                chartMode === "fx"
-                  ? "bg-amber-900/50 text-amber-300"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}>
-              <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
+            <button onClick={() => { setShowFxDecomp(v => !v); if (!showFxDecomp) setShowBenchmarks(false); }}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l`}
+              style={{ borderColor: "var(--line)" }}>
+              <span className={showFxDecomp ? "text-amber-300" : "text-zinc-500 hover:text-zinc-300"}>
+                <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
+              </span>
             </button>
           </div>
           <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
@@ -1035,15 +1035,18 @@ export default function PerformancePage() {
                     labelFormatter={label => `Data: ${label}`} />
                   <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "Portfólio (MWR)" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
                     wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
-                  {/* Linha principal = métrica selecionada no toggle TWR | MWR */}
-                  {returnMetric === "twr" ? (
+                  {/* TWR (solid when solo, or when both are on) */}
+                  {showTwr && (
                     <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
                       strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                  ) : (
+                  )}
+                  {/* MWR */}
+                  {showMwr && (
                     <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="url(#gradMwr)"
                       strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
                   )}
-                  {chartMode === "benchmarks" && (
+                  {/* Benchmarks (CDI, IBOV, S&P 500) */}
+                  {showBenchmarks && (
                     <>
                       <Area type="monotone" dataKey="cdi" stroke="#6366f1" fill="url(#gradCDI)"
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
@@ -1053,15 +1056,9 @@ export default function PerformancePage() {
                         strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
                     </>
                   )}
-                  {chartMode === "fx" && (
+                  {/* FX Decomposition (Retorno Ativo + Efeito Câmbio) */}
+                  {showFxDecomp && (
                     <>
-                      {returnMetric === "twr" ? (
-                        <Area type="monotone" dataKey="mwr" stroke="#a78bfa" fill="url(#gradMwr)"
-                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} connectNulls />
-                      ) : (
-                        <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill="url(#gradPortfolio)"
-                          strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
-                      )}
                       <Area type="monotone" dataKey="ativo" stroke="#34d399" fill="url(#gradAtivo)"
                         strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
                       <Area type="monotone" dataKey="fx" stroke="#f59e0b" fill="url(#gradFx)"
