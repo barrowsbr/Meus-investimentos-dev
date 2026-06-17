@@ -198,9 +198,10 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
         return (
           <a
             key={item.ticker}
-            href={article?.link ?? "#"}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={article?.link || undefined}
+            target={article?.link ? "_blank" : undefined}
+            rel={article?.link ? "noopener noreferrer" : undefined}
+            onClick={article?.link ? undefined : (e) => e.preventDefault()}
             className="flex items-start gap-3 px-4 py-3 transition-colors"
             style={{
               borderBottom: idx < top3.length - 1 ? "1px solid var(--line)" : undefined,

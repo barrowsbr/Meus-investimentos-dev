@@ -60,9 +60,10 @@ async function loadHandler(path: string): Promise<Module | null> {
   }
 }
 
-async function dispatch(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params;
-  const route = path.join("/");
+interface Ctx { params: { path: string[] } }
+
+async function dispatch(req: NextRequest, { params }: Ctx) {
+  const route = params.path.join("/");
   const mod = await loadHandler(route);
   if (!mod) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -75,22 +76,8 @@ async function dispatch(req: NextRequest, { params }: { params: Promise<{ path: 
   return handler(req);
 }
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  return dispatch(req, ctx);
-}
-
-export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  return dispatch(req, ctx);
-}
-
-export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  return dispatch(req, ctx);
-}
-
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  return dispatch(req, ctx);
-}
-
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  return dispatch(req, ctx);
-}
+export async function GET(req: NextRequest, ctx: Ctx) { return dispatch(req, ctx); }
+export async function POST(req: NextRequest, ctx: Ctx) { return dispatch(req, ctx); }
+export async function PUT(req: NextRequest, ctx: Ctx) { return dispatch(req, ctx); }
+export async function DELETE(req: NextRequest, ctx: Ctx) { return dispatch(req, ctx); }
+export async function PATCH(req: NextRequest, ctx: Ctx) { return dispatch(req, ctx); }
