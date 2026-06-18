@@ -80,6 +80,22 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   automático** da aba antes de sobrescrever (`lib/backup.ts`)
 - **Biblioteca**: `googleapis` (Node.js)
 
+## Modo demonstração (showcase)
+
+- Login **`test` / `test`** entra na MESMA conta do dono, porém com todos os
+  **valores e quantidades multiplicados por 15** (`DEMO_FACTOR` em `lib/demo.ts`).
+  Serve para mostrar o projeto a terceiros sem expor os números reais — **não cria
+  banco/dados novos**.
+- O escalonamento acontece na **camada de leitura** (`fetchTab` → `scaleRowsForTab`):
+  como o motor deriva tudo de `quantidade × preço`, patrimônio/investido/lucro/
+  proventos/câmbio escalam ×15, enquanto **preço unitário, cotações, taxa de câmbio,
+  pesos da composição e percentuais continuam reais** (carteira coerente).
+- **Somente leitura**: ativado por um cookie **HttpOnly** setado pelo servidor (o
+  cliente não consegue forjar/remover) e toda escrita em planilha lança erro em modo
+  demo (`assertNotDemo` em `lib/gsheets.ts`). O login normal limpa o cookie.
+- Caveat: cálculos feitos no Python (`api/index.py` — agente IA, fluxos) leem a
+  planilha direto e **não** são escalados; as páginas de portfólio (TS) sim.
+
 ---
 
 ## Abas e Colunas da Planilha `gdados`

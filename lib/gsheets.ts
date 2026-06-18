@@ -1,5 +1,12 @@
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
+import { isDemoRequest, scaleRowsForTab } from "./demo";
+
+// Modo demonstração é somente leitura: bloqueia qualquer escrita em planilha
+// para que a conta `test`/`test` jamais altere os dados reais do dono.
+function assertNotDemo(): void {
+  if (isDemoRequest()) throw new Error("Modo demonstração: escrita em planilha desabilitada");
+}
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 const API_KEY = process.env.GOOGLE_API_KEY!;
@@ -22,6 +29,7 @@ export function getServiceAccountAuth(): JWT | null {
 
 // Append rows to a sheet tab (requires service account write access)
 export async function appendRows(tabName: string, rows: string[][]): Promise<void> {
+  assertNotDemo();
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
   const sheets = google.sheets({ version: "v4", auth });
@@ -38,6 +46,7 @@ export async function appendRows(tabName: string, rows: string[][]): Promise<voi
 // Write/overwrite a full sheet tab (requires service account write access)
 // Faz backup automático antes de sobrescrever.
 export async function writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void> {
+  assertNotDemo();
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
 
@@ -66,6 +75,7 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
 // fetchTab descarta colunas sem header — dados em colunas extras ficariam
 // invisíveis na leitura.
 export async function syncHeaders(tabName: string, headers: string[]): Promise<void> {
+  assertNotDemo();
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
   const sheets = google.sheets({ version: "v4", auth });
@@ -85,6 +95,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<boo
   const lower = tabName.toLowerCase().replace(/[_\s]/g, "");
   const exists = names.some(n => n.toLowerCase().replace(/[_\s]/g, "") === lower);
   if (exists) return false;
+  assertNotDemo();
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error(`Aba "${tabName}" não existe e a criação requer GOOGLE_SERVICE_ACCOUNT_JSON`);
   const sheets = google.sheets({ version: "v4", auth });
@@ -164,7 +175,7 @@ export async function fetchTab(
     String(h).trim().toLowerCase()
   );
 
-  return rows.slice(1).map((row: unknown[]) => {
+  const parsed = rows.slice(1).map((row: unknown[]) => {
     const obj: Record<string, unknown> = {};
     headers.forEach((h, i) => {
       let val = row[i] ?? null;
@@ -175,4 +186,7 @@ export async function fetchTab(
     });
     return obj;
   });
+
+  // Modo demonstração: multiplica valores/quantidades por DEMO_FACTOR.
+  return isDemoRequest() ? scaleRowsForTab(tabName, parsed) : parsed;
 }

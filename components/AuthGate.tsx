@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
+const DEMO_KEY = "mi_demo";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -24,6 +25,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   // Auto-update golden source once per day after login
   useEffect(() => {
     if (!authed) return;
+    if (sessionStorage.getItem(DEMO_KEY) === "1") return; // demo é somente leitura
     const today = new Date().toISOString().slice(0, 10);
     if (sessionStorage.getItem(COTACOES_KEY) === today) return;
     sessionStorage.setItem(COTACOES_KEY, today);
@@ -46,6 +48,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (data.ok) {
+        if (data.demo) sessionStorage.setItem(DEMO_KEY, "1");
+        else sessionStorage.removeItem(DEMO_KEY);
         sessionStorage.setItem(AUTH_KEY, "1");
         setAuthed(true);
       } else {
