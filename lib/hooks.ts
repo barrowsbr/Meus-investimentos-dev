@@ -162,6 +162,7 @@ function mapPosition(p: any): Position {
     dayChange: p.dayChange ?? p.day_change ?? null,
     dayChangePct: p.dayChangePct ?? p.day_change_pct ?? null,
     dayChangeBRL: p.dayChangeBRL ?? p.day_change_brl ?? null,
+    dayChangeFxBRL: p.dayChangeFxBRL ?? p.day_change_fx_brl ?? null,
     fatorBRL: p.fatorBRL ?? p.fator_brl ?? 1,
     fatorCusto: p.fatorCusto ?? p.fator_custo ?? 1,
   };
@@ -193,6 +194,7 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     ganhoCruzadoTotalBRL: data.ganhoCruzadoTotalBRL ?? data.ganho_cruzado_total_brl ?? 0,
     dayChangeTotalBRL: data.dayChangeTotalBRL ?? data.day_change_total_brl ?? 0,
     dayChangeTotalPct: data.dayChangeTotalPct ?? data.day_change_total_pct ?? 0,
+    dayChangeFxTotalBRL: data.dayChangeFxTotalBRL ?? data.day_change_fx_total_brl ?? 0,
     usdbrl: data.usdbrl ?? 5.7,
     eurbrl: data.eurbrl ?? 6.4,
     cadbrl: data.cadbrl ?? 4.1,

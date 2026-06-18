@@ -47,7 +47,25 @@ export async function GET() {
     const lbHistoric = parseLbHistoric(lbRows);
 
     const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
-    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
+
+    // Variação cambial do dia, por moeda — alimenta a reavaliação do principal
+    // estrangeiro no resultado do dia (dayChangeBRL canônico = preço + câmbio).
+    const fxDayChange: Record<string, { change: number; changePct: number }> = {};
+    try {
+      const { fetchQuotes } = await import("@/lib/cotacoes");
+      const fxTickerByCcy: Record<string, string> = {
+        USD: "BRL=X", EUR: "EURBRL=X", CAD: "CADBRL=X", GBP: "GBPBRL=X",
+      };
+      const fxQuoteResult = await fetchQuotes(Object.values(fxTickerByCcy));
+      for (const [ccy, tk] of Object.entries(fxTickerByCcy)) {
+        const q = fxQuoteResult.quotes[tk];
+        if (q) fxDayChange[ccy] = { change: q.change, changePct: q.changePercent };
+      }
+    } catch {
+      // non-critical
+    }
+
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate, fxDayChange);
 
     // Alavancagem (margin): bruto = snapshot; net = bruto − dívida aberta.
     const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
@@ -63,19 +81,6 @@ export async function GET() {
 
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;
-
-    // Fetch FX day change from Yahoo quotes for BRL=X
-    let fxDayChange: Record<string, { change: number; changePct: number }> = {};
-    try {
-      const { fetchQuotes } = await import("@/lib/cotacoes");
-      const fxQuoteResult = await fetchQuotes(["BRL=X"]);
-      const usdQ = fxQuoteResult.quotes["BRL=X"];
-      if (usdQ) {
-        fxDayChange = { USD: { change: usdQ.change, changePct: usdQ.changePercent } };
-      }
-    } catch {
-      // non-critical
-    }
 
     return NextResponse.json({
       ...snapshot,
