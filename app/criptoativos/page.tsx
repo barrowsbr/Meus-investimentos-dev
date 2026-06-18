@@ -35,6 +35,7 @@ import MetricCard from "@/components/MetricCard";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import CryptoMarket from "@/components/CryptoMarket";
 import type { Position } from "@/lib/portfolio";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -262,6 +263,7 @@ function PriceHeader({ position, lastCandle }: { position: Position | undefined;
 export default function CriptoativosPage() {
   const { data: portfolio, loading, error } = usePortfolio();
   const { data: rawTransactions } = useSheetData("meus_ativos");
+  const [view, setView] = useState<"carteira" | "mercado">("carteira");
   const [selectedTicker, setSelectedTicker] = useState<string>("");
   const [range, setRange] = useState<RangeOption>("6mo");
   const [ohlcData, setOhlcData] = useState<CandleData[]>([]);
@@ -312,25 +314,59 @@ export default function CriptoativosPage() {
     [transactions]
   );
 
+  // Cabeçalho + abas (Carteira | Mercado) — reusado em todas as ramificações
+  const header = (
+    <>
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <Bitcoin size={22} className="text-zinc-900" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent">
+              Criptoativos
+            </h1>
+            <p className="text-xs md:text-sm text-zinc-500 mt-0.5">Posicoes em Bitcoin, Ethereum e outros tokens</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex mb-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        {([
+          { key: "carteira" as const, label: "Minha Carteira", icon: <Bitcoin size={13} /> },
+          { key: "mercado" as const, label: "Mercado", icon: <BarChart3 size={13} /> },
+        ]).map(t => {
+          const on = view === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setView(t.key)}
+              className="flex items-center gap-1.5 font-mono uppercase whitespace-nowrap"
+              style={{ padding: "9px 14px", marginBottom: -1, borderBottom: `2px solid ${on ? "#f59e0b" : "transparent"}`, color: on ? "#fef3c7" : "#71717a", fontSize: 11, fontWeight: 600, letterSpacing: ".05em" }}
+            >
+              {t.icon} {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  if (view === "mercado") {
+    return (
+      <>
+        {header}
+        <CryptoMarket />
+      </>
+    );
+  }
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
 
   if (cripto.length === 0) {
     return (
       <>
-        <div className="mb-6 md:mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Bitcoin size={22} className="text-zinc-900" />
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent">
-                Criptoativos
-              </h1>
-              <p className="text-xs md:text-sm text-zinc-500 mt-0.5">Posicoes em Bitcoin, Ethereum e outros tokens</p>
-            </div>
-          </div>
-        </div>
+        {header}
         <div className="glass-card p-10 text-center border-amber-500/10">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
             <Bitcoin size={32} className="text-amber-500/40" />
@@ -465,20 +501,7 @@ export default function CriptoativosPage() {
 
   return (
     <>
-      {/* ── Bitcoin-themed Header ──────────────────────────────────────────── */}
-      <div className="mb-6 md:mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Bitcoin size={22} className="text-zinc-900" />
-          </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent">
-              Criptoativos
-            </h1>
-            <p className="text-xs md:text-sm text-zinc-500 mt-0.5">Posicoes em Bitcoin, Ethereum e outros tokens</p>
-          </div>
-        </div>
-      </div>
+      {header}
 
       {/* ── Metric Cards (symmetric 2x2 grid) ────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
