@@ -185,6 +185,7 @@ export default function BolsasPage() {
   const [periodsLoading, setPeriodsLoading] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
   const [customAsset, setCustomAsset] = useState<IndexData | null>(null);
+  const [mapZoom, setMapZoom] = useState(1);
   const didAutoSelect = useRef(false);
 
   interface MacroData {
@@ -570,12 +571,37 @@ export default function BolsasPage() {
             </div>
           </div>
 
-          <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.6)" }}>
+          <div className="rounded-xl overflow-hidden relative" style={{ background: "rgba(5,7,14,0.6)" }}>
+            <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+              {[
+                { icon: ZoomIn, action: () => setMapZoom(z => Math.min(z * 1.5, 5)), label: "Zoom in" },
+                { icon: ZoomOut, action: () => setMapZoom(z => Math.max(z / 1.5, 1)), label: "Zoom out" },
+                { icon: Maximize2, action: () => setMapZoom(1), label: "Reset" },
+              ].map(({ icon: Icon, action, label }) => (
+                <button
+                  key={label}
+                  onClick={action}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
+                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  title={label}
+                >
+                  <Icon size={13} className="text-zinc-400" />
+                </button>
+              ))}
+            </div>
             <ComposableMap
               projectionConfig={{ rotate: [-10, 0, 0], scale: 155 }}
               style={{ width: "100%", height: "auto", maxHeight: 480 }}
             >
-              <ZoomableGroup center={[0, 20]} zoom={1}>
+              <ZoomableGroup
+                center={[0, 20]}
+                zoom={mapZoom}
+                onMoveEnd={({ zoom: z }) => setMapZoom(Math.max(1, Math.min(5, z)))}
+                minZoom={1}
+                maxZoom={5}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                filterZoomEvent={(evt: any) => evt?.type === "wheel"}
+              >
                 <Geographies geography={GEO_URL}>
                   {({ geographies }) =>
                     geographies.map((geo) => {
@@ -2493,11 +2519,10 @@ const CurrencyWorldMap = memo(function CurrencyWorldMap({
   onSelect: (c: CurrencyData | null) => void;
 }) {
   const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState<[number, number]>([10, 20]);
 
   const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 1.5, 8)), []);
   const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
-  const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
+  const handleReset = useCallback(() => { setZoom(1); }, []);
 
   return (
     <div className="relative">
@@ -2528,9 +2553,12 @@ const CurrencyWorldMap = memo(function CurrencyWorldMap({
       >
         <ZoomableGroup
           zoom={zoom}
-          center={center}
-          onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
+          center={[10, 20]}
+          onMoveEnd={({ zoom: z }) => setZoom(Math.max(1, Math.min(8, z)))}
+          minZoom={1}
           maxZoom={8}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          filterZoomEvent={(evt: any) => evt?.type === "wheel"}
         >
           <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.6)" />
           <Geographies geography={GEO_URL}>
