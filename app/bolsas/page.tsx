@@ -571,7 +571,7 @@ export default function BolsasPage() {
             </div>
           </div>
 
-          <div className="rounded-xl overflow-hidden relative" style={{ background: "rgba(5,7,14,0.6)" }}>
+          <div className="rounded-xl overflow-hidden relative" style={{ background: "#0f1724" }}>
             <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
               {[
                 { icon: ZoomIn, action: () => setMapZoom(z => Math.min(z * 1.5, 5)), label: "Zoom in" },
@@ -582,7 +582,7 @@ export default function BolsasPage() {
                   key={label}
                   onClick={action}
                   className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
-                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)" }}
                   title={label}
                 >
                   <Icon size={13} className="text-zinc-400" />
@@ -590,11 +590,14 @@ export default function BolsasPage() {
               ))}
             </div>
             <ComposableMap
-              projectionConfig={{ rotate: [-10, 0, 0], scale: 155 }}
-              style={{ width: "100%", height: "auto", maxHeight: 480 }}
+              projection="geoMercator"
+              projectionConfig={{ scale: 130, center: [0, 30] }}
+              width={800}
+              height={420}
+              style={{ width: "100%", height: "auto" }}
             >
               <ZoomableGroup
-                center={[0, 20]}
+                center={[0, 30]}
                 zoom={mapZoom}
                 onMoveEnd={({ zoom: z }) => setMapZoom(Math.max(1, Math.min(5, z)))}
                 minZoom={1}
@@ -607,17 +610,17 @@ export default function BolsasPage() {
                     geographies.map((geo) => {
                       const geoId = String(geo.id);
                       const entry = countryHeatMap.get(geoId);
-                      const fill = entry ? heatColor(entry.changePct) : "rgba(255,255,255,0.04)";
+                      const fill = entry ? heatColor(entry.changePct) : "#1e293b";
                       return (
                         <Geography
                           key={geo.rsmKey}
                           geography={geo}
                           fill={fill}
-                          stroke="rgba(255,255,255,0.1)"
-                          strokeWidth={0.4}
+                          stroke="#334155"
+                          strokeWidth={0.5}
                           style={{
-                            default: { outline: "none", opacity: entry ? 0.88 : 0.5 },
-                            hover: { outline: "none", opacity: 1, stroke: "rgba(255,255,255,0.4)", strokeWidth: 0.8 },
+                            default: { outline: "none" },
+                            hover: { outline: "none", fill: entry ? fill : "#334155", stroke: "#94a3b8", strokeWidth: 0.8 },
                             pressed: { outline: "none" },
                           }}
                           onMouseEnter={() => { if (entry) setHoveredIndex(entry.name); }}
@@ -635,7 +638,7 @@ export default function BolsasPage() {
                     <Marker key={i.symbol} coordinates={[i.lng, i.lat]}>
                       <g>
                         <rect x={-60} y={-30} width={120} height={28} rx={4}
-                          fill="rgba(0,0,0,0.85)" stroke={heatColor(i.changePct)} strokeWidth={0.8} />
+                          fill="rgba(0,0,0,0.9)" stroke={heatColor(i.changePct)} strokeWidth={0.8} />
                         <text textAnchor="middle" y={-14} style={{ fontSize: 9.5, fontWeight: 700, fill: "#fafafa", fontFamily: "ui-monospace, monospace" }}>
                           {i.flag} {i.name}
                         </text>
