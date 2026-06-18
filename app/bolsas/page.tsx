@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import dynamic from "next/dynamic";
+// dynamic import removed (globe replaced by inline choropleth)
 import {
   ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
 } from "react-simple-maps";
@@ -23,14 +23,7 @@ import ErrorAlert from "@/components/ErrorAlert";
 
 type RadarTab = "bolsas" | "moedas" | "crypto";
 
-const BolsasGlobe = dynamic(() => import("@/components/BolsasGlobe"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center" style={{ height: 420 }}>
-      <span className="text-zinc-500 text-sm animate-pulse">Carregando globo...</span>
-    </div>
-  ),
-});
+// Globe removed — replaced by choropleth world map inline
 
 interface IndexData {
   symbol: string;
@@ -116,6 +109,31 @@ function heatColor(pct: number): string {
 // ── Moedas types ─────────────────────────────────────────────────────────
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+
+const COUNTRY_TO_ISO_NUM: Record<string, string> = {
+  "EUA": "840", "Brasil": "076", "Canadá": "124", "México": "484", "Argentina": "032",
+  "Chile": "152", "Colômbia": "170", "Peru": "604", "Venezuela": "862", "Panamá": "591",
+  "Costa Rica": "188", "Rep. Dominicana": "214",
+  "Reino Unido": "826", "França": "250", "Alemanha": "276", "Espanha": "724",
+  "Itália": "380", "Holanda": "528", "Suíça": "756", "Suécia": "752", "Noruega": "578",
+  "Dinamarca": "208", "Finlândia": "246", "Bélgica": "056", "Áustria": "040",
+  "Portugal": "620", "Grécia": "300", "Polônia": "616", "Hungria": "348",
+  "Tchéquia": "203", "Romênia": "642", "Bulgária": "100", "Croácia": "191",
+  "Sérvia": "688", "Eslovênia": "705", "Estônia": "233", "Letônia": "428",
+  "Lituânia": "440", "Islândia": "352", "Luxemburgo": "442", "Malta": "470",
+  "Bósnia": "070", "Ucrânia": "804", "Rússia": "643", "Turquia": "792",
+  "Japão": "392", "China": "156", "Índia": "356", "Coreia do Sul": "410",
+  "Austrália": "036", "Hong Kong": "344", "Singapura": "702", "Taiwan": "158",
+  "Indonésia": "360", "Tailândia": "764", "Malásia": "458", "Filipinas": "608",
+  "Vietnã": "704", "Paquistão": "586", "Bangladesh": "050", "Sri Lanka": "144",
+  "Nepal": "524", "Mongólia": "496", "Cazaquistão": "398",
+  "Israel": "376", "Arábia Saudita": "682", "Emirados": "784", "Catar": "634",
+  "Kuwait": "414", "Bahrein": "048", "Omã": "512", "Jordânia": "400", "Líbano": "422", "Egito": "818",
+  "África do Sul": "710", "Nigéria": "566", "Quênia": "404", "Marrocos": "504",
+  "Gana": "288", "Costa do Marfim": "384", "Tunísia": "788", "Maurício": "480",
+  "Botsuana": "072", "Ruanda": "646", "Tanzânia": "834", "Uganda": "800",
+  "Nova Zelândia": "554",
+};
 
 interface CurrencyData {
   code: string; name: string; rate: number; change: number;
@@ -252,6 +270,22 @@ export default function BolsasPage() {
   const regions = useMemo(() => {
     if (!data) return [];
     return [...new Set(data.indices.map(i => i.region))].sort();
+  }, [data]);
+
+  // Choropleth: map ISO numeric id → best (highest absolute) changePct for that country
+  const countryHeatMap = useMemo(() => {
+    if (!data) return new Map<string, { changePct: number; name: string; country: string; flag: string }>();
+    const map = new Map<string, { changePct: number; name: string; country: string; flag: string }>();
+    for (const idx of data.indices) {
+      if (idx.symbol === "^VIX") continue;
+      const iso = COUNTRY_TO_ISO_NUM[idx.country];
+      if (!iso) continue;
+      const existing = map.get(iso);
+      if (!existing || Math.abs(idx.changePct) > Math.abs(existing.changePct)) {
+        map.set(iso, { changePct: idx.changePct, name: idx.name, country: idx.country, flag: idx.flag });
+      }
+    }
+    return map;
   }, [data]);
 
   const filtered = useMemo(() => {
@@ -537,14 +571,57 @@ export default function BolsasPage() {
           </div>
 
           <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.6)" }}>
-            <BolsasGlobe
-              indices={data.indices}
-              selectedRegion={selectedRegion}
-              hoveredIndex={hoveredIndex}
-              selectedIndex={selectedIndex}
-              onHover={handleHover}
-              onSelect={handleSelect}
-            />
+            <ComposableMap
+              projectionConfig={{ rotate: [-10, 0, 0], scale: 155 }}
+              style={{ width: "100%", height: "auto", maxHeight: 480 }}
+            >
+              <ZoomableGroup center={[0, 20]} zoom={1}>
+                <Geographies geography={GEO_URL}>
+                  {({ geographies }) =>
+                    geographies.map((geo) => {
+                      const geoId = String(geo.id);
+                      const entry = countryHeatMap.get(geoId);
+                      const fill = entry ? heatColor(entry.changePct) : "rgba(255,255,255,0.04)";
+                      return (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill={fill}
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth={0.4}
+                          style={{
+                            default: { outline: "none", opacity: entry ? 0.88 : 0.5 },
+                            hover: { outline: "none", opacity: 1, stroke: "rgba(255,255,255,0.4)", strokeWidth: 0.8 },
+                            pressed: { outline: "none" },
+                          }}
+                          onMouseEnter={() => { if (entry) setHoveredIndex(entry.name); }}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                        />
+                      );
+                    })
+                  }
+                </Geographies>
+                {data.indices.filter(i => i.symbol !== "^VIX").map(i => {
+                  const isHovered = hoveredIndex === i.name || hoveredIndex === i.symbol;
+                  const isSelected = selectedIndex?.symbol === i.symbol;
+                  if (!isHovered && !isSelected) return null;
+                  return (
+                    <Marker key={i.symbol} coordinates={[i.lng, i.lat]}>
+                      <g>
+                        <rect x={-60} y={-30} width={120} height={28} rx={4}
+                          fill="rgba(0,0,0,0.85)" stroke={heatColor(i.changePct)} strokeWidth={0.8} />
+                        <text textAnchor="middle" y={-14} style={{ fontSize: 9.5, fontWeight: 700, fill: "#fafafa", fontFamily: "ui-monospace, monospace" }}>
+                          {i.flag} {i.name}
+                        </text>
+                        <text textAnchor="middle" y={-4} style={{ fontSize: 9, fontWeight: 600, fill: heatColor(i.changePct), fontFamily: "ui-monospace, monospace" }}>
+                          {i.changePct >= 0 ? "+" : ""}{i.changePct.toFixed(2)}%
+                        </text>
+                      </g>
+                    </Marker>
+                  );
+                })}
+              </ZoomableGroup>
+            </ComposableMap>
           </div>
 
           {/* Heatmap gradient legend */}
