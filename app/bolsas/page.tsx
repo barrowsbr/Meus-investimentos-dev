@@ -14,14 +14,19 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
-  Landmark, Globe2, DollarSign, Gauge,
+  Landmark, Globe2, DollarSign, Gauge, Newspaper,
   ZoomIn, ZoomOut, Maximize2, Globe,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import ErrorAlert from "@/components/ErrorAlert";
 
-type RadarTab = "bolsas" | "moedas";
+const InteligenciaContent = dynamic(() => import("@/components/InteligenciaContent"), {
+  loading: () => <LoadingSpinner />,
+});
+
+type RadarTab = "bolsas" | "moedas" | "inteligencia";
 
 // Globe removed — replaced by choropleth world map inline
 
@@ -376,7 +381,7 @@ export default function BolsasPage() {
           </Link>
           <Activity className="text-blue-400" size={22} />
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-zinc-50 via-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-            Radar
+            Scanner
           </h1>
         </div>
         <p className="text-xs text-zinc-500 ml-[66px]">
@@ -388,6 +393,7 @@ export default function BolsasPage() {
           {([
             { key: "bolsas" as RadarTab, label: "Bolsas", icon: <BarChart3 size={13} /> },
             { key: "moedas" as RadarTab, label: "Moedas", icon: <Globe size={13} /> },
+            { key: "inteligencia" as RadarTab, label: "Inteligência", icon: <Newspaper size={13} /> },
           ]).map(t => {
             const on = activeTab === t.key;
             return (
@@ -684,6 +690,9 @@ export default function BolsasPage() {
             Carregando moedas...
           </div>
         )}
+
+        {/* ═══ INTELIGÊNCIA TAB ═══ */}
+        {activeTab === "inteligencia" && <InteligenciaContent />}
 
         {/* ── Footer ── */}
         <p className="text-center text-[10px] text-zinc-700 pt-4">

@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  Newspaper, ListOrdered, Target, Scale, Zap, Crosshair, BrainCircuit, Sunrise,
+  ListOrdered, Target, Scale, Zap, Crosshair, Sunrise, Layers, Banknote,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -43,14 +43,15 @@ export const NAV: NavGroup[] = [
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
       { href: "/simulacoes", label: "Simulações", icon: Target, sub: "Projeções e cenários de carteira" },
       { href: "/trades", label: "Trades", icon: Zap, sub: "Histórico de operações e desempenho" },
-      { href: "/preditivo", label: "Preditivo", icon: BrainCircuit, sub: "Modelos preditivos e sinais (ML)" },
+      { href: "/etf", label: "ETFs", icon: Layers, sub: "Composição, look-through e alocação" },
+      { href: "/alavancagem", label: "Alavancagem", icon: Scale, sub: "Margem, garantias e nível de risco" },
     ],
   },
   {
     label: "Gestão",
     items: [
       { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
-      { href: "/alavancagem", label: "Alavancagem", icon: Scale, sub: "Margem, garantias e nível de risco" },
+      { href: "/caixa", label: "Caixa", icon: Banknote, sub: "Saldos de caixa e disponibilidades" },
       { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
       { href: "/fluxos", label: "Fluxos", icon: ListOrdered, sub: "Entradas, saídas e movimentações" },
     ],
@@ -58,8 +59,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Mais",
     items: [
-      { href: "/bolsas", label: "Radar", icon: BarChart3, sub: "Índices, moedas e commodities globais" },
-      { href: "/noticias", label: "Inteligência", icon: Newspaper, sub: "Inteligência de mercado e notícias" },
+      { href: "/bolsas", label: "Scanner", icon: BarChart3, sub: "Índices, moedas e commodities globais" },
       { href: "/polymarket", label: "Preditivos", icon: Activity, sub: "Mercados preditivos relacionados à carteira" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira", mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },

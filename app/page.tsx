@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -488,7 +489,7 @@ export default function HomePage() {
             </div>
 
             {/* Retorno Dia */}
-            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderBottom: "1px solid var(--line)" }}>
+            <Link href="/hoje" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderBottom: "1px solid var(--line)" }}>
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Retorno Dia</span>
               {loading || dayChangePct === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
@@ -504,7 +505,7 @@ export default function HomePage() {
                   )}
                 </>
               )}
-            </div>
+            </Link>
 
             {/* Dólar */}
             <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderRight: "1px solid var(--line)" }}>
