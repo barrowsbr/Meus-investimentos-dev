@@ -358,7 +358,13 @@ export default function HojePage() {
       perAsset.push({ ticker: cleanTicker(p.ticker), moeda, fxBRL: eff });
     }
     perAsset.sort((a, b) => Math.abs(b.fxBRL) - Math.abs(a.fxBRL));
-    return { fxEffect, priceEffect: total - fxEffect, perAsset };
+    // O total canônico (dayChangeTotalBRL) é o efeito-PREÇO: a variação de preço
+    // dos ativos convertida ao câmbio de HOJE (dayChangeBRL = ΔP·qtd·fxHoje). Ele
+    // NÃO inclui a reavaliação cambial do principal — o engine só conhece o câmbio
+    // de hoje, não o de ontem. Logo o efeito-câmbio é ADITIVO ao total canônico:
+    //   resultado em R$ no dia = preço (total) + câmbio (fxEffect).
+    // (Subtrair fxEffect do total — como antes — invertia o sinal do preço.)
+    return { fxEffect, priceEffect: total, totalComCambio: total + fxEffect, perAsset };
   }, [data?.positions, data?.fxDayChange, total]);
 
   // ── Efeito do câmbio ACUMULADO (campos canônicos do snapshot — DRE do Resumo) ──
@@ -601,21 +607,22 @@ export default function HojePage() {
           <Kicker>Efeito do câmbio</Kicker>
 
           <p className="font-mono" style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 4 }}>
-            No resultado de hoje
+            Resultado de hoje, em reais
           </p>
           {(() => {
             const m = Math.max(Math.abs(fxToday.priceEffect), Math.abs(fxToday.fxEffect), 1);
             return (
               <>
-                <LedgerRow label="Preço" value={fxToday.priceEffect} maxAbs={m} sub="ativos + renda fixa" />
-                <LedgerRow label="Câmbio" value={fxToday.fxEffect} maxAbs={m} sub={usdMovePct != null ? `dólar ${pctSigned(usdMovePct)}` : "moedas estáveis"} />
+                <LedgerRow label="Preço" value={fxToday.priceEffect} maxAbs={m} sub="variação dos ativos (resultado do dia)" />
+                <LedgerRow label="Câmbio" value={fxToday.fxEffect} maxAbs={m} sub={usdMovePct != null ? `dólar ${pctSigned(usdMovePct)} sobre a parcela internacional` : "moedas estáveis"} />
               </>
             );
           })()}
           <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
-            Do resultado de hoje ({signedBRL(total)}),{" "}
-            <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.fxEffect)}</strong> vieram da variação das moedas
-            sobre a parcela internacional; o restante, do preço dos ativos. A soma reconcilia com o total.
+            O preço dos ativos rendeu <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.priceEffect)}</strong> hoje (resultado canônico do dia).
+            A variação das moedas {fxToday.fxEffect >= 0 ? "somou" : "subtraiu"}{" "}
+            <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.fxEffect)}</strong> sobre a parcela internacional —
+            totalizando <strong style={{ color: fxToday.totalComCambio >= 0 ? "var(--pos)" : "var(--neg)" }}>{signedBRL(fxToday.totalComCambio)}</strong> em reais no dia.
           </p>
 
           {fxToday.perAsset.length > 0 && (
