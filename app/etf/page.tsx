@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
-import { Globe, RefreshCw, Layers } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Globe, RefreshCw } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { compactBRL } from "@/lib/format";
