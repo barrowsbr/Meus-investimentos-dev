@@ -11,6 +11,7 @@ import {
   Calendar, AlertTriangle, DollarSign, RefreshCw,
   Play, Loader2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -521,6 +522,60 @@ function heatmapBorder(isPos: boolean, jornal: boolean) {
   };
 }
 
+// ── Chart series legend-filter ────────────────────────────────────────────────
+// O toggle É a legenda: cada botão mostra o traço na cor exata da sua linha no
+// gráfico. Ativo = cor cheia + leve preenchimento; inativo = cinza apagado.
+
+function SeriesToggle({ active, color, label, dashed, onClick, icon: Icon, title }: {
+  active: boolean;
+  color: string;
+  label: string;
+  dashed?: boolean;
+  onClick: () => void;
+  icon?: LucideIcon;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title ?? label}
+      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all whitespace-nowrap"
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: active ? "var(--text)" : "var(--faint)",
+        background: active ? `${color}1f` : "transparent",
+        border: `1px solid ${active ? `${color}55` : "transparent"}`,
+      }}
+    >
+      {Icon ? (
+        <Icon size={12} className={active ? "" : "opacity-50"} />
+      ) : (
+        <span
+          aria-hidden
+          style={{
+            width: 16,
+            borderTop: `2px ${dashed ? "dashed" : "solid"} ${active ? color : "var(--line-strong)"}`,
+            display: "inline-block",
+          }}
+        />
+      )}
+      {label}
+    </button>
+  );
+}
+
+function LegendGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="font-mono select-none"
+      style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--muted)" }}
+    >
+      {children}
+    </span>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
@@ -540,7 +595,9 @@ export default function PerformancePage() {
   const [customTo, setCustomTo] = useState("");
   const [showTwr, setShowTwr] = useState(true);
   const [showMwr, setShowMwr] = useState(false);
-  const [showBenchmarks, setShowBenchmarks] = useState(true);
+  const [showCdi, setShowCdi] = useState(true);
+  const [showIbov, setShowIbov] = useState(true);
+  const [showSp500, setShowSp500] = useState(false);
   const [showFxDecomp, setShowFxDecomp] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
@@ -703,6 +760,19 @@ export default function PerformancePage() {
   const trendColor = isJornal
     ? (isPositive ? "var(--pos)" : "var(--neg)")
     : (isPositive ? "#34d399" : "#f87171");
+
+  // Paleta canônica das linhas do gráfico — hex sólido (necessário p/ os
+  // swatches da legenda-filtro, que concatenam alpha). Uma cor por série, sem
+  // colisões entre as séries exibidas simultaneamente.
+  const C = {
+    twr:   isJornal ? (isPositive ? "#0C6B2E" : "#7F1D1D") : (isPositive ? "#34d399" : "#f87171"),
+    mwr:   isJornal ? "#5B21B6" : "#a78bfa",
+    cdi:   isJornal ? "#1E40AF" : "#6366f1",
+    ibov:  isJornal ? "#9A3412" : "#f59e0b",
+    sp500: isJornal ? "#9D174D" : "#ec4899",
+    ativo: isJornal ? "#0369A1" : "#38bdf8",
+    fx:    isJornal ? "#92400E" : "#fbbf24",
+  };
 
   return (
     <>
@@ -1139,43 +1209,55 @@ export default function PerformancePage() {
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          {/* Layer 1: TWR e/ou MWR (multi-select) */}
-          <div className="flex items-center border overflow-hidden" style={{ borderColor: "var(--line)" }}
-            title="TWR: retorno dos ativos (comparável a índices). MWR: retorno do SEU dinheiro, ponderado pelos aportes. Selecione ambos para comparar.">
-            <button onClick={() => setShowTwr(v => { if (!v || showMwr) return !v; return v; })}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                showTwr
-                  ? "bg-emerald-900/50 text-emerald-300"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}>
-              TWR
-            </button>
-            <button onClick={() => setShowMwr(v => { if (!v || showTwr) return !v; return v; })}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l`}
-              style={{ borderColor: "var(--line)" }}>
-              <span className={showMwr ? "text-purple-300" : "text-zinc-500 hover:text-zinc-300"}>MWR</span>
-            </button>
-          </div>
-          {/* Layer 2+3: Benchmarks / FX Decomposição (exclusive) */}
-          <div className="flex items-center border overflow-hidden" style={{ borderColor: "var(--line)" }}>
-            <button onClick={() => { setShowBenchmarks(v => !v); if (!showBenchmarks) setShowFxDecomp(false); }}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                showBenchmarks
-                  ? "bg-indigo-900/50 text-indigo-300"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}>
-              Benchmarks
-            </button>
-            <button onClick={() => { setShowFxDecomp(v => !v); if (!showFxDecomp) setShowBenchmarks(false); }}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l`}
-              style={{ borderColor: "var(--line)" }}>
-              <span className={showFxDecomp ? "text-amber-300" : "text-zinc-500 hover:text-zinc-300"}>
-                <DollarSign size={11} className="inline -mt-0.5 mr-0.5" />Câmbio
-              </span>
-            </button>
-          </div>
-          <button onClick={handleRefresh} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+        <div className="ml-auto flex items-center gap-x-3 gap-y-2 flex-wrap">
+          {activeTab === "overview" && (
+            <>
+              {/* Carteira: TWR / MWR — linhas sólidas (o seu retorno) */}
+              <div className="flex items-center gap-1">
+                <LegendGroupLabel>Carteira</LegendGroupLabel>
+                <SeriesToggle
+                  active={showTwr} color={C.twr} label="TWR"
+                  title="Time-Weighted Return: encadeia retornos diários neutralizando o tamanho/timing dos aportes. É a métrica comparável a índices (GIPS)."
+                  onClick={() => setShowTwr(v => (v && !showMwr) ? true : !v)} />
+                <SeriesToggle
+                  active={showMwr} color={C.mwr} label="MWR"
+                  title="Money-Weighted Return (TIR/XIRR): retorno ponderado pelo dinheiro investido — reflete o timing dos seus aportes."
+                  onClick={() => setShowMwr(v => (v && !showTwr) ? true : !v)} />
+              </div>
+
+              <span style={{ width: 1, height: 18, background: "var(--line-strong)" }} />
+
+              {/* Comparar: benchmarks individuais — linhas tracejadas */}
+              <div className="flex items-center gap-1">
+                <LegendGroupLabel>Comparar</LegendGroupLabel>
+                <SeriesToggle
+                  active={showCdi} color={C.cdi} label="CDI" dashed
+                  title="Taxa livre de risco (CDI acumulado no período)."
+                  onClick={() => { setShowFxDecomp(false); setShowCdi(v => !v); }} />
+                <SeriesToggle
+                  active={showIbov} color={C.ibov} label="IBOV" dashed
+                  title="Ibovespa acumulado no período."
+                  onClick={() => { setShowFxDecomp(false); setShowIbov(v => !v); }} />
+                <SeriesToggle
+                  active={showSp500} color={C.sp500} label="S&P 500" dashed
+                  title="S&P 500 acumulado no período."
+                  onClick={() => { setShowFxDecomp(false); setShowSp500(v => !v); }} />
+              </div>
+
+              <span style={{ width: 1, height: 18, background: "var(--line-strong)" }} />
+
+              {/* Decompor: modo câmbio (ativo vs moeda) — exclui benchmarks */}
+              <SeriesToggle
+                active={showFxDecomp} color={C.fx} label="Câmbio" icon={DollarSign}
+                title="Decompõe o retorno em efeito do ativo (moeda local) vs efeito do câmbio. Substitui os benchmarks enquanto ativo."
+                onClick={() => setShowFxDecomp(v => {
+                  const nv = !v;
+                  if (nv) { setShowCdi(false); setShowIbov(false); setShowSp500(false); }
+                  return nv;
+                })} />
+            </>
+          )}
+          <button onClick={handleRefresh} title="Recarregar" className="text-zinc-600 hover:text-zinc-400 transition-colors">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -1188,8 +1270,22 @@ export default function PerformancePage() {
         <div className="space-y-4">
           {/* TWR chart */}
           <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="section-title"><TrendingUp size={15} />Rentabilidade Acumulada (%)</h2>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="section-title"><TrendingUp size={15} />Rentabilidade Acumulada (%)</h2>
+                {showFxDecomp && (
+                  <div className="flex items-center gap-3 text-[10.5px]" style={{ color: "var(--muted)" }}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span style={{ width: 14, borderTop: `2px dashed ${C.ativo}`, display: "inline-block" }} />
+                      Ativo (moeda local)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span style={{ width: 14, borderTop: `2px dashed ${C.fx}`, display: "inline-block" }} />
+                      Efeito câmbio
+                    </span>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <Calendar size={12} />
                 <span>{formatDate(s.primeiraData)} — {formatDate(s.ultimaData)}</span>
@@ -1201,77 +1297,58 @@ export default function PerformancePage() {
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
                   <defs>
+                    {/* Só a carteira (TWR) recebe preenchimento — o herói.
+                        As demais séries são linhas puras, p/ leitura limpa. */}
                     <linearGradient id="gradPortfolio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={trendColor} stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={trendColor} stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradCDI" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradIBOV" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradSP500" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ec4899" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradAtivo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradFx" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradMwr" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                      <stop offset="5%" stopColor={C.twr} stopOpacity={0.22} />
+                      <stop offset="95%" stopColor={C.twr} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isJornal ? "rgba(0,0,0,0.06)" : "#18181b"} />
-                  <ReferenceLine y={0} stroke={isJornal ? "rgba(0,0,0,0.15)" : "#27272a"} strokeWidth={1} />
-                  <XAxis dataKey="date" tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                  <CartesianGrid strokeDasharray="3 3" stroke={isJornal ? "rgba(0,0,0,0.06)" : "#18181b"} vertical={false} />
+                  <ReferenceLine y={0} stroke={isJornal ? "rgba(0,0,0,0.18)" : "#3f3f46"} strokeWidth={1} />
+                  <XAxis dataKey="date" tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
                     tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
                   <Tooltip contentStyle={isJornal ? { background: "#F2EBDD", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 0, color: "#000", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Portfólio (TWR)" : name === "mwr" ? "Portfólio (MWR)" : name === "ativo" ? "Retorno Ativo" : name === "fx" ? "Efeito Câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
+                      name === "portfolio" ? "Carteira (TWR)" : name === "mwr" ? "Carteira (MWR)" : name === "ativo" ? "Ativo (moeda local)" : name === "fx" ? "Efeito câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
-                  <Legend formatter={v => v === "portfolio" ? "Portfólio (TWR)" : v === "mwr" ? "Portfólio (MWR)" : v === "ativo" ? "Retorno Ativo" : v === "fx" ? "Efeito Câmbio" : v === "cdi" ? "CDI" : v === "ibov" ? "IBOV" : "S&P 500"}
-                    wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
-                  {/* TWR (solid when solo, or when both are on) */}
-                  {showTwr && (
-                    <Area type="monotone" dataKey="portfolio" stroke={trendColor} fill={isJornal ? "none" : "url(#gradPortfolio)"}
-                      strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  {/* Benchmarks primeiro (camada de trás), carteira por cima. */}
+                  {/* CDI */}
+                  {showCdi && (
+                    <Area type="monotone" dataKey="cdi" name="cdi" stroke={C.cdi} fill="none"
+                      strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
                   )}
-                  {/* MWR */}
-                  {showMwr && (
-                    <Area type="monotone" dataKey="mwr" stroke={isJornal ? "#5B21B6" : "#a78bfa"} fill={isJornal ? "none" : "url(#gradMwr)"}
-                      strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                  {/* IBOV */}
+                  {showIbov && (
+                    <Area type="monotone" dataKey="ibov" name="ibov" stroke={C.ibov} fill="none"
+                      strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
                   )}
-                  {/* Benchmarks (CDI, IBOV, S&P 500) */}
-                  {showBenchmarks && (
-                    <>
-                      <Area type="monotone" dataKey="cdi" stroke={isJornal ? "#1E40AF" : "#6366f1"} fill={isJornal ? "none" : "url(#gradCDI)"}
-                        strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-                      <Area type="monotone" dataKey="ibov" stroke={isJornal ? "#9A3412" : "#f59e0b"} fill={isJornal ? "none" : "url(#gradIBOV)"}
-                        strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-                      <Area type="monotone" dataKey="sp500" stroke={isJornal ? "#9D174D" : "#ec4899"} fill={isJornal ? "none" : "url(#gradSP500)"}
-                        strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-                    </>
+                  {/* S&P 500 */}
+                  {showSp500 && (
+                    <Area type="monotone" dataKey="sp500" name="sp500" stroke={C.sp500} fill="none"
+                      strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
                   )}
-                  {/* FX Decomposition (Retorno Ativo + Efeito Câmbio) */}
+                  {/* Decomposição câmbio: ativo + efeito cambial */}
                   {showFxDecomp && (
                     <>
-                      <Area type="monotone" dataKey="ativo" stroke={isJornal ? "#065F46" : "#34d399"} fill={isJornal ? "none" : "url(#gradAtivo)"}
-                        strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
-                      <Area type="monotone" dataKey="fx" stroke={isJornal ? "#9A3412" : "#f59e0b"} fill={isJornal ? "none" : "url(#gradFx)"}
-                        strokeWidth={1.8} strokeDasharray="5 3" dot={false} />
+                      <Area type="monotone" dataKey="ativo" name="ativo" stroke={C.ativo} fill="none"
+                        strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
+                      <Area type="monotone" dataKey="fx" name="fx" stroke={C.fx} fill="none"
+                        strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
                     </>
+                  )}
+                  {/* MWR — linha sólida da carteira (sem preenchimento) */}
+                  {showMwr && (
+                    <Area type="monotone" dataKey="mwr" name="mwr" stroke={C.mwr} fill="none"
+                      strokeWidth={1.8} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                  )}
+                  {/* TWR — linha herói, sólida e mais grossa, com preenchimento */}
+                  {showTwr && (
+                    <Area type="monotone" dataKey="portfolio" name="portfolio" stroke={C.twr} fill={isJornal ? "none" : "url(#gradPortfolio)"}
+                      strokeWidth={2.6} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
                   )}
                 </AreaChart>
               </ResponsiveContainer>
