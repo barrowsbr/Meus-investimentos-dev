@@ -9,8 +9,8 @@ import {
 } from "recharts";
 import SunburstChart from "@/components/SunburstChart";
 import {
-  TrendingUp, TrendingDown, Coins, DollarSign,
-  BarChart3, ArrowUpRight, Globe,
+  TrendingUp, TrendingDown, DollarSign,
+  BarChart3, Globe,
   Award, AlertTriangle,
   PieChart as PieIcon,
   Briefcase, Layers,
