@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTab } from "@/lib/gsheets";
+import { DEMO_USER, DEMO_PASS, DEMO_COOKIE } from "@/lib/demo";
 
 export async function POST(req: NextRequest) {
   try {
     const { user, password } = await req.json();
     if (!user || !password) {
       return NextResponse.json({ ok: false, error: "Campos obrigatórios" }, { status: 400 });
+    }
+
+    // Modo demonstração: mesma conta, valores ×15, somente leitura. Seta um
+    // cookie HttpOnly (o cliente não consegue forjar) que liga o escalonamento
+    // e bloqueia escritas no servidor.
+    if (user.trim().toUpperCase() === DEMO_USER && password === DEMO_PASS) {
+      const res = NextResponse.json({ ok: true, demo: true });
+      res.cookies.set(DEMO_COOKIE, "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 12,
+      });
+      return res;
     }
 
     let validUser = "LBF";
@@ -24,7 +39,10 @@ export async function POST(req: NextRequest) {
     }
 
     const ok = user.trim().toUpperCase() === validUser.toUpperCase() && password === validPass;
-    return NextResponse.json({ ok });
+    const res = NextResponse.json({ ok });
+    // Login normal limpa qualquer cookie de demo remanescente no navegador.
+    if (ok) res.cookies.set(DEMO_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+    return res;
   } catch {
     return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });
   }
