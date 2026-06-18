@@ -331,41 +331,23 @@ export default function HojePage() {
       .map((k) => ({ k, label: labels[k] ?? k, level: levels[k] ?? null, pct: fx[k].changePct }));
   }, [data?.fxDayChange, data?.usdbrl, data?.fx]);
 
-  // ── Efeito do câmbio HOJE — decompõe o resultado do dia em preço × câmbio ──
-  // Para cada posição em moeda estrangeira: efeito câmbio = valor de ontem (BRL)
-  // × variação % da moeda no dia. Efeito preço = resto. A soma reconcilia com o
-  // total do dia (dayChangeTotalBRL, canônico).
+  // ── Efeito do câmbio HOJE — DECOMPÕE o resultado do dia em preço × câmbio ──
+  // O total canônico (dayChangeTotalBRL) JÁ inclui preço + câmbio (o motor reavalia
+  // o principal estrangeiro pela variação da moeda no dia). Aqui só separamos os dois
+  // fatores a partir dos campos canônicos: câmbio = Σ dayChangeFxBRL; preço = resto.
   const fxToday = useMemo(() => {
-    const fxFracByCcy = (ccy: string): number => {
-      const c = data?.fxDayChange?.[ccy];
-      return typeof c?.changePct === "number" ? c.changePct / 100 : 0;
-    };
-    let fxEffect = 0;
+    const fxEffect = data?.dayChangeFxTotalBRL ?? 0;
+    const priceEffect = total - fxEffect;
     const perAsset: { ticker: string; moeda: string; fxBRL: number }[] = [];
     for (const p of data?.positions ?? []) {
       if (!p?.ticker || (p.quantidade ?? 0) <= 0) continue;
-      const moeda = p.moeda ?? "BRL";
-      if (moeda === "BRL") continue;
-      const fxFrac = fxFracByCcy(moeda);
-      if (fxFrac === 0) continue;
-      const assetFrac = typeof p.dayChangePct === "number" ? p.dayChangePct / 100 : 0;
-      const valueBRL = p.valorAtualBRL ?? 0;
-      const denom = (1 + assetFrac) * (1 + fxFrac);
-      const valueYestBRL = denom !== 0 ? valueBRL / denom : valueBRL;
-      const eff = valueYestBRL * fxFrac;
+      const eff = typeof p.dayChangeFxBRL === "number" ? p.dayChangeFxBRL : 0;
       if (Math.abs(eff) < 0.5) continue;
-      fxEffect += eff;
-      perAsset.push({ ticker: cleanTicker(p.ticker), moeda, fxBRL: eff });
+      perAsset.push({ ticker: cleanTicker(p.ticker), moeda: p.moeda ?? "BRL", fxBRL: eff });
     }
     perAsset.sort((a, b) => Math.abs(b.fxBRL) - Math.abs(a.fxBRL));
-    // O total canônico (dayChangeTotalBRL) é o efeito-PREÇO: a variação de preço
-    // dos ativos convertida ao câmbio de HOJE (dayChangeBRL = ΔP·qtd·fxHoje). Ele
-    // NÃO inclui a reavaliação cambial do principal — o engine só conhece o câmbio
-    // de hoje, não o de ontem. Logo o efeito-câmbio é ADITIVO ao total canônico:
-    //   resultado em R$ no dia = preço (total) + câmbio (fxEffect).
-    // (Subtrair fxEffect do total — como antes — invertia o sinal do preço.)
-    return { fxEffect, priceEffect: total, totalComCambio: total + fxEffect, perAsset };
-  }, [data?.positions, data?.fxDayChange, total]);
+    return { fxEffect, priceEffect, totalComCambio: total, perAsset };
+  }, [data?.positions, data?.dayChangeFxTotalBRL, total]);
 
   // ── Efeito do câmbio ACUMULADO (campos canônicos do snapshot — DRE do Resumo) ──
   const fxAccum = data?.ganhoCambioTotalBRL ?? 0;
@@ -555,7 +537,7 @@ export default function HojePage() {
             )}
 
             <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
-              Cada barra é a contribuição do ativo ao resultado do dia (preço × posição). A soma reconcilia com o total acima.
+              Cada barra é a contribuição do ativo ao resultado do dia (preço + câmbio). A soma reconcilia com o total acima.
             </p>
           </>
         )}
@@ -613,16 +595,16 @@ export default function HojePage() {
             const m = Math.max(Math.abs(fxToday.priceEffect), Math.abs(fxToday.fxEffect), 1);
             return (
               <>
-                <LedgerRow label="Preço" value={fxToday.priceEffect} maxAbs={m} sub="variação dos ativos (resultado do dia)" />
+                <LedgerRow label="Preço" value={fxToday.priceEffect} maxAbs={m} sub="variação dos ativos" />
                 <LedgerRow label="Câmbio" value={fxToday.fxEffect} maxAbs={m} sub={usdMovePct != null ? `dólar ${pctSigned(usdMovePct)} sobre a parcela internacional` : "moedas estáveis"} />
               </>
             );
           })()}
           <p className="font-mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 8 }}>
-            O preço dos ativos rendeu <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.priceEffect)}</strong> hoje (resultado canônico do dia).
+            O preço dos ativos rendeu <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.priceEffect)}</strong> hoje.
             A variação das moedas {fxToday.fxEffect >= 0 ? "somou" : "subtraiu"}{" "}
             <strong style={{ color: "var(--text-2)" }}>{signedBRL(fxToday.fxEffect)}</strong> sobre a parcela internacional —
-            totalizando <strong style={{ color: fxToday.totalComCambio >= 0 ? "var(--pos)" : "var(--neg)" }}>{signedBRL(fxToday.totalComCambio)}</strong> em reais no dia.
+            totalizando <strong style={{ color: fxToday.totalComCambio >= 0 ? "var(--pos)" : "var(--neg)" }}>{signedBRL(fxToday.totalComCambio)}</strong> em reais no dia (resultado do dia).
           </p>
 
           {fxToday.perAsset.length > 0 && (

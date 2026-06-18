@@ -50,7 +50,8 @@ export interface Position {
   fxAtualBRL: number | null;          // P1 (R$/USD atual)
   dayChange: number | null;
   dayChangePct: number | null;
-  dayChangeBRL: number | null;
+  dayChangeBRL: number | null;     // variação real em R$ no dia (preço + câmbio)
+  dayChangeFxBRL: number | null;   // parte do dayChangeBRL vinda do câmbio do dia
   fatorBRL: number;
   fatorCusto: number;
 }
@@ -77,6 +78,7 @@ export interface PortfolioSnapshot {
   ganhoCruzadoTotalBRL: number;
   dayChangeTotalBRL: number;
   dayChangeTotalPct: number;
+  dayChangeFxTotalBRL: number;     // parcela do resultado do dia vinda do câmbio
   usdbrl: number;
   eurbrl: number;
   cadbrl: number;
@@ -224,11 +226,14 @@ function lookupFx(fxMap: Map<string, number>, date: string): number | undefined 
   return best;
 }
 
+export type FxDayChange = Record<string, { changePct: number }>;
+
 export function enriquecerPosicoes(
   portfolio: Map<string, PosicaoInterna>,
   quotes: Record<string, Quote>,
   fxAtual: FxRates,
-  fxCusto: FxRates
+  fxCusto: FxRates,
+  fxDayChange: FxDayChange = {}
 ): Position[] {
   const positions: Position[] = [];
 
@@ -252,6 +257,7 @@ export function enriquecerPosicoes(
     let dayChange: number | null = null;
     let dayChangePct: number | null = null;
     let dayChangeBRL: number | null = null;
+    let dayChangeFxBRL: number | null = null;
 
     if (precoAtual !== null) {
       valorAtual = qtdTotal * precoAtual;
@@ -261,7 +267,20 @@ export function enriquecerPosicoes(
       if (quote) {
         dayChange = quote.change * qtdTotal;
         dayChangePct = quote.changePercent;
-        dayChangeBRL = dayChange * fatorQuote;
+        // Efeito-preço: variação do papel em moeda nativa, ao câmbio de HOJE.
+        const priceEffectBRL = dayChange * fatorQuote;
+        // Efeito-câmbio: reavaliação do principal estrangeiro pela variação da moeda
+        // no dia. Reconstrói o valor de ontem (BRL) descontando preço e câmbio do dia.
+        // Identidade: priceEffect + fxEffect = (valorHoje − valorOntem) em R$.
+        const convCcy = quoteCurrency ?? moeda;
+        const fxFrac = convCcy !== "BRL" && typeof fxDayChange[convCcy]?.changePct === "number"
+          ? fxDayChange[convCcy]!.changePct / 100
+          : 0;
+        const assetFrac = quote.changePercent / 100;
+        const denom = (1 + assetFrac) * (1 + fxFrac);
+        const valorOntemBRL = denom !== 0 ? valorAtualBRL / denom : valorAtualBRL;
+        dayChangeFxBRL = valorOntemBRL * fxFrac;
+        dayChangeBRL = priceEffectBRL + dayChangeFxBRL;
       }
     } else {
       valorAtualBRL = custoTotal * fatorAtual;
@@ -363,6 +382,7 @@ export function enriquecerPosicoes(
       dayChange,
       dayChangePct,
       dayChangeBRL,
+      dayChangeFxBRL,
       fatorBRL: fatorAtual,
       fatorCusto,
     });
@@ -449,9 +469,10 @@ export function calcularSnapshot(
   fxAtual: FxRates,
   fxCusto: FxRates,
   fxByDate?: Map<string, number>,
+  fxDayChange: FxDayChange = {},
 ): PortfolioSnapshot {
   const portfolio = calcularCarteiraFIFO(transacoes, fxByDate);
-  const positions = enriquecerPosicoes(portfolio, quotes, fxAtual, fxCusto);
+  const positions = enriquecerPosicoes(portfolio, quotes, fxAtual, fxCusto, fxDayChange);
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
@@ -520,6 +541,7 @@ export function calcularSnapshot(
 
   const dayChangeTotalBRL = rvPositions.reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
   const dayChangeTotalPct = rvPatrimonioBRL > 0 ? (dayChangeTotalBRL / rvPatrimonioBRL) * 100 : 0;
+  const dayChangeFxTotalBRL = rvPositions.reduce((s, p) => s + (p.dayChangeFxBRL ?? 0), 0);
 
   const exposicaoCambial: Record<string, number> = {};
   for (const p of positions) {
@@ -566,6 +588,7 @@ export function calcularSnapshot(
     ganhoCruzadoTotalBRL,
     dayChangeTotalBRL,
     dayChangeTotalPct,
+    dayChangeFxTotalBRL,
     usdbrl: fxAtual.USDBRL,
     eurbrl: fxAtual.EURBRL,
     cadbrl: fxAtual.CADBRL,

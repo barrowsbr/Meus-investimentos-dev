@@ -73,7 +73,8 @@ Não reimplemente.
 | **Proventos (líquidos)** | bruto − IR retido; em BRL ao câmbio atual | `snapshot.totalProventosBRL` · `proventosPorTicker` |
 | **IR retido s/ proventos** | imposto retido na fonte (total RV+RF) | `snapshot.totalImpostoProventosBRL` |
 | **Exposição cambial** | valor em moeda ≠ BRL (posições **+** RF/caixa de `fixa_aberta`, inclui caixa USD) ÷ **patrimônio total** | `snapshot.exposicaoCambial` (buckets por moeda) |
-| **Variação no dia** | Σ `dayChangeBRL` das posições | `snapshot.dayChangeTotalBRL` / `dayChangeTotalPct` |
+| **Variação no dia** | Σ `dayChangeBRL` das posições = **preço + câmbio**: variação de preço (moeda nativa, ao FX de hoje) **+** reavaliação do principal estrangeiro pela variação da moeda no dia (`valorHoje − valorOntem`). Precisa de `fxDayChange` (var. % do dia por moeda) injetado no snapshot | `snapshot.dayChangeTotalBRL` / `dayChangeTotalPct` |
+| **Câmbio no resultado do dia** | parcela da variação do dia vinda da moeda (`valorOntem × Δ%moeda_dia`) — decompõe o total, não soma por fora | `position.dayChangeFxBRL` · `snapshot.dayChangeFxTotalBRL` |
 | **TWR (%)** | Modified Dietz SoD: `Π(1 + ret_d) - 1`, chain-link diário; dia 0 = âncora | `calcularTWR().twrTotal` (`lib/twr-engine.ts`) |
 | **TWR anualizado** | `(1 + TWR)^(365/dias corridos) - 1` | `calcularTWR().twrAnualizado` |
 | **MWR/XIRR** | Newton-Raphson sobre fluxos líquidos do investidor (`flow − income`, proventos = inflow do investidor) + NAV final | `calcularTWR().mwr` |
@@ -89,6 +90,7 @@ Não reimplemente.
 - `totalPatrimonioBRL = rvPatrimonioBRL + rfPatrimonioBRL`
 - Por posição: `ganhoAtivoPuro + ganhoFXPrincipal + ganhoCruzado = lucroBRL`
 - Por posição: `retornoTotalBRL = não realizado + realizado + proventos`
+- Por posição: `dayChangeBRL = efeito-preço + dayChangeFxBRL` (= `valorHoje − valorOntem` em R$)
 - `Σ exposicaoCambial[moeda] = totalPatrimonioBRL`
 - Soma das posições RV = totais RV do snapshot
 - `Σ contribuicoes[setor].contrib = twrTotal` (decomposição exata)

@@ -276,3 +276,35 @@ describe("taxas de venda no FIFO", () => {
     expect(pos.lucroRealizado).toBeCloseTo(92, 6);
   });
 });
+
+// ── Resultado do dia canônico = preço + câmbio (reavaliação do principal) ─────
+// Bug histórico: dayChangeBRL só media o efeito-preço (ΔP·qtd·fxHoje), ignorando
+// a reavaliação cambial do principal estrangeiro. Agora inclui ambos, e
+// dayChangeFxBRL isola a parcela do câmbio. Identidade:
+//   dayChangeBRL = valorHojeBRL − valorOntemBRL = priceEffect + dayChangeFxBRL
+describe("resultado do dia — preço + câmbio (dayChangeBRL canônico)", () => {
+  // AAPL: 10 cotas, preço hoje 110 (ontem 100 → +10%), USD/BRL hoje 5,50 (ontem ~5,4356 → +1,3%)
+  const q: Quote = { price: 110, change: 10, changePercent: 10, currency: "USD", name: "" };
+  const carteira = calcularCarteiraFIFO([compra("AAPL", 10, 100, "USD", "2023-01-02")]);
+  const positions = enriquecerPosicoes(carteira, { AAPL: q }, fx(5.5), fx(5.5), { USD: { changePct: 1.3 } });
+  const p = positions.find(x => x.ticker === "AAPL")!;
+
+  it("dayChangeBRL inclui efeito-câmbio e bate com (valorHoje − valorOntem)", () => {
+    const valorHojeBRL = 10 * 110 * 5.5;                       // 6050
+    const valorOntemBRL = valorHojeBRL / (1.10 * 1.013);        // desconta preço e câmbio do dia
+    expect(p.dayChangeBRL!).toBeCloseTo(valorHojeBRL - valorOntemBRL, 4);
+  });
+
+  it("dayChangeFxBRL isola a parcela do câmbio (> 0 quando o dólar sobe)", () => {
+    expect(p.dayChangeFxBRL!).toBeGreaterThan(0);
+    const priceEffect = q.change * 10 * 5.5;                    // ΔP·qtd·fxHoje
+    expect(p.dayChangeBRL!).toBeCloseTo(priceEffect + p.dayChangeFxBRL!, 6);
+  });
+
+  it("sem variação cambial (fxDayChange vazio) → dayChangeFxBRL = 0 e dayChangeBRL = efeito-preço", () => {
+    const positions2 = enriquecerPosicoes(carteira, { AAPL: q }, fx(5.5), fx(5.5));
+    const p2 = positions2.find(x => x.ticker === "AAPL")!;
+    expect(p2.dayChangeFxBRL!).toBeCloseTo(0, 6);
+    expect(p2.dayChangeBRL!).toBeCloseTo(q.change * 10 * 5.5, 6);
+  });
+});
