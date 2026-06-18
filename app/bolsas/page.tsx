@@ -14,7 +14,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
-  Landmark, Globe2, DollarSign, Bitcoin, Coins, Gauge,
+  Landmark, Globe2, DollarSign, Bitcoin, Gauge,
   ZoomIn, ZoomOut, Maximize2, Globe,
 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -188,19 +188,12 @@ export default function BolsasPage() {
   const [mapZoom, setMapZoom] = useState(1);
   const didAutoSelect = useRef(false);
 
-  interface MacroData {
-    yields: { label: string; maturity: number; yield: number; change: number }[];
-    spread10Y2Y: number | null;
-    dxy: { price: number; change: number; changePct: number } | null;
-    gold: { price: number; change: number; changePct: number } | null;
-  }
   interface CryptoAsset {
     id: string; symbol: string; name: string; image: string;
     price: number; marketCap: number; rank: number;
     change1h: number | null; change24h: number | null; change7d: number | null;
     volume24h: number; sparkline: number[]; ath: number; athChangePct: number;
   }
-  const [macro, setMacro] = useState<MacroData | null>(null);
   const [cryptoAssets, setCryptoAssets] = useState<CryptoAsset[]>([]);
   const [btcDominance, setBtcDominance] = useState<number>(0);
 
@@ -213,10 +206,6 @@ export default function BolsasPage() {
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyData | null>(null);
 
   useEffect(() => {
-    fetch("/api/bolsas/yields")
-      .then(r => r.json())
-      .then(d => { if (!d.error) setMacro(d); })
-      .catch(() => {});
     fetch("/api/bolsas/crypto")
       .then(r => r.json())
       .then(d => { if (d.assets?.length) { setCryptoAssets(d.assets); setBtcDominance(d.btcDominance ?? 0); } })
@@ -388,7 +377,6 @@ export default function BolsasPage() {
   if (!data) return null;
 
   const sp = data.indices.find(i => i.symbol === "^GSPC");
-  const ibov = data.indices.find(i => i.symbol === "^BVSP");
   const vix = data.indices.find(i => i.symbol === "^VIX");
 
   return (
@@ -434,108 +422,6 @@ export default function BolsasPage() {
 
         {/* ═══ BOLSAS TAB ═══ */}
         {activeTab === "bolsas" && (<>
-        {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {sp && (
-            <SummaryCard
-              label="S&P 500"
-              value={fmtPrice(sp.price)}
-              sub={`${sp.changePct >= 0 ? "+" : ""}${sp.changePct.toFixed(2)}%`}
-              subColor={sp.changePct >= 0 ? "text-emerald-400" : "text-red-400"}
-              icon={<TrendingUp size={16} className="text-blue-400" />}
-            />
-          )}
-          {ibov && (
-            <SummaryCard
-              label="Ibovespa"
-              value={fmtPrice(ibov.price)}
-              sub={`${ibov.changePct >= 0 ? "+" : ""}${ibov.changePct.toFixed(2)}%`}
-              subColor={ibov.changePct >= 0 ? "text-emerald-400" : "text-red-400"}
-              icon={<TrendingUp size={16} className="text-emerald-400" />}
-            />
-          )}
-          <SummaryCard
-            label="Melhor do dia"
-            value={`${data.best.flag} ${data.best.name}`}
-            sub={`+${data.best.changePct.toFixed(2)}%`}
-            subColor="text-emerald-400"
-            icon={<TrendingUp size={16} className="text-emerald-400" />}
-          />
-          <SummaryCard
-            label="Pior do dia"
-            value={`${data.worst.flag} ${data.worst.name}`}
-            sub={`${data.worst.changePct.toFixed(2)}%`}
-            subColor="text-red-400"
-            icon={<TrendingDown size={16} className="text-red-400" />}
-          />
-        </div>
-
-        {/* ── Global Macro Strip ── */}
-        {(macro || cryptoAssets.length > 0) && (
-          <div
-            className="rounded-2xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
-            style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <span className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest mr-1">Macro</span>
-            {macro?.dxy && (
-              <div className="flex items-center gap-1.5">
-                <DollarSign size={11} className="text-green-400" />
-                <span className="text-[10px] text-zinc-400 font-semibold">DXY</span>
-                <span className="text-[11px] text-zinc-200 font-bold font-mono">{macro.dxy.price.toFixed(2)}</span>
-                <span className={`text-[10px] font-semibold ${macro.dxy.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {macro.dxy.changePct >= 0 ? "+" : ""}{macro.dxy.changePct.toFixed(2)}%
-                </span>
-              </div>
-            )}
-            {macro?.gold && (
-              <div className="flex items-center gap-1.5">
-                <Coins size={11} className="text-yellow-400" />
-                <span className="text-[10px] text-zinc-400 font-semibold">Ouro</span>
-                <span className="text-[11px] text-zinc-200 font-bold font-mono">${macro.gold.price.toFixed(0)}</span>
-                <span className={`text-[10px] font-semibold ${macro.gold.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {macro.gold.changePct >= 0 ? "+" : ""}{macro.gold.changePct.toFixed(2)}%
-                </span>
-              </div>
-            )}
-            {macro?.yields?.map(y => (
-              <div key={y.label} className="flex items-center gap-1.5">
-                <span className="text-[10px] text-zinc-500 font-semibold">UST {y.label}</span>
-                <span className="text-[11px] text-zinc-200 font-bold font-mono">{y.yield.toFixed(2)}%</span>
-                <span className={`text-[10px] font-semibold ${y.change >= 0 ? "text-red-400" : "text-emerald-400"}`}>
-                  {y.change >= 0 ? "+" : ""}{y.change.toFixed(2)}
-                </span>
-              </div>
-            ))}
-            {macro?.spread10Y2Y != null && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-zinc-500 font-semibold">Spread 10Y-2Y</span>
-                <span className={`text-[11px] font-bold font-mono ${macro.spread10Y2Y >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {macro.spread10Y2Y >= 0 ? "+" : ""}{macro.spread10Y2Y.toFixed(3)}
-                </span>
-                {macro.spread10Y2Y < 0 && <span className="text-[9px] text-red-400/70">invertida</span>}
-              </div>
-            )}
-            {cryptoAssets.length > 0 && (
-              <>
-                <span className="text-zinc-800">|</span>
-                {cryptoAssets.slice(0, 3).map(c => (
-                  <div key={c.id} className="flex items-center gap-1.5">
-                    {c.id === "bitcoin" ? <Bitcoin size={11} className="text-orange-400" /> :
-                     <img src={c.image} alt={c.symbol} className="w-3 h-3 rounded-full" />}
-                    <span className="text-[10px] text-zinc-400 font-semibold uppercase">{c.symbol}</span>
-                    <span className="text-[11px] text-zinc-200 font-bold font-mono">
-                      ${c.price >= 1000 ? c.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : c.price.toFixed(2)}
-                    </span>
-                    <span className={`text-[10px] font-semibold ${(c.change24h ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {(c.change24h ?? 0) >= 0 ? "+" : ""}{(c.change24h ?? 0).toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-
         {/* ── Heatmap World Map ── */}
         <div
           className="rounded-2xl p-3 md:p-5 overflow-hidden"
