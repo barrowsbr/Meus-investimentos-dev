@@ -1,7 +1,7 @@
-import { google } from "googleapis";
-import { getServiceAccountAuth, fetchTab, listSheetNames, resetSheetNamesCache } from "./gsheets";
+import { promises as fs } from "fs";
+import path from "path";
+import { fetchTab } from "./gsheets";
 
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
 const MAX_BACKUPS_PER_TAB = 3;
 
 function ts() {
@@ -10,73 +10,45 @@ function ts() {
   return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}_${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
 }
 
-export async function backupTab(tabName: string): Promise<{ backupName: string; rows: number }> {
-  const auth = getServiceAccountAuth();
-  if (!auth) throw new Error("Backup requer GOOGLE_SERVICE_ACCOUNT_JSON");
-
-  const sheets = google.sheets({ version: "v4", auth });
-
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: tabName,
-    valueRenderOption: "UNFORMATTED_VALUE",
-  });
-  const data = res.data.values;
-  if (!data || data.length === 0) return { backupName: "", rows: 0 };
-
-  const backupName = `bkp_${tabName}_${ts()}`;
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    requestBody: { requests: [{ addSheet: { properties: { title: backupName } } }] },
-  });
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${backupName}!A1`,
-    valueInputOption: "RAW",
-    requestBody: { values: data },
-  });
-
-  resetSheetNamesCache();
-  await pruneOldBackups(tabName, sheets);
-
-  return { backupName, rows: data.length - 1 };
+async function getBackupDir(): Promise<string> {
+  const projectDir = path.join(process.cwd(), "backups");
+  try {
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.access(projectDir, (await import("fs")).constants.W_OK);
+    return projectDir;
+  } catch {
+    const tmp = "/tmp/backups";
+    await fs.mkdir(tmp, { recursive: true });
+    return tmp;
+  }
 }
 
-async function pruneOldBackups(
-  tabName: string,
-  sheets: ReturnType<typeof google.sheets>,
-) {
-  const names = await listSheetNames();
+export async function backupTab(tabName: string): Promise<{ backupName: string; rows: number }> {
+  const rows = await fetchTab(tabName);
+  if (!rows || rows.length === 0) return { backupName: "", rows: 0 };
+
+  const csv = tabToCsv(rows);
+  const backupName = `bkp_${tabName}_${ts()}`;
+  const dir = await getBackupDir();
+  const filePath = path.join(dir, `${backupName}.csv`);
+
+  await fs.writeFile(filePath, csv, "utf-8");
+  await pruneOldBackups(tabName, dir);
+
+  return { backupName, rows: rows.length };
+}
+
+async function pruneOldBackups(tabName: string, dir: string) {
   const prefix = `bkp_${tabName}_`;
-  const backups = names
-    .filter(n => n.startsWith(prefix))
+  const files = (await fs.readdir(dir))
+    .filter(f => f.startsWith(prefix) && f.endsWith(".csv"))
     .sort()
     .reverse();
 
-  if (backups.length <= MAX_BACKUPS_PER_TAB) return;
+  if (files.length <= MAX_BACKUPS_PER_TAB) return;
 
-  const toDelete = backups.slice(MAX_BACKUPS_PER_TAB);
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId: SPREADSHEET_ID,
-    fields: "sheets.properties(sheetId,title)",
-  });
-  const sheetMap = new Map(
-    meta.data.sheets?.map(s => [s.properties?.title ?? "", s.properties?.sheetId ?? 0]) ?? [],
-  );
-
-  const requests = toDelete
-    .filter(name => sheetMap.has(name))
-    .map(name => ({ deleteSheet: { sheetId: sheetMap.get(name)! } }));
-
-  if (requests.length > 0) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: { requests },
-    });
-    resetSheetNamesCache();
-  }
+  const toDelete = files.slice(MAX_BACKUPS_PER_TAB);
+  await Promise.all(toDelete.map(f => fs.unlink(path.join(dir, f)).catch(() => {})));
 }
 
 export function tabToCsv(rows: Record<string, unknown>[]): string {
