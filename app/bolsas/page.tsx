@@ -14,14 +14,19 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Search,
   ArrowUpDown, Filter, ExternalLink,
   Activity, BarChart3, Maximize, Flame, ChevronDown, Crown,
-  Landmark, Globe2, DollarSign, Bitcoin, Gauge,
+  Landmark, Globe2, DollarSign, Gauge, Newspaper,
   ZoomIn, ZoomOut, Maximize2, Globe,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import ErrorAlert from "@/components/ErrorAlert";
 
-type RadarTab = "bolsas" | "moedas" | "crypto";
+const InteligenciaContent = dynamic(() => import("@/components/InteligenciaContent"), {
+  loading: () => <LoadingSpinner />,
+});
+
+type RadarTab = "bolsas" | "moedas" | "inteligencia";
 
 // Globe removed — replaced by choropleth world map inline
 
@@ -188,15 +193,6 @@ export default function BolsasPage() {
   const [mapZoom, setMapZoom] = useState(1);
   const didAutoSelect = useRef(false);
 
-  interface CryptoAsset {
-    id: string; symbol: string; name: string; image: string;
-    price: number; marketCap: number; rank: number;
-    change1h: number | null; change24h: number | null; change7d: number | null;
-    volume24h: number; sparkline: number[]; ath: number; athChangePct: number;
-  }
-  const [cryptoAssets, setCryptoAssets] = useState<CryptoAsset[]>([]);
-  const [btcDominance, setBtcDominance] = useState<number>(0);
-
   // Moedas state
   const [moedasData, setMoedasData] = useState<MoedasResponse | null>(null);
   const [moedasSearch, setMoedasSearch] = useState("");
@@ -206,10 +202,6 @@ export default function BolsasPage() {
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyData | null>(null);
 
   useEffect(() => {
-    fetch("/api/bolsas/crypto")
-      .then(r => r.json())
-      .then(d => { if (d.assets?.length) { setCryptoAssets(d.assets); setBtcDominance(d.btcDominance ?? 0); } })
-      .catch(() => {});
     fetch("/api/moedas")
       .then(r => r.json())
       .then(d => { if (!d.error) setMoedasData(d); })
@@ -389,7 +381,7 @@ export default function BolsasPage() {
           </Link>
           <Activity className="text-blue-400" size={22} />
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-zinc-50 via-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-            Radar
+            Scanner
           </h1>
         </div>
         <p className="text-xs text-zinc-500 ml-[66px]">
@@ -401,7 +393,7 @@ export default function BolsasPage() {
           {([
             { key: "bolsas" as RadarTab, label: "Bolsas", icon: <BarChart3 size={13} /> },
             { key: "moedas" as RadarTab, label: "Moedas", icon: <Globe size={13} /> },
-            { key: "crypto" as RadarTab, label: "Crypto", icon: <Bitcoin size={13} /> },
+            { key: "inteligencia" as RadarTab, label: "Inteligência", icon: <Newspaper size={13} /> },
           ]).map(t => {
             const on = activeTab === t.key;
             return (
@@ -699,90 +691,12 @@ export default function BolsasPage() {
           </div>
         )}
 
-        {/* ═══ CRYPTO TAB ═══ */}
-        {activeTab === "crypto" && (
-        <>
-        {/* ── Crypto Market ── */}
-        {cryptoAssets.length > 0 && (
-          <div
-            className="rounded-2xl p-4 md:p-6"
-            style={{ background: "rgba(13,14,20,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                <Bitcoin size={16} className="text-orange-400" />
-                Criptomoedas
-              </h2>
-              <div className="flex items-center gap-3 text-[10px] text-zinc-500">
-                <span>BTC Dominância: <span className="text-orange-400 font-semibold">{(btcDominance * 100).toFixed(1)}%</span></span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {cryptoAssets.map(c => {
-                const up = (c.change24h ?? 0) >= 0;
-                return (
-                  <div
-                    key={c.id}
-                    className="rounded-xl p-3 transition-all hover:scale-[1.02]"
-                    style={{
-                      background: up ? "rgba(16,185,129,0.04)" : "rgba(239,68,68,0.04)",
-                      border: `1px solid ${up ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)"}`,
-                    }}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <img src={c.image} alt={c.symbol} className="w-5 h-5 rounded-full" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold text-zinc-200 truncate">{c.name}</p>
-                        <p className="text-[9px] text-zinc-500 uppercase">{c.symbol} · #{c.rank}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm font-bold text-zinc-100 font-mono">
-                        ${c.price >= 1000 ? c.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : c.price < 1 ? c.price.toFixed(4) : c.price.toFixed(2)}
-                      </span>
-                      <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
-                        {up ? "+" : ""}{(c.change24h ?? 0).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[8px] text-zinc-600">7d</span>
-                      <span className={`text-[9px] font-semibold ${(c.change7d ?? 0) >= 0 ? "text-emerald-400/70" : "text-red-400/70"}`}>
-                        {(c.change7d ?? 0) >= 0 ? "+" : ""}{(c.change7d ?? 0).toFixed(1)}%
-                      </span>
-                      <span className="text-[8px] text-zinc-600">MCap</span>
-                      <span className="text-[9px] text-zinc-400 font-mono">
-                        ${c.marketCap >= 1e12 ? `${(c.marketCap / 1e12).toFixed(2)}T` : c.marketCap >= 1e9 ? `${(c.marketCap / 1e9).toFixed(0)}B` : `${(c.marketCap / 1e6).toFixed(0)}M`}
-                      </span>
-                    </div>
-                    {/* Mini sparkline */}
-                    {c.sparkline.length > 10 && (
-                      <svg viewBox={`0 0 ${c.sparkline.length} 20`} className="w-full h-4 mt-1.5" preserveAspectRatio="none">
-                        <polyline
-                          points={c.sparkline.map((v, i) => {
-                            const min = Math.min(...c.sparkline);
-                            const max = Math.max(...c.sparkline);
-                            const y = max > min ? 20 - ((v - min) / (max - min)) * 20 : 10;
-                            return `${i},${y}`;
-                          }).join(" ")}
-                          fill="none"
-                          stroke={up ? "#34d399" : "#f87171"}
-                          strokeWidth="1.5"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        </>)}
+        {/* ═══ INTELIGÊNCIA TAB ═══ */}
+        {activeTab === "inteligencia" && <InteligenciaContent />}
 
         {/* ── Footer ── */}
         <p className="text-center text-[10px] text-zinc-700 pt-4">
-          {`Cotações via Yahoo Finance · Crypto via CoinGecko · Câmbio via ExchangeRate API · Indicadores via World Bank · Yields via Yahoo Finance`}
+          {`Cotações via Yahoo Finance · Câmbio via ExchangeRate API · Indicadores via World Bank · Yields via Yahoo Finance`}
         </p>
       </div>
     </div>
@@ -1812,39 +1726,63 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         </form>
       </div>
 
-      {/* Main price + key metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
-        {/* Col 1: Price hero */}
-        <div className="lg:col-span-4 flex flex-col justify-center gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold"
-                style={{ background: `${tone.color}18`, color: tone.color, border: `1px solid ${tone.color}30` }}
-              >
-                {index.symbol.replace("^", "")}
-              </span>
-              {index.currency && <span className="text-[9px] text-zinc-500">{index.currency}</span>}
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-extrabold text-white tracking-tight">{fmtPrice(index.price)}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`text-base font-bold flex items-center gap-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
-                {isUp ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
-                {isUp ? "+" : ""}{index.changePct.toFixed(2)}%
-              </span>
-              <span className={`text-xs ${isUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
-                ({isUp ? "+" : ""}{fmtPrice(Math.abs(index.change))})
-              </span>
-            </div>
-            {profileDesc && (
-              <p className="text-[11px] text-zinc-400 leading-relaxed mt-2 line-clamp-3">
-                {profileDesc}
-              </p>
-            )}
-          </div>
+      {/* Price hero (compact) — name + quote, directly above the chart */}
+      <div className="mb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold"
+            style={{ background: `${tone.color}18`, color: tone.color, border: `1px solid ${tone.color}30` }}
+          >
+            {index.symbol.replace("^", "")}
+          </span>
+          {index.currency && <span className="text-[9px] text-zinc-500">{index.currency}</span>}
+        </div>
+        <div className="flex items-baseline gap-3">
+          <span className="text-4xl font-extrabold text-white tracking-tight">{fmtPrice(index.price)}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`text-base font-bold flex items-center gap-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+            {isUp ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+            {isUp ? "+" : ""}{index.changePct.toFixed(2)}%
+          </span>
+          <span className={`text-xs ${isUp ? "text-emerald-400/60" : "text-red-400/60"}`}>
+            ({isUp ? "+" : ""}{fmtPrice(Math.abs(index.change))})
+          </span>
+        </div>
+      </div>
 
+      {/* Candlestick Chart — logo abaixo do nome e cotação */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
+          <span className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+            <BarChart3 size={11} />
+            {index.flag} {index.name}
+          </span>
+          <button
+            onClick={onToggleExpand}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+          >
+            <Maximize size={10} />
+            {expanded ? "Recolher" : "Expandir"}
+          </button>
+        </div>
+        <CandlestickChart
+          symbol={index.symbol}
+          height={expanded ? 600 : 400}
+        />
+      </div>
+
+      {/* ── Infos abaixo do gráfico ── */}
+      {profileDesc && (
+        <p className="text-[11px] text-zinc-400 leading-relaxed mt-5">
+          {profileDesc}
+        </p>
+      )}
+
+      {/* Key metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
+        {/* Col 1: Day / 52w stats + VIX */}
+        <div className="lg:col-span-4 flex flex-col gap-3">
           {/* Day + 52w stats */}
           {ohlcStats && (
             <div className="space-y-2">
@@ -2046,27 +1984,6 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
           </div>
         </div>
       )}
-
-      {/* Candlestick Chart */}
-      <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
-          <span className="text-[10px] text-zinc-500 flex items-center gap-1.5">
-            <BarChart3 size={11} />
-            {index.flag} {index.name}
-          </span>
-          <button
-            onClick={onToggleExpand}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-          >
-            <Maximize size={10} />
-            {expanded ? "Recolher" : "Expandir"}
-          </button>
-        </div>
-        <CandlestickChart
-          symbol={index.symbol}
-          height={expanded ? 600 : 400}
-        />
-      </div>
 
       {/* Country Economic Indicators */}
       {!isCustom && countryIndicators.length > 0 && (
