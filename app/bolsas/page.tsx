@@ -497,12 +497,17 @@ export default function BolsasPage() {
                           stroke="#334155"
                           strokeWidth={0.5}
                           style={{
-                            default: { outline: "none" },
-                            hover: { outline: "none", fill: entry ? fill : "#334155", stroke: "#94a3b8", strokeWidth: 0.8 },
+                            default: { outline: "none", cursor: entry ? "pointer" : "default" },
+                            hover: { outline: "none", fill: entry ? fill : "#334155", stroke: "#94a3b8", strokeWidth: 0.8, cursor: entry ? "pointer" : "default" },
                             pressed: { outline: "none" },
                           }}
                           onMouseEnter={() => { if (entry) setHoveredIndex(entry.name); }}
                           onMouseLeave={() => setHoveredIndex(null)}
+                          onClick={() => {
+                            if (!entry) return;
+                            const match = data.indices.find(idx => idx.country === entry.country && idx.symbol !== "^VIX");
+                            if (match) { handleSelect(match); }
+                          }}
                         />
                       );
                     })
@@ -1597,20 +1602,6 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
       .catch(() => {});
   }, [index.symbol]);
 
-  interface YieldPt { label: string; maturity: number; yield: number; change: number }
-  const [yields, setYields] = useState<YieldPt[]>([]);
-  const [yieldSpread, setYieldSpread] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (index.country !== "EUA") { setYields([]); return; }
-    fetch("/api/bolsas/yields")
-      .then(r => r.json())
-      .then(d => {
-        if (d.yields) setYields(d.yields);
-        if (d.spread10Y2Y != null) setYieldSpread(d.spread10Y2Y);
-      })
-      .catch(() => {});
-  }, [index.country]);
 
   interface CountryIndicator { id: string; label: string; format: string; value: number; year: number }
   const [countryTeUrl, setCountryTeUrl] = useState<string | null>(null);
@@ -1936,54 +1927,6 @@ function IndexThermometer({ index, vix, periods, breadth, historyLoading, isDefa
         </div>
       </div>
 
-      {/* US Treasury Yield Curve */}
-      {yields.length >= 3 && (
-        <div className="rounded-xl overflow-hidden" style={{ background: "rgba(5,7,14,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
-            <span className="text-[10px] text-zinc-500 flex items-center gap-1.5 uppercase font-semibold tracking-wider">
-              <Activity size={11} />
-              Curva de Juros — US Treasury
-            </span>
-            {yieldSpread != null && (
-              <span className={`text-[10px] font-semibold ${yieldSpread >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                Spread 10Y-2Y: {yieldSpread >= 0 ? "+" : ""}{yieldSpread.toFixed(3)}
-                {yieldSpread < 0 && <span className="text-red-400/60 ml-1">(invertida)</span>}
-              </span>
-            )}
-          </div>
-          <div className="px-4 py-4">
-            <div className="flex items-end gap-1 h-28">
-              {yields.map((y, i) => {
-                const maxY = Math.max(...yields.map(yy => yy.yield), 0.1);
-                const h = (y.yield / maxY) * 100;
-                const up = y.change >= 0;
-                return (
-                  <div key={y.label} className="flex-1 flex flex-col items-center gap-1">
-                    <span className={`text-[9px] font-bold font-mono ${up ? "text-red-400" : "text-emerald-400"}`}>
-                      {y.yield.toFixed(2)}%
-                    </span>
-                    <div
-                      className="w-full rounded-t-md transition-all"
-                      style={{
-                        height: `${Math.max(h, 8)}%`,
-                        background: i === 0 ? "rgba(59,130,246,0.5)" :
-                          i === yields.length - 1 ? "rgba(168,85,247,0.5)" :
-                          "rgba(99,102,241,0.5)",
-                        border: `1px solid ${i === 0 ? "rgba(59,130,246,0.3)" : i === yields.length - 1 ? "rgba(168,85,247,0.3)" : "rgba(99,102,241,0.3)"}`,
-                      }}
-                    />
-                    <span className="text-[9px] text-zinc-500 font-semibold">{y.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-between mt-2 px-1">
-              <span className="text-[8px] text-zinc-600">Curto prazo</span>
-              <span className="text-[8px] text-zinc-600">Longo prazo</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Country Economic Indicators */}
       {!isCustom && countryIndicators.length > 0 && (
