@@ -17,6 +17,7 @@ export async function GET(
     "composicao",
     "p_tax",
     "lb_historic",
+    "historico_patrimonio",
     "financas",
     "financas_pessoal",
   ];

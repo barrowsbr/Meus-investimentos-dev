@@ -43,6 +43,11 @@ const TAB_SCALE: Record<string, string[]> = {
   "financas assinaturas": ["valor"],
   "financas parcelamentos": ["valor total"],
   "lb historic": ["patrimonio", "total", "patrimonio total", "rv", "renda variavel", "rf", "renda fixa"],
+  "historico patrimonio": [
+    "patrimonio", "patrimonio total", "total", "valor", "saldo", "liquido", "patrimonio liquido",
+    "rv", "renda variavel", "rf", "renda fixa", "exterior", "internacional", "cripto", "criptoativos",
+    "caixa", "banco", "bancos", "previdencia", "imoveis",
+  ],
 };
 
 export function isDemoRequest(): boolean {

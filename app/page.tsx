@@ -472,7 +472,7 @@ export default function HomePage() {
             style={{ border: "1px solid var(--line)", background: "var(--panel)" }}
           >
             {/* Patrimônio */}
-            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
+            <Link href="/patrimonio" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Patrimônio</span>
               {loading || totalBRL === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
@@ -486,7 +486,7 @@ export default function HomePage() {
                   )}
                 </>
               )}
-            </div>
+            </Link>
 
             {/* Retorno Dia */}
             <Link href="/hoje" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderBottom: "1px solid var(--line)" }}>
