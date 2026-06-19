@@ -6,13 +6,14 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, TrendingUp, TrendingDown } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
 import type { RadarLayer, BolsasResponse } from "@/lib/radar/types";
 
 const LAYERS: { key: RadarLayer; label: string; sub: string; icon: typeof BarChart3 }[] = [
   { key: "mercados", label: "Mercados", sub: "Variação do índice local", icon: BarChart3 },
   { key: "cambio", label: "Câmbio", sub: "Força da moeda vs USD", icon: ArrowLeftRight },
+  { key: "instabilidade", label: "Risco", sub: "Índice de instabilidade", icon: Shield },
 ];
 
 interface Props {

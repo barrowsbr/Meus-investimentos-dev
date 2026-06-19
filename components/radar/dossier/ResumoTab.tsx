@@ -1,12 +1,11 @@
 "use client";
 
-// Resumo = a síntese (Princípio III: leitura antes do dado bruto). Junta numa
-// frase o pulso local + câmbio, e destaca 2 indicadores macro estruturais.
-
-import { Activity } from "lucide-react";
-import type { IndexData, CurrencyData, CountryMacro } from "@/lib/radar/types";
+import { Activity, AlertTriangle, Briefcase } from "lucide-react";
+import type { IndexData, CurrencyData, CountryMacro, TimelineResponse, ExposureResponse } from "@/lib/radar/types";
+import type { ConvergenceResult } from "@/lib/radar/convergence";
 import { localFxMove } from "@/lib/radar/geo";
 import { formatMacro } from "./format-macro";
+import Timeline7d from "./Timeline7d";
 
 function StatChip({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -17,11 +16,28 @@ function StatChip({ label, value, color }: { label: string; value: string; color
   );
 }
 
-export default function ResumoTab({ indices, currency, macro }: {
+function formatBRL(v: number): string {
+  if (v >= 1e6) return `R$ ${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `R$ ${(v / 1e3).toFixed(1)}K`;
+  return `R$ ${v.toFixed(0)}`;
+}
+
+interface Props {
   indices: IndexData[];
   currency: CurrencyData | null;
   macro: CountryMacro | null;
-}) {
+  countryName?: string;
+  timeline?: TimelineResponse | null;
+  timelineLoading?: boolean;
+  convergence?: ConvergenceResult | null;
+  exposure?: ExposureResponse | null;
+}
+
+export default function ResumoTab({
+  indices, currency, macro, countryName,
+  timeline, timelineLoading,
+  convergence, exposure,
+}: Props) {
   const tradable = indices.filter((i) => i.symbol !== "^VIX");
   const avg = tradable.length ? tradable.reduce((s, i) => s + i.changePct, 0) / tradable.length : null;
   const lead = tradable.length ? tradable.reduce((a, b) => (Math.abs(b.changePct) > Math.abs(a.changePct) ? b : a)) : null;
@@ -29,7 +45,6 @@ export default function ResumoTab({ indices, currency, macro }: {
   const gdpGrowth = macro?.indicators.find((i) => i.id === "NY.GDP.MKTP.KD.ZG");
   const inflation = macro?.indicators.find((i) => i.id === "FP.CPI.TOTL.ZG");
 
-  // Frase de leitura — determinística, a partir dos dados já carregados.
   const parts: string[] = [];
   if (avg !== null) {
     const tone = avg > 0.3 ? "sessão positiva" : avg < -0.3 ? "sessão negativa" : "sessão estável";
@@ -42,8 +57,45 @@ export default function ResumoTab({ indices, currency, macro }: {
   }
   const leitura = parts.length ? `${parts.join("; ")}.` : "Sem mercados monitorados; veja o pano de fundo macro.";
 
+  const exposureEntry = countryName && exposure
+    ? exposure.exposure.find(e => e.countryPT === countryName)
+    : null;
+
   return (
     <div className="space-y-4 p-4">
+      {/* Alerta: convergência + exposição */}
+      {convergence?.active && exposureEntry && (
+        <div className="rounded-xl p-3" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+          <div className="mb-1 flex items-center gap-1.5">
+            <AlertTriangle size={13} className="text-red-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-red-300">
+              Alerta de Convergência
+            </span>
+          </div>
+          <p className="text-xs leading-relaxed text-zinc-200">
+            {convergence.count} sinais de risco convergem em {countryName} e você tem{" "}
+            <span className="font-semibold text-red-300">{formatBRL(exposureEntry.totalBRL)}</span>{" "}
+            ({exposureEntry.pct.toFixed(1)}% do portfólio) exposto neste país.
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {exposureEntry.tickers.slice(0, 6).map(t => (
+              <span key={t} className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-300">{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Exposição sem convergência */}
+      {!convergence?.active && exposureEntry && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.12)" }}>
+          <Briefcase size={13} className="shrink-0 text-emerald-400" />
+          <p className="text-xs text-zinc-300">
+            Você tem <span className="font-semibold text-emerald-300">{formatBRL(exposureEntry.totalBRL)}</span>{" "}
+            ({exposureEntry.pct.toFixed(1)}%) exposto aqui
+          </p>
+        </div>
+      )}
+
       {/* Leitura sintética */}
       <div className="rounded-xl p-3" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
         <div className="mb-1 flex items-center gap-1.5">
@@ -54,7 +106,7 @@ export default function ResumoTab({ indices, currency, macro }: {
       </div>
 
       {/* Chips de síntese */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {avg !== null && (
           <StatChip label="Mercado local (média)" value={`${avg >= 0 ? "+" : ""}${avg.toFixed(2)}%`} color={avg >= 0 ? "#4ade80" : "#f87171"} />
         )}
@@ -66,9 +118,8 @@ export default function ResumoTab({ indices, currency, macro }: {
         {inflation && <StatChip label="Inflação (CPI)" value={formatMacro(inflation.value, inflation.format)} />}
       </div>
 
-      <p className="text-[10px] text-zinc-600">
-        Convergência geo + macro + preço chega nas próximas fases. Por ora: mercados e macro, lado a lado.
-      </p>
+      {/* Timeline 7 dias */}
+      <Timeline7d timeline={timeline ?? null} timelineLoading={timelineLoading ?? false} />
     </div>
   );
 }

@@ -8,8 +8,8 @@ import type { IndexData } from "@/lib/world-map";
 
 export type { IndexData };
 
-// Camadas ativáveis do mapa (Fase 1: as duas "prontas p/ usar" do doc de visão).
-export type RadarLayer = "mercados" | "cambio";
+// Camadas ativáveis do mapa.
+export type RadarLayer = "mercados" | "cambio" | "instabilidade";
 
 export interface BolsasResponse {
   indices: IndexData[];
@@ -66,4 +66,99 @@ export interface SelectedCountry {
   iso: string;           // ISO numérico (id da geografia)
   flag: string;
   region: string;
+}
+
+// ── Fase 2: Inteligência ────────────────────────────────────────────────────
+
+export interface InstabilityDimension {
+  label: string;
+  score: number;
+  detail: string;
+}
+
+export interface InstabilityData {
+  country: string;
+  score: number;
+  level: "baixo" | "moderado" | "elevado" | "crítico";
+  dimensions: InstabilityDimension[];
+  cachedAt: string;
+  error?: string;
+}
+
+export interface BriefData {
+  country: string;
+  brief: string | null;
+  model?: string;
+  cachedAt?: string;
+  error?: string;
+}
+
+export interface CountryNewsItem {
+  titulo: string;
+  link: string;
+  data: string;
+  fonte: string;
+  impacto: "alto" | "medio" | "baixo";
+}
+
+export interface CountryNewsResponse {
+  country: string;
+  articles: CountryNewsItem[];
+  count: number;
+  error?: string;
+}
+
+export interface SignalOdds {
+  outcome: string;
+  percent: number;
+}
+
+export interface Signal {
+  title: string;
+  url: string;
+  odds: SignalOdds[];
+  volume: number;
+  daysLeft: number | null;
+  category: string;
+}
+
+export interface SignalsResponse {
+  country: string;
+  signals: Signal[];
+  count: number;
+  error?: string;
+}
+
+// ── Fase 2: Timeline 7 dias ─────────────────────────────────────────────────
+
+export interface TimelineDayPoint {
+  date: string;
+  indexClose: number | null;
+  indexChangePct: number | null;
+  fxRate: number | null;
+  fxChangePct: number | null;
+}
+
+export interface TimelineResponse {
+  country: string;
+  indexSymbol: string | null;
+  fxSymbol: string | null;
+  timeline: TimelineDayPoint[];
+  error?: string;
+}
+
+// ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
+
+export interface ExposureEntry {
+  countryPT: string;
+  iso2: string;
+  totalBRL: number;
+  pct: number;
+  tickers: string[];
+}
+
+export interface ExposureResponse {
+  exposure: ExposureEntry[];
+  totalBRL?: number;
+  error?: string;
 }
