@@ -59,7 +59,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Mais",
     items: [
-      { href: "/bolsas", label: "Scanner", icon: BarChart3, sub: "Índices, moedas e commodities globais" },
+      { href: "/radar", label: "Radar", icon: BarChart3, sub: "Mapa-múndi geoeconômico: índices, moedas e países" },
       { href: "/polymarket", label: "Preditivos", icon: Activity, sub: "Mercados preditivos relacionados à carteira" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira", mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
