@@ -389,7 +389,7 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 
   return (
     <a
-      href={`/bolsas?symbol=${encodeURIComponent(point.symbol)}`}
+      href={`/radar?symbol=${encodeURIComponent(point.symbol)}`}
       className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[180px] block cursor-pointer transition-all duration-200 hover:brightness-125"
       style={{
         background: "rgba(13,14,20,0.88)",

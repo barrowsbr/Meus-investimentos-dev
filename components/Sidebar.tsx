@@ -66,7 +66,7 @@ const navGroups: NavGroup[] = [
       { href: "/cambio",               label: "Câmbio",         icon: ArrowLeftRight },
       { href: "/simulacoes",           label: "Simulações",     icon: Target },
       { href: "/trades",               label: "Trades",         icon: Zap },
-      { href: "/bolsas",               label: "Radar",          icon: BarChart3 },
+      { href: "/radar",                label: "Radar",          icon: BarChart3 },
     ],
   },
   {
