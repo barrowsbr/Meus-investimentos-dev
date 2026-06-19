@@ -19,7 +19,7 @@ interface BolsasResponse {
   error?: string;
 }
 
-type MapStyle = "choropleth" | "bubbles" | "spikes" | "globe" | "pins" | "tiles";
+type MapStyle = "choropleth" | "bubbles" | "spikes" | "globe" | "pins" | "tiles" | "radar" | "terminal" | "treemap" | "horizon";
 
 const STYLES: { key: MapStyle; label: string; desc: string }[] = [
   { key: "choropleth", label: "Mapa de Calor", desc: "Países coloridos pela variação do dia (original)" },
@@ -28,6 +28,10 @@ const STYLES: { key: MapStyle; label: string; desc: string }[] = [
   { key: "globe", label: "Globo 3D", desc: "Projeção ortográfica giratória" },
   { key: "pins", label: "Marcadores", desc: "Etiquetas com bandeira e variação por índice" },
   { key: "tiles", label: "Grade Regional", desc: "Cartograma em blocos agrupados por região" },
+  { key: "radar", label: "Radar", desc: "Radar militar — mercados como blips posicionados por região e magnitude" },
+  { key: "terminal", label: "Terminal", desc: "Bloomberg terminal retrô — dados densos em fósforo verde" },
+  { key: "treemap", label: "Treemap", desc: "Mapa de calor em blocos — maiores movimentos ganham mais espaço" },
+  { key: "horizon", label: "Skyline", desc: "Horizonte urbano noturno — cada prédio é um índice" },
 ];
 
 function HeatLegend() {
@@ -249,6 +253,296 @@ function MapTiles({ indices }: { indices: IndexData[] }) {
   );
 }
 
+// ── 7. Radar sweep ──────────────────────────────────────────────────────────
+function MapRadar({ indices }: { indices: IndexData[] }) {
+  const [sweep, setSweep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setSweep(a => (a + 1.5) % 360), 40);
+    return () => clearInterval(id);
+  }, []);
+
+  const { blips, regions, sectorAngle } = useMemo(() => {
+    const pts = indices.filter(i => i.symbol !== "^VIX");
+    const regs = [...new Set(pts.map(i => i.region))].sort();
+    const sa = 360 / regs.length;
+    const cx = 250, cy = 250, maxR = 200;
+    const result: { x: number; y: number; d: IndexData; color: string }[] = [];
+    for (let ri = 0; ri < regs.length; ri++) {
+      const regionPts = pts.filter(p => p.region === regs[ri]);
+      const base = ri * sa;
+      for (let pi = 0; pi < regionPts.length; pi++) {
+        const p = regionPts[pi];
+        const angle = base + (pi + 0.5) * (sa / regionPts.length);
+        const dist = maxR * 0.12 + (Math.min(Math.abs(p.changePct), 5) / 5) * maxR * 0.82;
+        const rad = (angle - 90) * Math.PI / 180;
+        result.push({ x: cx + dist * Math.cos(rad), y: cy + dist * Math.sin(rad), d: p, color: heatColor(p.changePct) });
+      }
+    }
+    return { blips: result, regions: regs, sectorAngle: sa };
+  }, [indices]);
+
+  const cx = 250, cy = 250, maxR = 200;
+  const sRad = (sweep - 90) * Math.PI / 180;
+
+  return (
+    <div className="rounded-xl overflow-hidden flex items-center justify-center py-4" style={{ background: "radial-gradient(circle at 50% 50%, #071a12 0%, #030d08 80%)" }}>
+      <svg viewBox="0 0 500 530" className="w-full max-w-[520px]">
+        <defs>
+          <pattern id="scanlines" width="4" height="4" patternUnits="userSpaceOnUse">
+            <rect width="4" height="2" fill="rgba(0,0,0,0.12)" />
+          </pattern>
+        </defs>
+        {[0.25, 0.5, 0.75, 1].map(f => (
+          <circle key={f} cx={cx} cy={cy} r={maxR * f} fill="none" stroke="#0f3324" strokeWidth={0.6} strokeDasharray={f < 1 ? "3,5" : "0"} />
+        ))}
+        {regions.map((_, ri) => {
+          const a = (ri * sectorAngle - 90) * Math.PI / 180;
+          return <line key={ri} x1={cx} y1={cy} x2={cx + maxR * Math.cos(a)} y2={cy + maxR * Math.sin(a)} stroke="#0f3324" strokeWidth={0.4} />;
+        })}
+        {regions.map((r, ri) => {
+          const a = (ri * sectorAngle + sectorAngle / 2 - 90) * Math.PI / 180;
+          return (
+            <text key={r} x={cx + (maxR + 22) * Math.cos(a)} y={cy + (maxR + 22) * Math.sin(a)}
+              textAnchor="middle" dominantBaseline="middle"
+              style={{ fontSize: 7.5, fill: REGION_COLORS[r] ?? "#555", fontFamily: "ui-monospace, monospace", fontWeight: 700, letterSpacing: "0.05em" }}>
+              {r}
+            </text>
+          );
+        })}
+        {Array.from({ length: 30 }, (_, i) => {
+          const tr = (sweep - i * 1.5 - 90) * Math.PI / 180;
+          return <line key={i} x1={cx} y1={cy} x2={cx + maxR * Math.cos(tr)} y2={cy + maxR * Math.sin(tr)} stroke="#22c55e" strokeWidth={0.8} opacity={Math.max(0, 0.2 - i * 0.006)} />;
+        })}
+        <line x1={cx} y1={cy} x2={cx + maxR * Math.cos(sRad)} y2={cy + maxR * Math.sin(sRad)} stroke="#22c55e" strokeWidth={2} opacity={0.8} />
+        {blips.map(b => (
+          <g key={b.d.symbol}>
+            <circle cx={b.x} cy={b.y} r={5} fill={b.color} fillOpacity={0.85} />
+            <circle cx={b.x} cy={b.y} r={9} fill="none" stroke={b.color} strokeWidth={0.5} opacity={0.3} />
+            <text x={b.x} y={b.y + 14} textAnchor="middle" style={{ fontSize: 6, fill: "#8eba9a", fontFamily: "ui-monospace, monospace" }}>
+              {b.d.flag} {b.d.changePct >= 0 ? "+" : ""}{b.d.changePct.toFixed(1)}%
+            </text>
+          </g>
+        ))}
+        <circle cx={cx} cy={cy} r={3.5} fill="#22c55e" opacity={0.9} />
+        <circle cx={cx} cy={cy} r={6} fill="none" stroke="#22c55e" strokeWidth={0.5} opacity={0.4} />
+        <rect x="0" y="0" width="500" height="530" fill="url(#scanlines)" pointerEvents="none" />
+        <text x={250} y={515} textAnchor="middle" style={{ fontSize: 7.5, fill: "#22553a", fontFamily: "ui-monospace, monospace", letterSpacing: "0.12em" }}>
+          GLOBAL MARKET RADAR · DISTÂNCIA = MAGNITUDE · ÂNGULO = REGIÃO
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+// ── 8. Terminal Bloomberg ────────────────────────────────────────────────────
+function MapTerminal({ indices }: { indices: IndexData[] }) {
+  const sorted = useMemo(() =>
+    [...indices].filter(i => i.symbol !== "^VIX").sort((a, b) => b.changePct - a.changePct),
+  [indices]);
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const winners = sorted.filter(i => i.changePct > 0).length;
+  const losers = sorted.filter(i => i.changePct < 0).length;
+
+  return (
+    <div className="rounded-xl overflow-hidden font-mono text-[11px]" style={{ background: "#080c04", border: "1px solid #1a2a12" }}>
+      <div className="flex items-center justify-between px-3 py-2" style={{ background: "#0c1208", borderBottom: "1px solid #1a2812" }}>
+        <div className="flex items-center gap-3">
+          <span className="text-amber-500 font-bold tracking-wider text-[10px]">MKTS GLOBAL</span>
+          <span className="text-green-700 text-[9px]">│</span>
+          <span className="text-green-600 text-[9px]">▲{winners}</span>
+          <span className="text-red-600 text-[9px]">▼{losers}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-green-800 text-[9px]">{new Date().toLocaleTimeString()}</span>
+          <span className={`text-[10px] ${tick % 2 === 0 ? "text-green-500" : "text-green-900"}`}>●</span>
+        </div>
+      </div>
+      <div className="hidden sm:grid grid-cols-[40px_1fr_90px_80px_90px] gap-px px-2 py-1.5" style={{ background: "#0a1006", borderBottom: "1px solid #151f10" }}>
+        <span className="text-green-800 text-[9px]">FLAG</span>
+        <span className="text-green-800 text-[9px]">INDEX</span>
+        <span className="text-green-800 text-[9px] text-right">PRICE</span>
+        <span className="text-green-800 text-[9px] text-right">CHG</span>
+        <span className="text-green-800 text-[9px] text-right">%CHG</span>
+      </div>
+      <div className="max-h-[420px] overflow-y-auto">
+        {sorted.map(i => {
+          const up = i.changePct >= 0;
+          const fg = up ? "#22c55e" : "#ef4444";
+          const bgBase = up ? "rgba(34,197,94," : "rgba(239,68,68,";
+          const intensity = Math.min(Math.abs(i.changePct) / 3, 1);
+          return (
+            <div key={i.symbol}
+              className="grid grid-cols-[40px_1fr_90px] sm:grid-cols-[40px_1fr_90px_80px_90px] gap-px px-2 py-1 items-center"
+              style={{ background: `${bgBase}${(0.02 + intensity * 0.08).toFixed(2)})`, borderBottom: "1px solid #111808" }}>
+              <span>{i.flag}</span>
+              <span className="text-zinc-400 truncate text-[10px]" title={i.name}>{i.symbol.replace("^", "")}</span>
+              <span className="text-zinc-500 text-right text-[10px]">{i.price.toLocaleString("en", { maximumFractionDigits: i.price > 1000 ? 0 : 2 })}</span>
+              <span className="hidden sm:block text-right text-[10px]" style={{ color: fg }}>{up ? "+" : ""}{i.change.toFixed(Math.abs(i.change) > 100 ? 0 : 2)}</span>
+              <span className="hidden sm:block text-right font-bold" style={{ color: fg }}>{up ? "▲" : "▼"} {Math.abs(i.changePct).toFixed(2)}%</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-3 py-1.5 flex items-center gap-4 overflow-hidden" style={{ background: "#0a1006", borderTop: "1px solid #1a2812" }}>
+        <span className="text-amber-600 text-[9px] flex-shrink-0">TICKER</span>
+        <div className="flex gap-4 overflow-hidden text-[9px]">
+          {sorted.slice(0, 15).map(i => (
+            <span key={i.symbol} className="flex-shrink-0" style={{ color: i.changePct >= 0 ? "#22c55e" : "#ef4444" }}>
+              {i.flag}{i.symbol.replace("^", "")} {i.changePct >= 0 ? "+" : ""}{i.changePct.toFixed(1)}%
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 9. Treemap (finviz-style) ────────────────────────────────────────────────
+function treemapLayout(
+  items: { weight: number; data: IndexData }[],
+  x: number, y: number, w: number, h: number,
+): { x: number; y: number; w: number; h: number; data: IndexData }[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) return [{ x, y, w, h, data: items[0].data }];
+  const total = items.reduce((s, i) => s + i.weight, 0);
+  if (total === 0) return [];
+  let acc = 0, splitIdx = 1;
+  for (let i = 0; i < items.length - 1; i++) {
+    acc += items[i].weight;
+    if (acc >= total / 2) { splitIdx = i + 1; break; }
+  }
+  const g1 = items.slice(0, splitIdx);
+  const g2 = items.slice(splitIdx);
+  const ratio = g1.reduce((s, i) => s + i.weight, 0) / total;
+  if (w >= h) {
+    return [
+      ...treemapLayout(g1, x, y, w * ratio, h),
+      ...treemapLayout(g2, x + w * ratio, y, w * (1 - ratio), h),
+    ];
+  }
+  return [
+    ...treemapLayout(g1, x, y, w, h * ratio),
+    ...treemapLayout(g2, x, y + h * ratio, w, h * (1 - ratio)),
+  ];
+}
+
+function MapTreemap({ indices }: { indices: IndexData[] }) {
+  const rects = useMemo(() => {
+    const pts = indices.filter(i => i.symbol !== "^VIX");
+    const items = pts
+      .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+      .map(i => ({ weight: Math.max(Math.abs(i.changePct), 0.15), data: i }));
+    return treemapLayout(items, 0, 0, 800, 480);
+  }, [indices]);
+
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: MAP_BG }}>
+      <svg viewBox="0 0 800 480" className="w-full" preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
+        {rects.map(r => {
+          const c = heatColor(r.data.changePct);
+          const isHov = hovered === r.data.symbol;
+          const minDim = Math.min(r.w, r.h);
+          return (
+            <g key={r.data.symbol} onMouseEnter={() => setHovered(r.data.symbol)} onMouseLeave={() => setHovered(null)} style={{ cursor: "default" }}>
+              <rect x={r.x + 1} y={r.y + 1} width={Math.max(r.w - 2, 0)} height={Math.max(r.h - 2, 0)}
+                rx={2} fill={c} fillOpacity={isHov ? 0.55 : 0.28}
+                stroke={isHov ? "#fff" : c} strokeWidth={isHov ? 1.5 : 0.6} strokeOpacity={isHov ? 0.6 : 0.4} />
+              {minDim > 28 && (
+                <>
+                  <text x={r.x + r.w / 2} y={r.y + r.h / 2 - (minDim > 50 ? 6 : 0)} textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontSize: Math.min(minDim / 4, 13), fill: "#fafafa", fontFamily: "ui-monospace, monospace", fontWeight: 700 }}>
+                    {r.data.flag} {r.data.symbol.replace("^", "")}
+                  </text>
+                  {minDim > 48 && (
+                    <text x={r.x + r.w / 2} y={r.y + r.h / 2 + 10} textAnchor="middle" dominantBaseline="middle"
+                      style={{ fontSize: Math.min(minDim / 5, 12), fill: c, fontFamily: "ui-monospace, monospace", fontWeight: 600 }}>
+                      {r.data.changePct >= 0 ? "+" : ""}{r.data.changePct.toFixed(2)}%
+                    </text>
+                  )}
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ── 10. City skyline / Horizon ──────────────────────────────────────────────
+function MapHorizon({ indices }: { indices: IndexData[] }) {
+  const grouped = useMemo(() => {
+    const pts = indices.filter(i => i.symbol !== "^VIX");
+    const regions = [...new Set(pts.map(i => i.region))].sort();
+    return regions.map(r => ({
+      region: r,
+      items: pts.filter(p => p.region === r).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)),
+    }));
+  }, [indices]);
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: "linear-gradient(180deg, #070b14 0%, #0c1220 40%, #101828 75%, #151f30 100%)" }}>
+      <svg className="w-full" viewBox="0 0 800 25" style={{ display: "block" }}>
+        {Array.from({ length: 50 }, (_, i) => (
+          <circle key={i} cx={(i * 97 + 13) % 800} cy={(i * 43 + 7) % 25} r={0.4 + (i % 3) * 0.3} fill="#fff" opacity={0.12 + (i % 4) * 0.08} />
+        ))}
+      </svg>
+      <div className="flex gap-5 overflow-x-auto px-4 pb-4">
+        {grouped.map(({ region, items }) => (
+          <div key={region} className="flex-shrink-0">
+            <div className="flex items-end gap-[2px]" style={{ height: 220 }}>
+              {items.map((item, bIdx) => {
+                const h = 18 + (Math.min(Math.abs(item.changePct), 5) / 5) * 172;
+                const c = heatColor(item.changePct);
+                const windowRows = Math.max(0, Math.floor((h - 14) / 10));
+                return (
+                  <div key={item.symbol} className="flex flex-col items-center" style={{ width: 26 }} title={`${item.name} · ${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%`}>
+                    <div className="relative" style={{ height: h, width: 26 }}>
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-3 w-[1px]" style={{ height: 6, background: c, opacity: 0.5 }} />
+                      <div className="absolute left-1/2 -translate-x-1/2 rounded-full" style={{ top: -14, width: 3, height: 3, background: c, opacity: 0.7 }} />
+                      <div className="absolute bottom-0 left-0 right-0 rounded-t-sm overflow-hidden" style={{ height: h, background: `linear-gradient(180deg, ${c}44 0%, ${c}18 100%)`, borderLeft: `1px solid ${c}55`, borderRight: `1px solid ${c}33`, borderTop: `1px solid ${c}55` }}>
+                        <div className="flex flex-col items-center gap-[3px] pt-2">
+                          {Array.from({ length: windowRows }, (_, wi) => (
+                            <div key={wi} className="flex gap-[2px]">
+                              {[0, 1, 2].map(col => (
+                                <div key={col} className="w-[4px] h-[4px] rounded-[0.5px]"
+                                  style={{ background: (bIdx * 7 + wi * 3 + col * 11 + 5) % 5 !== 0 ? `${c}88` : `${c}15` }} />
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-[120%] h-2 rounded-full" style={{ background: c, opacity: 0.08, filter: "blur(4px)" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="h-[1px] mt-1" style={{ background: `linear-gradient(90deg, transparent, ${REGION_COLORS[region] ?? "#444"}66, transparent)` }} />
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: REGION_COLORS[region] ?? "#666" }} />
+              <span className="text-[8px] font-bold uppercase tracking-[0.15em]" style={{ color: REGION_COLORS[region] ?? "#666" }}>{region}</span>
+            </div>
+            <div className="flex justify-center gap-[2px] mt-1">
+              {items.map(item => (
+                <span key={item.symbol} className="text-[7px]" title={item.name}>{item.flag}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Scanner2Page() {
   const [data, setData] = useState<BolsasResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -305,6 +599,10 @@ export default function Scanner2Page() {
           {style === "globe" && <MapGlobe indices={indices} />}
           {style === "pins" && <MapPins indices={indices} />}
           {style === "tiles" && <MapTiles indices={indices} />}
+          {style === "radar" && <MapRadar indices={indices} />}
+          {style === "terminal" && <MapTerminal indices={indices} />}
+          {style === "treemap" && <MapTreemap indices={indices} />}
+          {style === "horizon" && <MapHorizon indices={indices} />}
         </div>
       </div>
     </div>
