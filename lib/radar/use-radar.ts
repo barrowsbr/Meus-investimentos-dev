@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import type {
   BolsasResponse, MoedasResponse, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
-  ExposureResponse,
+  TimelineResponse, ExposureResponse,
 } from "./types";
 
 export function useMarkets() {
@@ -192,6 +192,36 @@ export function useSignals(country: string | null) {
       .then((d: SignalsResponse) => {
         if (cancelled) return;
         if (!d.error) { signalsCache.set(country, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 2: Timeline 7 dias ─────────────────────────────────────────────────
+
+const timelineCache = new Map<string, TimelineResponse>();
+
+export function useTimeline(country: string | null) {
+  const [data, setData] = useState<TimelineResponse | null>(country ? timelineCache.get(country) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!country) { setData(null); return; }
+    const cached = timelineCache.get(country);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/timeline?country=${encodeURIComponent(country)}`)
+      .then((r) => r.json())
+      .then((d: TimelineResponse) => {
+        if (cancelled) return;
+        if (!d.error) { timelineCache.set(country, d); setData(d); }
       })
       .catch(() => { if (!cancelled) setData(null); })
       .finally(() => { if (!cancelled) setLoading(false); });

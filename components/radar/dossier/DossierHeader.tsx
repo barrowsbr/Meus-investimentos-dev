@@ -81,7 +81,7 @@ export default function DossierHeader({
       </div>
       <button
         onClick={onClose}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
         aria-label="Fechar dossiê"
       >
         <X size={18} />

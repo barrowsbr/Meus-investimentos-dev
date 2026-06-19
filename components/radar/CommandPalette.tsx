@@ -124,7 +124,7 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setOpen(false)}>
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl shadow-2xl"
+        className="relative mx-2 w-full max-w-md overflow-hidden rounded-2xl shadow-2xl"
         style={{ background: "rgba(14,16,24,0.98)", border: "1px solid rgba(255,255,255,0.1)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -143,7 +143,7 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-72 overflow-y-auto py-2">
+        <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-2">
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-zinc-500">Nenhum resultado</p>
           ) : (

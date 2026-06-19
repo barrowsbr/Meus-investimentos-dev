@@ -129,6 +129,24 @@ export interface SignalsResponse {
   error?: string;
 }
 
+// ── Fase 2: Timeline 7 dias ─────────────────────────────────────────────────
+
+export interface TimelineDayPoint {
+  date: string;
+  indexClose: number | null;
+  indexChangePct: number | null;
+  fxRate: number | null;
+  fxChangePct: number | null;
+}
+
+export interface TimelineResponse {
+  country: string;
+  indexSymbol: string | null;
+  fxSymbol: string | null;
+  timeline: TimelineDayPoint[];
+  error?: string;
+}
+
 // ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
 
 export interface ExposureEntry {

@@ -18,7 +18,7 @@ import {
 import {
   useMarkets, useCurrencies, useCountryMacro,
   useInstability, useBrief, useCountryNews, useSignals,
-  useExposure,
+  useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
 import type { RadarLayer, SelectedCountry } from "@/lib/radar/types";
 import { RadarMap, type MarkerPoint } from "./RadarMap";
@@ -26,6 +26,7 @@ import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
 import CommandPalette from "./CommandPalette";
+import DigestPanel from "./DigestPanel";
 
 export default function RadarShell() {
   const searchParams = useSearchParams();
@@ -41,6 +42,7 @@ export default function RadarShell() {
   const { data: brief, loading: briefLoading } = useBrief(selected?.name ?? null);
   const { data: news, loading: newsLoading } = useCountryNews(selected?.name ?? null);
   const { data: signals, loading: signalsLoading } = useSignals(selected?.name ?? null);
+  const { data: timeline, loading: timelineLoading } = useTimeline(selected?.name ?? null);
   const { data: exposure, loading: exposureLoading } = useExposure();
 
   // ── Camada ativa → calor + marcadores ──────────────────────────────────────
@@ -141,7 +143,7 @@ export default function RadarShell() {
             <button
               key={key}
               onClick={() => setLayer(key)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs"
               style={{
                 background: active ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${active ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.08)"}`,
@@ -160,7 +162,7 @@ export default function RadarShell() {
             <button
               key={r}
               onClick={() => setRegionFilter(active ? null : r)}
-              className="shrink-0 rounded-full px-2.5 py-1.5 text-[11px]"
+              className="shrink-0 rounded-full px-2.5 py-2 text-[11px]"
               style={{ background: active ? `${c}30` : "rgba(255,255,255,0.04)", border: `1px solid ${active ? `${c}60` : "rgba(255,255,255,0.08)"}`, color: active ? c : "#888" }}
             >
               {r}
@@ -180,6 +182,9 @@ export default function RadarShell() {
             setRegionFilter={setRegionFilter}
             markets={markets}
           />
+          <div className="mt-3">
+            <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
+          </div>
         </div>
 
         {/* Mapa + dossiê */}
@@ -207,6 +212,8 @@ export default function RadarShell() {
             newsLoading={newsLoading}
             signals={signals}
             signalsLoading={signalsLoading}
+            timeline={timeline}
+            timelineLoading={timelineLoading}
             exposure={exposure}
             exposureLoading={exposureLoading}
             onClose={() => setSelected(null)}

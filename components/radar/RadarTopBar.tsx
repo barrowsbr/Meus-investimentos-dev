@@ -57,7 +57,7 @@ export default function RadarTopBar({ lastUpdate, onPickCountry }: Props) {
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             placeholder="Buscar país…"
-            className="w-44 rounded-lg border border-zinc-800 bg-zinc-900/60 py-1.5 pl-8 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none sm:w-56"
+            className="w-36 rounded-lg border border-zinc-800 bg-zinc-900/60 py-1.5 pl-8 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none sm:w-56"
           />
           {focused && results.length > 0 && (
             <div className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 shadow-xl backdrop-blur">

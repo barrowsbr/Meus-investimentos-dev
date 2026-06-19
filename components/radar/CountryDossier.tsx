@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   SelectedCountry, IndexData, CurrencyData, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
-  ExposureResponse,
+  TimelineResponse, ExposureResponse,
 } from "@/lib/radar/types";
 import { detectConvergence } from "@/lib/radar/convergence";
 import DossierHeader from "./dossier/DossierHeader";
@@ -46,6 +46,8 @@ interface Props {
   newsLoading: boolean;
   signals: SignalsResponse | null;
   signalsLoading: boolean;
+  timeline: TimelineResponse | null;
+  timelineLoading: boolean;
   exposure: ExposureResponse | null;
   exposureLoading: boolean;
   onClose: () => void;
@@ -55,6 +57,7 @@ export default function CountryDossier({
   selected, indices, currency, macro, macroLoading,
   instability, instabilityLoading, brief, briefLoading,
   news, newsLoading, signals, signalsLoading,
+  timeline, timelineLoading,
   exposure, exposureLoading,
   onClose,
 }: Props) {
@@ -119,7 +122,18 @@ export default function CountryDossier({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {tab === "resumo" && <ResumoTab indices={indices} currency={currency} macro={macro} />}
+              {tab === "resumo" && (
+                <ResumoTab
+                  indices={indices}
+                  currency={currency}
+                  macro={macro}
+                  countryName={selected.name}
+                  timeline={timeline}
+                  timelineLoading={timelineLoading}
+                  convergence={convergence}
+                  exposure={exposure}
+                />
+              )}
               {tab === "inteligencia" && (
                 <InteligenciaTab
                   instability={instability}

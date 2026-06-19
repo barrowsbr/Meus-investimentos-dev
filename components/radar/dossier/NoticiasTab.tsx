@@ -1,7 +1,8 @@
 "use client";
 
-import { Newspaper, ExternalLink, Loader2, Radio } from "lucide-react";
+import { Newspaper, ExternalLink, Loader2, Radio, LinkIcon } from "lucide-react";
 import type { CountryNewsResponse, SignalsResponse } from "@/lib/radar/types";
+import { findPortfolioImpact } from "@/lib/polymarket";
 
 const IMPACT_BADGE = {
   alto: { color: "#f87171", bg: "rgba(248,113,113,0.12)", label: "Alto" },
@@ -48,30 +49,46 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
             </div>
           ) : (
             <div className="divide-y divide-white/[0.06] overflow-hidden rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-              {signals!.signals.map((s, i) => (
-                <a
-                  key={i}
-                  href={s.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
-                >
-                  <p className="text-xs font-medium leading-snug text-zinc-200">{s.title}</p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    {s.odds.length > 0 && (
-                      <span className="rounded bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyan-400">
-                        {s.odds[0].outcome}: {s.odds[0].percent}%
-                      </span>
+              {signals!.signals.map((s, i) => {
+                const impactedTickers = findPortfolioImpact(s.title);
+                return (
+                  <a
+                    key={i}
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <p className="text-xs font-medium leading-snug text-zinc-200">{s.title}</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {s.odds.length > 0 && (
+                        <span className="rounded bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyan-400">
+                          {s.odds[0].outcome}: {s.odds[0].percent}%
+                        </span>
+                      )}
+                      {s.volume > 0 && (
+                        <span className="text-[10px] text-zinc-500">Vol. {formatVolume(s.volume)}</span>
+                      )}
+                      {s.daysLeft !== null && (
+                        <span className="text-[10px] text-zinc-600">{s.daysLeft}d restantes</span>
+                      )}
+                    </div>
+                    {/* Links evento → ativos do portfólio */}
+                    {impactedTickers.length > 0 && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <LinkIcon size={9} className="shrink-0 text-amber-400" />
+                        <div className="flex flex-wrap gap-1">
+                          {impactedTickers.map(t => (
+                            <span key={t} className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                    {s.volume > 0 && (
-                      <span className="text-[10px] text-zinc-500">Vol. {formatVolume(s.volume)}</span>
-                    )}
-                    {s.daysLeft !== null && (
-                      <span className="text-[10px] text-zinc-600">{s.daysLeft}d restantes</span>
-                    )}
-                  </div>
-                </a>
-              ))}
+                  </a>
+                );
+              })}
             </div>
           )}
         </section>
@@ -109,7 +126,7 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                     </p>
                     <ExternalLink size={11} className="mt-0.5 shrink-0 text-zinc-600 group-hover:text-zinc-400" />
                   </div>
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <span
                       className="rounded px-1.5 py-0.5 text-[9px] font-semibold"
                       style={{ background: badge.bg, color: badge.color }}

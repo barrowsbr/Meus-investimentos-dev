@@ -27,7 +27,7 @@ export default function MacroTab({ macro, loading }: { macro: CountryMacro | nul
 
   return (
     <div className="space-y-4 p-4">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {macro.indicators.map((ind) => (
           <div key={ind.id} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[10px] uppercase tracking-wide text-zinc-500">{ind.label}</p>
