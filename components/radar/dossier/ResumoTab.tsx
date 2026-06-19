@@ -67,7 +67,7 @@ export default function ResumoTab({ indices, currency, macro }: {
       </div>
 
       <p className="text-[10px] text-zinc-600">
-        Convergência geo + macro + preço chega nas próximas fases. Por ora: mercados e macro, lado a lado.
+        Explore as abas Intel e Notícias para leitura IA, índice de instabilidade e sinais preditivos.
       </p>
     </div>
   );

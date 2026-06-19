@@ -8,7 +8,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import type { BolsasResponse, MoedasResponse, CountryMacro } from "./types";
+import type {
+  BolsasResponse, MoedasResponse, CountryMacro,
+  InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
+  ExposureResponse,
+} from "./types";
 
 export function useMarkets() {
   const [data, setData] = useState<BolsasResponse | null>(null);
@@ -73,6 +77,153 @@ export function useCountryMacro(country: string | null) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 2: Instability Index ───────────────────────────────────────────────
+
+const instabilityCache = new Map<string, InstabilityData>();
+
+export function useInstability(country: string | null) {
+  const [data, setData] = useState<InstabilityData | null>(country ? instabilityCache.get(country) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!country) { setData(null); return; }
+    const cached = instabilityCache.get(country);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/instability?country=${encodeURIComponent(country)}`)
+      .then((r) => r.json())
+      .then((d: InstabilityData) => {
+        if (cancelled) return;
+        if (!d.error) { instabilityCache.set(country, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 2: AI Brief ────────────────────────────────────────────────────────
+
+const briefCache = new Map<string, BriefData>();
+
+export function useBrief(country: string | null) {
+  const [data, setData] = useState<BriefData | null>(country ? briefCache.get(country) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!country) { setData(null); return; }
+    const cached = briefCache.get(country);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/brief?country=${encodeURIComponent(country)}`)
+      .then((r) => r.json())
+      .then((d: BriefData) => {
+        if (cancelled) return;
+        if (!d.error) { briefCache.set(country, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 2: Country News ────────────────────────────────────────────────────
+
+const newsCache = new Map<string, CountryNewsResponse>();
+
+export function useCountryNews(country: string | null) {
+  const [data, setData] = useState<CountryNewsResponse | null>(country ? newsCache.get(country) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!country) { setData(null); return; }
+    const cached = newsCache.get(country);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/news?country=${encodeURIComponent(country)}`)
+      .then((r) => r.json())
+      .then((d: CountryNewsResponse) => {
+        if (cancelled) return;
+        if (!d.error) { newsCache.set(country, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 2: Predictive Signals ──────────────────────────────────────────────
+
+const signalsCache = new Map<string, SignalsResponse>();
+
+export function useSignals(country: string | null) {
+  const [data, setData] = useState<SignalsResponse | null>(country ? signalsCache.get(country) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!country) { setData(null); return; }
+    const cached = signalsCache.get(country);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/signals?country=${encodeURIComponent(country)}`)
+      .then((r) => r.json())
+      .then((d: SignalsResponse) => {
+        if (cancelled) return;
+        if (!d.error) { signalsCache.set(country, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
+
+let exposureCache: ExposureResponse | null = null;
+
+export function useExposure() {
+  const [data, setData] = useState<ExposureResponse | null>(exposureCache);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (exposureCache) return;
+
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/radar/exposure")
+      .then((r) => r.json())
+      .then((d: ExposureResponse) => {
+        if (cancelled) return;
+        if (!d.error) { exposureCache = d; setData(d); }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   return { data, loading };
 }

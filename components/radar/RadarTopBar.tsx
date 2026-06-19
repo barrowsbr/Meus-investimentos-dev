@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Radar as RadarIcon, Search, Circle } from "lucide-react";
+import { Radar as RadarIcon, Search, Circle, Command } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 
 // Países pesquisáveis = os que o mapa sabe abrir (têm ISO numérico).
@@ -43,6 +43,12 @@ export default function RadarTopBar({ lastUpdate, onPickCountry }: Props) {
             {new Date(lastUpdate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300 sm:flex"
+        >
+          <Command size={11} />K
+        </button>
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
           <input

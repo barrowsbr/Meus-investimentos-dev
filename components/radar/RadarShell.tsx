@@ -2,25 +2,30 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RadarShell — orquestra o Radar V2: dados (hooks), estado (camada, país, filtro)
-// e layout (top bar · rail · mapa+dossiê). O page.tsx é só a casca; a lógica e o
-// render vivem em módulos por responsabilidade — fim do monólito de ~2.800 linhas.
+// e layout (top bar · rail · mapa+dossiê). Fase 2 adiciona: instability index,
+// AI brief, country news e predictive signals ao dossiê.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
   ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
-import { useMarkets, useCurrencies, useCountryMacro } from "@/lib/radar/use-radar";
+import {
+  useMarkets, useCurrencies, useCountryMacro,
+  useInstability, useBrief, useCountryNews, useSignals,
+  useExposure,
+} from "@/lib/radar/use-radar";
 import type { RadarLayer, SelectedCountry } from "@/lib/radar/types";
 import { RadarMap, type MarkerPoint } from "./RadarMap";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
+import CommandPalette from "./CommandPalette";
 
 export default function RadarShell() {
   const searchParams = useSearchParams();
@@ -32,11 +37,18 @@ export default function RadarShell() {
   const [selected, setSelected] = useState<SelectedCountry | null>(null);
 
   const { data: macro, loading: macroLoading } = useCountryMacro(selected?.name ?? null);
+  const { data: instability, loading: instabilityLoading } = useInstability(selected?.name ?? null);
+  const { data: brief, loading: briefLoading } = useBrief(selected?.name ?? null);
+  const { data: news, loading: newsLoading } = useCountryNews(selected?.name ?? null);
+  const { data: signals, loading: signalsLoading } = useSignals(selected?.name ?? null);
+  const { data: exposure, loading: exposureLoading } = useExposure();
 
   // ── Camada ativa → calor + marcadores ──────────────────────────────────────
   const heat = useMemo<Map<string, HeatEntry>>(() => {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
-    return moedas ? buildCurrencyHeat(moedas.currencies) : new Map();
+    if (layer === "cambio") return moedas ? buildCurrencyHeat(moedas.currencies) : new Map();
+    // instabilidade: will be built from instability scores as they load
+    return new Map();
   }, [layer, markets, moedas]);
 
   const markers = useMemo<MarkerPoint[]>(() => {
@@ -46,9 +58,12 @@ export default function RadarShell() {
         .filter((i) => i.symbol !== "^VIX")
         .map((i) => ({ id: i.symbol, lat: i.lat, lng: i.lng, changePct: i.changePct, region: i.region, label: i.name, country: i.country }));
     }
-    if (!moedas) return [];
-    // changePct = força da moeda local (rate invertido), p/ o ponto verde/vermelho.
-    return moedas.currencies.map((c) => ({ id: c.code, lat: c.lat, lng: c.lng, changePct: -c.changePct, region: c.region, label: c.code, country: c.name }));
+    if (layer === "cambio") {
+      if (!moedas) return [];
+      return moedas.currencies.map((c) => ({ id: c.code, lat: c.lat, lng: c.lng, changePct: -c.changePct, region: c.region, label: c.code, country: c.name }));
+    }
+    // instabilidade layer: no markers (the choropleth is the main viz)
+    return [];
   }, [layer, markets, moedas]);
 
   const regions = useMemo(() => {
@@ -117,9 +132,10 @@ export default function RadarShell() {
       {/* Controles compactos no mobile */}
       <div className="flex items-center gap-2 overflow-x-auto md:hidden">
         {([
-          { key: "mercados", label: "Mercados", icon: BarChart3 },
-          { key: "cambio", label: "Câmbio", icon: ArrowLeftRight },
-        ] as const).map(({ key, label, icon: Icon }) => {
+          { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
+          { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
+          { key: "instabilidade" as const, label: "Risco", icon: Shield },
+        ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
             <button
@@ -176,12 +192,23 @@ export default function RadarShell() {
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}
           />
+          <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} />
           <CountryDossier
             selected={selected}
             indices={localIndices}
             currency={localCurrency}
             macro={macro}
             macroLoading={macroLoading}
+            instability={instability}
+            instabilityLoading={instabilityLoading}
+            brief={brief}
+            briefLoading={briefLoading}
+            news={news}
+            newsLoading={newsLoading}
+            signals={signals}
+            signalsLoading={signalsLoading}
+            exposure={exposure}
+            exposureLoading={exposureLoading}
             onClose={() => setSelected(null)}
           />
         </div>
