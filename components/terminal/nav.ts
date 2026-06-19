@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  ListOrdered, Target, Scale, Zap, Crosshair, Sunrise, Layers, Banknote, Globe2,
+  ListOrdered, Target, Scale, Zap, Crosshair, Sunrise, Layers, Banknote,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -60,7 +60,6 @@ export const NAV: NavGroup[] = [
     label: "Mais",
     items: [
       { href: "/bolsas", label: "Scanner", icon: BarChart3, sub: "Índices, moedas e commodities globais" },
-      { href: "/scanner2", label: "Scanner 2", icon: Globe2, sub: "Laboratório de visualizações do mapa global" },
       { href: "/polymarket", label: "Preditivos", icon: Activity, sub: "Mercados preditivos relacionados à carteira" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira", mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
