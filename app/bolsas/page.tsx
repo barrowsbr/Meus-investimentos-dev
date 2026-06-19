@@ -21,6 +21,10 @@ import dynamic from "next/dynamic";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import ErrorAlert from "@/components/ErrorAlert";
+import {
+  GEO_URL, COUNTRY_TO_ISO_NUM, REGION_COLORS, heatColor,
+  type IndexData,
+} from "@/lib/world-map";
 
 const InteligenciaContent = dynamic(() => import("@/components/InteligenciaContent"), {
   loading: () => <LoadingSpinner />,
@@ -29,21 +33,6 @@ const InteligenciaContent = dynamic(() => import("@/components/InteligenciaConte
 type RadarTab = "bolsas" | "moedas" | "inteligencia";
 
 // Globe removed — replaced by choropleth world map inline
-
-interface IndexData {
-  symbol: string;
-  tvSymbol: string;
-  name: string;
-  country: string;
-  flag: string;
-  region: string;
-  lat: number;
-  lng: number;
-  price: number;
-  change: number;
-  changePct: number;
-  currency: string;
-}
 
 type PeriodKey = "1S" | "1M" | "3M" | "6M" | "1A" | "YTD";
 
@@ -60,15 +49,6 @@ interface BolsasResponse {
 
 const PERIOD_LABELS: Record<PeriodKey, string> = {
   "1S": "1 sem", "1M": "1 mês", "3M": "3 meses", "6M": "6 meses", "1A": "1 ano", YTD: "Ano (YTD)",
-};
-
-const REGION_COLORS: Record<string, string> = {
-  Americas: "#3b82f6",
-  Europe: "#8b5cf6",
-  Asia: "#f59e0b",
-  "Middle East": "#ef4444",
-  Africa: "#10b981",
-  Oceania: "#06b6d4",
 };
 
 type SortKey = "name" | "price" | "changePct" | "region";
@@ -94,51 +74,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// ── Heatmap color helpers ──────────────────────────────────────────────────
-
-function heatColor(pct: number): string {
-  const clamped = Math.max(-4, Math.min(4, pct));
-  const t = (clamped + 4) / 8;
-  if (t < 0.5) {
-    const r = Math.round(239 + (250 - 239) * (t * 2));
-    const g = Math.round(68 + (204 - 68) * (t * 2));
-    const b = Math.round(68 + (21 - 68) * (t * 2));
-    return `rgb(${r},${g},${b})`;
-  }
-  const r = Math.round(250 + (34 - 250) * ((t - 0.5) * 2));
-  const g = Math.round(204 + (197 - 204) * ((t - 0.5) * 2));
-  const b = Math.round(21 + (94 - 21) * ((t - 0.5) * 2));
-  return `rgb(${r},${g},${b})`;
-}
-
 // ── Moedas types ─────────────────────────────────────────────────────────
-
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-
-const COUNTRY_TO_ISO_NUM: Record<string, string> = {
-  "EUA": "840", "Brasil": "076", "Canadá": "124", "México": "484", "Argentina": "032",
-  "Chile": "152", "Colômbia": "170", "Peru": "604", "Venezuela": "862", "Panamá": "591",
-  "Costa Rica": "188", "Rep. Dominicana": "214",
-  "Reino Unido": "826", "França": "250", "Alemanha": "276", "Espanha": "724",
-  "Itália": "380", "Holanda": "528", "Suíça": "756", "Suécia": "752", "Noruega": "578",
-  "Dinamarca": "208", "Finlândia": "246", "Bélgica": "056", "Áustria": "040",
-  "Portugal": "620", "Grécia": "300", "Polônia": "616", "Hungria": "348",
-  "Tchéquia": "203", "Romênia": "642", "Bulgária": "100", "Croácia": "191",
-  "Sérvia": "688", "Eslovênia": "705", "Estônia": "233", "Letônia": "428",
-  "Lituânia": "440", "Islândia": "352", "Luxemburgo": "442", "Malta": "470",
-  "Bósnia": "070", "Ucrânia": "804", "Rússia": "643", "Turquia": "792",
-  "Japão": "392", "China": "156", "Índia": "356", "Coreia do Sul": "410",
-  "Austrália": "036", "Hong Kong": "344", "Singapura": "702", "Taiwan": "158",
-  "Indonésia": "360", "Tailândia": "764", "Malásia": "458", "Filipinas": "608",
-  "Vietnã": "704", "Paquistão": "586", "Bangladesh": "050", "Sri Lanka": "144",
-  "Nepal": "524", "Mongólia": "496", "Cazaquistão": "398",
-  "Israel": "376", "Arábia Saudita": "682", "Emirados": "784", "Catar": "634",
-  "Kuwait": "414", "Bahrein": "048", "Omã": "512", "Jordânia": "400", "Líbano": "422", "Egito": "818",
-  "África do Sul": "710", "Nigéria": "566", "Quênia": "404", "Marrocos": "504",
-  "Gana": "288", "Costa do Marfim": "384", "Tunísia": "788", "Maurício": "480",
-  "Botsuana": "072", "Ruanda": "646", "Tanzânia": "834", "Uganda": "800",
-  "Nova Zelândia": "554",
-};
 
 interface CurrencyData {
   code: string; name: string; rate: number; change: number;
