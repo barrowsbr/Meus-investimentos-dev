@@ -25,6 +25,15 @@ function nextBusinessDay(dateStr: string): string {
   return d.toISOString().split("T")[0];
 }
 
+// Ativos 24/7 (cripto) operam no fim de semana — transações entram na data
+// real. Ativos de bolsa tradicional ajustam para o próximo dia útil (o grid
+// pode conter sáb/dom via cotações de cripto/FX, mas ações não cotam).
+const SETORES_24H = new Set(["Cripto"]);
+
+function tradeDateFor(date: string, setor: string): string {
+  return SETORES_24H.has(setor) ? date : nextBusinessDay(date);
+}
+
 export function businessDays(startStr: string, endStr: string): string[] {
   const result: string[] = [];
   const cur = new Date(startStr + "T12:00:00Z");
@@ -84,7 +93,7 @@ export function parseRVTransactions(rows: Row[]): ParsedTx[] {
     const date = toYMD(row["data"] ?? row["date"]);
     if (!date) continue;
 
-    result.push({ date, bizDate: nextBusinessDay(date), ticker, tipo, quantidade, preco, taxas, moeda, setor });
+    result.push({ date, bizDate: tradeDateFor(date, setor), ticker, tipo, quantidade, preco, taxas, moeda, setor });
   }
 
   return result.sort((a, b) => a.date.localeCompare(b.date));
@@ -119,7 +128,7 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
     const date = toYMD(row["data"] ?? row["date"]);
     if (!date) continue;
 
-    result.push({ date, bizDate: nextBusinessDay(date), ticker, valor, moeda });
+    result.push({ date, bizDate: tradeDateFor(date, identificarSetor(ticker)), ticker, valor, moeda });
   }
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
