@@ -1,10 +1,11 @@
 "use client";
 
-import { Shield, Brain, Loader2, AlertTriangle, ChevronRight, Zap } from "lucide-react";
+import { Shield, Brain, Loader2, AlertTriangle, ChevronRight, Zap, AlertCircle } from "lucide-react";
 import type { InstabilityData, BriefData } from "@/lib/radar/types";
 import type { ConvergenceResult } from "@/lib/radar/convergence";
 import SpiderChart from "../charts/SpiderChart";
 import GaugeCluster from "../charts/GaugeCluster";
+import { freshLabel } from "./fresh-label";
 
 const LEVEL_CONFIG = {
   baixo: { color: "#4ade80", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.2)", label: "Baixo" },
@@ -38,12 +39,15 @@ export default function InteligenciaTab({ instability, instabilityLoading, brief
           <div className="rounded-xl p-3" style={{ background: "rgba(147,51,234,0.06)", border: "1px solid rgba(147,51,234,0.18)" }}>
             <p className="text-[13px] leading-relaxed text-zinc-200">{brief.brief}</p>
             {brief.model && (
-              <p className="mt-2 text-[9px] text-zinc-600">Modelo: {brief.model}</p>
+              <p className="mt-2 text-[9px] text-zinc-600">
+                Modelo: {brief.model}{brief.cachedAt ? ` · ${freshLabel(brief.cachedAt)}` : ""}
+              </p>
             )}
           </div>
         ) : (
-          <div className="rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-            Leitura IA indisponível.
+          <div className="flex items-center gap-2 rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <AlertCircle size={13} className="shrink-0 text-zinc-600" />
+            Não foi possível gerar a leitura IA no momento.
           </div>
         )}
       </section>
@@ -86,8 +90,9 @@ export default function InteligenciaTab({ instability, instabilityLoading, brief
             </p>
           </div>
         ) : (
-          <div className="rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-            Dados de instabilidade indisponíveis.
+          <div className="flex items-center gap-2 rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <AlertCircle size={13} className="shrink-0 text-zinc-600" />
+            Índice de instabilidade indisponível. Os dados serão recalculados automaticamente.
           </div>
         )}
       </section>

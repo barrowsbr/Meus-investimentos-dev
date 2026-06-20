@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase, Loader2, TrendingDown } from "lucide-react";
+import { Briefcase, Loader2, TrendingDown, AlertCircle } from "lucide-react";
 import type { ExposureResponse, IndexData } from "@/lib/radar/types";
 import Treemap from "../charts/Treemap";
 import WaterfallChart from "../charts/WaterfallChart";
@@ -29,8 +29,9 @@ export default function PortfolioTab({ countryName, exposure, exposureLoading, i
 
   if (!exposure || exposure.exposure.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-sm text-zinc-500">
-        Sem dados de portfólio disponíveis.
+      <div className="flex flex-col items-center gap-2 px-4 py-8 text-center text-sm text-zinc-500">
+        <AlertCircle size={16} className="text-zinc-600" />
+        Não foi possível calcular a exposição do portfólio. Verifique se a planilha está acessível.
       </div>
     );
   }
@@ -81,6 +82,7 @@ export default function PortfolioTab({ countryName, exposure, exposureLoading, i
                 <span key={t} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">{t}</span>
               ))}
             </div>
+            <p className="mt-2 text-[9px] text-zinc-600">posição atual · dados da planilha</p>
           </div>
         </section>
       ) : (

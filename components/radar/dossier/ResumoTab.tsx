@@ -104,6 +104,7 @@ export default function ResumoTab({
           <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">Leitura do dia</span>
         </div>
         <p className="text-[13px] leading-relaxed text-zinc-200">{leitura}</p>
+        <p className="mt-1.5 text-[9px] text-zinc-600">sessão de hoje</p>
       </div>
 
       {/* Chips de síntese */}
@@ -125,6 +126,7 @@ export default function ResumoTab({
           <div className="mb-2 flex items-center gap-1.5">
             <Calendar size={13} className="text-indigo-400" />
             <span className="text-[10px] font-semibold uppercase tracking-widest text-indigo-300">Calendário de Performance</span>
+            <span className="text-[9px] text-zinc-600">últimas {timeline.timeline.length} sessões</span>
           </div>
           <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <HeatmapCalendar

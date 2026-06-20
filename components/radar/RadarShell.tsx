@@ -13,7 +13,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
-  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, currencyForCountry, type HeatEntry,
+  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
 import {
   useMarkets, useCurrencies, useCountryMacro,
@@ -49,7 +49,11 @@ export default function RadarShell() {
   const heat = useMemo<Map<string, HeatEntry>>(() => {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
     if (layer === "cambio") return moedas ? buildCurrencyHeat(moedas.currencies) : new Map();
-    // instabilidade: will be built from instability scores as they load
+    if (layer === "instabilidade") {
+      return markets
+        ? buildRiskHeat(markets.indices, moedas?.currencies ?? null)
+        : new Map();
+    }
     return new Map();
   }, [layer, markets, moedas]);
 
@@ -64,7 +68,16 @@ export default function RadarShell() {
       if (!moedas) return [];
       return moedas.currencies.map((c) => ({ id: c.code, lat: c.lat, lng: c.lng, changePct: -c.changePct, region: c.region, label: c.code, country: c.name }));
     }
-    // instabilidade layer: no markers (the choropleth is the main viz)
+    if (layer === "instabilidade") {
+      if (!markets) return [];
+      return markets.indices
+        .filter((i) => i.symbol !== "^VIX")
+        .map((i) => ({
+          id: i.symbol, lat: i.lat, lng: i.lng,
+          changePct: -Math.abs(i.changePct), // negative = red markers for volatile markets
+          region: i.region, label: i.name, country: i.country,
+        }));
+    }
     return [];
   }, [layer, markets, moedas]);
 

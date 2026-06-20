@@ -84,6 +84,56 @@ export function buildCurrencyHeat(currencies: CurrencyData[]): Map<string, HeatE
   return map;
 }
 
+// Camada INSTABILIDADE (risco): combina volatilidade dos mercados + fraqueza
+// cambial num proxy de risco. Quanto MAIS volátil o mercado e MAIS fraca a moeda,
+// maior o risco.  O valor é armazenado como `changePct` NEGATIVO para que
+// `heatColor()` pinte vermelho (neg = red, pos = green).
+export function buildRiskHeat(
+  indices: { symbol: string; country: string; changePct: number; name: string; flag: string }[],
+  currencies: CurrencyData[] | null,
+): Map<string, HeatEntry> {
+  // 1. Índice com maior |variação| por país (proxy de volatilidade de mercado)
+  const marketVol = new Map<string, { vol: number; label: string; flag: string }>();
+  for (const idx of indices) {
+    if (idx.symbol === "^VIX") continue;
+    const existing = marketVol.get(idx.country);
+    const vol = Math.abs(idx.changePct);
+    if (!existing || vol > existing.vol) {
+      marketVol.set(idx.country, { vol, label: idx.name, flag: idx.flag });
+    }
+  }
+
+  // 2. Fraqueza cambial por código ISO-4217 (changePct positivo = moeda enfraqueceu vs USD)
+  const fxWeakness = new Map<string, number>();
+  if (currencies) {
+    for (const c of currencies) {
+      // changePct da cotação "1 USD = X local": positivo = local enfraqueceu
+      fxWeakness.set(c.code, Math.max(0, c.changePct));
+    }
+  }
+
+  // 3. Combinar: riskProxy = 0.6 * marketVol + 0.4 * currencyWeakness
+  const map = new Map<string, HeatEntry>();
+  for (const [country, iso] of Object.entries(COUNTRY_TO_ISO_NUM)) {
+    const mv = marketVol.get(country);
+    if (!mv) continue; // só pinta países com índice monitorado
+
+    const code = COUNTRY_CURRENCY[country];
+    const cw = code ? (fxWeakness.get(code) ?? 0) : 0;
+
+    const riskProxy = mv.vol * 0.6 + cw * 0.4;
+
+    // Negativo para que heatColor() pinte vermelho (alto risco) e verde (baixo risco)
+    map.set(iso, {
+      changePct: -riskProxy,
+      label: `Risco ${riskProxy.toFixed(1)}`,
+      country,
+      flag: mv.flag,
+    });
+  }
+  return map;
+}
+
 // Movimento da moeda local vs USD (rate invertido). +X% = moeda local valorizou.
 export function localFxMove(changePct: number): number {
   return -changePct;
