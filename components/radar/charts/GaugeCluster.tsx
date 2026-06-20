@@ -11,9 +11,14 @@ interface Props {
 }
 
 function color(s: number) {
+  if (s >= 80) return "#ef4444";
   if (s >= 70) return "#f87171";
-  if (s >= 45) return "#facc15";
-  return "#4ade80";
+  if (s >= 60) return "#fb923c";
+  if (s >= 50) return "#f59e0b";
+  if (s >= 40) return "#facc15";
+  if (s >= 30) return "#a3e635";
+  if (s >= 20) return "#4ade80";
+  return "#34d399";
 }
 
 function MiniGauge({ label, score }: GaugeItem) {

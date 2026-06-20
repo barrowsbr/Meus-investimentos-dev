@@ -11,20 +11,22 @@ interface Props {
 
 function heatBg(v: number): string {
   const abs = Math.abs(v);
-  if (v >= 0) {
-    if (abs >= 2) return "rgba(74,222,128,0.4)";
-    if (abs >= 1) return "rgba(74,222,128,0.25)";
-    if (abs >= 0.3) return "rgba(74,222,128,0.12)";
-    return "rgba(74,222,128,0.05)";
-  }
-  if (abs >= 2) return "rgba(248,113,113,0.4)";
-  if (abs >= 1) return "rgba(248,113,113,0.25)";
-  if (abs >= 0.3) return "rgba(248,113,113,0.12)";
-  return "rgba(248,113,113,0.05)";
+  const t = Math.min(abs / 2.5, 1);
+  const alpha = 0.08 + t * 0.45;
+  if (v >= 0) return `rgba(74,222,128,${alpha.toFixed(2)})`;
+  return `rgba(248,113,113,${alpha.toFixed(2)})`;
 }
 
 function heatText(v: number): string {
-  return v >= 0 ? "#4ade80" : "#f87171";
+  const abs = Math.abs(v);
+  if (v >= 0) {
+    if (abs >= 1.5) return "#4ade80";
+    if (abs >= 0.5) return "#86efac";
+    return "#a7f3d0";
+  }
+  if (abs >= 1.5) return "#f87171";
+  if (abs >= 0.5) return "#fca5a5";
+  return "#fecaca";
 }
 
 const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];

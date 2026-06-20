@@ -11,12 +11,16 @@ interface Props {
 }
 
 function heatColor(v: number): string {
-  if (v >= 2) return "#4ade80";
-  if (v >= 1) return "#22c55e";
+  if (v >= 2.5) return "#4ade80";
+  if (v >= 1.5) return "#22c55e";
+  if (v >= 0.8) return "#16a34a";
   if (v >= 0.3) return "#15803d";
-  if (v > -0.3) return "rgba(255,255,255,0.04)";
-  if (v > -1) return "#991b1b";
-  if (v > -2) return "#dc2626";
+  if (v >= 0.05) return "#1a4d2e";
+  if (v > -0.05) return "rgba(255,255,255,0.05)";
+  if (v > -0.3) return "#4c1919";
+  if (v > -0.8) return "#7f1d1d";
+  if (v > -1.5) return "#b91c1c";
+  if (v > -2.5) return "#dc2626";
   return "#ef4444";
 }
 

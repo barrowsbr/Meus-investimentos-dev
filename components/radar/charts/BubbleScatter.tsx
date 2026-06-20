@@ -44,8 +44,14 @@ export default function BubbleScatter({ bubbles, xLabel = "Risco →", yLabel = 
         const sy = toSvgY(b.y);
         const r = toR(b.size);
         const isPos = b.y >= 0;
-        const fillColor = isPos ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)";
-        const strokeColor = isPos ? "#4ade80" : "#f87171";
+        const yAbs = Math.abs(b.y);
+        const fillAlpha = 0.10 + Math.min(yAbs / maxY, 1) * 0.30;
+        const fillColor = isPos
+          ? `rgba(74,222,128,${fillAlpha.toFixed(2)})`
+          : `rgba(248,113,113,${fillAlpha.toFixed(2)})`;
+        const strokeColor = isPos
+          ? (yAbs >= maxY * 0.6 ? "#4ade80" : yAbs >= maxY * 0.25 ? "#86efac" : "#a7f3d0")
+          : (yAbs >= maxY * 0.6 ? "#f87171" : yAbs >= maxY * 0.25 ? "#fca5a5" : "#fecaca");
         return (
           <g key={b.label}>
             <circle cx={sx} cy={sy} r={r} fill={fillColor} stroke={b.highlight ? "#fff" : strokeColor} strokeWidth={b.highlight ? 1.5 : 1} opacity={b.highlight ? 1 : 0.8} />
