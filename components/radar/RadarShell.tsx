@@ -128,11 +128,11 @@ export default function RadarShell() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-2rem-64px)] flex-col gap-3 md:h-[calc(100dvh-2.5rem)]">
+    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-2 md:h-[calc(100dvh-5rem)]">
       <RadarTopBar lastUpdate={markets?.lastUpdate} onPickCountry={selectByName} />
 
       {/* Controles compactos no mobile */}
-      <div className="flex items-center gap-2 overflow-x-auto md:hidden">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-0.5 pb-1 md:hidden">
         {([
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
@@ -143,18 +143,18 @@ export default function RadarShell() {
             <button
               key={key}
               onClick={() => setLayer(key)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
               style={{
-                background: active ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${active ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.08)"}`,
-                color: active ? "#fff" : "#a1a1aa",
+                background: active ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.08)",
+                border: `1px solid ${active ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.15)"}`,
+                color: active ? "#fff" : "#d4d4d8",
               }}
             >
               <Icon size={13} /> {label}
             </button>
           );
         })}
-        <div className="mx-1 h-5 w-px shrink-0 bg-white/10" />
+        <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
         {regions.map((r) => {
           const c = REGION_COLORS[r] ?? "#888";
           const active = regionFilter === r;
@@ -162,8 +162,8 @@ export default function RadarShell() {
             <button
               key={r}
               onClick={() => setRegionFilter(active ? null : r)}
-              className="shrink-0 rounded-full px-2.5 py-2 text-[11px]"
-              style={{ background: active ? `${c}30` : "rgba(255,255,255,0.04)", border: `1px solid ${active ? `${c}60` : "rgba(255,255,255,0.08)"}`, color: active ? c : "#888" }}
+              className="shrink-0 rounded-full px-2.5 py-2 text-[11px] font-medium"
+              style={{ background: active ? `${c}30` : "rgba(255,255,255,0.08)", border: `1px solid ${active ? `${c}60` : "rgba(255,255,255,0.15)"}`, color: active ? c : "#a1a1aa" }}
             >
               {r}
             </button>
@@ -171,7 +171,7 @@ export default function RadarShell() {
         })}
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3">
+      <div className="flex min-h-0 flex-1 gap-0 md:gap-3">
         {/* Rail (desktop) */}
         <div className="hidden w-[230px] shrink-0 overflow-y-auto pr-1 md:block">
           <LayersRail

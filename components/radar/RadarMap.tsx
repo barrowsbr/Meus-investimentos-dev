@@ -6,7 +6,7 @@
 // país abre o dossiê. Marcadores adicionam o ponto preciso de cada praça.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { GEO_URL, REGION_COLORS, heatColor } from "@/lib/world-map";
@@ -42,14 +42,21 @@ function RadarMapInner({
   const [zoom, setZoom] = useState(1);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
   const [tip, setTip] = useState<Tip | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   const zoomIn = useCallback(() => setZoom((z) => Math.min(z * 1.5, 8)), []);
   const zoomOut = useCallback(() => setZoom((z) => Math.max(z / 1.5, 1)), []);
   const reset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
 
+  useEffect(() => {
+    const svg = wrapRef.current?.querySelector("svg");
+    if (svg) svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
+  });
+
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-2xl"
+      ref={wrapRef}
+      className="relative h-full w-full overflow-hidden rounded-xl md:rounded-2xl"
       style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)" }}
       onMouseLeave={() => setTip(null)}
     >
@@ -64,7 +71,7 @@ function RadarMapInner({
             key={label}
             onClick={action}
             title={label}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+            className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
             style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
           >
             <Icon size={14} className="text-zinc-300" />
@@ -74,7 +81,7 @@ function RadarMapInner({
 
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ scale: 145, center: [0, 30] }}
+        projectionConfig={{ scale: 145, center: [15, 20] }}
         style={{ width: "100%", height: "100%" }}
         width={900}
         height={520}
