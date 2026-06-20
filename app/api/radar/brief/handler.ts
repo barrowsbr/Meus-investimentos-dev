@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { llmComplete } from "@/lib/llm";
+import { cacheGet, cacheSet } from "@/lib/radar/disk-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -7,7 +8,7 @@ export const maxDuration = 20;
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Brief — leitura geoeconômica de um país via Gemini/LLM.
 // Gera um parágrafo contextualizado (3-4 frases) com tom analítico,
-// citando fontes quando possível. Cacheado 12h em memória.
+// citando fontes quando possível. Cacheado 12h em disco.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface BriefResult {
@@ -17,7 +18,6 @@ interface BriefResult {
   cachedAt: string;
 }
 
-const cache = new Map<string, { result: BriefResult; ts: number }>();
 const CACHE_TTL = 12 * 60 * 60 * 1000;
 
 const SYSTEM = `Você é um analista geoeconômico sênior. Seu papel é produzir uma leitura concisa do cenário atual de um país, cobrindo:
@@ -42,9 +42,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "country param required" }, { status: 400 });
   }
 
-  const cached = cache.get(country);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    return NextResponse.json(cached.result, {
+  const cacheKey = `brief_${country}`;
+  const cached = cacheGet<BriefResult>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
       headers: { "X-Cache": "HIT" },
     });
   }
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
       cachedAt: new Date().toISOString(),
     };
 
-    cache.set(country, { result: brief, ts: Date.now() });
+    cacheSet(cacheKey, brief, CACHE_TTL);
 
     return NextResponse.json(brief, {
       headers: { "X-Cache": "MISS", "Cache-Control": "s-maxage=43200, stale-while-revalidate=3600" },

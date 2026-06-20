@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { fetchQuotes } from "@/lib/cotacoes";
+import { COUNTRY_CURRENCY } from "@/lib/radar/geo";
+import { INDICES } from "@/lib/radar/indices";
+import { parseRssItems } from "@/lib/radar/rss";
+import { fetchPolymarket } from "@/lib/polymarket";
+import { cacheGet, cacheSet } from "@/lib/radar/disk-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +13,9 @@ export const dynamic = "force-dynamic";
 //   1. Política / Notícias  (news density com palavras-chave de risco)
 //   2. Fiscal / Macro        (dívida/PIB, inflação, conta corrente — World Bank)
 //   3. Mercado / Volatilidade (|variação| do índice local + moeda)
-//   4. Externa / Preditivos   (Polymarket/Kalshi: conflito, eleição, sanções)
+//   4. Externa / Preditivos   (Polymarket: conflito, eleição, sanções)
 //
-// O score é determinístico (sem IA) e cacheado em memória 6h.
+// O score é determinístico (sem IA) e cacheado em disco 6h.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const COUNTRY_ISO: Record<string, string> = {
@@ -54,19 +60,18 @@ const COUNTRY_EN: Record<string, string> = {
 
 interface DimensionScore {
   label: string;
-  score: number;   // 0-100
+  score: number;
   detail: string;
 }
 
 interface InstabilityResult {
   country: string;
-  score: number;    // 0-100 composto
+  score: number;
   level: "baixo" | "moderado" | "elevado" | "crítico";
   dimensions: DimensionScore[];
   cachedAt: string;
 }
 
-const cache = new Map<string, { result: InstabilityResult; ts: number }>();
 const CACHE_TTL = 6 * 60 * 60 * 1000;
 
 // ── 1. News density (Google News RSS count of risk keywords) ────────────────
@@ -87,11 +92,11 @@ async function newsScore(country: string): Promise<DimensionScore> {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000), next: { revalidate: 21600 } });
     if (!res.ok) return { label: "Política / Notícias", score: 0, detail: "Sem dados" };
     const xml = await res.text();
-    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
+    const items = parseRssItems(xml);
     const total = items.length;
     let riskCount = 0;
-    for (const m of items) {
-      const title = m[1].toLowerCase();
+    for (const item of items) {
+      const title = item.title.toLowerCase();
       if (RISK_KW.some(kw => title.includes(kw))) riskCount++;
     }
     const density = total > 0 ? riskCount / total : 0;
@@ -163,37 +168,43 @@ async function fiscalScore(country: string): Promise<DimensionScore> {
   };
 }
 
-// ── 3. Market / Volatility (from /api/bolsas + /api/moedas data) ────────────
+// ── 3. Market / Volatility (direct fetch via fetchQuotes) ───────────────────
 
 async function marketScore(country: string): Promise<DimensionScore> {
   try {
-    const [bolsasRes, moedasRes] = await Promise.all([
-      fetch(`${getBaseUrl()}/api/bolsas`, { signal: AbortSignal.timeout(12000) }).then(r => r.json()).catch(() => null),
-      fetch(`${getBaseUrl()}/api/moedas`, { signal: AbortSignal.timeout(12000) }).then(r => r.json()).catch(() => null),
-    ]);
+    const localIndices = INDICES.filter(i => i.country === country && i.symbol !== "^VIX");
+    const currencyCode = COUNTRY_CURRENCY[country];
+    const fxSymbol = currencyCode && currencyCode !== "USD" ? `${currencyCode}=X` : null;
+
+    const symbols = [
+      ...localIndices.map(i => i.symbol),
+      ...(fxSymbol ? [fxSymbol] : []),
+    ];
+
+    if (symbols.length === 0) {
+      return { label: "Mercado / Volatilidade", score: 0, detail: "Sem índices mapeados" };
+    }
+
+    const { quotes } = await fetchQuotes(symbols);
 
     let indexVol = 0;
     let fxVol = 0;
     const parts: string[] = [];
 
-    if (bolsasRes?.indices) {
-      const local = bolsasRes.indices.filter((i: { country: string; symbol: string }) => i.country === country && i.symbol !== "^VIX");
-      if (local.length > 0) {
-        const maxChange = Math.max(...local.map((i: { changePct: number }) => Math.abs(i.changePct)));
-        indexVol = maxChange;
-        parts.push(`Índice ±${maxChange.toFixed(2)}%`);
+    for (const idx of localIndices) {
+      const q = quotes[idx.symbol];
+      if (q) {
+        const abs = Math.abs(q.changePercent);
+        if (abs > indexVol) indexVol = abs;
       }
     }
+    if (indexVol > 0) parts.push(`Índice ±${indexVol.toFixed(2)}%`);
 
-    if (moedasRes?.currencies) {
-      const { COUNTRY_CURRENCY } = await import("@/lib/radar/geo");
-      const code = COUNTRY_CURRENCY[country];
-      if (code) {
-        const cur = moedasRes.currencies.find((c: { code: string }) => c.code === code);
-        if (cur) {
-          fxVol = Math.abs(cur.changePct);
-          parts.push(`FX ±${fxVol.toFixed(2)}%`);
-        }
+    if (fxSymbol) {
+      const fxQ = quotes[fxSymbol];
+      if (fxQ) {
+        fxVol = Math.abs(fxQ.changePercent);
+        parts.push(`FX ±${fxVol.toFixed(2)}%`);
       }
     }
 
@@ -210,7 +221,7 @@ async function marketScore(country: string): Promise<DimensionScore> {
   }
 }
 
-// ── 4. External / Predictives (Polymarket geo-events) ────────────────────────
+// ── 4. External / Predictives (Polymarket geo-events — direct import) ───────
 
 const COUNTRY_GEO_KW: Record<string, string[]> = {
   "EUA": ["united states", "america", "trump", "harris", "biden", "congress", "us election", "federal reserve"],
@@ -244,11 +255,7 @@ async function externalScore(country: string): Promise<DimensionScore> {
   }
 
   try {
-    const res = await fetch(`${getBaseUrl()}/api/preditivos/polymarket`, {
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) return { label: "Externa / Preditivos", score: 0, detail: "Falha na API" };
-    const data = await res.json();
+    const data = await fetchPolymarket();
     const allEvents: { title: string; volume: number; odds: { percent: number }[] }[] = [];
     for (const cat of Object.values(data.categories ?? {})) {
       if (Array.isArray(cat)) allEvents.push(...(cat as typeof allEvents));
@@ -289,11 +296,6 @@ function classifyLevel(score: number): InstabilityResult["level"] {
   return "baixo";
 }
 
-function getBaseUrl(): string {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-}
-
 async function computeInstability(country: string): Promise<InstabilityResult> {
   const [d1, d2, d3, d4] = await Promise.all([
     newsScore(country),
@@ -323,15 +325,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "country param required" }, { status: 400 });
   }
 
-  const cached = cache.get(country);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    return NextResponse.json(cached.result, {
+  const cacheKey = `instability_${country}`;
+  const cached = cacheGet<InstabilityResult>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
       headers: { "X-Cache": "HIT", "Cache-Control": "s-maxage=21600, stale-while-revalidate=3600" },
     });
   }
 
   const result = await computeInstability(country);
-  cache.set(country, { result, ts: Date.now() });
+  cacheSet(cacheKey, result, CACHE_TTL);
 
   return NextResponse.json(result, {
     headers: { "X-Cache": "MISS", "Cache-Control": "s-maxage=21600, stale-while-revalidate=3600" },
