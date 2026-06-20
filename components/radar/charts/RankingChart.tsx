@@ -27,9 +27,13 @@ export default function RankingChart({ items }: Props) {
         const pct = item.changePct;
         const barW = Math.max((Math.abs(pct) / maxAbs) * 80, 12);
         const isPos = pct >= 0;
-        const color = isPos ? "#4ade80" : "#f87171";
-        const bgFrom = isPos ? "rgba(74,222,128,0.04)" : "rgba(248,113,113,0.04)";
-        const bgTo = isPos ? "rgba(74,222,128,0.16)" : "rgba(248,113,113,0.16)";
+        const intensity = Math.min(Math.abs(pct) / maxAbs, 1);
+        const alphaTo = 0.10 + intensity * 0.20;
+        const color = isPos
+          ? (pct >= 1.5 ? "#4ade80" : pct >= 0.5 ? "#86efac" : "#a7f3d0")
+          : (pct <= -1.5 ? "#f87171" : pct <= -0.5 ? "#fca5a5" : "#fecaca");
+        const bgFrom = isPos ? "rgba(74,222,128,0.03)" : "rgba(248,113,113,0.03)";
+        const bgTo = isPos ? `rgba(74,222,128,${alphaTo.toFixed(2)})` : `rgba(248,113,113,${alphaTo.toFixed(2)})`;
         return (
           <div key={item.label} className="flex items-center gap-1.5">
             <span className="w-4 text-right font-mono text-[9px] text-zinc-600">{i + 1}</span>

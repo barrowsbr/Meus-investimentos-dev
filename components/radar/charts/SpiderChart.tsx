@@ -27,7 +27,16 @@ export default function SpiderChart({ dimensions, size = 200 }: Props) {
   const dataPoints = dimensions.map((d, i) => point(i, d.score / 100));
   const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
 
-  const scoreColor = (s: number) => s >= 70 ? "#f87171" : s >= 45 ? "#facc15" : "#4ade80";
+  const scoreColor = (s: number) => {
+    if (s >= 80) return "#ef4444";
+    if (s >= 70) return "#f87171";
+    if (s >= 60) return "#fb923c";
+    if (s >= 50) return "#f59e0b";
+    if (s >= 40) return "#facc15";
+    if (s >= 30) return "#a3e635";
+    if (s >= 20) return "#4ade80";
+    return "#34d399";
+  };
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
