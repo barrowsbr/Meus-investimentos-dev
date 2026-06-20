@@ -39,7 +39,7 @@ export default function SpiderChart({ dimensions, size = 200 }: Props) {
   };
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width="100%" viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: size }}>
       {rings.map((scale) => {
         const pts = Array.from({ length: n }, (_, i) => point(i, scale));
         return (

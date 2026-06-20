@@ -39,7 +39,7 @@ function MiniGauge({ label, score }: GaugeItem) {
 
 export default function GaugeCluster({ items, total }: Props) {
   return (
-    <div className="flex flex-wrap items-end justify-center gap-3">
+    <div className="flex flex-wrap items-end justify-center gap-2 sm:gap-3">
       {items.map((g) => (
         <MiniGauge key={g.label} {...g} />
       ))}

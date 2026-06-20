@@ -31,7 +31,7 @@ export default function BubbleScatter({ bubbles, xLabel = "Risco →", yLabel = 
   const toR = (s: number) => 6 + (s / maxSize) * 18;
 
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
       {/* Axes */}
       <line x1={pad} y1={H / 2} x2={W - pad} y2={H / 2} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="3 3" />
       <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="3 3" />
