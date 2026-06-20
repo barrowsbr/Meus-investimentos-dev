@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
+import { fetchTab } from "@/lib/gsheets";
+import { fetchCotacoes } from "@/lib/cotacoes";
+import { calcularSnapshot } from "@/lib/portfolio";
+import { buildPmFxRates, calcularCambioMetrics, buildFxDateMap } from "@/lib/cambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Portfolio Exposure — cruza posições reais do portfólio com os países do
-// Radar. Fase 4: "Pessoal & Acionável". Reutiliza inferência de país de
-// lib/ticker-country.ts e lê posições de /api/cotacoes.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Mapa de sufixo de bolsa → código ISO do país
 const EXCHANGE_SUFFIX: Record<string, string> = {
   ".SA": "BR", ".L": "GB", ".T": "JP", ".DE": "DE", ".PA": "FR",
   ".SW": "CH", ".AS": "NL", ".CO": "DK", ".ST": "SE", ".HE": "FI",
@@ -32,7 +29,6 @@ const ADR_COUNTRY: Record<string, string> = {
   AMX: "MX", SQM: "CL", YPF: "AR", GLOB: "AR",
 };
 
-// PT country name → ISO-2 (reverse of Radar's mapping)
 const PT_TO_ISO2: Record<string, string> = {
   "EUA": "US", "Brasil": "BR", "Canadá": "CA", "México": "MX",
   "Argentina": "AR", "Chile": "CL", "Colômbia": "CO", "Peru": "PE",
@@ -51,15 +47,8 @@ const PT_TO_ISO2: Record<string, string> = {
 
 const ISO2_TO_PT = Object.fromEntries(Object.entries(PT_TO_ISO2).map(([k, v]) => [v, k]));
 
-interface PortfolioPosition {
-  ticker: string;
-  setor: string;
-  valorAtualBRL: number;
-  quantidade: number;
-}
-
 interface ExposureEntry {
-  countryPT: string;    // nome PT do país (match com Radar)
+  countryPT: string;
   iso2: string;
   totalBRL: number;
   pct: number;
@@ -81,30 +70,46 @@ function inferCountry(ticker: string, setor: string): string {
   return "US";
 }
 
-function getBaseUrl(): string {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-}
-
 export async function GET() {
   try {
-    const res = await fetch(`${getBaseUrl()}/api/cotacoes`, {
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) {
-      return NextResponse.json({ exposure: [], error: "Falha ao buscar portfólio" });
+    const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
+      fetchTab("meus_ativos"),
+      fetchTab("meus_proventos"),
+      fetchTab("fixa_aberta"),
+      fetchTab("cambio").catch(() => []),
+      fetchTab("p_tax").catch(() => []),
+    ]);
+
+    const tickerSet = new Map<string, { moeda: string; corretora: string }>();
+    for (const row of transacoes) {
+      const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
+      if (!ticker) continue;
+      if (!tickerSet.has(ticker)) {
+        tickerSet.set(ticker, {
+          moeda: String(row["moeda"] ?? "BRL").toUpperCase().trim(),
+          corretora: String(row["corretora"] ?? "").trim(),
+        });
+      }
     }
-    const data = await res.json();
-    const positions: PortfolioPosition[] = (data.positions ?? []).map((p: Record<string, unknown>) => ({
-      ticker: String(p.ticker ?? ""),
-      setor: String(p.setor ?? ""),
-      valorAtualBRL: Number(p.valorAtualBRL ?? 0),
-      quantidade: Number(p.quantidade ?? 0),
-    })).filter((p: PortfolioPosition) => p.valorAtualBRL > 0);
+
+    const tickers = [...tickerSet.entries()].map(([ticker, info]) => ({
+      ticker,
+      moeda: info.moeda,
+      corretora: info.corretora,
+    }));
+
+    const cotacoes = await fetchCotacoes(tickers);
+    const fxAtual = cotacoes.fx;
+    const cambio = calcularCambioMetrics(cambioRows, fxAtual);
+    const fxCusto = buildPmFxRates(cambio);
+    const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
+
+    const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate, {});
 
     const byCountry: Record<string, { totalBRL: number; tickers: Set<string> }> = {};
 
-    for (const pos of positions) {
+    for (const pos of snapshot.positions) {
+      if (pos.valorAtualBRL <= 0) continue;
       const iso2 = inferCountry(pos.ticker, pos.setor);
       if (!iso2) continue;
       if (!byCountry[iso2]) byCountry[iso2] = { totalBRL: 0, tickers: new Set() };
@@ -115,12 +120,12 @@ export async function GET() {
     const totalBRL = Object.values(byCountry).reduce((s, v) => s + v.totalBRL, 0);
 
     const exposure: ExposureEntry[] = Object.entries(byCountry)
-      .map(([iso2, data]) => ({
+      .map(([iso2, d]) => ({
         countryPT: ISO2_TO_PT[iso2] ?? iso2,
         iso2,
-        totalBRL: data.totalBRL,
-        pct: totalBRL > 0 ? (data.totalBRL / totalBRL) * 100 : 0,
-        tickers: [...data.tickers].slice(0, 8),
+        totalBRL: d.totalBRL,
+        pct: totalBRL > 0 ? (d.totalBRL / totalBRL) * 100 : 0,
+        tickers: [...d.tickers].slice(0, 8),
       }))
       .sort((a, b) => b.totalBRL - a.totalBRL);
 
