@@ -31,3 +31,4 @@ backups/
 
 # Arquivo temporário de mensagem de commit
 .commitmsg.tmp
+.claude/worktrees/
