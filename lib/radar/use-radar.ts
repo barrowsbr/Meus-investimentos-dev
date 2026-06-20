@@ -248,7 +248,8 @@ export function useExposure() {
       .then((r) => r.json())
       .then((d: ExposureResponse) => {
         if (cancelled) return;
-        if (!d.error) { exposureCache = d; setData(d); }
+        exposureCache = d;
+        setData(d);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
