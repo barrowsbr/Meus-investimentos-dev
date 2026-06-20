@@ -29,7 +29,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
         <CommandBar title={title} onMenu={() => setRailOpen((o) => !o)} />
         <main
           key={pathname}
-          className="flex-1 min-h-0 overflow-auto animate-fade-in px-4 py-4 md:px-[22px] md:py-[18px]"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden animate-fade-in px-4 py-4 md:px-[22px] md:py-[18px]"
           style={{ overscrollBehavior: "none" }}
         >
           {children}

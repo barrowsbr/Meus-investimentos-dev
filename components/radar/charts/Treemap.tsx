@@ -37,7 +37,7 @@ export default function Treemap({ items }: Props) {
   const smallCount = top.length - bigCount;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 overflow-hidden">
       {/* Top items */}
       <div className="grid gap-1" style={{ gridTemplateColumns: top.length === 1 ? "1fr" : top.length === 2 ? "1fr 1fr" : `${top[0].pct}fr ${top.slice(1, bigCount).reduce((s, t) => s + t.pct, 0)}fr` }}>
         {top.slice(0, bigCount).map((item, i) => {

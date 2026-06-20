@@ -81,13 +81,13 @@ export default function CountryDossier({
 
   return (
     <>
-      {open && <div className="absolute inset-0 z-30 bg-black/40 md:hidden" onClick={onClose} aria-hidden />}
+      {open && <div className="fixed inset-0 z-30 bg-black/40 md:absolute md:inset-0" onClick={onClose} aria-hidden />}
 
       <aside
-        className="absolute right-0 top-0 z-40 flex h-full w-full flex-col transition-transform duration-300 ease-out md:w-[380px]"
+        className="fixed inset-0 z-40 flex flex-col transition-transform duration-300 ease-out md:absolute md:right-0 md:top-0 md:left-auto md:h-full md:w-[380px]"
         style={{
           transform: open ? "translateX(0)" : "translateX(105%)",
-          background: "rgba(10,12,18,0.97)",
+          background: "rgba(10,12,18,0.98)",
           borderLeft: "1px solid rgba(255,255,255,0.08)",
           boxShadow: open ? "-12px 0 40px rgba(0,0,0,0.5)" : "none",
           backdropFilter: "blur(8px)",
@@ -121,7 +121,7 @@ export default function CountryDossier({
               })}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               {tab === "resumo" && (
                 <ResumoTab
                   indices={indices}

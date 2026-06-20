@@ -128,11 +128,11 @@ export default function RadarShell() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-2 md:h-[calc(100dvh-5rem)]">
+    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-2 overflow-hidden md:h-[calc(100dvh-5rem)]">
       <RadarTopBar lastUpdate={markets?.lastUpdate} onPickCountry={selectByName} />
 
       {/* Controles compactos no mobile */}
-      <div className="flex items-center gap-1.5 overflow-x-auto px-0.5 pb-1 md:hidden">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-0.5 pb-1 md:hidden" style={{ overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}>
         {([
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
@@ -188,7 +188,7 @@ export default function RadarShell() {
         </div>
 
         {/* Mapa + dossiê */}
-        <div className="relative min-h-0 min-w-0 flex-1">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <RadarMap
             layer={layer}
             heat={heat}
