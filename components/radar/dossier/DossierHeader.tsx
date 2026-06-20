@@ -30,10 +30,10 @@ export default function DossierHeader({
   const color = REGION_COLORS[country.region] ?? "#888";
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <span className="text-3xl leading-none">{country.flag}</span>
+    <div className="flex items-start justify-between gap-2 border-b border-white/10 px-3 py-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="relative shrink-0">
+          <span className="text-2xl leading-none">{country.flag}</span>
           {convergence?.active && (
             <span
               className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
@@ -46,18 +46,18 @@ export default function DossierHeader({
             </span>
           )}
         </div>
-        <div>
-          <h2 className="text-lg font-bold leading-tight text-zinc-50">{country.name}</h2>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-bold leading-tight text-zinc-50">{country.name}</h2>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
             <span
-              className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
               style={{ background: `${color}1f`, color }}
             >
               {country.region}
             </span>
             {instability && (
               <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                 style={{
                   background: `${LEVEL_COLOR[instability.level]}15`,
                   color: LEVEL_COLOR[instability.level],
@@ -69,11 +69,11 @@ export default function DossierHeader({
             )}
             {convergence?.active && (
               <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                 style={{ background: "rgba(251,146,60,0.12)", color: "#fb923c" }}
               >
                 <Zap size={9} />
-                Convergência ({convergence.count} sinais)
+                {convergence.count} sinais
               </span>
             )}
           </div>
@@ -81,10 +81,11 @@ export default function DossierHeader({
       </div>
       <button
         onClick={onClose}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-300 transition-colors active:scale-95"
+        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
         aria-label="Fechar dossiê"
       >
-        <X size={18} />
+        <X size={20} />
       </button>
     </div>
   );

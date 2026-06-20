@@ -48,6 +48,8 @@ function RadarMapInner({
   const zoomOut = useCallback(() => setZoom((z) => Math.max(z / 1.5, 1)), []);
   const reset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
 
+  useEffect(() => { if (selectedIso) setTip(null); }, [selectedIso]);
+
   useEffect(() => {
     const svg = wrapRef.current?.querySelector("svg");
     if (svg) svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
