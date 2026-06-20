@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar — Opções de Gráficos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #08080a; color: #e4e4e7; font-family: 'Inter', -apple-system, sans-serif; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #71717a; font-size: 13px; margin-bottom: 32px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+  }
+  .card-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: #a1a1aa;
+    margin-bottom: 4px;
+  }
+  .card-desc {
+    font-size: 11px;
+    color: #52525b;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .badge-resumo { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .badge-intel { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .badge-mercados { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .badge-portfolio { background: rgba(251,146,60,0.15); color: #fb923c; }
+
+  /* ── Opção A: Radar/Spider Chart ── */
+  .spider-wrap { display: flex; justify-content: center; padding: 8px 0; }
+
+  /* ── Opção B: Treemap ── */
+  .treemap { display: grid; gap: 3px; height: 200px; }
+  .treemap-item {
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    position: relative;
+  }
+  .treemap-item .val { font-family: 'JetBrains Mono', monospace; font-size: 10px; opacity: 0.8; }
+
+  /* ── Opção C: Horizon Chart ── */
+  .horizon-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .horizon-label { font-size: 10px; color: #a1a1aa; width: 50px; text-align: right; flex-shrink: 0; }
+  .horizon-bars { flex: 1; display: flex; gap: 1px; height: 20px; border-radius: 4px; overflow: hidden; }
+  .horizon-bar { flex: 1; transition: opacity 0.3s; }
+
+  /* ── Opção D: Bubble Scatter ── */
+  .scatter-wrap { position: relative; height: 220px; border-left: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); margin: 8px 0 0 30px; }
+  .scatter-bubble {
+    position: absolute;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    transition: transform 0.2s;
+    cursor: default;
+  }
+  .scatter-bubble:hover { transform: scale(1.15); }
+  .scatter-axis { font-size: 9px; color: #52525b; position: absolute; }
+
+  /* ── Opção E: Waterfall ── */
+  .waterfall { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding-top: 20px; }
+  .wf-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .wf-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; position: relative; }
+  .wf-label { font-size: 8px; color: #71717a; text-align: center; margin-top: 4px; }
+  .wf-val { font-size: 8px; font-family: monospace; font-weight: 600; position: absolute; top: -14px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+  /* ── Opção F: Heatmap Calendar ── */
+  .heatmap-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .heat-cell {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-family: monospace;
+    font-weight: 600;
+    min-height: 28px;
+  }
+  .heat-header { font-size: 8px; color: #52525b; text-align: center; padding: 2px 0 4px; font-weight: 600; }
+
+  /* ── Opção G: Gauge Cluster ── */
+  .gauge-cluster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .gauge-item { text-align: center; }
+  .gauge-item svg { display: block; margin: 0 auto 6px; }
+  .gauge-name { font-size: 9px; color: #a1a1aa; }
+  .gauge-val { font-size: 14px; font-weight: 700; font-family: monospace; }
+
+  /* ── Opção H: Bump / Ranking ── */
+  .bump-wrap { position: relative; height: 180px; }
+  .bump-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+  .bump-rank { font-size: 9px; color: #52525b; width: 14px; text-align: right; }
+  .bump-name { font-size: 10px; width: 60px; }
+  .bump-track { flex: 1; height: 26px; position: relative; }
+  .bump-line { height: 3px; border-radius: 2px; position: absolute; top: 50%; transform: translateY(-50%); }
+  .bump-dot { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); border: 1.5px solid rgba(0,0,0,0.3); }
+</style>
+</head>
+<body>
+
+<h1>Radar — Opções de Visualização</h1>
+<p class="subtitle">8 conceitos de gráfico para o dossiê de país e painéis do Radar</p>
+
+<div class="grid">
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- A: RADAR / SPIDER CHART -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-intel">Aba Intel</span>
+  <p class="card-title">A · Radar / Spider Chart</p>
+  <p class="card-desc">Perfil multidimensional do país: mercado, câmbio, fiscal, político, externo. Ideal para comparar dimensões do Instability Index.</p>
+  <div class="spider-wrap">
+    <svg width="240" height="220" viewBox="0 0 240 220">
+      <!-- Pentagon grid -->
+      <g transform="translate(120,110)">
+        <!-- Rings -->
+        <polygon points="0,-90 85.6,-27.8 52.9,72.8 -52.9,72.8 -85.6,-27.8" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+        <polygon points="0,-60 57,-18.5 35.3,48.5 -35.3,48.5 -57,-18.5" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+        <polygon points="0,-30 28.5,-9.3 17.6,24.3 -17.6,24.3 -28.5,-9.3" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+        <!-- Axis lines -->
+        <line x1="0" y1="0" x2="0" y2="-90" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <line x1="0" y1="0" x2="85.6" y2="-27.8" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <line x1="0" y1="0" x2="52.9" y2="72.8" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <line x1="0" y1="0" x2="-52.9" y2="72.8" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <line x1="0" y1="0" x2="-85.6" y2="-27.8" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <!-- Data polygon -->
+        <polygon
+          points="0,-72 68.5,-16.7 21.2,58.2 -42.3,36.4 -34.2,-22.2"
+          fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="1.5"
+        />
+        <!-- Data dots -->
+        <circle cx="0" cy="-72" r="3" fill="#fb923c"/>
+        <circle cx="68.5" cy="-16.7" r="3" fill="#fb923c"/>
+        <circle cx="21.2" cy="58.2" r="3" fill="#fb923c"/>
+        <circle cx="-42.3" cy="36.4" r="3" fill="#fb923c"/>
+        <circle cx="-34.2" cy="-22.2" r="3" fill="#fb923c"/>
+        <!-- Labels -->
+        <text x="0" y="-97" text-anchor="middle" fill="#a1a1aa" font-size="9" font-weight="600">Político</text>
+        <text x="95" y="-24" text-anchor="start" fill="#a1a1aa" font-size="9" font-weight="600">Fiscal</text>
+        <text x="60" y="86" text-anchor="start" fill="#a1a1aa" font-size="9" font-weight="600">Mercado</text>
+        <text x="-60" y="86" text-anchor="end" fill="#a1a1aa" font-size="9" font-weight="600">Externo</text>
+        <text x="-95" y="-24" text-anchor="end" fill="#a1a1aa" font-size="9" font-weight="600">Câmbio</text>
+        <!-- Score values -->
+        <text x="0" y="-78" text-anchor="middle" fill="#fb923c" font-size="8" font-weight="700" font-family="monospace">80</text>
+        <text x="74" y="-12" text-anchor="start" fill="#fb923c" font-size="8" font-weight="700" font-family="monospace">72</text>
+        <text x="26" y="54" text-anchor="start" fill="#fb923c" font-size="8" font-weight="700" font-family="monospace">40</text>
+        <text x="-48" y="32" text-anchor="end" fill="#fb923c" font-size="8" font-weight="700" font-family="monospace">55</text>
+        <text x="-40" y="-18" text-anchor="end" fill="#fb923c" font-size="8" font-weight="700" font-family="monospace">38</text>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- B: TREEMAP -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-portfolio">Aba Portfólio</span>
+  <p class="card-title">B · Treemap de Exposição</p>
+  <p class="card-desc">Cada retângulo = país, área proporcional ao valor investido. Cor = variação do dia. Substitui lista de alocação geográfica.</p>
+  <div class="treemap" style="grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr 1fr;">
+    <div class="treemap-item" style="background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.2); grid-row: 1/3;">
+      <span style="color: #4ade80;">🇺🇸 EUA</span>
+      <div>
+        <div class="val" style="color: #4ade80;">+0.82%</div>
+        <div class="val" style="color: #a1a1aa;">R$ 180K · 52%</div>
+      </div>
+    </div>
+    <div class="treemap-item" style="background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.15);">
+      <span style="color: #f87171;">🇧🇷 Brasil</span>
+      <div class="val" style="color: #f87171;">−1.24%</div>
+    </div>
+    <div class="treemap-item" style="background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.12);">
+      <span style="color: #86efac;">🇬🇧 UK</span>
+      <div class="val" style="color: #86efac;">+0.31%</div>
+    </div>
+    <div class="treemap-item" style="background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.12); grid-column: 1/3;">
+      <div style="display:flex; gap: 16px;">
+        <span style="color: #fde68a;">🇩🇪 Alem.</span>
+        <span style="color: #fde68a;">🇯🇵 Japão</span>
+        <span style="color: #a1a1aa;">🇨🇦 Can.</span>
+        <span style="color: #a1a1aa;">🇨🇭 Suíça</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- C: HORIZON CHART -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-mercados">Aba Mercados</span>
+  <p class="card-title">C · Horizon Chart (30 dias)</p>
+  <p class="card-desc">Cada faixa = um índice, 30 colunas = 30 dias. Verde = alta, vermelho = baixa, intensidade = magnitude. Ultra-compacto.</p>
+  <div style="margin-top: 4px;">
+    <div class="horizon-row">
+      <span class="horizon-label">IBOV</span>
+      <div class="horizon-bars">
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#7f1d1d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#7f1d1d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#bbf7d0"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+      </div>
+    </div>
+    <div class="horizon-row">
+      <span class="horizon-label">S&P</span>
+      <div class="horizon-bars">
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#bbf7d0"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#7f1d1d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#86efac"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+      </div>
+    </div>
+    <div class="horizon-row">
+      <span class="horizon-label">DAX</span>
+      <div class="horizon-bars">
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#ef4444"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#7f1d1d"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+      </div>
+    </div>
+    <div class="horizon-row">
+      <span class="horizon-label">Nikkei</span>
+      <div class="horizon-bars">
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#86efac"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#ef4444"></div>
+        <div class="horizon-bar" style="background:#dc2626"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#86efac"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+      </div>
+    </div>
+    <div class="horizon-row">
+      <span class="horizon-label">FTSE</span>
+      <div class="horizon-bars">
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#7f1d1d"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#991b1b"></div>
+        <div class="horizon-bar" style="background:#166534"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#4ade80"></div>
+        <div class="horizon-bar" style="background:#22c55e"></div>
+        <div class="horizon-bar" style="background:#15803d"></div>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-top: 6px; padding-left: 58px;">
+      <span style="font-size:8px; color:#3f3f46;">30d atrás</span>
+      <span style="font-size:8px; color:#3f3f46;">hoje</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- D: BUBBLE SCATTER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-resumo">Aba Resumo</span>
+  <p class="card-title">D · Bolhas Risco × Retorno</p>
+  <p class="card-desc">Eixo X = risco (instabilidade), Y = retorno (variação do dia). Tamanho = exposição do portfólio. Visualização de uma tela.</p>
+  <div class="scatter-wrap">
+    <span class="scatter-axis" style="bottom:-18px; left:50%; transform:translateX(-50%);">Risco (instabilidade) →</span>
+    <span class="scatter-axis" style="top:50%; left:-28px; transform:rotate(-90deg) translateX(50%);">Retorno →</span>
+    <!-- Zero line -->
+    <div style="position:absolute; bottom:50%; left:0; right:0; border-top:1px dashed rgba(255,255,255,0.06);"></div>
+    <!-- Bubbles -->
+    <div class="scatter-bubble" style="width:56px; height:56px; background:rgba(74,222,128,0.25); border:1.5px solid #4ade80; left:15%; bottom:62%;">🇺🇸</div>
+    <div class="scatter-bubble" style="width:40px; height:40px; background:rgba(248,113,113,0.25); border:1.5px solid #f87171; left:55%; bottom:32%;">🇧🇷</div>
+    <div class="scatter-bubble" style="width:28px; height:28px; background:rgba(74,222,128,0.2); border:1.5px solid #86efac; left:30%; bottom:55%;">🇬🇧</div>
+    <div class="scatter-bubble" style="width:24px; height:24px; background:rgba(250,204,21,0.2); border:1.5px solid #fde68a; left:70%; bottom:48%;">🇹🇷</div>
+    <div class="scatter-bubble" style="width:22px; height:22px; background:rgba(74,222,128,0.15); border:1.5px solid #86efac; left:25%; bottom:58%;">🇩🇪</div>
+    <div class="scatter-bubble" style="width:32px; height:32px; background:rgba(248,113,113,0.2); border:1.5px solid #fca5a5; left:78%; bottom:28%;">🇦🇷</div>
+    <div class="scatter-bubble" style="width:20px; height:20px; background:rgba(74,222,128,0.15); border:1.5px solid #86efac; left:10%; bottom:68%;">🇯🇵</div>
+    <div class="scatter-bubble" style="width:18px; height:18px; background:rgba(250,204,21,0.15); border:1.5px solid #fde68a; left:48%; bottom:42%;">🇮🇳</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- E: WATERFALL -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-portfolio">Aba Portfólio</span>
+  <p class="card-title">E · Waterfall de Contribuição</p>
+  <p class="card-desc">Mostra quanto cada país contribuiu para o retorno do dia do portfólio. Barras verdes = contribuição positiva, vermelhas = negativa.</p>
+  <div class="waterfall">
+    <div class="wf-col">
+      <div class="wf-bar" style="height:90px; background:linear-gradient(to top, rgba(74,222,128,0.3), rgba(74,222,128,0.6));">
+        <span class="wf-val" style="color:#4ade80;">+R$820</span>
+      </div>
+      <span class="wf-label">EUA</span>
+    </div>
+    <div class="wf-col">
+      <div class="wf-bar" style="height:55px; background:linear-gradient(to top, rgba(248,113,113,0.3), rgba(248,113,113,0.6));">
+        <span class="wf-val" style="color:#f87171;">−R$480</span>
+      </div>
+      <span class="wf-label">Brasil</span>
+    </div>
+    <div class="wf-col">
+      <div class="wf-bar" style="height:30px; background:linear-gradient(to top, rgba(74,222,128,0.2), rgba(74,222,128,0.4));">
+        <span class="wf-val" style="color:#86efac;">+R$180</span>
+      </div>
+      <span class="wf-label">UK</span>
+    </div>
+    <div class="wf-col">
+      <div class="wf-bar" style="height:18px; background:linear-gradient(to top, rgba(74,222,128,0.15), rgba(74,222,128,0.3));">
+        <span class="wf-val" style="color:#86efac;">+R$95</span>
+      </div>
+      <span class="wf-label">Alem.</span>
+    </div>
+    <div class="wf-col">
+      <div class="wf-bar" style="height:12px; background:linear-gradient(to top, rgba(248,113,113,0.2), rgba(248,113,113,0.35));">
+        <span class="wf-val" style="color:#fca5a5;">−R$60</span>
+      </div>
+      <span class="wf-label">Japão</span>
+    </div>
+    <div class="wf-col" style="border-left: 1px dashed rgba(255,255,255,0.1); padding-left: 4px;">
+      <div class="wf-bar" style="height:40px; background:linear-gradient(to top, rgba(59,130,246,0.2), rgba(59,130,246,0.5));">
+        <span class="wf-val" style="color:#60a5fa;">+R$555</span>
+      </div>
+      <span class="wf-label" style="color:#60a5fa; font-weight:600;">Total</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- F: HEATMAP CALENDAR -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-resumo">Aba Resumo</span>
+  <p class="card-title">F · Heatmap Calendário (30d)</p>
+  <p class="card-desc">Calendário de um mês do índice local. Cada célula = 1 dia, cor = variação. Padrão GitHub Contributions adaptado para finanças.</p>
+  <div>
+    <div class="heatmap-grid">
+      <div class="heat-header">Seg</div>
+      <div class="heat-header">Ter</div>
+      <div class="heat-header">Qua</div>
+      <div class="heat-header">Qui</div>
+      <div class="heat-header">Sex</div>
+      <div class="heat-header">Sáb</div>
+      <div class="heat-header">Dom</div>
+      <!-- Week 1 -->
+      <div class="heat-cell" style="background:rgba(74,222,128,0.15); color:#4ade80;">+0.4</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.3); color:#4ade80;">+1.1</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.15); color:#f87171;">−0.3</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.3); color:#f87171;">−1.2</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.2); color:#4ade80;">+0.8</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <!-- Week 2 -->
+      <div class="heat-cell" style="background:rgba(248,113,113,0.2); color:#f87171;">−0.6</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.45); color:#f87171;">−2.1</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.1); color:#86efac;">+0.2</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.35); color:#4ade80;">+1.5</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.5); color:#4ade80;">+2.3</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <!-- Week 3 -->
+      <div class="heat-cell" style="background:rgba(74,222,128,0.15); color:#86efac;">+0.5</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.1); color:#86efac;">+0.1</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.35); color:#f87171;">−1.5</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.5); color:#f87171;">−2.8</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.2); color:#86efac;">+0.7</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <!-- Week 4 -->
+      <div class="heat-cell" style="background:rgba(74,222,128,0.4); color:#4ade80;">+1.9</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.25); color:#4ade80;">+1.0</div>
+      <div class="heat-cell" style="background:rgba(74,222,128,0.15); color:#86efac;">+0.3</div>
+      <div class="heat-cell" style="background:rgba(248,113,113,0.12); color:#fca5a5;">−0.2</div>
+      <div class="heat-cell" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid rgba(59,130,246,0.4);">hoje</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+      <div class="heat-cell" style="background:rgba(255,255,255,0.02); color:#3f3f46;">—</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:10px; justify-content:center;">
+      <span style="font-size:8px; color:#52525b;">−3%</span>
+      <div style="width:80px; height:6px; border-radius:3px; background: linear-gradient(to right, #7f1d1d, #991b1b, rgba(255,255,255,0.04), #166534, #22c55e);"></div>
+      <span style="font-size:8px; color:#52525b;">+3%</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- G: GAUGE CLUSTER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-intel">Aba Intel</span>
+  <p class="card-title">G · Cluster de Gauges</p>
+  <p class="card-desc">Alternativa ao spider chart: 5 mini-gauges semicirculares, um por dimensão do Instability Index. Score no centro.</p>
+  <div class="gauge-cluster">
+    <!-- Gauge 1 -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#fb923c" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="19.5" />
+        <text x="40" y="42" text-anchor="middle" fill="#fb923c" font-size="14" font-weight="700" font-family="monospace">80</text>
+      </svg>
+      <p class="gauge-name">Político</p>
+    </div>
+    <!-- Gauge 2 -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#facc15" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="28.5" />
+        <text x="40" y="42" text-anchor="middle" fill="#facc15" font-size="14" font-weight="700" font-family="monospace">72</text>
+      </svg>
+      <p class="gauge-name">Fiscal</p>
+    </div>
+    <!-- Gauge 3 -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#4ade80" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="60" />
+        <text x="40" y="42" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="700" font-family="monospace">40</text>
+      </svg>
+      <p class="gauge-name">Mercado</p>
+    </div>
+    <!-- Gauge 4 -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#facc15" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="45" />
+        <text x="40" y="42" text-anchor="middle" fill="#facc15" font-size="14" font-weight="700" font-family="monospace">55</text>
+      </svg>
+      <p class="gauge-name">Externo</p>
+    </div>
+    <!-- Gauge 5 -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#4ade80" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="62" />
+        <text x="40" y="42" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="700" font-family="monospace">38</text>
+      </svg>
+      <p class="gauge-name">Câmbio</p>
+    </div>
+    <!-- Gauge Total -->
+    <div class="gauge-item">
+      <svg width="80" height="50" viewBox="0 0 80 50">
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M 8 44 A 32 32 0 0 1 72 44" fill="none" stroke="#f87171" stroke-width="5" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="40" />
+        <text x="40" y="42" text-anchor="middle" fill="#f87171" font-size="14" font-weight="700" font-family="monospace">60</text>
+      </svg>
+      <p class="gauge-name" style="color:#f87171; font-weight:600;">TOTAL</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- H: BUMP / RANKING CHART -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <span class="badge badge-mercados">Aba Mercados</span>
+  <p class="card-title">H · Ranking por Desempenho</p>
+  <p class="card-desc">Posição de cada índice no ranking do dia. Barras horizontais mostram variação. Verde = acima de 0, vermelho = abaixo. Simples e eficaz.</p>
+  <div style="margin-top: 8px;">
+    <!-- Rank 1 -->
+    <div class="bump-row">
+      <span class="bump-rank">1</span>
+      <span class="bump-name" style="color:#4ade80;">🇯🇵 Nikkei</span>
+      <div class="bump-track">
+        <div style="height:22px; width:85%; background:linear-gradient(to right, rgba(74,222,128,0.08), rgba(74,222,128,0.25)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#86efac;">+2.34%</span>
+          <span style="font-size:9px; color:#52525b;">38,420</span>
+        </div>
+      </div>
+    </div>
+    <!-- Rank 2 -->
+    <div class="bump-row">
+      <span class="bump-rank">2</span>
+      <span class="bump-name" style="color:#86efac;">🇺🇸 S&P 500</span>
+      <div class="bump-track">
+        <div style="height:22px; width:62%; background:linear-gradient(to right, rgba(74,222,128,0.06), rgba(74,222,128,0.18)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#86efac;">+0.82%</span>
+          <span style="font-size:9px; color:#52525b;">5,321</span>
+        </div>
+      </div>
+    </div>
+    <!-- Rank 3 -->
+    <div class="bump-row">
+      <span class="bump-rank">3</span>
+      <span class="bump-name" style="color:#86efac;">🇩🇪 DAX</span>
+      <div class="bump-track">
+        <div style="height:22px; width:54%; background:linear-gradient(to right, rgba(74,222,128,0.04), rgba(74,222,128,0.12)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#86efac;">+0.45%</span>
+          <span style="font-size:9px; color:#52525b;">18,115</span>
+        </div>
+      </div>
+    </div>
+    <!-- Rank 4 -->
+    <div class="bump-row">
+      <span class="bump-rank">4</span>
+      <span class="bump-name" style="color:#a1a1aa;">🇬🇧 FTSE</span>
+      <div class="bump-track">
+        <div style="height:22px; width:50%; background:linear-gradient(to right, rgba(255,255,255,0.02), rgba(255,255,255,0.05)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#a1a1aa;">+0.05%</span>
+          <span style="font-size:9px; color:#52525b;">7,680</span>
+        </div>
+      </div>
+    </div>
+    <!-- Rank 5 -->
+    <div class="bump-row">
+      <span class="bump-rank">5</span>
+      <span class="bump-name" style="color:#fca5a5;">🇧🇷 IBOV</span>
+      <div class="bump-track">
+        <div style="height:22px; width:60%; background:linear-gradient(to right, rgba(248,113,113,0.06), rgba(248,113,113,0.18)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#fca5a5;">−1.24%</span>
+          <span style="font-size:9px; color:#52525b;">128,450</span>
+        </div>
+      </div>
+    </div>
+    <!-- Rank 6 -->
+    <div class="bump-row">
+      <span class="bump-rank">6</span>
+      <span class="bump-name" style="color:#f87171;">🇹🇷 BIST</span>
+      <div class="bump-track">
+        <div style="height:22px; width:72%; background:linear-gradient(to right, rgba(248,113,113,0.08), rgba(248,113,113,0.25)); border-radius:6px; display:flex; align-items:center; padding:0 8px; justify-content:space-between;">
+          <span style="font-size:10px; color:#f87171;">−2.10%</span>
+          <span style="font-size:9px; color:#52525b;">9,240</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /grid -->
+
+<div style="max-width:1100px; margin:32px auto 0; padding:20px; background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.15); border-radius:12px;">
+  <p style="font-size:12px; font-weight:600; color:#60a5fa; margin-bottom:8px;">Resumo das opções</p>
+  <table style="width:100%; font-size:11px; border-collapse:collapse;">
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">A · Spider</td>
+      <td style="padding:6px 8px; color:#71717a;">Perfil multidimensional. Ideal para Instability Index (5 dimensões).</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Intel</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">B · Treemap</td>
+      <td style="padding:6px 8px; color:#71717a;">Alocação geográfica visual. Área = valor, cor = performance.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Portfólio</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">C · Horizon</td>
+      <td style="padding:6px 8px; color:#71717a;">30 dias × N índices em espaço mínimo. Padrão de trading desks.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Mercados</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">D · Bolhas</td>
+      <td style="padding:6px 8px; color:#71717a;">Risco × retorno × exposição numa só tela. Intuitivo.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Resumo</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">E · Waterfall</td>
+      <td style="padding:6px 8px; color:#71717a;">Contribuição de cada país ao resultado do dia. Muito acionável.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Portfólio</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">F · Heatmap</td>
+      <td style="padding:6px 8px; color:#71717a;">Calendário mensal estilo GitHub. Identifica padrões sazonais.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Resumo</td>
+    </tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">G · Gauges</td>
+      <td style="padding:6px 8px; color:#71717a;">5 semi-gauges para dimensões de risco. Alternativa ao spider.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Intel</td>
+    </tr>
+    <tr>
+      <td style="padding:6px 8px; color:#a1a1aa; font-weight:600;">H · Ranking</td>
+      <td style="padding:6px 8px; color:#71717a;">Barras horizontais ordenadas. Simples, mobile-friendly.</td>
+      <td style="padding:6px 8px; color:#52525b;">Aba Mercados</td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>
