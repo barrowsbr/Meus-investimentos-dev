@@ -143,7 +143,7 @@ export default function CountryDossier({
                   convergence={convergence}
                 />
               )}
-              {tab === "mercados" && <MercadosTab indices={indices} currency={currency} />}
+              {tab === "mercados" && <MercadosTab indices={indices} currency={currency} timeline={timeline} />}
               {tab === "noticias" && (
                 <NoticiasTab
                   news={news}
@@ -158,6 +158,7 @@ export default function CountryDossier({
                   countryName={selected.name}
                   exposure={exposure}
                   exposureLoading={exposureLoading}
+                  indices={indices}
                 />
               )}
             </div>

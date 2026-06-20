@@ -3,6 +3,8 @@
 import { Shield, Brain, Loader2, AlertTriangle, ChevronRight, Zap } from "lucide-react";
 import type { InstabilityData, BriefData } from "@/lib/radar/types";
 import type { ConvergenceResult } from "@/lib/radar/convergence";
+import SpiderChart from "../charts/SpiderChart";
+import GaugeCluster from "../charts/GaugeCluster";
 
 const LEVEL_CONFIG = {
   baixo: { color: "#4ade80", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.2)", label: "Baixo" },
@@ -10,57 +12,6 @@ const LEVEL_CONFIG = {
   elevado: { color: "#fb923c", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.2)", label: "Elevado" },
   crítico: { color: "#f87171", bg: "rgba(248,113,113,0.08)", border: "rgba(248,113,113,0.2)", label: "Crítico" },
 };
-
-function ScoreGauge({ score, level }: { score: number; level: InstabilityData["level"] }) {
-  const config = LEVEL_CONFIG[level];
-  return (
-    <div className="flex items-center gap-4 rounded-xl p-4" style={{ background: config.bg, border: `1px solid ${config.border}` }}>
-      <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
-        <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
-          <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3" />
-          <circle
-            cx="18" cy="18" r="14" fill="none"
-            stroke={config.color} strokeWidth="3" strokeLinecap="round"
-            strokeDasharray={`${(score / 100) * 88} 88`}
-          />
-        </svg>
-        <span className="absolute font-mono text-lg font-bold" style={{ color: config.color }}>
-          {score}
-        </span>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <Shield size={13} style={{ color: config.color }} />
-          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: config.color }}>
-            Instabilidade {config.label}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-zinc-400">
-          Score composto de 4 dimensões — político, fiscal, mercado e externo.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function DimensionBar({ label, score, detail }: { label: string; score: number; detail: string }) {
-  const color = score >= 70 ? "#f87171" : score >= 45 ? "#fb923c" : score >= 20 ? "#facc15" : "#4ade80";
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] text-zinc-300">{label}</span>
-        <span className="font-mono text-[11px] font-semibold" style={{ color }}>{score}</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${score}%`, background: color }}
-        />
-      </div>
-      <p className="text-[10px] text-zinc-600">{detail}</p>
-    </div>
-  );
-}
 
 interface Props {
   instability: InstabilityData | null;
@@ -109,11 +60,25 @@ export default function InteligenciaTab({ instability, instabilityLoading, brief
           </div>
         ) : instability ? (
           <div className="space-y-3">
-            <ScoreGauge score={instability.score} level={instability.level} />
-            <div className="space-y-3 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              {instability.dimensions.map((d) => (
-                <DimensionBar key={d.label} label={d.label} score={d.score} detail={d.detail} />
-              ))}
+            {/* Spider: perfil multidimensional */}
+            <div className="flex justify-center rounded-xl py-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <SpiderChart
+                dimensions={instability.dimensions.map((d) => ({ name: d.label, score: d.score }))}
+                size={200}
+              />
+            </div>
+            {/* Gauges: score numérico por dimensão */}
+            <div className="rounded-xl px-3 py-3" style={{ background: LEVEL_CONFIG[instability.level].bg, border: `1px solid ${LEVEL_CONFIG[instability.level].border}` }}>
+              <div className="mb-2 flex items-center gap-1.5">
+                <Shield size={12} style={{ color: LEVEL_CONFIG[instability.level].color }} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: LEVEL_CONFIG[instability.level].color }}>
+                  Instabilidade {LEVEL_CONFIG[instability.level].label}
+                </span>
+              </div>
+              <GaugeCluster
+                items={instability.dimensions.map((d) => ({ label: d.label, score: d.score }))}
+                total={{ label: "TOTAL", score: instability.score }}
+              />
             </div>
             <p className="flex items-center gap-1 text-[10px] text-zinc-600">
               <ChevronRight size={10} />
