@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, BarChart3 } from "lucide-react";
+import { ArrowLeftRight, BarChart3, AlertCircle } from "lucide-react";
 import type { IndexData, CurrencyData, TimelineResponse } from "@/lib/radar/types";
 import { localFxMove } from "@/lib/radar/geo";
 import RankingChart from "../charts/RankingChart";
@@ -27,6 +27,7 @@ export default function MercadosTab({
           <div className="mb-2 flex items-center gap-1.5">
             <BarChart3 size={13} className="text-emerald-400" />
             <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300">Ranking do Dia</span>
+            <span className="text-[9px] text-zinc-600">variação intradiária</span>
           </div>
           <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <RankingChart
@@ -42,7 +43,7 @@ export default function MercadosTab({
       )}
 
       {/* Horizon: histórico compacto dos últimos dias */}
-      {hasTimeline && (
+      {hasTimeline ? (
         <section>
           <span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Últimos Dias</span>
           <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -66,12 +67,23 @@ export default function MercadosTab({
             />
           </div>
         </section>
+      ) : timeline === null && (
+        <section>
+          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Últimos Dias</span>
+          <div className="flex items-center gap-2 rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <AlertCircle size={13} className="shrink-0 text-zinc-600" />
+            Histórico recente indisponível.
+          </div>
+        </section>
       )}
 
       {/* Moeda local */}
       {currency && (
         <section>
-          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Moeda local</span>
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Moeda local</span>
+            <span className="text-[9px] text-zinc-600">taxa indicativa</span>
+          </div>
           <div className="flex items-center justify-between rounded-xl px-3 py-3" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex items-center gap-2">
               <ArrowLeftRight size={14} className="text-zinc-500" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import type { CountryMacro } from "@/lib/radar/types";
 import { formatMacro } from "./format-macro";
 
@@ -15,7 +15,11 @@ export default function MacroTab({ macro, loading }: { macro: CountryMacro | nul
   if (!macro || macro.indicators.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-sm text-zinc-500">
-        Sem dados macro (World Bank) para este país.
+        <div className="mb-2 flex items-center justify-center gap-2">
+          <AlertCircle size={14} className="text-zinc-600" />
+          <span>Indicadores macroeconômicos indisponíveis para este país.</span>
+        </div>
+        <p className="text-[10px] text-zinc-600">Dados providos pelo World Bank.</p>
         {macro?.teUrl && (
           <a href={macro.teUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
             Ver no Trading Economics <ExternalLink size={11} />
@@ -32,7 +36,7 @@ export default function MacroTab({ macro, loading }: { macro: CountryMacro | nul
           <div key={ind.id} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[10px] uppercase tracking-wide text-zinc-500">{ind.label}</p>
             <p className="mt-0.5 font-mono text-sm font-semibold text-zinc-100">{formatMacro(ind.value, ind.format)}</p>
-            {ind.year && <p className="text-[9px] text-zinc-600">{ind.year}</p>}
+            {ind.year && <p className="text-[9px] text-zinc-600">dados de {ind.year}</p>}
           </div>
         ))}
       </div>

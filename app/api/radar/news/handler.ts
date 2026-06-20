@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseRssItems } from "@/lib/radar/rss";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -53,32 +54,6 @@ function scoreImpact(title: string): "alto" | "medio" | "baixo" {
   return "baixo";
 }
 
-function decodeHtml(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/<[^>]+>/g, "")
-    .trim();
-}
-
-function extractTag(xml: string, tag: string): string {
-  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i");
-  const m = xml.match(re);
-  if (!m) return "";
-  const inner = m[1].trim();
-  const cdata = inner.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
-  return cdata ? cdata[1] : inner;
-}
-
-function extractSource(xml: string): string {
-  const m = xml.match(/<source[^>]*>([^<]*)<\/source>/i);
-  return m ? decodeHtml(m[1].trim()) : "Google News";
-}
-
 async function fetchCountryNews(country: string): Promise<NewsItem[]> {
   const en = COUNTRY_EN[country] ?? country;
 
@@ -96,19 +71,14 @@ async function fetchCountryNews(country: string): Promise<NewsItem[]> {
       const res = await fetch(url, { signal: AbortSignal.timeout(8000), next: { revalidate: 1800 } });
       if (!res.ok) return [];
       const xml = await res.text();
-      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
-      return items.slice(0, 8).map(m => {
-        const block = m[1];
-        const titulo = decodeHtml(extractTag(block, "title"));
-        let link = extractTag(block, "link");
-        if (!link) {
-          const hm = block.match(/<link\s+href="([^"]+)"/i);
-          if (hm) link = hm[1];
-        }
-        const data = extractTag(block, "pubDate");
-        const fonte = extractSource(block);
-        return { titulo, link, data, fonte, impacto: scoreImpact(titulo) };
-      }).filter(i => i.titulo && i.link);
+      const rssItems = parseRssItems(xml);
+      return rssItems.slice(0, 8).map(item => ({
+        titulo: item.title,
+        link: item.link,
+        data: item.pubDate,
+        fonte: item.source,
+        impacto: scoreImpact(item.title),
+      }));
     })
   );
 

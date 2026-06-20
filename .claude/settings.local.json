@@ -5,7 +5,11 @@
       "Bash(Out-Null)",
       "Bash(npx tsc *)",
       "PowerShell($n = Get-Command node -ErrorAction SilentlyContinue; if \\($n\\) { $n.Source } else { \"not found\" })",
-      "Bash(cp /root/.claude/uploads/49dc642d-cf93-5649-bbb6-32473cc74d00/275d439a-IMG_3975.jpeg /home/user/Meus-investimentos-dev/public/midias/home-bg.jpeg)"
+      "Bash(cp /root/.claude/uploads/49dc642d-cf93-5649-bbb6-32473cc74d00/275d439a-IMG_3975.jpeg /home/user/Meus-investimentos-dev/public/midias/home-bg.jpeg)",
+      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/NoticiasTab.tsx components/radar/dossier/NoticiasTab.tsx)",
+      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/PortfolioTab.tsx components/radar/dossier/PortfolioTab.tsx)",
+      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MacroTab.tsx components/radar/dossier/MacroTab.tsx)",
+      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MercadosTab.tsx components/radar/dossier/MercadosTab.tsx)"
     ]
   }
 }
