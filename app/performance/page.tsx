@@ -175,26 +175,6 @@ function formatDuracao(anos: number): string {
   return m > 0 ? `${y}a ${m}m` : `${y} ano${y > 1 ? "s" : ""}`;
 }
 
-function RatingBadge({ value, thresholds, labels }: {
-  value: number;
-  thresholds: [number, number, number];
-  labels: [string, string, string, string];
-}) {
-  const [bad, ok, good] = thresholds;
-  const level = value >= good ? 3 : value >= ok ? 2 : value >= bad ? 1 : 0;
-  const colors = [
-    "bg-red-500/15 text-red-400 border-red-500/25",
-    "bg-amber-500/15 text-amber-400 border-amber-500/25",
-    "bg-sky-500/15 text-sky-400 border-sky-500/25",
-    "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  ];
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${colors[level]}`}>
-      {labels[level]}
-    </span>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 // ── Predictive methods ───────────────────────────────────────────────────────
@@ -464,26 +444,6 @@ function Kicker({ children }: { children: React.ReactNode }) {
         {children}
       </span>
       <div className="h-px flex-1" style={{ background: "var(--line-strong)" }} />
-    </div>
-  );
-}
-
-function EditorialMetric({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div style={{ borderBottom: "1px solid var(--line-strong)", padding: "10px 0" }}>
-      <div className="flex items-baseline justify-between">
-        <span className="font-mono" style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--muted)" }}>
-          {label}
-        </span>
-        <span className="font-mono tnum" style={{ fontSize: 15, fontWeight: 700, color: color ?? "var(--text)" }}>
-          {value}
-        </span>
-      </div>
-      {sub && (
-        <div className="text-right">
-          <span className="font-mono tnum" style={{ fontSize: 10.5, color: "var(--faint)" }}>{sub}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -1041,20 +1001,10 @@ export default function PerformancePage() {
           ? s.resultadoTotalPct
           : pctBase > 0 ? (ge / pctBase) * 100 : 0;
 
-        const rfPct = ((s.riskFreeRate ?? 0.10) * 100).toFixed(0);
         const benchmarks = [
           { label: isUsd ? "S&P 500" : "CDI", value: isUsd ? (s.sp500Total ?? 0) : s.cdiTotal, alpha: isUsd ? (s.vsSP500 ?? s.vsCDI) : s.vsCDI, color: isUsd ? "#ec4899" : "#6366f1" },
           { label: "IBOV", value: s.ibovTotal, alpha: s.vsIBOV, color: "#f59e0b" },
           ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
-        ];
-
-        const riskItems = [
-          { label: "Volatilidade", val: `${(s.volatility * 100).toFixed(1)}%`, title: "Desvio padrão anualizado dos retornos diários", badge: <RatingBadge value={-(s.volatility * 100)} thresholds={[-30, -20, -10]} labels={["Alta", "Moderada", "Baixa", "Muito Baixa"]} /> },
-          { label: "Max Drawdown", val: `${s.maxDrawdown.toFixed(1)}%`, title: "Maior queda do pico ao vale no período", badge: <RatingBadge value={s.maxDrawdown} thresholds={[-50, -30, -15]} labels={["Severo", "Alto", "Moderado", "Baixo"]} /> },
-          { label: "Sharpe", val: s.sharpe.toFixed(2), title: `Retorno excedente sobre rf (${rfPct}% a.a.) ÷ volatilidade`, badge: <RatingBadge value={s.sharpe} thresholds={[0, 0.5, 1]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} />, sub: `rf ${rfPct}%` },
-          { label: "Sortino", val: s.sortino.toFixed(2), title: `Similar ao Sharpe, mas só penaliza volatilidade negativa (rf ${rfPct}% a.a.)`, badge: <RatingBadge value={s.sortino} thresholds={[0, 0.7, 1.5]} labels={["Fraco", "Razoável", "Bom", "Excelente"]} />, sub: `rf ${rfPct}%` },
-          { label: "VaR 95%", val: `${s.var95.toFixed(2)}%`, title: "Value at Risk: em 95% dos dias, a perda diária não ultrapassou este valor" },
-          { label: "VaR 99%", val: `${s.var99.toFixed(2)}%`, title: "Value at Risk: em 99% dos dias, a perda diária não ultrapassou este valor" },
         ];
 
         if (isJornal) {
@@ -1109,11 +1059,6 @@ export default function PerformancePage() {
                 Cada barra é o alpha (excesso de retorno TWR sobre o benchmark). Direita = superou, esquerda = ficou abaixo.
               </p>
 
-              {/* ── Risk metrics as editorial ledger ── */}
-              <Kicker>Risco</Kicker>
-              {riskItems.map((r) => (
-                <EditorialMetric key={r.label} label={r.label} value={r.val} sub={r.sub} />
-              ))}
             </div>
           );
         }
@@ -1208,21 +1153,6 @@ export default function PerformancePage() {
                   </div>
                 </div>
 
-                {/* ── Gradient separator ── */}
-                <div className="h-px bg-gradient-to-r from-transparent via-zinc-600/25 to-transparent" />
-
-                {/* ── Integrated Risk Dashboard ── */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-3">
-                  {riskItems.map((r, i) => (
-                    <div key={i} className="perf-risk-cell px-2 py-2 text-center" title={r.title}>
-                      <p className="text-[7px] sm:text-[8px] text-zinc-500 uppercase tracking-wider font-bold mb-0.5 truncate">
-                        {r.label}{r.sub ? <span className="text-zinc-600 normal-case font-normal"> ({r.sub})</span> : null}
-                      </p>
-                      <p className="text-xs sm:text-sm font-bold text-zinc-200 leading-tight">{r.val}</p>
-                      {r.badge && <div className="mt-1">{r.badge}</div>}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
