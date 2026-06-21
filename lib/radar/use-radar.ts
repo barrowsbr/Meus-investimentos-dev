@@ -55,29 +55,31 @@ export function useCurrencies() {
 // Cache em memória por país — evita refetch ao reabrir o mesmo dossiê.
 const macroCache = new Map<string, CountryMacro>();
 
-export function useCountryMacro(country: string | null) {
-  const [data, setData] = useState<CountryMacro | null>(country ? macroCache.get(country) ?? null : null);
+export function useCountryMacro(country: string | null, iso2?: string | null) {
+  const key = country ? `${country}|${iso2 ?? ""}` : null;
+  const [data, setData] = useState<CountryMacro | null>(key ? macroCache.get(key) ?? null : null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!country) { setData(null); return; }
-    const cached = macroCache.get(country);
+    if (!country || !key) { setData(null); return; }
+    const cached = macroCache.get(key);
     if (cached) { setData(cached); return; }
 
     let cancelled = false;
     setLoading(true);
     setData(null);
-    fetch(`/api/bolsas/country?country=${encodeURIComponent(country)}`)
+    const isoParam = iso2 ? `&iso2=${encodeURIComponent(iso2)}` : "";
+    fetch(`/api/bolsas/country?country=${encodeURIComponent(country)}${isoParam}`)
       .then((r) => r.json())
       .then((d: CountryMacro) => {
         if (cancelled) return;
-        macroCache.set(country, d);
+        macroCache.set(key, d);
         setData(d);
       })
       .catch(() => { if (!cancelled) setData(null); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, [country, key, iso2]);
 
   return { data, loading };
 }
@@ -86,28 +88,30 @@ export function useCountryMacro(country: string | null) {
 
 const instabilityCache = new Map<string, InstabilityData>();
 
-export function useInstability(country: string | null) {
-  const [data, setData] = useState<InstabilityData | null>(country ? instabilityCache.get(country) ?? null : null);
+export function useInstability(country: string | null, iso2?: string | null) {
+  const key = country ? `${country}|${iso2 ?? ""}` : null;
+  const [data, setData] = useState<InstabilityData | null>(key ? instabilityCache.get(key) ?? null : null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!country) { setData(null); return; }
-    const cached = instabilityCache.get(country);
+    if (!country || !key) { setData(null); return; }
+    const cached = instabilityCache.get(key);
     if (cached) { setData(cached); return; }
 
     let cancelled = false;
     setLoading(true);
     setData(null);
-    fetch(`/api/radar/instability?country=${encodeURIComponent(country)}`)
+    const isoParam = iso2 ? `&iso2=${encodeURIComponent(iso2)}` : "";
+    fetch(`/api/radar/instability?country=${encodeURIComponent(country)}${isoParam}`)
       .then((r) => r.json())
       .then((d: InstabilityData) => {
         if (cancelled) return;
-        if (!d.error) { instabilityCache.set(country, d); setData(d); }
+        if (!d.error) { instabilityCache.set(key, d); setData(d); }
       })
       .catch(() => { if (!cancelled) setData(null); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, [country, key, iso2]);
 
   return { data, loading };
 }

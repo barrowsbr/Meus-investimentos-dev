@@ -15,6 +15,7 @@ import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
   ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
+import { ISO_NUM_TO_ISO2, resolveCountryMeta } from "@/lib/radar/countries";
 import {
   useMarkets, useCurrencies, useCountryMacro,
   useInstability, useBrief, useCountryNews, useSignals,
@@ -42,8 +43,11 @@ export default function RadarShell() {
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
 
-  const { data: macro, loading: macroLoading } = useCountryMacro(selected?.name ?? null);
-  const { data: instability, loading: instabilityLoading } = useInstability(selected?.name ?? null);
+  // ISO-2 do país selecionado → destrava indicadores do World Bank mesmo para
+  // países não monitorados (que não estão nos mapas internos dos handlers).
+  const selectedIso2 = selected ? (ISO_NUM_TO_ISO2[selected.iso] ?? null) : null;
+  const { data: macro, loading: macroLoading } = useCountryMacro(selected?.name ?? null, selectedIso2);
+  const { data: instability, loading: instabilityLoading } = useInstability(selected?.name ?? null, selectedIso2);
   const { data: brief, loading: briefLoading } = useBrief(selected?.name ?? null);
   const { data: news, loading: newsLoading } = useCountryNews(selected?.name ?? null);
   const { data: signals, loading: signalsLoading } = useSignals(selected?.name ?? null);
@@ -88,17 +92,23 @@ export default function RadarShell() {
     if (!iso) return;
     const idx = markets?.indices.find((i) => i.country === name);
     const cur = moedas ? currencyForCountry(name, moedas.currencies) : null;
+    const meta = resolveCountryMeta(iso, name);
     setSelected({
       name,
       iso,
-      flag: idx?.flag ?? cur?.flag ?? "🏳️",
-      region: idx?.region ?? cur?.region ?? "—",
+      flag: idx?.flag ?? cur?.flag ?? meta?.flag ?? "🏳️",
+      region: idx?.region ?? cur?.region ?? meta?.region ?? "—",
     });
   };
 
-  const selectByIso = (iso: string) => {
-    const name = ISO_NUM_TO_COUNTRY[iso];
-    if (name) selectByName(name);
+  // Clique no mapa: monitorado segue o caminho rico; qualquer outro país é
+  // resolvido pela identidade completa (bandeira/nome/região) — todos clicáveis.
+  const selectByIso = (iso: string, fallbackName?: string) => {
+    const ptName = ISO_NUM_TO_COUNTRY[iso];
+    if (ptName) { selectByName(ptName); return; }
+    const meta = resolveCountryMeta(iso, fallbackName);
+    if (!meta) return;
+    setSelected({ name: meta.name, iso, flag: meta.flag, region: meta.region });
   };
 
   // ── Deep-link: ?country=Brasil ou ?symbol=^BVSP ────────────────────────────

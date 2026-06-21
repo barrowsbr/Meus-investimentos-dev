@@ -145,12 +145,15 @@ async function fetchExchangeRate(currency: string): Promise<{ vsUSD: number | nu
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const country = searchParams.get("country") ?? "";
+  // ISO-2 informado pelo cliente (catálogo completo) → destrava o World Bank
+  // para países não monitorados, que não estão no COUNTRY_ISO interno.
+  const iso2Param = (searchParams.get("iso2") ?? "").toUpperCase().trim() || null;
 
   if (!country) {
     return NextResponse.json({ error: "country param required" }, { status: 400 });
   }
 
-  const iso = COUNTRY_ISO[country];
+  const iso = COUNTRY_ISO[country] ?? iso2Param;
   const teSlug = TE_SLUG[country];
 
   if (!iso) {

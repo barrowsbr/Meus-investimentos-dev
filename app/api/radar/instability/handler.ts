@@ -137,8 +137,8 @@ async function fetchWBValue(iso: string, indicator: string): Promise<number | nu
   }
 }
 
-async function fiscalScore(country: string): Promise<DimensionScore> {
-  const iso = COUNTRY_ISO[country];
+async function fiscalScore(country: string, iso2?: string | null): Promise<DimensionScore> {
+  const iso = COUNTRY_ISO[country] ?? iso2 ?? null;
   if (!iso) return { label: "Fiscal / Macro", score: 0, detail: "ISO não encontrado" };
 
   const [debt, inflation, currentAccount] = await Promise.all([
@@ -312,10 +312,10 @@ function structuralScore(country: string): DimensionScore {
 
 // ── Compose ─────────────────────────────────────────────────────────────────
 
-async function computeInstability(country: string): Promise<InstabilityResult> {
+async function computeInstability(country: string, iso2?: string | null): Promise<InstabilityResult> {
   const [d1, d2, d3, d4] = await Promise.all([
     newsScore(country),
-    fiscalScore(country),
+    fiscalScore(country, iso2),
     marketScore(country),
     externalScore(country),
   ]);
@@ -341,12 +341,13 @@ async function computeInstability(country: string): Promise<InstabilityResult> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const country = searchParams.get("country") ?? "";
+  const iso2 = (searchParams.get("iso2") ?? "").toUpperCase().trim() || null;
 
   if (!country) {
     return NextResponse.json({ error: "country param required" }, { status: 400 });
   }
 
-  const cacheKey = `instability_${country}`;
+  const cacheKey = `instability_${country}_${iso2 ?? ""}`;
   const cached = cacheGet<InstabilityResult>(cacheKey);
   if (cached) {
     return NextResponse.json(cached, {
@@ -354,7 +355,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const result = await computeInstability(country);
+  const result = await computeInstability(country, iso2);
   cacheSet(cacheKey, result, CACHE_TTL);
 
   return NextResponse.json(result, {
