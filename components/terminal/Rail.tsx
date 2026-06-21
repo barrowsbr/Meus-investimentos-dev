@@ -8,10 +8,12 @@ import { NAV } from "./nav";
 interface Props {
   /** Aberto como slide-over no mobile (< 1100px). */
   open?: boolean;
+  /** Colapsado no desktop — só ícones. */
+  collapsed?: boolean;
   onNavigate?: () => void;
 }
 
-export default function Rail({ open = false, onNavigate }: Props) {
+export default function Rail({ open = false, collapsed = false, onNavigate }: Props) {
   const pathname = usePathname();
 
   return (
@@ -25,37 +27,39 @@ export default function Rail({ open = false, onNavigate }: Props) {
       />
 
       <aside
-        className={`fixed top-0 left-0 z-40 h-screen flex flex-col overflow-y-auto transition-transform duration-200 min-[1100px]:translate-x-0 ${
+        className={`fixed top-0 left-0 z-40 h-screen flex flex-col overflow-y-auto overflow-x-hidden transition-all duration-200 min-[1100px]:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
-          width: 206,
+          width: collapsed ? 60 : 206,
           background: "var(--rail)",
           borderRight: "1px solid var(--line)",
         }}
       >
-        {/* Marca — pt respects iOS safe area so the drawer doesn't sit under the notch */}
+        {/* Marca */}
         <div
-          className="flex items-center gap-2.5 px-4 pb-3.5"
+          className={`flex items-center ${collapsed ? "justify-center px-2" : "gap-2.5 px-4"} pb-3.5`}
           style={{
             paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))",
             borderBottom: "1px solid var(--line)",
           }}
         >
-          <Image src="/barroots-mark.png" alt="Barroots" width={24} height={24} className="object-contain" />
-          <span
-            className="font-mono text-[12px] font-bold"
-            style={{ letterSpacing: ".1em", color: "var(--text)" }}
-          >
-            BARROOTS
-          </span>
+          <Image src="/barroots-mark.png" alt="Barroots" width={24} height={24} className="object-contain shrink-0" />
+          {!collapsed && (
+            <span
+              className="font-mono text-[12px] font-bold"
+              style={{ letterSpacing: ".1em", color: "var(--text)" }}
+            >
+              BARROOTS
+            </span>
+          )}
         </div>
 
         {/* Navegação */}
-        <nav className="flex-1 px-2 py-2.5">
+        <nav className={`flex-1 ${collapsed ? "px-1" : "px-2"} py-2.5`}>
           {NAV.map((sec, si) => (
             <div key={si} className="mb-2.5">
-              {sec.label && (
+              {sec.label && !collapsed && (
                 <div
                   className="px-2.5 pt-1.5 pb-1 font-mono"
                   style={{
@@ -69,6 +73,9 @@ export default function Rail({ open = false, onNavigate }: Props) {
                   {sec.label}
                 </div>
               )}
+              {collapsed && sec.label && (
+                <div className="my-1 mx-auto" style={{ width: 20, height: 1, background: "var(--line)" }} />
+              )}
               {sec.items.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
                 return (
@@ -77,23 +84,25 @@ export default function Rail({ open = false, onNavigate }: Props) {
                     href={href}
                     onClick={onNavigate}
                     data-active={active}
-                    className="t-rail-item relative flex items-center gap-2.5 w-full px-2.5 py-[7px] text-left"
+                    title={collapsed ? label : undefined}
+                    className={`t-rail-item relative flex items-center ${collapsed ? "justify-center" : "gap-2.5"} w-full ${collapsed ? "px-0 py-[9px]" : "px-2.5 py-[7px]"} text-left`}
                     style={{
                       background: active ? "var(--accent-wash)" : "transparent",
                       color: active ? "var(--accent)" : "var(--muted)",
                       fontSize: 12.5,
                       fontWeight: active ? 600 : 500,
+                      borderRadius: collapsed ? 6 : 0,
                     }}
                   >
-                    {active && (
+                    {active && !collapsed && (
                       <span
                         aria-hidden
                         className="absolute left-0 top-1.5 bottom-1.5"
                         style={{ width: 2, background: "var(--accent)" }}
                       />
                     )}
-                    <Icon size={15} strokeWidth={active ? 2 : 1.6} />
-                    {label}
+                    <Icon size={collapsed ? 18 : 15} strokeWidth={active ? 2 : 1.6} />
+                    {!collapsed && label}
                   </Link>
                 );
               })}
@@ -101,12 +110,14 @@ export default function Rail({ open = false, onNavigate }: Props) {
           ))}
         </nav>
 
-        <div
-          className="px-3.5 py-2.5 font-mono"
-          style={{ borderTop: "1px solid var(--line)", fontSize: 9, color: "var(--faint)", letterSpacing: ".1em" }}
-        >
-          v2.0 · TERMINAL
-        </div>
+        {!collapsed && (
+          <div
+            className="px-3.5 py-2.5 font-mono"
+            style={{ borderTop: "1px solid var(--line)", fontSize: 9, color: "var(--faint)", letterSpacing: ".1em" }}
+          >
+            v2.0 · TERMINAL
+          </div>
+        )}
       </aside>
     </>
   );
