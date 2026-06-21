@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Radar as RadarIcon, Search, Circle, Command } from "lucide-react";
+import { Radar as RadarIcon, Search, Circle, Command, Globe } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 
 // Países pesquisáveis = os que o mapa sabe abrir (têm ISO numérico).
@@ -44,6 +44,16 @@ export default function RadarTopBar({ lastUpdate, onPickCountry }: Props) {
             {new Date(lastUpdate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
+        <a
+          href="https://world-monitor.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="World Monitor — monitor global ao vivo"
+          className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/40 hover:text-cyan-300 sm:px-2.5"
+        >
+          <Globe size={13} />
+          <span className="hidden lg:inline">World Monitor</span>
+        </a>
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
           className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300 sm:flex"
