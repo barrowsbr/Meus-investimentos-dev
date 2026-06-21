@@ -223,10 +223,15 @@ export interface ExposureEntry {
   totalBRL: number;
   pct: number;
   tickers: string[];
+  directBRL: number;
+  etfBRL: number;
+  etfSources: string[];
 }
 
 export interface ExposureResponse {
   exposure: ExposureEntry[];
   totalBRL?: number;
+  etfDecomposed?: boolean;
+  etfSupported?: string[];
   error?: string;
 }
