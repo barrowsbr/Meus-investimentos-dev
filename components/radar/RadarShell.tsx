@@ -20,11 +20,12 @@ import {
   useInstability, useBrief, useCountryNews, useSignals,
   useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
-import type { RadarLayer, SelectedCountry } from "@/lib/radar/types";
+import type { RadarLayer, SelectedCountry, SymbolTarget } from "@/lib/radar/types";
 import { RadarMap } from "./RadarMap";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
+import SymbolDetail from "./SymbolDetail";
 import CommandPalette from "./CommandPalette";
 import DigestPanel from "./DigestPanel";
 
@@ -36,6 +37,10 @@ export default function RadarShell() {
   const [layer, setLayer] = useState<RadarLayer>("mercados");
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedCountry | null>(null);
+  const [detailTarget, setDetailTarget] = useState<SymbolTarget | null>(null);
+
+  // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
+  useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
 
   const { data: macro, loading: macroLoading } = useCountryMacro(selected?.name ?? null);
   const { data: instability, loading: instabilityLoading } = useInstability(selected?.name ?? null);
@@ -247,6 +252,9 @@ export default function RadarShell() {
             onSelectCountry={selectByIso}
           />
           <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} />
+          {detailTarget && (
+            <SymbolDetail target={detailTarget} onClose={() => setDetailTarget(null)} />
+          )}
           <CountryDossier
             selected={selected}
             indices={localIndices}
@@ -265,6 +273,7 @@ export default function RadarShell() {
             timelineLoading={timelineLoading}
             exposure={exposure}
             exposureLoading={exposureLoading}
+            onOpenSymbol={setDetailTarget}
             onClose={() => setSelected(null)}
           />
         </div>
