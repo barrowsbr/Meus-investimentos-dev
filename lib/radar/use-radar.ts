@@ -12,6 +12,7 @@ import type {
   BolsasResponse, MoedasResponse, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
   TimelineResponse, ExposureResponse, CurrencyDetail, ConstituentsResponse,
+  SymbolSearchResult, SymbolSearchResponse,
 } from "./types";
 
 export function useMarkets() {
@@ -289,6 +290,43 @@ export function useConstituents(indexSymbol: string | null) {
   }, [indexSymbol]);
 
   return { data, loading };
+}
+
+// ── Fase 6: Busca livre de ativos (⌘K → Yahoo) ──────────────────────────────
+
+const searchCache = new Map<string, SymbolSearchResult[]>();
+
+export function useSymbolSearch(query: string) {
+  const [results, setResults] = useState<SymbolSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); setLoading(false); return; }
+
+    const cached = searchCache.get(q.toLowerCase());
+    if (cached) { setResults(cached); setLoading(false); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    // Debounce: só dispara o fetch quando o usuário pausa a digitação.
+    const t = setTimeout(() => {
+      fetch(`/api/radar/search?q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((d: SymbolSearchResponse) => {
+          if (cancelled) return;
+          const list = d.results ?? [];
+          searchCache.set(q.toLowerCase(), list);
+          setResults(list);
+        })
+        .catch(() => { if (!cancelled) setResults([]); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 250);
+
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query]);
+
+  return { results, loading };
 }
 
 // ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
