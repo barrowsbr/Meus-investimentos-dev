@@ -9,9 +9,10 @@ import { useGlobeOverlay } from "@/components/GlobeOverlayContext";
 interface Props {
   title: string;
   onMenu?: () => void;
+  onToggleCollapse?: () => void;
 }
 
-export default function CommandBar({ title, onMenu }: Props) {
+export default function CommandBar({ title, onMenu, onToggleCollapse }: Props) {
   const { theme, setTheme } = useTerminal();
   const { setOpen: setGlobeOpen, originRef } = useGlobeOverlay();
   const [now, setNow] = useState<string>("");
@@ -52,11 +53,14 @@ export default function CommandBar({ title, onMenu }: Props) {
 
       <div className="flex-1" />
 
-      {/* Logo — dispara o globo holográfico (overlay global) */}
+      {/* Logo — desktop: colapsa/expande sidebar · mobile: abre globo */}
       <button
         ref={originRef}
-        onClick={() => setGlobeOpen(true)}
-        aria-label="Abrir globo de mercados"
+        onClick={() => {
+          if (window.innerWidth >= 1100 && onToggleCollapse) onToggleCollapse();
+          else setGlobeOpen(true);
+        }}
+        aria-label="Colapsar menu"
         className="shrink-0 grid place-items-center transition-opacity hover:opacity-80"
         style={{ width: 30, height: 30 }}
       >
