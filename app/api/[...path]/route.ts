@@ -46,6 +46,7 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "preditivos/metaculus": return import("@/app/api/preditivos/metaculus/handler");
     case "preditivos/polymarket": return import("@/app/api/preditivos/polymarket/handler");
     case "radar/instability": return import("@/app/api/radar/instability/handler");
+    case "radar/currency": return import("@/app/api/radar/currency/handler");
     case "radar/brief": return import("@/app/api/radar/brief/handler");
     case "radar/news": return import("@/app/api/radar/news/handler");
     case "radar/signals": return import("@/app/api/radar/signals/handler");

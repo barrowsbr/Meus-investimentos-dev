@@ -1,19 +1,56 @@
 "use client";
 
-import { ArrowLeftRight, BarChart3, AlertCircle } from "lucide-react";
-import type { IndexData, CurrencyData, TimelineResponse } from "@/lib/radar/types";
-import { localFxMove } from "@/lib/radar/geo";
-import RankingChart from "../charts/RankingChart";
+import { BarChart3, AlertCircle, Layers, ChevronRight, Loader2 } from "lucide-react";
+import type { IndexData, TimelineResponse, SymbolTarget } from "@/lib/radar/types";
+import { useConstituents } from "@/lib/radar/use-radar";
 import HorizonChart from "../charts/HorizonChart";
 
+function fmtNum(v: number): string {
+  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Linha clicável de símbolo (índice ou ação) → abre o detalhe no lugar do mapa.
+function SymbolRow({
+  flag, name, sub, price, changePct, onClick,
+}: {
+  flag?: string; name: string; sub?: string; price: number; changePct: number; onClick: () => void;
+}) {
+  const pos = changePct >= 0;
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/[0.04]"
+      style={{ border: "1px solid rgba(255,255,255,0.05)" }}
+    >
+      {flag && <span className="shrink-0 text-base leading-none">{flag}</span>}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold text-zinc-200">{name}</p>
+        {sub && <p className="truncate text-[10px] text-zinc-600">{sub}</p>}
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-mono text-[11px] text-zinc-300">{fmtNum(price)}</p>
+        <p className="font-mono text-[10px] font-semibold" style={{ color: pos ? "#4ade80" : "#f87171" }}>
+          {pos ? "+" : ""}{changePct.toFixed(2)}%
+        </p>
+      </div>
+      <ChevronRight size={13} className="shrink-0 text-zinc-600" />
+    </button>
+  );
+}
+
 export default function MercadosTab({
-  indices, currency, timeline,
+  indices, timeline, onOpenSymbol,
 }: {
   indices: IndexData[];
-  currency: CurrencyData | null;
   timeline?: TimelineResponse | null;
+  onOpenSymbol: (t: SymbolTarget) => void;
 }) {
-  if (indices.length === 0 && !currency) {
+  // Índice principal do país = primeiro da lista (catálogo já ordena pelo main).
+  const primary = indices[0] ?? null;
+  const { data: constituents, loading: constituentsLoading } = useConstituents(primary?.symbol ?? null);
+  const stocks = constituents?.available ? constituents.constituents : [];
+
+  if (indices.length === 0) {
     return <p className="px-4 py-8 text-center text-sm text-zinc-500">Sem mercados monitorados para este país.</p>;
   }
 
@@ -21,43 +58,71 @@ export default function MercadosTab({
 
   return (
     <div className="space-y-4 p-4">
-      {/* Ranking: índices ordenados por performance */}
-      {indices.length > 0 && (
+      {/* Índices do país — clicáveis */}
+      <section>
+        <div className="mb-2 flex items-center gap-1.5">
+          <BarChart3 size={13} className="text-emerald-400" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300">Índices</span>
+          <span className="text-[9px] text-zinc-600">clique para o gráfico</span>
+        </div>
+        <div className="space-y-1.5">
+          {indices.map((idx) => (
+            <SymbolRow
+              key={idx.symbol}
+              flag={idx.flag}
+              name={idx.name}
+              sub={idx.symbol}
+              price={idx.price}
+              changePct={idx.changePct}
+              onClick={() => onOpenSymbol({ symbol: idx.symbol, name: idx.name, kind: "index", moeda: idx.currency, flag: idx.flag })}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Maiores ações do índice principal — clicáveis */}
+      {primary && (
         <section>
           <div className="mb-2 flex items-center gap-1.5">
-            <BarChart3 size={13} className="text-emerald-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300">Ranking do Dia</span>
-            <span className="text-[9px] text-zinc-600">variação intradiária</span>
+            <Layers size={13} className="text-indigo-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-indigo-300">Maiores ações</span>
+            <span className="text-[9px] text-zinc-600">{primary.name}</span>
           </div>
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <RankingChart
-              items={indices.map((idx) => ({
-                label: idx.name,
-                flag: idx.flag,
-                value: idx.price,
-                changePct: idx.changePct,
-              }))}
-            />
-          </div>
+          {constituentsLoading && stocks.length === 0 ? (
+            <div className="flex items-center gap-2 rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+              <Loader2 size={13} className="animate-spin" /> Carregando ações…
+            </div>
+          ) : stocks.length > 0 ? (
+            <div className="space-y-1.5">
+              {stocks.map((c) => (
+                <SymbolRow
+                  key={c.ticker}
+                  name={c.ticker.replace(/\.\w+$/, "")}
+                  sub={c.name && c.name !== c.ticker ? c.name : undefined}
+                  price={c.price}
+                  changePct={c.changePct}
+                  onClick={() => onOpenSymbol({ symbol: c.ticker, name: c.name || c.ticker, kind: "stock", moeda: c.currency || primary.currency })}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl p-3 text-[11px] text-zinc-600" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+              Lista de ações indisponível para este índice.
+            </p>
+          )}
         </section>
       )}
 
-      {/* Horizon: histórico compacto dos últimos dias */}
+      {/* Histórico compacto dos últimos dias */}
       {hasTimeline ? (
         <section>
           <span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Últimos Dias</span>
           <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <HorizonChart
               rows={[
-                {
-                  label: "Índice",
-                  values: timeline!.timeline.map((d) => d.indexChangePct ?? 0),
-                },
+                { label: "Índice", values: timeline!.timeline.map((d) => d.indexChangePct ?? 0) },
                 ...(timeline!.timeline.some((d) => d.fxChangePct !== null)
-                  ? [{
-                      label: "Câmbio",
-                      values: timeline!.timeline.map((d) => -(d.fxChangePct ?? 0)),
-                    }]
+                  ? [{ label: "Câmbio", values: timeline!.timeline.map((d) => -(d.fxChangePct ?? 0)) }]
                   : []),
               ]}
               dayLabels={timeline!.timeline.map((d) => {
@@ -73,36 +138,6 @@ export default function MercadosTab({
           <div className="flex items-center gap-2 rounded-xl p-3 text-xs text-zinc-500" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
             <AlertCircle size={13} className="shrink-0 text-zinc-600" />
             Histórico recente indisponível.
-          </div>
-        </section>
-      )}
-
-      {/* Moeda local */}
-      {currency && (
-        <section>
-          <div className="mb-2 flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Moeda local</span>
-            <span className="text-[9px] text-zinc-600">taxa indicativa</span>
-          </div>
-          <div className="flex items-center justify-between rounded-xl px-3 py-3" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-2">
-              <ArrowLeftRight size={14} className="text-zinc-500" />
-              <div>
-                <p className="text-xs font-semibold text-zinc-200">{currency.flag} {currency.code}</p>
-                <p className="text-[10px] text-zinc-500">{currency.name}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-xs text-zinc-300">1 USD = {currency.rate < 1 ? currency.rate.toFixed(6) : currency.rate.toFixed(4)}</p>
-              {(() => {
-                const fx = localFxMove(currency.changePct);
-                return (
-                  <p className={`font-mono text-[11px] font-semibold ${fx >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {currency.code} {fx >= 0 ? "+" : ""}{fx.toFixed(2)}% vs USD
-                  </p>
-                );
-              })()}
-            </div>
           </div>
         </section>
       )}

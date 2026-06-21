@@ -11,22 +11,24 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   SelectedCountry, IndexData, CurrencyData, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
-  TimelineResponse, ExposureResponse,
+  TimelineResponse, ExposureResponse, SymbolTarget,
 } from "@/lib/radar/types";
 import { detectConvergence } from "@/lib/radar/convergence";
 import DossierHeader from "./dossier/DossierHeader";
 import ResumoTab from "./dossier/ResumoTab";
 import InteligenciaTab from "./dossier/InteligenciaTab";
 import MercadosTab from "./dossier/MercadosTab";
+import MoedaTab from "./dossier/MoedaTab";
 import NoticiasTab from "./dossier/NoticiasTab";
 import MacroTab from "./dossier/MacroTab";
 import PortfolioTab from "./dossier/PortfolioTab";
 
-type Tab = "resumo" | "inteligencia" | "mercados" | "noticias" | "macro" | "portfolio";
+type Tab = "resumo" | "inteligencia" | "mercados" | "moeda" | "noticias" | "macro" | "portfolio";
 const TABS: { key: Tab; label: string }[] = [
   { key: "resumo", label: "Resumo" },
   { key: "inteligencia", label: "Intel" },
   { key: "mercados", label: "Mercados" },
+  { key: "moeda", label: "Moeda" },
   { key: "noticias", label: "Notícias" },
   { key: "macro", label: "Macro" },
   { key: "portfolio", label: "Portfólio" },
@@ -50,6 +52,7 @@ interface Props {
   timelineLoading: boolean;
   exposure: ExposureResponse | null;
   exposureLoading: boolean;
+  onOpenSymbol: (t: SymbolTarget) => void;
   onClose: () => void;
 }
 
@@ -59,6 +62,7 @@ export default function CountryDossier({
   news, newsLoading, signals, signalsLoading,
   timeline, timelineLoading,
   exposure, exposureLoading,
+  onOpenSymbol,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("resumo");
@@ -143,7 +147,8 @@ export default function CountryDossier({
                   convergence={convergence}
                 />
               )}
-              {tab === "mercados" && <MercadosTab indices={indices} currency={currency} timeline={timeline} />}
+              {tab === "mercados" && <MercadosTab indices={indices} timeline={timeline} onOpenSymbol={onOpenSymbol} />}
+              {tab === "moeda" && <MoedaTab currency={currency} />}
               {tab === "noticias" && (
                 <NoticiasTab
                   news={news}

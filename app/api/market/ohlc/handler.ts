@@ -95,22 +95,31 @@ async function searchYahooSymbol(query: string): Promise<string | null> {
   }
 }
 
-async function fetchQuoteInfo(symbol: string): Promise<{
+interface QuoteInfo {
   sector?: string; industry?: string; longName?: string; currency?: string; exchange?: string;
-}> {
+  marketCap?: number; pe?: number; fiftyTwoWeekHigh?: number; fiftyTwoWeekLow?: number;
+}
+
+async function fetchQuoteInfo(symbol: string): Promise<QuoteInfo> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const YF: any = (await import("yahoo-finance2")).default;
     const yf = typeof YF === "function" ? new YF() : YF;
     const summary = await yf.quoteSummary(symbol, {
-      modules: ["assetProfile", "price"],
+      modules: ["assetProfile", "price", "summaryDetail"],
     });
+    const price = summary?.price ?? {};
+    const detail = summary?.summaryDetail ?? {};
     return {
       sector: summary?.assetProfile?.sector ?? undefined,
       industry: summary?.assetProfile?.industry ?? undefined,
-      longName: summary?.price?.longName ?? summary?.price?.shortName ?? undefined,
-      currency: summary?.price?.currency ?? undefined,
-      exchange: summary?.price?.exchangeName ?? undefined,
+      longName: price.longName ?? price.shortName ?? undefined,
+      currency: price.currency ?? undefined,
+      exchange: price.exchangeName ?? undefined,
+      marketCap: price.marketCap ?? detail.marketCap ?? undefined,
+      pe: detail.trailingPE ?? undefined,
+      fiftyTwoWeekHigh: detail.fiftyTwoWeekHigh ?? undefined,
+      fiftyTwoWeekLow: detail.fiftyTwoWeekLow ?? undefined,
     };
   } catch {
     try {
@@ -157,7 +166,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing ticker" }, { status: 400 });
   }
 
-  const symbol = yahooTicker(ticker, moeda, corretora);
+  // Símbolos já "resolvidos" — índices (^GSPC), câmbio (BRL=X) e papéis com
+  // sufixo de bolsa (PETR4.SA, 7203.T) — passam direto, sem o yahooTicker (que
+  // é pra ticker de portfólio e re-sufixaria). US sem ponto segue o caminho normal.
+  const isRawSymbol = /[\^=.]/.test(ticker);
+  const symbol = isRawSymbol ? ticker.toUpperCase().trim() : yahooTicker(ticker, moeda, corretora);
 
   // 1) Try with the resolved symbol
   let result = await tryFetchOHLC(symbol, range);
@@ -174,9 +187,7 @@ export async function GET(request: NextRequest) {
 
   if (result.data.length > 0) {
     // Fetch sector/industry info (non-blocking on failure)
-    const info = await fetchQuoteInfo(resolvedSymbol).catch(
-      (): { sector?: string; industry?: string; longName?: string; currency?: string; exchange?: string } => ({})
-    );
+    const info = await fetchQuoteInfo(resolvedSymbol).catch((): QuoteInfo => ({}));
 
     return NextResponse.json({
       ticker: ticker.toUpperCase().trim(),
@@ -187,6 +198,10 @@ export async function GET(request: NextRequest) {
       longName: info.longName,
       currency: info.currency,
       exchange: info.exchange,
+      marketCap: info.marketCap,
+      pe: info.pe,
+      fiftyTwoWeekHigh: info.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: info.fiftyTwoWeekLow,
     });
   }
 

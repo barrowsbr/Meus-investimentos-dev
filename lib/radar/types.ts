@@ -147,6 +147,58 @@ export interface TimelineResponse {
   error?: string;
 }
 
+// ── Fase 5: Moeda (detalhe + histórico) ─────────────────────────────────────
+
+export interface CurrencyPeriods {
+  "1S": number | null;
+  "1M": number | null;
+  "3M": number | null;
+  "6M": number | null;
+  "1A": number | null;
+  YTD: number | null;
+}
+
+export interface CurrencyDetail {
+  code: string;
+  isDollarIndex: boolean;
+  symbol: string;
+  rate: number;                 // "unidades por 1 USD" (ou valor do DXY)
+  changePct: number;            // variação do dia da taxa
+  periods: CurrencyPeriods | null;
+  hi52: number | null;
+  lo52: number | null;
+  history: { date: string; close: number }[];
+  error?: string;
+}
+
+// ── Fase 5: Mercados → drill-down de símbolo (índice ou ação) ────────────────
+
+export type SymbolKind = "index" | "stock";
+
+export interface SymbolTarget {
+  symbol: string;     // símbolo Yahoo (^GSPC, AAPL, PETR4.SA)
+  name: string;       // nome amigável
+  kind: SymbolKind;
+  moeda: string;      // moeda de cotação (para o eixo do gráfico)
+  flag?: string;
+}
+
+export interface ConstituentData {
+  ticker: string;
+  name: string;
+  price: number;
+  changePct: number;
+  currency: string;
+}
+
+export interface ConstituentsResponse {
+  symbol: string;
+  constituents: ConstituentData[];
+  available: boolean;
+  total?: number;
+  error?: string;
+}
+
 // ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
 
 export interface ExposureEntry {

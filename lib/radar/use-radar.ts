@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import type {
   BolsasResponse, MoedasResponse, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
-  TimelineResponse, ExposureResponse,
+  TimelineResponse, ExposureResponse, CurrencyDetail, ConstituentsResponse,
 } from "./types";
 
 export function useMarkets() {
@@ -227,6 +227,66 @@ export function useTimeline(country: string | null) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [country]);
+
+  return { data, loading };
+}
+
+// ── Fase 5: Currency detail (aba Moeda) ─────────────────────────────────────
+
+const currencyDetailCache = new Map<string, CurrencyDetail>();
+
+export function useCurrencyDetail(code: string | null) {
+  const [data, setData] = useState<CurrencyDetail | null>(code ? currencyDetailCache.get(code) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!code) { setData(null); return; }
+    const cached = currencyDetailCache.get(code);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/radar/currency?code=${encodeURIComponent(code)}`)
+      .then((r) => r.json())
+      .then((d: CurrencyDetail) => {
+        if (cancelled) return;
+        if (!d.error) { currencyDetailCache.set(code, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [code]);
+
+  return { data, loading };
+}
+
+// ── Fase 5: Index constituents (top ações) ──────────────────────────────────
+
+const constituentsCache = new Map<string, ConstituentsResponse>();
+
+export function useConstituents(indexSymbol: string | null) {
+  const [data, setData] = useState<ConstituentsResponse | null>(indexSymbol ? constituentsCache.get(indexSymbol) ?? null : null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!indexSymbol) { setData(null); return; }
+    const cached = constituentsCache.get(indexSymbol);
+    if (cached) { setData(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    fetch(`/api/bolsas/constituents?symbol=${encodeURIComponent(indexSymbol)}`)
+      .then((r) => r.json())
+      .then((d: ConstituentsResponse) => {
+        if (cancelled) return;
+        if (!d.error) { constituentsCache.set(indexSymbol, d); setData(d); }
+      })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [indexSymbol]);
 
   return { data, loading };
 }
