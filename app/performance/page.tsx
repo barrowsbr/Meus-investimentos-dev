@@ -403,7 +403,7 @@ function PredResultChart({ methodId, data }: { methodId: string; data: Record<st
 
 // ── Rentabilidade types & constants ──────────────────────────────────────────
 
-interface RentabilidadeItem { ticker: string; setor: string; macro: string; moeda: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; imposto_brl: number; retorno_nao_realizado_pct: number; retorno_realizado_proventos_pct: number; retorno_total_pct: number }
+interface RentabilidadeItem { ticker: string; setor: string; macro: string; moeda: string; status: string; valor_atual_brl: number; custo_brl: number; lucro_nao_realizado_brl: number; lucro_realizado_brl: number; proventos_brl: number; resultado_total_brl: number; imposto_brl: number; retorno_nao_realizado_pct: number; retorno_realizado_proventos_pct: number; retorno_total_pct: number; valor_atual_native?: number; lucro_nao_realizado_native?: number; lucro_realizado_native?: number; proventos_native?: number; resultado_total_native?: number }
 interface RiscoRetornoItem { ticker: string; setor: string; macro: string; valor_atual_brl: number; retorno_acumulado: number }
 
 const RENT_SECTOR_COLORS: Record<string, string> = {
@@ -1933,10 +1933,16 @@ export default function PerformancePage() {
                   </thead>
                   <tbody>
                     {filteredRentabilidade.map((r, i) => {
-                      const fmtVal = (v: number) => {
+                      const fmtNative = (v: number) => {
                         if (r.moeda === "USD") return `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`;
                         return compactBRL(v);
                       };
+                      const naoReal = r.lucro_nao_realizado_native ?? r.lucro_nao_realizado_brl;
+                      const realizado = r.lucro_realizado_native ?? r.lucro_realizado_brl;
+                      const proventos = r.proventos_native ?? r.proventos_brl;
+                      const realizadoProv = realizado + proventos;
+                      const total = r.resultado_total_native ?? r.resultado_total_brl;
+                      const valorAtual = r.valor_atual_native ?? r.valor_atual_brl;
                       return (
                         <tr key={r.ticker} className={`border-b hover:bg-white/[0.025] transition-colors ${i % 2 === 1 ? "bg-white/[0.01]" : ""}`} style={{ borderColor: "rgba(30,32,40,0.5)" }}>
                           <td className="px-2 py-2">
@@ -1953,15 +1959,15 @@ export default function PerformancePage() {
                               {r.status}
                             </span>
                           </td>
-                          <td className="px-2 py-2 text-right text-zinc-400 font-mono">{fmtVal(r.valor_atual_brl)}</td>
-                          <td className={`px-2 py-2 text-right font-mono ${r.lucro_nao_realizado_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {r.lucro_nao_realizado_brl !== 0 ? `${r.lucro_nao_realizado_brl >= 0 ? "+" : ""}${fmtVal(r.lucro_nao_realizado_brl)}` : "—"}
+                          <td className="px-2 py-2 text-right text-zinc-400 font-mono">{fmtNative(valorAtual)}</td>
+                          <td className={`px-2 py-2 text-right font-mono ${naoReal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {naoReal !== 0 ? `${naoReal >= 0 ? "+" : ""}${fmtNative(naoReal)}` : "—"}
                           </td>
-                          <td className={`px-2 py-2 text-right font-mono ${(r.lucro_realizado_brl + r.proventos_brl) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {(Math.abs(r.lucro_realizado_brl) + r.proventos_brl) > 0.01 ? `${(r.lucro_realizado_brl + r.proventos_brl) >= 0 ? "+" : ""}${fmtVal(r.lucro_realizado_brl + r.proventos_brl)}` : "—"}
+                          <td className={`px-2 py-2 text-right font-mono ${realizadoProv >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {(Math.abs(realizado) + proventos) > 0.01 ? `${realizadoProv >= 0 ? "+" : ""}${fmtNative(realizadoProv)}` : "—"}
                           </td>
-                          <td className={`px-2 py-2 text-right font-mono font-semibold ${r.resultado_total_brl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {r.resultado_total_brl >= 0 ? "+" : ""}{fmtVal(r.resultado_total_brl)}
+                          <td className={`px-2 py-2 text-right font-mono font-semibold ${total >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {total >= 0 ? "+" : ""}{fmtNative(total)}
                           </td>
                           <td className={`px-2 py-2 text-right font-bold ${r.retorno_total_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {r.retorno_total_pct >= 0 ? "+" : ""}{r.retorno_total_pct.toFixed(1)}%

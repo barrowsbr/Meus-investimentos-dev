@@ -263,6 +263,11 @@ export async function GET() {
       retorno_nao_realizado_pct: number;
       retorno_realizado_proventos_pct: number;
       retorno_total_pct: number;
+      valor_atual_native: number;
+      lucro_nao_realizado_native: number;
+      lucro_realizado_native: number;
+      proventos_native: number;
+      resultado_total_native: number;
     };
     const rentabilidade: RentItem[] = [];
 
@@ -281,6 +286,7 @@ export async function GET() {
       const retNaoRealizadoPct = p.custoTotal > 0 ? (nativeNaoRealizado / p.custoTotal) * 100 : 0;
       const retRealizadoProventosPct = p.custoTotal > 0 ? ((nativeRealizado + nativeProventos) / p.custoTotal) * 100 : 0;
 
+      const nativeValorAtual = p.valorAtual ?? 0;
       rentabilidade.push({
         ticker: p.ticker, setor: p.setor, moeda: p.moeda,
         macro: classificarCamadas(p.ticker, p.setor).macro,
@@ -291,6 +297,11 @@ export async function GET() {
         retorno_nao_realizado_pct: retNaoRealizadoPct,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
+        valor_atual_native: nativeValorAtual,
+        lucro_nao_realizado_native: nativeNaoRealizado,
+        lucro_realizado_native: nativeRealizado,
+        proventos_native: nativeProventos,
+        resultado_total_native: nativeNaoRealizado + nativeRealizado + nativeProventos,
       });
     }
 
@@ -319,6 +330,11 @@ export async function GET() {
         retorno_nao_realizado_pct: 0,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retRealizadoProventosPct,
+        valor_atual_native: 0,
+        lucro_nao_realizado_native: 0,
+        lucro_realizado_native: pos.lucroRealizado,
+        proventos_native: nativeProventos,
+        resultado_total_native: pos.lucroRealizado + nativeProventos,
       });
     }
 
@@ -339,6 +355,7 @@ export async function GET() {
       const retNaoRealizadoPct = custo > 0 ? (lucroNaoRealizado / custo) * 100 : 0;
       const retRealizadoProventosPct = custo > 0 && proventosAtivo > 0 ? (proventosAtivo / custo) * 100 : 0;
       const { macro, sub } = classificarCamadas(ticker, "Renda Fixa");
+      const rfNativeFx = fxFactor(moeda, fxAtual);
       rentabilidade.push({
         ticker, setor: sub, macro, moeda,
         status: "Ativo", valor_atual_brl: valorBRL, custo_brl: custo,
@@ -348,6 +365,11 @@ export async function GET() {
         retorno_nao_realizado_pct: retNaoRealizadoPct,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retNaoRealizadoPct + retRealizadoProventosPct,
+        valor_atual_native: rfNativeFx > 0 ? valorBRL / rfNativeFx : valorBRL,
+        lucro_nao_realizado_native: rfNativeFx > 0 ? lucroNaoRealizado / rfNativeFx : lucroNaoRealizado,
+        lucro_realizado_native: 0,
+        proventos_native: rfNativeFx > 0 ? proventosAtivo / rfNativeFx : proventosAtivo,
+        resultado_total_native: rfNativeFx > 0 ? resultadoTotal / rfNativeFx : resultadoTotal,
       });
     }
 
@@ -397,6 +419,11 @@ export async function GET() {
         retorno_nao_realizado_pct: 0,
         retorno_realizado_proventos_pct: retRealizadoProventosPct,
         retorno_total_pct: retRealizadoProventosPct,
+        valor_atual_native: 0,
+        lucro_nao_realizado_native: 0,
+        lucro_realizado_native: lucroRealizado,
+        proventos_native: nativeFx > 0 ? proventosAtivo / nativeFx : proventosAtivo,
+        resultado_total_native: lucroRealizado + (nativeFx > 0 ? proventosAtivo / nativeFx : proventosAtivo),
       });
     }
 
