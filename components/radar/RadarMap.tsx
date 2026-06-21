@@ -9,7 +9,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import { GEO_URL, REGION_COLORS, heatColor } from "@/lib/world-map";
+import { GEO_URL, REGION_COLORS, intensityColor } from "@/lib/world-map";
 import { ISO_NUM_TO_COUNTRY, type HeatEntry } from "@/lib/radar/geo";
 import type { RadarLayer } from "@/lib/radar/types";
 
@@ -32,9 +32,16 @@ interface RadarMapProps {
   onSelectCountry: (iso: string) => void;
 }
 
-interface Tip { x: number; y: number; title: string; sub: string; pct: number }
+interface Tip { x: number; y: number; title: string; sub: string; value: string; positive: boolean }
 
 const NEUTRAL = "#161a24";
+
+// Rótulos das pontas da legenda por camada (esquerda = vermelho, direita = verde).
+const LEGEND: Record<RadarLayer, [string, string]> = {
+  mercados: ["Queda", "Alta"],
+  cambio: ["Moeda fraca", "Moeda forte"],
+  instabilidade: ["Risco alto", "Risco baixo"],
+};
 
 function RadarMapInner({
   layer, heat, markers, selectedIso, regionFilter, onSelectCountry,
@@ -106,8 +113,14 @@ function RadarMapInner({
                 const iso = String(geo.id);
                 const entry = heat.get(iso);
                 const known = !!ISO_NUM_TO_COUNTRY[iso];
-                const fill = entry ? heatColor(entry.changePct) : NEUTRAL;
+                const fill = entry ? intensityColor(entry.intensity) : NEUTRAL;
                 const isSelected = selectedIso === iso;
+                // Filtro de região atua no PRÓPRIO país (não só nos marcadores):
+                // com filtro ativo, só a região escolhida fica acesa.
+                const matchesFilter = !regionFilter || entry?.region === regionFilter;
+                const opacity = regionFilter
+                  ? (entry && matchesFilter ? 1 : 0.1)
+                  : (entry ? 1 : 0.5);
                 return (
                   <Geography
                     key={geo.rsmKey}
@@ -119,17 +132,18 @@ function RadarMapInner({
                       if (!entry) return;
                       setTip({
                         x: e.clientX, y: e.clientY,
-                        title: `${entry.flag} ${entry.country}`,
+                        title: `${entry.flag} ${entry.country}`.trim(),
                         sub: entry.label,
-                        pct: entry.changePct,
+                        value: entry.valueText,
+                        positive: entry.positive,
                       });
                     }}
                     onMouseMove={(e: React.MouseEvent) => setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))}
                     onMouseLeave={() => setTip(null)}
                     onClick={() => known && onSelectCountry(iso)}
                     style={{
-                      default: { outline: "none", opacity: entry ? 1 : 0.55, transition: "fill .3s" },
-                      hover: { outline: "none", opacity: 1, cursor: known ? "pointer" : "default", filter: entry ? "brightness(1.25)" : "none" },
+                      default: { outline: "none", opacity, transition: "fill .3s, opacity .3s" },
+                      hover: { outline: "none", opacity: matchesFilter ? 1 : 0.1, cursor: known ? "pointer" : "default", filter: entry && matchesFilter ? "brightness(1.25)" : "none" },
                       pressed: { outline: "none" },
                     }}
                   />
@@ -138,9 +152,10 @@ function RadarMapInner({
             }
           </Geographies>
 
-          {/* Marcadores = camada visual (decorativa). A interação acontece nos
-              países (choropleth) — repintar a superfície, clicar no país. */}
-          {markers.map((m) => {
+          {/* Marcadores só na camada de Mercados: localizam a praça (bolsa)
+              dentro do país. Em Câmbio e Risco o sinal é o país INTEIRO pintado,
+              então os pontos seriam ruído — o choropleth carrega a informação. */}
+          {layer === "mercados" && markers.map((m) => {
             const regionColor = REGION_COLORS[m.region] ?? "#888";
             const dimmed = regionFilter ? m.region !== regionFilter : false;
             const changeColor = m.changePct >= 0 ? "#4ade80" : "#f87171";
@@ -150,17 +165,25 @@ function RadarMapInner({
                 <g style={{ opacity: dimmed ? 0.1 : 0.95, pointerEvents: "none" }}>
                   <circle r={r} fill={regionColor} stroke="rgba(255,255,255,0.45)" strokeWidth={0.4} />
                   <circle r={r * 0.42} fill={changeColor} />
-                  {layer === "cambio" && !dimmed && (
-                    <text y={-r - 2.5} textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize={6.5} fontWeight={600} style={{ textShadow: "0 1px 2px #000" }}>
-                      {m.label}
-                    </text>
-                  )}
                 </g>
               </Marker>
             );
           })}
         </ZoomableGroup>
       </ComposableMap>
+
+      {/* Legenda da escala de cor (canto inferior esquerdo) */}
+      <div
+        className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+        style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][0]}</span>
+        <span
+          className="h-2 w-20 rounded-full"
+          style={{ background: "linear-gradient(90deg, #ef4444 0%, #facc15 50%, #22c55e 100%)" }}
+        />
+        <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][1]}</span>
+      </div>
 
       {/* Tooltip flutuante */}
       {tip && (
@@ -175,8 +198,8 @@ function RadarMapInner({
         >
           <p className="font-semibold text-zinc-100">{tip.title}</p>
           <p className="text-[11px] text-zinc-400">{tip.sub}</p>
-          <p className="font-mono text-[11px] font-bold" style={{ color: tip.pct >= 0 ? "#4ade80" : "#f87171" }}>
-            {tip.pct >= 0 ? "+" : ""}{tip.pct.toFixed(2)}%
+          <p className="font-mono text-[11px] font-bold" style={{ color: tip.positive ? "#4ade80" : "#f87171" }}>
+            {tip.value}
           </p>
         </div>
       )}

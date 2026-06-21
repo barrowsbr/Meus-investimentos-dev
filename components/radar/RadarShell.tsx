@@ -50,38 +50,26 @@ export default function RadarShell() {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
     if (layer === "cambio") return moedas ? buildCurrencyHeat(moedas.currencies) : new Map();
     if (layer === "instabilidade") {
-      return markets
-        ? buildRiskHeat(markets.indices, moedas?.currencies ?? null)
-        : new Map();
+      // Ancorado no risco estrutural: pinta mesmo sem dados de mercado/câmbio,
+      // que apenas ajustam o score ao redor da base.
+      return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
     return new Map();
   }, [layer, markets, moedas]);
 
+  // Marcadores só na camada de Mercados (localizam a praça dentro do país).
+  // Câmbio e Risco usam o país inteiro pintado — pontos seriam ruído.
   const markers = useMemo<MarkerPoint[]>(() => {
-    if (layer === "mercados") {
-      if (!markets) return [];
-      return markets.indices
-        .filter((i) => i.symbol !== "^VIX")
-        .map((i) => ({ id: i.symbol, lat: i.lat, lng: i.lng, changePct: i.changePct, region: i.region, label: i.name, country: i.country }));
-    }
-    if (layer === "cambio") {
-      if (!moedas) return [];
-      return moedas.currencies.map((c) => ({ id: c.code, lat: c.lat, lng: c.lng, changePct: -c.changePct, region: c.region, label: c.code, country: c.name }));
-    }
-    if (layer === "instabilidade") {
-      if (!markets) return [];
-      return markets.indices
-        .filter((i) => i.symbol !== "^VIX")
-        .map((i) => ({
-          id: i.symbol, lat: i.lat, lng: i.lng,
-          changePct: -Math.abs(i.changePct), // negative = red markers for volatile markets
-          region: i.region, label: i.name, country: i.country,
-        }));
-    }
-    return [];
-  }, [layer, markets, moedas]);
+    if (layer !== "mercados" || !markets) return [];
+    return markets.indices
+      .filter((i) => i.symbol !== "^VIX")
+      .map((i) => ({ id: i.symbol, lat: i.lat, lng: i.lng, changePct: i.changePct, region: i.region, label: i.name, country: i.country }));
+  }, [layer, markets]);
 
   const regions = useMemo(() => {
+    // Risco é pintado a partir do risco estrutural (cobre todas as regiões),
+    // então oferecemos todas as regiões como filtro.
+    if (layer === "instabilidade") return Object.keys(REGION_COLORS).sort();
     const src = layer === "mercados" ? markets?.indices : moedas?.currencies;
     if (!src) return [];
     return [...new Set(src.map((x) => x.region))].sort();
