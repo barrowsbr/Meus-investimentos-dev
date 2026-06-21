@@ -3,11 +3,15 @@
 //
 // O mapa (react-simple-maps + world-atlas) identifica cada país por um ISO
 // numérico zero-paddeado ("076" = Brasil). `COUNTRY_TO_ISO_NUM` (lib/world-map)
-// vai de nome PT → ISO; aqui derivamos o inverso e ligamos país → moeda para
-// pintar a camada de câmbio com a mesma lente do mapa.
+// vai de nome PT → ISO; aqui derivamos o inverso e ligamos país → moeda/região/
+// risco para pintar cada lente do mapa com a sensibilidade própria dela.
+//
+// Cada construtor devolve uma `intensity` em [-1, 1] (vermelho→âmbar→verde) já
+// pronta para `intensityColor`, mais um `valueText` legível para o tooltip. A
+// sensibilidade (o que conta como "extremo") mora aqui, no domínio de cada lente.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
+import { COUNTRY_TO_ISO_NUM, signedNorm } from "@/lib/world-map";
 import type { CurrencyData } from "./types";
 
 // ISO numérico → nome PT do país (inverso de COUNTRY_TO_ISO_NUM).
@@ -43,32 +47,129 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   "Austrália": "AUD", "Nova Zelândia": "NZD",
 };
 
+// Nome PT do país → região (mesmas chaves de REGION_COLORS). Permite filtrar o
+// choropleth por região mesmo nas camadas que não vêm de uma lista com região
+// embutida (ex.: risco estrutural).
+export const COUNTRY_REGION: Record<string, string> = {
+  // Americas
+  "EUA": "Americas", "Canadá": "Americas", "México": "Americas", "Brasil": "Americas",
+  "Argentina": "Americas", "Chile": "Americas", "Colômbia": "Americas", "Peru": "Americas",
+  "Venezuela": "Americas", "Panamá": "Americas", "Costa Rica": "Americas", "Rep. Dominicana": "Americas",
+  // Europe
+  "Reino Unido": "Europe", "França": "Europe", "Alemanha": "Europe", "Espanha": "Europe",
+  "Itália": "Europe", "Holanda": "Europe", "Suíça": "Europe", "Suécia": "Europe",
+  "Noruega": "Europe", "Dinamarca": "Europe", "Finlândia": "Europe", "Bélgica": "Europe",
+  "Áustria": "Europe", "Portugal": "Europe", "Grécia": "Europe", "Polônia": "Europe",
+  "Hungria": "Europe", "Tchéquia": "Europe", "Romênia": "Europe", "Bulgária": "Europe",
+  "Croácia": "Europe", "Sérvia": "Europe", "Eslovênia": "Europe", "Estônia": "Europe",
+  "Letônia": "Europe", "Lituânia": "Europe", "Islândia": "Europe", "Luxemburgo": "Europe",
+  "Malta": "Europe", "Bósnia": "Europe", "Ucrânia": "Europe", "Rússia": "Europe", "Turquia": "Europe",
+  // Asia
+  "Japão": "Asia", "China": "Asia", "Índia": "Asia", "Coreia do Sul": "Asia",
+  "Hong Kong": "Asia", "Singapura": "Asia", "Taiwan": "Asia", "Indonésia": "Asia",
+  "Tailândia": "Asia", "Malásia": "Asia", "Filipinas": "Asia", "Vietnã": "Asia",
+  "Paquistão": "Asia", "Bangladesh": "Asia", "Sri Lanka": "Asia", "Nepal": "Asia",
+  "Mongólia": "Asia", "Cazaquistão": "Asia",
+  // Middle East
+  "Israel": "Middle East", "Arábia Saudita": "Middle East", "Emirados": "Middle East",
+  "Catar": "Middle East", "Kuwait": "Middle East", "Bahrein": "Middle East", "Omã": "Middle East",
+  "Jordânia": "Middle East", "Líbano": "Middle East",
+  // Africa
+  "África do Sul": "Africa", "Nigéria": "Africa", "Quênia": "Africa", "Marrocos": "Africa",
+  "Gana": "Africa", "Costa do Marfim": "Africa", "Tunísia": "Africa", "Maurício": "Africa",
+  "Botsuana": "Africa", "Ruanda": "Africa", "Tanzânia": "Africa", "Uganda": "Africa", "Egito": "Africa",
+  // Oceania
+  "Austrália": "Oceania", "Nova Zelândia": "Oceania",
+};
+
+// Risco estrutural base por país (0 = muito seguro · 100 = muito arriscado).
+// Composição editorial de risco soberano/político/mercado (rating de crédito,
+// estabilidade institucional, profundidade do mercado). É a ÂNCORA da camada de
+// risco — a volatilidade do dia só ajusta ao redor dela, então um pregão agitado
+// não transforma a Suíça em país de alto risco.
+export const COUNTRY_RISK_BASE: Record<string, number> = {
+  // Americas
+  "EUA": 18, "Canadá": 14, "México": 42, "Brasil": 45, "Argentina": 88, "Chile": 32,
+  "Colômbia": 50, "Peru": 48, "Venezuela": 96, "Panamá": 40, "Costa Rica": 42, "Rep. Dominicana": 48,
+  // Europe
+  "Reino Unido": 20, "França": 24, "Alemanha": 14, "Espanha": 30, "Itália": 34, "Holanda": 13,
+  "Suíça": 8, "Suécia": 12, "Noruega": 9, "Dinamarca": 11, "Finlândia": 14, "Bélgica": 22,
+  "Áustria": 16, "Portugal": 30, "Grécia": 45, "Polônia": 32, "Hungria": 42, "Tchéquia": 28,
+  "Romênia": 44, "Bulgária": 44, "Croácia": 40, "Sérvia": 55, "Eslovênia": 28, "Estônia": 26,
+  "Letônia": 30, "Lituânia": 28, "Islândia": 22, "Luxemburgo": 10, "Malta": 30, "Bósnia": 62,
+  "Ucrânia": 90, "Rússia": 85, "Turquia": 68,
+  // Asia
+  "Japão": 18, "China": 50, "Índia": 44, "Coreia do Sul": 26, "Hong Kong": 34, "Singapura": 12,
+  "Taiwan": 32, "Indonésia": 46, "Tailândia": 44, "Malásia": 40, "Filipinas": 48, "Vietnã": 50,
+  "Paquistão": 80, "Bangladesh": 60, "Sri Lanka": 72, "Nepal": 62, "Mongólia": 60, "Cazaquistão": 52,
+  // Middle East
+  "Israel": 38, "Arábia Saudita": 40, "Emirados": 28, "Catar": 28, "Kuwait": 34, "Bahrein": 50,
+  "Omã": 44, "Jordânia": 55, "Líbano": 92,
+  // Africa
+  "África do Sul": 55, "Nigéria": 70, "Quênia": 62, "Marrocos": 45, "Gana": 66, "Costa do Marfim": 60,
+  "Tunísia": 64, "Maurício": 40, "Botsuana": 42, "Ruanda": 58, "Tanzânia": 60, "Uganda": 64, "Egito": 66,
+  // Oceania
+  "Austrália": 14, "Nova Zelândia": 15,
+};
+
+export type RiskLevel = "baixo" | "moderado" | "elevado" | "crítico";
+
+export function riskLevel(score: number): RiskLevel {
+  if (score < 30) return "baixo";
+  if (score < 50) return "moderado";
+  if (score < 70) return "elevado";
+  return "crítico";
+}
+
 export interface HeatEntry {
-  changePct: number;
-  label: string;     // rótulo curto (nome do índice ou código da moeda)
+  intensity: number;   // [-1, 1] → cor do choropleth (vermelho..verde)
+  label: string;       // rótulo curto (nome do índice / código da moeda / "Instabilidade")
+  valueText: string;   // valor legível para o tooltip ("+1.2%", "Risco 72 · elevado")
+  positive: boolean;   // cor do valor no tooltip (verde/vermelho)
+  region?: string;     // para o filtro de região dimar o choropleth
   country: string;
   flag: string;
 }
 
+const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+
 // Camada MERCADOS: ISO numérico → índice de maior |variação| daquele país.
-export function buildMarketHeat(indices: { symbol: string; country: string; changePct: number; name: string; flag: string }[]): Map<string, HeatEntry> {
-  const map = new Map<string, HeatEntry>();
+// range 2.5% + gamma: separa visualmente +1% de +2% sem estourar tudo no extremo.
+export function buildMarketHeat(
+  indices: { symbol: string; country: string; changePct: number; name: string; flag: string; region?: string }[],
+): Map<string, HeatEntry> {
+  type Raw = { changePct: number; name: string; flag: string; region?: string };
+  const best = new Map<string, Raw>();
   for (const idx of indices) {
     if (idx.symbol === "^VIX") continue;
     const iso = COUNTRY_TO_ISO_NUM[idx.country];
     if (!iso) continue;
-    const existing = map.get(iso);
-    if (!existing || Math.abs(idx.changePct) > Math.abs(existing.changePct)) {
-      map.set(iso, { changePct: idx.changePct, label: idx.name, country: idx.country, flag: idx.flag });
+    const cur = best.get(iso);
+    if (!cur || Math.abs(idx.changePct) > Math.abs(cur.changePct)) {
+      best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region });
     }
+  }
+  const map = new Map<string, HeatEntry>();
+  for (const [iso, raw] of best) {
+    const country = ISO_NUM_TO_COUNTRY[iso] ?? "";
+    map.set(iso, {
+      intensity: signedNorm(raw.changePct, 2.5, 0.65),
+      label: raw.name,
+      valueText: fmtPct(raw.changePct),
+      positive: raw.changePct >= 0,
+      region: raw.region ?? COUNTRY_REGION[country],
+      country,
+      flag: raw.flag,
+    });
   }
   return map;
 }
 
 // Camada CÂMBIO: ISO numérico → força da moeda local vs USD.
 // A cotação é "1 USD = X local"; logo rate ↑ = moeda local mais fraca. Invertendo
-// o sinal, o calor fica intuitivo: verde = moeda local valorizou (Força da moeda).
-// Países que compartilham moeda (zona do euro) recebem o mesmo calor.
+// o sinal, o calor fica intuitivo: verde = moeda local valorizou.
+// range 1.0% (variações de câmbio diárias são pequenas) — o país INTEIRO ganha cor,
+// não só um ponto no centro.
 export function buildCurrencyHeat(currencies: CurrencyData[]): Map<string, HeatEntry> {
   const byCode = new Map<string, CurrencyData>();
   for (const c of currencies) byCode.set(c.code, c);
@@ -79,56 +180,71 @@ export function buildCurrencyHeat(currencies: CurrencyData[]): Map<string, HeatE
     if (!code) continue;
     const cur = byCode.get(code);
     if (!cur) continue;
-    map.set(iso, { changePct: -cur.changePct, label: cur.code, country, flag: cur.flag });
+    const localMove = -cur.changePct; // + = moeda local valorizou
+    map.set(iso, {
+      intensity: signedNorm(localMove, 1.0, 0.6),
+      label: cur.code,
+      valueText: `${fmtPct(localMove)} vs USD`,
+      positive: localMove >= 0,
+      region: cur.region ?? COUNTRY_REGION[country],
+      country,
+      flag: cur.flag,
+    });
   }
   return map;
 }
 
-// Camada INSTABILIDADE (risco): combina volatilidade dos mercados + fraqueza
-// cambial num proxy de risco. Quanto MAIS volátil o mercado e MAIS fraca a moeda,
-// maior o risco.  O valor é armazenado como `changePct` NEGATIVO para que
-// `heatColor()` pinte vermelho (neg = red, pos = green).
+// Camada INSTABILIDADE (risco): ÂNCORA no risco estrutural por país (rating
+// soberano / estabilidade / profundidade de mercado) e só AJUSTA com o estresse
+// vivo do dia — volatilidade do índice, fraqueza cambial e o nível global do VIX.
+// Assim a Suíça permanece baixo risco mesmo num pregão agitado, e o mapa fica
+// totalmente pintado (todos os países com base de risco), não só os monitorados.
 export function buildRiskHeat(
   indices: { symbol: string; country: string; changePct: number; name: string; flag: string }[],
   currencies: CurrencyData[] | null,
 ): Map<string, HeatEntry> {
-  // 1. Índice com maior |variação| por país (proxy de volatilidade de mercado)
-  const marketVol = new Map<string, { vol: number; label: string; flag: string }>();
+  // Volatilidade do dia por país (maior |variação| de índice) — ajuste fino.
+  const marketVol = new Map<string, { vol: number; flag: string }>();
+  let vixChg = 0;
   for (const idx of indices) {
-    if (idx.symbol === "^VIX") continue;
-    const existing = marketVol.get(idx.country);
+    if (idx.symbol === "^VIX") { vixChg = idx.changePct; continue; }
+    const cur = marketVol.get(idx.country);
     const vol = Math.abs(idx.changePct);
-    if (!existing || vol > existing.vol) {
-      marketVol.set(idx.country, { vol, label: idx.name, flag: idx.flag });
-    }
+    if (!cur || vol > cur.vol) marketVol.set(idx.country, { vol, flag: idx.flag });
   }
 
-  // 2. Fraqueza cambial por código ISO-4217 (changePct positivo = moeda enfraqueceu vs USD)
-  const fxWeakness = new Map<string, number>();
-  if (currencies) {
-    for (const c of currencies) {
-      // changePct da cotação "1 USD = X local": positivo = local enfraqueceu
-      fxWeakness.set(c.code, Math.max(0, c.changePct));
-    }
-  }
+  // Fraqueza cambial vs USD por código (positivo = moeda local enfraqueceu).
+  const fxWeak = new Map<string, number>();
+  if (currencies) for (const c of currencies) fxWeak.set(c.code, Math.max(0, c.changePct));
 
-  // 3. Combinar: riskProxy = 0.6 * marketVol + 0.4 * currencyWeakness
+  // Prêmio global de risco quando o VIX dispara (até ~+9 pts).
+  const vixPremium = Math.min(30, Math.max(0, vixChg)) * 0.3;
+
   const map = new Map<string, HeatEntry>();
-  for (const [country, iso] of Object.entries(COUNTRY_TO_ISO_NUM)) {
+  for (const [country, base] of Object.entries(COUNTRY_RISK_BASE)) {
+    const iso = COUNTRY_TO_ISO_NUM[country];
+    if (!iso) continue;
+
     const mv = marketVol.get(country);
-    if (!mv) continue; // só pinta países com índice monitorado
-
     const code = COUNTRY_CURRENCY[country];
-    const cw = code ? (fxWeakness.get(code) ?? 0) : 0;
+    const cw = code ? (fxWeak.get(code) ?? 0) : 0;
+    const dynamic = Math.min(40, (mv?.vol ?? 0) * 10 + cw * 6); // estresse do dia (0–40)
 
-    const riskProxy = mv.vol * 0.6 + cw * 0.4;
+    // Base domina (82%); estresse do dia e VIX só nudge ao redor.
+    const score = Math.max(0, Math.min(100, base * 0.82 + dynamic * 0.18 + vixPremium));
 
-    // Negativo para que heatColor() pinte vermelho (alto risco) e verde (baixo risco)
+    // score 0 → +1 (verde/seguro) · 100 → -1 (vermelho/arriscado); gamma espalha o miolo.
+    const raw = (50 - score) / 50;
+    const intensity = Math.sign(raw) * Math.pow(Math.abs(raw), 0.8);
+
     map.set(iso, {
-      changePct: -riskProxy,
-      label: `Risco ${riskProxy.toFixed(1)}`,
+      intensity,
+      label: "Instabilidade",
+      valueText: `Risco ${Math.round(score)} · ${riskLevel(score)}`,
+      positive: score < 50,
+      region: COUNTRY_REGION[country],
       country,
-      flag: mv.flag,
+      flag: mv?.flag ?? "",
     });
   }
   return map;

@@ -52,20 +52,40 @@ export const COUNTRY_TO_ISO_NUM: Record<string, string> = {
   "Nova Zelândia": "554",
 };
 
-// Cor de calor (vermelho → amarelo → verde) para uma variação % no dia (clamp ±4%).
-export function heatColor(pct: number): string {
-  const clamped = Math.max(-4, Math.min(4, pct));
-  const t = (clamped + 4) / 8;
-  if (t < 0.5) {
-    const r = Math.round(239 + (250 - 239) * (t * 2));
-    const g = Math.round(68 + (204 - 68) * (t * 2));
-    const b = Math.round(68 + (21 - 68) * (t * 2));
-    return `rgb(${r},${g},${b})`;
+// Cor de calor a partir de uma *intensidade* já normalizada em [-1, 1].
+//   -1 → vermelho (ruim)   ·   0 → âmbar   ·   +1 → verde (bom)
+// As camadas do Radar calculam a intensidade com a sensibilidade própria de
+// cada lente (bolsas, câmbio, risco) e só então pedem a cor aqui — assim a
+// escala de cor é uma fonte única e a sensibilidade mora no domínio certo.
+export function intensityColor(t: number): string {
+  const c = Math.max(-1, Math.min(1, t));
+  let r: number, g: number, b: number;
+  if (c < 0) {
+    const k = c + 1; // 0 (vermelho) → 1 (âmbar)
+    r = 239 + (250 - 239) * k;
+    g = 68 + (204 - 68) * k;
+    b = 68 + (21 - 68) * k;
+  } else {
+    const k = c; // 0 (âmbar) → 1 (verde)
+    r = 250 + (34 - 250) * k;
+    g = 204 + (197 - 204) * k;
+    b = 21 + (94 - 21) * k;
   }
-  const r = Math.round(250 + (34 - 250) * ((t - 0.5) * 2));
-  const g = Math.round(204 + (197 - 204) * ((t - 0.5) * 2));
-  const b = Math.round(21 + (94 - 21) * ((t - 0.5) * 2));
-  return `rgb(${r},${g},${b})`;
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+// Normaliza uma variação % para [-1, 1] dado um `range` (o que conta como
+// "extremo") e aplica um gamma (<1) para dar mais resolução perto de zero —
+// é o que separa visualmente uma alta de 1% de uma de 2%.
+export function signedNorm(value: number, range: number, gamma = 0.7): number {
+  const n = Math.max(-1, Math.min(1, value / range));
+  return Math.sign(n) * Math.pow(Math.abs(n), gamma);
+}
+
+// Cor de calor para uma variação % no dia. `range` define a saturação (default
+// ±4% para compatibilidade); a resposta é não-linear (gamma) perto de zero.
+export function heatColor(pct: number, range = 4): string {
+  return intensityColor(signedNorm(pct, range));
 }
 
 // Mapa ISO-numérico → melhor índice (maior |variação|) daquele país.
