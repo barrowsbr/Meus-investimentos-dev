@@ -51,6 +51,14 @@ export default function SymbolDetail({ target, onClose }: { target: SymbolTarget
   const [description, setDescription] = useState<string | null>(null);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopImmediatePropagation(); onClose(); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   const moeda = target.moeda || info?.currency || "USD";
 
   // ── Cabeçalho: preço/variação/market cap via OHLC (range curto) ────────────
@@ -96,7 +104,7 @@ export default function SymbolDetail({ target, onClose }: { target: SymbolTarget
   const dayPos = (dayChange ?? 0) >= 0;
 
   return (
-    <div className="fixed inset-0 z-[65] flex flex-col overflow-hidden md:absolute md:inset-y-0 md:left-0 md:right-[380px] md:z-30 md:rounded-2xl" style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)", paddingTop: "env(safe-area-inset-top)" }}>
+    <div className="fixed inset-0 z-[65] flex flex-col overflow-hidden md:absolute md:inset-y-0 md:left-0 md:right-[380px] md:z-[70] md:rounded-2xl" style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)", paddingTop: "env(safe-area-inset-top)" }} onClick={(e) => e.stopPropagation()}>
       {/* Top bar */}
       <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <button

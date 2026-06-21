@@ -53,6 +53,7 @@ interface Props {
   exposure: ExposureResponse | null;
   exposureLoading: boolean;
   onOpenSymbol: (t: SymbolTarget) => void;
+  symbolDetailOpen?: boolean;
   onClose: () => void;
 }
 
@@ -63,6 +64,7 @@ export default function CountryDossier({
   timeline, timelineLoading,
   exposure, exposureLoading,
   onOpenSymbol,
+  symbolDetailOpen,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("resumo");
@@ -85,7 +87,7 @@ export default function CountryDossier({
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-[55] bg-black/40 md:absolute md:inset-0 md:z-30" onClick={onClose} aria-hidden />}
+      {open && <div className={`fixed inset-0 z-[55] bg-black/40 md:absolute md:inset-0 md:z-30 ${symbolDetailOpen ? "pointer-events-none" : ""}`} onClick={symbolDetailOpen ? undefined : onClose} aria-hidden />}
 
       <aside
         className="fixed inset-0 z-[60] flex flex-col transition-transform duration-300 ease-out md:absolute md:right-0 md:top-0 md:left-auto md:z-40 md:h-full md:w-[380px]"
