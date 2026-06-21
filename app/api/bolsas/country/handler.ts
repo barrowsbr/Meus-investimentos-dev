@@ -183,7 +183,7 @@ export async function GET(request: Request) {
     country,
     iso,
     teSlug: teSlug ?? null,
-    teUrl: teSlug ? `https://tradingeconomics.com/${teSlug}` : null,
+    teUrl: teSlug ? `https://tradingeconomics.com/${teSlug}/indicators` : null,
     currency,
     exchangeRate: exchangeRateResult,
     indicators,
