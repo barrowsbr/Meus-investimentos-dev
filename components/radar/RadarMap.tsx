@@ -10,7 +10,8 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { GEO_URL, intensityColor } from "@/lib/world-map";
-import { ISO_NUM_TO_COUNTRY, type HeatEntry } from "@/lib/radar/geo";
+import { type HeatEntry } from "@/lib/radar/geo";
+import { resolveCountryMeta } from "@/lib/radar/countries";
 import type { RadarLayer } from "@/lib/radar/types";
 
 interface RadarMapProps {
@@ -18,10 +19,10 @@ interface RadarMapProps {
   heat: Map<string, HeatEntry>;
   selectedIso: string | null;
   regionFilter: string | null;
-  onSelectCountry: (iso: string) => void;
+  onSelectCountry: (iso: string, name: string) => void;
 }
 
-interface Tip { x: number; y: number; title: string; sub: string; value: string; positive: boolean }
+interface Tip { x: number; y: number; title: string; sub: string; value: string | null; positive: boolean }
 
 const NEUTRAL = "#161a24";
 
@@ -101,7 +102,10 @@ function RadarMapInner({
               geographies.map((geo) => {
                 const iso = String(geo.id);
                 const entry = heat.get(iso);
-                const known = !!ISO_NUM_TO_COUNTRY[iso];
+                // Identidade de QUALQUER país (bandeira/nome/região) — para que
+                // todos sejam clicáveis e tenham tooltip, mesmo sem dado de calor.
+                const meta = resolveCountryMeta(iso, (geo.properties as { name?: string })?.name);
+                const known = !!meta;
                 const fill = entry ? intensityColor(entry.intensity) : NEUTRAL;
                 const isSelected = selectedIso === iso;
                 // Filtro de região atua no PRÓPRIO país (não só nos marcadores):
@@ -109,7 +113,7 @@ function RadarMapInner({
                 const matchesFilter = !regionFilter || entry?.region === regionFilter;
                 const opacity = regionFilter
                   ? (entry && matchesFilter ? 1 : 0.1)
-                  : (entry ? 1 : 0.5);
+                  : (entry ? 1 : 0.55);
                 return (
                   <Geography
                     key={geo.rsmKey}
@@ -118,21 +122,25 @@ function RadarMapInner({
                     stroke={isSelected ? "#fff" : "rgba(255,255,255,0.12)"}
                     strokeWidth={isSelected ? 1.1 : 0.35}
                     onMouseEnter={(e: React.MouseEvent) => {
-                      if (!entry) return;
+                      // Tooltip para TODO país: com dado de calor mostra o valor;
+                      // sem dado, mostra só bandeira + nome + região.
+                      const flag = entry?.flag || meta?.flag || "";
+                      const name = entry?.country || meta?.name || "";
+                      if (!name) return;
                       setTip({
                         x: e.clientX, y: e.clientY,
-                        title: `${entry.flag} ${entry.country}`.trim(),
-                        sub: entry.label,
-                        value: entry.valueText,
-                        positive: entry.positive,
+                        title: `${flag} ${name}`.trim(),
+                        sub: entry?.label ?? (meta?.region && meta.region !== "—" ? meta.region : "Sem dados de mercado"),
+                        value: entry?.valueText ?? null,
+                        positive: entry?.positive ?? false,
                       });
                     }}
                     onMouseMove={(e: React.MouseEvent) => setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))}
                     onMouseLeave={() => setTip(null)}
-                    onClick={() => known && onSelectCountry(iso)}
+                    onClick={() => known && onSelectCountry(iso, meta!.name)}
                     style={{
                       default: { outline: "none", opacity, transition: "fill .3s, opacity .3s" },
-                      hover: { outline: "none", opacity: matchesFilter ? 1 : 0.1, cursor: known ? "pointer" : "default", filter: entry && matchesFilter ? "brightness(1.25)" : "none" },
+                      hover: { outline: "none", opacity: matchesFilter ? 1 : 0.1, cursor: known ? "pointer" : "default", filter: entry && matchesFilter ? "brightness(1.25)" : (known ? "brightness(1.4)" : "none") },
                       pressed: { outline: "none" },
                     }}
                   />
@@ -169,9 +177,11 @@ function RadarMapInner({
         >
           <p className="font-semibold text-zinc-100">{tip.title}</p>
           <p className="text-[11px] text-zinc-400">{tip.sub}</p>
-          <p className="font-mono text-[11px] font-bold" style={{ color: tip.positive ? "#4ade80" : "#f87171" }}>
-            {tip.value}
-          </p>
+          {tip.value != null && (
+            <p className="font-mono text-[11px] font-bold" style={{ color: tip.positive ? "#4ade80" : "#f87171" }}>
+              {tip.value}
+            </p>
+          )}
         </div>
       )}
     </div>
