@@ -10,10 +10,11 @@ interface Props {
   open?: boolean;
   /** Colapsado no desktop — só ícones. */
   collapsed?: boolean;
+  onToggleCollapse?: () => void;
   onNavigate?: () => void;
 }
 
-export default function Rail({ open = false, collapsed = false, onNavigate }: Props) {
+export default function Rail({ open = false, collapsed = false, onToggleCollapse, onNavigate }: Props) {
   const pathname = usePathname();
 
   return (
@@ -36,9 +37,11 @@ export default function Rail({ open = false, collapsed = false, onNavigate }: Pr
           borderRight: "1px solid var(--line)",
         }}
       >
-        {/* Marca */}
-        <div
-          className={`flex items-center ${collapsed ? "justify-center px-2" : "gap-2.5 px-4"} pb-3.5`}
+        {/* Marca — clique colapsa/expande no desktop */}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expandir menu" : "Colapsar menu"}
+          className={`hidden min-[1100px]:flex items-center ${collapsed ? "justify-center px-2" : "gap-2.5 px-4"} pb-3.5 w-full text-left transition-opacity hover:opacity-80`}
           style={{
             paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))",
             borderBottom: "1px solid var(--line)",
@@ -53,6 +56,22 @@ export default function Rail({ open = false, collapsed = false, onNavigate }: Pr
               BARROOTS
             </span>
           )}
+        </button>
+        {/* Mobile: logo sem toggle (menu slide-over separado) */}
+        <div
+          className={`flex min-[1100px]:hidden items-center gap-2.5 px-4 pb-3.5`}
+          style={{
+            paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))",
+            borderBottom: "1px solid var(--line)",
+          }}
+        >
+          <Image src="/barroots-mark.png" alt="Barroots" width={24} height={24} className="object-contain shrink-0" />
+          <span
+            className="font-mono text-[12px] font-bold"
+            style={{ letterSpacing: ".1em", color: "var(--text)" }}
+          >
+            BARROOTS
+          </span>
         </div>
 
         {/* Navegação */}

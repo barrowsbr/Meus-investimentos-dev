@@ -33,13 +33,13 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
   return (
     <GlobeOverlayProvider>
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <Rail open={railOpen} collapsed={collapsed} onNavigate={() => setRailOpen(false)} />
+      <Rail open={railOpen} collapsed={collapsed} onToggleCollapse={toggleCollapsed} onNavigate={() => setRailOpen(false)} />
 
       <div
         className={`flex flex-1 flex-col min-w-0 ${collapsed ? "min-[1100px]:ml-[60px]" : "min-[1100px]:ml-[206px]"}`}
         style={{ paddingTop: "env(safe-area-inset-top)", transition: "margin-left 200ms ease" }}
       >
-        <CommandBar title={title} onMenu={() => setRailOpen((o) => !o)} onToggleCollapse={toggleCollapsed} />
+        <CommandBar title={title} onMenu={() => setRailOpen((o) => !o)} />
         <main
           key={pathname}
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden animate-fade-in px-4 py-4 md:px-[22px] md:py-[18px]"
