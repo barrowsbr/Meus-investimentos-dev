@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchQuotes } from "@/lib/cotacoes";
-import { COUNTRY_CURRENCY } from "@/lib/radar/geo";
+import { COUNTRY_CURRENCY, COUNTRY_RISK_BASE, riskLevel } from "@/lib/radar/geo";
 import { INDICES } from "@/lib/radar/indices";
 import { parseRssItems } from "@/lib/radar/rss";
 import { fetchPolymarket } from "@/lib/polymarket";
@@ -86,7 +86,10 @@ const RISK_KW = [
 
 async function newsScore(country: string): Promise<DimensionScore> {
   const en = COUNTRY_EN[country] ?? country;
-  const query = `${en} economy crisis risk`;
+  // Query NEUTRA (sem injetar "crisis/risk"): pega uma amostra geral de
+  // manchetes do país e mede quantas falam de risco. A query antiga
+  // ("… crisis risk") era auto-realizável — quase tudo batia nas keywords.
+  const query = `${en} economy politics`;
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000), next: { revalidate: 21600 } });
@@ -100,7 +103,9 @@ async function newsScore(country: string): Promise<DimensionScore> {
       if (RISK_KW.some(kw => title.includes(kw))) riskCount++;
     }
     const density = total > 0 ? riskCount / total : 0;
-    const raw = Math.min(density * 200 + (riskCount > 3 ? 15 : 0), 100);
+    // Normalização linear sem bônus de saturação: densidade 0→0, ~0.8→100.
+    // Discrimina de fato (Suíça ~5-12 vs Argentina ~40-70).
+    const raw = Math.min(density * 120, 100);
     const score = Math.round(raw);
     return {
       label: "Política / Notícias",
@@ -209,7 +214,9 @@ async function marketScore(country: string): Promise<DimensionScore> {
     }
 
     const combined = indexVol * 0.6 + fxVol * 0.4;
-    const score = Math.min(Math.round(combined > 4 ? 80 + (combined - 4) * 5 : combined > 2 ? 40 + (combined - 2) * 20 : combined * 20), 100);
+    // Resposta suave: um pregão de ±6% (combined ~3.8) lê ~46, não 77 — um dia
+    // forte não é "instabilidade crítica". É um nudge, não o motor do score.
+    const score = Math.min(Math.round(combined * 12), 100);
 
     return {
       label: "Mercado / Volatilidade",
@@ -287,14 +294,23 @@ async function externalScore(country: string): Promise<DimensionScore> {
   }
 }
 
-// ── Compose ─────────────────────────────────────────────────────────────────
-
-function classifyLevel(score: number): InstabilityResult["level"] {
-  if (score >= 70) return "crítico";
-  if (score >= 45) return "elevado";
-  if (score >= 20) return "moderado";
-  return "baixo";
+// ── 0. Estrutural / Soberano (âncora — mesma base do mapa) ──────────────────
+// O risco estrutural (rating soberano, instituições, profundidade de mercado)
+// é a ÂNCORA do score: domina o composto para que um pregão agitado não
+// transforme um país estável em "elevado". É EXATAMENTE a mesma fonte que pinta
+// a lente de Risco do mapa (COUNTRY_RISK_BASE) — por isso tag e mapa concordam.
+function structuralScore(country: string): DimensionScore {
+  const base = COUNTRY_RISK_BASE[country];
+  return {
+    label: "Estrutural / Soberano",
+    score: base ?? 50,
+    detail: base != null
+      ? "Risco soberano estrutural (rating · instituições · mercado)"
+      : "Sem base estrutural — assume risco médio",
+  };
 }
+
+// ── Compose ─────────────────────────────────────────────────────────────────
 
 async function computeInstability(country: string): Promise<InstabilityResult> {
   const [d1, d2, d3, d4] = await Promise.all([
@@ -304,14 +320,19 @@ async function computeInstability(country: string): Promise<InstabilityResult> {
     externalScore(country),
   ]);
 
-  const dimensions = [d1, d2, d3, d4];
-  const weights = [0.25, 0.30, 0.25, 0.20];
+  // Estrutural ancora (0.45); notícias/fiscal/mercado/preditivos só AJUSTAM ao
+  // redor da base. Pesos somam 1.0. `riskLevel` é o MESMO classificador do mapa
+  // (baixo <30 · moderado <50 · elevado <70 · crítico ≥70) — fim da divergência
+  // entre o que o mapa pinta e o que a tag do dossiê diz.
+  const d0 = structuralScore(country);
+  const dimensions = [d0, d1, d2, d3, d4];
+  const weights = [0.45, 0.12, 0.18, 0.12, 0.13];
   const composite = Math.round(dimensions.reduce((sum, d, i) => sum + d.score * weights[i], 0));
 
   return {
     country,
     score: composite,
-    level: classifyLevel(composite),
+    level: riskLevel(composite),
     dimensions,
     cachedAt: new Date().toISOString(),
   };
