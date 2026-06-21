@@ -8,16 +8,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Globe, BarChart3, ArrowLeftRight, Shield,
-  MapPin, Newspaper, Brain,
+  MapPin, LineChart, Loader2,
 } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
-import type { RadarLayer } from "@/lib/radar/types";
+import type { RadarLayer, SymbolTarget } from "@/lib/radar/types";
+import { useSymbolSearch } from "@/lib/radar/use-radar";
 
 interface CommandItem {
   id: string;
   label: string;
   sublabel?: string;
   icon: typeof Globe;
+  badge?: string;
   action: () => void;
   category: string;
 }
@@ -29,14 +31,18 @@ const COUNTRIES = Object.keys(COUNTRY_TO_ISO_NUM)
 interface Props {
   onPickCountry: (name: string) => void;
   onSetLayer: (layer: RadarLayer) => void;
+  onOpenSymbol: (t: SymbolTarget) => void;
 }
 
-export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
+export default function CommandPalette({ onPickCountry, onSetLayer, onOpenSymbol }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Busca livre de ativos no Yahoo (ações, ETFs, índices, cripto).
+  const { results: symbolResults, loading: searching } = useSymbolSearch(open ? query : "");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -64,7 +70,8 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
     setQuery("");
   }, []);
 
-  const items = useMemo<CommandItem[]>(() => {
+  // Comandos locais (camadas + países) — filtrados por substring.
+  const localItems = useMemo<CommandItem[]>(() => {
     const all: CommandItem[] = [];
 
     // Layer commands
@@ -93,8 +100,27 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
       item.label.toLowerCase().includes(q) ||
       item.sublabel?.toLowerCase().includes(q) ||
       item.category.toLowerCase().includes(q)
-    ).slice(0, 12);
+    ).slice(0, 8);
   }, [query, onPickCountry, onSetLayer]);
+
+  // Ativos do Yahoo → cada um abre o candlestick (SymbolDetail) no lugar do mapa.
+  const symbolItems = useMemo<CommandItem[]>(() => {
+    return symbolResults.map((r) => ({
+      id: `symbol-${r.symbol}`,
+      label: r.symbol.replace(/\.\w+$/, ""),
+      sublabel: r.exchange ? `${r.name} · ${r.exchange}` : r.name,
+      icon: r.kind === "index" ? BarChart3 : LineChart,
+      badge: r.type,
+      action: () => onOpenSymbol({ symbol: r.symbol, name: r.name, kind: r.kind, moeda: r.moeda }),
+      category: "Ativos",
+    }));
+  }, [symbolResults, onOpenSymbol]);
+
+  // Ativos primeiro (intenção principal da busca), depois camadas/países.
+  const items = useMemo<CommandItem[]>(() => {
+    if (!query.trim()) return localItems;
+    return [...symbolItems, ...localItems].slice(0, 16);
+  }, [query, symbolItems, localItems]);
 
   useEffect(() => { setSelectedIdx(0); }, [query]);
 
@@ -136,16 +162,25 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Buscar país, camada ou ação…"
+            placeholder="Buscar ação, índice ou país…"
             className="flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
           />
+          {searching && <Loader2 size={14} className="shrink-0 animate-spin text-zinc-500" />}
           <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 sm:inline">ESC</kbd>
         </div>
 
         {/* Results */}
         <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-2">
           {items.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-zinc-500">Nenhum resultado</p>
+            searching ? (
+              <p className="flex items-center justify-center gap-2 px-4 py-6 text-center text-sm text-zinc-500">
+                <Loader2 size={14} className="animate-spin" /> Buscando ativos no Yahoo…
+              </p>
+            ) : query.trim().length >= 2 ? (
+              <p className="px-4 py-6 text-center text-sm text-zinc-500">Nenhum ativo, país ou camada encontrado</p>
+            ) : (
+              <p className="px-4 py-6 text-center text-sm text-zinc-500">Digite o nome de uma ação, índice ou país</p>
+            )
           ) : (
             items.map((item, i) => {
               const showCategory = item.category !== lastCategory;
@@ -165,11 +200,16 @@ export default function CommandPalette({ onPickCountry, onSetLayer }: Props) {
                     className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
                     style={{ background: isSelected ? "rgba(59,130,246,0.1)" : "transparent" }}
                   >
-                    <Icon size={14} className={isSelected ? "text-blue-400" : "text-zinc-500"} />
+                    <Icon size={14} className={`shrink-0 ${isSelected ? "text-blue-400" : "text-zinc-500"}`} />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}>{item.label}</p>
+                      <p className={`truncate text-sm ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}>{item.label}</p>
                       {item.sublabel && <p className="truncate text-[11px] text-zinc-600">{item.sublabel}</p>}
                     </div>
+                    {item.badge && (
+                      <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-400" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 </div>
               );

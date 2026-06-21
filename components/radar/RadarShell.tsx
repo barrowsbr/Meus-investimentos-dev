@@ -251,9 +251,9 @@ export default function RadarShell() {
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}
           />
-          <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} />
+          <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} onOpenSymbol={setDetailTarget} />
           {detailTarget && (
-            <SymbolDetail target={detailTarget} onClose={() => setDetailTarget(null)} />
+            <SymbolDetail target={detailTarget} dossierOpen={!!selected} onClose={() => setDetailTarget(null)} />
           )}
           <CountryDossier
             selected={selected}

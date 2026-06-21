@@ -183,6 +183,22 @@ export interface SymbolTarget {
   flag?: string;
 }
 
+// Resultado da busca livre de ativos no Yahoo (Command Palette ⌘K).
+export interface SymbolSearchResult {
+  symbol: string;     // símbolo Yahoo (PETR4.SA, AAPL, ^GSPC)
+  name: string;       // nome amigável
+  exchange: string;   // bolsa (NASDAQ, B3, …)
+  type: string;       // rótulo PT: Ação, ETF, Índice, Cripto…
+  kind: SymbolKind;   // index | stock (controla notícias e badge)
+  moeda: string;      // palpite de moeda do eixo
+}
+
+export interface SymbolSearchResponse {
+  query: string;
+  results: SymbolSearchResult[];
+  error?: string;
+}
+
 export interface ConstituentData {
   ticker: string;
   name: string;

@@ -45,7 +45,7 @@ function fmtPrice(v: number, currency: string): string {
   return `${sym}${v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function SymbolDetail({ target, onClose }: { target: SymbolTarget; onClose: () => void }) {
+export default function SymbolDetail({ target, onClose, dossierOpen = true }: { target: SymbolTarget; onClose: () => void; dossierOpen?: boolean }) {
   const [info, setInfo] = useState<OhlcInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(true);
   const [description, setDescription] = useState<string | null>(null);
@@ -59,7 +59,9 @@ export default function SymbolDetail({ target, onClose }: { target: SymbolTarget
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  const moeda = target.moeda || info?.currency || "USD";
+  // A moeda autoritativa vem do OHLC (info.currency); target.moeda é só o palpite
+  // inicial (útil para resultados de busca onde inferimos pela bolsa).
+  const moeda = info?.currency || target.moeda || "USD";
 
   // ── Cabeçalho: preço/variação/market cap via OHLC (range curto) ────────────
   useEffect(() => {
@@ -84,18 +86,22 @@ export default function SymbolDetail({ target, onClose }: { target: SymbolTarget
     return () => { cancelled = true; };
   }, [target.symbol]);
 
-  // ── Notícias (apenas ações) ────────────────────────────────────────────────
+  // ── Notícias (apenas ações) — escopo SÓ deste ativo (scope=symbol) ──────────
+  // Envia o símbolo COMPLETO (com sufixo, p/ o servidor detectar o idioma) e o
+  // nome da empresa (melhora muito o casamento: "Petrobras" > "PETR4").
   useEffect(() => {
     if (target.kind !== "stock") { setNews(null); return; }
     let cancelled = false;
     setNews(null);
-    const clean = target.symbol.replace(/\.\w+$/, "");
-    fetch(`/api/noticias?tickers=${encodeURIComponent(clean)}`)
+    const nameParam = target.name && target.name !== target.symbol
+      ? `&name=${encodeURIComponent(target.name)}`
+      : "";
+    fetch(`/api/noticias?tickers=${encodeURIComponent(target.symbol)}&scope=symbol${nameParam}`)
       .then((r) => r.json())
       .then((d) => { if (!cancelled && Array.isArray(d.articles)) setNews(d.articles.slice(0, 6)); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [target.symbol, target.kind]);
+  }, [target.symbol, target.kind, target.name]);
 
   const closes = info?.data ?? [];
   const price = closes.length ? closes[closes.length - 1].close : null;
@@ -104,7 +110,7 @@ export default function SymbolDetail({ target, onClose }: { target: SymbolTarget
   const dayPos = (dayChange ?? 0) >= 0;
 
   return (
-    <div className="fixed inset-0 z-[65] flex flex-col overflow-hidden md:absolute md:inset-y-0 md:left-0 md:right-[380px] md:z-[70] md:rounded-2xl" style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)", paddingTop: "env(safe-area-inset-top)" }} onClick={(e) => e.stopPropagation()}>
+    <div className={`fixed inset-0 z-[65] flex flex-col overflow-hidden md:absolute md:inset-y-0 md:left-0 md:z-[70] md:rounded-2xl ${dossierOpen ? "md:right-[380px]" : "md:right-0"}`} style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)", paddingTop: "env(safe-area-inset-top)" }} onClick={(e) => e.stopPropagation()}>
       {/* Top bar */}
       <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <button

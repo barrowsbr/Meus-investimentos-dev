@@ -202,6 +202,32 @@ function buildFeeds(tickers: string[]): FeedDef[] {
   return feeds;
 }
 
+// ─── Symbol-scoped feeds (drill-down de UMA ação) ─────────────────────────────
+// SÓ notícias do ativo clicado — sem feeds gerais de mercado/macro/setor. Usa o
+// nome da empresa quando disponível ("Petrobras" casa muito melhor que "PETR4").
+
+function isBrazilian(symbol: string): boolean {
+  const s = symbol.toUpperCase();
+  if (s.endsWith(".SA")) return true;
+  const clean = s.replace(/\.\w+$/, "");
+  return /^[A-Z]{4}\d{1,2}$/.test(clean); // padrão B3: PETR4, VALE3, ITUB4…
+}
+
+function buildSymbolFeeds(tickers: string[], names: Record<string, string>): FeedDef[] {
+  const feeds: FeedDef[] = [];
+  for (const t of tickers) {
+    const clean = t.replace(/\.\w+$/, "");
+    const name = (names[t] || names[clean] || "").trim();
+    const br = isBrazilian(t);
+    const lang: "pt" | "en" = br ? "pt" : "en";
+    const query = br
+      ? (name ? `${name} ação` : `${clean} ações bolsa`)
+      : (name ? `${name} stock` : `${clean} stock news`);
+    feeds.push({ url: newsUrl(query, lang), ticker: clean, categoria: "portfolio", max: 10, lang });
+  }
+  return feeds;
+}
+
 // ─── Batch translate English headlines to Portuguese ─────────────────────────
 
 async function translateHeadlines(items: ParsedItem[]): Promise<void> {
@@ -286,17 +312,65 @@ async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
   return deduped;
 }
 
+// ─── Fetch news for a SINGLE asset (scope=symbol) ─────────────────────────────
+
+async function fetchSymbolNews(tickers: string[], name: string): Promise<NewsItem[]> {
+  const names: Record<string, string> = {};
+  if (name) for (const t of tickers) names[t] = name;
+
+  const feeds = buildSymbolFeeds(tickers, names);
+  const all: ParsedItem[] = [];
+  const results = await Promise.allSettled(
+    feeds.map(async f => {
+      const xml = await fetchFeed(f.url);
+      return parseRSS(xml, f.ticker, f.categoria, f.lang, f.max);
+    })
+  );
+  for (const r of results) {
+    if (r.status === "fulfilled") all.push(...r.value);
+  }
+
+  // Deduplicate by link + title
+  const seen = new Set<string>();
+  const deduped: ParsedItem[] = [];
+  for (const item of all) {
+    const linkKey = item.link.slice(0, 80);
+    const titleKey = item.titulo.toLowerCase().slice(0, 60);
+    if (!seen.has(linkKey) && !seen.has(titleKey)) {
+      seen.add(linkKey);
+      seen.add(titleKey);
+      deduped.push(item);
+    }
+  }
+
+  await translateHeadlines(deduped);
+
+  // Para um único ativo, recência manda (o impacto vira só a cor do marcador).
+  deduped.sort((a, b) => {
+    const da = a.data ? new Date(a.data).getTime() : 0;
+    const db = b.data ? new Date(b.data).getTime() : 0;
+    return db - da;
+  });
+
+  return deduped;
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const tickersParam = searchParams.get("tickers") ?? "";
+  const scope = searchParams.get("scope") ?? "";
+  const name = searchParams.get("name") ?? "";
   const tickers = tickersParam
     ? tickersParam.split(",").map(t => t.trim()).filter(Boolean)
     : [];
 
   try {
-    const articles = await fetchAllNews(tickers);
+    // scope=symbol → SÓ notícias do(s) ativo(s); senão, o painel geral de mercado.
+    const articles = scope === "symbol" && tickers.length
+      ? await fetchSymbolNews(tickers, name)
+      : await fetchAllNews(tickers);
     return NextResponse.json({ articles, count: articles.length });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
