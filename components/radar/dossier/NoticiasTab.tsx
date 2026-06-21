@@ -1,6 +1,6 @@
 "use client";
 
-import { Newspaper, ExternalLink, Loader2, Radio, LinkIcon, AlertCircle } from "lucide-react";
+import { Newspaper, ExternalLink, Loader2, Radio, LinkIcon, AlertCircle, Languages } from "lucide-react";
 import type { CountryNewsResponse, SignalsResponse } from "@/lib/radar/types";
 import { findPortfolioImpact } from "@/lib/polymarket";
 
@@ -125,7 +125,10 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                   className="group block px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="flex-1 text-xs leading-snug text-zinc-200 group-hover:text-zinc-50">
+                    <p
+                      className="flex-1 text-xs leading-snug text-zinc-200 group-hover:text-zinc-50"
+                      title={article.original ? `Original (${article.idioma}): ${article.original}` : undefined}
+                    >
                       {article.titulo}
                     </p>
                     <ExternalLink size={11} className="mt-0.5 shrink-0 text-zinc-600 group-hover:text-zinc-400" />
@@ -140,6 +143,14 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                     <span className="text-[10px] text-zinc-600">{article.fonte}</span>
                     {article.data && (
                       <span className="text-[10px] text-zinc-600">{timeAgo(article.data)}</span>
+                    )}
+                    {article.original && (
+                      <span
+                        className="flex items-center gap-0.5 text-[9px] text-zinc-600"
+                        title={`Traduzido de ${article.idioma}`}
+                      >
+                        <Languages size={9} /> {article.idioma}
+                      </span>
                     )}
                   </div>
                 </a>

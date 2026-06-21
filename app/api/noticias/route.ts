@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { llmComplete } from "@/lib/llm";
+import { translateBatch } from "@/lib/translate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
@@ -234,7 +235,24 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
   const english = items.filter(i => i._lang === "en");
   if (english.length === 0) return;
 
-  const titles = english.map((e, i) => `${i}|${e.titulo}`);
+  // 1ª tentativa: Google Translate (rápido, gratuito, em lote). Cobre a
+  // maioria dos casos sem gastar tokens de LLM.
+  try {
+    const translated = await translateBatch(english.map(e => e.titulo), "pt");
+    for (let i = 0; i < english.length; i++) {
+      const pt = translated[i];
+      if (pt && pt.length > 3 && pt !== english[i].titulo) english[i].titulo = pt;
+    }
+  } catch {
+    // ignora — cai para o fallback de LLM abaixo
+  }
+
+  // Fallback de LLM só para o que não traduziu (ainda parece inglês). Útil
+  // quando o endpoint do Google falha ou rate-limita.
+  const pending = english.filter(e => /\b(the|of|and|for|rate|stock|market|report)\b/i.test(e.titulo));
+  if (pending.length === 0) return;
+
+  const titles = pending.map((e, i) => `${i}|${e.titulo}`);
   const prompt =
     `Traduza cada manchete abaixo para português do Brasil, mantendo siglas (Fed, FOMC, S&P, etc.) e nomes próprios intactos.\n` +
     `Responda SOMENTE com as linhas traduzidas, uma por linha, no formato "NÚMERO|tradução" (mesmo formato da entrada).\n` +
@@ -254,8 +272,8 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
       if (sep < 0) continue;
       const idx = parseInt(line.slice(0, sep).trim(), 10);
       const translated = line.slice(sep + 1).trim();
-      if (!isNaN(idx) && idx >= 0 && idx < english.length && translated.length > 3) {
-        english[idx].titulo = translated;
+      if (!isNaN(idx) && idx >= 0 && idx < pending.length && translated.length > 3) {
+        pending[idx].titulo = translated;
       }
     }
   } catch {

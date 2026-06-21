@@ -99,6 +99,8 @@ export interface CountryNewsItem {
   data: string;
   fonte: string;
   impacto: "alto" | "medio" | "baixo";
+  original?: string;   // manchete no idioma original (quando traduzida)
+  idioma?: string;     // código do idioma de origem (ex: "ja", "de")
 }
 
 export interface CountryNewsResponse {
