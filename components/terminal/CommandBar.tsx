@@ -31,7 +31,7 @@ export default function CommandBar({ title, onMenu }: Props) {
   return (
     <div
       className="flex items-center gap-3 md:gap-4 px-3 md:px-[18px] shrink-0"
-      style={{ height: 46, borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
+      style={{ height: 54, borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
     >
       {/* Hamburger (mobile) */}
       <button
