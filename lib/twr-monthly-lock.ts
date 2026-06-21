@@ -24,8 +24,10 @@ export async function readLockedMonthly(): Promise<LockedMonth[]> {
         return_pct_usd: r["return_pct_usd"] != null && r["return_pct_usd"] !== "" ? Number(r["return_pct_usd"]) : null,
       }))
       .filter(r => r.month.match(/^\d{4}-\d{2}$/));
+    console.log(`[twr-lock] read ${_cache.length} locked months from ${TAB}`);
     return _cache;
-  } catch {
+  } catch (e) {
+    console.warn(`[twr-lock] failed to read ${TAB}:`, e instanceof Error ? e.message : e);
     return [];
   }
 }
@@ -63,6 +65,7 @@ export async function lockNewMonths(
   ]);
 
   await appendRows(TAB, rows);
+  console.log(`[twr-lock] locked ${toLock.length} new months: ${toLock.map(m => m.month).join(", ")}`);
   _cache = null;
   return toLock.length;
 }

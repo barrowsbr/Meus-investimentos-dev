@@ -1090,7 +1090,9 @@ export async function GET(request: Request) {
       const lockableUsd = rawUsdMonthly == null
         ? null
         : (lookback > 0 ? (rawUsdMonthly as Array<{ month: string; return_pct: number }>).slice(1) : rawUsdMonthly);
-      lockNewMonths(lockableBrl, lockableUsd).catch(() => {});
+      lockNewMonths(lockableBrl, lockableUsd).catch(e => {
+        console.warn("[perf] lockNewMonths failed:", e instanceof Error ? e.message : e);
+      });
     }
 
     return NextResponse.json({
