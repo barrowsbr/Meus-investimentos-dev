@@ -21,7 +21,7 @@ import {
   useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
 import type { RadarLayer, SelectedCountry } from "@/lib/radar/types";
-import { RadarMap, type MarkerPoint } from "./RadarMap";
+import { RadarMap } from "./RadarMap";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
@@ -56,15 +56,6 @@ export default function RadarShell() {
     }
     return new Map();
   }, [layer, markets, moedas]);
-
-  // Marcadores só na camada de Mercados (localizam a praça dentro do país).
-  // Câmbio e Risco usam o país inteiro pintado — pontos seriam ruído.
-  const markers = useMemo<MarkerPoint[]>(() => {
-    if (layer !== "mercados" || !markets) return [];
-    return markets.indices
-      .filter((i) => i.symbol !== "^VIX")
-      .map((i) => ({ id: i.symbol, lat: i.lat, lng: i.lng, changePct: i.changePct, region: i.region, label: i.name, country: i.country }));
-  }, [layer, markets]);
 
   const regions = useMemo(() => {
     // Risco é pintado a partir do risco estrutural (cobre todas as regiões),
@@ -251,7 +242,6 @@ export default function RadarShell() {
           <RadarMap
             layer={layer}
             heat={heat}
-            markers={markers}
             selectedIso={selected?.iso ?? null}
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}

@@ -7,26 +7,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import { GEO_URL, REGION_COLORS, intensityColor } from "@/lib/world-map";
+import { GEO_URL, intensityColor } from "@/lib/world-map";
 import { ISO_NUM_TO_COUNTRY, type HeatEntry } from "@/lib/radar/geo";
 import type { RadarLayer } from "@/lib/radar/types";
-
-export interface MarkerPoint {
-  id: string;
-  lat: number;
-  lng: number;
-  changePct: number;
-  region: string;
-  label: string;
-  country: string;
-}
 
 interface RadarMapProps {
   layer: RadarLayer;
   heat: Map<string, HeatEntry>;
-  markers: MarkerPoint[];
   selectedIso: string | null;
   regionFilter: string | null;
   onSelectCountry: (iso: string) => void;
@@ -44,7 +33,7 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
 };
 
 function RadarMapInner({
-  layer, heat, markers, selectedIso, regionFilter, onSelectCountry,
+  layer, heat, selectedIso, regionFilter, onSelectCountry,
 }: RadarMapProps) {
   const [zoom, setZoom] = useState(1);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
@@ -151,24 +140,6 @@ function RadarMapInner({
               })
             }
           </Geographies>
-
-          {/* Marcadores só na camada de Mercados: localizam a praça (bolsa)
-              dentro do país. Em Câmbio e Risco o sinal é o país INTEIRO pintado,
-              então os pontos seriam ruído — o choropleth carrega a informação. */}
-          {layer === "mercados" && markers.map((m) => {
-            const regionColor = REGION_COLORS[m.region] ?? "#888";
-            const dimmed = regionFilter ? m.region !== regionFilter : false;
-            const changeColor = m.changePct >= 0 ? "#4ade80" : "#f87171";
-            const r = 3.2;
-            return (
-              <Marker key={m.id} coordinates={[m.lng, m.lat]}>
-                <g style={{ opacity: dimmed ? 0.1 : 0.95, pointerEvents: "none" }}>
-                  <circle r={r} fill={regionColor} stroke="rgba(255,255,255,0.45)" strokeWidth={0.4} />
-                  <circle r={r * 0.42} fill={changeColor} />
-                </g>
-              </Marker>
-            );
-          })}
         </ZoomableGroup>
       </ComposableMap>
 
