@@ -274,6 +274,7 @@ export default function RadarShell() {
             exposure={exposure}
             exposureLoading={exposureLoading}
             onOpenSymbol={setDetailTarget}
+            symbolDetailOpen={!!detailTarget}
             onClose={() => setSelected(null)}
           />
         </div>
