@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { PortfolioSnapshot, Position } from "./portfolio";
 import type { FxRates } from "./cotacoes";
 import { withDataVersion } from "./data-version";
@@ -252,13 +252,15 @@ export function usePortfolio() {
   const [data, setData] = useState<PortfolioResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetch(withDataVersion(`${API_URL}/api/cotacoes`))
+    const bustCache = fetchKey > 0 ? `${API_URL}/api/cotacoes?_t=${Date.now()}` : withDataVersion(`${API_URL}/api/cotacoes`);
+    fetch(bustCache)
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok || body.error) {
@@ -285,7 +287,9 @@ export function usePortfolio() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchKey]);
 
-  return { data, loading, error };
+  const refetch = useCallback(() => setFetchKey((k) => k + 1), []);
+
+  return { data, loading, error, refetch };
 }
