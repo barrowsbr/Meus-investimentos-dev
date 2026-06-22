@@ -58,32 +58,16 @@ function extractTag(xml: string, tag: string): string {
   return cdata ? cdata[1] : inner;
 }
 
-function isGoogleBrandImage(url: string): boolean {
-  if (/googleusercontent\.com/i.test(url) && !/\/proxy\//i.test(url)) return true;
-  if (/google\.com\/favicon/i.test(url)) return true;
-  return false;
-}
-
-function extractImage(descHtml: string): string | null {
-  const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m?.[1] ?? null;
-}
-
-function extractMediaContent(itemXml: string): string | null {
-  const m = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
-  return m?.[1] ?? null;
-}
-
 function extractSource(xml: string): string {
   const m = xml.match(/<source[^>]*>([^<]*)<\/source>/i);
   return m ? decodeHtml(m[1].trim()) : "Google News";
 }
 
 // Decode the real article URL from a Google News redirect URL.
-// Google News URLs contain a protobuf-encoded payload with the real URL.
+// The URL path /rss/articles/CBMi... contains a protobuf payload with the article URL.
 function decodeGoogleNewsUrl(gnUrl: string): string | null {
   try {
-    const m = gnUrl.match(/\/articles\/([A-Za-z0-9_-]+)/);
+    const m = gnUrl.match(/\/articles\/([A-Za-z0-9_\-]+)/);
     if (!m) return null;
     let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
     while (b64.length % 4) b64 += "=";
@@ -133,13 +117,12 @@ function parseFeed(xml: string, feed: Feed): Parsed[] {
     if (!link) { const hm = block.match(/<link\s+href="([^"]+)"/i); if (hm) link = hm[1]; }
     if (!titulo || !link) continue;
 
-    const desc = extractTag(block, "description");
-    const imagem = extractImage(desc) ?? extractMediaContent(block);
     const data = extractTag(block, "pubDate");
     const fonte = extractSource(block);
 
     items.push({
-      titulo, link, data, fonte, imagem,
+      titulo, link, data, fonte,
+      imagem: null,
       categoria: feed.categoria,
       impacto: scoreImpact(titulo),
       _lang: feed.lang,
@@ -163,18 +146,30 @@ async function fetchFeed(url: string): Promise<string> {
   return res.text();
 }
 
-async function fetchOgImage(url: string): Promise<string | null> {
+async function fetchArticleImage(articleUrl: string): Promise<string | null> {
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+    const res = await fetch(articleUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,*/*",
+      },
       signal: AbortSignal.timeout(5000),
       redirect: "follow",
     });
     if (!res.ok) return null;
     const html = await res.text();
-    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+
+    // Try og:image first (most common)
+    const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    return m?.[1] ?? null;
+    if (og?.[1]) return og[1];
+
+    // Try twitter:image
+    const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+    if (tw?.[1]) return tw[1];
+
+    return null;
   } catch { return null; }
 }
 
@@ -226,21 +221,20 @@ export async function GET() {
       } catch { /* keep original */ }
     }
 
-    // Fetch og:image for articles without images OR with Google logo images.
-    // Decode Google News URLs to get real article URLs for og:image extraction.
-    const needsOg = top.filter(t =>
-      !t.imagem || isGoogleBrandImage(t.imagem)
+    // Fetch og:image from real article pages for ALL articles.
+    // Google News RSS images are unreliable (often just the Google logo).
+    // Decode each Google News URL to get the real article URL, then fetch og:image.
+    const ogResults = await Promise.allSettled(
+      top.map(item => {
+        const realUrl = decodeGoogleNewsUrl(item.link);
+        if (!realUrl) return Promise.resolve(null);
+        return fetchArticleImage(realUrl);
+      })
     );
-    if (needsOg.length > 0) {
-      const ogResults = await Promise.allSettled(
-        needsOg.map(m => {
-          const realUrl = decodeGoogleNewsUrl(m.link);
-          return fetchOgImage(realUrl ?? m.link);
-        })
-      );
-      for (let i = 0; i < needsOg.length; i++) {
-        const r = ogResults[i];
-        if (r.status === "fulfilled" && r.value) needsOg[i].imagem = r.value;
+    for (let i = 0; i < top.length; i++) {
+      const r = ogResults[i];
+      if (r.status === "fulfilled" && r.value) {
+        top[i].imagem = r.value;
       }
     }
 
