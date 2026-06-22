@@ -476,8 +476,22 @@ function NoticiasDestaques() {
 
   if (articles.length === 0) return null;
 
-  const featured = articles[0];
-  const rest = articles.slice(1, 7);
+  const sorted = useMemo(() => {
+    const copy = [...articles];
+    if (copy.length > 1) {
+      const [first, ...tail] = copy;
+      tail.sort((a, b) => {
+        const ai = a.imagem ? 0 : 1;
+        const bi = b.imagem ? 0 : 1;
+        return ai - bi;
+      });
+      return [first, ...tail];
+    }
+    return copy;
+  }, [articles]);
+
+  const featured = sorted[0];
+  const rest = sorted.slice(1);
 
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
