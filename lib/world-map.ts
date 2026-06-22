@@ -56,7 +56,7 @@ export const COUNTRY_TO_ISO_NUM: Record<string, string> = {
   "Nepal": "524", "Mongólia": "496", "Cazaquistão": "398",
   "Afeganistão": "004", "Mianmar": "104", "Camboja": "116", "Laos": "418",
   "Coreia do Norte": "408", "Quirguistão": "417", "Tajiquistão": "762",
-  "Turcomenistão": "795", "Uzbequistão": "860", "Geórgia": "268", "Armênia": "051",
+  "Turcomenistão": "795", "Uzbequistão": "860", "Geórgia": "268", "Armênia": "051", "Azerbaijão": "031",
   "Butão": "064", "Brunei": "096", "Timor-Leste": "626", "Macau": "446",
   // Middle East
   "Israel": "376", "Arábia Saudita": "682", "Emirados": "784", "Catar": "634",
