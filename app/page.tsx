@@ -392,6 +392,10 @@ const IMPACTO_STYLE = {
 
 function proxyImg(url: string | null): string | null {
   if (!url) return null;
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    if (h.includes("google") || h.endsWith("gstatic.com") || h.endsWith("googleusercontent.com") || h.endsWith("ggpht.com")) return null;
+  } catch { return null; }
   return `/api/img-proxy?url=${encodeURIComponent(url)}`;
 }
 
@@ -462,17 +466,18 @@ function NoticiasDestaques() {
             className="relative h-[180px] md:h-auto md:w-[280px] shrink-0 overflow-hidden flex items-center justify-center"
             style={{ background: "var(--hover)" }}
           >
-            {featured.imagem ? (
+            {proxyImg(featured.imagem) ? (
               <img
                 src={proxyImg(featured.imagem)!}
                 alt=""
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement?.querySelector("[data-fallback]")?.removeAttribute("hidden"); }}
               />
-            ) : (
+            ) : null}
+            <span data-fallback {...(proxyImg(featured.imagem) ? { hidden: true } : {})} >
               <Newspaper size={32} style={{ color: "var(--muted)", opacity: 0.3 }} />
-            )}
+            </span>
             <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
           </div>
           <div className="flex flex-1 flex-col justify-between p-4">
@@ -527,17 +532,18 @@ function NoticiasDestaques() {
                 className="relative h-[64px] w-[88px] shrink-0 overflow-hidden rounded-sm flex items-center justify-center"
                 style={{ background: "var(--hover)" }}
               >
-                {article.imagem ? (
+                {proxyImg(article.imagem) ? (
                   <img
                     src={proxyImg(article.imagem)!}
                     alt=""
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement?.querySelector("[data-fallback]")?.removeAttribute("hidden"); }}
                   />
-                ) : (
+                ) : null}
+                <span data-fallback {...(proxyImg(article.imagem) ? { hidden: true } : {})} >
                   <Newspaper size={16} style={{ color: "var(--muted)", opacity: 0.3 }} />
-                )}
+                </span>
               </div>
               <div className="flex flex-1 flex-col justify-between min-w-0">
                 <div>
