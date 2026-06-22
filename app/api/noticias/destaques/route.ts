@@ -214,21 +214,23 @@ function newsUrl(q: string, lang: Lang = "pt"): string {
 // Feeds diretos de veículos — trazem a imagem REAL embutida no item (media:content
 // / enclosure / <img>), sem qualquer redirect do Google. Fonte primária das fotos.
 const DIRECT_FEEDS: Feed[] = [
-  { url: "https://www.infomoney.com.br/mercados/feed/", categoria: "Mercado", lang: "pt", max: 4, kind: "direct", fonte: "InfoMoney" },
-  { url: "https://www.infomoney.com.br/economia/feed/", categoria: "Economia", lang: "pt", max: 3, kind: "direct", fonte: "InfoMoney" },
-  { url: "https://www.moneytimes.com.br/feed/", categoria: "Mercado", lang: "pt", max: 3, kind: "direct", fonte: "Money Times" },
-  { url: "https://g1.globo.com/rss/g1/economia/", categoria: "Economia", lang: "pt", max: 3, kind: "direct", fonte: "G1" },
-  { url: "https://exame.com/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "Exame" },
-  { url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "CNBC" },
-  { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", categoria: "Global", lang: "en", max: 2, kind: "direct", fonte: "MarketWatch" },
+  { url: "https://www.infomoney.com.br/mercados/feed/", categoria: "Mercado", lang: "pt", max: 6, kind: "direct", fonte: "InfoMoney" },
+  { url: "https://www.infomoney.com.br/economia/feed/", categoria: "Economia", lang: "pt", max: 4, kind: "direct", fonte: "InfoMoney" },
+  { url: "https://www.infomoney.com.br/investimentos/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "InfoMoney" },
+  { url: "https://www.moneytimes.com.br/feed/", categoria: "Mercado", lang: "pt", max: 5, kind: "direct", fonte: "Money Times" },
+  { url: "https://g1.globo.com/rss/g1/economia/", categoria: "Economia", lang: "pt", max: 4, kind: "direct", fonte: "G1" },
+  { url: "https://exame.com/feed/", categoria: "Investimentos", lang: "pt", max: 4, kind: "direct", fonte: "Exame" },
+  { url: "https://valorinveste.globo.com/feed/rss/ultimas-noticias.ghtml", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "Valor Investe" },
+  { url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", categoria: "Global", lang: "en", max: 4, kind: "direct", fonte: "CNBC" },
+  { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "MarketWatch" },
 ];
 
 // Feeds do Google News — usados para AMPLITUDE/relevância de manchetes. A imagem
 // (quando houver) vem do og:image da URL real decodificada, nunca de host Google.
 const GOOGLE_FEEDS: Feed[] = [
-  { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), categoria: "Mercado", lang: "pt", max: 4, kind: "google", fonte: "Google News" },
-  { url: newsUrl("dólar câmbio dividendos ações renda variável"), categoria: "Investimentos", lang: "pt", max: 3, kind: "google", fonte: "Google News" },
-  { url: newsUrl("S&P 500 Nasdaq Wall Street earnings fed", "en"), categoria: "Global", lang: "en", max: 3, kind: "google", fonte: "Google News" },
+  { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), categoria: "Mercado", lang: "pt", max: 5, kind: "google", fonte: "Google News" },
+  { url: newsUrl("dólar câmbio dividendos ações renda variável"), categoria: "Investimentos", lang: "pt", max: 4, kind: "google", fonte: "Google News" },
+  { url: newsUrl("S&P 500 Nasdaq Wall Street earnings fed", "en"), categoria: "Global", lang: "en", max: 4, kind: "google", fonte: "Google News" },
 ];
 
 interface Parsed extends DestaqueItem {
@@ -414,8 +416,7 @@ export async function GET() {
       return db - da;
     });
 
-    // Trabalhar com um pool maior que 12 para sobrar candidatos COM imagem.
-    const pool = deduped.slice(0, 18);
+    const pool = deduped.slice(0, 30);
 
     // Traduzir manchetes em inglês.
     const english = pool.filter(t => t._lang === "en");
@@ -461,8 +462,19 @@ export async function GET() {
       })
     );
 
-    // Reordenar para que o DESTAQUE (primeiro item) tenha imagem, quando possível.
-    let top = pool.slice(0, 12);
+    // Reordenar: dentro de cada tier de impacto, artigos COM imagem sobem.
+    pool.sort((a, b) => {
+      const i = impactOrder[a.impacto] - impactOrder[b.impacto];
+      if (i !== 0) return i;
+      const ai = a.imagem ? 0 : 1;
+      const bi = b.imagem ? 0 : 1;
+      if (ai !== bi) return ai - bi;
+      const da = a.data ? new Date(a.data).getTime() : 0;
+      const db = b.data ? new Date(b.data).getTime() : 0;
+      return db - da;
+    });
+
+    let top = pool.slice(0, 20);
     const firstWithImg = top.findIndex(t => t.imagem);
     if (firstWithImg > 0) {
       const [hero] = top.splice(firstWithImg, 1);
