@@ -141,6 +141,14 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                       {badge.label}
                     </span>
                     <span className="text-[10px] text-zinc-600">{article.fonte}</span>
+                    {article.local && (
+                      <span
+                        className="rounded bg-emerald-500/10 px-1 py-0.5 text-[9px] font-semibold text-emerald-300"
+                        title="Veículo local do país"
+                      >
+                        local
+                      </span>
+                    )}
                     {article.data && (
                       <span className="text-[10px] text-zinc-600">{timeAgo(article.data)}</span>
                     )}

@@ -101,6 +101,7 @@ export interface CountryNewsItem {
   impacto: "alto" | "medio" | "baixo";
   original?: string;   // manchete no idioma original (quando traduzida)
   idioma?: string;     // código do idioma de origem (ex: "ja", "de")
+  local?: boolean;     // veículo local (vs agência internacional)
 }
 
 export interface CountryNewsResponse {

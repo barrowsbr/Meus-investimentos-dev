@@ -320,14 +320,24 @@ async function computeInstability(country: string, iso2?: string | null): Promis
     externalScore(country),
   ]);
 
-  // Estrutural ancora (0.45); notícias/fiscal/mercado/preditivos só AJUSTAM ao
-  // redor da base. Pesos somam 1.0. `riskLevel` é o MESMO classificador do mapa
-  // (baixo <30 · moderado <50 · elevado <70 · crítico ≥70) — fim da divergência
-  // entre o que o mapa pinta e o que a tag do dossiê diz.
+  // MESMA fórmula do mapa (buildRiskHeat): a base estrutural ANCORA (0.82) e o
+  // estresse vivo só NUDGE para cima (0.18) — nunca derruba a base.
+  //
+  // Antes a base entrava com peso 0.45 e os DEMAIS pesos multiplicavam dimensões
+  // que costumam ser 0 (sem notícia de risco, mercado calmo, dado World Bank
+  // ausente). Esses zeros DILUÍAM a base: China (base 50) caía para ~23 → "Baixo"
+  // na tag, enquanto o mapa pintava ~42 "Moderado". Ancorando igual ao mapa, tag
+  // e choropleth voltam a concordar.
   const d0 = structuralScore(country);
   const dimensions = [d0, d1, d2, d3, d4];
-  const weights = [0.45, 0.12, 0.18, 0.12, 0.13];
-  const composite = Math.round(dimensions.reduce((sum, d, i) => sum + d.score * weights[i], 0));
+
+  // Estresse vivo (0-100): média ponderada das 4 dimensões dinâmicas.
+  const liveWeights = [0.22, 0.30, 0.26, 0.22]; // notícias · fiscal · mercado · preditivos
+  const liveStress = [d1, d2, d3, d4].reduce((sum, d, i) => sum + d.score * liveWeights[i], 0);
+
+  const composite = Math.round(
+    Math.max(0, Math.min(100, d0.score * 0.82 + liveStress * 0.18)),
+  );
 
   return {
     country,

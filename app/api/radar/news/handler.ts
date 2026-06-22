@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseRssItems } from "@/lib/radar/rss";
-import { translateBatch } from "@/lib/translate";
+import { translateBatch, translateText } from "@/lib/translate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -20,6 +20,7 @@ interface NewsItem {
   impacto: "alto" | "medio" | "baixo";
   original?: string;
   idioma?: string;
+  local?: boolean;   // veio de um veículo local (não de agência internacional)
 }
 
 // País (PT) → locale nativo do Google News. lang é o idioma das manchetes
@@ -122,14 +123,76 @@ const BASE_QUERIES_PT = [
   "política governo",
 ];
 
-async function buildQueries(locale: Locale, country: string): Promise<string[]> {
-  if (locale.lang === "pt") return BASE_QUERIES_PT;
-  if (locale.lang === "en") {
-    const en = COUNTRY_EN[country] ?? country;
-    return [`${en} economy market financial`, `${en} politics government policy`];
+// Veículos LOCAIS de economia/negócios por país. O Google News, mesmo no locale
+// nativo, tende a priorizar grandes agências (Reuters/Bloomberg/SCMP) — então
+// para os mercados relevantes miramos explicitamente os jornais locais via
+// `site:`, garantindo a visão de dentro do país, não só do exterior reembalado.
+const LOCAL_SOURCES: Record<string, string[]> = {
+  "China": ["caixin.com", "yicai.com", "finance.sina.com.cn", "eastmoney.com", "stcn.com", "cs.com.cn"],
+  "Hong Kong": ["scmp.com", "hkej.com", "hket.com"],
+  "Taiwan": ["udn.com", "ctee.com.tw", "money.udn.com"],
+  "Japão": ["nikkei.com", "jiji.com", "toyokeizai.net", "diamond.jp", "asahi.com"],
+  "Coreia do Sul": ["mk.co.kr", "hankyung.com", "yna.co.kr", "sedaily.com"],
+  "Índia": ["economictimes.indiatimes.com", "livemint.com", "moneycontrol.com", "business-standard.com"],
+  "Singapura": ["businesstimes.com.sg", "straitstimes.com"],
+  "Indonésia": ["bisnis.com", "kontan.co.id", "cnbcindonesia.com"],
+  "Tailândia": ["bangkokpost.com", "thansettakij.com"],
+  "Malásia": ["theedgemarkets.com", "thestar.com.my"],
+  "Alemanha": ["handelsblatt.com", "faz.net", "manager-magazin.de", "wiwo.de"],
+  "França": ["lesechos.fr", "latribune.fr", "boursorama.com", "lefigaro.fr"],
+  "Itália": ["ilsole24ore.com", "milanofinanza.it", "repubblica.it"],
+  "Espanha": ["expansion.com", "eleconomista.es", "cincodias.elpais.com"],
+  "Reino Unido": ["ft.com", "telegraph.co.uk", "thisismoney.co.uk", "cityam.com"],
+  "Holanda": ["fd.nl", "nu.nl"],
+  "Suíça": ["nzz.ch", "finews.ch", "cash.ch"],
+  "Suécia": ["di.se", "affarsvarlden.se"],
+  "Polônia": ["pb.pl", "bankier.pl", "money.pl"],
+  "Portugal": ["jornaldenegocios.pt", "eco.sapo.pt", "dinheirovivo.pt"],
+  "Rússia": ["rbc.ru", "vedomosti.ru", "kommersant.ru", "interfax.ru"],
+  "Turquia": ["dunya.com", "bloomberght.com", "hurriyet.com.tr"],
+  "Brasil": ["valor.globo.com", "infomoney.com.br", "exame.com", "estadao.com.br"],
+  "México": ["eleconomista.com.mx", "elfinanciero.com.mx", "expansion.mx"],
+  "Argentina": ["ambito.com", "cronista.com", "infobae.com"],
+  "Chile": ["df.cl", "latercera.com"],
+  "Colômbia": ["larepublica.co", "portafolio.co"],
+  "Canadá": ["theglobeandmail.com", "financialpost.com"],
+  "Austrália": ["afr.com", "theaustralian.com.au"],
+  "Israel": ["globes.co.il", "calcalist.co.il", "themarker.com"],
+  "Arábia Saudita": ["argaam.com", "aleqt.com"],
+  "Emirados": ["zawya.com", "gulfnews.com"],
+  "África do Sul": ["businesslive.co.za", "moneyweb.co.za"],
+  "EUA": ["wsj.com", "cnbc.com", "bloomberg.com", "marketwatch.com"],
+};
+
+interface QuerySpec { q: string; local: boolean }
+
+// Termo curto de economia no idioma local, para ancorar a busca por veículo.
+async function econTerm(locale: Locale): Promise<string> {
+  if (locale.lang === "pt") return "economia mercado";
+  if (locale.lang === "en") return "economy market finance";
+  return translateText("economia mercado", locale.lang);
+}
+
+async function buildQueries(locale: Locale, country: string): Promise<QuerySpec[]> {
+  const general: QuerySpec[] =
+    locale.lang === "pt"
+      ? BASE_QUERIES_PT.map(q => ({ q, local: false }))
+      : locale.lang === "en"
+        ? [
+            { q: `${COUNTRY_EN[country] ?? country} economy market financial`, local: false },
+            { q: `${COUNTRY_EN[country] ?? country} politics government policy`, local: false },
+          ]
+        : (await translateBatch(BASE_QUERIES_PT, locale.lang, 2)).map(q => ({ q, local: false }));
+
+  // Query dedicada a veículos locais (quando o país tem fontes mapeadas).
+  const sources = LOCAL_SOURCES[country];
+  if (sources && sources.length > 0) {
+    const term = await econTerm(locale);
+    const siteFilter = sources.map(s => `site:${s}`).join(" OR ");
+    general.push({ q: `${term} (${siteFilter})`, local: true });
   }
-  // Idioma local: traduz os termos base para a língua nativa (cacheado).
-  return translateBatch(BASE_QUERIES_PT, locale.lang, 2);
+
+  return general;
 }
 
 async function fetchCountryNews(country: string): Promise<NewsItem[]> {
@@ -143,26 +206,32 @@ async function fetchCountryNews(country: string): Promise<NewsItem[]> {
   const seen = new Set<string>();
 
   const results = await Promise.allSettled(
-    queries.map(async (q) => {
+    queries.map(async (spec) => {
       const url =
-        `https://news.google.com/rss/search?q=${encodeURIComponent(q)}` +
+        `https://news.google.com/rss/search?q=${encodeURIComponent(spec.q)}` +
         `&hl=${encodeURIComponent(locale.hl)}&gl=${encodeURIComponent(locale.gl)}` +
         `&ceid=${encodeURIComponent(locale.ceid)}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(8000), next: { revalidate: 1800 } });
       if (!res.ok) return [];
       const xml = await res.text();
-      return parseRssItems(xml).slice(0, 8);
+      // Query local rende mais itens (é o foco do pedido); geral fica em 8.
+      return parseRssItems(xml).slice(0, spec.local ? 10 : 8).map(it => ({ ...it, local: spec.local }));
     })
   );
 
-  const raw: { titulo: string; link: string; data: string; fonte: string }[] = [];
-  for (const r of results) {
+  // Processa a query local primeiro para que, em duplicatas, o item local vença.
+  const ordered = results
+    .map((r, i) => ({ r, local: queries[i]?.local ?? false }))
+    .sort((a, b) => Number(b.local) - Number(a.local));
+
+  const raw: { titulo: string; link: string; data: string; fonte: string; local: boolean }[] = [];
+  for (const { r } of ordered) {
     if (r.status !== "fulfilled") continue;
     for (const item of r.value) {
       const key = item.title.toLowerCase().slice(0, 50);
       if (seen.has(key)) continue;
       seen.add(key);
-      raw.push({ titulo: item.title, link: item.link, data: item.pubDate, fonte: item.source });
+      raw.push({ titulo: item.title, link: item.link, data: item.pubDate, fonte: item.source, local: item.local });
     }
   }
 
@@ -180,22 +249,25 @@ async function fetchCountryNews(country: string): Promise<NewsItem[]> {
       data: raw[i].data,
       fonte: raw[i].fonte,
       impacto: scoreImpact(pt),
+      local: raw[i].local,
       ...(needsTranslation && pt !== raw[i].titulo
         ? { original: raw[i].titulo, idioma: locale.lang }
         : {}),
     });
   }
 
+  // Ordena por impacto; dentro de cada faixa, fonte local primeiro, depois recência.
   const impactOrder = { alto: 0, medio: 1, baixo: 2 };
   allItems.sort((a, b) => {
     const d = impactOrder[a.impacto] - impactOrder[b.impacto];
     if (d !== 0) return d;
+    if (!!b.local !== !!a.local) return Number(b.local) - Number(a.local);
     const da = a.data ? new Date(a.data).getTime() : 0;
     const db = b.data ? new Date(b.data).getTime() : 0;
     return db - da;
   });
 
-  return allItems.slice(0, 12);
+  return allItems.slice(0, 14);
 }
 
 export async function GET(request: Request) {
