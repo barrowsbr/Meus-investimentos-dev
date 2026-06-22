@@ -137,6 +137,8 @@ body {
 /* Tick ao vivo (ponto/cursor pulsante) — única animação tolerada no chrome */
 @keyframes tBlink { 0%,100% { opacity:.55 } 50% { opacity:1 } }
 .t-blink { animation: tBlink 1.6s ease-in-out infinite; }
+@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.5 } }
 @media (prefers-reduced-motion: reduce) { .t-blink { animation: none; } }
 
 /* ============================================================================

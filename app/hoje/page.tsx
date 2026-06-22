@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePortfolio } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
@@ -172,12 +172,27 @@ function buildLede(
 // ── Página ──────────────────────────────────────────────────────────────────────
 
 export default function HojePage() {
-  const { data, loading } = usePortfolio();
+  const { data, loading, refetch } = usePortfolio();
   const [rawNews, setRawNews] = useState<NewsItem[]>([]);
   const [newsState, setNewsState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const newsFetchedRef = useRef(false);
   const [aiLede, setAiLede] = useState<string | null>(null);
   const ledeFetchedRef = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    newsFetchedRef.current = false;
+    ledeFetchedRef.current = false;
+    setRawNews([]);
+    setNewsState("idle");
+    setAiLede(null);
+    refetch();
+  }, [refetch]);
+
+  useEffect(() => {
+    if (!loading && refreshing) setRefreshing(false);
+  }, [loading, refreshing]);
 
   // Contribuições do dia, por ativo (campo canônico dayChangeBRL).
   const contribs = useMemo<Contrib[]>(() => {
@@ -427,9 +442,34 @@ export default function HojePage() {
           Hoje
         </h1>
 
-        <p className="font-mono" style={{ fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--muted)", marginTop: 10 }}>
-          {weekday}, {dateLong}{updated ? ` — Atualizado ${updated}` : ""}
-        </p>
+        <div className="flex items-center justify-center gap-2" style={{ marginTop: 10 }}>
+          <p className="font-mono" style={{ fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--muted)" }}>
+            {weekday}, {dateLong}{updated ? ` — Atualizado ${updated}` : ""}
+          </p>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Atualizar cotações e limpar cache"
+            className="font-mono shrink-0"
+            style={{
+              fontSize: 11,
+              color: "var(--muted)",
+              background: "none",
+              border: "1px solid var(--line-strong)",
+              borderRadius: 4,
+              padding: "2px 7px",
+              cursor: refreshing ? "wait" : "pointer",
+              opacity: refreshing ? 0.5 : 0.8,
+              transition: "opacity 150ms",
+            }}
+            onMouseEnter={(e) => { if (!refreshing) (e.currentTarget.style.opacity = "1"); }}
+            onMouseLeave={(e) => { (e.currentTarget.style.opacity = refreshing ? "0.5" : "0.8"); }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline-block", verticalAlign: "-2px", animation: refreshing ? "spin 1s linear infinite" : undefined }}>
+              <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+          </button>
+        </div>
 
         {sessionLabel && (
           <div className="flex justify-center mt-2.5">
