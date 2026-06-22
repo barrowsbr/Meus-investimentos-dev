@@ -967,7 +967,7 @@ export default function ConfiguracoesPage() {
           <PasswordSection />
         </SectionCard>
 
-        <SectionCard title="Tema do Sistema" icon={<Palette size={16} />} defaultOpen>
+        <SectionCard title="Tema do Sistema" icon={<Palette size={16} />}>
           <ThemeSection />
         </SectionCard>
 

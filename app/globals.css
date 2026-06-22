@@ -697,3 +697,176 @@ body {
   .holo-stage { transition: opacity .2s !important; }
   .holo-sweep, .holo-cone { animation: none !important; display: none; }
 }
+
+/* ============================================================================
+   MATRIX — terminal CRT de fósforo verde.
+   O tema não é só uma paleta verde: ganha PROFUNDIDADE com (1) chuva digital
+   atrás do conteúdo (<MatrixRain/>), (2) camada CRT por cima (scanlines +
+   vinheta + flicker), (3) fonte 100% monoespaçada com glow de fósforo e
+   (4) remapeamento dos cinzas neutros para tons de verde (coesão de cor —
+   mata o efeito "filtro verde por cima de UI cinza").
+   ============================================================================ */
+
+/* Tudo em monoespaçada — o "código" é a identidade do terminal. */
+[data-theme="matrix"] {
+  --font-sans: var(--font-mono);
+}
+
+/* O canvas da chuva precisa aparecer: a casca fica transparente e o <body>
+   (que pinta --bg) vira a base escura por trás da chuva. */
+[data-theme="matrix"] .terminal-root { background: transparent !important; }
+[data-theme="matrix"] body { background: var(--bg); }
+
+/* Brilho de fósforo sutil em todo o texto (sangramento de CRT). */
+[data-theme="matrix"] body {
+  text-shadow: 0 0 1px rgba(0, 255, 65, 0.22);
+}
+
+/* Seleção e cursor em verde-terminal. */
+[data-theme="matrix"] ::selection { background: rgba(0, 255, 65, 0.28); color: #D6FFD6; }
+[data-theme="matrix"] input,
+[data-theme="matrix"] textarea { caret-color: #00FF41; }
+
+/* ── Chuva digital (canvas fixo atrás do conteúdo) ── */
+.matrix-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  opacity: 0.38;
+}
+
+/* ── Camada CRT (scanlines + vinheta + flicker) por cima de tudo ── */
+.matrix-crt {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  /* scanlines horizontais + leve linha vertical de máscara de fósforo */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.18) 3px,
+      rgba(0, 0, 0, 0.18) 3px
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(0, 20, 0, 0.06) 0px,
+      rgba(0, 20, 0, 0.06) 1px,
+      rgba(0, 0, 0, 0) 1px,
+      rgba(0, 0, 0, 0) 3px
+    );
+  mix-blend-mode: multiply;
+  animation: matrixFlicker 4.5s infinite steps(60);
+}
+/* Vinheta CRT (cantos escurecidos + leve curvatura percebida). */
+.matrix-crt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 120% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.28) 88%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+@keyframes matrixFlicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.82; }
+  94% { opacity: 1; }
+  96% { opacity: 0.88; }
+  97% { opacity: 1; }
+}
+
+/* ── Painéis: borda + glow interno de fósforo, intensifica no hover ── */
+[data-theme="matrix"] .glass-card,
+[data-theme="matrix"] .t-panel {
+  box-shadow: inset 0 0 30px rgba(0, 255, 65, 0.03);
+  border-color: rgba(0, 255, 65, 0.13);
+}
+[data-theme="matrix"] .glass-card:hover {
+  border-color: rgba(0, 255, 65, 0.42) !important;
+  box-shadow: inset 0 0 34px rgba(0, 255, 65, 0.06), 0 0 14px rgba(0, 255, 65, 0.08);
+}
+
+/* Acento (nav ativo, marca) brilha de verdade. */
+[data-theme="matrix"] .nav-active {
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 65, 0.3);
+}
+[data-theme="matrix"] .t-blink { color: #00FF41; text-shadow: 0 0 6px rgba(0, 255, 65, 0.7); }
+
+/* ----------------------------------------------------------------------------
+   COESÃO DE COR — remapeia os cinzas neutros do Tailwind (pensados p/ UI cinza
+   sobre preto) para a escala de fósforo verde. É o que tira o ar de "filtro
+   verde por cima de uma interface cinza" e faz tudo virar terminal. Cores
+   semânticas (emerald/red/amber/cyan/sky) NÃO são tocadas.
+   ---------------------------------------------------------------------------- */
+
+/* Nível 1 — conteúdo principal → fósforo claro */
+[data-theme="matrix"] .text-white,
+[data-theme="matrix"] .text-zinc-50,  [data-theme="matrix"] .text-zinc-100,
+[data-theme="matrix"] .text-zinc-200, [data-theme="matrix"] .text-zinc-300,
+[data-theme="matrix"] .text-gray-100, [data-theme="matrix"] .text-gray-200,
+[data-theme="matrix"] .text-gray-300, [data-theme="matrix"] .text-slate-100,
+[data-theme="matrix"] .text-slate-200,[data-theme="matrix"] .text-slate-300,
+[data-theme="matrix"] .text-neutral-100,[data-theme="matrix"] .text-neutral-200,
+[data-theme="matrix"] .text-neutral-300 {
+  color: #C8FFC8;
+}
+
+/* Nível 2 — texto secundário → verde médio */
+[data-theme="matrix"] .text-zinc-400, [data-theme="matrix"] .text-zinc-500,
+[data-theme="matrix"] .text-gray-400, [data-theme="matrix"] .text-gray-500,
+[data-theme="matrix"] .text-slate-400,[data-theme="matrix"] .text-slate-500,
+[data-theme="matrix"] .text-neutral-400,[data-theme="matrix"] .text-neutral-500 {
+  color: #6FBF6F;
+}
+
+/* Nível 3 — rótulos/legendas mutadas → verde apagado */
+[data-theme="matrix"] .text-zinc-600,
+[data-theme="matrix"] .text-gray-600,
+[data-theme="matrix"] .text-slate-600,
+[data-theme="matrix"] .text-neutral-600 {
+  color: #4C7E4C;
+}
+
+/* Nível 4 — o mais fraco → verde escuro ainda legível */
+[data-theme="matrix"] .text-zinc-700,
+[data-theme="matrix"] .text-gray-700,
+[data-theme="matrix"] .text-slate-700,
+[data-theme="matrix"] .text-neutral-700 {
+  color: #3C663C;
+}
+
+/* Fundos neutros escuros (cards cinza) → painel verde-escuro coeso. */
+[data-theme="matrix"] [class*="bg-zinc-9"],
+[data-theme="matrix"] [class*="bg-zinc-8"],
+[data-theme="matrix"] [class*="bg-gray-9"],
+[data-theme="matrix"] [class*="bg-gray-8"],
+[data-theme="matrix"] [class*="bg-slate-9"],
+[data-theme="matrix"] [class*="bg-slate-8"],
+[data-theme="matrix"] [class*="bg-neutral-9"],
+[data-theme="matrix"] [class*="bg-neutral-8"] {
+  background-color: #0A120A !important;
+}
+/* Bordas neutras → hairline verde sutil. */
+[data-theme="matrix"] [class*="border-zinc-8"],
+[data-theme="matrix"] [class*="border-zinc-7"],
+[data-theme="matrix"] [class*="border-gray-8"],
+[data-theme="matrix"] [class*="border-gray-7"],
+[data-theme="matrix"] [class*="border-slate-8"],
+[data-theme="matrix"] [class*="border-neutral-8"] {
+  border-color: rgba(0, 255, 65, 0.14) !important;
+}
+
+/* Acessibilidade: sem chuva animada nem flicker para quem pede menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .matrix-crt { animation: none; }
+}
