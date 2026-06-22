@@ -46,7 +46,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
           style={{ overscrollBehavior: "none" }}
         >
           {children}
-          <div className="min-[1100px]:hidden" style={{ height: "calc(60px + env(safe-area-inset-bottom))" }} aria-hidden />
+          <div className="min-[1100px]:hidden" style={{ height: "calc(76px + env(safe-area-inset-bottom))" }} aria-hidden />
         </main>
         <BottomNav />
       </div>

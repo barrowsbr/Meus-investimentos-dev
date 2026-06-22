@@ -4,30 +4,27 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_ITEMS } from "./nav";
 
-// Rótulos curtos para caber na barra inferior.
 const SHORT: Record<string, string> = {
   "/": "Home",
   "/resumo": "Resumo",
   "/performance": "Perf.",
-  "/agente-ia": "Agente",
+  "/radar": "Radar",
   "/configuracoes": "Config",
 };
 
-/**
- * Barra de navegação inferior — só no mobile/tablet (< 1100px), substituindo a
- * StatusBar (desktop). Acesso rápido aos itens principais; o Rail completo
- * continua acessível pelo menu (hambúrguer) da CommandBar. Estilo terminal:
- * chapado, hairline no topo, ícone + micro-rótulo mono, ativo em âmbar.
- */
 export default function BottomNav() {
   const pathname = usePathname();
   return (
     <nav
-      className="min-[1100px]:hidden fixed bottom-0 left-0 right-0 z-40 flex"
+      className="min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around rounded-2xl"
       style={{
-        background: "var(--rail)",
-        borderTop: "1px solid var(--line-strong)",
-        paddingBottom: "env(safe-area-inset-bottom)",
+        bottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))",
+        height: 58,
+        background: "color-mix(in srgb, var(--rail) 72%, transparent)",
+        backdropFilter: "blur(20px) saturate(1.3)",
+        WebkitBackdropFilter: "blur(20px) saturate(1.3)",
+        border: "1px solid var(--line)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)",
       }}
     >
       {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -36,19 +33,51 @@ export default function BottomNav() {
           <Link
             key={href}
             href={href}
-            className="relative flex-1 flex flex-col items-center justify-center gap-1 py-2"
-            style={{ color: active ? "var(--accent)" : "var(--muted)" }}
+            className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5"
           >
-            {active && (
-              <span aria-hidden className="absolute top-0 left-0 right-0" style={{ height: 2, background: "var(--accent)" }} />
-            )}
-            <Icon size={19} strokeWidth={active ? 2 : 1.6} />
             <span
-              className="font-mono leading-none"
-              style={{ fontSize: 8.5, letterSpacing: ".08em", textTransform: "uppercase" }}
+              className="flex items-center justify-center rounded-xl transition-all duration-300 ease-out"
+              style={{
+                width: 36,
+                height: 36,
+                background: active ? "var(--accent-wash)" : "transparent",
+                boxShadow: active ? "0 0 12px color-mix(in srgb, var(--accent) 30%, transparent)" : "none",
+              }}
+            >
+              <Icon
+                size={20}
+                strokeWidth={active ? 2.1 : 1.4}
+                className="transition-all duration-300 ease-out"
+                style={{
+                  color: active ? "var(--accent)" : "var(--muted)",
+                  transform: active ? "scale(1.08)" : "scale(1)",
+                  filter: active ? "drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 50%, transparent))" : "none",
+                }}
+              />
+            </span>
+            <span
+              className="font-mono leading-none transition-colors duration-200"
+              style={{
+                fontSize: 8,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: active ? "var(--accent)" : "var(--faint)",
+              }}
             >
               {SHORT[href] ?? label}
             </span>
+            {active && (
+              <span
+                aria-hidden
+                className="absolute bottom-1 rounded-full transition-all duration-300 ease-out"
+                style={{
+                  width: 4,
+                  height: 4,
+                  background: "var(--accent)",
+                  boxShadow: "0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)",
+                }}
+              />
+            )}
           </Link>
         );
       })}
