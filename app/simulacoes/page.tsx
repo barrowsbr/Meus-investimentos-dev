@@ -18,6 +18,7 @@ import { identificarSetor, getMoedaExposicao, isRendaFixa } from "@/lib/sectors"
 import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import AnaliseCenario from "@/components/simulacoes/AnaliseCenario";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1082,6 +1083,9 @@ export default function SimulacoesPage() {
               </div>
             );
           })()}
+
+          {/* Análise de risco/retorno, saúde e diagnóstico do cenário */}
+          <AnaliseCenario current={currentAlloc} sim={hasSim ? simAlloc : null} />
 
           {/* Impacto por setor — o que o cenário muda na alocação setorial */}
           {hasSim && (() => {
