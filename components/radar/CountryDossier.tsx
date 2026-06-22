@@ -168,7 +168,7 @@ export default function CountryDossier({
                   indices={indices}
                 />
               )}
-              <div className="md:hidden" style={{ height: "calc(60px + env(safe-area-inset-bottom))" }} aria-hidden />
+              <div className="md:hidden" style={{ height: "calc(76px + env(safe-area-inset-bottom))" }} aria-hidden />
             </div>
           </>
         )}

@@ -1,7 +1,8 @@
 import {
-  Home, LayoutDashboard, TrendingUp, BarChart2, BarChart3, Landmark, Coins,
+  Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  ListOrdered, Target, Scale, Zap, Crosshair, Sunrise, Layers, Banknote,
+  Scale, Crosshair, Sunrise, Layers, Banknote,
+  Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -41,8 +42,8 @@ export const NAV: NavGroup[] = [
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
-      { href: "/simulacoes", label: "Simulações", icon: Target, sub: "Projeções e cenários de carteira" },
-      { href: "/trades", label: "Trades", icon: Zap, sub: "Histórico de operações e desempenho" },
+      { href: "/simulacoes", label: "Simulações", icon: FlaskConical, sub: "Projeções e cenários de carteira" },
+      { href: "/trades", label: "Trades", icon: ArrowUpDown, sub: "Histórico de operações e desempenho" },
       { href: "/etf", label: "ETFs", icon: Layers, sub: "Composição, look-through e alocação" },
       { href: "/alavancagem", label: "Alavancagem", icon: Scale, sub: "Margem, garantias e nível de risco" },
     ],
@@ -53,15 +54,15 @@ export const NAV: NavGroup[] = [
       { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
       { href: "/caixa", label: "Caixa", icon: Banknote, sub: "Saldos de caixa e disponibilidades" },
       { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
-      { href: "/fluxos", label: "Fluxos", icon: ListOrdered, sub: "Entradas, saídas e movimentações" },
+      { href: "/fluxos", label: "Fluxos", icon: ArrowDownUp, sub: "Entradas, saídas e movimentações" },
     ],
   },
   {
     label: "Mais",
     items: [
-      { href: "/radar", label: "Radar", icon: BarChart3, sub: "Mapa-múndi geoeconômico: índices, moedas e países" },
-      { href: "/polymarket", label: "Preditivos", icon: Activity, sub: "Mercados preditivos relacionados à carteira" },
-      { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira", mobileShow: true },
+      { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
+      { href: "/polymarket", label: "Preditivos", icon: Gauge, sub: "Mercados preditivos relacionados à carteira" },
+      { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
     ],
   },
