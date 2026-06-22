@@ -58,13 +58,122 @@ function extractTag(xml: string, tag: string): string {
   return cdata ? cdata[1] : inner;
 }
 
-function extractSource(xml: string): string {
-  const m = xml.match(/<source[^>]*>([^<]*)<\/source>/i);
-  return m ? decodeHtml(m[1].trim()) : "Google News";
+function stripCdata(s: string): string {
+  const m = s.trim().match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  return (m ? m[1] : s).trim();
 }
 
-// Decode the real article URL from a Google News redirect URL.
-// The URL path /rss/articles/CBMi... contains a protobuf payload with the article URL.
+function extractSource(xml: string, fallback: string): string {
+  const m = xml.match(/<source[^>]*>([^<]*)<\/source>/i);
+  if (m) return decodeHtml(m[1].trim());
+  const c = xml.match(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/i);
+  if (c) return decodeHtml(stripCdata(c[1]));
+  return fallback;
+}
+
+// ── Filtro anti-logo: nunca aceitar imagem hospedada pelo Google ────────────────
+// A causa-raiz dos "logos do Google" era usar o og:image de páginas google.com /
+// consent.google.com (e os attachments do RSS do Google News, que são o próprio
+// logo). Rejeitamos qualquer host Google em TODAS as etapas — pior caso é ficar
+// sem imagem (ícone de jornal), nunca o logo.
+function isGoogleHost(u: string): boolean {
+  try {
+    const h = new URL(u).hostname.toLowerCase();
+    return (
+      /(^|\.)google\.[a-z.]+$/.test(h) ||
+      h.endsWith("gstatic.com") ||
+      h.endsWith("googleusercontent.com") ||
+      h.endsWith("ggpht.com") ||
+      h.includes("google")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function looksLikeImage(u: string): boolean {
+  return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(u);
+}
+
+// Resolve URL relativa → absoluta e valida (http/https, não-Google).
+function cleanImageUrl(raw: string | null | undefined, base?: string): string | null {
+  if (!raw) return null;
+  let u = raw.trim().replace(/&amp;/g, "&");
+  try {
+    u = base ? new URL(u, base).href : new URL(u).href;
+  } catch {
+    return null;
+  }
+  if (!/^https?:\/\//i.test(u)) return null;
+  if (isGoogleHost(u)) return null;
+  return u;
+}
+
+function firstImgInHtml(html: string): string | null {
+  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?.[1] ?? null;
+}
+
+// Extrai a imagem embutida no <item> do RSS (fonte primária e mais confiável):
+// media:content (maior largura) → media:thumbnail → enclosure → content:encoded
+// → <img> na description. Todas filtradas contra hosts do Google.
+function pickFeedImage(block: string, base?: string): string | null {
+  // media:content — escolher a de maior width quando houver várias
+  const mediaTags = [...block.matchAll(/<media:content\b[^>]*?>/gi)].map(m => m[0]);
+  let best: string | null = null;
+  let bestW = -1;
+  for (const tag of mediaTags) {
+    const url = tag.match(/\burl=["']([^"']+)["']/i)?.[1];
+    if (!url) continue;
+    const type = tag.match(/\btype=["']([^"']+)["']/i)?.[1] ?? "";
+    const medium = tag.match(/\bmedium=["']([^"']+)["']/i)?.[1] ?? "";
+    const isImg = type.startsWith("image") || medium === "image" || looksLikeImage(url);
+    if (!isImg) continue;
+    const w = parseInt(tag.match(/\bwidth=["']?(\d+)/i)?.[1] ?? "0", 10);
+    if (w > bestW) { bestW = w; best = url; }
+  }
+  const fromMedia = cleanImageUrl(best, base);
+  if (fromMedia) return fromMedia;
+
+  // media:thumbnail
+  const thumb = block.match(/<media:thumbnail\b[^>]*\burl=["']([^"']+)["']/i)?.[1];
+  const fromThumb = cleanImageUrl(thumb, base);
+  if (fromThumb) return fromThumb;
+
+  // enclosure (imagem)
+  const encTags = [...block.matchAll(/<enclosure\b[^>]*?>/gi)].map(m => m[0]);
+  for (const tag of encTags) {
+    const url = tag.match(/\burl=["']([^"']+)["']/i)?.[1];
+    if (!url) continue;
+    const type = tag.match(/\btype=["']([^"']+)["']/i)?.[1] ?? "";
+    if (type.startsWith("image") || looksLikeImage(url)) {
+      const ok = cleanImageUrl(url, base);
+      if (ok) return ok;
+    }
+  }
+
+  // content:encoded → primeiro <img>
+  const ceRaw = block.match(/<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/i)?.[1];
+  if (ceRaw) {
+    const img = firstImgInHtml(stripCdata(ceRaw));
+    const ok = cleanImageUrl(img, base);
+    if (ok) return ok;
+  }
+
+  // description → primeiro <img>
+  const descRaw = block.match(/<description[^>]*>([\s\S]*?)<\/description>/i)?.[1];
+  if (descRaw) {
+    const img = firstImgInHtml(stripCdata(descRaw));
+    const ok = cleanImageUrl(img, base);
+    if (ok) return ok;
+  }
+
+  return null;
+}
+
+// Decodifica a URL real do artigo a partir do redirect do Google News.
+// (Best-effort: o formato novo às vezes não traz a URL legível — nesse caso
+// retornamos null e o item fica só com o título, sem imagem.)
 function decodeGoogleNewsUrl(gnUrl: string): string | null {
   try {
     const m = gnUrl.match(/\/articles\/([A-Za-z0-9_\-]+)/);
@@ -73,59 +182,90 @@ function decodeGoogleNewsUrl(gnUrl: string): string | null {
     while (b64.length % 4) b64 += "=";
     const buf = Buffer.from(b64, "base64");
     const str = buf.toString("latin1");
-    const urlMatch = str.match(/https?:\/\/[^\x00-\x1f\x7f-\x9f"'<>\s]+/);
-    return urlMatch?.[0] ?? null;
+    // pegar TODAS as URLs e escolher a primeira que NÃO seja do Google
+    const urls = str.match(/https?:\/\/[^\x00-\x1f\x7f-\x9f"'<>\s]+/g) ?? [];
+    for (const u of urls) {
+      if (!isGoogleHost(u)) return u;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+type Lang = "pt" | "en";
+
 interface Feed {
   url: string;
   categoria: string;
-  lang: "pt" | "en";
+  lang: Lang;
   max: number;
+  kind: "direct" | "google";
+  fonte: string;
 }
 
-function newsUrl(q: string, lang: "pt" | "en" = "pt"): string {
+function newsUrl(q: string, lang: Lang = "pt"): string {
   const e = encodeURIComponent(q);
   return lang === "en"
     ? `https://news.google.com/rss/search?q=${e}&hl=en-US&gl=US&ceid=US:en`
     : `https://news.google.com/rss/search?q=${e}&hl=pt-BR&gl=BR&ceid=BR:pt`;
 }
 
-const FEEDS: Feed[] = [
-  { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), categoria: "Mercado", lang: "pt", max: 6 },
-  { url: newsUrl("economia brasil banco central selic juros"), categoria: "Economia", lang: "pt", max: 5 },
-  { url: newsUrl("S&P 500 Nasdaq stock market Wall Street", "en"), categoria: "Global", lang: "en", max: 5 },
-  { url: newsUrl("dólar câmbio real cotação moeda"), categoria: "Câmbio", lang: "pt", max: 4 },
-  { url: newsUrl("ações dividendos investimentos renda variável"), categoria: "Investimentos", lang: "pt", max: 4 },
-  { url: newsUrl("COPOM selic inflação IPCA taxa juros"), categoria: "Macro", lang: "pt", max: 4 },
-  { url: newsUrl("petróleo energia petrobras mineração vale"), categoria: "Commodities", lang: "pt", max: 3 },
-  { url: newsUrl("nvidia apple microsoft AI tech earnings", "en"), categoria: "Tech", lang: "en", max: 3 },
+// Feeds diretos de veículos — trazem a imagem REAL embutida no item (media:content
+// / enclosure / <img>), sem qualquer redirect do Google. Fonte primária das fotos.
+const DIRECT_FEEDS: Feed[] = [
+  { url: "https://www.infomoney.com.br/mercados/feed/", categoria: "Mercado", lang: "pt", max: 4, kind: "direct", fonte: "InfoMoney" },
+  { url: "https://www.infomoney.com.br/economia/feed/", categoria: "Economia", lang: "pt", max: 3, kind: "direct", fonte: "InfoMoney" },
+  { url: "https://www.moneytimes.com.br/feed/", categoria: "Mercado", lang: "pt", max: 3, kind: "direct", fonte: "Money Times" },
+  { url: "https://g1.globo.com/rss/g1/economia/", categoria: "Economia", lang: "pt", max: 3, kind: "direct", fonte: "G1" },
+  { url: "https://exame.com/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "Exame" },
+  { url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "CNBC" },
+  { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", categoria: "Global", lang: "en", max: 2, kind: "direct", fonte: "MarketWatch" },
 ];
 
-interface Parsed extends DestaqueItem { _lang: "pt" | "en" }
+// Feeds do Google News — usados para AMPLITUDE/relevância de manchetes. A imagem
+// (quando houver) vem do og:image da URL real decodificada, nunca de host Google.
+const GOOGLE_FEEDS: Feed[] = [
+  { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), categoria: "Mercado", lang: "pt", max: 4, kind: "google", fonte: "Google News" },
+  { url: newsUrl("dólar câmbio dividendos ações renda variável"), categoria: "Investimentos", lang: "pt", max: 3, kind: "google", fonte: "Google News" },
+  { url: newsUrl("S&P 500 Nasdaq Wall Street earnings fed", "en"), categoria: "Global", lang: "en", max: 3, kind: "google", fonte: "Google News" },
+];
+
+interface Parsed extends DestaqueItem {
+  _lang: Lang;
+  _kind: "direct" | "google";
+  _gnLink: string; // link original do Google News (para decodificar)
+}
 
 function parseFeed(xml: string, feed: Feed): Parsed[] {
   const items: Parsed[] = [];
   const matches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
-  for (const m of matches.slice(0, feed.max)) {
+  // Atom (alguns feeds usam <entry> em vez de <item>)
+  const entries = matches.length === 0 ? [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)] : matches;
+
+  for (const m of entries.slice(0, feed.max)) {
     const block = m[1];
     const titulo = decodeHtml(extractTag(block, "title"));
+
     let link = extractTag(block, "link");
     if (!link) { const hm = block.match(/<link\s+href="([^"]+)"/i); if (hm) link = hm[1]; }
+    link = link.trim();
     if (!titulo || !link) continue;
 
-    const data = extractTag(block, "pubDate");
-    const fonte = extractSource(block);
+    const data = extractTag(block, "pubDate") || extractTag(block, "published") || extractTag(block, "updated");
+    const fonte = extractSource(block, feed.fonte);
+
+    // Imagem embutida — só para feeds diretos (Google News serve o próprio logo).
+    const imagem = feed.kind === "direct" ? pickFeedImage(block, link) : null;
 
     items.push({
       titulo, link, data, fonte,
-      imagem: null,
+      imagem,
       categoria: feed.categoria,
       impacto: scoreImpact(titulo),
       _lang: feed.lang,
+      _kind: feed.kind,
+      _gnLink: link,
     });
   }
   return items;
@@ -135,7 +275,7 @@ async function fetchFeed(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      Accept: "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+      Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
       "Cache-Control": "no-cache",
     },
@@ -146,6 +286,7 @@ async function fetchFeed(url: string): Promise<string> {
   return res.text();
 }
 
+// Busca og:image / twitter:image na página REAL do artigo (veículo, nunca Google).
 async function fetchArticleImage(articleUrl: string): Promise<string | null> {
   try {
     const res = await fetch(articleUrl, {
@@ -153,33 +294,40 @@ async function fetchArticleImage(articleUrl: string): Promise<string | null> {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         Accept: "text/html,*/*",
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(6000),
       redirect: "follow",
     });
     if (!res.ok) return null;
+    // Se redirecionou para um muro de consentimento do Google, descartar.
+    if (isGoogleHost(res.url)) return null;
     const html = await res.text();
+    const base = res.url || articleUrl;
 
-    // Try og:image first (most common)
-    const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    if (og?.[1]) return og[1];
+    const og = html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i);
+    let img = cleanImageUrl(og?.[1], base);
+    if (img) return img;
 
-    // Try twitter:image
-    const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
-    if (tw?.[1]) return tw[1];
+    const tw = html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i);
+    img = cleanImageUrl(tw?.[1], base);
+    if (img) return img;
+
+    const linkImg = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i);
+    img = cleanImageUrl(linkImg?.[1], base);
+    if (img) return img;
 
     return null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
   try {
+    const feeds = [...DIRECT_FEEDS, ...GOOGLE_FEEDS];
     const results = await Promise.allSettled(
-      FEEDS.map(async f => {
-        const xml = await fetchFeed(f.url);
-        return parseFeed(xml, f);
-      })
+      feeds.map(async f => parseFeed(await fetchFeed(f.url), f))
     );
 
     const all: Parsed[] = [];
@@ -187,6 +335,7 @@ export async function GET() {
       if (r.status === "fulfilled") all.push(...r.value);
     }
 
+    // Dedup por título e por link.
     const seen = new Set<string>();
     const deduped: Parsed[] = [];
     for (const item of all) {
@@ -208,37 +357,51 @@ export async function GET() {
       return db - da;
     });
 
-    const top = deduped.slice(0, 12);
+    // Trabalhar com um pool maior que 12 para sobrar candidatos COM imagem.
+    const pool = deduped.slice(0, 18);
 
-    // Translate English headlines
-    const english = top.filter(t => t._lang === "en");
+    // Traduzir manchetes em inglês.
+    const english = pool.filter(t => t._lang === "en");
     if (english.length > 0) {
       try {
         const translated = await translateBatch(english.map(e => e.titulo), "pt");
         for (let i = 0; i < english.length; i++) {
           if (translated[i] && translated[i].length > 3) english[i].titulo = translated[i];
         }
-      } catch { /* keep original */ }
+      } catch { /* mantém original */ }
     }
 
-    // Fetch og:image from real article pages for ALL articles.
-    // Google News RSS images are unreliable (often just the Google logo).
-    // Decode each Google News URL to get the real article URL, then fetch og:image.
-    const ogResults = await Promise.allSettled(
-      top.map(item => {
-        const realUrl = decodeGoogleNewsUrl(item.link);
-        if (!realUrl) return Promise.resolve(null);
-        return fetchArticleImage(realUrl);
+    // Preencher imagem faltante via og:image da página real.
+    // - Itens diretos: buscar no próprio link do veículo.
+    // - Itens do Google News: só se a URL decodificada for de veículo (não-Google).
+    await Promise.allSettled(
+      pool.map(async item => {
+        if (item.imagem) return;
+        let target: string | null = null;
+        if (item._kind === "direct") {
+          target = item.link;
+        } else {
+          const real = decodeGoogleNewsUrl(item._gnLink);
+          if (real) {
+            target = real;
+            item.link = real; // clicar abre o veículo direto, sem redirect
+          }
+        }
+        if (!target) return;
+        const img = await fetchArticleImage(target);
+        if (img) item.imagem = img;
       })
     );
-    for (let i = 0; i < top.length; i++) {
-      const r = ogResults[i];
-      if (r.status === "fulfilled" && r.value) {
-        top[i].imagem = r.value;
-      }
+
+    // Reordenar para que o DESTAQUE (primeiro item) tenha imagem, quando possível.
+    let top = pool.slice(0, 12);
+    const firstWithImg = top.findIndex(t => t.imagem);
+    if (firstWithImg > 0) {
+      const [hero] = top.splice(firstWithImg, 1);
+      top = [hero, ...top];
     }
 
-    const articles: DestaqueItem[] = top.map(({ _lang: _, ...rest }) => rest);
+    const articles: DestaqueItem[] = top.map(({ _lang: _l, _kind: _k, _gnLink: _g, ...rest }) => rest);
 
     return NextResponse.json({ articles, count: articles.length });
   } catch (e: unknown) {

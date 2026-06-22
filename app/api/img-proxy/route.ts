@@ -7,7 +7,17 @@ export async function GET(req: NextRequest) {
   if (!url) return new NextResponse("Missing url", { status: 400 });
 
   try {
-    new URL(url);
+    const h = new URL(url).hostname.toLowerCase();
+    // Defesa em profundidade: nunca servir imagem hospedada pelo Google
+    // (logos do Google News / páginas de consentimento). Pior caso: o front
+    // mostra o ícone de jornal, nunca o "G".
+    const isGoogle =
+      /(^|\.)google\.[a-z.]+$/.test(h) ||
+      h.endsWith("gstatic.com") ||
+      h.endsWith("googleusercontent.com") ||
+      h.endsWith("ggpht.com") ||
+      h.includes("google");
+    if (isGoogle) return new NextResponse(null, { status: 404 });
   } catch {
     return new NextResponse("Invalid url", { status: 400 });
   }
