@@ -988,9 +988,17 @@ export default function SimulacoesPage() {
               .reduce((s, r) => s + r.atual, 0);
 
             const validOps = ops.filter(o => o.ticker && o.quantidade > 0 && o.preco > 0);
+            // Non-BRL ops (USD, EUR, GBP, etc.) all flow through IBKR USD balance
+            const fxUSD = fxMap["USD"] || usdFx;
             const consumedUSD = validOps
-              .filter(o => o.moeda === "USD")
-              .reduce((s, o) => s + (o.tipo === "compra" ? 1 : -1) * o.quantidade * o.preco, 0);
+              .filter(o => o.moeda !== "BRL")
+              .reduce((s, o) => {
+                const sign = o.tipo === "compra" ? 1 : -1;
+                const native = sign * o.quantidade * o.preco;
+                if (o.moeda === "USD") return s + native;
+                const toBRL = native * (fxMap[o.moeda] ?? fxUSD);
+                return s + toBRL / fxUSD;
+              }, 0);
             const consumedBRL = validOps
               .filter(o => o.moeda === "BRL")
               .reduce((s, o) => s + (o.tipo === "compra" ? 1 : -1) * o.quantidade * o.preco, 0);
