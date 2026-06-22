@@ -4,11 +4,12 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Settings, Lock, Upload, CheckCircle2, XCircle, AlertCircle,
   FileText, RefreshCw, Shield, Info, ImageIcon, Check,
-  ChevronDown, ChevronUp, ArrowUpDown, Database,
+  ChevronDown, ChevronUp, ArrowUpDown, Database, Palette,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
 import { getBackgroundImage, setBackgroundImage } from "@/components/AppBackground";
+import { useTheme, type Theme } from "@/components/terminal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -851,6 +852,108 @@ function BackgroundSection() {
   );
 }
 
+// ── Theme Section ──────────────────────────────────────────────────────────
+
+const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: string; accent: string; text: string; muted: string; pos: string; neg: string } }[] = [
+  {
+    key: "ambar",
+    label: "Âmbar",
+    desc: "Terminal escuro clássico — acento dourado, superfícies neutras",
+    preview: { bg: "#08080A", accent: "#E8A33D", text: "#DEE1E8", muted: "#71757F", pos: "#3FB950", neg: "#F0504A" },
+  },
+  {
+    key: "matrix",
+    label: "Matrix",
+    desc: "Fósforo verde — estética de terminal hacker, alto contraste",
+    preview: { bg: "#050A05", accent: "#00FF41", text: "#B5E8B5", muted: "#5A8A5A", pos: "#00FF41", neg: "#FF3838" },
+  },
+  {
+    key: "jornal",
+    label: "Jornal",
+    desc: "Papel de jornal financeiro — claro, tipografia serifada",
+    preview: { bg: "#F2EBDD", accent: "#000000", text: "#000000", muted: "#555555", pos: "#0C6B2E", neg: "#7F1D1D" },
+  },
+];
+
+function ThemeSection() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-zinc-500 leading-relaxed">
+        Altera as cores e tipografia de toda a interface. O tema persiste entre sessões no navegador.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {THEME_OPTIONS.map((opt) => {
+          const active = theme === opt.key;
+          const p = opt.preview;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setTheme(opt.key)}
+              className="relative text-left transition-all hover:scale-[1.01]"
+              style={{
+                background: p.bg,
+                border: active ? `2px solid ${p.accent}` : "2px solid rgba(128,128,128,0.2)",
+                boxShadow: active ? `0 0 20px ${p.accent}33` : "none",
+                padding: 16,
+              }}
+            >
+              {active && (
+                <div className="absolute top-2.5 right-2.5">
+                  <Check size={14} style={{ color: p.accent }} />
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ background: p.accent, boxShadow: `0 0 8px ${p.accent}66` }}
+                />
+                <span className="font-mono text-sm font-bold" style={{ color: p.text }}>
+                  {opt.label}
+                </span>
+              </div>
+
+              {/* Mini preview */}
+              <div
+                className="rounded-sm overflow-hidden mb-3"
+                style={{ border: `1px solid ${p.muted}33`, background: `${p.bg}` }}
+              >
+                <div className="flex items-center justify-between px-2.5 py-1.5" style={{ borderBottom: `1px solid ${p.muted}33` }}>
+                  <span className="font-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".12em", color: p.muted }}>
+                    PREVIEW
+                  </span>
+                  <span className="font-mono" style={{ fontSize: 9, color: p.accent, fontWeight: 700 }}>●</span>
+                </div>
+                <div className="px-2.5 py-2 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: p.text }}>PETR4</span>
+                    <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: p.pos }}>+2.3%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: p.text }}>VALE3</span>
+                    <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: p.neg }}>−1.1%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono" style={{ fontSize: 10, color: p.muted }}>Patrimônio</span>
+                    <span className="font-mono" style={{ fontSize: 10, fontWeight: 600, color: p.text }}>R$ 420k</span>
+                  </div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 11, lineHeight: 1.4, color: p.muted }}>
+                {opt.desc}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ConfiguracoesPage() {
   return (
     <>
@@ -862,6 +965,10 @@ export default function ConfiguracoesPage() {
       <div className="max-w-4xl">
         <SectionCard title="Segurança — Senha de Acesso" icon={<Lock size={16} />}>
           <PasswordSection />
+        </SectionCard>
+
+        <SectionCard title="Tema do Sistema" icon={<Palette size={16} />} defaultOpen>
+          <ThemeSection />
         </SectionCard>
 
         <SectionCard title="Fundo do Painel" icon={<ImageIcon size={16} />}>
