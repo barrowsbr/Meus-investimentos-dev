@@ -58,9 +58,33 @@ function extractTag(xml: string, tag: string): string {
   return cdata ? cdata[1] : inner;
 }
 
+function isGoogleLogo(url: string): boolean {
+  if (/\/proxy\//i.test(url)) return false;
+  if (/gstatic\.com\/images\?q=tbn:/i.test(url)) return false;
+  if (/googleusercontent\.com/i.test(url) && !/\/proxy\//i.test(url)) return true;
+  return false;
+}
+
 function extractImage(descHtml: string): string | null {
   const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (!m) return null;
+  const url = m[1];
+  if (isGoogleLogo(url)) return null;
+  return url;
+}
+
+function extractMediaContent(itemXml: string): string | null {
+  const m = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
   return m?.[1] ?? null;
+}
+
+function extractRealUrl(descHtml: string): string | null {
+  const links = [...descHtml.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)];
+  for (const l of links) {
+    const href = l[1];
+    if (href && !href.includes("news.google.com") && !href.includes("support.google.com")) return href;
+  }
+  return null;
 }
 
 function extractSource(xml: string): string {
@@ -93,7 +117,7 @@ const FEEDS: Feed[] = [
   { url: newsUrl("nvidia apple microsoft AI tech earnings", "en"), categoria: "Tech", lang: "en", max: 3 },
 ];
 
-interface Parsed extends DestaqueItem { _lang: "pt" | "en" }
+interface Parsed extends DestaqueItem { _lang: "pt" | "en"; _realUrl: string | null }
 
 function parseFeed(xml: string, feed: Feed): Parsed[] {
   const items: Parsed[] = [];
@@ -106,7 +130,8 @@ function parseFeed(xml: string, feed: Feed): Parsed[] {
     if (!titulo || !link) continue;
 
     const desc = extractTag(block, "description");
-    const imagem = extractImage(desc);
+    const imagem = extractImage(desc) ?? extractMediaContent(block);
+    const realUrl = extractRealUrl(desc);
     const data = extractTag(block, "pubDate");
     const fonte = extractSource(block);
 
@@ -115,6 +140,7 @@ function parseFeed(xml: string, feed: Feed): Parsed[] {
       categoria: feed.categoria,
       impacto: scoreImpact(titulo),
       _lang: feed.lang,
+      _realUrl: realUrl,
     });
   }
   return items;
@@ -135,18 +161,42 @@ async function fetchFeed(url: string): Promise<string> {
   return res.text();
 }
 
+function extractOgImage(html: string): string | null {
+  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  if (!m) return null;
+  return m[1];
+}
+
 async function fetchOgImage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; bot)" },
-      signal: AbortSignal.timeout(4000),
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+      signal: AbortSignal.timeout(5000),
       redirect: "follow",
     });
     if (!res.ok) return null;
     const html = await res.text();
-    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    return m?.[1] ?? null;
+
+    const og = extractOgImage(html);
+    if (og) return og;
+
+    // If this was a Google News redirect page, try to find the real article URL
+    if (url.includes("news.google.com")) {
+      const realLink = html.match(/<a[^>]+href=["'](https?:\/\/(?!news\.google|support\.google)[^"']+)["']/i);
+      if (realLink?.[1]) {
+        const res2 = await fetch(realLink[1], {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+          signal: AbortSignal.timeout(4000),
+          redirect: "follow",
+        });
+        if (res2.ok) {
+          const html2 = await res2.text();
+          return extractOgImage(html2);
+        }
+      }
+    }
+    return null;
   } catch { return null; }
 }
 
@@ -198,17 +248,19 @@ export async function GET() {
       } catch { /* keep original */ }
     }
 
-    // Fetch og:image for items missing RSS images (up to 6 in parallel)
-    const missing = top.filter(t => !t.imagem).slice(0, 6);
+    // Fetch og:image for items missing images — use real article URL (not Google redirect)
+    const missing = top.filter(t => !t.imagem);
     if (missing.length > 0) {
-      const ogResults = await Promise.allSettled(missing.map(m => fetchOgImage(m.link)));
+      const ogResults = await Promise.allSettled(
+        missing.map(m => fetchOgImage(m._realUrl ?? m.link))
+      );
       for (let i = 0; i < missing.length; i++) {
         const r = ogResults[i];
         if (r.status === "fulfilled" && r.value) missing[i].imagem = r.value;
       }
     }
 
-    const articles: DestaqueItem[] = top.map(({ _lang: _, ...rest }) => rest);
+    const articles: DestaqueItem[] = top.map(({ _lang: _, _realUrl: __, ...rest }) => rest);
 
     return NextResponse.json({ articles, count: articles.length });
   } catch (e: unknown) {
