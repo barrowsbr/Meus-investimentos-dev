@@ -323,6 +323,63 @@ async function fetchArticleImage(articleUrl: string): Promise<string | null> {
   }
 }
 
+// Resolve a URL real de um artigo seguindo o redirect do Google News.
+// Mais confiável que o decode base64 para URLs novas (pós-2024).
+async function resolveGoogleRedirect(gnUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(gnUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,*/*",
+      },
+      signal: AbortSignal.timeout(6000),
+      redirect: "follow",
+    });
+    const finalUrl = res.url;
+    if (isGoogleHost(finalUrl)) return null;
+    return finalUrl;
+  } catch {
+    return null;
+  }
+}
+
+// Busca og:image e resolve a URL real em um único fetch (evita duplo request).
+// Se a URL de entrada for redirect do Google News, segue o redirect e extrai da
+// página final. Retorna { url, img } ou null.
+async function resolveAndImage(url: string): Promise<{ realUrl: string; img: string | null } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,*/*",
+      },
+      signal: AbortSignal.timeout(6000),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    if (isGoogleHost(res.url)) return null;
+    const html = await res.text();
+    const base = res.url;
+
+    const og = html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i);
+    let img = cleanImageUrl(og?.[1], base);
+    if (!img) {
+      const tw = html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i)
+        ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i);
+      img = cleanImageUrl(tw?.[1], base);
+    }
+    if (!img) {
+      const linkImg = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i);
+      img = cleanImageUrl(linkImg?.[1], base);
+    }
+
+    return { realUrl: res.url, img };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     const feeds = [...DIRECT_FEEDS, ...GOOGLE_FEEDS];
@@ -372,24 +429,35 @@ export async function GET() {
     }
 
     // Preencher imagem faltante via og:image da página real.
-    // - Itens diretos: buscar no próprio link do veículo.
-    // - Itens do Google News: só se a URL decodificada for de veículo (não-Google).
+    // - Itens diretos: buscar og:image no próprio link do veículo.
+    // - Itens do Google News: decodificar base64 OU seguir redirect até o
+    //   artigo real (num único fetch que já extrai og:image).
     await Promise.allSettled(
       pool.map(async item => {
         if (item.imagem) return;
-        let target: string | null = null;
+
         if (item._kind === "direct") {
-          target = item.link;
-        } else {
-          const real = decodeGoogleNewsUrl(item._gnLink);
-          if (real) {
-            target = real;
-            item.link = real; // clicar abre o veículo direto, sem redirect
-          }
+          const img = await fetchArticleImage(item.link);
+          if (img) item.imagem = img;
+          return;
         }
-        if (!target) return;
-        const img = await fetchArticleImage(target);
-        if (img) item.imagem = img;
+
+        // Google News: tentar decode base64 primeiro (rápido, sem fetch extra).
+        const decoded = decodeGoogleNewsUrl(item._gnLink);
+        if (decoded) {
+          item.link = decoded;
+          const img = await fetchArticleImage(decoded);
+          if (img) item.imagem = img;
+          return;
+        }
+
+        // Fallback: seguir o redirect do Google News até o artigo real.
+        // Um único fetch resolve a URL E extrai og:image de uma vez.
+        const result = await resolveAndImage(item._gnLink);
+        if (result) {
+          item.link = result.realUrl;
+          if (result.img) item.imagem = result.img;
+        }
       })
     );
 
