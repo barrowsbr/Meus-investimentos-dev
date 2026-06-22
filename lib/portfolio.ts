@@ -52,6 +52,7 @@ export interface Position {
   dayChangePct: number | null;
   dayChangeBRL: number | null;     // variação real em R$ no dia (preço + câmbio)
   dayChangeFxBRL: number | null;   // parte do dayChangeBRL vinda do câmbio do dia
+  marketState?: string;
   fatorBRL: number;
   fatorCusto: number;
 }
@@ -383,6 +384,7 @@ export function enriquecerPosicoes(
       dayChangePct,
       dayChangeBRL,
       dayChangeFxBRL,
+      marketState: quote?.marketState,
       fatorBRL: fatorAtual,
       fatorCusto,
     });
