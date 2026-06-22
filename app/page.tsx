@@ -456,6 +456,20 @@ function NoticiasDestaques() {
       .finally(() => setLoading(false));
   }, []);
 
+  const sorted = useMemo(() => {
+    const copy = [...articles];
+    if (copy.length > 1) {
+      const [first, ...tail] = copy;
+      tail.sort((a, b) => {
+        const ai = a.imagem ? 0 : 1;
+        const bi = b.imagem ? 0 : 1;
+        return ai - bi;
+      });
+      return [first, ...tail];
+    }
+    return copy;
+  }, [articles]);
+
   if (loading) {
     return (
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
@@ -475,20 +489,6 @@ function NoticiasDestaques() {
   }
 
   if (articles.length === 0) return null;
-
-  const sorted = useMemo(() => {
-    const copy = [...articles];
-    if (copy.length > 1) {
-      const [first, ...tail] = copy;
-      tail.sort((a, b) => {
-        const ai = a.imagem ? 0 : 1;
-        const bi = b.imagem ? 0 : 1;
-        return ai - bi;
-      });
-      return [first, ...tail];
-    }
-    return copy;
-  }, [articles]);
 
   const featured = sorted[0];
   const rest = sorted.slice(1);
