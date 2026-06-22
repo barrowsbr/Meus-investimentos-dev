@@ -519,11 +519,11 @@ body {
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes ambientPulse {
   0%, 100% { opacity: 0.55; }
