@@ -32,7 +32,7 @@ export const INDICES: IndexMeta[] = [
   { symbol: "^BVL",      tvSymbol: "BVRD:BVL",            name: "BVL Rep. Dominicana",    country: "Rep. Dominicana",flag: "\u{1f1e9}\u{1f1f4}", region: "Americas",    lat: 18.5,  lng: -69.9 },
   { symbol: "^BVPAB",    tvSymbol: "BVP:BVPAB",           name: "BVP Panamá",        country: "Panamá",    flag: "\u{1f1f5}\u{1f1e6}", region: "Americas",    lat: 8.9,   lng: -79.5 },
 
-  // ═══ Europe (25) ═════════════════════════════════════════════════════════════
+  // ═══ Europe (39) ═════════════════════════════════════════════════════════════
   { symbol: "^STOXX50E",  tvSymbol: "TVC:SX5E",           name: "Euro Stoxx 50",          country: "Europa",         flag: "\u{1f1ea}\u{1f1fa}", region: "Europe",      lat: 50.1,  lng: 8.7 },
   { symbol: "^STOXX",     tvSymbol: "TVC:SXXP",           name: "STOXX Europe 600",       country: "Europa",         flag: "\u{1f1ea}\u{1f1fa}", region: "Europe",      lat: 50.8,  lng: 4.4 },
   { symbol: "^FTSE",      tvSymbol: "TVC:UKX",            name: "FTSE 100",               country: "Reino Unido",    flag: "\u{1f1ec}\u{1f1e7}", region: "Europe",      lat: 51.5,  lng: -0.1 },
@@ -69,6 +69,9 @@ export const INDICES: IndexMeta[] = [
   { symbol: "^LUXX",      tvSymbol: "LUXSE:LUXX",         name: "LuxX Luxemburgo",        country: "Luxemburgo",     flag: "\u{1f1f1}\u{1f1fa}", region: "Europe",      lat: 49.6,  lng: 6.1 },
   { symbol: "^MALTEX",    tvSymbol: "MSE:MALTEX",         name: "MSE Malta",              country: "Malta",          flag: "\u{1f1f2}\u{1f1f9}", region: "Europe",      lat: 35.9,  lng: 14.5 },
   { symbol: "^PFTS",      tvSymbol: "PFTS:PFTS",          name: "PFTS Ucrânia",      country: "Ucrânia",   flag: "\u{1f1fa}\u{1f1e6}", region: "Europe",      lat: 50.4,  lng: 30.5 },
+  { symbol: "^ISEQ",      tvSymbol: "EURONEXT:ISEQ",      name: "ISEQ All Share",         country: "Irlanda",        flag: "\u{1f1ee}\u{1f1ea}", region: "Europe",      lat: 53.3,  lng: -6.3 },
+  { symbol: "^MSETOP",    tvSymbol: "MSE:MSETOP",         name: "MBI 10 Macedônia",  country: "Macedônia do Norte", flag: "\u{1f1f2}\u{1f1f0}", region: "Europe",  lat: 42.0,  lng: 21.4 },
+  { symbol: "^MONEX",     tvSymbol: "MNSE:MONEX",         name: "MONEX Montenegro",       country: "Montenegro",     flag: "\u{1f1f2}\u{1f1ea}", region: "Europe",      lat: 42.4,  lng: 19.3 },
 
   // ═══ Asia (22) ═══════════════════════════════════════════════════════════════
   { symbol: "^N225",      tvSymbol: "TVC:NI225",          name: "Nikkei 225",             country: "Japão",     flag: "\u{1f1ef}\u{1f1f5}", region: "Asia",        lat: 35.7,  lng: 139.7 },

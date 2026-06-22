@@ -47,7 +47,7 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   "Mongólia": "MNT", "Cazaquistão": "KZT",
   "Afeganistão": "AFN", "Mianmar": "MMK", "Camboja": "KHR", "Laos": "LAK",
   "Coreia do Norte": "KPW", "Quirguistão": "KGS", "Tajiquistão": "TJS",
-  "Turcomenistão": "TMT", "Uzbequistão": "UZS", "Geórgia": "GEL", "Armênia": "AMD",
+  "Turcomenistão": "TMT", "Uzbequistão": "UZS", "Geórgia": "GEL", "Armênia": "AMD", "Azerbaijão": "AZN",
   "Butão": "BTN", "Brunei": "BND", "Timor-Leste": "USD", "Macau": "MOP",
   "Israel": "ILS", "Arábia Saudita": "SAR", "Emirados": "AED", "Catar": "QAR",
   "Kuwait": "KWD", "Bahrein": "BHD", "Omã": "OMR", "Jordânia": "JOD", "Líbano": "LBP",
@@ -102,7 +102,7 @@ export const COUNTRY_REGION: Record<string, string> = {
   "Mongólia": "Asia", "Cazaquistão": "Asia", "Afeganistão": "Asia", "Mianmar": "Asia",
   "Camboja": "Asia", "Laos": "Asia", "Coreia do Norte": "Asia", "Quirguistão": "Asia",
   "Tajiquistão": "Asia", "Turcomenistão": "Asia", "Uzbequistão": "Asia", "Geórgia": "Asia",
-  "Armênia": "Asia", "Butão": "Asia", "Brunei": "Asia", "Timor-Leste": "Asia", "Macau": "Asia",
+  "Armênia": "Asia", "Azerbaijão": "Asia", "Butão": "Asia", "Brunei": "Asia", "Timor-Leste": "Asia", "Macau": "Asia",
   // Middle East
   "Israel": "Middle East", "Arábia Saudita": "Middle East", "Emirados": "Middle East",
   "Catar": "Middle East", "Kuwait": "Middle East", "Bahrein": "Middle East", "Omã": "Middle East",
@@ -156,7 +156,7 @@ export const COUNTRY_RISK_BASE: Record<string, number> = {
   "Paquistão": 80, "Bangladesh": 60, "Sri Lanka": 72, "Nepal": 62, "Mongólia": 60, "Cazaquistão": 52,
   "Afeganistão": 97, "Mianmar": 90, "Camboja": 62, "Laos": 60, "Coreia do Norte": 98,
   "Quirguistão": 60, "Tajiquistão": 68, "Turcomenistão": 72, "Uzbequistão": 58,
-  "Geórgia": 46, "Armênia": 52, "Butão": 42, "Brunei": 30, "Timor-Leste": 68, "Macau": 28,
+  "Geórgia": 46, "Armênia": 52, "Azerbaijão": 55, "Butão": 42, "Brunei": 30, "Timor-Leste": 68, "Macau": 28,
   // Middle East
   "Israel": 38, "Arábia Saudita": 40, "Emirados": 28, "Catar": 28, "Kuwait": 34, "Bahrein": 50,
   "Omã": 44, "Jordânia": 55, "Líbano": 92,
