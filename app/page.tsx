@@ -44,6 +44,7 @@ interface TickerItem {
   price: number;
   changePct: number;
   moeda: string;
+  marketState?: string;
 }
 
 interface NewsArticle {
@@ -114,15 +115,20 @@ function TickerTape({ items }: { items: TickerItem[] }) {
             className="inline-flex items-center whitespace-nowrap"
             style={{ animation: `tickerScroll ${duration}s linear infinite` }}
           >
-            {[...items, ...items].map((p, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
-                <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
-                <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
-                <span className="font-bold tnum" style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
-                  {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
+            {[...items, ...items].map((p, i) => {
+              const ext = p.marketState === "PRE" || p.marketState === "PREPRE" ? "PRÉ"
+                : p.marketState === "POST" || p.marketState === "POSTPOST" ? "PÓS" : null;
+              return (
+                <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
+                  <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
+                  {ext && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--accent)", letterSpacing: ".06em" }}>{ext}</span>}
+                  <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
+                  <span className="font-bold tnum" style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                    {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </div>
         </div>
       </button>
@@ -594,6 +600,19 @@ export default function HomePage() {
   const isDayUp = (dayChangeBRL ?? 0) >= 0;
   const usdDayChangePct = typeof data?.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null;
 
+  const sessionTag = useMemo(() => {
+    if (!data?.positions) return null;
+    const states = new Set<string>();
+    for (const p of data.positions) {
+      if (!p?.ticker || (p.quantidade ?? 0) <= 0 || isRendaFixa(p.setor ?? "")) continue;
+      if (p.marketState) states.add(p.marketState);
+    }
+    if (states.has("REGULAR")) return null;
+    if (states.has("PRE") || states.has("PREPRE")) return "PRÉ";
+    if (states.has("POST") || states.has("POSTPOST")) return "PÓS";
+    return null;
+  }, [data?.positions]);
+
   const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase().replace(".", "");
   const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(".", "");
 
@@ -614,6 +633,7 @@ export default function HomePage() {
           price: p.precoAtual,
           changePct: p.dayChangePct,
           moeda: p.moeda ?? "BRL",
+          marketState: p.marketState,
         });
       }
       items.sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0));
@@ -689,7 +709,9 @@ export default function HomePage() {
 
             {/* Retorno Dia */}
             <Link href="/hoje" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderBottom: "1px solid var(--line)" }}>
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Retorno Dia</span>
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>
+                Retorno Dia{sessionTag ? <span style={{ color: "var(--accent)", marginLeft: 4, fontSize: 8 }}>{sessionTag}</span> : null}
+              </span>
               {loading || dayChangePct === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
               ) : (

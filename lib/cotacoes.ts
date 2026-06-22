@@ -1,11 +1,15 @@
 import { identificarSetor } from "./sectors";
 
+export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
+
 export interface Quote {
   price: number;
   change: number;
   changePercent: number;
   currency: string;
   name: string;
+  marketState?: MarketSession;
+  regularPrice?: number;
 }
 
 export interface FxRates {
@@ -160,24 +164,37 @@ async function fetchQuotesYF2(yahooTickers: string[]): Promise<Record<string, Qu
       try {
         const q = await yahooFinance.quote(ticker);
         if (q && q.regularMarketPrice != null) {
-          const price = q.regularMarketPrice;
+          const regPrice = q.regularMarketPrice;
           const prevClose = q.regularMarketPreviousClose ?? q.previousClose ?? q.chartPreviousClose;
+          const state = (q.marketState ?? "REGULAR") as MarketSession;
 
+          let price = regPrice;
           let change = q.regularMarketChange;
           let changePct = q.regularMarketChangePercent;
+
+          if ((state === "PRE" || state === "PREPRE") && q.preMarketPrice > 0 && prevClose > 0) {
+            price = q.preMarketPrice;
+            change = q.preMarketChange ?? (price - prevClose);
+            changePct = q.preMarketChangePercent ?? ((price / prevClose - 1) * 100);
+          } else if ((state === "POST" || state === "POSTPOST") && q.postMarketPrice > 0 && prevClose > 0) {
+            price = q.postMarketPrice;
+            change = price - prevClose;
+            changePct = (price / prevClose - 1) * 100;
+          }
 
           if ((change == null || change === 0) && prevClose && prevClose > 0) {
             change = price - prevClose;
             changePct = ((price / prevClose) - 1) * 100;
           }
 
-          // Store under the requested ticker to guarantee lookup consistency
           results[ticker] = {
             price,
             change: change ?? 0,
             changePercent: changePct ?? 0,
             currency: q.currency ?? "USD",
             name: q.shortName ?? q.longName ?? ticker,
+            marketState: state,
+            regularPrice: state !== "REGULAR" ? regPrice : undefined,
           };
         }
       } catch {

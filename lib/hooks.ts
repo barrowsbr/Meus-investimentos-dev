@@ -163,6 +163,7 @@ function mapPosition(p: any): Position {
     dayChangePct: p.dayChangePct ?? p.day_change_pct ?? null,
     dayChangeBRL: p.dayChangeBRL ?? p.day_change_brl ?? null,
     dayChangeFxBRL: p.dayChangeFxBRL ?? p.day_change_fx_brl ?? null,
+    marketState: p.marketState ?? p.market_state ?? undefined,
     fatorBRL: p.fatorBRL ?? p.fator_brl ?? 1,
     fatorCusto: p.fatorCusto ?? p.fator_custo ?? 1,
   };

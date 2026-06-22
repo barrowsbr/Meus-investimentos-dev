@@ -57,6 +57,7 @@ interface Contrib {
   setor: string;
   value: number;   // dayChangeBRL — contribuição ao resultado do dia
   pctMove: number; // dayChangePct — variação % do papel no dia
+  marketState?: string;
 }
 
 // ── Kicker (rótulo de seção com fio) ────────────────────────────────────────────
@@ -192,6 +193,7 @@ export default function HojePage() {
         setor: p.setor || "Outros",
         value: p.dayChangeBRL,
         pctMove: typeof p.dayChangePct === "number" ? p.dayChangePct : 0,
+        marketState: p.marketState,
       });
     }
     out.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
@@ -268,6 +270,20 @@ export default function HojePage() {
       })
       .slice(0, 10);
   }, [rawNews, topGain?.ticker, topLoss?.ticker]);
+
+  const sessionLabel = useMemo(() => {
+    if (!data?.positions) return null;
+    const states = new Set<string>();
+    for (const p of data.positions) {
+      if (!p?.ticker || (p.quantidade ?? 0) <= 0) continue;
+      if (isRendaFixa(p.setor ?? "")) continue;
+      if (p.marketState) states.add(p.marketState);
+    }
+    if (states.has("REGULAR")) return { text: "AO VIVO", color: "var(--pos)" };
+    if (states.has("PRE") || states.has("PREPRE")) return { text: "PRÉ-MERCADO", color: "var(--accent)" };
+    if (states.has("POST") || states.has("POSTPOST")) return { text: "PÓS-MERCADO", color: "var(--accent)" };
+    return null;
+  }, [data?.positions]);
 
   // ── Dateline ──
   const now = new Date();
@@ -415,6 +431,18 @@ export default function HojePage() {
           {weekday}, {dateLong}{updated ? ` — Atualizado ${updated}` : ""}
         </p>
 
+        {sessionLabel && (
+          <div className="flex justify-center mt-2.5">
+            <span
+              className="font-mono inline-flex items-center gap-1.5 px-2.5 py-1"
+              style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase", color: sessionLabel.color, border: `1px solid ${sessionLabel.color}`, opacity: 0.9 }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: sessionLabel.color, display: "inline-block", animation: sessionLabel.text === "AO VIVO" ? "pulse 2s infinite" : undefined }} />
+              {sessionLabel.text}
+            </span>
+          </div>
+        )}
+
         <div style={{ marginTop: 12, borderTop: "3px double var(--line-strong)" }} />
       </header>
 
@@ -522,15 +550,19 @@ export default function HojePage() {
               <span className="font-mono" style={{ fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--faint)" }}>Ganhos →</span>
             </div>
 
-            {shown.map((c) => (
-              <LedgerRow
-                key={c.ticker}
-                label={c.ticker}
-                value={c.value}
-                maxAbs={maxAbs}
-                sub={pctSigned(c.pctMove)}
-              />
-            ))}
+            {shown.map((c) => {
+              const sess = c.marketState === "PRE" || c.marketState === "PREPRE" ? " · PRÉ"
+                : c.marketState === "POST" || c.marketState === "POSTPOST" ? " · PÓS" : "";
+              return (
+                <LedgerRow
+                  key={c.ticker}
+                  label={c.ticker}
+                  value={c.value}
+                  maxAbs={maxAbs}
+                  sub={`${pctSigned(c.pctMove)}${sess}`}
+                />
+              );
+            })}
 
             {Math.abs(restSum) > 0.5 && (
               <LedgerRow label={`+${rest.length} outros`} value={restSum} maxAbs={maxAbs} />
