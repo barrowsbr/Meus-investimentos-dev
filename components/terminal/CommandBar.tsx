@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Menu } from "lucide-react";
-import { useTerminal } from "./TerminalProvider";
 import { useGlobeOverlay } from "@/components/GlobeOverlayContext";
 
 interface Props {
@@ -12,7 +11,6 @@ interface Props {
 }
 
 export default function CommandBar({ title, onMenu }: Props) {
-  const { theme, setTheme } = useTerminal();
   const { setOpen: setGlobeOpen, originRef } = useGlobeOverlay();
   const [now, setNow] = useState<string>("");
 
@@ -62,26 +60,6 @@ export default function CommandBar({ title, onMenu }: Props) {
       >
         <Image src="/midias/carregamento.png" alt="" width={26} height={26} className="object-contain" />
       </button>
-
-      {/* Seletor de tema */}
-      <div className="flex gap-[3px] p-[3px]" style={{ border: "1px solid var(--line)", background: "var(--input)" }}>
-        {(["ambar", "jornal"] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setTheme(k)}
-            className="font-mono"
-            style={{
-              padding: "4px 10px",
-              fontSize: 10.5,
-              fontWeight: 600,
-              background: theme === k ? "var(--accent-wash)" : "transparent",
-              color: theme === k ? "var(--accent)" : "var(--muted)",
-            }}
-          >
-            {k === "ambar" ? "Âmbar" : "Jornal"}
-          </button>
-        ))}
-      </div>
 
       {/* Relógio AO VIVO */}
       <span className="hidden md:flex items-center gap-1.5 font-mono shrink-0" style={{ fontSize: 10.5, color: "var(--muted)" }}>

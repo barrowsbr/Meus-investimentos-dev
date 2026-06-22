@@ -75,6 +75,35 @@
   --cat-5:#9A3412; --cat-6:#065F46; --cat-7:#1E40AF; --cat-8:#854D0E;
 }
 
+[data-theme="matrix"] {
+  --bg:            #050A05;
+  --panel:         #0A120A;
+  --rail:          #070D07;
+  --input:         #0A0F0A;
+  --sel:           rgba(0,255,65,.07);
+  --hover:         rgba(0,255,65,.03);
+
+  --line:          #142014;
+  --line-strong:   #1E321E;
+
+  --accent:        #00FF41;
+  --accent-wash:   rgba(0,255,65,.12);
+
+  --text:          #B5E8B5;
+  --text-2:        #8AC08A;
+  --muted:         #5A8A5A;
+  --faint:         #3A5F3A;
+
+  --pos:           #00FF41;
+  --neg:           #FF3838;
+  --info:          #41FFFF;
+
+  --bar-track:     rgba(0,255,65,.06);
+
+  --cat-1:#00FF41; --cat-2:#41FFFF; --cat-3:#FF6B00; --cat-4:#FF41FF;
+  --cat-5:#C8FF00; --cat-6:#00BFFF; --cat-7:#FF3838; --cat-8:#9DFF00;
+}
+
 /* ── Fundações ─────────────────────────────────────────────────────────────
    Geometria RETA. Sem border-radius, sem vidro/blur, sem brilho, sem sombra.
    Fontes ligadas ao next/font (variáveis injetadas no <html> pelo layout). */

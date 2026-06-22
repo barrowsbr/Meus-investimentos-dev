@@ -3,8 +3,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 
 // ── Tema ─────────────────────────────────────────────────────────────────────
-export type Theme = "ambar" | "jornal";
+export type Theme = "ambar" | "jornal" | "matrix";
 const THEME_KEY = "barroots_theme";
+const VALID_THEMES: Theme[] = ["ambar", "jornal", "matrix"];
 
 /**
  * Cores concretas por tema — para casos onde CSS var não resolve (atributos SVG
@@ -18,6 +19,10 @@ export const THEME_COLORS: Record<Theme, Record<string, string>> = {
   jornal: {
     accent: "#000000", pos: "#0C6B2E", neg: "#7F1D1D", info: "#1E3A8A",
     text: "#000000", muted: "#333333", line: "transparent", panel: "transparent",
+  },
+  matrix: {
+    accent: "#00FF41", pos: "#00FF41", neg: "#FF3838", info: "#41FFFF",
+    text: "#B5E8B5", muted: "#5A8A5A", line: "#142014", panel: "#0A120A",
   },
 };
 
@@ -71,7 +76,7 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
-      if (savedTheme === "ambar" || savedTheme === "jornal") setThemeState(savedTheme);
+      if (savedTheme && VALID_THEMES.includes(savedTheme)) setThemeState(savedTheme);
       const savedFilters = localStorage.getItem(FILTERS_KEY);
       if (savedFilters) setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(savedFilters) });
     } catch {
