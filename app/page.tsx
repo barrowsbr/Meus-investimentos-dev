@@ -384,6 +384,11 @@ const IMPACTO_STYLE = {
   baixo: { bg: "var(--hover)", border: "var(--line)", color: "var(--muted)", label: "BAIXO" },
 };
 
+function proxyImg(url: string | null): string | null {
+  if (!url) return null;
+  return `/api/img-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function NoticiasDestaques() {
   const [articles, setArticles] = useState<DestaqueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -453,11 +458,10 @@ function NoticiasDestaques() {
           >
             {featured.imagem ? (
               <img
-                src={featured.imagem}
+                src={proxyImg(featured.imagem)!}
                 alt=""
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
-                referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             ) : (
@@ -519,11 +523,10 @@ function NoticiasDestaques() {
               >
                 {article.imagem ? (
                   <img
-                    src={article.imagem}
+                    src={proxyImg(article.imagem)!}
                     alt=""
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
-                    referrerPolicy="no-referrer"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (

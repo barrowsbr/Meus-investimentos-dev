@@ -58,22 +58,20 @@ function extractTag(xml: string, tag: string): string {
   return cdata ? cdata[1] : inner;
 }
 
-function extractImage(descHtml: string): string | null {
-  const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
-  if (!m) return null;
-  return upscaleGoogleImage(m[1]);
+function isGoogleBrandImage(url: string): boolean {
+  if (/googleusercontent\.com/i.test(url) && !/\/proxy\//i.test(url)) return true;
+  if (/google\.com\/favicon/i.test(url)) return true;
+  return false;
 }
 
-function upscaleGoogleImage(url: string): string {
-  return url
-    .replace(/-w\d+-h\d+/, "-w600-h338")
-    .replace(/=w\d+-h\d+/, "=w600-h338");
+function extractImage(descHtml: string): string | null {
+  const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?.[1] ?? null;
 }
 
 function extractMediaContent(itemXml: string): string | null {
   const m = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
-  if (!m) return null;
-  return upscaleGoogleImage(m[1]);
+  return m?.[1] ?? null;
 }
 
 function extractSource(xml: string): string {
@@ -228,19 +226,21 @@ export async function GET() {
       } catch { /* keep original */ }
     }
 
-    // Fetch og:image for items still missing images.
-    // Decode the Google News redirect URL to get the real article URL first.
-    const missing = top.filter(t => !t.imagem);
-    if (missing.length > 0) {
+    // Fetch og:image for articles without images OR with Google logo images.
+    // Decode Google News URLs to get real article URLs for og:image extraction.
+    const needsOg = top.filter(t =>
+      !t.imagem || isGoogleBrandImage(t.imagem)
+    );
+    if (needsOg.length > 0) {
       const ogResults = await Promise.allSettled(
-        missing.map(m => {
+        needsOg.map(m => {
           const realUrl = decodeGoogleNewsUrl(m.link);
           return fetchOgImage(realUrl ?? m.link);
         })
       );
-      for (let i = 0; i < missing.length; i++) {
+      for (let i = 0; i < needsOg.length; i++) {
         const r = ogResults[i];
-        if (r.status === "fulfilled" && r.value) missing[i].imagem = r.value;
+        if (r.status === "fulfilled" && r.value) needsOg[i].imagem = r.value;
       }
     }
 
