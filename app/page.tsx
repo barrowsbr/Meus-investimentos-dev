@@ -399,12 +399,57 @@ function proxyImg(url: string | null): string | null {
   return `/api/img-proxy?url=${encodeURIComponent(url)}`;
 }
 
+// Gradiente por categoria — placeholder editorial quando não há imagem real.
+function catGradient(cat: string): string {
+  const map: Record<string, [string, string]> = {
+    "Mercado": ["#1f6feb", "#0d2f6b"],
+    "Economia": ["#238636", "#13491f"],
+    "Global": ["#8957e5", "#3a2065"],
+    "Câmbio": ["#bf8700", "#5c4100"],
+    "Investimentos": ["#1f6feb", "#3a2065"],
+    "Macro": ["#da3633", "#5e1513"],
+    "Commodities": ["#bb8009", "#4d3206"],
+    "Tech": ["#1f6feb", "#8957e5"],
+  };
+  const c = map[cat] ?? ["#30363d", "#161b22"];
+  return `linear-gradient(135deg, ${c[0]} 0%, ${c[1]} 100%)`;
+}
+
+// Thumbnail de notícia: imagem real (não-Google) com fallback para um bloco
+// com gradiente da categoria. NUNCA renderiza logo remoto — se a imagem falhar
+// ou for de host Google, cai no placeholder colorido.
+function NewsThumb({ imagem, categoria, size }: { imagem: string | null; categoria: string; size: "lg" | "sm" }) {
+  const [err, setErr] = useState(false);
+  const src = proxyImg(imagem);
+  if (src && !err) {
+    return (
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        className={`h-full w-full object-cover transition-transform group-hover:scale-105 ${size === "lg" ? "duration-500" : "duration-300"}`}
+        onError={() => setErr(true)}
+      />
+    );
+  }
+  return (
+    <div className="h-full w-full flex flex-col items-center justify-center gap-1.5" style={{ background: catGradient(categoria) }}>
+      <Newspaper size={size === "lg" ? 30 : 16} style={{ color: "rgba(255,255,255,0.88)" }} />
+      {size === "lg" && (
+        <span className="font-mono font-bold uppercase" style={{ fontSize: 9, letterSpacing: "2px", color: "rgba(255,255,255,0.88)" }}>
+          {categoria}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function NoticiasDestaques() {
   const [articles, setArticles] = useState<DestaqueItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/noticias/destaques")
+    fetch("/api/noticias/destaques", { cache: "no-store" })
       .then(r => r.json())
       .then(d => setArticles(d.articles ?? []))
       .catch(() => {})
@@ -466,19 +511,8 @@ function NoticiasDestaques() {
             className="relative h-[180px] md:h-auto md:w-[280px] shrink-0 overflow-hidden flex items-center justify-center"
             style={{ background: "var(--hover)" }}
           >
-            {proxyImg(featured.imagem) ? (
-              <img
-                src={proxyImg(featured.imagem)!}
-                alt=""
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                loading="lazy"
-                onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement?.querySelector("[data-fallback]")?.removeAttribute("hidden"); }}
-              />
-            ) : null}
-            <span data-fallback {...(proxyImg(featured.imagem) ? { hidden: true } : {})} >
-              <Newspaper size={32} style={{ color: "var(--muted)", opacity: 0.3 }} />
-            </span>
-            <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
+            <NewsThumb imagem={featured.imagem} categoria={featured.categoria} size="lg" />
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
           </div>
           <div className="flex flex-1 flex-col justify-between p-4">
             <div>
@@ -532,18 +566,7 @@ function NoticiasDestaques() {
                 className="relative h-[64px] w-[88px] shrink-0 overflow-hidden rounded-sm flex items-center justify-center"
                 style={{ background: "var(--hover)" }}
               >
-                {proxyImg(article.imagem) ? (
-                  <img
-                    src={proxyImg(article.imagem)!}
-                    alt=""
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement?.querySelector("[data-fallback]")?.removeAttribute("hidden"); }}
-                  />
-                ) : null}
-                <span data-fallback {...(proxyImg(article.imagem) ? { hidden: true } : {})} >
-                  <Newspaper size={16} style={{ color: "var(--muted)", opacity: 0.3 }} />
-                </span>
+                <NewsThumb imagem={article.imagem} categoria={article.categoria} size="sm" />
               </div>
               <div className="flex flex-1 flex-col justify-between min-w-0">
                 <div>
