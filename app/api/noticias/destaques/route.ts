@@ -58,38 +58,44 @@ function extractTag(xml: string, tag: string): string {
   return cdata ? cdata[1] : inner;
 }
 
-function isGoogleLogo(url: string): boolean {
-  if (/\/proxy\//i.test(url)) return false;
-  if (/gstatic\.com\/images\?q=tbn:/i.test(url)) return false;
-  if (/googleusercontent\.com/i.test(url) && !/\/proxy\//i.test(url)) return true;
-  return false;
-}
-
 function extractImage(descHtml: string): string | null {
   const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (!m) return null;
-  const url = m[1];
-  if (isGoogleLogo(url)) return null;
-  return url;
+  return upscaleGoogleImage(m[1]);
+}
+
+function upscaleGoogleImage(url: string): string {
+  return url
+    .replace(/-w\d+-h\d+/, "-w600-h338")
+    .replace(/=w\d+-h\d+/, "=w600-h338");
 }
 
 function extractMediaContent(itemXml: string): string | null {
   const m = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
-  return m?.[1] ?? null;
-}
-
-function extractRealUrl(descHtml: string): string | null {
-  const links = [...descHtml.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)];
-  for (const l of links) {
-    const href = l[1];
-    if (href && !href.includes("news.google.com") && !href.includes("support.google.com")) return href;
-  }
-  return null;
+  if (!m) return null;
+  return upscaleGoogleImage(m[1]);
 }
 
 function extractSource(xml: string): string {
   const m = xml.match(/<source[^>]*>([^<]*)<\/source>/i);
   return m ? decodeHtml(m[1].trim()) : "Google News";
+}
+
+// Decode the real article URL from a Google News redirect URL.
+// Google News URLs contain a protobuf-encoded payload with the real URL.
+function decodeGoogleNewsUrl(gnUrl: string): string | null {
+  try {
+    const m = gnUrl.match(/\/articles\/([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const buf = Buffer.from(b64, "base64");
+    const str = buf.toString("latin1");
+    const urlMatch = str.match(/https?:\/\/[^\x00-\x1f\x7f-\x9f"'<>\s]+/);
+    return urlMatch?.[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 interface Feed {
@@ -117,7 +123,7 @@ const FEEDS: Feed[] = [
   { url: newsUrl("nvidia apple microsoft AI tech earnings", "en"), categoria: "Tech", lang: "en", max: 3 },
 ];
 
-interface Parsed extends DestaqueItem { _lang: "pt" | "en"; _realUrl: string | null }
+interface Parsed extends DestaqueItem { _lang: "pt" | "en" }
 
 function parseFeed(xml: string, feed: Feed): Parsed[] {
   const items: Parsed[] = [];
@@ -131,7 +137,6 @@ function parseFeed(xml: string, feed: Feed): Parsed[] {
 
     const desc = extractTag(block, "description");
     const imagem = extractImage(desc) ?? extractMediaContent(block);
-    const realUrl = extractRealUrl(desc);
     const data = extractTag(block, "pubDate");
     const fonte = extractSource(block);
 
@@ -140,7 +145,6 @@ function parseFeed(xml: string, feed: Feed): Parsed[] {
       categoria: feed.categoria,
       impacto: scoreImpact(titulo),
       _lang: feed.lang,
-      _realUrl: realUrl,
     });
   }
   return items;
@@ -161,13 +165,6 @@ async function fetchFeed(url: string): Promise<string> {
   return res.text();
 }
 
-function extractOgImage(html: string): string | null {
-  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-  if (!m) return null;
-  return m[1];
-}
-
 async function fetchOgImage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -177,26 +174,9 @@ async function fetchOgImage(url: string): Promise<string | null> {
     });
     if (!res.ok) return null;
     const html = await res.text();
-
-    const og = extractOgImage(html);
-    if (og) return og;
-
-    // If this was a Google News redirect page, try to find the real article URL
-    if (url.includes("news.google.com")) {
-      const realLink = html.match(/<a[^>]+href=["'](https?:\/\/(?!news\.google|support\.google)[^"']+)["']/i);
-      if (realLink?.[1]) {
-        const res2 = await fetch(realLink[1], {
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-          signal: AbortSignal.timeout(4000),
-          redirect: "follow",
-        });
-        if (res2.ok) {
-          const html2 = await res2.text();
-          return extractOgImage(html2);
-        }
-      }
-    }
-    return null;
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    return m?.[1] ?? null;
   } catch { return null; }
 }
 
@@ -248,11 +228,15 @@ export async function GET() {
       } catch { /* keep original */ }
     }
 
-    // Fetch og:image for items missing images — use real article URL (not Google redirect)
+    // Fetch og:image for items still missing images.
+    // Decode the Google News redirect URL to get the real article URL first.
     const missing = top.filter(t => !t.imagem);
     if (missing.length > 0) {
       const ogResults = await Promise.allSettled(
-        missing.map(m => fetchOgImage(m._realUrl ?? m.link))
+        missing.map(m => {
+          const realUrl = decodeGoogleNewsUrl(m.link);
+          return fetchOgImage(realUrl ?? m.link);
+        })
       );
       for (let i = 0; i < missing.length; i++) {
         const r = ogResults[i];
@@ -260,7 +244,7 @@ export async function GET() {
       }
     }
 
-    const articles: DestaqueItem[] = top.map(({ _lang: _, _realUrl: __, ...rest }) => rest);
+    const articles: DestaqueItem[] = top.map(({ _lang: _, ...rest }) => rest);
 
     return NextResponse.json({ articles, count: articles.length });
   } catch (e: unknown) {

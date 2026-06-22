@@ -447,21 +447,24 @@ function NoticiasDestaques() {
         style={{ borderBottom: "1px solid var(--line)" }}
       >
         <div className="flex flex-col md:flex-row">
-          {featured.imagem && (
-            <div
-              className="relative h-[180px] md:h-auto md:w-[280px] shrink-0 overflow-hidden"
-              style={{ background: "var(--hover)" }}
-            >
+          <div
+            className="relative h-[180px] md:h-auto md:w-[280px] shrink-0 overflow-hidden flex items-center justify-center"
+            style={{ background: "var(--hover)" }}
+          >
+            {featured.imagem ? (
               <img
                 src={featured.imagem}
                 alt=""
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
+                referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
-              <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
-            </div>
-          )}
+            ) : (
+              <Newspaper size={32} style={{ color: "var(--muted)", opacity: 0.3 }} />
+            )}
+            <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
+          </div>
           <div className="flex flex-1 flex-col justify-between p-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -510,20 +513,23 @@ function NoticiasDestaques() {
                 borderRight: isRightEdge ? undefined : "1px solid var(--line)",
               }}
             >
-              {article.imagem && (
-                <div
-                  className="relative h-[64px] w-[88px] shrink-0 overflow-hidden rounded-sm"
-                  style={{ background: "var(--hover)" }}
-                >
+              <div
+                className="relative h-[64px] w-[88px] shrink-0 overflow-hidden rounded-sm flex items-center justify-center"
+                style={{ background: "var(--hover)" }}
+              >
+                {article.imagem ? (
                   <img
                     src={article.imagem}
                     alt=""
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
-                    onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
-                </div>
-              )}
+                ) : (
+                  <Newspaper size={16} style={{ color: "var(--muted)", opacity: 0.3 }} />
+                )}
+              </div>
               <div className="flex flex-1 flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
