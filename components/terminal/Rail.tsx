@@ -28,11 +28,11 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
       />
 
       <aside
-        className={`fixed top-0 left-0 z-40 h-screen flex flex-col overflow-y-auto overflow-x-hidden transition-all duration-200 min-[1100px]:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed top-0 left-0 z-40 flex flex-col overflow-y-auto overflow-x-hidden transition-transform duration-200 min-[1100px]:translate-x-0 min-[1100px]:transition-all w-[206px] ${
+          collapsed ? "min-[1100px]:w-[60px]" : ""
+        } ${open ? "translate-x-0" : "-translate-x-full"}`}
         style={{
-          width: collapsed ? 60 : 206,
+          height: "100dvh",
           background: "var(--rail)",
           borderRight: "1px solid var(--line)",
         }}
@@ -59,7 +59,7 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
         </button>
         {/* Mobile: logo sem toggle (menu slide-over separado) */}
         <div
-          className={`flex min-[1100px]:hidden items-center gap-2.5 px-4 pb-3.5`}
+          className="flex min-[1100px]:hidden items-center gap-2.5 px-4 pb-3.5"
           style={{
             paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))",
             borderBottom: "1px solid var(--line)",
@@ -75,12 +75,12 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
         </div>
 
         {/* Navegação */}
-        <nav className={`flex-1 ${collapsed ? "px-1" : "px-2"} py-2.5`}>
+        <nav className={`flex-1 px-2 ${collapsed ? "min-[1100px]:px-1" : ""} py-2.5`}>
           {NAV.map((sec, si) => (
             <div key={si} className="mb-2.5">
-              {sec.label && !collapsed && (
+              {sec.label && (
                 <div
-                  className="px-2.5 pt-1.5 pb-1 font-mono"
+                  className={`px-2.5 pt-1.5 pb-1 font-mono ${collapsed ? "min-[1100px]:hidden" : ""}`}
                   style={{
                     fontSize: 8.5,
                     fontWeight: 600,
@@ -93,7 +93,7 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
                 </div>
               )}
               {collapsed && sec.label && (
-                <div className="my-1 mx-auto" style={{ width: 20, height: 1, background: "var(--line)" }} />
+                <div className="my-1 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
               )}
               {sec.items.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -104,7 +104,9 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
                     onClick={onNavigate}
                     data-active={active}
                     title={collapsed ? label : undefined}
-                    className={`t-rail-item relative flex items-center ${collapsed ? "justify-center" : "gap-2.5"} w-full ${collapsed ? "px-0 py-[9px]" : "px-2.5 py-[7px]"} text-left`}
+                    className={`t-rail-item relative flex items-center gap-2.5 w-full px-2.5 py-[7px] text-left ${
+                      collapsed ? "min-[1100px]:justify-center min-[1100px]:gap-0 min-[1100px]:px-0 min-[1100px]:py-[9px]" : ""
+                    }`}
                     style={{
                       background: active ? "var(--accent-wash)" : "transparent",
                       color: active ? "var(--accent)" : "var(--muted)",
@@ -113,15 +115,15 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
                       borderRadius: collapsed ? 6 : 0,
                     }}
                   >
-                    {active && !collapsed && (
+                    {active && (
                       <span
                         aria-hidden
-                        className="absolute left-0 top-1.5 bottom-1.5"
+                        className={`absolute left-0 top-1.5 bottom-1.5 ${collapsed ? "min-[1100px]:hidden" : ""}`}
                         style={{ width: 2, background: "var(--accent)" }}
                       />
                     )}
-                    <Icon size={collapsed ? 18 : 15} strokeWidth={active ? 2 : 1.6} />
-                    {!collapsed && label}
+                    <Icon size={15} strokeWidth={active ? 2 : 1.6} className={collapsed ? "min-[1100px]:!w-[18px] min-[1100px]:!h-[18px]" : ""} />
+                    <span className={collapsed ? "min-[1100px]:hidden" : ""}>{label}</span>
                   </Link>
                 );
               })}
@@ -129,14 +131,18 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
           ))}
         </nav>
 
-        {!collapsed && (
-          <div
-            className="px-3.5 py-2.5 font-mono"
-            style={{ borderTop: "1px solid var(--line)", fontSize: 9, color: "var(--faint)", letterSpacing: ".1em" }}
-          >
-            v2.0 · TERMINAL
-          </div>
-        )}
+        <div
+          className={`px-3.5 py-2.5 font-mono ${collapsed ? "min-[1100px]:hidden" : ""}`}
+          style={{
+            borderTop: "1px solid var(--line)",
+            fontSize: 9,
+            color: "var(--faint)",
+            letterSpacing: ".1em",
+            paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          v2.0 · TERMINAL
+        </div>
       </aside>
     </>
   );
