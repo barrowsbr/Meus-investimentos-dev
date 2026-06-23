@@ -162,12 +162,13 @@ function MarkerPoint({
   const ringRef = useRef<THREE.Mesh>(null);
   const pos = useMemo(() => latLngToVec3(point.lat, point.lng, radius), [point.lat, point.lng, radius]);
   const normal = useMemo(() => pos.clone().normalize(), [pos]);
-  const hex = useMemo(() => heatHex(point.changePct), [point.changePct]);
+  const isLive = point.price > 0;
+  const hex = useMemo(() => isLive ? heatHex(point.changePct) : "#555555", [point.changePct, isLive]);
   const col = useMemo(() => new THREE.Color(hex), [hex]);
-  const intensity = Math.min(Math.abs(point.changePct), 5);
-  const baseScale = 0.022 + intensity * 0.004;
+  const intensity = isLive ? Math.min(Math.abs(point.changePct), 5) : 0;
+  const baseScale = isLive ? 0.022 + intensity * 0.004 : 0.016;
 
-  const beamHeight = 0.03 + intensity * 0.016;
+  const beamHeight = isLive ? 0.03 + intensity * 0.016 : 0.015;
   const beamPos = useMemo(() => pos.clone().add(normal.clone().multiplyScalar(beamHeight / 2)), [pos, normal, beamHeight]);
   const beamQuat = useMemo(() => {
     const q = new THREE.Quaternion();
@@ -184,7 +185,7 @@ function MarkerPoint({
     if (glowRef.current) {
       const gPulse = 0.8 + Math.sin(t * 1.8 + point.lng * 0.1) * 0.2;
       glowRef.current.scale.setScalar(gPulse);
-      (glowRef.current.material as THREE.MeshBasicMaterial).opacity = isSelected ? 0.15 : 0.07;
+      (glowRef.current.material as THREE.MeshBasicMaterial).opacity = isSelected ? 0.15 : isLive ? 0.07 : 0.03;
     }
     if (ringRef.current) {
       ringRef.current.rotation.z = t * 1.5;
@@ -196,7 +197,7 @@ function MarkerPoint({
       {/* Beam pillar */}
       <mesh position={beamPos} quaternion={beamQuat}>
         <cylinderGeometry args={[0.003, 0.001, beamHeight, 6]} />
-        <meshBasicMaterial color={col} transparent opacity={0.3} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={col} transparent opacity={isLive ? 0.3 : 0.12} blending={THREE.AdditiveBlending} />
       </mesh>
 
       {/* Outer glow */}
@@ -384,7 +385,8 @@ function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (
 // ── Info card (outside canvas, next to globe) ────────────────────────────────
 
 function MarketInfoCard({ point }: { point: MarketPoint }) {
-  const hex = heatHex(point.changePct);
+  const live = point.price > 0;
+  const hex = live ? heatHex(point.changePct) : "#555555";
   const isUp = point.changePct >= 0;
 
   return (
@@ -402,15 +404,23 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
         <span className="text-base">{point.flag}</span>
         <span className="text-[11px] font-bold text-white leading-tight">{point.name}</span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-[13px] font-extrabold text-white font-mono">{fmtPrice(point.price)}</span>
-        {point.currency && <span className="text-[8px] text-zinc-500">{point.currency}</span>}
-      </div>
-      <div className="flex items-center gap-1 mt-1">
-        <span className="text-[12px] font-extrabold font-mono" style={{ color: hex }}>
-          {isUp ? "+" : ""}{point.changePct.toFixed(2)}%
-        </span>
-      </div>
+      {live ? (
+        <>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[13px] font-extrabold text-white font-mono">{fmtPrice(point.price)}</span>
+            {point.currency && <span className="text-[8px] text-zinc-500">{point.currency}</span>}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-[12px] font-extrabold font-mono" style={{ color: hex }}>
+              {isUp ? "+" : ""}{point.changePct.toFixed(2)}%
+            </span>
+          </div>
+        </>
+      ) : (
+        <div className="mt-0.5">
+          <span className="text-[10px] text-zinc-500 font-mono">Sem dados ao vivo</span>
+        </div>
+      )}
       <div className="flex items-center justify-between mt-1.5">
         <p className="text-[8px] text-zinc-600">{point.country}</p>
         <span className="text-[7px] text-zinc-600 font-semibold uppercase tracking-wider">Ver detalhes →</span>

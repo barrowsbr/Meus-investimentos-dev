@@ -60,17 +60,17 @@ export async function GET() {
     const indices: (IndexData & { periods?: Periods })[] = [];
     for (const meta of INDICES) {
       const q = quotes[meta.symbol];
-      if (!q || q.price <= 0) continue;
       indices.push({
         ...meta,
-        price: q.price,
-        change: q.change,
-        changePct: q.changePercent,
-        currency: q.currency || "USD",
+        price: q?.price ?? 0,
+        change: q?.change ?? 0,
+        changePct: q?.changePercent ?? 0,
+        currency: q?.currency || "USD",
       });
     }
 
-    if (indices.length === 0) {
+    const liveCount = indices.filter(i => i.price > 0).length;
+    if (liveCount === 0) {
       return NextResponse.json(
         { error: "Nenhuma fonte de cotação disponível para índices" },
         { status: 502 },
@@ -92,12 +92,12 @@ export async function GET() {
       };
     }
 
-    const nonVix = indices.filter(i => i.symbol !== "^VIX");
-    const breadthUp = nonVix.filter(i => i.changePct > 0).length;
-    const breadthTotal = nonVix.length;
+    const live = indices.filter(i => i.symbol !== "^VIX" && i.price > 0);
+    const breadthUp = live.filter(i => i.changePct > 0).length;
+    const breadthTotal = live.length;
 
-    const best = nonVix.reduce((a, b) => a.changePct > b.changePct ? a : b);
-    const worst = nonVix.reduce((a, b) => a.changePct < b.changePct ? a : b);
+    const best = live.reduce((a, b) => a.changePct > b.changePct ? a : b);
+    const worst = live.reduce((a, b) => a.changePct < b.changePct ? a : b);
 
     return NextResponse.json({
       indices,
