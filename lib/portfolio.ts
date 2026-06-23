@@ -48,6 +48,8 @@ export interface Position {
   ganhoCruzadoBRL: number | null;     // (V1−V0)·(P1−P0) — câmbio sobre o lucro do ativo
   pmFxAquisicao: number | null;       // P0 efetivo (R$/USD médio de aquisição)
   fxAtualBRL: number | null;          // P1 (R$/USD atual)
+  dataInicioPos: string | null;      // data ISO do lote mais antigo (1ª compra ainda em carteira)
+  retornoAnualizadoPct: number | null; // CAGR do retorno total
   dayChange: number | null;
   dayChangePct: number | null;
   dayChangeBRL: number | null;     // variação real em R$ no dia (preço + câmbio)
@@ -244,6 +246,10 @@ export function enriquecerPosicoes(
 
     const custoTotal = pos.lotes.reduce((sum, l) => sum + l.qty * l.pm, 0);
     const custoMedio = qtdTotal > 0 ? custoTotal / qtdTotal : 0;
+    const dataInicioPos = pos.lotes.reduce<string | null>((min, l) => {
+      if (!l.date) return min;
+      return min === null || l.date < min ? l.date : min;
+    }, null);
     const setor = identificarSetor(ticker);
     const moeda = getMoedaEfetiva(ticker, pos.moeda, setor);
     const fatorAtual = fxToBRL(moeda, fxAtual);
@@ -380,6 +386,8 @@ export function enriquecerPosicoes(
       ganhoCruzadoBRL,
       pmFxAquisicao,
       fxAtualBRL,
+      dataInicioPos,
+      retornoAnualizadoPct: null,   // preenchido em calcularSnapshot
       dayChange,
       dayChangePct,
       dayChangeBRL,
@@ -482,11 +490,19 @@ export function calcularSnapshot(
   // Anexa proventos líquidos por posição e o Retorno Total
   // (= valorização não realizada + lucro realizado + proventos líquidos).
   // lucroPct continua sendo a "Valorização %" (só preço/câmbio, não realizado).
+  const hojeMs = Date.now();
   for (const p of positions) {
     p.proventosBRL = prov.porTicker[tickerBase(p.ticker)] ?? 0;
     if (p.lucroBRL !== null) {
       p.retornoTotalBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
       p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;
+    }
+    if (p.retornoTotalPct !== null && p.dataInicioPos) {
+      const dias = (hojeMs - new Date(p.dataInicioPos).getTime()) / 86_400_000;
+      if (dias >= 1) {
+        const r = p.retornoTotalPct / 100;
+        p.retornoAnualizadoPct = (Math.pow(1 + r, 365 / dias) - 1) * 100;
+      }
     }
   }
 

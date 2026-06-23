@@ -40,7 +40,7 @@ const SECTOR_COLORS: Record<string, string> = {
   "BDRs": "#ec4899",
 };
 
-type SortKey = "ticker" | "setor" | "valorAtualBRL" | "lucroBRL" | "lucroPct" | "retornoTotalPct" | "dayChangePct" | "dayChangeBRL" | "ganhoAtivoBRL" | "ganhoCambioBRL";
+type SortKey = "ticker" | "setor" | "valorAtualBRL" | "lucroBRL" | "lucroPct" | "retornoTotalPct" | "retornoAnualizadoPct" | "dayChangePct" | "dayChangeBRL" | "ganhoAtivoBRL" | "ganhoCambioBRL";
 type SortDir = "asc" | "desc";
 
 function sortPositions(positions: Position[], key: SortKey, dir: SortDir): Position[] {
@@ -384,6 +384,7 @@ export default function RendaVariavelPage() {
                 <SortTh col="lucroBRL" label="Lucro" right />
                 <SortTh col="lucroPct" label="Valoriz.%" right />
                 <SortTh col="retornoTotalPct" label="Ret.Tot.%" right />
+                <SortTh col="retornoAnualizadoPct" label="Anual%" right />
                 <SortTh col="dayChangePct" label="Dia%" right />
                 <SortTh col="dayChangeBRL" label="Dia R$" right />
                 {hasUSD && <SortTh col="ganhoAtivoBRL" label="G.Ativo" right />}
@@ -398,7 +399,7 @@ export default function RendaVariavelPage() {
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const isExpanded = expandedTicker === p.ticker;
                 const txs = txByTicker[p.ticker] ?? [];
-                const colCount = 11 + (hasUSD ? 2 : 0);
+                const colCount = 12 + (hasUSD ? 2 : 0);
                 return (
                   <React.Fragment key={p.ticker}>
                     <tr
@@ -435,6 +436,9 @@ export default function RendaVariavelPage() {
                       </td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${(p.retornoTotalPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
                         {p.retornoTotalPct !== null ? pct(p.retornoTotalPct) : "—"}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right text-xs font-semibold ${(p.retornoAnualizadoPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
+                        {p.retornoAnualizadoPct !== null ? pct(p.retornoAnualizadoPct) : "—"}
                       </td>
                       <td className={`px-3 py-2.5 text-right text-xs font-semibold ${p.dayChangePct !== null ? corDia : "text-zinc-600"}`}>
                         {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
@@ -533,6 +537,7 @@ export default function RendaVariavelPage() {
                 <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
                 <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
                 <td className={`px-3 py-3 text-right ${(data.retornoTotalRVPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.retornoTotalRVPct ?? 0)}</td>
+                <td className="px-3 py-3 text-right text-zinc-600">—</td>
                 <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
                   {pct(data.dayChangeTotalPct ?? 0)}
                 </td>
