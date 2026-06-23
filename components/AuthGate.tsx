@@ -20,27 +20,32 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [protectedPages, setProtectedPages] = useState<string[] | null>(null);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
     setAuthed(sessionStorage.getItem(AUTH_KEY) === "1");
     try {
       const stored = sessionStorage.getItem(PROTECTED_PAGES_KEY);
-      if (stored) setProtectedPages(JSON.parse(stored));
+      if (stored) {
+        setProtectedPages(JSON.parse(stored));
+        setConfigLoaded(true);
+      }
     } catch { /* ignore */ }
     setMounted(true);
   }, []);
 
-  // Fetch protected pages config once on mount (lightweight call).
+  // Fetch protected pages config once on mount — authoritative source.
   useEffect(() => {
     fetch("/api/auth/config")
       .then(r => r.json())
       .then(data => {
-        if (data.protectedPages) {
+        if (Array.isArray(data.protectedPages)) {
           setProtectedPages(data.protectedPages);
           sessionStorage.setItem(PROTECTED_PAGES_KEY, JSON.stringify(data.protectedPages));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setConfigLoaded(true));
   }, []);
 
   // Auto-update golden source once per day after login
@@ -97,6 +102,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   })();
 
   if (authed || !needsAuth) return <>{children}</>;
+
+  // Wait for config before showing login — avoids flash on unprotected pages.
+  if (!configLoaded) return null;
 
   const inputStyle: React.CSSProperties = {
     background: "var(--input)",
