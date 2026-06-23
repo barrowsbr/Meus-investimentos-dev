@@ -159,6 +159,8 @@ function mapPosition(p: any): Position {
     ganhoCruzadoBRL: p.ganhoCruzadoBRL ?? p.ganho_cruzado_brl ?? null,
     pmFxAquisicao: p.pmFxAquisicao ?? p.pm_fx_aquisicao ?? null,
     fxAtualBRL: p.fxAtualBRL ?? p.fx_atual_brl ?? null,
+    dataInicioPos: p.dataInicioPos ?? p.data_inicio_pos ?? null,
+    retornoAnualizadoPct: p.retornoAnualizadoPct ?? p.retorno_anualizado_pct ?? null,
     dayChange: p.dayChange ?? p.day_change ?? null,
     dayChangePct: p.dayChangePct ?? p.day_change_pct ?? null,
     dayChangeBRL: p.dayChangeBRL ?? p.day_change_brl ?? null,
