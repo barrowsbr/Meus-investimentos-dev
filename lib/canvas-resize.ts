@@ -68,7 +68,8 @@ export function attachResizeListeners(
     const t1 = setTimeout(onResize, 100);
     const t2 = setTimeout(onResize, 300);
     const t3 = setTimeout(onResize, 600);
-    orientTimers.push(t1, t2, t3);
+    const t4 = setTimeout(onResize, 1200);
+    orientTimers.push(t1, t2, t3, t4);
   };
   window.addEventListener("orientationchange", onOrient);
 

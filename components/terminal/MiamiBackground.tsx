@@ -15,13 +15,17 @@ export default function MiamiBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const state: CanvasState = { width: 0, height: 0, dpr: 1 };
     let scroll = 0;
+    let lastDrawTime = 0;
 
-    function resize() { applySize(canvas!, ctx!, state); }
+    function resize() {
+      const changed = applySize(canvas!, ctx!, state);
+      if (changed) draw();
+    }
 
     function draw() {
+      lastDrawTime = performance.now();
       const { width, height } = state;
       ctx!.clearRect(0, 0, width, height);
       const horizon = Math.round(height * 0.46);
@@ -112,10 +116,10 @@ export default function MiamiBackground() {
     let raf = 0;
     let last = 0;
     const FRAME_MS = 1000 / 30;
-    let running = true;
+    let alive = true;
 
     function loop(t: number) {
-      if (!running) return;
+      if (!alive) return;
       raf = requestAnimationFrame(loop);
       resize();
       if (t - last < FRAME_MS) return;
@@ -123,25 +127,23 @@ export default function MiamiBackground() {
       draw();
     }
 
-    function start() {
+    function boot() {
       resize();
-      if (state.width < 10 || state.height < 10) return;
-      if (reduced) { draw(); return; }
-      if (running) raf = requestAnimationFrame(loop);
+      if (state.width > 0 && state.height > 0 && alive) {
+        raf = requestAnimationFrame(loop);
+      }
     }
 
-    requestAnimationFrame(() => requestAnimationFrame(start));
-    const t1 = setTimeout(start, 300);
-    const t2 = setTimeout(start, 800);
+    requestAnimationFrame(() => requestAnimationFrame(boot));
+    const t1 = setTimeout(boot, 300);
+    const t2 = setTimeout(boot, 800);
 
     const listeners = attachResizeListeners(canvas, resize);
 
     function onVisibility() {
       if (document.hidden) {
-        running = false;
         cancelAnimationFrame(raf);
-      } else if (!reduced && !running) {
-        running = true;
+      } else if (alive) {
         last = 0;
         resize();
         raf = requestAnimationFrame(loop);
@@ -149,21 +151,25 @@ export default function MiamiBackground() {
     }
     document.addEventListener("visibilitychange", onVisibility);
 
-    const safety = setInterval(() => {
-      if (!running && !reduced && !document.hidden) {
-        running = true;
-        last = 0;
+    const backup = setInterval(() => {
+      if (!alive) return;
+      if (performance.now() - lastDrawTime > 500) {
         resize();
+        if (state.width > 0) draw();
+      }
+      if (alive && !document.hidden) {
+        cancelAnimationFrame(raf);
+        last = 0;
         raf = requestAnimationFrame(loop);
       }
-    }, 3000);
+    }, 1000);
 
     return () => {
-      running = false;
+      alive = false;
       cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
-      clearInterval(safety);
+      clearInterval(backup);
       listeners.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
