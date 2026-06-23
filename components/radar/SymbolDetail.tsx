@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Loader2, Newspaper, Info, ExternalLink, BarChart3 } from "lucide-react";
+import { ArrowLeft, Loader2, Newspaper, Info, ExternalLink, BarChart3, Link2 } from "lucide-react";
 import CandleChart from "@/components/CandleChart";
 import type { SymbolTarget, CountryNewsItem } from "@/lib/radar/types";
 
@@ -120,6 +120,16 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
         >
           <ArrowLeft size={14} /> Mapa
         </button>
+        <a
+          href={`https://finance.yahoo.com/quote/${encodeURIComponent(target.symbol)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/10"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+          title="Abrir no Yahoo Finance"
+        >
+          <Link2 size={14} /> Yahoo
+        </a>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {target.flag && <span className="text-lg leading-none">{target.flag}</span>}
