@@ -15,7 +15,6 @@ export default function MatrixRain() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ﾞ<>=*+-¦|".split("");
     const FONT_SIZE = 16;
 
@@ -23,6 +22,7 @@ export default function MatrixRain() {
     let drops: number[] = [];
     let speeds: number[] = [];
     const state: CanvasState = { width: 0, height: 0, dpr: 1 };
+    let lastDrawTime = 0;
 
     function resize() {
       const changed = applySize(canvas!, ctx!, state);
@@ -38,9 +38,11 @@ export default function MatrixRain() {
       cols = newCols;
       ctx!.fillStyle = "#050A05";
       ctx!.fillRect(0, 0, state.width, state.height);
+      draw();
     }
 
     function draw() {
+      lastDrawTime = performance.now();
       ctx!.fillStyle = "rgba(5, 10, 5, 0.10)";
       ctx!.fillRect(0, 0, state.width, state.height);
       ctx!.font = `${FONT_SIZE}px monospace`;
@@ -63,10 +65,10 @@ export default function MatrixRain() {
     let raf = 0;
     let last = 0;
     const FRAME_MS = 1000 / 20;
-    let running = true;
+    let alive = true;
 
     function loop(t: number) {
-      if (!running) return;
+      if (!alive) return;
       raf = requestAnimationFrame(loop);
       resize();
       if (t - last < FRAME_MS) return;
@@ -74,25 +76,23 @@ export default function MatrixRain() {
       draw();
     }
 
-    function start() {
+    function boot() {
       resize();
-      if (state.width < 10 || state.height < 10) return;
-      if (reduced) { draw(); draw(); return; }
-      if (running) raf = requestAnimationFrame(loop);
+      if (state.width > 0 && state.height > 0 && alive) {
+        raf = requestAnimationFrame(loop);
+      }
     }
 
-    requestAnimationFrame(() => requestAnimationFrame(start));
-    const t1 = setTimeout(start, 300);
-    const t2 = setTimeout(start, 800);
+    requestAnimationFrame(() => requestAnimationFrame(boot));
+    const t1 = setTimeout(boot, 300);
+    const t2 = setTimeout(boot, 800);
 
     const listeners = attachResizeListeners(canvas, resize);
 
     function onVisibility() {
       if (document.hidden) {
-        running = false;
         cancelAnimationFrame(raf);
-      } else if (!reduced && !running) {
-        running = true;
+      } else if (alive) {
         last = 0;
         resize();
         raf = requestAnimationFrame(loop);
@@ -100,21 +100,27 @@ export default function MatrixRain() {
     }
     document.addEventListener("visibilitychange", onVisibility);
 
-    const safety = setInterval(() => {
-      if (!running && !reduced && !document.hidden) {
-        running = true;
-        last = 0;
+    // Backup: if rAF hasn't drawn in 500ms, force draw via setInterval
+    const backup = setInterval(() => {
+      if (!alive) return;
+      if (performance.now() - lastDrawTime > 500) {
         resize();
+        if (state.width > 0) draw();
+      }
+      // Also ensure rAF loop is alive
+      if (alive && !document.hidden) {
+        cancelAnimationFrame(raf);
+        last = 0;
         raf = requestAnimationFrame(loop);
       }
-    }, 3000);
+    }, 1000);
 
     return () => {
-      running = false;
+      alive = false;
       cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
-      clearInterval(safety);
+      clearInterval(backup);
       listeners.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };

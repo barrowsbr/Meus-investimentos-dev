@@ -15,8 +15,8 @@ export default function BladeRunnerRain() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const state: CanvasState = { width: 0, height: 0, dpr: 1 };
+    let lastDrawTime = 0;
 
     interface Drop { x: number; y: number; len: number; speed: number; opacity: number }
     interface NeonSign { x: number; y: number; w: number; h: number; color: string; phase: number; speed: number; on: boolean; nextFlicker: number }
@@ -62,11 +62,13 @@ export default function BladeRunnerRain() {
       if (!applySize(canvas!, ctx!, state)) return;
       initDrops();
       spawnNeons();
+      draw();
     }
 
     let frameCount = 0;
 
     function draw() {
+      lastDrawTime = performance.now();
       frameCount++;
       const { width, height } = state;
 
@@ -112,10 +114,10 @@ export default function BladeRunnerRain() {
 
     let raf = 0, last = 0;
     const FRAME_MS = 1000 / 28;
-    let running = true;
+    let alive = true;
 
     function loop(t: number) {
-      if (!running) return;
+      if (!alive) return;
       raf = requestAnimationFrame(loop);
       resize();
       if (t - last < FRAME_MS) return;
@@ -123,31 +125,40 @@ export default function BladeRunnerRain() {
       draw();
     }
 
-    function start() {
+    function boot() {
       resize();
-      if (state.width < 10 || state.height < 10) return;
-      if (reduced) { draw(); draw(); draw(); return; }
-      if (running) raf = requestAnimationFrame(loop);
+      if (state.width > 0 && state.height > 0 && alive) {
+        raf = requestAnimationFrame(loop);
+      }
     }
 
-    requestAnimationFrame(() => requestAnimationFrame(start));
-    const t1 = setTimeout(start, 300);
-    const t2 = setTimeout(start, 800);
+    requestAnimationFrame(() => requestAnimationFrame(boot));
+    const t1 = setTimeout(boot, 300);
+    const t2 = setTimeout(boot, 800);
 
     const listeners = attachResizeListeners(canvas, resize);
 
     function onVisibility() {
-      if (document.hidden) { running = false; cancelAnimationFrame(raf); }
-      else if (!reduced && !running) { running = true; last = 0; resize(); raf = requestAnimationFrame(loop); }
+      if (document.hidden) { cancelAnimationFrame(raf); }
+      else if (alive) { last = 0; resize(); raf = requestAnimationFrame(loop); }
     }
     document.addEventListener("visibilitychange", onVisibility);
 
-    const safety = setInterval(() => {
-      if (!running && !reduced && !document.hidden) { running = true; last = 0; resize(); raf = requestAnimationFrame(loop); }
-    }, 3000);
+    const backup = setInterval(() => {
+      if (!alive) return;
+      if (performance.now() - lastDrawTime > 500) {
+        resize();
+        if (state.width > 0) draw();
+      }
+      if (alive && !document.hidden) {
+        cancelAnimationFrame(raf);
+        last = 0;
+        raf = requestAnimationFrame(loop);
+      }
+    }, 1000);
 
     return () => {
-      running = false; cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); clearInterval(safety);
+      alive = false; cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); clearInterval(backup);
       listeners.dispose(); document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);
