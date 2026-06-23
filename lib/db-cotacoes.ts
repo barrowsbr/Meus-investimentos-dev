@@ -68,8 +68,9 @@ export async function readGoldenSource(): Promise<GoldenSourceData> {
     prices[date] = {};
     for (let j = 0; j < tickers.length; j++) {
       const val = row[j + 1];
-      if (val != null && val !== "" && typeof val === "number" && isFinite(val)) {
-        prices[date][tickers[j]] = val;
+      const num = typeof val === "number" ? val : (val != null && val !== "" ? Number(val) : NaN);
+      if (isFinite(num)) {
+        prices[date][tickers[j]] = num;
       }
     }
   }
