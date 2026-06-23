@@ -5,11 +5,11 @@ import { useTheme } from "./TerminalProvider";
 import { applySize, attachResizeListeners, type CanvasState } from "@/lib/canvas-resize";
 
 export default function MiamiBackground() {
-  const { theme } = useTheme();
+  const { theme, bgAnim } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (theme !== "miami") return;
+    if (theme !== "miami" || !bgAnim) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -173,9 +173,9 @@ export default function MiamiBackground() {
       listeners.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [theme]);
+  }, [theme, bgAnim]);
 
-  if (theme !== "miami") return null;
+  if (theme !== "miami" || !bgAnim) return null;
 
   return (
     <>

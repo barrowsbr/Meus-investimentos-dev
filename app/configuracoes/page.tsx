@@ -1110,7 +1110,9 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
 ];
 
 function ThemeSection() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
+
+  const hasAnimation = theme === "matrix" || theme === "miami" || theme === "blade";
 
   return (
     <div className="space-y-4">
@@ -1184,6 +1186,26 @@ function ThemeSection() {
           );
         })}
       </div>
+
+      {/* Animation toggle */}
+      {hasAnimation && (
+        <div className="flex items-center gap-3 pt-2 border-t border-zinc-800/50">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div
+              className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${bgAnim ? "bg-emerald-500" : "bg-zinc-600"}`}
+              onClick={() => setBgAnim(!bgAnim)}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${bgAnim ? "left-4" : "left-0.5"}`} />
+            </div>
+            <span className="text-xs text-zinc-400">
+              {bgAnim ? "Animação de fundo ativada" : "Animação de fundo desativada"}
+            </span>
+          </label>
+          <span className="text-[10px] text-zinc-600">
+            Desative para economizar bateria em dispositivos móveis
+          </span>
+        </div>
+      )}
     </div>
   );
 }

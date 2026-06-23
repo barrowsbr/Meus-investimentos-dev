@@ -5,11 +5,11 @@ import { useTheme } from "./TerminalProvider";
 import { applySize, attachResizeListeners, type CanvasState } from "@/lib/canvas-resize";
 
 export default function MatrixRain() {
-  const { theme } = useTheme();
+  const { theme, bgAnim } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (theme !== "matrix") return;
+    if (theme !== "matrix" || !bgAnim) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -124,9 +124,9 @@ export default function MatrixRain() {
       listeners.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [theme]);
+  }, [theme, bgAnim]);
 
-  if (theme !== "matrix") return null;
+  if (theme !== "matrix" || !bgAnim) return null;
 
   return (
     <>
