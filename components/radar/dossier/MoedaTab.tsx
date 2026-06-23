@@ -7,7 +7,8 @@
 // Para os EUA mostra o Índice do Dólar (DXY). Sem dados → mensagem amigável.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ArrowLeftRight, Loader2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeftRight, Loader2, AlertCircle, TrendingUp, TrendingDown, Repeat2 } from "lucide-react";
 import { AreaChart, Area, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { CurrencyData, CurrencyDetail, CurrencyPeriods } from "@/lib/radar/types";
 import { useCurrencyDetail } from "@/lib/radar/use-radar";
@@ -67,17 +68,20 @@ function Range52({ rate, hi, lo }: { rate: number; hi: number; lo: number }) {
   );
 }
 
-function YearChart({ detail, sign }: { detail: CurrencyDetail; sign: number }) {
+function YearChart({ detail, sign, inverted = false, currencyCode = "" }: { detail: CurrencyDetail; sign: number; inverted?: boolean; currencyCode?: string }) {
   if (detail.history.length < 5) return null;
   const net = detail.periods?.["1A"] != null ? detail.periods["1A"] * sign : 0;
   const color = net >= 0 ? GREEN : RED;
-  const data = detail.history;
+  const data = inverted
+    ? detail.history.map((d) => ({ ...d, close: 1 / d.close }))
+    : detail.history;
+  const gradId = inverted ? "moedaGradInv" : "moedaGrad";
   return (
     <div className="h-[120px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
           <defs>
-            <linearGradient id="moedaGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.35} />
               <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
@@ -86,9 +90,9 @@ function YearChart({ detail, sign }: { detail: CurrencyDetail; sign: number }) {
           <Tooltip
             contentStyle={{ background: "#12141f", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
             labelStyle={{ color: "#a1a1aa" }}
-            formatter={(v: number) => [fmtRate(v), detail.isDollarIndex ? "DXY" : `1 USD`]}
+            formatter={(v: number) => [fmtRate(v), detail.isDollarIndex ? "DXY" : inverted ? `1 ${currencyCode}` : `1 USD`]}
           />
-          <Area type="monotone" dataKey="close" stroke={color} strokeWidth={1.5} fill="url(#moedaGrad)" isAnimationActive={false} />
+          <Area type="monotone" dataKey="close" stroke={color} strokeWidth={1.5} fill={`url(#${gradId})`} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -112,9 +116,17 @@ export default function MoedaTab({ currency }: { currency: CurrencyData | null }
   // Para moedas comuns, a taxa é "local por USD": se sobe, a moeda enfraquece.
   // Invertendo o sinal, "força da moeda" fica positiva quando ela se valoriza.
   // No DXY (USD) não inverte — DXY maior = dólar mais forte.
+  const [inverted, setInverted] = useState(false);
+
   const sign = detail?.isDollarIndex ? 1 : -1;
   const strengthDay = detail ? detail.changePct * sign : null;
   const dollarIndex = detail?.isDollarIndex;
+
+  const displayRate = detail ? (inverted ? 1 / detail.rate : detail.rate) : null;
+  const displayHi52 = detail?.hi52 != null && detail?.lo52 != null
+    ? (inverted ? 1 / detail.lo52 : detail.hi52) : null;
+  const displayLo52 = detail?.hi52 != null && detail?.lo52 != null
+    ? (inverted ? 1 / detail.hi52 : detail.lo52) : null;
 
   return (
     <div className="space-y-4 p-4">
@@ -143,8 +155,16 @@ export default function MoedaTab({ currency }: { currency: CurrencyData | null }
                   {dollarIndex ? "Índice do Dólar (DXY)" : "Cotação"}
                 </p>
                 <p className="mt-0.5 font-mono text-xl font-bold text-zinc-100">
-                  {dollarIndex ? detail.rate.toFixed(2) : `1 USD = ${fmtRate(detail.rate)}`}
-                  {!dollarIndex && <span className="ml-1 text-sm text-zinc-500">{currency.code}</span>}
+                  {dollarIndex
+                    ? detail.rate.toFixed(2)
+                    : inverted
+                      ? `1 ${currency.code} = ${fmtRate(displayRate!)}`
+                      : `1 USD = ${fmtRate(displayRate!)}`}
+                  {!dollarIndex && (
+                    <span className="ml-1 text-sm text-zinc-500">
+                      {inverted ? "USD" : currency.code}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
@@ -152,12 +172,25 @@ export default function MoedaTab({ currency }: { currency: CurrencyData | null }
                 <PctBadge value={strengthDay} big />
               </div>
             </div>
-            <p className="mt-2 text-[10px] text-zinc-600">
-              <ArrowLeftRight size={9} className="mr-1 inline" />
-              {dollarIndex
-                ? "Variação do dia do índice do dólar (cesta de 6 moedas)."
-                : `Força do ${currency.name} vs USD hoje (positivo = moeda se valorizando).`}
-            </p>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[10px] text-zinc-600">
+                <ArrowLeftRight size={9} className="mr-1 inline" />
+                {dollarIndex
+                  ? "Variação do dia do índice do dólar (cesta de 6 moedas)."
+                  : `Força do ${currency.name} vs USD hoje (positivo = moeda se valorizando).`}
+              </p>
+              {!dollarIndex && (
+                <button
+                  onClick={() => setInverted((v) => !v)}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-200"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  title={inverted ? `Ver 1 USD → ${currency.code}` : `Ver 1 ${currency.code} → USD`}
+                >
+                  <Repeat2 size={12} />
+                  Inverter
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Estatísticas de período */}
@@ -171,17 +204,21 @@ export default function MoedaTab({ currency }: { currency: CurrencyData | null }
           )}
 
           {/* Faixa 52 semanas */}
-          {detail.hi52 != null && detail.lo52 != null && detail.hi52 > detail.lo52 && (
-            <Range52 rate={detail.rate} hi={detail.hi52} lo={detail.lo52} />
+          {displayHi52 != null && displayLo52 != null && displayHi52 > displayLo52 && (
+            <Range52 rate={displayRate!} hi={displayHi52} lo={displayLo52} />
           )}
 
           {/* Gráfico 12 meses */}
           {detail.history.length >= 5 && (
             <section>
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-                {dollarIndex ? "DXY · 12 meses" : `1 USD = ${currency.code} · 12 meses`}
+                {dollarIndex
+                  ? "DXY · 12 meses"
+                  : inverted
+                    ? `1 ${currency.code} = USD · 12 meses`
+                    : `1 USD = ${currency.code} · 12 meses`}
               </p>
-              <YearChart detail={detail} sign={sign} />
+              <YearChart detail={detail} sign={sign} inverted={inverted} currencyCode={currency.code} />
             </section>
           )}
         </>
