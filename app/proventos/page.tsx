@@ -69,11 +69,10 @@ function fxRate(moeda: string, fx: FxRatesSimple): number {
 }
 
 function rowValueBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
-  const v = Math.abs(toNumber(r["valor"]) ?? 0);
-  const decisao = String(r["decisao"] ?? "").toLowerCase();
-  const sign = decisao.includes("imposto") ? -1 : 1;
+  const v = toNumber(r["valor"]) ?? 0;
   const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
-  return sign * v * fxRate(moeda, fx);
+  if (rowIsImposto(r)) return -Math.abs(v) * fxRate(moeda, fx);
+  return v * fxRate(moeda, fx);
 }
 
 function rowIsImposto(r: Record<string, unknown>): boolean {
@@ -81,8 +80,9 @@ function rowIsImposto(r: Record<string, unknown>): boolean {
 }
 
 function rowAbsBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
-  const v = Math.abs(toNumber(r["valor"]) ?? 0);
+  const v = toNumber(r["valor"]) ?? 0;
   const moeda = String(r["moeda"] ?? "BRL").toUpperCase();
+  if (rowIsImposto(r)) return Math.abs(v) * fxRate(moeda, fx);
   return v * fxRate(moeda, fx);
 }
 

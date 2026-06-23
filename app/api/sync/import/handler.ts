@@ -469,17 +469,16 @@ function parseB3Excel(rows: Record<string, unknown>[]): { proventos: ProventoRow
 
 // ── Dedup ────────────────────────────────────────────────────────────────────
 
-// Assinatura de provento: YYYYMMDD|TICKER_normalizado|round(valor*100).
-// NÃO inclui o tipo/decisão na chave — o GSheets usa "Dividendo" para tudo,
-// enquanto a B3 usa Dividendo/JCP/Rendimento; incluir o tipo causaria
-// falso-negativo. data+ticker+valor identifica um provento unicamente (e
-// distingue dividendo de imposto no IBKR, pois o valor difere). Data exata,
-// sem janela de ±dias.
-function sigProvento(data: string, ticker: string, valor: number): string {
+// Assinatura de provento: YYYYMMDD|TICKER_normalizado|I ou D|round(valor*100).
+// Inclui I(mposto)/D(ividendo) para distinguir entradas com mesmo valor e data
+// (ex.: IBKR pode reportar US$30 de dividendo e US$30 de withholding no mesmo
+// dia para o mesmo ticker — sem o tipo, um seria descartado como "existente").
+function sigProvento(data: string, ticker: string, valor: number, decisao: string): string {
   const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
   const t = normalizeTicker(ticker);
   const v = Math.round(Math.abs(valor) * 100);
-  return `${d}|${t}|${v}`;
+  const tipo = decisao.toLowerCase().includes("imposto") ? "I" : "D";
+  return `${d}|${t}|${tipo}|${v}`;
 }
 
 function dedupProventos(
@@ -492,13 +491,14 @@ function dedupProventos(
     const ticker = String(row["ticker"] ?? "");
     const data = String(row["data"] ?? "");
     const valor = parseValor(String(row["valor"] ?? "0"));
-    existingKeys.add(sigProvento(data, ticker, valor));
+    const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
+    existingKeys.add(sigProvento(data, ticker, valor, decisao));
   }
 
   const statuses = new Map<number, "novo" | "existente">();
   for (let i = 0; i < incoming.length; i++) {
     const ev = incoming[i];
-    const key = sigProvento(ev.data, ev.ticker, parseValor(ev.valor));
+    const key = sigProvento(ev.data, ev.ticker, parseValor(ev.valor), ev.decisao);
     statuses.set(i, existingKeys.has(key) ? "existente" : "novo");
   }
   return statuses;

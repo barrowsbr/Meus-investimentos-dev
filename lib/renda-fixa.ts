@@ -142,18 +142,19 @@ export function calcularRendaFixaPosicoes(
     const ticker = String(row["ticker"] ?? row["símbolo"] ?? row["simbolo"] ?? "").trim();
     if (!ticker) continue;
     if (!allRfTickers.has(ticker) && !allRfTickers.has(ticker.toUpperCase())) continue;
-    const valorAbs = Math.abs(toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0);
-    if (valorAbs === 0) continue;
+    const valorRaw = toNumber(row["valor"] ?? row["value"] ?? row["liquido"]) ?? 0;
+    if (valorRaw === 0) continue;
     const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
     const isImposto = decisao.includes("imposto");
     const key = allRfTickers.has(ticker) ? ticker : ticker.toUpperCase();
     const moeda = tickerMoeda(key);
     if (isImposto) {
-      proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) - valorAbs;
-      impostoPorTicker[key] = (impostoPorTicker[key] ?? 0) + valorAbs;
-      totalImpostoRFBRL += toBRL(valorAbs, moeda);
+      const impAbs = Math.abs(valorRaw);
+      proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) - impAbs;
+      impostoPorTicker[key] = (impostoPorTicker[key] ?? 0) + impAbs;
+      totalImpostoRFBRL += toBRL(impAbs, moeda);
     } else {
-      proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) + valorAbs;
+      proventosPorTicker[key] = (proventosPorTicker[key] ?? 0) + valorRaw;
     }
   }
 

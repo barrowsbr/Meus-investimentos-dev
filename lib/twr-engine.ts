@@ -120,9 +120,9 @@ export function parseProventos(rows: Row[]): ParsedIncome[] {
     const decisao = String(row["decisao"] ?? row["decisão"] ?? "").toLowerCase();
     const isImposto = decisao.includes("imposto");
 
-    const valorAbs = Math.abs(toNumber(row["valor"]) ?? 0);
-    if (valorAbs < 0.01) continue;
-    const valor = isImposto ? -valorAbs : valorAbs;
+    const valorRaw = toNumber(row["valor"]) ?? 0;
+    if (Math.abs(valorRaw) < 0.01) continue;
+    const valor = isImposto ? -Math.abs(valorRaw) : valorRaw;
 
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim();
     const date = toYMD(row["data"] ?? row["date"]);
