@@ -74,9 +74,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (data.ok) {
-        if (data.demo) sessionStorage.setItem(DEMO_KEY, "1");
+        const wasDemo = sessionStorage.getItem(DEMO_KEY) === "1";
+        const isDemo = !!data.demo;
+        if (isDemo) sessionStorage.setItem(DEMO_KEY, "1");
         else sessionStorage.removeItem(DEMO_KEY);
         sessionStorage.setItem(AUTH_KEY, "1");
+        if (wasDemo !== isDemo) {
+          window.location.reload();
+          return;
+        }
         setAuthed(true);
       } else {
         setError("Usuário ou senha incorretos.");

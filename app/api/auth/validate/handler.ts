@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const ok = user.trim().toUpperCase() === validUser.toUpperCase() && password === validPass;
     const res = NextResponse.json({ ok });
     // Login normal limpa qualquer cookie de demo remanescente no navegador.
-    if (ok) res.cookies.set(DEMO_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+    if (ok) res.cookies.set(DEMO_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
     return res;
   } catch {
     return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });

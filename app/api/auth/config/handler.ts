@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTab, writeTab, ensureTab } from "@/lib/gsheets";
-import { isDemoRequest } from "@/lib/demo";
 
 const TAB = "config";
 const HEADERS = ["chave", "valor"];
@@ -43,9 +42,6 @@ export async function GET() {
 /** POST — update password and/or protected pages in the config tab. */
 export async function POST(req: NextRequest) {
   try {
-    if (isDemoRequest()) {
-      return NextResponse.json({ error: "Alterações desabilitadas no modo demonstração" }, { status: 403 });
-    }
     const body = await req.json();
     const { currentPassword, newPassword, protectedPages } = body as {
       currentPassword?: string;
