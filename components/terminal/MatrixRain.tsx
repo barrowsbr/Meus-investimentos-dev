@@ -27,25 +27,38 @@ export default function MatrixRain() {
     let height = 0;
     let dpr = 1;
 
-    function setup() {
+    /**
+     * Dimensiona o buffer de desenho ao tamanho REAL renderizado do canvas
+     * (clientWidth/clientHeight), não a window.innerHeight nem 100vh — isso
+     * elimina a divergência da barra de URL no Safari iOS que deixava o canvas
+     * em branco/desalinhado no mobile.
+     */
+    function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      // Use screen dimensions as reliable fallback for mobile
-      width = window.innerWidth || document.documentElement.clientWidth || screen.width;
-      height = window.innerHeight || document.documentElement.clientHeight || screen.height;
-      // Don't override CSS sizing — let CSS handle display size, set pixel buffer directly
+      const w = canvas!.clientWidth || window.innerWidth;
+      const h = canvas!.clientHeight || window.innerHeight;
+      if (w === width && h === height) return;
+      width = w;
+      height = h;
       canvas!.width = Math.floor(width * dpr);
       canvas!.height = Math.floor(height * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      cols = Math.ceil(width / FONT_SIZE);
-      drops = new Array(cols).fill(0).map(() =>
-        Math.floor((Math.random() * -height) / FONT_SIZE)
+      const newCols = Math.ceil(width / FONT_SIZE);
+      // Preserva colunas existentes ao redimensionar; cria novas onde faltar.
+      const oldDrops = drops;
+      drops = new Array(newCols).fill(0).map((_, i) =>
+        oldDrops[i] ?? Math.floor((Math.random() * -height) / FONT_SIZE)
       );
-      speeds = new Array(cols).fill(0).map(() => 0.5 + Math.random() * 0.9);
+      speeds = new Array(newCols).fill(0).map((_, i) =>
+        speeds[i] ?? 0.5 + Math.random() * 0.9
+      );
+      cols = newCols;
       ctx!.fillStyle = "#050A05";
       ctx!.fillRect(0, 0, width, height);
     }
 
     function draw() {
+      // Rastro: véu translúcido escuro → caudas que desvanecem.
       ctx!.fillStyle = "rgba(5, 10, 5, 0.10)";
       ctx!.fillRect(0, 0, width, height);
       ctx!.font = `${FONT_SIZE}px monospace`;
@@ -56,9 +69,9 @@ export default function MatrixRain() {
         const y = drops[i] * FONT_SIZE;
 
         if (Math.random() > 0.975) {
-          ctx!.fillStyle = "rgba(190, 255, 190, 0.95)";
+          ctx!.fillStyle = "rgba(190, 255, 190, 0.95)"; // cabeça brilhante
         } else {
-          ctx!.fillStyle = "rgba(0, 255, 65, 0.55)";
+          ctx!.fillStyle = "rgba(0, 255, 65, 0.55)"; // corpo verde fósforo
         }
         ctx!.fillText(ch, x, y);
 
@@ -82,18 +95,26 @@ export default function MatrixRain() {
       draw();
     }
 
-    setup();
+    // Primeira medição: dois rAFs garantem que o layout já aplicou as
+    // dimensões do canvas (crítico no mobile, onde innerHeight ainda não está
+    // estável no primeiro frame após troca de tema).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resize();
+        if (reduced) {
+          draw();
+          draw();
+        } else if (running) {
+          raf = requestAnimationFrame(loop);
+        }
+      });
+    });
 
-    if (reduced) {
-      draw();
-      draw();
-    } else {
-      raf = requestAnimationFrame(loop);
-    }
+    // ResizeObserver: reage ao tamanho real do canvas (rotação, barra de URL
+    // aparecendo/sumindo no mobile, etc.) sem depender de window.resize.
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(canvas);
 
-    function onResize() {
-      setup();
-    }
     function onVisibility() {
       if (document.hidden) {
         running = false;
@@ -101,19 +122,17 @@ export default function MatrixRain() {
       } else if (!reduced && !running) {
         running = true;
         last = 0;
+        resize();
         raf = requestAnimationFrame(loop);
       }
     }
 
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       running = false;
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
+      ro.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);
