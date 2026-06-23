@@ -737,10 +737,12 @@ body {
   position: fixed;
   inset: 0;
   z-index: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   opacity: 0.38;
+  display: block;
+  image-rendering: pixelated;
 }
 
 /* ── Camada CRT (scanlines + vinheta + flicker) por cima de tudo ── */

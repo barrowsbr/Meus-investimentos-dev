@@ -43,8 +43,9 @@ export default function MatrixRain() {
 
     function setup() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = window.innerWidth;
-      height = window.innerHeight;
+      const rect = canvas!.getBoundingClientRect();
+      width = Math.max(rect.width || window.innerWidth, window.innerWidth);
+      height = Math.max(rect.height || window.innerHeight, window.innerHeight);
       canvas!.width = Math.floor(width * dpr);
       canvas!.height = Math.floor(height * dpr);
       canvas!.style.width = `${width}px`;
@@ -120,12 +121,14 @@ export default function MatrixRain() {
     }
 
     window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       running = false;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);
