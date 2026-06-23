@@ -769,20 +769,26 @@ body {
    ResizeObserver ao tamanho real renderizado. */
 .matrix-rain {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   height: 100dvh;
   z-index: 0;
   pointer-events: none;
   opacity: 0.42;
   display: block;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 /* ── Camada CRT (scanlines) por cima de tudo ── */
 .matrix-crt {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   height: 100dvh;
   z-index: 60;
   pointer-events: none;
@@ -925,19 +931,25 @@ body {
 /* ── Canvas synthwave (fixo atrás do conteúdo) ── */
 .miami-bg {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   height: 100dvh;
   z-index: 0;
   pointer-events: none;
   opacity: 0.55;
   display: block;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 /* ── Grão/scanlines sutis por cima ── */
 .miami-grain {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   height: 100dvh;
   z-index: 60;
   pointer-events: none;
