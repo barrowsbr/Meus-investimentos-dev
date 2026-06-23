@@ -799,27 +799,17 @@ body {
    ResizeObserver ao tamanho real renderizado. */
 .matrix-rain {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 0;
   pointer-events: none;
   opacity: 0.42;
   display: block;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
 }
 
 /* ── Camada CRT (scanlines) por cima de tudo ── */
 .matrix-crt {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 60;
   pointer-events: none;
   background:
@@ -961,26 +951,16 @@ body {
 /* ── Canvas synthwave (fixo atrás do conteúdo) ── */
 .miami-bg {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 0;
   pointer-events: none;
   opacity: 0.55;
   display: block;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
 }
 /* ── Grão/scanlines sutis por cima ── */
 .miami-grain {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 60;
   pointer-events: none;
   background: repeating-linear-gradient(
@@ -1080,26 +1060,16 @@ body {
 /* ── Canvas chuva (fixo atrás do conteúdo) ── */
 .blade-rain {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 0;
   pointer-events: none;
   opacity: 0.50;
   display: block;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
 }
 /* ── Névoa/fog sutil por cima ── */
 .blade-fog {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 60;
   pointer-events: none;
   background:
