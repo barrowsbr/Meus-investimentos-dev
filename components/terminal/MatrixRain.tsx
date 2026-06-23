@@ -27,16 +27,18 @@ export default function MatrixRain() {
     let height = 0;
     let dpr = 1;
 
-    /**
-     * Dimensiona o buffer de desenho ao tamanho REAL renderizado do canvas
-     * (clientWidth/clientHeight), não a window.innerHeight nem 100vh — isso
-     * elimina a divergência da barra de URL no Safari iOS que deixava o canvas
-     * em branco/desalinhado no mobile.
-     */
+    function getViewportSize(): [number, number] {
+      const vv = window.visualViewport;
+      const rect = canvas!.getBoundingClientRect();
+      const w = rect.width || canvas!.clientWidth || vv?.width || window.innerWidth;
+      const h = rect.height || canvas!.clientHeight || vv?.height || window.innerHeight;
+      return [w, h];
+    }
+
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = canvas!.clientWidth || window.innerWidth;
-      const h = canvas!.clientHeight || window.innerHeight;
+      const [w, h] = getViewportSize();
+      if (w < 10 || h < 10) return;
       if (w === width && h === height) return;
       width = w;
       height = h;
@@ -44,7 +46,6 @@ export default function MatrixRain() {
       canvas!.height = Math.floor(height * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       const newCols = Math.ceil(width / FONT_SIZE);
-      // Preserva colunas existentes ao redimensionar; cria novas onde faltar.
       const oldDrops = drops;
       drops = new Array(newCols).fill(0).map((_, i) =>
         oldDrops[i] ?? Math.floor((Math.random() * -height) / FONT_SIZE)
@@ -58,7 +59,6 @@ export default function MatrixRain() {
     }
 
     function draw() {
-      // Rastro: véu translúcido escuro → caudas que desvanecem.
       ctx!.fillStyle = "rgba(5, 10, 5, 0.10)";
       ctx!.fillRect(0, 0, width, height);
       ctx!.font = `${FONT_SIZE}px monospace`;
@@ -69,9 +69,9 @@ export default function MatrixRain() {
         const y = drops[i] * FONT_SIZE;
 
         if (Math.random() > 0.975) {
-          ctx!.fillStyle = "rgba(190, 255, 190, 0.95)"; // cabeça brilhante
+          ctx!.fillStyle = "rgba(190, 255, 190, 0.95)";
         } else {
-          ctx!.fillStyle = "rgba(0, 255, 65, 0.55)"; // corpo verde fósforo
+          ctx!.fillStyle = "rgba(0, 255, 65, 0.55)";
         }
         ctx!.fillText(ch, x, y);
 
@@ -95,25 +95,40 @@ export default function MatrixRain() {
       draw();
     }
 
-    // Primeira medição: dois rAFs garantem que o layout já aplicou as
-    // dimensões do canvas (crítico no mobile, onde innerHeight ainda não está
-    // estável no primeiro frame após troca de tema).
+    function startIfReady() {
+      resize();
+      if (width < 10 || height < 10) return false;
+      if (reduced) {
+        draw();
+        draw();
+      } else if (running) {
+        raf = requestAnimationFrame(loop);
+      }
+      return true;
+    }
+
+    // Primary: double rAF waits for layout
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        resize();
-        if (reduced) {
-          draw();
-          draw();
-        } else if (running) {
-          raf = requestAnimationFrame(loop);
-        }
+        startIfReady();
       });
     });
 
-    // ResizeObserver: reage ao tamanho real do canvas (rotação, barra de URL
-    // aparecendo/sumindo no mobile, etc.) sem depender de window.resize.
+    // Fallback: if double rAF wasn't enough (slow mobile), retry after 300ms
+    const fallbackTimer = setTimeout(() => {
+      if (width < 10 || height < 10) startIfReady();
+    }, 300);
+
+    // Second fallback at 800ms for very slow devices
+    const fallbackTimer2 = setTimeout(() => {
+      if (width < 10 || height < 10) startIfReady();
+    }, 800);
+
     const ro = new ResizeObserver(() => resize());
     ro.observe(canvas);
+
+    const onVVResize = () => resize();
+    window.visualViewport?.addEventListener("resize", onVVResize);
 
     function onVisibility() {
       if (document.hidden) {
@@ -132,7 +147,10 @@ export default function MatrixRain() {
     return () => {
       running = false;
       cancelAnimationFrame(raf);
+      clearTimeout(fallbackTimer);
+      clearTimeout(fallbackTimer2);
       ro.disconnect();
+      window.visualViewport?.removeEventListener("resize", onVVResize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);

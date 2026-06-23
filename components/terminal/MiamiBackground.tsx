@@ -3,17 +3,6 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "./TerminalProvider";
 
-/**
- * MIAMI — cena synthwave / Miami Vice (cyberpunk retrô).
- *
- * Desenha um céu em degradê de pôr-do-sol, um sol neon com cortes art déco e
- * um piso em grade com perspectiva que rola em direção ao observador — a
- * assinatura visual synthwave. Renderiza atrás do conteúdo (terminal-root vira
- * transparente no tema miami) tal como o <MatrixRain/> no tema matrix.
- *
- * Robustez mobile (lições do matrix): buffer dimensionado por ResizeObserver
- * ao tamanho REAL do canvas; primeira medição adiada por duplo rAF.
- */
 export default function MiamiBackground() {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -32,10 +21,18 @@ export default function MiamiBackground() {
     let dpr = 1;
     let scroll = 0;
 
+    function getViewportSize(): [number, number] {
+      const vv = window.visualViewport;
+      const rect = canvas!.getBoundingClientRect();
+      const w = rect.width || canvas!.clientWidth || vv?.width || window.innerWidth;
+      const h = rect.height || canvas!.clientHeight || vv?.height || window.innerHeight;
+      return [w, h];
+    }
+
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = canvas!.clientWidth || window.innerWidth;
-      const h = canvas!.clientHeight || window.innerHeight;
+      const [w, h] = getViewportSize();
+      if (w < 10 || h < 10) return;
       if (w === width && h === height) return;
       width = w;
       height = h;
@@ -48,7 +45,6 @@ export default function MiamiBackground() {
       ctx!.clearRect(0, 0, width, height);
       const horizon = Math.round(height * 0.46);
 
-      // ── Céu (degradê de pôr-do-sol) ──
       const sky = ctx!.createLinearGradient(0, 0, 0, horizon);
       sky.addColorStop(0, "#160A2E");
       sky.addColorStop(0.55, "#3B1248");
@@ -56,12 +52,10 @@ export default function MiamiBackground() {
       ctx!.fillStyle = sky;
       ctx!.fillRect(0, 0, width, horizon);
 
-      // ── Sol neon ──
       const sunR = Math.min(width, height) * 0.2;
       const sunX = width / 2;
       const sunY = horizon - sunR * 0.12;
 
-      // glow ambiente do sol
       ctx!.save();
       const glow = ctx!.createRadialGradient(sunX, sunY, sunR * 0.4, sunX, sunY, sunR * 2.4);
       glow.addColorStop(0, "rgba(255,107,157,0.45)");
@@ -70,7 +64,6 @@ export default function MiamiBackground() {
       ctx!.fillRect(0, 0, width, horizon + sunR);
       ctx!.restore();
 
-      // disco do sol com cortes horizontais (art déco)
       ctx!.save();
       ctx!.beginPath();
       ctx!.arc(sunX, sunY, sunR, 0, Math.PI * 2);
@@ -81,7 +74,6 @@ export default function MiamiBackground() {
       sunGrad.addColorStop(1, "#FF2A6D");
       ctx!.fillStyle = sunGrad;
       ctx!.fillRect(sunX - sunR, sunY - sunR, sunR * 2, sunR * 2);
-      // cortes (espaçamento cresce para baixo)
       ctx!.globalCompositeOperation = "destination-out";
       for (let i = 0; i < 7; i++) {
         const gy = sunY + sunR * 0.12 + i * (sunR * 0.15);
@@ -90,14 +82,12 @@ export default function MiamiBackground() {
       }
       ctx!.restore();
 
-      // ── Chão ──
       ctx!.fillStyle = "#0C0220";
       ctx!.fillRect(0, horizon, width, height - horizon);
 
       const depth = height - horizon;
       const vpX = width / 2;
 
-      // ── Grade: linhas verticais convergindo ao ponto de fuga ──
       ctx!.lineWidth = 1.1;
       ctx!.strokeStyle = "rgba(5,217,232,0.55)";
       ctx!.shadowColor = "rgba(5,217,232,0.9)";
@@ -111,13 +101,12 @@ export default function MiamiBackground() {
         ctx!.stroke();
       }
 
-      // ── Grade: linhas horizontais com perspectiva + rolagem ──
       ctx!.strokeStyle = "rgba(255,42,109,0.55)";
       ctx!.shadowColor = "rgba(255,42,109,0.9)";
       const frac = scroll % 1;
       for (let i = 0; i < 22; i++) {
         const t = (i + frac) / 22;
-        const y = horizon + t * t * depth; // bunching perto do horizonte
+        const y = horizon + t * t * depth;
         if (y <= horizon || y > height) continue;
         ctx!.beginPath();
         ctx!.moveTo(0, y);
@@ -126,7 +115,6 @@ export default function MiamiBackground() {
       }
       ctx!.shadowBlur = 0;
 
-      // linha do horizonte (brilho)
       ctx!.strokeStyle = "rgba(255,231,76,0.6)";
       ctx!.shadowColor = "rgba(255,231,76,0.8)";
       ctx!.shadowBlur = 8;
@@ -153,19 +141,36 @@ export default function MiamiBackground() {
       draw();
     }
 
+    function startIfReady() {
+      resize();
+      if (width < 10 || height < 10) return false;
+      if (reduced) {
+        draw();
+      } else if (running) {
+        raf = requestAnimationFrame(loop);
+      }
+      return true;
+    }
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        resize();
-        if (reduced) {
-          draw();
-        } else if (running) {
-          raf = requestAnimationFrame(loop);
-        }
+        startIfReady();
       });
     });
 
+    const fallbackTimer = setTimeout(() => {
+      if (width < 10 || height < 10) startIfReady();
+    }, 300);
+
+    const fallbackTimer2 = setTimeout(() => {
+      if (width < 10 || height < 10) startIfReady();
+    }, 800);
+
     const ro = new ResizeObserver(() => resize());
     ro.observe(canvas);
+
+    const onVVResize = () => resize();
+    window.visualViewport?.addEventListener("resize", onVVResize);
 
     function onVisibility() {
       if (document.hidden) {
@@ -183,7 +188,10 @@ export default function MiamiBackground() {
     return () => {
       running = false;
       cancelAnimationFrame(raf);
+      clearTimeout(fallbackTimer);
+      clearTimeout(fallbackTimer2);
       ro.disconnect();
+      window.visualViewport?.removeEventListener("resize", onVVResize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);
