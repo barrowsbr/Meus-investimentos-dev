@@ -126,8 +126,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "var(--bg)" }}>
-      <div className="animate-fade-in" style={{ position: "absolute", top: "2vh", left: "50%", transform: "translateX(-50%)", zIndex: 1, pointerEvents: "none" }}>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4" style={{ background: "var(--bg)" }}>
+      <div className="animate-fade-in" style={{ marginBottom: -8, pointerEvents: "none" }}>
         <MoneyAnimation width={240} height={240} />
       </div>
       <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)", position: "relative", zIndex: 2 }}>
