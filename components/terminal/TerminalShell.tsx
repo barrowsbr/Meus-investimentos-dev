@@ -9,6 +9,7 @@ import { navItemForPath } from "./nav";
 import { GlobeOverlayProvider } from "@/components/GlobeOverlayContext";
 import HoloOverlay from "@/components/HoloOverlay";
 import MatrixRain from "./MatrixRain";
+import MiamiBackground from "./MiamiBackground";
 
 const COLLAPSED_KEY = "rail-collapsed";
 
@@ -34,6 +35,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
   return (
     <GlobeOverlayProvider>
     <MatrixRain />
+    <MiamiBackground />
     <div className="terminal-root relative z-[1] flex h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <Rail open={railOpen} collapsed={collapsed} onToggleCollapse={toggleCollapsed} onNavigate={() => setRailOpen(false)} />
 
