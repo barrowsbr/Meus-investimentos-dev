@@ -3,6 +3,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 
 const MoneyAnimation = dynamic(() => import("./MoneyAnimation"), { ssr: false });
@@ -122,11 +123,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "var(--bg)" }}>
-      <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)" }}>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4" style={{ background: "var(--bg)" }}>
+      <div className="animate-fade-in" style={{ width: 280, height: 280, marginBottom: -20, position: "relative", zIndex: 1 }}>
+        <MoneyAnimation width={280} height={280} />
+      </div>
+      <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)", position: "relative", zIndex: 2 }}>
         {/* Marca */}
         <div className="flex items-center gap-3" style={{ padding: "26px 32px 20px", borderBottom: "1px solid var(--line)" }}>
-          <MoneyAnimation width={36} height={36} />
+          <Image src="/barroots-mark.png" alt="Barroots" width={36} height={36} className="object-contain" />
           <div>
             <div className="font-mono" style={{ fontSize: 14, fontWeight: 700, letterSpacing: ".12em", color: "var(--text)" }}>
               BARROOTS
