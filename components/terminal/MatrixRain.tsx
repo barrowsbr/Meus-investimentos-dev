@@ -3,19 +3,6 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "./TerminalProvider";
 
-/**
- * MATRIX — chuva digital + camada CRT.
- *
- * Renderiza apenas quando o tema é "matrix". Dá PROFUNDIDADE ao tema (em vez de
- * um verde chapado "filtro por cima"): glifos katakana caindo atrás do conteúdo
- * + uma camada CRT (scanlines, vinheta, flicker) por cima — tudo pointer-events
- * none, então não interfere na interação.
- *
- * Cuidados:
- * - Pausa quando a aba não está visível (visibilitychange) — economiza CPU.
- * - Respeita prefers-reduced-motion: mostra um quadro estático, sem animar.
- * - FPS limitado (~20fps) e opacidade baixa: presença ambiente, não distração.
- */
 export default function MatrixRain() {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -29,7 +16,6 @@ export default function MatrixRain() {
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Glifos: katakana (meia-largura) + dígitos + alguns latinos — o "código" de Matrix.
     const GLYPHS =
       "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ﾞ<>=*+-¦|".split("");
 
@@ -43,33 +29,32 @@ export default function MatrixRain() {
 
     function setup() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const rect = canvas!.getBoundingClientRect();
-      width = Math.max(rect.width || window.innerWidth, window.innerWidth);
-      height = Math.max(rect.height || window.innerHeight, window.innerHeight);
+      // Use screen dimensions as reliable fallback for mobile
+      width = window.innerWidth || document.documentElement.clientWidth || screen.width;
+      height = window.innerHeight || document.documentElement.clientHeight || screen.height;
+      // Don't override CSS sizing — let CSS handle display size, set pixel buffer directly
       canvas!.width = Math.floor(width * dpr);
       canvas!.height = Math.floor(height * dpr);
-      canvas!.style.width = `${width}px`;
-      canvas!.style.height = `${height}px`;
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       cols = Math.ceil(width / FONT_SIZE);
-      drops = new Array(cols).fill(0).map(() => Math.floor((Math.random() * -height) / FONT_SIZE));
+      drops = new Array(cols).fill(0).map(() =>
+        Math.floor((Math.random() * -height) / FONT_SIZE)
+      );
       speeds = new Array(cols).fill(0).map(() => 0.5 + Math.random() * 0.9);
       ctx!.fillStyle = "#050A05";
       ctx!.fillRect(0, 0, width, height);
     }
 
     function draw() {
-      // Rastro: véu translúcido escuro a cada quadro → caudas que desvanecem.
       ctx!.fillStyle = "rgba(5, 10, 5, 0.10)";
       ctx!.fillRect(0, 0, width, height);
-      ctx!.font = `${FONT_SIZE}px var(--font-mono), monospace`;
+      ctx!.font = `${FONT_SIZE}px monospace`;
 
       for (let i = 0; i < cols; i++) {
         const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
         const x = i * FONT_SIZE;
         const y = drops[i] * FONT_SIZE;
 
-        // Cabeça do fluxo mais brilhante (quase branca), corpo verde fósforo.
         if (Math.random() > 0.975) {
           ctx!.fillStyle = "rgba(190, 255, 190, 0.95)";
         } else {
@@ -78,7 +63,7 @@ export default function MatrixRain() {
         ctx!.fillText(ch, x, y);
 
         if (y > height && Math.random() > 0.975) {
-          drops[i] = Math.floor((Math.random() * -20));
+          drops[i] = Math.floor(Math.random() * -20);
         }
         drops[i] += speeds[i];
       }
@@ -86,7 +71,7 @@ export default function MatrixRain() {
 
     let raf = 0;
     let last = 0;
-    const FRAME_MS = 1000 / 20; // ~20fps: fluido o bastante, leve na CPU
+    const FRAME_MS = 1000 / 20;
     let running = true;
 
     function loop(t: number) {
@@ -98,8 +83,8 @@ export default function MatrixRain() {
     }
 
     setup();
+
     if (reduced) {
-      // Sem animação: um único quadro estático de glifos esparsos.
       draw();
       draw();
     } else {
