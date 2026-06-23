@@ -95,8 +95,7 @@ export default function MoneyAnimation({ width = 240, height = 240 }: Props) {
     bufCtx.restore();
 
     // --- Render buffer to main canvas as ASCII/dots/pixels ---
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, w, h);
+    ctx.clearRect(0, 0, w, h);
 
     // Backdrop glow
     const gk = alpha * 0.12;
@@ -169,7 +168,7 @@ export default function MoneyAnimation({ width = 240, height = 240 }: Props) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = width * dpr;
     canvas.height = height * dpr;
-    const ctx = canvas.getContext("2d", { alpha: false })!;
+    const ctx = canvas.getContext("2d")!;
     ctx.scale(dpr, dpr);
 
     const bufCanvas = document.createElement("canvas");
