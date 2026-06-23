@@ -792,6 +792,46 @@ body {
 [data-theme="matrix"] input,
 [data-theme="matrix"] textarea { caret-color: #00FF41; }
 
+/* ── Âmbar: data stream (canvas fixo atrás do conteúdo) ── */
+.ambar-bg {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  display: block;
+}
+.ambar-scanlines {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(0, 0, 0, 0.04) 4px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+}
+
+/* ── Jornal: ticker tape (canvas fixo atrás do conteúdo) ── */
+.jornal-bg {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.7;
+  display: block;
+}
+.jornal-grain {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 60;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
+}
+
 /* ── Chuva digital (canvas fixo atrás do conteúdo) ──
    inset:0 estica o canvas até as 4 bordas da viewport de forma confiável em
    todos os browsers; height:100dvh é reforço dinâmico para o mobile (acompanha
