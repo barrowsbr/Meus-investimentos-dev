@@ -2,8 +2,10 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
+import dynamic from "next/dynamic";
 import { Eye, EyeOff } from "lucide-react";
+
+const MoneyAnimation = dynamic(() => import("./MoneyAnimation"), { ssr: false });
 
 const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
@@ -124,7 +126,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)" }}>
         {/* Marca */}
         <div className="flex items-center gap-3" style={{ padding: "26px 32px 20px", borderBottom: "1px solid var(--line)" }}>
-          <Image src="/barroots-mark.png" alt="Barroots" width={36} height={36} className="object-contain" />
+          <MoneyAnimation width={36} height={36} />
           <div>
             <div className="font-mono" style={{ fontSize: 14, fontWeight: 700, letterSpacing: ".12em", color: "var(--text)" }}>
               BARROOTS
