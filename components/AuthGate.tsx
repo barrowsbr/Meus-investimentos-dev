@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 
 const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
 const DEMO_KEY = "mi_demo";
+const PROTECTED_PAGES_KEY = "mi_protected_pages";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [user, setUser] = useState("");
@@ -16,16 +19,34 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [protectedPages, setProtectedPages] = useState<string[] | null>(null);
 
   useEffect(() => {
     setAuthed(sessionStorage.getItem(AUTH_KEY) === "1");
+    try {
+      const stored = sessionStorage.getItem(PROTECTED_PAGES_KEY);
+      if (stored) setProtectedPages(JSON.parse(stored));
+    } catch { /* ignore */ }
     setMounted(true);
+  }, []);
+
+  // Fetch protected pages config once on mount (lightweight call).
+  useEffect(() => {
+    fetch("/api/auth/config")
+      .then(r => r.json())
+      .then(data => {
+        if (data.protectedPages) {
+          setProtectedPages(data.protectedPages);
+          sessionStorage.setItem(PROTECTED_PAGES_KEY, JSON.stringify(data.protectedPages));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Auto-update golden source once per day after login
   useEffect(() => {
     if (!authed) return;
-    if (sessionStorage.getItem(DEMO_KEY) === "1") return; // demo é somente leitura
+    if (sessionStorage.getItem(DEMO_KEY) === "1") return;
     const today = new Date().toISOString().slice(0, 10);
     if (sessionStorage.getItem(COTACOES_KEY) === today) return;
     sessionStorage.setItem(COTACOES_KEY, today);
@@ -64,7 +85,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!mounted) return null;
-  if (authed) return <>{children}</>;
+
+  // If protected pages list is configured (non-empty), only those pages require auth.
+  // Empty list or null = ALL pages require auth (default behavior).
+  const needsAuth = (() => {
+    if (!protectedPages || protectedPages.length === 0) return true;
+    return protectedPages.some(p => {
+      if (p === "/") return pathname === "/";
+      return pathname === p || pathname.startsWith(p + "/");
+    });
+  })();
+
+  if (authed || !needsAuth) return <>{children}</>;
 
   const inputStyle: React.CSSProperties = {
     background: "var(--input)",

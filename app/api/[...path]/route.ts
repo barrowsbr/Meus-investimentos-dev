@@ -10,6 +10,7 @@ type Module = Record<string, any>;
 async function loadHandler(path: string): Promise<Module | null> {
   switch (path) {
     case "alavancagem": return import("@/app/api/alavancagem/handler");
+    case "auth/config": return import("@/app/api/auth/config/handler");
     case "auth/password": return import("@/app/api/auth/password/handler");
     case "auth/validate": return import("@/app/api/auth/validate/handler");
     case "backup": return import("@/app/api/backup/handler");
