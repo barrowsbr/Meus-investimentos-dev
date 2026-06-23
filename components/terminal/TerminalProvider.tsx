@@ -3,9 +3,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 
 // ── Tema ─────────────────────────────────────────────────────────────────────
-export type Theme = "ambar" | "jornal" | "matrix" | "miami";
+export type Theme = "ambar" | "jornal" | "matrix" | "miami" | "blade";
 const THEME_KEY = "barroots_theme";
-const VALID_THEMES: Theme[] = ["ambar", "jornal", "matrix", "miami"];
+const VALID_THEMES: Theme[] = ["ambar", "jornal", "matrix", "miami", "blade"];
 
 /**
  * Cores concretas por tema — para casos onde CSS var não resolve (atributos SVG
@@ -27,6 +27,10 @@ export const THEME_COLORS: Record<Theme, Record<string, string>> = {
   miami: {
     accent: "#FF2A6D", pos: "#05FFA1", neg: "#FF2A6D", info: "#05D9E8",
     text: "#F5ECFF", muted: "#8E7AA8", line: "#3A1F5C", panel: "#241040",
+  },
+  blade: {
+    accent: "#FF6D00", pos: "#3FB950", neg: "#F0504A", info: "#38BDF8",
+    text: "#C9D1D9", muted: "#6B7B8D", line: "#1A2332", panel: "#0C1219",
   },
 };
 
