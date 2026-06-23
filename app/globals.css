@@ -104,6 +104,36 @@
   --cat-5:#C8FF00; --cat-6:#00BFFF; --cat-7:#FF3838; --cat-8:#9DFF00;
 }
 
+[data-theme="blade"] {
+  /* Blade Runner — noir cyberpunk: laranja neon, ciano, chuva perpétua */
+  --bg:            #060A12;
+  --panel:         #0C1219;
+  --rail:          #080D14;
+  --input:         #0F1820;
+  --sel:           rgba(255,109,0,.10);
+  --hover:         rgba(56,189,248,.05);
+
+  --line:          #1A2332;
+  --line-strong:   #263345;
+
+  --accent:        #FF6D00;
+  --accent-wash:   rgba(255,109,0,.12);
+
+  --text:          #C9D1D9;
+  --text-2:        #8B949E;
+  --muted:         #6B7B8D;
+  --faint:         #3D4E5F;
+
+  --pos:           #3FB950;
+  --neg:           #F0504A;
+  --info:          #38BDF8;
+
+  --bar-track:     rgba(56,189,248,.08);
+
+  --cat-1:#FF6D00; --cat-2:#38BDF8; --cat-3:#E8A33D; --cat-4:#22D3EE;
+  --cat-5:#F97316; --cat-6:#3FB950; --cat-7:#0EA5E9; --cat-8:#FB923C;
+}
+
 [data-theme="miami"] {
   /* synthwave / Miami Vice — neon rosa+ciano sobre roxo profundo */
   --bg:            #160A2E;
@@ -1028,4 +1058,122 @@ body {
 [data-theme="miami"] [class*="border-slate-8"],
 [data-theme="miami"] [class*="border-neutral-8"] {
   border-color: rgba(5, 217, 232, 0.18) !important;
+}
+
+/* ============================================================================
+   BLADE RUNNER — noir cyberpunk dystópico.
+   Chuva perpétua, skyline de megacidade, neon signs laranja e ciano piscando
+   entre edifícios. A paleta é fria (azul-aço) com accent quente (laranja neon).
+   ============================================================================ */
+
+[data-theme="blade"] .terminal-root { background: transparent !important; }
+[data-theme="blade"] body { background: var(--bg); }
+
+[data-theme="blade"] body {
+  text-shadow: 0 0 1px rgba(56, 189, 248, 0.12);
+}
+
+[data-theme="blade"] ::selection { background: rgba(255, 109, 0, 0.28); color: #FFF0E0; }
+[data-theme="blade"] input,
+[data-theme="blade"] textarea { caret-color: #FF6D00; }
+
+/* ── Canvas chuva (fixo atrás do conteúdo) ── */
+.blade-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.50;
+  display: block;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+/* ── Névoa/fog sutil por cima ── */
+.blade-fog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 60;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(6, 10, 18, 0) 0%,
+      rgba(6, 10, 18, 0) 70%,
+      rgba(6, 10, 18, 0.25) 100%
+    );
+}
+
+/* ── Glass card com glow laranja sutil ── */
+[data-theme="blade"] .glass-card,
+[data-theme="blade"] .t-panel {
+  border-color: rgba(255, 109, 0, 0.12) !important;
+  box-shadow: 0 0 12px rgba(255, 109, 0, 0.04), inset 0 0 0 1px rgba(56, 189, 248, 0.04);
+}
+[data-theme="blade"] .glass-card:hover {
+  box-shadow: 0 0 18px rgba(255, 109, 0, 0.08), inset 0 0 0 1px rgba(56, 189, 248, 0.08);
+}
+
+[data-theme="blade"] .nav-active {
+  text-shadow: 0 0 6px rgba(255, 109, 0, 0.55);
+}
+
+[data-theme="blade"] .t-blink { color: #FF6D00; text-shadow: 0 0 6px rgba(255, 109, 0, 0.75); }
+
+/* ── Coesão de cor: cinzas neutros → tons azul-aço ── */
+[data-theme="blade"] .text-white,
+[data-theme="blade"] .text-zinc-50,  [data-theme="blade"] .text-zinc-100,
+[data-theme="blade"] .text-zinc-200, [data-theme="blade"] .text-zinc-300,
+[data-theme="blade"] .text-gray-100, [data-theme="blade"] .text-gray-200,
+[data-theme="blade"] .text-gray-300, [data-theme="blade"] .text-slate-100,
+[data-theme="blade"] .text-slate-200,[data-theme="blade"] .text-slate-300,
+[data-theme="blade"] .text-neutral-100,[data-theme="blade"] .text-neutral-200,
+[data-theme="blade"] .text-neutral-300 {
+  color: #C9D1D9 !important;
+}
+[data-theme="blade"] .text-zinc-400, [data-theme="blade"] .text-zinc-500,
+[data-theme="blade"] .text-gray-400, [data-theme="blade"] .text-gray-500,
+[data-theme="blade"] .text-slate-400,[data-theme="blade"] .text-slate-500,
+[data-theme="blade"] .text-neutral-400,[data-theme="blade"] .text-neutral-500 {
+  color: #6B7B8D !important;
+}
+[data-theme="blade"] .text-zinc-600,
+[data-theme="blade"] .text-gray-600,
+[data-theme="blade"] .text-slate-600,
+[data-theme="blade"] .text-neutral-600 {
+  color: #3D4E5F !important;
+}
+[data-theme="blade"] .text-zinc-700,
+[data-theme="blade"] .text-gray-700,
+[data-theme="blade"] .text-slate-700,
+[data-theme="blade"] .text-neutral-700 {
+  color: #2A3A4A !important;
+}
+
+/* BG neutros → azul-escuro. */
+[data-theme="blade"] [class*="bg-zinc-9"],
+[data-theme="blade"] [class*="bg-zinc-8"],
+[data-theme="blade"] [class*="bg-gray-9"],
+[data-theme="blade"] [class*="bg-gray-8"],
+[data-theme="blade"] [class*="bg-slate-9"],
+[data-theme="blade"] [class*="bg-slate-8"],
+[data-theme="blade"] [class*="bg-neutral-9"],
+[data-theme="blade"] [class*="bg-neutral-8"] {
+  background-color: #0C1219 !important;
+}
+/* Bordas neutras → hairline ciano sutil. */
+[data-theme="blade"] [class*="border-zinc-8"],
+[data-theme="blade"] [class*="border-zinc-7"],
+[data-theme="blade"] [class*="border-gray-8"],
+[data-theme="blade"] [class*="border-gray-7"],
+[data-theme="blade"] [class*="border-slate-8"],
+[data-theme="blade"] [class*="border-neutral-8"] {
+  border-color: rgba(56, 189, 248, 0.12) !important;
 }

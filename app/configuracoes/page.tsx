@@ -1185,6 +1185,12 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
     desc: "Synthwave / Miami Vice — neon rosa e ciano, pôr-do-sol retrô e grade",
     preview: { bg: "#160A2E", accent: "#FF2A6D", text: "#F5ECFF", muted: "#8E7AA8", pos: "#05FFA1", neg: "#FF2A6D" },
   },
+  {
+    key: "blade",
+    label: "Blade Runner",
+    desc: "Noir cyberpunk — chuva, neon laranja/ciano, megacidade distópica",
+    preview: { bg: "#060A12", accent: "#FF6D00", text: "#C9D1D9", muted: "#6B7B8D", pos: "#3FB950", neg: "#F0504A" },
+  },
 ];
 
 function ThemeSection() {
@@ -1196,7 +1202,7 @@ function ThemeSection() {
         Altera as cores e tipografia de toda a interface. O tema persiste entre sessões no navegador.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         {THEME_OPTIONS.map((opt) => {
           const active = theme === opt.key;
           const p = opt.preview;
