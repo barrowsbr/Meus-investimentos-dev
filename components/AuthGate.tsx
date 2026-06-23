@@ -6,7 +6,10 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 
-const MoneyAnimation = dynamic(() => import("./MoneyAnimation"), { ssr: false });
+const MoneyAnimation = dynamic(() => import("./MoneyAnimation"), {
+  ssr: false,
+  loading: () => <div style={{ width: 240, height: 240 }} />,
+});
 
 const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
@@ -124,8 +127,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4" style={{ background: "var(--bg)" }}>
-      <div className="animate-fade-in" style={{ width: 280, height: 280, marginBottom: -20, position: "relative", zIndex: 1 }}>
-        <MoneyAnimation width={280} height={280} />
+      <div className="animate-fade-in" style={{ marginBottom: -16, position: "relative", zIndex: 1 }}>
+        <MoneyAnimation width={240} height={240} />
       </div>
       <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)", position: "relative", zIndex: 2 }}>
         {/* Marca */}
