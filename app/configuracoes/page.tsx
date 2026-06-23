@@ -1112,7 +1112,7 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
 function ThemeSection() {
   const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
 
-  const hasAnimation = theme === "matrix" || theme === "miami" || theme === "blade";
+  const hasAnimation = theme === "ambar" || theme === "jornal" || theme === "matrix" || theme === "miami" || theme === "blade";
 
   return (
     <div className="space-y-4">

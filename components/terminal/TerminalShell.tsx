@@ -11,6 +11,8 @@ import HoloOverlay from "@/components/HoloOverlay";
 import MatrixRain from "./MatrixRain";
 import MiamiBackground from "./MiamiBackground";
 import BladeRunnerRain from "./BladeRunnerRain";
+import AmbarBackground from "./AmbarBackground";
+import JornalBackground from "./JornalBackground";
 
 const COLLAPSED_KEY = "rail-collapsed";
 
@@ -35,6 +37,8 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
 
   return (
     <GlobeOverlayProvider>
+    <AmbarBackground />
+    <JornalBackground />
     <MatrixRain />
     <MiamiBackground />
     <BladeRunnerRain />
