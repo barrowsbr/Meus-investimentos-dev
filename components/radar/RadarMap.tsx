@@ -56,7 +56,7 @@ function RadarMapInner({
     <div
       ref={wrapRef}
       className="relative h-full w-full overflow-hidden rounded-xl md:rounded-2xl"
-      style={{ background: "radial-gradient(120% 100% at 50% 0%, #0d1018 0%, #070912 70%)" }}
+      style={{ background: "transparent" }}
       onMouseLeave={() => setTip(null)}
     >
       {/* Controles de zoom */}
