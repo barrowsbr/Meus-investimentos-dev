@@ -21,6 +21,14 @@ export default function BarrootsTree() {
         let buf: p5Type.Graphics;
         let ctx: CanvasRenderingContext2D;
         const chars = "BARROTS/\\|+*=:.oO0#@%&".split("");
+        const container = containerRef.current!;
+
+        function viewW() {
+          return container.clientWidth || window.visualViewport?.width || window.innerWidth;
+        }
+        function viewH() {
+          return container.clientHeight || window.visualViewport?.height || window.innerHeight;
+        }
 
         const variants = [
           { canopy: [70, 228, 232], branch: [64, 170, 238], trunk: [78, 128, 236], root: [150, 108, 246], spark: [200, 250, 255] },
@@ -59,7 +67,7 @@ export default function BarrootsTree() {
         let wordTimer = 0.6, wordBurst = 0, wordOn = false, wordSeed = 0;
 
         p.setup = function () {
-          p.createCanvas(p.windowWidth, p.windowHeight);
+          p.createCanvas(viewW(), viewH());
           p.pixelDensity(1);
           p.textFont("Courier New, monospace");
           p.textAlign(p.CENTER, p.CENTER);
@@ -536,15 +544,51 @@ export default function BarrootsTree() {
         p.keyPressed = function () {
           if (p.key === "g" || p.key === "G") triggerGlitch();
         };
-        p.windowResized = function () { p.resizeCanvas(p.windowWidth, p.windowHeight); };
+
+        function doResize() {
+          const w = viewW(), h = viewH();
+          if (w > 10 && h > 10 && (w !== p.width || h !== p.height)) {
+            p.resizeCanvas(w, h);
+          }
+        }
+
+        p.windowResized = doResize;
+
+        // Extra resize listeners for mobile (orientationchange + visualViewport)
+        const onOrient = () => {
+          doResize();
+          setTimeout(doResize, 100);
+          setTimeout(doResize, 300);
+          setTimeout(doResize, 600);
+        };
+        window.addEventListener("orientationchange", onOrient);
+        window.addEventListener("resize", doResize);
+        const onVV = () => doResize();
+        window.visualViewport?.addEventListener("resize", onVV);
+
+        // Store cleanup references on the instance
+        (p as any).__mobileCleanup = () => {
+          window.removeEventListener("orientationchange", onOrient);
+          window.removeEventListener("resize", doResize);
+          window.visualViewport?.removeEventListener("resize", onVV);
+        };
       };
 
       instance = new p5(sketch, containerRef.current);
       p5Ref.current = instance;
+
+      // Ensure p5 canvas fills container (p5 sets inline styles that may not cover iOS)
+      const cvs = containerRef.current?.querySelector("canvas");
+      if (cvs) {
+        cvs.style.display = "block";
+        cvs.style.width = "100%";
+        cvs.style.height = "100%";
+      }
     });
 
     return () => {
       if (p5Ref.current) {
+        (p5Ref.current as any).__mobileCleanup?.();
         p5Ref.current.remove();
         p5Ref.current = null;
       }
