@@ -66,18 +66,7 @@ export default function BottomNav() {
             >
               {SHORT[href] ?? label}
             </span>
-            {active && (
-              <span
-                aria-hidden
-                className="absolute bottom-1 rounded-full transition-all duration-300 ease-out"
-                style={{
-                  width: 4,
-                  height: 4,
-                  background: "var(--accent)",
-                  boxShadow: "0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)",
-                }}
-              />
-            )}
+
           </Link>
         );
       })}
