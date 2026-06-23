@@ -1179,6 +1179,12 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
     desc: "Papel de jornal financeiro — claro, tipografia serifada",
     preview: { bg: "#F2EBDD", accent: "#000000", text: "#000000", muted: "#555555", pos: "#0C6B2E", neg: "#7F1D1D" },
   },
+  {
+    key: "miami",
+    label: "Miami",
+    desc: "Synthwave / Miami Vice — neon rosa e ciano, pôr-do-sol retrô e grade",
+    preview: { bg: "#160A2E", accent: "#FF2A6D", text: "#F5ECFF", muted: "#8E7AA8", pos: "#05FFA1", neg: "#FF2A6D" },
+  },
 ];
 
 function ThemeSection() {
@@ -1190,7 +1196,7 @@ function ThemeSection() {
         Altera as cores e tipografia de toda a interface. O tema persiste entre sessões no navegador.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {THEME_OPTIONS.map((opt) => {
           const active = theme === opt.key;
           const p = opt.preview;
