@@ -126,11 +126,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center px-4" style={{ background: "var(--bg)" }}>
-      <div className="animate-fade-in" style={{ position: "absolute", top: "2vh", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "var(--bg)" }}>
+      <div className="animate-fade-in" style={{ position: "absolute", top: "2vh", left: "50%", transform: "translateX(-50%)", zIndex: 1, pointerEvents: "none" }}>
         <MoneyAnimation width={240} height={240} />
       </div>
-      <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)", position: "relative", zIndex: 2, marginTop: "auto", marginBottom: "auto" }}>
+      <div className="w-full animate-fade-in" style={{ maxWidth: 380, background: "var(--panel)", border: "1px solid var(--line)", position: "relative", zIndex: 2 }}>
         {/* Marca */}
         <div className="flex items-center gap-3" style={{ padding: "26px 32px 20px", borderBottom: "1px solid var(--line)" }}>
           <Image src="/barroots-mark.png" alt="Barroots" width={36} height={36} className="object-contain" />
