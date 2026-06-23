@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTheme } from "./TerminalProvider";
+import { applySize, attachResizeListeners, type CanvasState } from "@/lib/canvas-resize";
 
 export default function MiamiBackground() {
   const { theme } = useTheme();
@@ -15,33 +16,13 @@ export default function MiamiBackground() {
     if (!ctx) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    let width = 0;
-    let height = 0;
-    let dpr = 1;
+    const state: CanvasState = { width: 0, height: 0, dpr: 1 };
     let scroll = 0;
 
-    function getViewportSize(): [number, number] {
-      const vv = window.visualViewport;
-      const rect = canvas!.getBoundingClientRect();
-      const w = rect.width || canvas!.clientWidth || vv?.width || window.innerWidth;
-      const h = rect.height || canvas!.clientHeight || vv?.height || window.innerHeight;
-      return [w, h];
-    }
-
-    function resize() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const [w, h] = getViewportSize();
-      if (w < 10 || h < 10) return;
-      if (w === width && h === height) return;
-      width = w;
-      height = h;
-      canvas!.width = Math.floor(width * dpr);
-      canvas!.height = Math.floor(height * dpr);
-      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
+    function resize() { applySize(canvas!, ctx!, state); }
 
     function draw() {
+      const { width, height } = state;
       ctx!.clearRect(0, 0, width, height);
       const horizon = Math.round(height * 0.46);
 
@@ -136,41 +117,24 @@ export default function MiamiBackground() {
     function loop(t: number) {
       if (!running) return;
       raf = requestAnimationFrame(loop);
+      resize();
       if (t - last < FRAME_MS) return;
       last = t;
       draw();
     }
 
-    function startIfReady() {
+    function start() {
       resize();
-      if (width < 10 || height < 10) return false;
-      if (reduced) {
-        draw();
-      } else if (running) {
-        raf = requestAnimationFrame(loop);
-      }
-      return true;
+      if (state.width < 10 || state.height < 10) return;
+      if (reduced) { draw(); return; }
+      if (running) raf = requestAnimationFrame(loop);
     }
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        startIfReady();
-      });
-    });
+    requestAnimationFrame(() => requestAnimationFrame(start));
+    const t1 = setTimeout(start, 300);
+    const t2 = setTimeout(start, 800);
 
-    const fallbackTimer = setTimeout(() => {
-      if (width < 10 || height < 10) startIfReady();
-    }, 300);
-
-    const fallbackTimer2 = setTimeout(() => {
-      if (width < 10 || height < 10) startIfReady();
-    }, 800);
-
-    const ro = new ResizeObserver(() => resize());
-    ro.observe(canvas);
-
-    const onVVResize = () => resize();
-    window.visualViewport?.addEventListener("resize", onVVResize);
+    const listeners = attachResizeListeners(canvas, resize);
 
     function onVisibility() {
       if (document.hidden) {
@@ -185,13 +149,22 @@ export default function MiamiBackground() {
     }
     document.addEventListener("visibilitychange", onVisibility);
 
+    const safety = setInterval(() => {
+      if (!running && !reduced && !document.hidden) {
+        running = true;
+        last = 0;
+        resize();
+        raf = requestAnimationFrame(loop);
+      }
+    }, 3000);
+
     return () => {
       running = false;
       cancelAnimationFrame(raf);
-      clearTimeout(fallbackTimer);
-      clearTimeout(fallbackTimer2);
-      ro.disconnect();
-      window.visualViewport?.removeEventListener("resize", onVVResize);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearInterval(safety);
+      listeners.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [theme]);
