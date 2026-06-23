@@ -5,11 +5,11 @@ import { useTheme } from "./TerminalProvider";
 import { applySize, attachResizeListeners, type CanvasState } from "@/lib/canvas-resize";
 
 export default function BladeRunnerRain() {
-  const { theme } = useTheme();
+  const { theme, bgAnim } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (theme !== "blade") return;
+    if (theme !== "blade" || !bgAnim) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -161,9 +161,9 @@ export default function BladeRunnerRain() {
       alive = false; cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); clearInterval(backup);
       listeners.dispose(); document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [theme]);
+  }, [theme, bgAnim]);
 
-  if (theme !== "blade") return null;
+  if (theme !== "blade" || !bgAnim) return null;
 
   return (
     <>

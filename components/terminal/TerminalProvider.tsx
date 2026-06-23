@@ -45,9 +45,14 @@ export interface Filters {
 const FILTERS_KEY = "barroots_filters";
 const DEFAULT_FILTERS: Filters = { periodo: "YTD", moeda: "BRL", conta: "todas" };
 
+// ── Animação de fundo ───────────────────────────────────────────────────────
+const BG_ANIM_KEY = "barroots_bg_anim";
+
 interface TerminalCtx {
   theme: Theme;
   setTheme: (t: Theme) => void;
+  bgAnim: boolean;
+  setBgAnim: (v: boolean) => void;
   filters: Filters;
   setFilter: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
 }
@@ -61,8 +66,8 @@ export function useTerminal(): TerminalCtx {
 }
 
 export function useTheme() {
-  const { theme, setTheme } = useTerminal();
-  return { theme, setTheme };
+  const { theme, setTheme, bgAnim, setBgAnim } = useTerminal();
+  return { theme, setTheme, bgAnim, setBgAnim };
 }
 
 /** Cores concretas do tema atual (para Recharts / SVG). */
@@ -78,13 +83,15 @@ export function useFilters() {
 
 export default function TerminalProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("ambar");
+  const [bgAnim, setBgAnimState] = useState(true);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
-  // Hidratar a partir do localStorage (evita flash: o <html> já vem data-theme="ambar").
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
       if (savedTheme && VALID_THEMES.includes(savedTheme)) setThemeState(savedTheme);
+      const savedAnim = localStorage.getItem(BG_ANIM_KEY);
+      if (savedAnim !== null) setBgAnimState(savedAnim !== "0");
       const savedFilters = localStorage.getItem(FILTERS_KEY);
       if (savedFilters) setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(savedFilters) });
     } catch {
@@ -104,6 +111,11 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), []);
 
+  const setBgAnim = useCallback((v: boolean) => {
+    setBgAnimState(v);
+    try { localStorage.setItem(BG_ANIM_KEY, v ? "1" : "0"); } catch { /* ignore */ }
+  }, []);
+
   const setFilter = useCallback(<K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => {
       const next = { ...prev, [key]: value };
@@ -116,5 +128,5 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
     });
   }, []);
 
-  return <Ctx.Provider value={{ theme, setTheme, filters, setFilter }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ theme, setTheme, bgAnim, setBgAnim, filters, setFilter }}>{children}</Ctx.Provider>;
 }
