@@ -415,24 +415,25 @@ export function calcularProventosBRL(
   const impostoPorTicker: Record<string, number> = {};
 
   for (const row of proventos) {
-    const valorAbs = Math.abs(toNumber(getVal(row, "valor", "value")) ?? 0);
-    if (valorAbs === 0) continue;
+    const valorRaw = toNumber(getVal(row, "valor", "value")) ?? 0;
+    if (valorRaw === 0) continue;
 
-    // IMPOSTO retido na fonte abate o provento (líquido = bruto − IR)
+    // IMPOSTO retido na fonte abate o provento (líquido = bruto − IR).
+    // Para IMPOSTO: Math.abs garante negativo independente do sinal na planilha.
+    // Para dividendos: preserva o sinal original (negativo = reversão/correção).
     const decisao = String(getVal(row, "decisao", "decisão") ?? "").toLowerCase();
     const isImposto = decisao.includes("imposto");
-    const sign = isImposto ? -1 : 1;
 
     const moeda = getMoeda(row);
     const fator = fxToBRL(moeda, fx);
-    const valorBRL = sign * valorAbs * fator;
+    const valorBRL = isImposto ? -Math.abs(valorRaw) * fator : valorRaw * fator;
     totalBRL += valorBRL;
 
     const ticker = tickerBase(String(getVal(row, "ticker", "símbolo", "simbolo") ?? ""));
     if (ticker) porTicker[ticker] = (porTicker[ticker] ?? 0) + valorBRL;
 
     if (isImposto) {
-      const impBRL = valorAbs * fator;
+      const impBRL = Math.abs(valorRaw) * fator;
       impostoBRL += impBRL;
       if (ticker) impostoPorTicker[ticker] = (impostoPorTicker[ticker] ?? 0) + impBRL;
     }
