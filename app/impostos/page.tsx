@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   AlertCircle, RefreshCw, Scale, ChevronDown, ChevronUp,
   Globe, Calculator, FileText, Bot, Copy, CalendarPlus, ExternalLink,
-  ArrowLeftRight, Check, Landmark, Calendar,
+  ArrowLeftRight, Check, Landmark, Calendar, Send, Trash2, Loader2, User,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -421,96 +422,269 @@ function Simulador({ data, scope }: { data: IrResponse; scope: "brasil" | "exter
   );
 }
 
-// ─── Agente Tributarista (IA) ────────────────────────────────────────────────
-const MD_COMPONENTS = {
-  h1: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h3 className="text-sm font-bold text-zinc-200 mt-3 mb-1" {...p} />,
-  h2: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h3 className="text-sm font-bold text-zinc-200 mt-3 mb-1" {...p} />,
-  h3: (p: React.HTMLAttributes<HTMLHeadingElement>) => <h4 className="text-xs font-bold text-zinc-300 mt-2 mb-1" {...p} />,
-  p: (p: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-xs text-zinc-400 leading-relaxed mb-2" {...p} />,
-  ul: (p: React.HTMLAttributes<HTMLUListElement>) => <ul className="text-xs text-zinc-400 list-disc pl-4 mb-2 space-y-1" {...p} />,
-  ol: (p: React.HTMLAttributes<HTMLOListElement>) => <ol className="text-xs text-zinc-400 list-decimal pl-4 mb-2 space-y-1" {...p} />,
-  strong: (p: React.HTMLAttributes<HTMLElement>) => <strong className="text-zinc-200 font-semibold" {...p} />,
-  table: (p: React.HTMLAttributes<HTMLTableElement>) => <div className="overflow-x-auto mb-2"><table className="text-xs w-full" {...p} /></div>,
-  th: (p: React.HTMLAttributes<HTMLTableCellElement>) => <th className="text-left text-[10px] text-zinc-500 uppercase font-semibold py-1 pr-3" {...p} />,
-  td: (p: React.HTMLAttributes<HTMLTableCellElement>) => <td className="py-1 pr-3 text-zinc-400 border-t border-white/[0.04]" {...p} />,
-  code: (p: React.HTMLAttributes<HTMLElement>) => <code className="text-[11px] bg-white/[0.06] px-1 py-0.5 rounded text-cyan-300" {...p} />,
-};
+// ─── Agente Tributarista (IA) — Chat completo com streaming ─────────────────
 
 function r2(v: number): number { return Math.round(v * 100) / 100; }
 
+interface TaxMessage { role: "user" | "assistant"; content: string; model?: string; }
+
+const TAX_SUGGESTIONS = [
+  "Faça a validação completa da minha apuração",
+  "Preciso pagar DARF este mês?",
+  "Qual meu saldo de prejuízo por bucket?",
+  "Se eu vender todas minhas ações hoje, quanto pago de IR?",
+  "Como funciona a isenção dos R$ 20 mil para ações?",
+  "Me explique a tributação do exterior (Lei 14.754)",
+];
+
+function TaxMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        table: ({ children, ...props }) => (
+          <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse" {...props}>{children}</table></div>
+        ),
+        thead: ({ children, ...props }) => <thead className="border-b border-zinc-700" {...props}>{children}</thead>,
+        th: ({ children, ...props }) => <th className="px-2 py-1.5 text-left text-[10px] text-zinc-400 font-semibold uppercase tracking-wider" {...props}>{children}</th>,
+        td: ({ children, ...props }) => <td className="px-2 py-1.5 text-zinc-300 border-b border-zinc-800/50" {...props}>{children}</td>,
+        h1: ({ children, ...props }) => <h1 className="text-sm font-bold text-zinc-100 mt-3 mb-1.5" {...props}>{children}</h1>,
+        h2: ({ children, ...props }) => <h2 className="text-xs font-bold text-zinc-200 mt-3 mb-1" {...props}>{children}</h2>,
+        h3: ({ children, ...props }) => <h3 className="text-xs font-bold text-zinc-300 mt-2 mb-1" {...props}>{children}</h3>,
+        p: ({ children, ...props }) => <p className="text-xs leading-relaxed mb-1.5 text-zinc-400" {...props}>{children}</p>,
+        ul: ({ children, ...props }) => <ul className="list-disc list-inside space-y-0.5 my-1 text-xs text-zinc-400" {...props}>{children}</ul>,
+        ol: ({ children, ...props }) => <ol className="list-decimal list-inside space-y-0.5 my-1 text-xs text-zinc-400" {...props}>{children}</ol>,
+        li: ({ children, ...props }) => <li className="text-zinc-400" {...props}>{children}</li>,
+        strong: ({ children, ...props }) => <strong className="font-bold text-zinc-200" {...props}>{children}</strong>,
+        code: ({ children, className, ...props }) => {
+          if (className?.includes("language-")) {
+            return <pre className="bg-zinc-900/80 rounded-lg p-3 my-2 overflow-x-auto text-[11px] border border-zinc-800"><code className="text-zinc-300" {...props}>{children}</code></pre>;
+          }
+          return <code className="bg-white/[0.06] px-1.5 py-0.5 rounded text-[11px] text-cyan-300" {...props}>{children}</code>;
+        },
+        blockquote: ({ children, ...props }) => <blockquote className="border-l-2 border-cyan-500/30 pl-3 my-2 text-zinc-500 italic text-xs" {...props}>{children}</blockquote>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+function TaxBubble({ msg }: { msg: TaxMessage }) {
+  const isUser = msg.role === "user";
+  return (
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isUser ? "bg-amber-500/15" : "bg-cyan-500/15"}`}>
+        {isUser ? <User size={13} className="text-amber-400" /> : <Scale size={13} className="text-cyan-400" />}
+      </div>
+      <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 ${isUser
+        ? "bg-amber-500/8 text-zinc-100 rounded-tr-sm border border-amber-500/10"
+        : "bg-white/[0.03] text-zinc-200 rounded-tl-sm border border-white/[0.06]"
+      }`}>
+        {isUser
+          ? <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+          : <TaxMarkdown content={msg.content} />
+        }
+        {msg.model && <p className="text-[9px] text-zinc-600 mt-1.5 text-right">{msg.model}</p>}
+      </div>
+    </div>
+  );
+}
+
 function AgenteTributarista({ data, year }: { data: IrResponse; year: number | null }) {
-  const [pergunta, setPergunta] = useState("");
-  const [resp, setResp] = useState<{ analise: string; model: string } | null>(null);
+  const [messages, setMessages] = useState<TaxMessage[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingModel, setStreamingModel] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingContent]);
 
   const dossie = useMemo(() => ({
     anoFiltro: year, mesAtual: data.mesAtual, hoje: new Date().toISOString().slice(0, 10),
+    fxHoje: data.fxHoje,
     vendasAcoesMesAtual: r2(data.acoesVendasMesAtual),
     limiteIsencaoAcoes: data.limiteIsencaoAcoes,
+    irTotalMensal: r2(data.irTotalMensal),
+    irTotalExterior: r2(data.irTotalExterior),
     meses: data.meses
       .filter(m => m.irTotal > 0.005 || m.acoesVendas > 0.005 || Math.abs(m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado) > 0.005)
       .map(m => ({
         mes: m.mes, vendasAcoes: r2(m.acoesVendas), resAcoes: r2(m.acoesResultado),
         resEtfBdr: r2(m.etfBdrResultado), resFii: r2(m.fiiResultado), resDay: r2(m.dayResultado),
-        isentoAcoes: m.isencaoAcoes, irDevido: r2(m.irTotal), vencimentoDarf: m.vencimento,
+        isentoAcoes: m.isencaoAcoes, irDevido: r2(m.irTotal), vencimentoDarf: m.vencimento, irrfDedoDuro: r2(m.irrfDedoDuro),
         buckets: m.buckets.map(b => ({ bucket: b.bucket, resultado: r2(b.resultado), prejAnterior: r2(b.prejuizoAcumIni), base: r2(b.baseTributavel), aliq: b.aliquota, ir: r2(b.irDevido), prejFinal: r2(b.prejuizoAcumFim) })),
       })),
     exteriorAnual: data.exterior.map(a => ({ ano: a.ano, resultadoBRL: r2(a.resultado), prejAnterior: r2(a.prejuizoAcumIni), base: r2(a.baseTributavel), ir15pct: r2(a.irDevido) })),
     prejuizoAcumuladoPorBucket: Object.fromEntries(Object.entries(data.prejuizoFinal ?? {}).map(([k, v]) => [k, r2(v as number)])),
     cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, usdAlienado: r2(a.usdAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
-    posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda })),
+    posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda, valorAtualBRL: r2(p.valorAtualBRL) })),
   }), [data, year]);
 
-  const validar = async () => {
-    setLoading(true); setErr(null); setResp(null);
+  const sendMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+
+    const userMsg: TaxMessage = { role: "user", content: trimmed };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setLoading(true);
+    setStreamingContent("");
+    setStreamingModel("");
+
+    const history = messages.map((m) => ({
+      role: m.role === "assistant" ? ("model" as const) : ("user" as const),
+      parts: [{ text: m.content }],
+    }));
+
     try {
-      const r = await fetch("/api/ir/agente", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dossie, pergunta: pergunta || undefined }),
+      const res = await fetch("/api/ir/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          history,
+          dossie: messages.length === 0 ? dossie : undefined,
+        }),
       });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error);
-      setResp(j);
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro na API");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Sem stream");
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let modelUsed = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.model) { modelUsed = parsed.model; setStreamingModel(parsed.model); }
+            if (parsed.text) { fullText += parsed.text; setStreamingContent(fullText); }
+            if (parsed.error) throw new Error(parsed.error);
+          } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
+        }
+      }
+
+      setMessages([...newMessages, { role: "assistant", content: fullText, model: modelUsed }]);
+      setStreamingContent("");
+      setStreamingModel("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro desconhecido");
-    } finally { setLoading(false); }
-  };
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      setMessages([...newMessages, { role: "assistant", content: `⚠️ Erro: ${msg}` }]);
+      setStreamingContent("");
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  }, [messages, loading, dossie]);
 
   return (
-    <div className="glass-card overflow-hidden mb-4 border-cyan-500/15">
-      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
-        <Bot size={15} className="text-cyan-400" />
-        <h2 className="text-sm font-semibold text-zinc-300">Agente Tributarista — validação contábil da apuração</h2>
-      </div>
-      <div className="p-4">
-        <div className="flex flex-col md:flex-row gap-2">
-          <input
-            value={pergunta} onChange={e => setPergunta(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !loading) validar(); }}
-            placeholder="Pergunta opcional (ex: 'se eu vender meus FIIs hoje, quanto pago?') — ou deixe vazio para validação completa"
-            className="flex-1 bg-white/[0.04] rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none border border-white/[0.06] placeholder:text-zinc-700"
-          />
-          <button onClick={validar} disabled={loading}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 hover:bg-cyan-500/25 transition-all disabled:opacity-50 whitespace-nowrap">
-            {loading ? "Analisando…" : "Validar apuração"}
-          </button>
+    <div className="glass-card overflow-hidden mb-4 border-cyan-500/15 flex flex-col" style={{ height: "calc(100vh - 22rem)", minHeight: 400 }}>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <Scale size={15} className="text-cyan-400" />
+          <h2 className="text-sm font-semibold text-zinc-300">Tributarista IA</h2>
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            carregado com sua apuração
+          </span>
         </div>
-        <p className="text-[10px] text-zinc-700 mt-2">
-          O agente recebe a apuração completa (meses, buckets, prejuízos, exterior, câmbio, posições) e valida alíquotas, isenções e compensações com base legal.
+        {messages.length > 0 && (
+          <button onClick={() => { setMessages([]); setStreamingContent(""); }}
+            className="p-1.5 text-zinc-600 hover:text-zinc-400 transition-colors" title="Limpar conversa">
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
+        {messages.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+              <Scale size={24} className="text-cyan-400" />
+            </div>
+            <div className="text-center max-w-md">
+              <p className="text-zinc-200 font-semibold text-sm mb-1">Tributarista de investimentos</p>
+              <p className="text-zinc-600 text-xs mb-4">
+                Especialista em IR sobre investimentos PF. Já recebi sua apuração completa — meses, buckets, prejuízos, exterior, câmbio e posições abertas.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {TAX_SUGGESTIONS.map((s, i) => (
+                  <button key={i} onClick={() => sendMessage(s)}
+                    className="text-left px-3 py-2 rounded-xl text-[11px] text-zinc-500 hover:text-zinc-300
+                      bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] hover:border-cyan-500/20
+                      transition-all duration-200">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg, i) => <TaxBubble key={i} msg={msg} />)}
+
+        {loading && streamingContent && (
+          <div className="flex gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/15 flex items-center justify-center shrink-0">
+              <Scale size={13} className="text-cyan-400" />
+            </div>
+            <div className="max-w-[88%] bg-white/[0.03] border border-white/[0.06] rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+              <TaxMarkdown content={streamingContent} />
+              {streamingModel && <p className="text-[9px] text-zinc-600 mt-1.5 text-right">{streamingModel}</p>}
+            </div>
+          </div>
+        )}
+
+        {loading && !streamingContent && (
+          <div className="flex gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/15 flex items-center justify-center shrink-0">
+              <Scale size={13} className="text-cyan-400" />
+            </div>
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-2">
+              <Loader2 size={12} className="text-cyan-400 animate-spin" />
+              <span className="text-zinc-500 text-xs">Analisando sua situação fiscal…</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-4 py-3 border-t border-white/[0.05] shrink-0">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-2 items-end">
+          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+            placeholder="Pergunte sobre impostos, DARF, isenções, prejuízos…"
+            rows={1}
+            className="flex-1 bg-transparent text-xs text-zinc-200 placeholder-zinc-700 outline-none resize-none max-h-24 py-2 px-1"
+            style={{ lineHeight: "1.5" }}
+          />
+          <button type="submit" disabled={!input.trim() || loading}
+            className="p-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0">
+            <Send size={14} className="text-white" />
+          </button>
+        </form>
+        <p className="text-zinc-800 text-[9px] mt-1.5 px-1">
+          Apoio técnico — não substitui contador habilitado · Shift+Enter nova linha
         </p>
-        {err && <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">{err}</div>}
-        {loading && (
-          <div className="mt-3 p-4 bg-white/[0.02] rounded-xl text-xs text-zinc-500 flex items-center gap-2">
-            <RefreshCw size={12} className="animate-spin" /> Auditando apuração com o especialista…
-          </div>
-        )}
-        {resp && (
-          <div className="mt-3 p-4 bg-white/[0.02] rounded-xl border border-white/[0.04]">
-            <ReactMarkdown components={MD_COMPONENTS}>{resp.analise}</ReactMarkdown>
-            <div className="text-[10px] text-zinc-700 mt-2 pt-2 border-t border-white/[0.04]">Análise: {resp.model} · apoio técnico, não substitui contador habilitado</div>
-          </div>
-        )}
       </div>
     </div>
   );
