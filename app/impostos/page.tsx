@@ -502,26 +502,59 @@ function AgenteTributarista({ data, year }: { data: IrResponse; year: number | n
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingContent]);
 
-  const dossie = useMemo(() => ({
-    anoFiltro: year, mesAtual: data.mesAtual, hoje: new Date().toISOString().slice(0, 10),
-    fxHoje: data.fxHoje,
-    vendasAcoesMesAtual: r2(data.acoesVendasMesAtual),
-    limiteIsencaoAcoes: data.limiteIsencaoAcoes,
-    irTotalMensal: r2(data.irTotalMensal),
-    irTotalExterior: r2(data.irTotalExterior),
-    meses: data.meses
-      .filter(m => m.irTotal > 0.005 || m.acoesVendas > 0.005 || Math.abs(m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado) > 0.005)
-      .map(m => ({
-        mes: m.mes, vendasAcoes: r2(m.acoesVendas), resAcoes: r2(m.acoesResultado),
-        resEtfBdr: r2(m.etfBdrResultado), resFii: r2(m.fiiResultado), resDay: r2(m.dayResultado),
-        isentoAcoes: m.isencaoAcoes, irDevido: r2(m.irTotal), vencimentoDarf: m.vencimento, irrfDedoDuro: r2(m.irrfDedoDuro),
-        buckets: m.buckets.map(b => ({ bucket: b.bucket, resultado: r2(b.resultado), prejAnterior: r2(b.prejuizoAcumIni), base: r2(b.baseTributavel), aliq: b.aliquota, ir: r2(b.irDevido), prejFinal: r2(b.prejuizoAcumFim) })),
-      })),
-    exteriorAnual: data.exterior.map(a => ({ ano: a.ano, resultadoBRL: r2(a.resultado), prejAnterior: r2(a.prejuizoAcumIni), base: r2(a.baseTributavel), ir15pct: r2(a.irDevido) })),
-    prejuizoAcumuladoPorBucket: Object.fromEntries(Object.entries(data.prejuizoFinal ?? {}).map(([k, v]) => [k, r2(v as number)])),
-    cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, usdAlienado: r2(a.usdAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
-    posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda, valorAtualBRL: r2(p.valorAtualBRL) })),
-  }), [data, year]);
+  const [dirpfData, setDirpfData] = useState<DirpfResponse | null>(null);
+  useEffect(() => {
+    const anoBase = year ?? new Date().getFullYear() - 1;
+    fetch(`/api/ir/dirpf?year=${anoBase}`).then(r => r.json())
+      .then(x => { if (!x.error) setDirpfData(x as DirpfResponse); })
+      .catch(() => {});
+  }, [year]);
+
+  const dossie = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const darfsVencidos = data.meses
+      .filter(m => m.irTotal > 0.01 && m.mes !== data.mesAtual && m.vencimento < hoje)
+      .map(m => ({ mes: m.mes, irDevido: r2(m.irTotal), vencimento: m.vencimento, codigo: m.darfCodigo }));
+
+    const proventosSummary = dirpfData?.rendimentos ? {
+      dividendosBR_isento: r2(dirpfData.rendimentos.isentosDividendosBR),
+      rendimentoFII_isento: r2(dirpfData.rendimentos.isentosRendimentoFII),
+      jcp_exclusivaFonte: r2(dirpfData.rendimentos.exclusivaJCP),
+      dividendoExterior_tributavel: r2(dirpfData.rendimentos.tributavelExterior),
+      irrfRetido: r2(dirpfData.rendimentos.irrfRetido),
+    } : undefined;
+
+    const dirpfSummary = dirpfData ? {
+      anoBase: dirpfData.year,
+      totalBensDireitos: r2(dirpfData.totais.bensDireitosCusto),
+      rfIrRetido: r2(dirpfData.totais.rfIrRetido),
+      qtdBens: dirpfData.bensDireitos.length,
+      qtdRfPosicoes: dirpfData.rfPosicoes.length,
+    } : undefined;
+
+    return {
+      anoFiltro: year, mesAtual: data.mesAtual, hoje, fxHoje: data.fxHoje,
+      vendasAcoesMesAtual: r2(data.acoesVendasMesAtual),
+      limiteIsencaoAcoes: data.limiteIsencaoAcoes,
+      irTotalMensal: r2(data.irTotalMensal),
+      irTotalExterior: r2(data.irTotalExterior),
+      darfsVencidos: darfsVencidos.length > 0 ? darfsVencidos : undefined,
+      proventos: proventosSummary,
+      dirpf: dirpfSummary,
+      meses: data.meses
+        .filter(m => m.irTotal > 0.005 || m.acoesVendas > 0.005 || Math.abs(m.acoesResultado + m.etfBdrResultado + m.fiiResultado + m.dayResultado) > 0.005)
+        .map(m => ({
+          mes: m.mes, vendasAcoes: r2(m.acoesVendas), resAcoes: r2(m.acoesResultado),
+          resEtfBdr: r2(m.etfBdrResultado), resFii: r2(m.fiiResultado), resDay: r2(m.dayResultado),
+          isentoAcoes: m.isencaoAcoes, irDevido: r2(m.irTotal), vencimentoDarf: m.vencimento, irrfDedoDuro: r2(m.irrfDedoDuro),
+          buckets: m.buckets.map(b => ({ bucket: b.bucket, resultado: r2(b.resultado), prejAnterior: r2(b.prejuizoAcumIni), base: r2(b.baseTributavel), aliq: b.aliquota, ir: r2(b.irDevido), prejFinal: r2(b.prejuizoAcumFim) })),
+        })),
+      exteriorAnual: data.exterior.map(a => ({ ano: a.ano, resultadoBRL: r2(a.resultado), prejAnterior: r2(a.prejuizoAcumIni), base: r2(a.baseTributavel), ir15pct: r2(a.irDevido) })),
+      prejuizoAcumuladoPorBucket: Object.fromEntries(Object.entries(data.prejuizoFinal ?? {}).map(([k, v]) => [k, r2(v as number)])),
+      cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, usdAlienado: r2(a.usdAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
+      posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda, valorAtualBRL: r2(p.valorAtualBRL) })),
+    };
+  }, [data, year, dirpfData]);
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -836,6 +869,11 @@ export default function ImpostosPage() {
 
   const mesAtual = data?.mesAtual ?? new Date().toISOString().slice(0, 7);
   const darfMes = data?.meses.find(m => m.mes === mesAtual && m.irTotal > 0.01);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const darfsVencidos = useMemo(() => {
+    if (!data) return [];
+    return data.meses.filter(m => m.irTotal > 0.01 && m.mes !== mesAtual && m.vencimento < hoje);
+  }, [data, mesAtual, hoje]);
   const prejBR = data ? (data.prejuizoFinal?.swing ?? 0) + (data.prejuizoFinal?.day ?? 0) + (data.prejuizoFinal?.fii ?? 0) : 0;
   const prejEX = data?.prejuizoFinal?.exterior ?? 0;
 
@@ -879,7 +917,8 @@ export default function ImpostosPage() {
                   <div className="text-2xl font-black" style={{ color: BR.cor }}>{brl(data.irTotalMensal ?? 0)}</div>
                 </div>
                 <div className="text-right text-[11px] text-zinc-600">
-                  {darfMes ? <span className="text-red-400 font-semibold">DARF {shortMonth(darfMes.mes)}: {brl(darfMes.irTotal)}</span> : "Nenhum DARF pendente"}
+                  {darfsVencidos.length > 0 && <span className="text-amber-400 font-semibold">{darfsVencidos.length} DARF{darfsVencidos.length > 1 ? "s" : ""} vencido{darfsVencidos.length > 1 ? "s" : ""}</span>}
+                  {darfsVencidos.length === 0 && (darfMes ? <span className="text-red-400 font-semibold">DARF {shortMonth(darfMes.mes)}: {brl(darfMes.irTotal)}</span> : "Nenhum DARF pendente")}
                   <div>Prej. a compensar: <span className="text-amber-400">{compactBRL(prejBR)}</span></div>
                 </div>
               </div>
@@ -924,6 +963,34 @@ export default function ImpostosPage() {
           {/* ════ 🇧🇷 BRASIL ════ */}
           {tab === "brasil" && (
             <>
+              {darfsVencidos.length > 0 && (
+                <div className="glass-card p-4 mb-4 border-amber-500/20 bg-amber-500/[0.03]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle size={14} className="text-amber-400" />
+                    <span className="text-sm font-semibold text-amber-300">DARFs vencidos ({darfsVencidos.length})</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Atenção</span>
+                  </div>
+                  <div className="space-y-2">
+                    {darfsVencidos.map(m => (
+                      <div key={m.mes} className="flex items-center justify-between bg-white/[0.03] rounded-xl p-3">
+                        <div>
+                          <div className="text-xs text-zinc-300 font-medium">Apuração {shortMonth(m.mes)}</div>
+                          <div className="text-[11px] text-zinc-600">Venceu em {m.vencimento.split("-").reverse().join("/")} · Código {m.darfCodigo}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-amber-400">{brl(m.irTotal)}</div>
+                          <div className="text-[10px] text-zinc-600">{m.buckets.filter(b => b.irDevido > 0.01).map(b => BUCKET_LABEL[b.bucket]).join(", ")}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-zinc-600 mt-3 flex items-center gap-1.5">
+                    <Scale size={11} />
+                    Recolha via SicalcWeb com acréscimos legais (multa + Selic). O Sicalc calcula automaticamente.
+                  </div>
+                </div>
+              )}
+
               {darfMes && (
                 <div className="glass-card p-4 mb-4 border-red-500/15">
                   <div className="flex items-center gap-2 mb-3">
@@ -1023,7 +1090,7 @@ export default function ImpostosPage() {
           )}
 
           {/* ════ 📋 DECLARAÇÃO ════ */}
-          {tab === "declaracao" && <Declaracao ano={year ?? new Date().getFullYear() - 1} />}
+          {tab === "declaracao" && <Declaracao ano={(year ?? new Date().getFullYear()) - 1} />}
 
           {/* ════ 🤖 AGENTE ════ */}
           {tab === "agente" && <AgenteTributarista data={data} year={year} />}
