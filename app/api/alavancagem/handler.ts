@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab, ensureTab, appendRows, writeTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import {
   MARGIN_TAB, MARGIN_HEADERS, BENCHMARK_POR_MOEDA,
   parseMarginRows, entryToRow, fetchBenchmarks, computeMarginResumo,
@@ -32,7 +32,8 @@ async function fetchFxBRL(): Promise<Record<string, number>> {
 }
 
 async function loadEntries(): Promise<MarginEntry[]> {
-  const rows = await fetchTab(MARGIN_TAB).catch(() => []);
+  const store = getDataStore();
+  const rows = await store.fetchTab(MARGIN_TAB).catch(() => []);
   return parseMarginRows(rows);
 }
 
@@ -58,6 +59,7 @@ export async function GET() {
 // POST — registra nova margem { data, corretora, moeda, valor, spread, taxaBenchmark?, obs? }
 export async function POST(req: Request) {
   try {
+    const store = getDataStore();
     const body = await req.json();
     const moeda = String(body.moeda ?? "USD").toUpperCase().trim();
     const valor = Math.abs(Number(body.valor) || 0);
@@ -80,8 +82,8 @@ export async function POST(req: Request) {
       obs: String(body.obs ?? "").trim(),
     };
 
-    const created = await ensureTab(MARGIN_TAB, MARGIN_HEADERS);
-    await appendRows(MARGIN_TAB, [entryToRow(entry)]);
+    const created = await store.ensureTab(MARGIN_TAB, MARGIN_HEADERS);
+    await store.appendRows(MARGIN_TAB, [entryToRow(entry)]);
     return NextResponse.json({ ok: true, entry, tabCriada: created });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
@@ -93,6 +95,7 @@ export async function POST(req: Request) {
 // Fechada NÃO é apagada: fica registrada na aba com status "fechada".
 export async function PATCH(req: Request) {
   try {
+    const store = getDataStore();
     const body = await req.json();
     const id = String(body.id ?? "");
     const entries = await loadEntries();
@@ -105,7 +108,7 @@ export async function PATCH(req: Request) {
       dataFechamento: String(body.dataFechamento ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
       valorFechamento: Math.abs(Number(body.valorFechamento) || 0),
     };
-    await writeTab(MARGIN_TAB, MARGIN_HEADERS, entries.map(entryToRow));
+    await store.writeTab(MARGIN_TAB, MARGIN_HEADERS, entries.map(entryToRow));
     return NextResponse.json({ ok: true, entry: entries[idx] });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
@@ -116,6 +119,7 @@ export async function PATCH(req: Request) {
 // DELETE — lixeira: remove a linha da planilha definitivamente { id }
 export async function DELETE(req: Request) {
   try {
+    const store = getDataStore();
     const body = await req.json();
     const id = String(body.id ?? "");
     const entries = await loadEntries();
@@ -123,7 +127,7 @@ export async function DELETE(req: Request) {
     if (restantes.length === entries.length) {
       return NextResponse.json({ error: "Entrada não encontrada" }, { status: 404 });
     }
-    await writeTab(MARGIN_TAB, MARGIN_HEADERS, restantes.map(entryToRow));
+    await store.writeTab(MARGIN_TAB, MARGIN_HEADERS, restantes.map(entryToRow));
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

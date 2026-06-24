@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { fetchTab } from "./gsheets";
+import { getDataStore } from "./data-store";
 
 const MAX_BACKUPS_PER_TAB = 3;
 
@@ -24,7 +24,8 @@ async function getBackupDir(): Promise<string> {
 }
 
 export async function backupTab(tabName: string): Promise<{ backupName: string; rows: number }> {
-  const rows = await fetchTab(tabName);
+  const store = getDataStore();
+  const rows = await store.fetchTab(tabName);
   if (!rows || rows.length === 0) return { backupName: "", rows: 0 };
 
   const csv = tabToCsv(rows);
@@ -69,6 +70,7 @@ export function tabToCsv(rows: Record<string, unknown>[]): string {
 }
 
 export async function downloadTabCsv(tabName: string): Promise<string> {
-  const rows = await fetchTab(tabName);
+  const store = getDataStore();
+  const rows = await store.fetchTab(tabName);
   return tabToCsv(rows);
 }

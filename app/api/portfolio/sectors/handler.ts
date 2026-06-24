@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
@@ -75,13 +75,14 @@ export async function GET(request: Request) {
   const lookthrough = searchParams.get("lookthrough") === "true";
 
   try {
+    const store = getDataStore();
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] =
       await Promise.all([
-        fetchTab("meus_ativos"),
-        fetchTab("meus_proventos"),
-        fetchTab("fixa_aberta"),
-        fetchTab("cambio").catch(() => []),
-        fetchTab("p_tax").catch(() => []),
+        store.fetchTab("meus_ativos"),
+        store.fetchTab("meus_proventos"),
+        store.fetchTab("fixa_aberta"),
+        store.fetchTab("cambio").catch(() => []),
+        store.fetchTab("p_tax").catch(() => []),
       ]);
 
     // Portfolio snapshot

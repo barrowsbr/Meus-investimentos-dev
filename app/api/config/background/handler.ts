@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { fetchTab, getServiceAccountAuth, ensureTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
+import { getServiceAccountAuth } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,8 @@ const DEFAULT_BG = "/midias/home-bg.jpeg";
 
 export async function GET() {
   try {
-    const rows = await fetchTab(CONFIG_TAB);
+    const store = getDataStore();
+    const rows = await store.fetchTab(CONFIG_TAB);
     const row = rows.find(
       (r) => String(r.chave ?? "").toLowerCase() === KEY
     );
@@ -43,7 +45,8 @@ export async function POST(request: Request) {
 
     // A aba config não existia na planilha — o append falhava silenciosamente
     // e o fundo "resetava" a cada visita. Cria se faltar.
-    await ensureTab(CONFIG_TAB, ["chave", "valor"]);
+    const store = getDataStore();
+    await store.ensureTab(CONFIG_TAB, ["chave", "valor"]);
 
     const sheets = google.sheets({ version: "v4", auth });
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
+import { getDataStore } from "@/lib/data-store";
 import {
-  fetchTab,
   getServiceAccountAuth,
   listSheetNames,
   resetSheetNamesCache,
@@ -44,7 +44,8 @@ async function ensureTab(): Promise<void> {
 
 export async function GET() {
   try {
-    const rows = await fetchTab(TAB);
+    const store = getDataStore();
+    const rows = await store.fetchTab(TAB);
     const cenarios: Record<string, Record<string, unknown>[]> = {};
     for (const row of rows) {
       const name = String(row.cenario ?? "").trim();

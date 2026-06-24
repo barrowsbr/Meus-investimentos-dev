@@ -1,6 +1,6 @@
 import { yahooTicker } from "./cotacoes";
 import { identificarSetor, isRendaFixaManual } from "./sectors";
-import { readGoldenSource } from "./db-cotacoes";
+import { getMarketDataStore } from "./data-store";
 import type { PriceMatrix, FxHistory } from "./twr-engine";
 import type { FxRates } from "./cotacoes";
 
@@ -177,9 +177,9 @@ export async function fetchHistoricalData(
   const allYahoo = [...tickerMap.keys(), ...FX_TICKERS, IBOV_TICKER, SP500_TICKER, SP500TR_TICKER];
 
   // ── Golden source (db_cotacoes) — primary, deterministic ──
-  let golden: Awaited<ReturnType<typeof readGoldenSource>> | null = null;
+  let golden: Awaited<ReturnType<typeof import("./db-cotacoes").readGoldenSource>> | null = null;
   try {
-    golden = await readGoldenSource();
+    golden = await getMarketDataStore().read();
   } catch { /* fall through to Yahoo */ }
 
   const goldenUpper = new Set(golden?.tickers.map(t => t.toUpperCase()) ?? []);

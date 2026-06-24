@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { readGoldenSource } from "@/lib/db-cotacoes";
 import { yahooTicker } from "@/lib/cotacoes";
 import { identificarSetor, isRendaFixaManual } from "@/lib/sectors";
@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const store = getDataStore();
     const [transacoes, golden] = await Promise.all([
-      fetchTab("meus_ativos"),
+      store.fetchTab("meus_ativos"),
       readGoldenSource(),
     ]);
 

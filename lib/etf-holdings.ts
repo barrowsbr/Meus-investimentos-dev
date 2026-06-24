@@ -15,7 +15,8 @@
  *   - loadFromGSheets()      → reads 'composicao', returns stored holdings
  */
 
-import { fetchTab, getServiceAccountAuth } from "./gsheets";
+import { getDataStore } from "./data-store";
+import { getServiceAccountAuth } from "./gsheets";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -368,7 +369,8 @@ export async function fetchHoldings(ticker: string): Promise<{ holdings: Holding
 
 export async function loadFromGSheets(): Promise<{ stored: Record<string, Holding[]>; storedSources: Record<string, string>; updatedAt: string }> {
   try {
-    const rows = await fetchTab("composicao");
+    const store = getDataStore();
+    const rows = await store.fetchTab("composicao");
     if (!rows || rows.length === 0) return { stored: {}, storedSources: {}, updatedAt: "" };
 
     const result: Record<string, Holding[]> = {};

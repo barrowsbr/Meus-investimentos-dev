@@ -1,4 +1,4 @@
-import { fetchTab, appendRows, ensureTab, syncHeaders } from "./gsheets";
+import { getDataStore } from "./data-store";
 
 const TAB = "twr_mensal";
 const HEADERS = ["month", "return_pct", "return_pct_usd", "locked_at", "version"];
@@ -15,7 +15,8 @@ let _cache: LockedMonth[] | null = null;
 export async function readLockedMonthly(): Promise<LockedMonth[]> {
   if (_cache) return _cache;
   try {
-    const rows = await fetchTab(TAB);
+    const store = getDataStore();
+    const rows = await store.fetchTab(TAB);
     _cache = rows
       .filter(r => Number(r["version"] ?? 1) === CURRENT_VERSION)
       .map(r => ({
@@ -50,11 +51,12 @@ export async function lockNewMonths(
   const toLock = computed.filter(m => m.month < curMonth && !existingSet.has(m.month));
   if (toLock.length === 0) return 0;
 
-  const created = await ensureTab(TAB, HEADERS);
+  const store = getDataStore();
+  const created = await store.ensureTab(TAB, HEADERS);
   // Aba v1 tinha 4 colunas — sem reescrever o header, a coluna "version" não
   // existe na linha 1 e o fetchTab a descarta: nenhuma linha v2 seria lida e o
   // lock re-anexaria os mesmos meses para sempre.
-  if (!created) await syncHeaders(TAB, HEADERS);
+  if (!created) await store.syncHeaders(TAB, HEADERS);
 
   const rows = toLock.map(m => [
     m.month,
@@ -64,7 +66,7 @@ export async function lockNewMonths(
     String(CURRENT_VERSION),
   ]);
 
-  await appendRows(TAB, rows);
+  await store.appendRows(TAB, rows);
   console.log(`[twr-lock] locked ${toLock.length} new months: ${toLock.map(m => m.month).join(", ")}`);
   _cache = null;
   return toLock.length;

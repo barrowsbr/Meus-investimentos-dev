@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchTab, writeTab, ensureTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 
 const TAB = "config";
 const HEADERS = ["chave", "valor"];
@@ -16,8 +16,9 @@ function key(row: Row): string {
 /** GET — returns current user, masked password, and protected pages list. */
 export async function GET() {
   try {
+    const store = getDataStore();
     let rows: Row[] = [];
-    try { rows = await fetchTab(TAB); } catch { /* tab missing */ }
+    try { rows = await store.fetchTab(TAB); } catch { /* tab missing */ }
 
     let usuario = "";
     let senhaSet = false;
@@ -42,6 +43,7 @@ export async function GET() {
 /** POST — update password and/or protected pages in the config tab. */
 export async function POST(req: NextRequest) {
   try {
+    const store = getDataStore();
     const body = await req.json();
     const { currentPassword, newPassword, protectedPages } = body as {
       currentPassword?: string;
@@ -49,9 +51,9 @@ export async function POST(req: NextRequest) {
       protectedPages?: string[];
     };
 
-    await ensureTab(TAB, HEADERS);
+    await store.ensureTab(TAB, HEADERS);
     let rows: Row[] = [];
-    try { rows = await fetchTab(TAB); } catch { /* empty */ }
+    try { rows = await store.fetchTab(TAB); } catch { /* empty */ }
 
     // Build a key→value map from existing rows (preserve unknown keys).
     const configMap = new Map<string, string>();
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     // Write back to sheet.
     const outRows = [...configMap.entries()].map(([k, v]) => [k, v]);
-    await writeTab(TAB, HEADERS, outRows);
+    await store.writeTab(TAB, HEADERS, outRows);
 
     return NextResponse.json({ ok: true });
   } catch (e) {

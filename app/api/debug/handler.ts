@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchTab, listSheetNames } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
+import { listSheetNames } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +24,12 @@ export async function GET() {
     sheetNames = [`error: ${e instanceof Error ? e.message : String(e)}`];
   }
 
+  const store = getDataStore();
   const results: Record<string, { columns: string[]; rows: number; sample: Record<string, unknown> | null; error?: string }> = {};
 
   for (const tab of TABS) {
     try {
-      const data = await fetchTab(tab);
+      const data = await store.fetchTab(tab);
       results[tab] = {
         columns: data.length > 0 ? Object.keys(data[0]) : [],
         rows: data.length,

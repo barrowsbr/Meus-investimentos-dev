@@ -1,4 +1,4 @@
-import { fetchTab } from "./gsheets";
+import { getDataStore } from "./data-store";
 import { fetchCotacoes, yahooTicker } from "./cotacoes";
 import { calcularSnapshot, type Position, type PortfolioSnapshot } from "./portfolio";
 import { calcularRendaFixaPosicoes, type RendaFixaResult } from "./renda-fixa";
@@ -274,13 +274,14 @@ function buildMarketSnapshot(
 }
 
 export async function buildAgentContext(): Promise<string> {
+  const store = getDataStore();
   const [transacoes, fixaAberta, rendaFixaHist, proventos, cambioRows, ptaxRows] = await Promise.all([
-    fetchTab("meus_ativos").catch(() => []),
-    fetchTab("fixa_aberta").catch(() => []),
-    fetchTab("renda_fixa").catch(() => []),
-    fetchTab("meus_proventos").catch(() => []),
-    fetchTab("cambio").catch(() => []),
-    fetchTab("p_tax").catch(() => []),
+    store.fetchTab("meus_ativos").catch(() => []),
+    store.fetchTab("fixa_aberta").catch(() => []),
+    store.fetchTab("renda_fixa").catch(() => []),
+    store.fetchTab("meus_proventos").catch(() => []),
+    store.fetchTab("cambio").catch(() => []),
+    store.fetchTab("p_tax").catch(() => []),
   ]);
 
   const portfolioCtx = buildPortfolioContext(transacoes, fixaAberta, rendaFixaHist, proventos);

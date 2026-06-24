@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab, appendRows } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
@@ -185,6 +185,7 @@ function findMissingProventos(
 
 export async function POST(request: Request) {
   try {
+    const store = getDataStore();
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const dryRun = formData.get("dry_run") === "true";
@@ -203,7 +204,7 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    const existing = await fetchTab("meus_proventos");
+    const existing = await store.fetchTab("meus_proventos");
     const missing = findMissingProventos(existing, parsed);
 
     const result: Record<string, unknown> = {
@@ -216,7 +217,7 @@ export async function POST(request: Request) {
       await backupTab("meus_proventos").catch(() => {});
       const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
       const rows = missing.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
-      await appendRows("meus_proventos", rows);
+      await store.appendRows("meus_proventos", rows);
       result.inserted = missing.length;
     }
 

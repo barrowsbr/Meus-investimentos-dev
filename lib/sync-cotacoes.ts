@@ -1,5 +1,5 @@
-import { fetchTab } from "./gsheets";
-import { readGoldenSource, writeGoldenSource, goldenSourceStatus, type GoldenSourceData } from "./db-cotacoes";
+import { getDataStore, getMarketDataStore } from "./data-store";
+import { goldenSourceStatus, type GoldenSourceData } from "./db-cotacoes";
 import { fetchTicker } from "./market-history";
 import { yahooTicker } from "./cotacoes";
 import { identificarSetor, isRendaFixaManual } from "./sectors";
@@ -82,7 +82,9 @@ export async function runCotacoesSync(
   const lookbackDays = Math.min(lookbackYears, 10) * 365;
 
   // 1. Portfolio tickers
-  const transacoes = await fetchTab("meus_ativos");
+  const store = getDataStore();
+  const mktStore = getMarketDataStore();
+  const transacoes = await store.fetchTab("meus_ativos");
   const tickerMeta = new Map<string, { moeda: string; corretora: string }>();
   for (const row of transacoes) {
     const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
@@ -106,7 +108,7 @@ export async function runCotacoesSync(
   const allOriginalTickers = [...yahooMap.keys()];
 
   // 2. Existing golden source
-  const existing = await readGoldenSource();
+  const existing = await mktStore.read();
   const existingStatus = goldenSourceStatus(existing);
 
   // 3. Date range — for backfill, go back to earliest transaction (not just lookbackDays)
@@ -198,7 +200,7 @@ export async function runCotacoesSync(
   };
 
   const anomalies = detectAnomalies(merged);
-  await writeGoldenSource(merged);
+  await mktStore.write(merged);
 
   return {
     action,

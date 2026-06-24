@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchTab, appendRows, writeTab, getServiceAccountAuth } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
+import { getServiceAccountAuth } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -64,7 +65,8 @@ export async function POST() {
   }
 
   try {
-    const existing = await fetchTab("p_tax").catch(() => []);
+    const store = getDataStore();
+    const existing = await store.fetchTab("p_tax").catch(() => []);
 
     const existingDates = new Set<string>();
     let latestExisting = "";
@@ -102,7 +104,7 @@ export async function POST() {
       return NextResponse.json({ ok: true, newRows: 0, message: "Sem novos dados do BCB" });
     }
 
-    await appendRows("p_tax", newRows);
+    await store.appendRows("p_tax", newRows);
 
     const latestNew = newRows[newRows.length - 1];
     return NextResponse.json({

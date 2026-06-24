@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { readGoldenSource } from "@/lib/db-cotacoes";
 import { calcularCarteiraFIFO } from "@/lib/portfolio";
 import { toNumber } from "@/lib/format";
@@ -65,9 +65,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const store = getDataStore();
     const [ativos, rfRows, goldenSource] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("renda_fixa"),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("renda_fixa"),
       readGoldenSource(),
     ]);
 

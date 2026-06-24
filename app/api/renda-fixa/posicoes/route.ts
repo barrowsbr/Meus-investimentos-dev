@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchFxRates } from "@/lib/cotacoes";
 import { calcularRendaFixaPosicoes } from "@/lib/renda-fixa";
 
@@ -11,10 +11,11 @@ export const maxDuration = 30;
 
 export async function GET() {
   try {
+    const store = getDataStore();
     const [rfTransacoes, fixaAberta, proventosRows, { fx }] = await Promise.all([
-      fetchTab("renda_fixa"),
-      fetchTab("fixa_aberta"),
-      fetchTab("meus_proventos"),
+      store.fetchTab("renda_fixa"),
+      store.fetchTab("fixa_aberta"),
+      store.fetchTab("meus_proventos"),
       fetchFxRates(),
     ]);
 

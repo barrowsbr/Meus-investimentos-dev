@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
@@ -10,12 +10,13 @@ export const maxDuration = 30;
 
 export async function GET() {
   try {
+    const store = getDataStore();
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos"),
-      fetchTab("fixa_aberta"),
-      fetchTab("cambio").catch(() => []),
-      fetchTab("p_tax").catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos"),
+      store.fetchTab("fixa_aberta"),
+      store.fetchTab("cambio").catch(() => []),
+      store.fetchTab("p_tax").catch(() => []),
     ]);
 
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();
