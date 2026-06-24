@@ -352,8 +352,16 @@ export function buildExposureHeat(exposure: ExposureResponse | null): Map<string
   const maxPct = Math.max(...exposure.exposure.map(e => e.pct));
   if (maxPct <= 0) return map;
 
+  // PISO de visibilidade: como um ETF global concentra ~50% nos EUA, uma escala
+  // 0→1 deixaria Japão/UK/China num azul quase igual ao fundo (= "sumiriam",
+  // mesmo tendo dinheiro lá). Todo país com QUALQUER exposição recebe no mínimo
+  // FLOOR de intensidade (azul claramente distinto do neutro) e cresce daí até 1
+  // no país de maior exposição. Assim o mapa mostra TODOS os países que você tem
+  // — igual aos pontos do mapa da página de ETF — com gradiente por tamanho.
+  const FLOOR = 0.32;
+
   for (const entry of exposure.exposure) {
-    if (entry.pct < 0.1) continue;
+    if (entry.pct <= 0) continue;
     const isoNum = ISO2_TO_ISO_NUM[entry.iso2];
     if (!isoNum) continue;
     const country = ISO_NUM_TO_COUNTRY[isoNum] ?? entry.countryPT;
@@ -364,12 +372,11 @@ export function buildExposureHeat(exposure: ExposureResponse | null): Map<string
     if (entry.etfBRL > 0) sources.push("ETFs");
     const via = sources.join(" + ");
 
-    // Gamma < 1 abre o miolo: como um ETF global concentra ~60% nos EUA, uma
-    // escala linear apagaria Japão/UK/China. O gamma deixa visível a exposição
-    // pequena (2–5%) sem confundi-la com país sem exposição (neutro).
+    // sqrt abre o miolo; o piso garante que mesmo 0,3% fique visível.
+    const norm = Math.sqrt(entry.pct / maxPct);
     map.set(isoNum, {
-      intensity: Math.pow(entry.pct / maxPct, 0.45),
-      label: `${entry.pct.toFixed(1)}% do portfólio`,
+      intensity: FLOOR + (1 - FLOOR) * norm,
+      label: `${entry.pct.toFixed(entry.pct < 1 ? 2 : 1)}% do portfólio`,
       valueText: `R$ ${entry.totalBRL >= 1e6 ? (entry.totalBRL / 1e6).toFixed(1) + "M" : entry.totalBRL >= 1e3 ? (entry.totalBRL / 1e3).toFixed(1) + "K" : entry.totalBRL.toFixed(0)} · ${via}`,
       positive: true,
       region,
