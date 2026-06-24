@@ -12,7 +12,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { COUNTRY_TO_ISO_NUM, signedNorm } from "@/lib/world-map";
-import type { CurrencyData } from "./types";
+import { ISO_NUM_TO_ISO2 } from "./countries";
+import type { CurrencyData, ExposureResponse } from "./types";
 
 // ISO numérico → nome PT do país (inverso de COUNTRY_TO_ISO_NUM).
 export const ISO_NUM_TO_COUNTRY: Record<string, string> = Object.fromEntries(
@@ -312,6 +313,45 @@ export function buildRiskHeat(
       region: COUNTRY_REGION[country],
       country,
       flag: mv?.flag ?? "",
+    });
+  }
+  return map;
+}
+
+// ISO-2 → ISO numérico (inverso de ISO_NUM_TO_ISO2).
+const ISO2_TO_ISO_NUM: Record<string, string> = Object.fromEntries(
+  Object.entries(ISO_NUM_TO_ISO2).map(([num, a2]) => [a2, num]),
+);
+
+// Camada ETF (exposição do portfólio): magnitude da alocação geográfica.
+// Escala SEQUENCIAL azul (0→1) — não há "bom/ruim", só magnitude de exposição.
+export function buildExposureHeat(exposure: ExposureResponse | null): Map<string, HeatEntry> {
+  const map = new Map<string, HeatEntry>();
+  if (!exposure || exposure.exposure.length === 0) return map;
+
+  const maxPct = Math.max(...exposure.exposure.map(e => e.pct));
+  if (maxPct <= 0) return map;
+
+  for (const entry of exposure.exposure) {
+    if (entry.pct < 0.1) continue;
+    const isoNum = ISO2_TO_ISO_NUM[entry.iso2];
+    if (!isoNum) continue;
+    const country = ISO_NUM_TO_COUNTRY[isoNum] ?? entry.countryPT;
+    const region = COUNTRY_REGION[country];
+
+    const sources: string[] = [];
+    if (entry.directBRL > 0) sources.push("direta");
+    if (entry.etfBRL > 0) sources.push("ETFs");
+    const via = sources.join(" + ");
+
+    map.set(isoNum, {
+      intensity: entry.pct / maxPct,
+      label: `${entry.pct.toFixed(1)}% do portfólio`,
+      valueText: `R$ ${entry.totalBRL >= 1e6 ? (entry.totalBRL / 1e6).toFixed(1) + "M" : entry.totalBRL >= 1e3 ? (entry.totalBRL / 1e3).toFixed(1) + "K" : entry.totalBRL.toFixed(0)} · ${via}`,
+      positive: true,
+      region,
+      country,
+      flag: "",
     });
   }
   return map;

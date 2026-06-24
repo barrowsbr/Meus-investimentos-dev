@@ -103,6 +103,18 @@ export function intensityColor(t: number): string {
   return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 }
 
+// Escala SEQUENCIAL azul para a camada ETF (exposição do portfólio): não há
+// "bom/ruim", só magnitude — por isso uma rampa de uma cor só (azul fraco →
+// azul forte), distinta do diverging vermelho/verde das lentes de mercado.
+// t ∈ [0, 1]: 0 = pouca exposição (azul escuro), 1 = muita (sky-400).
+export function etfIntensityColor(t: number): string {
+  const c = Math.max(0, Math.min(1, t));
+  const r = Math.round(37 + (96 - 37) * c);
+  const g = Math.round(78 + (180 - 78) * c);
+  const b = Math.round(130 + (250 - 130) * c);
+  return `rgb(${r},${g},${b})`;
+}
+
 // Normaliza uma variação % para [-1, 1] dado um `range` (o que conta como
 // "extremo") e aplica um gamma (<1) para dar mais resolução perto de zero —
 // é o que separa visualmente uma alta de 1% de uma de 2%.

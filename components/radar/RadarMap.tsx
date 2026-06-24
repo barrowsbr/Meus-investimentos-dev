@@ -9,7 +9,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import { GEO_URL, intensityColor } from "@/lib/world-map";
+import { GEO_URL, intensityColor, etfIntensityColor } from "@/lib/world-map";
 import { type HeatEntry } from "@/lib/radar/geo";
 import { resolveCountryMeta } from "@/lib/radar/countries";
 import type { RadarLayer } from "@/lib/radar/types";
@@ -31,6 +31,7 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
   mercados: ["Queda", "Alta"],
   cambio: ["Moeda fraca", "Moeda forte"],
   instabilidade: ["Risco alto", "Risco baixo"],
+  etf: ["Menor", "Maior exposição"],
 };
 
 function RadarMapInner({
@@ -106,7 +107,9 @@ function RadarMapInner({
                 // todos sejam clicáveis e tenham tooltip, mesmo sem dado de calor.
                 const meta = resolveCountryMeta(iso, (geo.properties as { name?: string })?.name);
                 const known = !!meta;
-                const fill = entry ? intensityColor(entry.intensity) : NEUTRAL;
+                const fill = entry
+                  ? (layer === "etf" ? etfIntensityColor(entry.intensity) : intensityColor(entry.intensity))
+                  : NEUTRAL;
                 const isSelected = selectedIso === iso;
                 // Filtro de região atua no PRÓPRIO país (não só nos marcadores):
                 // com filtro ativo, só a região escolhida fica acesa.
@@ -159,7 +162,9 @@ function RadarMapInner({
         <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][0]}</span>
         <span
           className="h-2 w-20 rounded-full"
-          style={{ background: "linear-gradient(90deg, #ef4444 0%, #facc15 50%, #22c55e 100%)" }}
+          style={{ background: layer === "etf"
+            ? "linear-gradient(90deg, #254e82 0%, #38bdf8 100%)"
+            : "linear-gradient(90deg, #ef4444 0%, #facc15 50%, #22c55e 100%)" }}
         />
         <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][1]}</span>
       </div>
@@ -178,7 +183,7 @@ function RadarMapInner({
           <p className="font-semibold text-zinc-100">{tip.title}</p>
           <p className="text-[11px] text-zinc-400">{tip.sub}</p>
           {tip.value != null && (
-            <p className="font-mono text-[11px] font-bold" style={{ color: tip.positive ? "#4ade80" : "#f87171" }}>
+            <p className="font-mono text-[11px] font-bold" style={{ color: layer === "etf" ? "#38bdf8" : (tip.positive ? "#4ade80" : "#f87171") }}>
               {tip.value}
             </p>
           )}
