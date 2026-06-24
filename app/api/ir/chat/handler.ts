@@ -244,7 +244,28 @@ export async function POST(req: NextRequest) {
 
     let contextBlock = "";
     if (dossie) {
-      contextBlock = `\n\n---\n\n## Dossiê fiscal do investidor (gerado pelo motor canônico lib/tax — data: ${hoje})\n\`\`\`json\n${JSON.stringify(dossie).slice(0, 20000)}\n\`\`\``;
+      const raw = JSON.stringify(dossie);
+      let compact: string;
+      if (raw.length > 30000) {
+        const d = dossie as Record<string, unknown>;
+        const slim = { ...d };
+        if (Array.isArray(d.posicoesAbertas) && d.posicoesAbertas.length > 40) {
+          slim.posicoesAbertas = d.posicoesAbertas.slice(0, 40);
+          slim._posicoesOmitidas = d.posicoesAbertas.length - 40;
+        }
+        if (Array.isArray(d.meses) && d.meses.length > 24) {
+          slim.meses = d.meses.slice(-24);
+          slim._mesesOmitidos = d.meses.length - 24;
+        }
+        if (Array.isArray(d.proventos) && d.proventos.length > 30) {
+          slim.proventos = d.proventos.slice(-30);
+          slim._proventosOmitidos = d.proventos.length - 30;
+        }
+        compact = JSON.stringify(slim);
+      } else {
+        compact = raw;
+      }
+      contextBlock = `\n\n---\n\n## Dossiê fiscal do investidor (gerado pelo motor canônico lib/tax — data: ${hoje})\n\`\`\`json\n${compact}\n\`\`\``;
     }
 
     const systemPrompt = SYSTEM_PROMPT + contextBlock;
