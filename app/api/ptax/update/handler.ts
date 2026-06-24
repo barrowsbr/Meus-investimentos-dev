@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
+import { fetchPtaxUpdates, SUPPORTED_CURRENCIES } from "@/lib/ptax";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
-
-interface BcbCotacao {
-  cotacaoVenda: number;
-  dataHoraCotacao: string;
-}
+export const maxDuration = 45;
 
 function parseDate(raw: string): string {
   const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -18,42 +14,9 @@ function parseDate(raw: string): string {
   return "";
 }
 
-function toISODate(dateStr: string): string {
-  const m = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[0];
-  const bcb = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (bcb) return `${bcb[3]}-${bcb[2]}-${bcb[1]}`;
-  return "";
-}
-
 function formatBrDate(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
-}
-
-async function fetchBcbPtax(startDate: string, endDate: string): Promise<Map<string, number>> {
-  const fmt = (iso: string) => {
-    const [y, m, d] = iso.split("-");
-    return `${m}-${d}-${y}`;
-  };
-
-  const url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@di,dataFinalCotacao=@df)?@di='${fmt(startDate)}'&@df='${fmt(endDate)}'&$top=10000&$format=json&$select=cotacaoVenda,dataHoraCotacao`;
-
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error(`BCB API returned ${res.status}`);
-
-  const json = await res.json();
-  const values: BcbCotacao[] = json.value ?? [];
-
-  const map = new Map<string, number>();
-  for (const v of values) {
-    if (!v.cotacaoVenda || v.cotacaoVenda <= 0) continue;
-    const dateMatch = v.dataHoraCotacao.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (!dateMatch) continue;
-    const iso = dateMatch[0];
-    map.set(iso, v.cotacaoVenda);
-  }
-  return map;
 }
 
 export async function POST() {
@@ -68,13 +31,15 @@ export async function POST() {
     const store = getDataStore();
     const existing = await store.fetchTab("p_tax").catch(() => []);
 
-    const existingDates = new Set<string>();
+    const existingKeys = new Set<string>();
     let latestExisting = "";
     for (const row of existing) {
       const raw = String(row["data"] ?? row["date"] ?? row["data cotação"] ?? "");
       const iso = parseDate(raw);
+      const moeda = String(row["moeda"] ?? row["currency"] ?? "USD").toUpperCase().trim();
+      const key = moeda.includes("EUR") ? "EUR" : moeda.includes("CAD") ? "CAD" : moeda.includes("GBP") ? "GBP" : "USD";
       if (iso) {
-        existingDates.add(iso);
+        existingKeys.add(`${key}:${iso}`);
         if (iso > latestExisting) latestExisting = iso;
       }
     }
@@ -92,26 +57,42 @@ export async function POST() {
       return NextResponse.json({ ok: true, newRows: 0, message: "PTAX já atualizado" });
     }
 
-    const bcbData = await fetchBcbPtax(startDate, today);
+    const allNewRows: string[][] = [];
+    const summary: Record<string, number> = {};
 
-    const newRows: string[][] = [];
-    for (const [iso, rate] of [...bcbData.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      if (existingDates.has(iso)) continue;
-      newRows.push([formatBrDate(iso), rate.toFixed(4).replace(".", ",")]);
+    for (const moeda of SUPPORTED_CURRENCIES) {
+      try {
+        const bcbData = await fetchPtaxUpdates(moeda, startDate, today);
+
+        for (const [iso, rate] of [...bcbData.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+          if (existingKeys.has(`${moeda}:${iso}`)) continue;
+          allNewRows.push([
+            formatBrDate(iso),
+            moeda,
+            rate.toFixed(4).replace(".", ","),
+          ]);
+          summary[moeda] = (summary[moeda] ?? 0) + 1;
+        }
+      } catch {
+        summary[moeda] = -1;
+      }
     }
 
-    if (newRows.length === 0) {
-      return NextResponse.json({ ok: true, newRows: 0, message: "Sem novos dados do BCB" });
+    if (allNewRows.length === 0) {
+      return NextResponse.json({ ok: true, newRows: 0, message: "Sem novos dados do BCB", summary });
     }
 
-    await store.appendRows("p_tax", newRows);
+    await store.ensureTab("p_tax", ["data", "moeda", "taxa"]);
+    await store.appendRows("p_tax", allNewRows);
 
-    const latestNew = newRows[newRows.length - 1];
+    const latest = allNewRows[allNewRows.length - 1];
     return NextResponse.json({
       ok: true,
-      newRows: newRows.length,
-      latestDate: latestNew[0],
-      latestRate: latestNew[1],
+      newRows: allNewRows.length,
+      latestDate: latest[0],
+      latestCurrency: latest[1],
+      latestRate: latest[2],
+      summary,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
