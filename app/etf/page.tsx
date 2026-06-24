@@ -44,6 +44,10 @@ function formatComputedAt(iso: string): string {
   } catch { return ""; }
 }
 
+// Bucket "Outros · diversificação" — o restante do ETF além dos top holdings.
+const isOutros = (ativo: string) => ativo.startsWith("OUTROS.");
+const outrosEtf = (ativo: string) => ativo.replace(/^OUTROS\./, "");
+
 // Célula de % com mini-barra (ranking visual): a barra é proporcional ao
 // maior valor da lista, então o líder fica cheio e o resto é comparável.
 function PctCell({ pct, max, color = "#6366f1" }: { pct: number; max: number; color?: string }) {
@@ -290,22 +294,31 @@ export default function ETFPage() {
                           <span className="text-zinc-400 text-xs font-mono">{compactBRL(etf.valor_brl)}</span>
                         </div>
                         <div className="divide-y divide-zinc-900/70">
-                          {etf.components.map(c => (
-                            <div key={c.ativo} className="relative flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-white/[0.02]">
-                              <div className="absolute inset-y-0 left-0 bg-indigo-500/[0.07] pointer-events-none"
-                                style={{ width: `${(c.peso / maxPeso) * 100}%` }} />
-                              <div className="relative flex items-baseline gap-1.5 min-w-0">
-                                <span className="text-zinc-200 font-medium text-xs">{c.ativo}</span>
-                                {c.name && c.name !== c.ativo && (
-                                  <span className="text-zinc-600 text-[10px] truncate hidden sm:inline">{c.name}</span>
-                                )}
+                          {etf.components.map(c => {
+                            const outros = isOutros(c.ativo);
+                            return (
+                              <div key={c.ativo} className="relative flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-white/[0.02]">
+                                <div className={`absolute inset-y-0 left-0 pointer-events-none ${outros ? "bg-zinc-500/[0.06]" : "bg-indigo-500/[0.07]"}`}
+                                  style={{ width: `${(c.peso / maxPeso) * 100}%` }} />
+                                <div className="relative flex items-baseline gap-1.5 min-w-0">
+                                  {outros ? (
+                                    <span className="text-zinc-400 font-medium text-xs italic">Outros · diversificação</span>
+                                  ) : (
+                                    <>
+                                      <span className="text-zinc-200 font-medium text-xs">{c.ativo}</span>
+                                      {c.name && c.name !== c.ativo && (
+                                        <span className="text-zinc-600 text-[10px] truncate hidden sm:inline">{c.name}</span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                <div className="relative flex items-center gap-3 flex-shrink-0 font-mono tabular-nums">
+                                  <span className={`text-[11px] w-14 text-right ${outros ? "text-zinc-500" : "text-zinc-500"}`}>{(c.peso * 100).toFixed(2)}%</span>
+                                  <span className={`text-[11px] w-16 text-right ${outros ? "text-zinc-400" : "text-zinc-300"}`}>{compactBRL(etf.valor_brl * c.peso)}</span>
+                                </div>
                               </div>
-                              <div className="relative flex items-center gap-3 flex-shrink-0 font-mono tabular-nums">
-                                <span className="text-zinc-500 text-[11px] w-14 text-right">{(c.peso * 100).toFixed(2)}%</span>
-                                <span className="text-zinc-300 text-[11px] w-16 text-right">{compactBRL(etf.valor_brl * c.peso)}</span>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -328,20 +341,29 @@ export default function ETFPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {combinedList.slice(0, 30).map((c, i) => (
-                          <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                            <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                            <td className="py-1.5 px-2">
-                              <span className="text-zinc-200 font-semibold">{c.ativo}</span>
-                              {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
-                            </td>
-                            <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
-                            <td className="py-1.5 px-2">
-                              <PctCell pct={combinedTotal > 0 ? (c.valorBRL / combinedTotal) * 100 : 0} max={maxPct} />
-                            </td>
-                            <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.etfs.join(", ")}</td>
-                          </tr>
-                        ))}
+                        {combinedList.slice(0, 30).map((c, i) => {
+                          const outros = isOutros(c.ativo);
+                          return (
+                            <tr key={c.ativo} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                              <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                              <td className="py-1.5 px-2">
+                                {outros ? (
+                                  <span className="text-zinc-400 font-medium italic">Outros · diversificação <span className="text-zinc-600 not-italic">({outrosEtf(c.ativo)})</span></span>
+                                ) : (
+                                  <>
+                                    <span className="text-zinc-200 font-semibold">{c.ativo}</span>
+                                    {c.name && c.name !== c.ativo && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                  </>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                              <td className="py-1.5 px-2">
+                                <PctCell pct={combinedTotal > 0 ? (c.valorBRL / combinedTotal) * 100 : 0} max={maxPct} color={outros ? "#71717a" : "#6366f1"} />
+                              </td>
+                              <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{outros ? "—" : c.etfs.join(", ")}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -367,20 +389,29 @@ export default function ETFPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rvCompleteList.map((c, i) => (
-                            <tr key={c.ticker} className="border-b border-zinc-900 hover:bg-white/[0.02]">
-                              <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
-                              <td className="py-1.5 px-2">
-                                <span className="font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</span>
-                                {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
-                              </td>
-                              <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
-                              <td className="py-1.5 px-2">
-                                <PctCell pct={rvCompleteTotal > 0 ? (c.valorBRL / rvCompleteTotal) * 100 : 0} max={maxPct} />
-                              </td>
-                              <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
-                            </tr>
-                          ))}
+                          {rvCompleteList.map((c, i) => {
+                            const outros = isOutros(c.ticker);
+                            return (
+                              <tr key={c.ticker} className="border-b border-zinc-900 hover:bg-white/[0.02]">
+                                <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
+                                <td className="py-1.5 px-2">
+                                  {outros ? (
+                                    <span className="text-zinc-400 font-medium italic">Outros · diversificação <span className="text-zinc-600 not-italic">({outrosEtf(c.ticker)})</span></span>
+                                  ) : (
+                                    <>
+                                      <span className="font-semibold" style={{ color: c.via ? "#a1a1aa" : "#f4f4f5" }}>{c.ticker}</span>
+                                      {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                    </>
+                                  )}
+                                </td>
+                                <td className="py-1.5 px-2 text-right text-zinc-300 font-mono">{compactBRL(c.valorBRL)}</td>
+                                <td className="py-1.5 px-2">
+                                  <PctCell pct={rvCompleteTotal > 0 ? (c.valorBRL / rvCompleteTotal) * 100 : 0} max={maxPct} color={outros ? "#71717a" : "#6366f1"} />
+                                </td>
+                                <td className="py-1.5 px-2 text-zinc-600 text-[10px]">{c.via || "—"}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -415,8 +446,14 @@ export default function ETFPage() {
                               <tr key={`${c.ticker}-${i}`} className="border-b border-zinc-900 hover:bg-white/[0.02]">
                                 <td className="py-1.5 px-2 text-zinc-700 font-mono">{i + 1}</td>
                                 <td className="py-1.5 px-2">
-                                  <span className="font-semibold text-zinc-100">{c.ticker}</span>
-                                  {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                  {isOutros(c.ticker) ? (
+                                    <span className="text-zinc-400 font-medium italic">Outros · diversificação <span className="text-zinc-600 not-italic">({outrosEtf(c.ticker)})</span></span>
+                                  ) : (
+                                    <>
+                                      <span className="font-semibold text-zinc-100">{c.ticker}</span>
+                                      {c.name && <span className="text-zinc-600 ml-1.5 text-[10px]">{c.name}</span>}
+                                    </>
+                                  )}
                                 </td>
                                 <td className="py-1.5 px-2">
                                   <span className="tag text-[9px] px-1.5 py-0.5" style={{ backgroundColor: isRF ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: isRF ? "#10b981" : "#3b82f6" }}>
