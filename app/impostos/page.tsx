@@ -991,7 +991,7 @@ export default function ImpostosPage() {
   return (
     <>
       <div className="flex items-start justify-between mb-5">
-        <PageHeader title="Impostos" description="Dois regimes, duas apurações: Brasil (DARF mensal) e Exterior (15% anual — Lei 14.754/23)" />
+        <PageHeader title="Impostos" />
         <div className="mt-1"><YearSelector year={year} onChange={setYear} /></div>
       </div>
 
