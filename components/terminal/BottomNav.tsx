@@ -16,7 +16,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   return (
     <nav
-      className="min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around rounded-2xl"
+      className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around rounded-2xl"
       style={{
         bottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))",
         height: 58,
