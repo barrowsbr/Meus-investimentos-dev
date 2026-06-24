@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import { toNumber } from "@/lib/format";
-import { processarVendas, type RawTx, type CorpEvent, type PtaxLookup } from "@/lib/tax/engine";
+import { processarVendas, type RawTx, type CorpEvent } from "@/lib/tax/engine";
 import { apurar } from "@/lib/tax/apurador";
 import { apurarCambioIr } from "@/lib/tax/cambio-ir";
 import { regra } from "@/lib/tax/rules";
+import { buildMultiCurrencyPtax } from "@/lib/ptax";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -22,26 +23,15 @@ function num(v: unknown): number {
   return toNumber(v) ?? 0;
 }
 
-// PtaxLookup com forward-fill a partir da aba p_tax (date → USDBRL venda).
-function buildPtaxLookup(ptaxRows: Row[]): PtaxLookup {
-  const map = new Map<string, number>();
-  for (const row of ptaxRows) {
-    const data = parseDate(row["data"] ?? row["date"] ?? row["data cotação"] ?? row["data cotacao"]);
-    const moeda = String(row["moeda"] ?? row["currency"] ?? "USD").toUpperCase();
-    if (moeda.includes("EUR")) continue; // p_tax pode misturar; priorizamos USD
-    const venda = num(row["taxa"] ?? row["venda"] ?? row["ptax_venda"] ?? row["cotação"] ?? row["cotacao"] ?? row["valor"] ?? row["ptax"]);
-    if (!data || venda <= 0) continue;
-    map.set(data, venda);
+// Detecta moedas usadas nas transações para buscar PTAX de cada uma.
+function detectCurrencies(rows: Row[]): string[] {
+  const s = new Set<string>();
+  for (const r of rows) {
+    const m = String(r["moeda"] ?? "BRL").toUpperCase().trim();
+    if (m && m !== "BRL") s.add(m);
   }
-  const datas = [...map.keys()].sort();
-  return (moeda, dateISO) => {
-    if ((moeda || "BRL").toUpperCase() === "BRL") return 1;
-    if (datas.length === 0) return 5.0; // fallback defensivo
-    // último PTAX com data <= dateISO; se nenhum, o primeiro disponível
-    let escolhido = datas[0];
-    for (const d of datas) { if (d <= dateISO) escolhido = d; else break; }
-    return map.get(escolhido) ?? 5.0;
-  };
+  if (s.size === 0) s.add("USD");
+  return [...s];
 }
 
 function parseTransacoes(rows: Row[]): RawTx[] {
@@ -103,8 +93,9 @@ export async function GET(request: Request) {
       store.fetchTab("cambio").catch(() => []),
     ]);
 
-    const ptax = buildPtaxLookup(ptaxRows);
     const txs = parseTransacoes(ativos);
+    const currencies = detectCurrencies(ativos);
+    const ptax = await buildMultiCurrencyPtax(ptaxRows, currencies);
     const eventos = parseEventos(eventosRows);
 
     // Apura SEMPRE com o histórico completo (preço médio depende de todas as

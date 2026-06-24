@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import { toNumber } from "@/lib/format";
-import type { RawTx, CorpEvent, PtaxLookup } from "@/lib/tax/engine";
+import type { RawTx, CorpEvent } from "@/lib/tax/engine";
 import { bensDireitosRV, classificarRendimentos } from "@/lib/tax/dirpf";
 import { apurarRf, rfPosicoesAbertas } from "@/lib/tax/rf";
+import { buildMultiCurrencyPtax } from "@/lib/ptax";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -18,22 +19,14 @@ function parseDate(v: unknown): string {
 }
 const num = (v: unknown) => toNumber(v) ?? 0;
 
-function buildPtaxLookup(ptaxRows: Row[]): PtaxLookup {
-  const map = new Map<string, number>();
-  for (const row of ptaxRows) {
-    const data = parseDate(row["data"] ?? row["date"]);
-    const venda = num(row["taxa"] ?? row["venda"] ?? row["ptax_venda"] ?? row["cotação"] ?? row["cotacao"] ?? row["valor"]);
-    if (!data || venda <= 0) continue;
-    map.set(data, venda);
+function detectCurrencies(rows: Row[]): string[] {
+  const s = new Set<string>();
+  for (const r of rows) {
+    const m = String(r["moeda"] ?? "BRL").toUpperCase().trim();
+    if (m && m !== "BRL") s.add(m);
   }
-  const datas = [...map.keys()].sort();
-  return (moeda, dateISO) => {
-    if ((moeda || "BRL").toUpperCase() === "BRL") return 1;
-    if (datas.length === 0) return 5.0;
-    let escolhido = datas[0];
-    for (const d of datas) { if (d <= dateISO) escolhido = d; else break; }
-    return map.get(escolhido) ?? 5.0;
-  };
+  if (s.size === 0) s.add("USD");
+  return [...s];
 }
 
 function parseTransacoes(rows: Row[]): RawTx[] {
@@ -91,8 +84,9 @@ export async function GET(request: Request) {
       store.fetchTab("fixa_aberta").catch(() => []),
     ]);
 
-    const ptax = buildPtaxLookup(ptaxRows);
     const txs = parseTransacoes(ativos);
+    const currencies = detectCurrencies(ativos);
+    const ptax = await buildMultiCurrencyPtax(ptaxRows, currencies);
     const eventos = parseEventos(eventosRows);
     const fxHoje = ptax("USD", new Date().toISOString().slice(0, 10));
 

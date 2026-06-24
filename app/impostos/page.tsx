@@ -39,15 +39,21 @@ interface Posicao {
   aliquota: number; isentavel: boolean; valorAtualBRL: number;
 }
 interface LiquidacaoBRL {
-  data: string; usdAlienado: number; recebidoBRL: number; taxaEfetiva: number;
-  pmDolarNaData: number; custoBRL: number; ganhoBRL: number;
+  data: string; moeda: string; fxAlienado: number; recebidoBRL: number; taxaEfetiva: number;
+  pmNaData: number; custoBRL: number; ganhoBRL: number;
+  // Compat legado
+  usdAlienado?: number; pmDolarNaData?: number;
 }
 interface AnoCambial {
-  ano: string; usdAlienado: number; recebidoBRL: number; custoBRL: number; ganhoBRL: number;
+  ano: string; moeda: string; fxAlienado: number; recebidoBRL: number; custoBRL: number; ganhoBRL: number;
   isentoEspecie: boolean; aliquotaEspecie: number; irEspecie: number; liquidacoes: LiquidacaoBRL[];
+  // Compat legado
+  usdAlienado?: number;
 }
+interface EstoqueMoeda { moeda: string; estoque: number; pmBRL: number; }
 interface CambioIr {
-  anos: AnoCambial[]; pmDolarFinal: number; usdEstoqueFinal: number; limiteIsencaoEspecieUSD: number;
+  anos: AnoCambial[]; estoques: EstoqueMoeda[];
+  pmDolarFinal: number; usdEstoqueFinal: number; limiteIsencaoEspecieUSD: number;
 }
 interface IrResponse {
   year: number | null; meses: MesApuracao[]; exterior: AnoExterior[];
@@ -296,48 +302,62 @@ function ExteriorAnual({ anos }: { anos: AnoExterior[] }) {
   );
 }
 
-// ─── Câmbio: liquidações para BRL (Exterior) ─────────────────────────────────
+// ─── Câmbio: liquidações para BRL (Exterior) — multi-moeda ──────────────────
+const CURRENCY_SYMBOLS: Record<string, string> = { USD: "US$", EUR: "€", CAD: "C$", GBP: "£" };
+const CURRENCY_LABELS: Record<string, string> = { USD: "Dólar", EUR: "Euro", CAD: "Dólar Canadense", GBP: "Libra" };
+
 function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | null }) {
   const anos = year ? cambio.anos.filter(a => a.ano === String(year)) : cambio.anos;
-  const [expandedAno, setExpandedAno] = useState<string | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   if (anos.length === 0) return null;
 
-  const fmtUsd = (v: number) => `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtFx = (v: number, m: string) => `${CURRENCY_SYMBOLS[m] ?? m} ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtTaxa = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+  const estoques = cambio.estoques ?? [];
 
   return (
     <div className="glass-card overflow-hidden mb-4">
-      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ArrowLeftRight size={14} className="text-cyan-400" />
-          <h2 className="text-sm font-semibold text-zinc-300">Câmbio — liquidações USD → R$ (ganho cambial)</h2>
+      <div className="px-4 py-3 border-b border-white/[0.05]">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <ArrowLeftRight size={14} className="text-cyan-400" />
+            <h2 className="text-sm font-semibold text-zinc-300">Câmbio — liquidações FX → R$ (ganho cambial)</h2>
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-600">
-          <span>PM dólar final: <span className="text-zinc-300 font-semibold">{fmtTaxa(cambio.pmDolarFinal)}</span></span>
-          <span>estoque: <span className="text-zinc-300 font-semibold">{fmtUsd(cambio.usdEstoqueFinal)}</span></span>
-        </div>
+        {estoques.length > 0 && (
+          <div className="flex flex-wrap gap-3 mt-2 text-xs text-zinc-600">
+            {estoques.map(e => (
+              <span key={e.moeda} className="bg-white/[0.03] px-2 py-1 rounded-lg">
+                {CURRENCY_LABELS[e.moeda] ?? e.moeda}: <span className="text-zinc-300 font-semibold">{fmtFx(e.estoque, e.moeda)}</span>
+                <span className="text-zinc-600 ml-1">PM {fmtTaxa(e.pmBRL)}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {anos.map(a => {
-        const isOpen = expandedAno === a.ano;
+        const rowKey = `${a.ano}:${a.moeda}`;
+        const isOpen = expandedKey === rowKey;
         return (
-          <div key={a.ano} className="border-b border-white/[0.04] last:border-0">
+          <div key={rowKey} className="border-b border-white/[0.04] last:border-0">
             <button
-              onClick={() => setExpandedAno(isOpen ? null : a.ano)}
+              onClick={() => setExpandedKey(isOpen ? null : rowKey)}
               className="w-full px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm hover:bg-white/[0.02] transition-colors"
             >
               <div className="flex items-center gap-2">
                 <ChevronRight size={12} className={`text-zinc-600 transition-transform ${isOpen ? "rotate-90" : ""}`} />
                 <span className="font-semibold text-zinc-300">{a.ano}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">{a.moeda}</span>
                 <span className="text-[10px] text-zinc-600">({a.liquidacoes.length} liquidação{a.liquidacoes.length !== 1 ? "ões" : ""})</span>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-600">
-                <span>alienado <span className="text-zinc-400">{fmtUsd(a.usdAlienado)}</span></span>
+                <span>alienado <span className="text-zinc-400">{fmtFx(a.fxAlienado, a.moeda)}</span></span>
                 <span>recebido <span className="text-zinc-400">{brl(a.recebidoBRL)}</span></span>
                 <span>custo PM <span className="text-zinc-400">{brl(a.custoBRL)}</span></span>
                 <span>ganho <span className={a.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}>{a.ganhoBRL >= 0 ? "+" : ""}{brl(a.ganhoBRL)}</span></span>
                 {a.isentoEspecie
-                  ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">≤ US$5k/ano → isento (espécie)</span>
+                  ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">≤ {CURRENCY_SYMBOLS[a.moeda] ?? a.moeda}5k/ano → isento</span>
                   : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">se espécie: {brl(a.irEspecie)} ({(a.aliquotaEspecie * 100).toFixed(1)}%)</span>}
               </div>
             </button>
@@ -349,9 +369,9 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
                     <thead>
                       <tr className="border-b border-zinc-800">
                         <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Data</th>
-                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">USD alienado</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">{a.moeda} alienado</th>
                         <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Taxa efetiva</th>
-                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">PM dólar</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">PM {CURRENCY_LABELS[a.moeda] ?? a.moeda}</th>
                         <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Recebido R$</th>
                         <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Custo R$</th>
                         <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Ganho R$</th>
@@ -364,9 +384,9 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
                         return (
                           <tr key={i} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
                             <td className="px-3 py-1.5 text-zinc-400 font-mono">{l.data.split("-").reverse().join("/")}</td>
-                            <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">{fmtUsd(l.usdAlienado)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">{fmtFx(l.fxAlienado, a.moeda)}</td>
                             <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.taxaEfetiva)}</td>
-                            <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.pmDolarNaData)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.pmNaData)}</td>
                             <td className="px-3 py-1.5 text-right text-zinc-300">{brl(l.recebidoBRL)}</td>
                             <td className="px-3 py-1.5 text-right text-zinc-500">{brl(l.custoBRL)}</td>
                             <td className={`px-3 py-1.5 text-right font-semibold ${l.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -381,8 +401,8 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
                     </tbody>
                     <tfoot>
                       <tr className="border-t border-zinc-700 font-semibold">
-                        <td className="px-3 py-2 text-zinc-400">Total {a.ano}</td>
-                        <td className="px-3 py-2 text-right text-zinc-300">{fmtUsd(a.usdAlienado)}</td>
+                        <td className="px-3 py-2 text-zinc-400">Total {a.ano} · {a.moeda}</td>
+                        <td className="px-3 py-2 text-right text-zinc-300">{fmtFx(a.fxAlienado, a.moeda)}</td>
                         <td className="px-3 py-2" colSpan={2} />
                         <td className="px-3 py-2 text-right text-zinc-300">{brl(a.recebidoBRL)}</td>
                         <td className="px-3 py-2 text-right text-zinc-500">{brl(a.custoBRL)}</td>
@@ -395,8 +415,8 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
                   </table>
 
                   <div className="px-3 py-2 bg-white/[0.02] text-[10px] text-zinc-600 leading-relaxed space-y-1">
-                    <div><span className="text-zinc-500 font-medium">Como ler:</span> PM dólar = custo médio das suas remessas BRL→USD até aquela data. Taxa efetiva = BRL recebido ÷ USD vendido. Ganho = (taxa efetiva − PM) × USD.</div>
-                    <div><span className="text-zinc-500 font-medium">Declaração:</span> se os dólares vieram de venda de ativo no exterior, o câmbio <strong>já está dentro</strong> dos 15% anuais — não declare aqui novamente. Se forem de moeda em espécie com alienações &gt; US$5k/ano, recolha via GCAP.</div>
+                    <div><span className="text-zinc-500 font-medium">Como ler:</span> PM = custo médio das suas remessas BRL→{a.moeda} até aquela data. Taxa efetiva = BRL recebido ÷ {a.moeda} vendido. Ganho = (taxa efetiva − PM) × {a.moeda}.</div>
+                    <div><span className="text-zinc-500 font-medium">Declaração:</span> se a moeda veio de venda de ativo no exterior, o câmbio <strong>já está dentro</strong> dos 15% anuais — não declare aqui novamente. Se for moeda em espécie com alienações equivalentes &gt; US$5k/ano, recolha via GCAP.</div>
                   </div>
                 </div>
               </div>
@@ -406,10 +426,10 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
       })}
 
       <div className="px-4 py-3 text-[11px] text-zinc-600 leading-relaxed bg-white/[0.01]">
-        <span className="text-zinc-400 font-medium">Três enquadramentos possíveis:</span>{" "}
-        <strong>(a)</strong> Venda de aplicação financeira no exterior → câmbio <strong>já tributado</strong> nos 15% anuais (custo pela PTAX compra, venda pela PTAX venda) — a conversão USD→BRL não gera novo imposto.{" "}
+        <span className="text-zinc-400 font-medium">Três enquadramentos possíveis (vale para qualquer moeda):</span>{" "}
+        <strong>(a)</strong> Venda de aplicação financeira no exterior → câmbio <strong>já tributado</strong> nos 15% anuais (custo pela PTAX compra, venda pela PTAX venda) — a conversão FX→BRL não gera novo imposto.{" "}
         <strong>(b)</strong> Conta-corrente/cartão não remunerados → variação cambial <strong>isenta</strong> (Lei 14.754/23, art. 5º).{" "}
-        <strong>(c)</strong> Moeda em espécie (incluindo saldo em conta remunerada) → isento até US$ {cambio.limiteIsencaoEspecieUSD.toLocaleString("pt-BR")} de alienações/ano; acima, tabela progressiva (15%–22,5%) via GCAP.
+        <strong>(c)</strong> Moeda em espécie (incluindo saldo em conta remunerada) → isento até equivalente a US$ {cambio.limiteIsencaoEspecieUSD.toLocaleString("pt-BR")} de alienações/ano; acima, tabela progressiva (15%–22,5%) via GCAP.
       </div>
     </div>
   );
@@ -635,7 +655,7 @@ function AgenteTributarista({ data, year }: { data: IrResponse; year: number | n
         })),
       exteriorAnual: data.exterior.map(a => ({ ano: a.ano, resultadoBRL: r2(a.resultado), prejAnterior: r2(a.prejuizoAcumIni), base: r2(a.baseTributavel), ir15pct: r2(a.irDevido) })),
       prejuizoAcumuladoPorBucket: Object.fromEntries(Object.entries(data.prejuizoFinal ?? {}).map(([k, v]) => [k, r2(v as number)])),
-      cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, usdAlienado: r2(a.usdAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
+      cambioLiquidacoes: (data.cambioIr?.anos ?? []).map(a => ({ ano: a.ano, moeda: a.moeda, fxAlienado: r2(a.fxAlienado), recebidoBRL: r2(a.recebidoBRL), ganhoCambialBRL: r2(a.ganhoBRL), isentoSeEspecie: a.isentoEspecie })),
       posicoesAbertas: (data.posicoes ?? []).map(p => ({ ticker: p.ticker, classe: p.assetClass, qtd: r2(p.qty), pmBRL: r2(p.pmBRL), moeda: p.moeda, valorAtualBRL: r2(p.valorAtualBRL) })),
     };
   }, [data, year, dirpfData]);
