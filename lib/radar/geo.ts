@@ -20,6 +20,26 @@ export const ISO_NUM_TO_COUNTRY: Record<string, string> = Object.fromEntries(
   Object.entries(COUNTRY_TO_ISO_NUM).map(([country, iso]) => [iso, country]),
 );
 
+// ISO-2 (código do motor canônico de país, lib/ticker-country) → nome PT no
+// PADRÃO DO RADAR (chave de COUNTRY_TO_ISO_NUM). O dossiê e o Pulso casam a
+// exposição por `countryPT === selected.name`/`indices.country`, e esses nomes
+// vêm de COUNTRY_TO_ISO_NUM ("EUA", não "Estados Unidos") — então a camada ETF
+// traduz o ISO-2 canônico para o nome do Radar antes de pintar/casar.
+export const ISO2_TO_RADAR_PT: Record<string, string> = {
+  US: "EUA", BR: "Brasil", CA: "Canadá", MX: "México", AR: "Argentina",
+  CL: "Chile", CO: "Colômbia", PE: "Peru",
+  GB: "Reino Unido", DE: "Alemanha", FR: "França", NL: "Holanda", CH: "Suíça",
+  IE: "Irlanda", DK: "Dinamarca", SE: "Suécia", FI: "Finlândia", NO: "Noruega",
+  ES: "Espanha", IT: "Itália", PT: "Portugal", BE: "Bélgica", AT: "Áustria",
+  PL: "Polônia", GR: "Grécia", CZ: "Tchéquia", HU: "Hungria", TR: "Turquia", RU: "Rússia",
+  JP: "Japão", CN: "China", HK: "Hong Kong", KR: "Coreia do Sul", TW: "Taiwan",
+  IN: "Índia", SG: "Singapura", ID: "Indonésia", TH: "Tailândia", MY: "Malásia",
+  PH: "Filipinas", VN: "Vietnã",
+  AU: "Austrália", NZ: "Nova Zelândia",
+  IL: "Israel", SA: "Arábia Saudita", AE: "Emirados", QA: "Catar", KW: "Kuwait",
+  ZA: "África do Sul", NG: "Nigéria", EG: "Egito",
+};
+
 // Nome PT do país → código ISO-4217 da moeda local. Cobre os países com índice
 // no Radar; zona do euro mapeia para EUR. Espelha o mapa do handler de país.
 export const COUNTRY_CURRENCY: Record<string, string> = {

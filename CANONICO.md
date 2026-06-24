@@ -73,6 +73,7 @@ Não reimplemente.
 | **Proventos (líquidos)** | bruto − IR retido; em BRL ao câmbio atual | `snapshot.totalProventosBRL` · `proventosPorTicker` |
 | **IR retido s/ proventos** | imposto retido na fonte (total RV+RF) | `snapshot.totalImpostoProventosBRL` |
 | **Exposição cambial** | valor em moeda ≠ BRL (posições **+** RF/caixa de `fixa_aberta`, inclui caixa USD) ÷ **patrimônio total** | `snapshot.exposicaoCambial` (buckets por moeda) |
+| **Alocação geográfica (look-through)** | exposição por país **olhando dentro dos ETFs** (FMP country-weightings / factsheet / single-country, com `direct_brl` vs `etf_brl` por país) | `computeCountryAllocation` (`lib/ticker-country.ts`) → `/api/composicao/resumo: country_allocation`. **Consumido pela página ETF E pela camada ETF do Radar** (via `useExposure`) — nunca recalcular |
 | **Variação no dia** | Σ `dayChangeBRL` das posições = **preço + câmbio**: variação de preço (moeda nativa, ao FX de hoje) **+** reavaliação do principal estrangeiro pela variação da moeda no dia (`valorHoje − valorOntem`). Precisa de `fxDayChange` (var. % do dia por moeda) injetado no snapshot | `snapshot.dayChangeTotalBRL` / `dayChangeTotalPct` |
 | **Câmbio no resultado do dia** | parcela da variação do dia vinda da moeda (`valorOntem × Δ%moeda_dia`) — decompõe o total, não soma por fora | `position.dayChangeFxBRL` · `snapshot.dayChangeFxTotalBRL` |
 | **TWR (%)** | Modified Dietz SoD: `Π(1 + ret_d) - 1`, chain-link diário; dia 0 = âncora | `calcularTWR().twrTotal` (`lib/twr-engine.ts`) |

@@ -29,8 +29,11 @@ export interface CountryAllocation {
   value_brl: number;
   rv_brl: number;
   rf_brl: number;
+  direct_brl: number;       // veio de posição direta (ação/ETF de RF/RF manual)
+  etf_brl: number;          // veio do look-through de ETFs
   pct: number;
   tickers: string[];
+  etf_sources: string[];    // quais ETFs alocaram neste país (look-through)
 }
 
 // ── Country database ─────────────────────────────────────────────────────────
@@ -347,16 +350,20 @@ export async function computeCountryAllocation(
   directPositions: Array<{ ticker: string; setor: string; valorAtualBRL: number; macro?: string; pais?: string }>,
 ): Promise<CountryAllocation[]> {
 
-  const countryAccum: Record<string, { value_brl: number; rv_brl: number; rf_brl: number; tickers: Set<string> }> = {};
+  const countryAccum: Record<string, { value_brl: number; rv_brl: number; rf_brl: number; direct_brl: number; etf_brl: number; tickers: Set<string>; etf_sources: Set<string> }> = {};
 
   // macro "Renda Fixa" soma em rf_brl; qualquer outra coisa (ETFs e ações) em rv_brl.
-  const addToCountry = (code: string, valueBRL: number, ticker: string, macro?: string) => {
+  // `etfSource` presente = valor veio do look-through daquele ETF (senão é direto).
+  const addToCountry = (code: string, valueBRL: number, ticker: string, macro?: string, etfSource?: string) => {
     if (valueBRL <= 0 || !COUNTRIES[code]) return;
-    if (!countryAccum[code]) countryAccum[code] = { value_brl: 0, rv_brl: 0, rf_brl: 0, tickers: new Set() };
-    countryAccum[code].value_brl += valueBRL;
-    if (macro === "Renda Fixa") countryAccum[code].rf_brl += valueBRL;
-    else countryAccum[code].rv_brl += valueBRL;
-    countryAccum[code].tickers.add(ticker);
+    if (!countryAccum[code]) countryAccum[code] = { value_brl: 0, rv_brl: 0, rf_brl: 0, direct_brl: 0, etf_brl: 0, tickers: new Set(), etf_sources: new Set() };
+    const acc = countryAccum[code];
+    acc.value_brl += valueBRL;
+    if (macro === "Renda Fixa") acc.rf_brl += valueBRL;
+    else acc.rv_brl += valueBRL;
+    if (etfSource) { acc.etf_brl += valueBRL; acc.etf_sources.add(etfSource); }
+    else acc.direct_brl += valueBRL;
+    acc.tickers.add(ticker);
   };
 
   // ── Process ETFs ─────────────────────────────────────────────────────────
@@ -391,14 +398,15 @@ export async function computeCountryAllocation(
     const etf = etfHoldings[r.etfTicker];
     if (!etf || etf.valor_brl <= 0) continue;
 
-    // ETFs negociados são sempre Renda Variável.
+    // ETFs negociados são sempre Renda Variável; a fonte do look-through é o ETF.
+    const etfSrc = r.etfTicker.replace(".SA", "");
     if (r.type === "single") {
-      addToCountry(r.country, etf.valor_brl, r.etfTicker);
+      addToCountry(r.country, etf.valor_brl, r.etfTicker, undefined, etfSrc);
     } else if (r.type === "fmp") {
       const totalWeight = r.data.reduce((s, d) => s + d.weight, 0);
       for (const { code, weight } of r.data) {
         const valueBRL = totalWeight > 0 ? (weight / totalWeight) * etf.valor_brl : 0;
-        addToCountry(code, valueBRL, r.etfTicker);
+        addToCountry(code, valueBRL, r.etfTicker, undefined, etfSrc);
       }
     } else {
       // Infer from individual holdings
@@ -407,7 +415,7 @@ export async function computeCountryAllocation(
         if (comp.ativo.startsWith("OUTROS.")) continue;
         const country = inferCountryFromTicker(comp.ativo) ?? "US";
         const valueBRL = totalWeight > 0 ? (comp.peso / totalWeight) * etf.valor_brl : 0;
-        addToCountry(country, valueBRL, comp.ativo);
+        addToCountry(country, valueBRL, comp.ativo, undefined, etfSrc);
       }
     }
   }
@@ -445,8 +453,11 @@ export async function computeCountryAllocation(
       value_brl: data.value_brl,
       rv_brl: data.rv_brl,
       rf_brl: data.rf_brl,
+      direct_brl: data.direct_brl,
+      etf_brl: data.etf_brl,
       pct: total > 0 ? (data.value_brl / total) * 100 : 0,
       tickers: [...data.tickers].slice(0, 12),
+      etf_sources: [...data.etf_sources],
     }))
     .filter(x => x.country != null)
     .sort((a, b) => b.value_brl - a.value_brl);
