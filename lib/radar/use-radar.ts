@@ -11,9 +11,10 @@ import { useEffect, useState } from "react";
 import type {
   BolsasResponse, MoedasResponse, CountryMacro,
   InstabilityData, BriefData, CountryNewsResponse, SignalsResponse,
-  TimelineResponse, ExposureResponse, CurrencyDetail, ConstituentsResponse,
+  TimelineResponse, ExposureResponse, ExposureEntry, CurrencyDetail, ConstituentsResponse,
   SymbolSearchResult, SymbolSearchResponse,
 } from "./types";
+import { ISO2_TO_RADAR_PT } from "./geo";
 
 export function useMarkets() {
   const [data, setData] = useState<BolsasResponse | null>(null);
@@ -334,6 +335,21 @@ export function useSymbolSearch(query: string) {
 }
 
 // ── Fase 4: Portfolio Exposure ──────────────────────────────────────────────
+// FONTE ÚNICA: consome o MESMO endpoint da página de ETF (/api/composicao/resumo
+// → country_allocation), em vez de recalcular. Assim o mapa unificado mostra
+// exatamente os mesmos países/valores que a página de Composição ETFs (mesmo
+// motor computeCountryAllocation, mesmo look-through de 5 camadas). Só adapta o
+// shape (CountryAllocation → ExposureEntry) e traduz ISO-2 → nome do Radar.
+
+interface CountryAllocationDTO {
+  country: { code: string; name: string };
+  value_brl: number;
+  pct: number;
+  tickers: string[];
+  direct_brl: number;
+  etf_brl: number;
+  etf_sources: string[];
+}
 
 let exposureCache: ExposureResponse | null = null;
 
@@ -346,12 +362,30 @@ export function useExposure() {
 
     let cancelled = false;
     setLoading(true);
-    fetch("/api/radar/exposure")
+    fetch("/api/composicao/resumo")
       .then((r) => r.json())
-      .then((d: ExposureResponse) => {
+      .then((d: { country_allocation?: CountryAllocationDTO[]; look_through?: { supported?: string[] } }) => {
         if (cancelled) return;
-        exposureCache = d;
-        setData(d);
+        const alloc = d.country_allocation ?? [];
+        const supported = d.look_through?.supported ?? [];
+        const exposure: ExposureEntry[] = alloc.map((c) => ({
+          countryPT: ISO2_TO_RADAR_PT[c.country.code] ?? c.country.name,
+          iso2: c.country.code,
+          totalBRL: c.value_brl,
+          pct: c.pct,
+          tickers: c.tickers ?? [],
+          directBRL: c.direct_brl ?? 0,
+          etfBRL: c.etf_brl ?? 0,
+          etfSources: c.etf_sources ?? [],
+        }));
+        const totalBRL = exposure.reduce((s, e) => s + e.totalBRL, 0);
+        const resp: ExposureResponse = {
+          exposure, totalBRL,
+          etfDecomposed: supported.length > 0,
+          etfSupported: supported,
+        };
+        exposureCache = resp;
+        setData(resp);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });

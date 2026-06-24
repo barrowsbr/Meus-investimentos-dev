@@ -39,6 +39,23 @@ describe("camada ETF do Radar — look-through canônico", () => {
     const total = alloc.reduce((s, a) => s + a.value_brl, 0);
     expect(total).toBeGreaterThan(95_000);
     expect(total).toBeLessThanOrEqual(100_000 + 1);
+
+    // Split canônico: tudo veio via ETF (etf_brl), nada direto, fonte = VWRA.
+    const us = alloc.find(a => a.country.code === "US")!;
+    expect(us.etf_brl).toBeCloseTo(us.value_brl, 5);
+    expect(us.direct_brl).toBe(0);
+    expect(us.etf_sources).toContain("VWRA");
+  });
+
+  it("posição direta entra como direct_brl (não etf_brl)", async () => {
+    const alloc = await computeCountryAllocation(
+      {},
+      [{ ticker: "PETR4.SA", setor: "Ações Brasil", valorAtualBRL: 10_000, macro: "Renda Variável" }],
+    );
+    const br = alloc.find(a => a.country.code === "BR")!;
+    expect(br.direct_brl).toBeCloseTo(10_000, 0);
+    expect(br.etf_brl).toBe(0);
+    expect(br.etf_sources).toHaveLength(0);
   });
 
   it("ETF single-country (IVVB11) vai 100% para os EUA", async () => {

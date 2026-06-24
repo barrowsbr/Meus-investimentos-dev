@@ -53,7 +53,6 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "radar/brief": return import("@/app/api/radar/brief/handler");
     case "radar/news": return import("@/app/api/radar/news/handler");
     case "radar/signals": return import("@/app/api/radar/signals/handler");
-    case "radar/exposure": return import("@/app/api/radar/exposure/handler");
     case "radar/timeline": return import("@/app/api/radar/timeline/handler");
     case "ptax/update": return import("@/app/api/ptax/update/handler");
     case "rebuild-cotacoes": return import("@/app/api/rebuild-cotacoes/handler");
