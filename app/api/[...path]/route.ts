@@ -38,6 +38,7 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "hoje/comentario": return import("@/app/api/hoje/comentario/handler");
     case "ir": return import("@/app/api/ir/handler");
     case "ir/agente": return import("@/app/api/ir/agente/handler");
+    case "ir/chat": return import("@/app/api/ir/chat/handler");
     case "ir/dirpf": return import("@/app/api/ir/dirpf/handler");
     case "market/ohlc": return import("@/app/api/market/ohlc/handler");
     case "moedas": return import("@/app/api/moedas/handler");
