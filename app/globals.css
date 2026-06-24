@@ -230,6 +230,27 @@ body {
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.5 } }
 @media (prefers-reduced-motion: reduce) { .t-blink { animation: none; } }
 
+/* ── Bottom Nav (mobile) ── */
+.bottom-nav {
+  bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));
+  height: 58px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--rail) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+[data-theme="jornal"] .bottom-nav {
+  background: rgba(225, 218, 200, 0.68) !important;
+  backdrop-filter: blur(24px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5) !important;
+  border: none !important;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.13) !important;
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+  border-radius: 0 !important;
+}
+
 /* ============================================================================
    PONTE DE MIGRAÇÃO — classes legadas reescritas para o idioma terminal.
    Páginas ainda não migradas usam .glass-card / .metric-glow / etc.; aqui elas
@@ -472,18 +493,9 @@ body {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-/* ── Bottom nav: restaura blur/vidro com contraste para tema claro ── */
-[data-theme="jornal"] .bottom-nav[style*="backdrop-filter"] {
-  background: rgba(237, 231, 218, 0.72) !important;
-  backdrop-filter: blur(20px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(1.4) !important;
-  border: 1px solid rgba(0, 0, 0, 0.12) !important;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.15) !important;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.5) inset !important;
-}
 
-/* ── Inline box-shadow → sutil (exceto bottom-nav que tem seu próprio) ── */
-[data-theme="jornal"] [style*="box-shadow"]:not(.bottom-nav) {
+/* ── Inline box-shadow → sutil ── */
+[data-theme="jornal"] [style*="box-shadow"] {
   box-shadow: 0 1px 0 rgba(0,0,0,.06) !important;
 }
 
