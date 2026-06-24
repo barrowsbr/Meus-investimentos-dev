@@ -87,10 +87,18 @@ describe("camada ETF do Radar — look-through canônico", () => {
     // País mais exposto fica com intensidade 1 (azul mais forte).
     expect(heat.get("840")!.intensity).toBeCloseTo(1, 5);
 
-    // Gamma 0.45: Japão (5/60 ≈ 0.083 linear) sobe para ~0.31 — visível, não apagado.
+    // Piso de visibilidade (0.32): TODO país com exposição fica claramente azul,
+    // mesmo o menor (Brasil 1%) — não some no fundo.
+    expect(heat.get("076")!.intensity).toBeGreaterThanOrEqual(0.32);
+
+    // Japão (5%) fica nitidamente mais forte que o piso e abaixo do topo.
     const jp = heat.get("392")!.intensity;
-    expect(jp).toBeGreaterThan(0.25);
-    expect(jp).toBeLessThan(0.4);
+    expect(jp).toBeGreaterThan(0.45);
+    expect(jp).toBeLessThan(0.65);
+
+    // Ordenação preservada: mais exposto = mais intenso.
+    expect(heat.get("840")!.intensity).toBeGreaterThan(jp);
+    expect(jp).toBeGreaterThan(heat.get("076")!.intensity);
 
     // O nome do país segue o padrão do Radar (casa com o dossiê).
     expect(heat.get("840")!.country).toBe(ISO_NUM_TO_COUNTRY["840"]); // "EUA"
