@@ -4,51 +4,32 @@ import { fetchCotacoes } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { buildPmFxRates, calcularCambioMetrics, buildFxDateMap } from "@/lib/cambio";
 import { loadFromGSheets, fetchHoldings, type Holding } from "@/lib/etf-holdings";
+import { computeCountryAllocation, getCountryInfo } from "@/lib/ticker-country";
+import { isRendaVariavel } from "@/lib/sectors";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const EXCHANGE_SUFFIX: Record<string, string> = {
-  ".SA": "BR", ".L": "GB", ".T": "JP", ".DE": "DE", ".PA": "FR",
-  ".SW": "CH", ".AS": "NL", ".CO": "DK", ".ST": "SE", ".HE": "FI",
-  ".MC": "ES", ".MI": "IT", ".LS": "PT", ".BR": "BE", ".VI": "AT",
-  ".WA": "PL", ".AT": "GR", ".PR": "CZ", ".BU": "HU",
-  ".HK": "HK", ".KS": "KR", ".KQ": "KR", ".TW": "TW", ".BO": "IN",
-  ".NS": "IN", ".SI": "SG", ".JK": "ID", ".BK": "TH", ".KL": "MY",
-  ".AX": "AU", ".NZ": "NZ", ".TA": "IL", ".SR": "SA",
-  ".TO": "CA", ".V": "CA", ".MX": "MX",
-  ".AQ": "AR", ".SN": "CL",
-};
-
-const ADR_COUNTRY: Record<string, string> = {
-  BABA: "CN", PDD: "CN", JD: "CN", NIO: "CN", TSM: "TW",
-  TM: "JP", SONY: "JP", ASML: "NL", NVS: "CH", NVO: "DK",
-  SHEL: "GB", BP: "GB", AZN: "GB", HSBC: "GB", ARM: "GB",
-  SAP: "DE", SPOT: "SE", BHP: "AU", MELI: "AR",
-  PBR: "BR", VALE: "BR", ITUB: "BR", BBD: "BR", ABEV: "BR",
-  INFY: "IN", HDB: "IN", SHOP: "CA", TD: "CA", RY: "CA",
-  AMX: "MX", SQM: "CL", YPF: "AR", GLOB: "AR",
-};
-
-const PT_TO_ISO2: Record<string, string> = {
-  "EUA": "US", "Brasil": "BR", "Canadá": "CA", "México": "MX",
-  "Argentina": "AR", "Chile": "CL", "Colômbia": "CO", "Peru": "PE",
-  "Reino Unido": "GB", "Alemanha": "DE", "França": "FR", "Holanda": "NL",
-  "Suíça": "CH", "Espanha": "ES", "Itália": "IT", "Portugal": "PT",
-  "Suécia": "SE", "Dinamarca": "DK", "Noruega": "NO", "Finlândia": "FI",
-  "Polônia": "PL", "Turquia": "TR", "Rússia": "RU", "Grécia": "GR",
-  "Hungria": "HU", "Ucrânia": "UA", "Áustria": "AT", "Bélgica": "BE",
-  "Japão": "JP", "China": "CN", "Hong Kong": "HK", "Coreia do Sul": "KR",
-  "Taiwan": "TW", "Índia": "IN", "Singapura": "SG", "Indonésia": "ID",
-  "Malásia": "MY", "Tailândia": "TH", "Filipinas": "PH",
-  "Israel": "IL", "Arábia Saudita": "SA", "Emirados": "AE",
-  "África do Sul": "ZA", "Egito": "EG", "Nigéria": "NG",
-  "Austrália": "AU", "Nova Zelândia": "NZ",
-};
-
-const ISO2_TO_PT = Object.fromEntries(Object.entries(PT_TO_ISO2).map(([k, v]) => [v, k]));
-
 const LOOKTHROUGH_SECTORS = new Set(["ETF USA", "ETF"]);
+
+// Nome PT no PADRÃO DO RADAR (chave de COUNTRY_TO_ISO_NUM) por ISO-2. O dossiê
+// casa a exposição por `countryPT === selected.name`, e o nome do país no Radar
+// vem de COUNTRY_TO_ISO_NUM ("EUA", não "Estados Unidos") — então traduzimos o
+// código ISO-2 canônico para o nome do Radar (com fallback ao nome canônico).
+const ISO2_TO_RADAR_PT: Record<string, string> = {
+  US: "EUA", BR: "Brasil", CA: "Canadá", MX: "México", AR: "Argentina",
+  CL: "Chile", CO: "Colômbia", PE: "Peru",
+  GB: "Reino Unido", DE: "Alemanha", FR: "França", NL: "Holanda", CH: "Suíça",
+  IE: "Irlanda", DK: "Dinamarca", SE: "Suécia", FI: "Finlândia", NO: "Noruega",
+  ES: "Espanha", IT: "Itália", PT: "Portugal", BE: "Bélgica", AT: "Áustria",
+  PL: "Polônia", GR: "Grécia", CZ: "Tchéquia", HU: "Hungria", TR: "Turquia", RU: "Rússia",
+  JP: "Japão", CN: "China", HK: "Hong Kong", KR: "Coreia do Sul", TW: "Taiwan",
+  IN: "Índia", SG: "Singapura", ID: "Indonésia", TH: "Tailândia", MY: "Malásia",
+  PH: "Filipinas", VN: "Vietnã",
+  AU: "Austrália", NZ: "Nova Zelândia",
+  IL: "Israel", SA: "Arábia Saudita", AE: "Emirados", QA: "Catar", KW: "Kuwait",
+  ZA: "África do Sul", NG: "Nigéria", EG: "Egito",
+};
 
 interface ExposureEntry {
   countryPT: string;
@@ -59,30 +40,6 @@ interface ExposureEntry {
   directBRL: number;
   etfBRL: number;
   etfSources: string[];
-}
-
-function inferCountry(ticker: string, setor: string): string {
-  for (const [suffix, code] of Object.entries(EXCHANGE_SUFFIX)) {
-    if (ticker.toUpperCase().endsWith(suffix.toUpperCase())) return code;
-  }
-  const clean = ticker.toUpperCase().replace(".SA", "");
-  if (ADR_COUNTRY[clean]) return ADR_COUNTRY[clean];
-
-  if (ticker.endsWith(".SA") || ["Ações Brasil", "FIIs", "BDRs", "Renda Fixa", "Caixa/Liquidez", "Tesouro Direto"].includes(setor)) {
-    return "BR";
-  }
-  if (["Ações Internacional", "ETF USA", "Ações EUA"].includes(setor)) return "US";
-  if (setor === "Cripto") return "";
-  return "US";
-}
-
-function inferCountryFromTicker(ticker: string): string {
-  for (const [suffix, code] of Object.entries(EXCHANGE_SUFFIX)) {
-    if (ticker.toUpperCase().endsWith(suffix.toUpperCase())) return code;
-  }
-  const clean = ticker.toUpperCase().replace(".SA", "");
-  if (ADR_COUNTRY[clean]) return ADR_COUNTRY[clean];
-  return "US";
 }
 
 export async function GET() {
@@ -122,20 +79,22 @@ export async function GET() {
 
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate, {});
 
-    // ── Direct positions → country ──────────────────────────────────────────
-    const byCountry: Record<string, { directBRL: number; etfBRL: number; tickers: Set<string>; etfSources: Set<string> }> = {};
+    // ── Posições diretas (não-ETF) → motor canônico de país ───────────────────
+    // Reusa `computeCountryAllocation` (lib/ticker-country) — a MESMA engine da
+    // página de ETF — para look-through por empresa (FMP/factsheet/single-country),
+    // não inferência crua pelo país de listagem.
+    const directPositions = snapshot.positions
+      .filter(p => !LOOKTHROUGH_SECTORS.has(p.setor) && p.valorAtualBRL > 0)
+      .map(p => ({
+        ticker: p.ticker,
+        setor: p.setor,
+        valorAtualBRL: p.valorAtualBRL,
+        macro: isRendaVariavel(p.setor) ? "Renda Variável" : "Renda Fixa",
+      }));
 
-    for (const pos of snapshot.positions) {
-      if (pos.valorAtualBRL <= 0) continue;
-      if (LOOKTHROUGH_SECTORS.has(pos.setor)) continue;
-      const iso2 = inferCountry(pos.ticker, pos.setor);
-      if (!iso2) continue;
-      if (!byCountry[iso2]) byCountry[iso2] = { directBRL: 0, etfBRL: 0, tickers: new Set(), etfSources: new Set() };
-      byCountry[iso2].directBRL += pos.valorAtualBRL;
-      byCountry[iso2].tickers.add(pos.ticker.replace(".SA", ""));
-    }
+    const directAlloc = await computeCountryAllocation({}, directPositions);
 
-    // ── ETF look-through → country ─────────────────────────────────────────
+    // ── ETFs → look-through canônico, POR ETF (para fontes precisas) ──────────
     const etfPositions = snapshot.positions.filter(
       p => LOOKTHROUGH_SECTORS.has(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0
     );
@@ -143,8 +102,11 @@ export async function GET() {
     const etfSupported: string[] = [];
     let etfDecomposed = false;
 
+    // Acumulador por ISO-2: BRL via ETF + quais ETFs contribuíram.
+    const etfByCode: Record<string, { etfBRL: number; sources: Set<string> }> = {};
+
     if (etfPositions.length > 0) {
-      const { stored, storedSources } = await loadFromGSheets();
+      const { stored } = await loadFromGSheets();
 
       for (const pos of etfPositions) {
         const t = pos.ticker.toUpperCase();
@@ -153,52 +115,78 @@ export async function GET() {
 
         let holdings: Holding[] | null = null;
         for (const key of keys) {
-          if (stored[key] && stored[key].length > 0) {
-            holdings = stored[key];
-            break;
-          }
+          if (stored[key] && stored[key].length > 0) { holdings = stored[key]; break; }
         }
-
         if (!holdings) {
           const result = await fetchHoldings(tClean);
           holdings = result.holdings;
         }
-
         if (!holdings || holdings.length === 0) continue;
-
-        etfSupported.push(pos.ticker);
-        etfDecomposed = true;
 
         const totalWeight = holdings.reduce((s, h) => s + h.weight_pct, 0);
         if (totalWeight <= 0) continue;
 
-        for (const h of holdings) {
-          if (h.ticker.startsWith("OUTROS.")) continue;
-          const iso2 = inferCountryFromTicker(h.ticker);
-          if (!iso2) continue;
+        etfSupported.push(pos.ticker);
+        etfDecomposed = true;
 
-          const valueBRL = (h.weight_pct / totalWeight) * pos.valorAtualBRL;
-          if (!byCountry[iso2]) byCountry[iso2] = { directBRL: 0, etfBRL: 0, tickers: new Set(), etfSources: new Set() };
-          byCountry[iso2].etfBRL += valueBRL;
-          byCountry[iso2].etfSources.add(tClean);
+        // Composição no formato da engine canônica. Look-through por empresa:
+        // computeCountryAllocation aplica FMP country-weightings / factsheet /
+        // single-country override e só então cai no infer-por-holding.
+        const composition = {
+          [tClean]: {
+            valor_brl: pos.valorAtualBRL,
+            components: holdings
+              .filter(h => !h.ticker.startsWith("OUTROS."))
+              .map(h => ({ ativo: h.ticker, peso: h.weight_pct / totalWeight })),
+          },
+        };
+
+        const etfAlloc = await computeCountryAllocation(composition, []);
+        for (const c of etfAlloc) {
+          const code = c.country.code;
+          if (!etfByCode[code]) etfByCode[code] = { etfBRL: 0, sources: new Set() };
+          etfByCode[code].etfBRL += c.value_brl;
+          etfByCode[code].sources.add(tClean);
         }
       }
     }
 
-    // ── Assemble response ───────────────────────────────────────────────────
-    const totalBRL = Object.values(byCountry).reduce((s, v) => s + v.directBRL + v.etfBRL, 0);
+    // ── Merge direto + ETF por país ────────────────────────────────────────────
+    const byCode: Record<string, { directBRL: number; etfBRL: number; tickers: Set<string>; etfSources: Set<string> }> = {};
+    const ensure = (code: string) => {
+      if (!byCode[code]) byCode[code] = { directBRL: 0, etfBRL: 0, tickers: new Set(), etfSources: new Set() };
+      return byCode[code];
+    };
 
-    const exposure: ExposureEntry[] = Object.entries(byCountry)
-      .map(([iso2, d]) => ({
-        countryPT: ISO2_TO_PT[iso2] ?? iso2,
-        iso2,
-        totalBRL: d.directBRL + d.etfBRL,
-        pct: totalBRL > 0 ? ((d.directBRL + d.etfBRL) / totalBRL) * 100 : 0,
-        tickers: [...d.tickers].slice(0, 8),
-        directBRL: d.directBRL,
-        etfBRL: d.etfBRL,
-        etfSources: [...d.etfSources],
-      }))
+    for (const c of directAlloc) {
+      const e = ensure(c.country.code);
+      e.directBRL += c.value_brl;
+      for (const tk of c.tickers) e.tickers.add(tk.replace(".SA", ""));
+    }
+    for (const [code, d] of Object.entries(etfByCode)) {
+      const e = ensure(code);
+      e.etfBRL += d.etfBRL;
+      for (const s of d.sources) e.etfSources.add(s);
+    }
+
+    const totalBRL = Object.values(byCode).reduce((s, v) => s + v.directBRL + v.etfBRL, 0);
+
+    const exposure: ExposureEntry[] = Object.entries(byCode)
+      .map(([iso2, d]) => {
+        const total = d.directBRL + d.etfBRL;
+        const info = getCountryInfo(iso2);
+        return {
+          countryPT: ISO2_TO_RADAR_PT[iso2] ?? info?.name ?? iso2,
+          iso2,
+          totalBRL: total,
+          pct: totalBRL > 0 ? (total / totalBRL) * 100 : 0,
+          tickers: [...d.tickers].slice(0, 8),
+          directBRL: d.directBRL,
+          etfBRL: d.etfBRL,
+          etfSources: [...d.etfSources],
+        };
+      })
+      .filter(e => e.totalBRL > 0)
       .sort((a, b) => b.totalBRL - a.totalBRL);
 
     return NextResponse.json({ exposure, totalBRL, etfDecomposed, etfSupported });
