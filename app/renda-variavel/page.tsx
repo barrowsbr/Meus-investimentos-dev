@@ -469,12 +469,16 @@ export default function RendaVariavelPage() {
                                   <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Qtd</th>
                                   <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Preço</th>
                                   <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Total</th>
+                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Lucro Lote</th>
+                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">%</th>
                                   <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Corretora</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {txs.map((tx, j) => {
                                   const isCompra = tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy");
+                                  const lotProfit = isCompra && p.precoAtual !== null ? (p.precoAtual - tx.preco) * tx.quantidade : null;
+                                  const lotPct = isCompra && p.precoAtual !== null && tx.preco > 0 ? (p.precoAtual - tx.preco) / tx.preco : null;
                                   return (
                                     <tr key={j} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
                                       <td className="px-3 py-1.5 text-zinc-400 font-mono">{formatTxDate(tx.data)}</td>
@@ -491,6 +495,12 @@ export default function RendaVariavelPage() {
                                       </td>
                                       <td className="px-3 py-1.5 text-right text-zinc-300 font-medium">
                                         {currency(tx.valorBruto, tx.moeda)}
+                                      </td>
+                                      <td className={`px-3 py-1.5 text-right font-medium ${lotProfit !== null ? (lotProfit >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
+                                        {lotProfit !== null ? currency(lotProfit, tx.moeda) : "—"}
+                                      </td>
+                                      <td className={`px-3 py-1.5 text-right font-medium ${lotPct !== null ? (lotPct >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
+                                        {lotPct !== null ? pct(lotPct) : "—"}
                                       </td>
                                       <td className="px-3 py-1.5 text-zinc-500">{tx.corretora}</td>
                                     </tr>
