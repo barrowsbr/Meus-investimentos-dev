@@ -6,7 +6,7 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, Shield, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers, TrendingUp, TrendingDown } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
 import type { RadarLayer, BolsasResponse } from "@/lib/radar/types";
 
@@ -14,6 +14,7 @@ const LAYERS: { key: RadarLayer; label: string; sub: string; icon: typeof BarCha
   { key: "mercados", label: "Mercados", sub: "Variação do índice local", icon: BarChart3 },
   { key: "cambio", label: "Câmbio", sub: "Força da moeda vs USD", icon: ArrowLeftRight },
   { key: "instabilidade", label: "Risco", sub: "Índice de instabilidade", icon: Shield },
+  { key: "etf", label: "ETF", sub: "Exposição geográfica do portfólio", icon: Layers },
 ];
 
 interface Props {
@@ -96,10 +97,21 @@ export default function LayersRail({ layer, setLayer, regions, regionFilter, set
       {/* Legenda do calor */}
       <section>
         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Escala</h3>
-        <div className="h-2 w-full rounded-full" style={{ background: "linear-gradient(90deg,#ef4444,#fbbf24,#22c55e)" }} />
-        <div className="mt-1 flex justify-between text-[9px] text-zinc-500">
-          <span>-4%</span><span>0</span><span>+4%</span>
-        </div>
+        {layer === "etf" ? (
+          <>
+            <div className="h-2 w-full rounded-full" style={{ background: "linear-gradient(90deg,#254e82,#38bdf8)" }} />
+            <div className="mt-1 flex justify-between text-[9px] text-zinc-500">
+              <span>Menor</span><span>Maior exposição</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="h-2 w-full rounded-full" style={{ background: "linear-gradient(90deg,#ef4444,#fbbf24,#22c55e)" }} />
+            <div className="mt-1 flex justify-between text-[9px] text-zinc-500">
+              <span>-4%</span><span>0</span><span>+4%</span>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Pulso global */}

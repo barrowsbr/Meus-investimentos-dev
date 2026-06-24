@@ -8,12 +8,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Smartphone } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers, Smartphone } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
-  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, currencyForCountry, type HeatEntry,
+  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, buildExposureHeat, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
 import { ISO_NUM_TO_ISO2, resolveCountryMeta } from "@/lib/radar/countries";
 import {
@@ -59,21 +59,23 @@ export default function RadarShell() {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
     if (layer === "cambio") return moedas ? buildCurrencyHeat(moedas.currencies) : new Map();
     if (layer === "instabilidade") {
-      // Ancorado no risco estrutural: pinta mesmo sem dados de mercado/câmbio,
-      // que apenas ajustam o score ao redor da base.
       return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
+    if (layer === "etf") return buildExposureHeat(exposure);
     return new Map();
-  }, [layer, markets, moedas]);
+  }, [layer, markets, moedas, exposure]);
 
   const regions = useMemo(() => {
-    // Risco é pintado a partir do risco estrutural (cobre todas as regiões),
-    // então oferecemos todas as regiões como filtro.
     if (layer === "instabilidade") return Object.keys(REGION_COLORS).sort();
+    if (layer === "etf") {
+      const r = new Set<string>();
+      for (const e of heat.values()) if (e.region) r.add(e.region);
+      return [...r].sort();
+    }
     const src = layer === "mercados" ? markets?.indices : moedas?.currencies;
     if (!src) return [];
     return [...new Set(src.map((x) => x.region))].sort();
-  }, [layer, markets, moedas]);
+  }, [layer, markets, moedas, heat]);
 
   // ── Dossiê: índices e moeda locais do país selecionado ─────────────────────
   const localIndices = useMemo(() => {
@@ -202,6 +204,7 @@ export default function RadarShell() {
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
           { key: "instabilidade" as const, label: "Risco", icon: Shield },
+          { key: "etf" as const, label: "ETF", icon: Layers },
         ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
