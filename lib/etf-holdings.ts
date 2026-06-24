@@ -125,6 +125,84 @@ EMBEDDED["IVVB11"] = EMBEDDED["SPY"];
 EMBEDDED["VOO"] = EMBEDDED["SPY"];
 EMBEDDED["VWRA"] = EMBEDDED["VWRA.L"];
 
+// ── Cobertura realista do top-N + bucket "Outros · diversificação" ───────────
+// As fontes de holdings raramente entregam 100% de um fundo: Yahoo dá top-10,
+// embedded é top-25, e dados antigos na planilha podem estar corrompidos (top
+// names inflados a ~100%, absurdo para um fundo diversificado). Ancoramos a
+// cobertura a um valor realista e SEMPRE emitimos o bucket "Outros" para que as
+// partes somem o todo (o restante é diversificação por milhares de ativos).
+
+// Cobertura aproximada que os top-25 holdings representam de cada fundo.
+const ETF_TOP_COVERAGE: Record<string, number> = {
+  // All-World / All-Country (~3.600 ativos): top-25 ≈ 18-22%
+  VWRA: 20, "VWRA.L": 20, IWDA: 20, ACWI: 20, URTH: 20, VT: 18, VEU: 12,
+  // S&P 500: top-25 ≈ 40%
+  SPY: 40, IVV: 40, IVVB11: 40, VOO: 40,
+  // Nasdaq-100 (concentrado): top-25 ≈ 68%
+  QQQ: 68,
+  // Single-country / setoriais amplos: top-25 ≈ 40-50%
+  FLJP: 45, EWJ: 45, SCHD: 45, VNQ: 45,
+};
+
+// Fontes que entregam holdings COMPLETOS (não só top-10) — confiáveis as-is.
+const TRUSTED_FULL_SOURCES = new Set(["fmp", "alphavantage", "live"]);
+
+// Monta os holdings finais de um ETF: escolhe a melhor fonte de pesos, ancora a
+// cobertura a um valor realista e anexa o bucket "Outros · diversificação".
+function assembleHoldings(
+  ticker: string,
+  rawHoldings: Holding[],
+  rawSource: string,
+  topN: number
+): { holdings: Holding[]; coveredPct: number; source: string } {
+  const clean = ticker.toUpperCase().replace(".SA", "");
+  const real = rawHoldings.filter(h => !h.ticker.startsWith("OUTROS."));
+  const baseSource = rawSource.replace("stored:", "");
+  const rawSum = real.reduce((s, h) => s + h.weight_pct, 0);
+  const embedded = EMBEDDED[clean];
+  const coverage = ETF_TOP_COVERAGE[clean];
+
+  // Pull completo e confiável (Alpha Vantage/iShares/FMP, 40+ ativos somando
+  // 60%+) → confia nos pesos como vieram.
+  const isTrustedFull = TRUSTED_FULL_SOURCES.has(baseSource) && real.length >= 40 && rawSum >= 60;
+
+  let holdings: Holding[];
+  let coveredPct: number;
+  let source = rawSource;
+
+  if (isTrustedFull) {
+    holdings = real.slice(0, topN);
+    coveredPct = Math.min(holdings.reduce((s, h) => s + h.weight_pct, 0), 100);
+  } else if (embedded) {
+    // Pesos curados (honestos, sub-100%) — preferidos a top-10 do Yahoo ou a
+    // dados corrompidos na planilha (que inflam os top names a ~100%).
+    holdings = embedded.map(([t, n, w]) => ({ ticker: t, name: n, weight_pct: w })).slice(0, topN);
+    coveredPct = Math.min(holdings.reduce((s, h) => s + h.weight_pct, 0), 99.5);
+    source = rawSource.includes("stored") ? "stored:curado" : "curado";
+  } else if (coverage && rawSum > 0) {
+    // Sem curadoria, mas com cobertura conhecida → reescala o parcial para ela
+    // (preserva os pesos relativos da fonte, corrige a magnitude).
+    const factor = coverage / rawSum;
+    holdings = real.slice(0, topN).map(h => ({ ...h, weight_pct: h.weight_pct * factor }));
+    coveredPct = coverage;
+  } else {
+    // ETF desconhecido, fonte parcial → confia nos pesos; "Outros" preenche o resto.
+    holdings = real.slice(0, topN);
+    coveredPct = Math.min(holdings.reduce((s, h) => s + h.weight_pct, 0), 99.5);
+  }
+
+  const finalHoldings = [...holdings];
+  const uncoveredPct = Math.max(0, 100 - coveredPct);
+  if (uncoveredPct > 0.5) {
+    finalHoldings.push({
+      ticker: `OUTROS.${ticker}`,
+      name: `Outros · diversificação (${uncoveredPct.toFixed(1)}%)`,
+      weight_pct: uncoveredPct,
+    });
+  }
+  return { holdings: finalHoldings, coveredPct, source };
+}
+
 // ── In-memory cache (1 hour TTL) ────────────────────────────────────────────
 
 const holdingsCache = new Map<string, { data: Holding[]; source: string; ts: number }>();
@@ -483,29 +561,17 @@ export async function computeLookThrough(
     const { pos, result } = settled.value;
 
     if (result.holdings && result.holdings.length > 0) {
-      const top = result.holdings.slice(0, topN);
-      const coveredPct = top.reduce((s, h) => s + h.weight_pct, 0);
+      const assembled = assembleHoldings(pos.ticker, result.holdings, result.source, topN);
       supported.push(pos.ticker);
       totalLookThroughBRL += pos.valorAtualBRL;
-      sources[pos.ticker] = result.source;
-
-      // Add tail bucket if significant uncovered weight
-      const finalHoldings = [...top];
-      const uncoveredPct = Math.max(0, 100 - coveredPct);
-      if (uncoveredPct > 0.5) {
-        finalHoldings.push({
-          ticker: `OUTROS.${pos.ticker}`,
-          name: `Demais ativos (${pos.ticker}) — ${uncoveredPct.toFixed(1)}% restante`,
-          weight_pct: uncoveredPct,
-        });
-      }
+      sources[pos.ticker] = assembled.source;
 
       perEtf[pos.ticker] = {
-        holdings: finalHoldings,
+        holdings: assembled.holdings,
         value_brl: pos.valorAtualBRL,
-        covered_pct: coveredPct,
+        covered_pct: assembled.coveredPct,
         status: "ok",
-        source: result.source,
+        source: assembled.source,
       };
     } else {
       unsupported.push(pos.ticker);
@@ -631,30 +697,21 @@ export function computeFromStored(
     }
 
     if (holdings && holdings.length > 0) {
-      const coveredPct = holdings.reduce((s, h) => s + h.weight_pct, 0);
       supported.push(pos.ticker);
       totalLookThroughBRL += pos.valorAtualBRL;
       // Preserva a proveniência original ("stored:embedded" denuncia dado
       // hardcoded antigo; "stored:alphavantage"/"stored:live" são confiáveis).
       const origSrc = storedSources[matchedKey];
-      sources[pos.ticker] = origSrc ? `stored:${origSrc}` : "stored";
-
-      const finalHoldings = [...holdings];
-      const uncoveredPct = Math.max(0, 100 - coveredPct);
-      if (uncoveredPct > 0.5) {
-        finalHoldings.push({
-          ticker: `OUTROS.${pos.ticker}`,
-          name: `Demais ativos (${pos.ticker}) — ${uncoveredPct.toFixed(1)}% restante`,
-          weight_pct: uncoveredPct,
-        });
-      }
+      const rawSource = origSrc ? `stored:${origSrc}` : "stored";
+      const assembled = assembleHoldings(pos.ticker, holdings, rawSource, topN);
+      sources[pos.ticker] = assembled.source;
 
       perEtf[pos.ticker] = {
-        holdings: finalHoldings,
+        holdings: assembled.holdings,
         value_brl: pos.valorAtualBRL,
-        covered_pct: coveredPct,
+        covered_pct: assembled.coveredPct,
         status: "ok",
-        source: sources[pos.ticker],
+        source: assembled.source,
       };
     } else {
       unsupported.push(pos.ticker);

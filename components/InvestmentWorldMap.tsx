@@ -1,8 +1,8 @@
 "use client";
 
-import React, { memo, useState, useCallback } from "react";
+import React, { memo, useState } from "react";
 import {
-  ComposableMap, Geographies, Geography, Marker, ZoomableGroup,
+  ComposableMap, Geographies, Geography, Marker,
 } from "react-simple-maps";
 import { compactBRL } from "@/lib/format";
 
@@ -29,34 +29,13 @@ interface Props {
   totalBRL: number;
 }
 
-const InvestmentWorldMap = memo(function InvestmentWorldMap({ data, totalBRL }: Props) {
+const InvestmentWorldMap = memo(function InvestmentWorldMap({ data }: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState<[number, number]>([10, 20]);
-
-  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z * 1.5, 6)), []);
-  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z / 1.5, 1)), []);
-  const handleReset = useCallback(() => { setZoom(1); setCenter([10, 20]); }, []);
 
   const maxValue = data.length > 0 ? data[0].value_brl : 1;
 
   return (
     <div className="relative">
-      {/* Zoom controls */}
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
-        {[
-          { label: "+", action: handleZoomIn },
-          { label: "−", action: handleZoomOut },
-          { label: "⟲", action: handleReset },
-        ].map(({ label, action }) => (
-          <button key={label} onClick={action}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-            style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
       {/* Tooltip */}
       {hovered && (() => {
         const item = data.find(d => d.country.code === hovered);
@@ -71,113 +50,107 @@ const InvestmentWorldMap = memo(function InvestmentWorldMap({ data, totalBRL }: 
         );
       })()}
 
+      {/* Mapa estático (sem pan/zoom) — só hover destaca a bolha do país */}
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ scale: 130, center: [0, 30] }}
-        style={{ width: "100%", height: "auto" }}
+        projectionConfig={{ scale: 105, center: [10, 25] }}
+        style={{ width: "100%", height: "auto", maxHeight: 300 }}
         width={800}
-        height={420}
+        height={340}
       >
-        <ZoomableGroup
-          zoom={zoom}
-          center={center}
-          onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}
-          maxZoom={6}
-        >
-          <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.6)" />
+        <rect x={-200} y={-100} width={1200} height={700} fill="rgba(8,10,18,0.6)" />
 
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill="rgba(255,255,255,0.04)"
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeWidth={0.3}
-                  style={{
-                    default: { outline: "none" },
-                    hover: { fill: "rgba(255,255,255,0.07)", outline: "none" },
-                    pressed: { outline: "none" },
-                  }}
+        <Geographies geography={GEO_URL}>
+          {({ geographies }) =>
+            geographies.map((geo) => (
+              <Geography
+                key={geo.rsmKey}
+                geography={geo}
+                fill="rgba(255,255,255,0.04)"
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth={0.3}
+                style={{
+                  default: { outline: "none" },
+                  hover: { fill: "rgba(255,255,255,0.04)", outline: "none" },
+                  pressed: { outline: "none" },
+                }}
+              />
+            ))
+          }
+        </Geographies>
+
+        {/* Investment markers — sized by value */}
+        {data.map((item) => {
+          const regionColor = REGION_COLORS[item.country.region] ?? "#888";
+          const isHovered = hovered === item.country.code;
+          // Scale radius: min 2.5, max 18 based on sqrt proportion
+          const ratio = maxValue > 0 ? item.value_brl / maxValue : 0;
+          const baseR = 2.5 + Math.sqrt(ratio) * 15.5;
+          const r = isHovered ? baseR * 1.25 : baseR;
+
+          return (
+            <Marker
+              key={item.country.code}
+              coordinates={[item.country.lng, item.country.lat]}
+              onMouseEnter={() => setHovered(item.country.code)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <g style={{ cursor: "pointer" }}>
+                {/* Pulse ring on hover */}
+                {isHovered && (
+                  <circle r={r + 6} fill="none" stroke={regionColor} strokeWidth={0.8} opacity={0.4}>
+                    <animate attributeName="r" from={String(r + 2)} to={String(r + 14)} dur="1.5s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite" />
+                  </circle>
+                )}
+
+                {/* Shadow */}
+                <circle r={r} fill="rgba(0,0,0,0.3)" cx={0.5} cy={0.5} />
+
+                {/* Outer circle */}
+                <circle
+                  r={r}
+                  fill={`${regionColor}30`}
+                  stroke={isHovered ? "#fff" : `${regionColor}80`}
+                  strokeWidth={isHovered ? 1.5 : 0.8}
+                  style={{ filter: isHovered ? `drop-shadow(0 0 8px ${regionColor})` : undefined }}
                 />
-              ))
-            }
-          </Geographies>
 
-          {/* Investment markers — sized by value */}
-          {data.map((item) => {
-            const regionColor = REGION_COLORS[item.country.region] ?? "#888";
-            const isHovered = hovered === item.country.code;
-            // Scale radius: min 3, max 22 based on sqrt proportion
-            const ratio = maxValue > 0 ? item.value_brl / maxValue : 0;
-            const baseR = 3 + Math.sqrt(ratio) * 19;
-            const r = isHovered ? baseR * 1.25 : baseR;
+                {/* Inner filled circle */}
+                <circle r={r * 0.6} fill={regionColor} opacity={0.85} />
 
-            return (
-              <Marker
-                key={item.country.code}
-                coordinates={[item.country.lng, item.country.lat]}
-                onMouseEnter={() => setHovered(item.country.code)}
-                onMouseLeave={() => setHovered(null)}
-              >
-                <g style={{ cursor: "pointer" }}>
-                  {/* Pulse ring on hover */}
-                  {isHovered && (
-                    <circle r={r + 6} fill="none" stroke={regionColor} strokeWidth={0.8} opacity={0.4}>
-                      <animate attributeName="r" from={String(r + 2)} to={String(r + 14)} dur="1.5s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite" />
-                    </circle>
-                  )}
+                {/* Label for large bubbles */}
+                {r > 7 && (
+                  <text
+                    y={-r - 4}
+                    textAnchor="middle"
+                    fill={isHovered ? "#fff" : "rgba(255,255,255,0.7)"}
+                    fontSize={isHovered ? 10 : 8}
+                    fontWeight={isHovered ? "bold" : "normal"}
+                    style={{ pointerEvents: "none", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}
+                  >
+                    {item.country.code}
+                  </text>
+                )}
 
-                  {/* Shadow */}
-                  <circle r={r} fill="rgba(0,0,0,0.3)" cx={0.5} cy={0.5} />
-
-                  {/* Outer circle */}
-                  <circle
-                    r={r}
-                    fill={`${regionColor}30`}
-                    stroke={isHovered ? "#fff" : `${regionColor}80`}
-                    strokeWidth={isHovered ? 1.5 : 0.8}
-                    style={{ filter: isHovered ? `drop-shadow(0 0 8px ${regionColor})` : undefined }}
-                  />
-
-                  {/* Inner filled circle */}
-                  <circle r={r * 0.6} fill={regionColor} opacity={0.85} />
-
-                  {/* Label for large bubbles */}
-                  {r > 8 && (
-                    <text
-                      y={-r - 4}
-                      textAnchor="middle"
-                      fill={isHovered ? "#fff" : "rgba(255,255,255,0.7)"}
-                      fontSize={isHovered ? 11 : 9}
-                      fontWeight={isHovered ? "bold" : "normal"}
-                      style={{ pointerEvents: "none", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}
-                    >
-                      {item.country.code}
-                    </text>
-                  )}
-
-                  {/* % label inside large bubbles */}
-                  {r > 12 && (
-                    <text
-                      y={1}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fill="#fff"
-                      fontSize={Math.max(7, r * 0.45)}
-                      fontWeight="bold"
-                      style={{ pointerEvents: "none" }}
-                    >
-                      {item.pct.toFixed(0)}%
-                    </text>
-                  )}
-                </g>
-              </Marker>
-            );
-          })}
-        </ZoomableGroup>
+                {/* % label inside large bubbles */}
+                {r > 11 && (
+                  <text
+                    y={1}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="#fff"
+                    fontSize={Math.max(6, r * 0.45)}
+                    fontWeight="bold"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    {item.pct.toFixed(0)}%
+                  </text>
+                )}
+              </g>
+            </Marker>
+          );
+        })}
       </ComposableMap>
 
       {/* Legend */}
