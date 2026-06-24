@@ -344,8 +344,11 @@ export function buildExposureHeat(exposure: ExposureResponse | null): Map<string
     if (entry.etfBRL > 0) sources.push("ETFs");
     const via = sources.join(" + ");
 
+    // Gamma < 1 abre o miolo: como um ETF global concentra ~60% nos EUA, uma
+    // escala linear apagaria Japão/UK/China. O gamma deixa visível a exposição
+    // pequena (2–5%) sem confundi-la com país sem exposição (neutro).
     map.set(isoNum, {
-      intensity: entry.pct / maxPct,
+      intensity: Math.pow(entry.pct / maxPct, 0.45),
       label: `${entry.pct.toFixed(1)}% do portfólio`,
       valueText: `R$ ${entry.totalBRL >= 1e6 ? (entry.totalBRL / 1e6).toFixed(1) + "M" : entry.totalBRL >= 1e3 ? (entry.totalBRL / 1e3).toFixed(1) + "K" : entry.totalBRL.toFixed(0)} · ${via}`,
       positive: true,
