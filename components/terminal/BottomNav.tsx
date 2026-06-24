@@ -16,16 +16,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   return (
     <nav
-      className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around rounded-2xl"
-      style={{
-        bottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))",
-        height: 58,
-        background: "color-mix(in srgb, var(--rail) 72%, transparent)",
-        backdropFilter: "blur(20px) saturate(1.3)",
-        WebkitBackdropFilter: "blur(20px) saturate(1.3)",
-        border: "1px solid var(--line)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)",
-      }}
+      className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around"
     >
       {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
