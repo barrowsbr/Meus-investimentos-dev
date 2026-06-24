@@ -172,9 +172,13 @@ Armazena preços históricos de ativos para consulta offline.
 | (variável) | Identificador do ativo |
 | peso / percentual / % / pl / part% | Peso/percentual do ativo na composição |
 
-### 8. `p_tax` — Taxas PTAX (BCB)
+### 8. `p_tax` — Taxas PTAX (BCB) — multi-moeda
 
-Cotações oficiais do Banco Central do Brasil (PTAX) para fins de declaração de IR.
+Cotações oficiais do Banco Central do Brasil (PTAX venda) para fins de declaração de IR.
+Colunas: `data`, `moeda` (USD/EUR/CAD/GBP), `taxa`. Fonte primária é a API do BCB
+(`lib/ptax.ts` com cache em memória); a aba serve como backup/auditoria.
+O motor fiscal (`buildMultiCurrencyPtax`) busca PTAX de cada moeda encontrada nas
+transações — não depende mais de manutenção manual da aba.
 
 ### 9. `lb_historic` — Histórico patrimonial
 
@@ -207,6 +211,32 @@ Registro de entradas, saídas e gastos com cartão.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
 - **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
+
+## Como fazer auditorias e análises de gaps (regra dura)
+
+> Contexto: auditorias superficiais já causaram gaps fiscais reais (motor inteiro
+> era USD-only, PTAX descartava EUR, câmbio IR só rastreava dólar) que só foram
+> detectados quando o dono perguntou diretamente. Nunca mais.
+
+Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equivalente:
+
+1. **Inventário de dados reais primeiro** — antes de opinar, levantar fatos: quais
+   moedas existem nas transações (`meus_ativos`), quais abas a planilha tem, quais
+   tickers aparecem, quais corretoras. Grep real no código, não suposição.
+2. **Testar cada premissa do motor contra os dados** — para cada motor/engine, verificar:
+   "funciona para TODAS as moedas que o usuário tem?", "funciona para todos os tipos
+   de ativo?", "o fluxo de dados chega de ponta a ponta?". Uma busca por `EUR` ou
+   `CAD` no motor fiscal teria revelado o gap em 30 segundos.
+3. **Cruzar inputs com outputs** — se a aba `cambio` tem EUR mas o motor só rastreia
+   USD, isso é um gap de **corretude fiscal**, não de "nice to have". Seguir o dado
+   da planilha até o número na tela.
+4. **Priorizar por impacto fiscal** — número errado na declaração > feature faltando
+   na UI > melhoria estética. Gaps que afetam cálculos de IR têm prioridade máxima.
+5. **Usar agentes paralelos** — para auditorias amplas, disparar agentes Explore em
+   paralelo por subsistema (tax, portfolio, cambio, cotacoes) em vez de ler
+   superficialmente arquivo por arquivo.
+6. **Nunca listar só o óbvio** — se os gaps encontrados são todos de UI/UX e nenhum
+   de lógica/dados, a análise provavelmente foi rasa. Voltar e cavar mais fundo.
 
 ## Arquitetura de cálculo — FONTE ÚNICA (regra dura)
 
