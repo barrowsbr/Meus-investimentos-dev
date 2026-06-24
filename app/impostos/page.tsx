@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import {
   AlertCircle, RefreshCw, Scale, ChevronDown, ChevronUp,
   Globe, Calculator, FileText, Bot, Copy, CalendarPlus, ExternalLink,
-  ArrowLeftRight, Check, Landmark, Calendar, Send, Trash2, Loader2, User,
+  ArrowLeftRight, Check, Landmark, Calendar, Send, Trash2, Loader2, User, ChevronRight,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -299,33 +299,117 @@ function ExteriorAnual({ anos }: { anos: AnoExterior[] }) {
 // ─── Câmbio: liquidações para BRL (Exterior) ─────────────────────────────────
 function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | null }) {
   const anos = year ? cambio.anos.filter(a => a.ano === String(year)) : cambio.anos;
+  const [expandedAno, setExpandedAno] = useState<string | null>(null);
   if (anos.length === 0) return null;
+
+  const fmtUsd = (v: number) => `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtTaxa = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+
   return (
     <div className="glass-card overflow-hidden mb-4">
-      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center gap-2">
-        <ArrowLeftRight size={14} className="text-cyan-400" />
-        <h2 className="text-sm font-semibold text-zinc-300">Câmbio — liquidações USD → R$ (ganho cambial)</h2>
-      </div>
-      {anos.map(a => (
-        <div key={a.ano} className="px-4 py-3 border-b border-white/[0.04] last:border-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="font-semibold text-zinc-300">{a.ano}</span>
-            <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-600">
-              <span>alienado <span className="text-zinc-400">US$ {a.usdAlienado.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</span></span>
-              <span>recebido <span className="text-zinc-400">{brl(a.recebidoBRL)}</span></span>
-              <span>ganho <span className={a.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}>{a.ganhoBRL >= 0 ? "+" : ""}{brl(a.ganhoBRL)}</span></span>
-              {a.isentoEspecie
-                ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">≤ US$5k/ano → isento (espécie)</span>
-                : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">se espécie: {brl(a.irEspecie)} ({(a.aliquotaEspecie * 100).toFixed(1)}%)</span>}
-            </div>
-          </div>
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ArrowLeftRight size={14} className="text-cyan-400" />
+          <h2 className="text-sm font-semibold text-zinc-300">Câmbio — liquidações USD → R$ (ganho cambial)</h2>
         </div>
-      ))}
+        <div className="flex items-center gap-3 text-xs text-zinc-600">
+          <span>PM dólar final: <span className="text-zinc-300 font-semibold">{fmtTaxa(cambio.pmDolarFinal)}</span></span>
+          <span>estoque: <span className="text-zinc-300 font-semibold">{fmtUsd(cambio.usdEstoqueFinal)}</span></span>
+        </div>
+      </div>
+
+      {anos.map(a => {
+        const isOpen = expandedAno === a.ano;
+        return (
+          <div key={a.ano} className="border-b border-white/[0.04] last:border-0">
+            <button
+              onClick={() => setExpandedAno(isOpen ? null : a.ano)}
+              className="w-full px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm hover:bg-white/[0.02] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <ChevronRight size={12} className={`text-zinc-600 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                <span className="font-semibold text-zinc-300">{a.ano}</span>
+                <span className="text-[10px] text-zinc-600">({a.liquidacoes.length} liquidação{a.liquidacoes.length !== 1 ? "ões" : ""})</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-600">
+                <span>alienado <span className="text-zinc-400">{fmtUsd(a.usdAlienado)}</span></span>
+                <span>recebido <span className="text-zinc-400">{brl(a.recebidoBRL)}</span></span>
+                <span>custo PM <span className="text-zinc-400">{brl(a.custoBRL)}</span></span>
+                <span>ganho <span className={a.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}>{a.ganhoBRL >= 0 ? "+" : ""}{brl(a.ganhoBRL)}</span></span>
+                {a.isentoEspecie
+                  ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">≤ US$5k/ano → isento (espécie)</span>
+                  : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">se espécie: {brl(a.irEspecie)} ({(a.aliquotaEspecie * 100).toFixed(1)}%)</span>}
+              </div>
+            </button>
+
+            {isOpen && a.liquidacoes.length > 0 && (
+              <div className="px-4 pb-3">
+                <div className="bg-zinc-900/60 border-l-2 border-cyan-500/40 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Data</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">USD alienado</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Taxa efetiva</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">PM dólar</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Recebido R$</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Custo R$</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Ganho R$</th>
+                        <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {a.liquidacoes.map((l, i) => {
+                        const ganPct = l.custoBRL > 0 ? (l.ganhoBRL / l.custoBRL) : 0;
+                        return (
+                          <tr key={i} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
+                            <td className="px-3 py-1.5 text-zinc-400 font-mono">{l.data.split("-").reverse().join("/")}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">{fmtUsd(l.usdAlienado)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.taxaEfetiva)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.pmDolarNaData)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-300">{brl(l.recebidoBRL)}</td>
+                            <td className="px-3 py-1.5 text-right text-zinc-500">{brl(l.custoBRL)}</td>
+                            <td className={`px-3 py-1.5 text-right font-semibold ${l.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {l.ganhoBRL >= 0 ? "+" : ""}{brl(l.ganhoBRL)}
+                            </td>
+                            <td className={`px-3 py-1.5 text-right font-medium ${ganPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {ganPct >= 0 ? "+" : ""}{(ganPct * 100).toFixed(1)}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-zinc-700 font-semibold">
+                        <td className="px-3 py-2 text-zinc-400">Total {a.ano}</td>
+                        <td className="px-3 py-2 text-right text-zinc-300">{fmtUsd(a.usdAlienado)}</td>
+                        <td className="px-3 py-2" colSpan={2} />
+                        <td className="px-3 py-2 text-right text-zinc-300">{brl(a.recebidoBRL)}</td>
+                        <td className="px-3 py-2 text-right text-zinc-500">{brl(a.custoBRL)}</td>
+                        <td className={`px-3 py-2 text-right ${a.ganhoBRL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {a.ganhoBRL >= 0 ? "+" : ""}{brl(a.ganhoBRL)}
+                        </td>
+                        <td className="px-3 py-2" />
+                      </tr>
+                    </tfoot>
+                  </table>
+
+                  <div className="px-3 py-2 bg-white/[0.02] text-[10px] text-zinc-600 leading-relaxed space-y-1">
+                    <div><span className="text-zinc-500 font-medium">Como ler:</span> PM dólar = custo médio das suas remessas BRL→USD até aquela data. Taxa efetiva = BRL recebido ÷ USD vendido. Ganho = (taxa efetiva − PM) × USD.</div>
+                    <div><span className="text-zinc-500 font-medium">Declaração:</span> se os dólares vieram de venda de ativo no exterior, o câmbio <strong>já está dentro</strong> dos 15% anuais — não declare aqui novamente. Se forem de moeda em espécie com alienações &gt; US$5k/ano, recolha via GCAP.</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
       <div className="px-4 py-3 text-[11px] text-zinc-600 leading-relaxed bg-white/[0.01]">
-        <span className="text-zinc-400 font-medium">Enquadramento depende da origem dos dólares:</span>{" "}
-        <strong>(a)</strong> venda de aplicação financeira no exterior → câmbio <strong>já tributado</strong> nos 15% anuais (PTAX compra × PTAX venda) — a conversão não gera novo imposto;{" "}
-        <strong>(b)</strong> conta-corrente/cartão não remunerados → variação cambial <strong>isenta</strong>;{" "}
-        <strong>(c)</strong> moeda em espécie → isento até US$ 5.000 de alienações/ano; acima, tabela progressiva (15–22,5%).
+        <span className="text-zinc-400 font-medium">Três enquadramentos possíveis:</span>{" "}
+        <strong>(a)</strong> Venda de aplicação financeira no exterior → câmbio <strong>já tributado</strong> nos 15% anuais (custo pela PTAX compra, venda pela PTAX venda) — a conversão USD→BRL não gera novo imposto.{" "}
+        <strong>(b)</strong> Conta-corrente/cartão não remunerados → variação cambial <strong>isenta</strong> (Lei 14.754/23, art. 5º).{" "}
+        <strong>(c)</strong> Moeda em espécie (incluindo saldo em conta remunerada) → isento até US$ {cambio.limiteIsencaoEspecieUSD.toLocaleString("pt-BR")} de alienações/ano; acima, tabela progressiva (15%–22,5%) via GCAP.
       </div>
     </div>
   );
