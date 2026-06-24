@@ -814,6 +814,8 @@ body {
 [data-theme="matrix"] textarea { caret-color: #00FF41; }
 
 /* ── Âmbar: data stream (canvas fixo atrás do conteúdo) ── */
+[data-theme="ambar"] .terminal-root { background: transparent !important; }
+[data-theme="ambar"] body { background: var(--bg); }
 .ambar-bg {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -837,6 +839,8 @@ body {
 }
 
 /* ── Jornal: ticker tape (canvas fixo atrás do conteúdo) ── */
+[data-theme="jornal"] .terminal-root { background: transparent !important; }
+[data-theme="jornal"] body { background: var(--bg); }
 .jornal-bg {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
