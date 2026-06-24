@@ -487,17 +487,24 @@ export async function GET() {
 
     const lookThroughCompositions: Record<string, { ticker: string; valor_brl: number; components: Array<{ ativo: string; name: string; peso: number }> }> = {};
     for (const [etfTicker, data] of Object.entries(ltResult.per_etf)) {
-      if (data.status !== "ok" || !data.holdings) continue;
-      const totalWeight = data.holdings.reduce((s, h) => s + h.weight_pct, 0);
-      lookThroughCompositions[etfTicker] = {
-        ticker: etfTicker,
-        valor_brl: data.value_brl,
-        components: data.holdings.map(h => ({
-          ativo: h.ticker,
-          name: h.name,
-          peso: totalWeight > 0 ? h.weight_pct / totalWeight : 0,
-        })).sort((a, b) => b.peso - a.peso),
-      };
+      if (data.status === "ok" && data.holdings) {
+        const totalWeight = data.holdings.reduce((s, h) => s + h.weight_pct, 0);
+        lookThroughCompositions[etfTicker] = {
+          ticker: etfTicker,
+          valor_brl: data.value_brl,
+          components: data.holdings.map(h => ({
+            ativo: h.ticker,
+            name: h.name,
+            peso: totalWeight > 0 ? h.weight_pct / totalWeight : 0,
+          })).sort((a, b) => b.peso - a.peso),
+        };
+      } else if (data.value_brl > 0) {
+        lookThroughCompositions[etfTicker] = {
+          ticker: etfTicker,
+          valor_brl: data.value_brl,
+          components: [],
+        };
+      }
     }
 
     // ── RF manual (fixa_aberta) com corretora — alimenta custódia e mapa ─────

@@ -113,4 +113,42 @@ describe("camada ETF do Radar — look-through canônico", () => {
     expect(buildExposureHeat(null).size).toBe(0);
     expect(buildExposureHeat({ exposure: [] }).size).toBe(0);
   });
+
+  it("ETF sem holdings mas com ETF_SINGLE_COUNTRY não some (SHV → US)", async () => {
+    const alloc = await computeCountryAllocation(
+      { "SHV": { valor_brl: 20_000, components: [] } },
+      [],
+    );
+    expect(alloc).toHaveLength(1);
+    expect(alloc[0].country.code).toBe("US");
+    expect(alloc[0].value_brl).toBeCloseTo(20_000, 0);
+    expect(alloc[0].etf_brl).toBeCloseTo(20_000, 0);
+  });
+
+  it("OUTROS bucket não perde valor (normaliza por holdings reais)", async () => {
+    const alloc = await computeCountryAllocation(
+      {
+        "TEST_ETF": {
+          valor_brl: 100_000,
+          components: [
+            { ativo: "AAPL", peso: 0.10 },
+            { ativo: "7203.T", peso: 0.05 },
+            { ativo: "OUTROS.TEST_ETF", peso: 0.85 },
+          ],
+        },
+      },
+      [],
+    );
+    const total = alloc.reduce((s, a) => s + a.value_brl, 0);
+    // Sem o fix, total seria ~15k (só os 15% não-OUTROS). Com o fix, 100k.
+    expect(total).toBeGreaterThan(99_000);
+    expect(total).toBeLessThanOrEqual(100_001);
+    // AAPL → US (10/15 ≈ 66.7%), 7203.T → JP (5/15 ≈ 33.3%)
+    const us = alloc.find(a => a.country.code === "US");
+    const jp = alloc.find(a => a.country.code === "JP");
+    expect(us).toBeDefined();
+    expect(jp).toBeDefined();
+    expect(us!.value_brl).toBeCloseTo(66_667, -2);
+    expect(jp!.value_brl).toBeCloseTo(33_333, -2);
+  });
 });

@@ -164,14 +164,23 @@ const ADR_COUNTRY: Record<string, string> = {
 // ── ETFs that are 100% one country ───────────────────────────────────────────
 
 const ETF_SINGLE_COUNTRY: Record<string, string> = {
+  // US equity
   SPY: "US", VOO: "US", IVV: "US", IVVB11: "US", QQQ: "US", VTI: "US",
   DIA: "US", RSP: "US", MDY: "US", IWM: "US", SCHD: "US", VIG: "US",
   VNQ: "US", XLRE: "US", XLF: "US", XLK: "US", XLE: "US", XLV: "US",
-  EWZ: "BR", BOVA11: "BR",
+  // US fixed-income / money-market ETFs
+  SHV: "US", BIL: "US", VDST: "US", AGG: "US", BND: "US", TLT: "US",
+  SHY: "US", IEF: "US", SGOV: "US", USFR: "US",
+  // BR
+  EWZ: "BR", BOVA11: "BR", SMAL11: "BR", B5P211: "BR",
+  // JP
   EWJ: "JP", DXJ: "JP", FLJP: "JP",
+  // Single-country Europe
   EWG: "DE", EWU: "GB", EWQ: "FR", EWI: "IT", EWP: "ES", EWN: "NL",
   EWL: "CH", EWD: "SE", NORW: "NO",
-  FXI: "CN", MCHI: "CN", KWEB: "CN", ASHR: "CN",
+  // CN
+  FXI: "CN", MCHI: "CN", KWEB: "CN", ASHR: "CN", XINA11: "CN",
+  // Other single-country
   EWY: "KR", EWT: "TW", INDA: "IN", EWA: "AU", EWC: "CA",
   EWS: "SG", THD: "TH", EIDO: "ID", EWM: "MY",
   EIS: "IL", KSA: "SA",
@@ -179,48 +188,55 @@ const ETF_SINGLE_COUNTRY: Record<string, string> = {
   ARGT: "AR", ECH: "CL",
 };
 
-// ── Embedded ETF country allocations (from fund factsheets, Q1-2025) ─────────
-// More complete than mapping individual tickers. Updated quarterly.
+// ── Embedded ETF country allocations (fund factsheets, H1-2026) ──────────────
+// Updated from iShares ACWI (Mar 2026), Vanguard VT (Mar 2026), FTSE Russell.
+// Normalisation in computeCountryAllocation compensates rounding (<1% off 100%).
 
 const ETF_COUNTRY_WEIGHTS: Record<string, Array<[string, number]>> = {
-  // VWRA / VT / MSCI ACWI — source: iShares/Vanguard factsheet
+  // VWRA / MSCI ACWI — source: iShares ACWI factsheet Mar-2026 + FTSE All-World
   "VWRA.L": [
-    ["US", 62.5], ["JP", 5.4], ["GB", 3.5], ["CN", 2.8], ["FR", 2.7],
-    ["CA", 2.6], ["CH", 2.3], ["DE", 2.1], ["IN", 1.9], ["AU", 1.8],
-    ["TW", 1.7], ["KR", 1.4], ["NL", 1.1], ["DK", 0.9], ["SE", 0.8],
-    ["HK", 0.7], ["IT", 0.6], ["ES", 0.6], ["SG", 0.4], ["BR", 0.4],
-    ["SA", 0.4], ["ZA", 0.3], ["FI", 0.3], ["BE", 0.3], ["NO", 0.3],
-    ["IE", 0.3], ["IL", 0.2], ["MX", 0.2], ["TH", 0.2], ["ID", 0.2],
+    ["US", 63.0], ["JP", 5.0], ["GB", 3.4], ["CA", 3.2], ["CN", 2.9],
+    ["FR", 2.4], ["CH", 2.2], ["IN", 2.2], ["DE", 2.0], ["TW", 2.0],
+    ["AU", 1.7], ["KR", 1.3], ["NL", 1.2], ["DK", 0.9], ["SE", 0.8],
+    ["HK", 0.7], ["IT", 0.7], ["ES", 0.6], ["SG", 0.4], ["SA", 0.4],
+    ["BR", 0.4], ["ZA", 0.3], ["FI", 0.3], ["BE", 0.3], ["NO", 0.3],
+    ["IE", 0.3], ["IL", 0.3], ["MX", 0.2], ["TH", 0.2], ["ID", 0.2],
     ["MY", 0.2], ["AT", 0.1], ["NZ", 0.1], ["PH", 0.1], ["PL", 0.1],
     ["AE", 0.1], ["KW", 0.1], ["QA", 0.1], ["CL", 0.1], ["TR", 0.1],
     ["EG", 0.05], ["CZ", 0.05], ["GR", 0.05], ["HU", 0.05], ["CO", 0.05],
   ],
-  // IEUR / EFA / MSCI EAFE (Europe, Australasia, Far East)
+  // IEUR / EFA / MSCI EAFE (Europe, Australasia, Far East) — source: iShares EFA
   IEUR: [
-    ["GB", 14.2], ["JP", 21.5], ["FR", 10.8], ["CH", 9.6], ["DE", 8.5],
-    ["AU", 7.2], ["NL", 4.3], ["DK", 3.2], ["SE", 2.8], ["HK", 2.5],
-    ["IT", 2.4], ["ES", 2.3], ["SG", 1.4], ["FI", 1.1], ["BE", 1.0],
-    ["NO", 0.8], ["IE", 0.7], ["IL", 0.6], ["NZ", 0.3], ["AT", 0.3],
+    ["JP", 22.0], ["GB", 14.5], ["FR", 10.5], ["CH", 9.8], ["DE", 8.2],
+    ["AU", 7.0], ["NL", 4.5], ["DK", 3.4], ["SE", 2.8], ["HK", 2.3],
+    ["IT", 2.5], ["ES", 2.4], ["SG", 1.5], ["FI", 1.1], ["BE", 1.0],
+    ["NO", 0.8], ["IE", 0.7], ["IL", 0.7], ["NZ", 0.3], ["AT", 0.3],
     ["PT", 0.2],
   ],
-  // VT (Vanguard Total World Stock)
+  // VT (Vanguard Total World Stock) — source: Vanguard factsheet Mar-2026
   VT: [
-    ["US", 60.0], ["JP", 5.8], ["GB", 3.4], ["CN", 3.2], ["CA", 2.7],
-    ["FR", 2.6], ["CH", 2.2], ["DE", 2.0], ["IN", 2.0], ["AU", 1.7],
-    ["TW", 1.8], ["KR", 1.5], ["NL", 1.0], ["DK", 0.9], ["SE", 0.8],
-    ["HK", 0.7], ["IT", 0.6], ["ES", 0.6], ["BR", 0.5], ["SA", 0.4],
+    ["US", 60.6], ["JP", 6.1], ["GB", 3.5], ["CA", 3.0], ["CN", 2.8],
+    ["FR", 2.5], ["CH", 2.2], ["IN", 2.2], ["DE", 2.0], ["TW", 2.0],
+    ["AU", 1.7], ["KR", 1.4], ["NL", 1.1], ["DK", 0.9], ["SE", 0.8],
+    ["HK", 0.7], ["IT", 0.7], ["ES", 0.6], ["BR", 0.5], ["SA", 0.4],
     ["SG", 0.4], ["ZA", 0.3], ["MX", 0.3], ["ID", 0.2], ["TH", 0.2],
   ],
-  // AAXJ (iShares MSCI All Country Asia ex Japan)
+  // AAXJ (iShares MSCI All Country Asia ex Japan) — source: iShares factsheet
   AAXJ: [
-    ["CN", 26.0], ["IN", 21.0], ["TW", 17.5], ["KR", 12.5], ["HK", 4.5],
+    ["CN", 25.0], ["IN", 22.0], ["TW", 18.0], ["KR", 12.0], ["HK", 4.5],
     ["SG", 3.0], ["TH", 2.5], ["ID", 2.0], ["MY", 1.8], ["PH", 0.8],
     ["VN", 0.5],
+  ],
+  // EURP11 / MSCI Europe — source: iShares MSCI Europe factsheet
+  EURP11: [
+    ["GB", 22.0], ["FR", 17.0], ["CH", 15.0], ["DE", 13.0], ["NL", 7.0],
+    ["DK", 5.0], ["SE", 4.0], ["IT", 4.0], ["ES", 4.0], ["FI", 1.5],
+    ["BE", 1.5], ["NO", 1.0], ["IE", 1.0], ["AT", 0.5], ["PT", 0.5],
   ],
 };
 // Aliases
 ETF_COUNTRY_WEIGHTS["VWRA"] = ETF_COUNTRY_WEIGHTS["VWRA.L"];
-ETF_COUNTRY_WEIGHTS["IWDA"] = ETF_COUNTRY_WEIGHTS["VWRA.L"]; // MSCI World is similar
+ETF_COUNTRY_WEIGHTS["IWDA"] = ETF_COUNTRY_WEIGHTS["VWRA.L"];
 ETF_COUNTRY_WEIGHTS["URTH"] = ETF_COUNTRY_WEIGHTS["VWRA.L"];
 ETF_COUNTRY_WEIGHTS["ACWI"] = ETF_COUNTRY_WEIGHTS["VWRA.L"];
 ETF_COUNTRY_WEIGHTS["VEA"] = ETF_COUNTRY_WEIGHTS["IEUR"];
@@ -409,13 +425,20 @@ export async function computeCountryAllocation(
         addToCountry(code, valueBRL, r.etfTicker, undefined, etfSrc);
       }
     } else {
-      // Infer from individual holdings
-      const totalWeight = etf.components.reduce((s, c) => s + c.peso, 0);
-      for (const comp of etf.components) {
-        if (comp.ativo.startsWith("OUTROS.")) continue;
-        const country = inferCountryFromTicker(comp.ativo) ?? "US";
-        const valueBRL = totalWeight > 0 ? (comp.peso / totalWeight) * etf.valor_brl : 0;
-        addToCountry(country, valueBRL, comp.ativo, undefined, etfSrc);
+      // Infer from individual holdings — normalize by non-OUTROS weight
+      // so the full ETF value is distributed proportionally across known countries.
+      const realComponents = etf.components.filter(c => !c.ativo.startsWith("OUTROS."));
+      if (realComponents.length > 0) {
+        const totalWeight = realComponents.reduce((s, c) => s + c.peso, 0);
+        for (const comp of realComponents) {
+          const country = inferCountryFromTicker(comp.ativo) ?? "US";
+          const valueBRL = totalWeight > 0 ? (comp.peso / totalWeight) * etf.valor_brl : 0;
+          addToCountry(country, valueBRL, comp.ativo, undefined, etfSrc);
+        }
+      } else {
+        // No holdings and no embedded/FMP data — use listing country as last resort
+        const listingCountry = inferCountryFromTicker(r.etfTicker) ?? "US";
+        addToCountry(listingCountry, etf.valor_brl, r.etfTicker, undefined, etfSrc);
       }
     }
   }
