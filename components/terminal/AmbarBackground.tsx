@@ -50,7 +50,7 @@ export default function AmbarBackground() {
         y: randomY ? Math.random() * state.height : -FONT_SIZE,
         speed: 0.3 + Math.random() * 0.8,
         char: CHARS[Math.floor(Math.random() * CHARS.length)],
-        opacity: 0.03 + Math.random() * 0.12,
+        opacity: 0.08 + Math.random() * 0.25,
         fadeDir: Math.random() > 0.5 ? 1 : -1,
         col,
       };
@@ -77,9 +77,9 @@ export default function AmbarBackground() {
       ctx!.font = `${FONT_SIZE}px monospace`;
 
       for (const p of particles) {
-        p.opacity += p.fadeDir * 0.002;
-        if (p.opacity > 0.15) { p.opacity = 0.15; p.fadeDir = -1; }
-        if (p.opacity < 0.02) { p.opacity = 0.02; p.fadeDir = 1; }
+        p.opacity += p.fadeDir * 0.003;
+        if (p.opacity > 0.35) { p.opacity = 0.35; p.fadeDir = -1; }
+        if (p.opacity < 0.06) { p.opacity = 0.06; p.fadeDir = 1; }
 
         ctx!.fillStyle = `rgba(232, 163, 61, ${p.opacity})`;
         ctx!.fillText(p.char, p.x, p.y);
@@ -97,7 +97,7 @@ export default function AmbarBackground() {
 
       // Subtle horizontal scan line moving down
       const scanY = (frameCount * 0.5) % height;
-      ctx!.fillStyle = "rgba(232, 163, 61, 0.015)";
+      ctx!.fillStyle = "rgba(232, 163, 61, 0.04)";
       ctx!.fillRect(0, scanY, width, 2);
     }
 

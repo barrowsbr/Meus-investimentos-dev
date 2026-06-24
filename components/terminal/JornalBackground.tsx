@@ -52,13 +52,13 @@ export default function JornalBackground() {
 
     function makeItem(lane: number, randomX: boolean): TickerItem {
       const text = TICKERS[Math.floor(Math.random() * TICKERS.length)];
-      const size = 11 + Math.floor(Math.random() * 3);
+      const size = 12 + Math.floor(Math.random() * 5);
       return {
         text,
         x: randomX ? Math.random() * state.width : state.width + Math.random() * 200,
         y: 30 + lane * 60 + Math.random() * 20,
-        speed: 0.15 + Math.random() * 0.35,
-        opacity: 0.04 + Math.random() * 0.06,
+        speed: 0.2 + Math.random() * 0.5,
+        opacity: 0.07 + Math.random() * 0.10,
         size,
       };
     }
@@ -96,7 +96,7 @@ export default function JornalBackground() {
       }
 
       // Subtle column lines (newspaper feel)
-      ctx!.strokeStyle = "rgba(0, 0, 0, 0.02)";
+      ctx!.strokeStyle = "rgba(0, 0, 0, 0.04)";
       ctx!.lineWidth = 0.5;
       const colWidth = width / 5;
       for (let i = 1; i < 5; i++) {
