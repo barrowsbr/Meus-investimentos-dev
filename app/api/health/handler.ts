@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,8 @@ export async function GET() {
   };
 
   try {
-    const sample = await fetchTab("meus_ativos");
+    const store = getDataStore();
+    const sample = await store.fetchTab("meus_ativos");
     checks.sheets_connection = "ok";
     checks.meus_ativos_rows = sample.length;
     checks.meus_ativos_columns = sample.length > 0 ? Object.keys(sample[0]) : [];

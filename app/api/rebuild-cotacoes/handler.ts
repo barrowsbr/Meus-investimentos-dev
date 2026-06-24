@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { writeGoldenSource, type GoldenSourceData } from "@/lib/db-cotacoes";
 import { backupTab } from "@/lib/backup";
 import { fetchTicker } from "@/lib/market-history";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { yahooTicker } from "@/lib/cotacoes";
 import { identificarSetor, isRendaFixaManual } from "@/lib/sectors";
 
@@ -29,7 +29,8 @@ export async function POST(request: Request) {
   const dryRun = body.dryRun === true;
 
   // 1. Discover portfolio tickers from meus_ativos
-  const transacoes = await fetchTab("meus_ativos");
+  const store = getDataStore();
+  const transacoes = await store.fetchTab("meus_ativos");
   const yahooMap = new Map<string, string>();
   for (const row of transacoes) {
     const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();

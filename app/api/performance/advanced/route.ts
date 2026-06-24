@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
@@ -286,13 +286,14 @@ export async function GET(request: Request) {
   const toParam = isYmd(searchParams.get("to")) ? searchParams.get("to")! : "";
 
   try {
+    const store = getDataStore();
     const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta, marginRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos").catch(() => []),
-      fetchTab("cambio").catch(() => []),
-      fetchTab("renda_fixa").catch(() => []),
-      fetchTab("fixa_aberta").catch(() => []),
-      fetchTab(MARGIN_TAB).catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos").catch(() => []),
+      store.fetchTab("cambio").catch(() => []),
+      store.fetchTab("renda_fixa").catch(() => []),
+      store.fetchTab("fixa_aberta").catch(() => []),
+      store.fetchTab(MARGIN_TAB).catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });

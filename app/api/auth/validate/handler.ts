@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { DEMO_USER, DEMO_PASS, DEMO_COOKIE } from "@/lib/demo";
 
 export async function POST(req: NextRequest) {
   try {
+    const store = getDataStore();
     const { user, password } = await req.json();
     if (!user || !password) {
       return NextResponse.json({ ok: false, error: "Campos obrigatórios" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     let validPass = process.env.APP_PASSWORD ?? "1015";
 
     try {
-      const rows = await fetchTab("config");
+      const rows = await store.fetchTab("config");
       for (const row of rows) {
         const key = String(row["chave"] ?? row["key"] ?? "").toLowerCase().trim();
         const val = String(row["valor"] ?? row["value"] ?? "").trim();

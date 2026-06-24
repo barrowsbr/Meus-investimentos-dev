@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { fetchTab, getServiceAccountAuth } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
+import { getServiceAccountAuth } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -23,7 +24,8 @@ function getAuthSheets() {
 // GET — return all cash positions from fixa_aberta
 export async function GET() {
   try {
-    const rows = await fetchTab(TAB);
+    const store = getDataStore();
+    const rows = await store.fetchTab(TAB);
     const caixa: { ticker: string; atual: number; moeda: string }[] = [];
     for (const row of rows) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();

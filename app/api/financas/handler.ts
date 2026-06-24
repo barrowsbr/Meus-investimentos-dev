@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
-import { fetchTab, writeTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function GET() {
   try {
+    const store = getDataStore();
     const [pessoal, assinaturas, parcelamentos] = await Promise.allSettled([
-      fetchTab("financas_pessoal"),
-      fetchTab("financas_assinaturas"),
-      fetchTab("financas_parcelamentos"),
+      store.fetchTab("financas_pessoal"),
+      store.fetchTab("financas_assinaturas"),
+      store.fetchTab("financas_parcelamentos"),
     ]);
 
     return NextResponse.json({
@@ -30,6 +31,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const store = getDataStore();
     const body = await request.json();
     const { tab, data } = body;
 
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
           String(r.nome ?? ""),
           String(Number(r.valor ?? 0)),
         ]);
-        await writeTab("financas_pessoal", headers, rows);
+        await store.writeTab("financas_pessoal", headers, rows);
         break;
       }
       case "assinaturas": {
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
           String(Number(r.dia ?? 0)),
           r.ativa === false ? "FALSE" : "TRUE",
         ]);
-        await writeTab("financas_assinaturas", headers, rows);
+        await store.writeTab("financas_assinaturas", headers, rows);
         break;
       }
       case "parcelamentos": {
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
           String(Number(r.parcelas ?? 1)),
           String(r.data_compra ?? ""),
         ]);
-        await writeTab("financas_parcelamentos", headers, rows);
+        await store.writeTab("financas_parcelamentos", headers, rows);
         break;
       }
       default:

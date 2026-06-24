@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { fetchTab, appendRows } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
@@ -701,10 +701,11 @@ async function buildResponse(
   trades: TradeRow[],
   dryRun: boolean,
 ): Promise<NextResponse> {
+  const store = getDataStore();
   // Fetch existing data for dedup
   const [existingProventos, existingTrades] = await Promise.all([
-    proventos.length > 0 ? fetchTab("meus_proventos").catch(() => []) : Promise.resolve([]),
-    trades.length > 0 ? fetchTab("meus_ativos").catch(() => []) : Promise.resolve([]),
+    proventos.length > 0 ? store.fetchTab("meus_proventos").catch(() => []) : Promise.resolve([]),
+    trades.length > 0 ? store.fetchTab("meus_ativos").catch(() => []) : Promise.resolve([]),
   ]);
 
   const proventoStatuses = proventos.length > 0 ? dedupProventos(existingProventos, proventos) : new Map();
@@ -779,7 +780,7 @@ async function buildResponse(
       const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
       const rows = novosProventos.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
       try {
-        await appendRows("meus_proventos", rows);
+        await store.appendRows("meus_proventos", rows);
         insertedProventos = novosProventos.length;
       } catch (e) {
         erros.push(`proventos: ${e instanceof Error ? e.message : "falha na escrita"}`);
@@ -790,7 +791,7 @@ async function buildResponse(
       const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
       const rows = novosTrades.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
       try {
-        await appendRows("meus_ativos", rows);
+        await store.appendRows("meus_ativos", rows);
         insertedTrades = novosTrades.length;
       } catch (e) {
         erros.push(`operações: ${e instanceof Error ? e.message : "falha na escrita"}`);
@@ -800,7 +801,7 @@ async function buildResponse(
     // Verificação: relê as abas e compara a contagem com o esperado.
     const verificacao: Record<string, unknown> = {};
     if (insertedProventos > 0) {
-      const depois = await fetchTab("meus_proventos").catch(() => null);
+      const depois = await store.fetchTab("meus_proventos").catch(() => null);
       verificacao.proventos = depois === null
         ? { ok: false, detalhe: "não foi possível reler a aba" }
         : {
@@ -811,7 +812,7 @@ async function buildResponse(
           };
     }
     if (insertedTrades > 0) {
-      const depois = await fetchTab("meus_ativos").catch(() => null);
+      const depois = await store.fetchTab("meus_ativos").catch(() => null);
       verificacao.trades = depois === null
         ? { ok: false, detalhe: "não foi possível reler a aba" }
         : {

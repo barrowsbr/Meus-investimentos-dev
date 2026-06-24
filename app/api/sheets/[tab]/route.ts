@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 
 export const revalidate = 300; // cache 5 min
 
@@ -28,7 +28,8 @@ export async function GET(
   }
 
   try {
-    const data = await fetchTab(tab);
+    const store = getDataStore();
+    const data = await store.fetchTab(tab);
     return NextResponse.json(data, {
       headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });

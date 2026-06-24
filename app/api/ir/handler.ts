@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { toNumber } from "@/lib/format";
 import { processarVendas, type RawTx, type CorpEvent, type PtaxLookup } from "@/lib/tax/engine";
 import { apurar } from "@/lib/tax/apurador";
@@ -95,11 +95,12 @@ export async function GET(request: Request) {
   const year = yearParam ? parseInt(yearParam, 10) : null;
 
   try {
+    const store = getDataStore();
     const [ativos, ptaxRows, eventosRows, cambioRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("p_tax").catch(() => []),
-      fetchTab("eventos_corp").catch(() => []), // aba opcional
-      fetchTab("cambio").catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("p_tax").catch(() => []),
+      store.fetchTab("eventos_corp").catch(() => []), // aba opcional
+      store.fetchTab("cambio").catch(() => []),
     ]);
 
     const ptax = buildPtaxLookup(ptaxRows);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab, appendRows } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
@@ -326,6 +326,7 @@ function findMissingTrades(
 
 export async function POST(request: Request) {
   try {
+    const store = getDataStore();
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const mode = (formData.get("mode") as string) ?? "proventos"; // "proventos" | "trades" | "both"
@@ -346,7 +347,7 @@ export async function POST(request: Request) {
     };
 
     if (["proventos", "both"].includes(mode) && parsedProventos.length > 0) {
-      const existing = await fetchTab("meus_proventos");
+      const existing = await store.fetchTab("meus_proventos");
       const missing = findMissingProventos(existing, parsedProventos);
 
       result.proventos = {
@@ -359,13 +360,13 @@ export async function POST(request: Request) {
         await backupTab("meus_proventos").catch(() => {});
         const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
         const rows = missing.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
-        await appendRows("meus_proventos", rows);
+        await store.appendRows("meus_proventos", rows);
         (result.proventos as Record<string, unknown>).inserted = missing.length;
       }
     }
 
     if (["trades", "both"].includes(mode) && parsedTrades.length > 0) {
-      const existing = await fetchTab("meus_ativos");
+      const existing = await store.fetchTab("meus_ativos");
       const allMissing = findMissingTrades(existing, parsedTrades);
 
       const trulyMissing = allMissing.filter(t => t.status_match === "MISSING");
@@ -387,7 +388,7 @@ export async function POST(request: Request) {
         await backupTab("meus_ativos").catch(() => {});
         const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
         const rows = trulyMissing.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
-        await appendRows("meus_ativos", rows);
+        await store.appendRows("meus_ativos", rows);
         (result.trades as Record<string, unknown>).inserted = trulyMissing.length;
       }
     }

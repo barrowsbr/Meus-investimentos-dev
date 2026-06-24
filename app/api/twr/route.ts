@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchHistoricalData } from "@/lib/market-history";
 import {
   calcularTWR,
@@ -44,11 +44,12 @@ export async function GET(request: Request) {
   const lookback = rawLookback <= 0 ? 0 : Math.min(rawLookback, 3650);
 
   try {
+    const store = getDataStore();
     // ── 1. Load transaction + provento data ──────────────────────────────────
     const [transacoes, proventos, cambioRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos").catch(() => []),
-      fetchTab("cambio").catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos").catch(() => []),
+      store.fetchTab("cambio").catch(() => []),
     ]);
 
     if (transacoes.length === 0) {

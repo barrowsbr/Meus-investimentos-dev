@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeLookThrough, saveToGSheets } from "@/lib/etf-holdings";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { isRendaVariavel } from "@/lib/sectors";
@@ -11,13 +11,14 @@ export const maxDuration = 60;
 
 export async function POST() {
   try {
+    const store = getDataStore();
     // ── 1. Fetch portfolio data (same pattern as composicao/resumo) ───────────
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos"),
-      fetchTab("fixa_aberta"),
-      fetchTab("cambio").catch(() => []),
-      fetchTab("p_tax").catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos"),
+      store.fetchTab("fixa_aberta"),
+      store.fetchTab("cambio").catch(() => []),
+      store.fetchTab("p_tax").catch(() => []),
     ]);
 
     // ── 2. Build tickers and fetch cotacoes ──────────────────────────────────

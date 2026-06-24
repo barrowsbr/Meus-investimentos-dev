@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
@@ -78,15 +78,16 @@ export async function GET() {
   const errors: string[] = [];
 
   try {
+    const store = getDataStore();
     // ── 1. Load all data ──────────────────────────────────────────────────────
     const [transacoes, proventos, fixaAberta, rfTransacoes, cambioRows, ptaxRows, marginRows] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos").catch(() => []),
-      fetchTab("fixa_aberta").catch(() => []),
-      fetchTab("renda_fixa").catch(() => []),
-      fetchTab("cambio").catch(() => []),
-      fetchTab("p_tax").catch(() => []),
-      fetchTab(MARGIN_TAB).catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos").catch(() => []),
+      store.fetchTab("fixa_aberta").catch(() => []),
+      store.fetchTab("renda_fixa").catch(() => []),
+      store.fetchTab("cambio").catch(() => []),
+      store.fetchTab("p_tax").catch(() => []),
+      store.fetchTab(MARGIN_TAB).catch(() => []),
     ]);
 
     // ── 2. Get quotes and build snapshot ─────────────────────────────────────

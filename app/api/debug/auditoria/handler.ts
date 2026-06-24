@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchTab } from "@/lib/gsheets";
+import { getDataStore } from "@/lib/data-store";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildRfTimeline } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
@@ -17,12 +17,13 @@ export async function GET(request: Request) {
   const lookback = rawLookback <= 0 ? 0 : Math.min(rawLookback, 3650);
 
   try {
+    const store = getDataStore();
     const [transacoes, proventos, cambioRows, rfTransacoes, fixaAberta] = await Promise.all([
-      fetchTab("meus_ativos"),
-      fetchTab("meus_proventos").catch(() => []),
-      fetchTab("cambio").catch(() => []),
-      fetchTab("renda_fixa").catch(() => []),
-      fetchTab("fixa_aberta").catch(() => []),
+      store.fetchTab("meus_ativos"),
+      store.fetchTab("meus_proventos").catch(() => []),
+      store.fetchTab("cambio").catch(() => []),
+      store.fetchTab("renda_fixa").catch(() => []),
+      store.fetchTab("fixa_aberta").catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
