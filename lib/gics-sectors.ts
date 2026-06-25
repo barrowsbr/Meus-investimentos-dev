@@ -88,6 +88,7 @@ const US_SECTORS: Record<string, string> = {
   MRVL: "Tecnologia", ARM: "Tecnologia", SMCI: "Tecnologia", DELL: "Tecnologia",
   HPQ: "Tecnologia", IBM: "Tecnologia", INTU: "Tecnologia", SNPS: "Tecnologia",
   CDNS: "Tecnologia", KLAC: "Tecnologia", LRCX: "Tecnologia", ASML: "Tecnologia",
+  VRSN: "Tecnologia",
 
   // Communication
   META: "Comunicação", NFLX: "Comunicação", DIS: "Comunicação", CMCSA: "Comunicação",
@@ -105,6 +106,7 @@ const US_SECTORS: Record<string, string> = {
   TFC: "Financeiro", PNC: "Financeiro", COF: "Financeiro", AIG: "Financeiro",
   MET: "Financeiro", PRU: "Financeiro", TRV: "Financeiro", ALL: "Financeiro",
   COIN: "Financeiro", HOOD: "Financeiro", SOFI: "Financeiro", NU: "Financeiro",
+  IBKR: "Financeiro",
 
   // Healthcare
   JNJ: "Saúde", PFE: "Saúde", UNH: "Saúde", ABBV: "Saúde", MRK: "Saúde",
@@ -131,7 +133,7 @@ const US_SECTORS: Record<string, string> = {
   GM: "Varejo", F: "Varejo", ABNB: "Varejo", BKNG: "Varejo", MAR: "Varejo",
   HLT: "Varejo", YUM: "Varejo", CMG: "Varejo", LULU: "Varejo", ORLY: "Varejo",
   AZO: "Varejo", BBY: "Varejo", ETSY: "Varejo", RCL: "Varejo", LVS: "Varejo",
-  WYNN: "Varejo",
+  WYNN: "Varejo", VOW3: "Varejo",
 
   // Industrials
   CAT: "Industriais", BA: "Industriais", UNP: "Industriais", HON: "Industriais",
@@ -145,7 +147,7 @@ const US_SECTORS: Record<string, string> = {
   LIN: "Mineração & Materiais", APD: "Mineração & Materiais", FCX: "Mineração & Materiais",
   NEM: "Mineração & Materiais", NUE: "Mineração & Materiais", STLD: "Mineração & Materiais",
   DOW: "Mineração & Materiais", DD: "Mineração & Materiais", ECL: "Mineração & Materiais",
-  SHW: "Mineração & Materiais", PPG: "Mineração & Materiais",
+  SHW: "Mineração & Materiais", PPG: "Mineração & Materiais", DPM: "Mineração & Materiais",
 
   // Utilities
   NEE: "Utilidades Públicas", DUK: "Utilidades Públicas", SO: "Utilidades Públicas",
