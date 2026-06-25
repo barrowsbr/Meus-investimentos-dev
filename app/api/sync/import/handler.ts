@@ -146,11 +146,12 @@ function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRo
     const descricao = parts[4] ?? "";
     const tipo = parts[5] ?? "";
     const simbolo = parts[6] ?? "";
+    const moedaPreco = (parts[9] ?? "").trim();
     const valorStr = parts[10] ?? "";
 
     if (!data || !simbolo) continue;
     const ticker = normalizeTicker(simbolo);
-    const moeda = detectCurrency(descricao);
+    const moeda = resolveIbkrCurrency(moedaPreco, descricao);
 
     if (tipo === "Dividendo" || tipo === "Dividend") {
       const valor = parseValor(valorStr);
@@ -252,6 +253,15 @@ function smartSplit(line: string): string[] {
   }
   parts.push(current.trim());
   return parts;
+}
+
+const KNOWN_CURRENCIES = new Set(["USD", "CAD", "EUR", "GBP", "JPY", "CHF", "AUD", "HKD", "SGD", "SEK", "NOK", "DKK", "NZD"]);
+
+function resolveIbkrCurrency(moedaPreco: string, desc: string): string {
+  if (moedaPreco && moedaPreco !== "-" && KNOWN_CURRENCIES.has(moedaPreco.toUpperCase())) {
+    return moedaPreco.toUpperCase();
+  }
+  return detectCurrency(desc);
 }
 
 function detectCurrency(desc: string): string {

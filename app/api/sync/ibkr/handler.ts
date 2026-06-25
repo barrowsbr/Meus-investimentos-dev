@@ -84,16 +84,21 @@ function parseIBKRCsv(content: string): { proventos: IbkrEvent[]; trades: IbkrTr
     const descricao = parts[4]?.trim() ?? "";
     const tipo = parts[5]?.trim() ?? "";
     const simbolo = parts[6]?.trim() ?? "";
+    const moedaPreco = (parts[9]?.trim() ?? "");
     const valorStr = parts[10]?.trim() ?? "";
 
     if (!data || !simbolo) continue;
 
     const ticker = normalizeTicker(simbolo);
 
-    // Determine currency from description
     let moeda = "USD";
-    for (const m of ["CAD", "EUR", "GBP", "JPY", "CHF", "AUD"]) {
-      if (descricao.includes(m)) { moeda = m; break; }
+    const KNOWN = ["USD", "CAD", "EUR", "GBP", "JPY", "CHF", "AUD", "HKD", "SGD", "SEK", "NOK", "DKK", "NZD"];
+    if (moedaPreco && moedaPreco !== "-" && KNOWN.includes(moedaPreco.toUpperCase())) {
+      moeda = moedaPreco.toUpperCase();
+    } else {
+      for (const m of ["CAD", "EUR", "GBP", "JPY", "CHF", "AUD"]) {
+        if (descricao.includes(m)) { moeda = m; break; }
+      }
     }
 
     if (tipo === "Dividendo" || tipo === "Dividend") {
