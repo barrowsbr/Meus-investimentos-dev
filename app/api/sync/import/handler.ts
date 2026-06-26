@@ -747,16 +747,22 @@ function dedupTrades(
 
 // ── Câmbio dedup ────────────────────────────────────────────────────────────
 
-// Fuzzy column lookup — matches normalized keys (no underscores/spaces, lowercase)
+// Mesma lógica de fuzzyGet do cambio.ts (3 camadas: exact → normalized → substring)
 function fGet(row: Record<string, unknown>, ...patterns: string[]): string {
+  const keys = Object.keys(row);
   for (const p of patterns) {
     if (row[p] !== undefined && row[p] !== null && row[p] !== "") return String(row[p]);
   }
-  const keys = Object.keys(row);
   for (const p of patterns) {
     const norm = p.replace(/[_\s]/g, "").toLowerCase();
     for (const k of keys) {
       if (k.replace(/[_\s]/g, "").toLowerCase() === norm && row[k] !== undefined && row[k] !== null && row[k] !== "")
+        return String(row[k]);
+    }
+  }
+  for (const p of patterns) {
+    for (const k of keys) {
+      if (k.toLowerCase().includes(p.toLowerCase()) && row[k] !== undefined && row[k] !== null && row[k] !== "")
         return String(row[k]);
     }
   }
@@ -773,8 +779,8 @@ function dedupCambio(
     const data = normalizeDate(fGet(row, "data", "date"));
     const orig = fGet(row, "moeda_origem", "moeda origem", "de", "origem").toUpperCase().trim();
     const dest = fGet(row, "moeda_destino", "moeda destino", "para", "destino").toUpperCase().trim();
-    const valDestStr = fGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "recebido") || "0";
-    const valOrigStr = fGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "enviado") || "0";
+    const valDestStr = fGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd") || "0";
+    const valOrigStr = fGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl") || "0";
     const valDest = Math.round(parseValor(valDestStr));
     const valOrig = Math.round(parseValor(valOrigStr));
     if (data && (orig || dest)) existingOps.push({ data, orig, dest, valDest, valOrig, matched: false });
