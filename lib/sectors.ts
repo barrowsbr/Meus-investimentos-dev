@@ -32,6 +32,7 @@ const UNITS_ACOES = new Set([
 // Brasil". Só inclui moedas com câmbio suportado em fxToBRL (BRL/EUR/GBP/CAD/USD).
 const EXCHANGE_SUFFIX_CURRENCY: Record<string, string> = {
   SA: "BRL", // B3 — Brasil
+  L: "GBP",  // LSE — Londres
   DE: "EUR", // Xetra/Frankfurt — Alemanha
   AS: "EUR", // Euronext Amsterdam — Holanda
   PA: "EUR", // Euronext Paris — França
@@ -49,7 +50,7 @@ function exchangeSuffix(ticker: string): string {
 
 export function identificarSetor(ticker: string): string {
   const t = ticker.toUpperCase().trim();
-  const tClean = t.replace(/\.(SA|L|DE|TO|AS)$/i, "");
+  const tClean = t.replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, "");
 
   // Asset metadata (from Yahoo validation) is the primary source.
   // Falls through to heuristics only on cold start / uncached tickers.
