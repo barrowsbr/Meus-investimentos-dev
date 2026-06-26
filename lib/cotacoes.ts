@@ -1,5 +1,5 @@
 import { identificarSetor } from "./sectors";
-import { getAssetMeta } from "./asset-meta";
+import { getAssetMeta } from "./asset-meta-cache";
 
 export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
 
