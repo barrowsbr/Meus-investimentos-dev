@@ -100,6 +100,11 @@ function normalizeTicker(t: string): string {
   return (match ? match[1] : t).replace(/\.SA$/i, "").trim().toUpperCase();
 }
 
+// Strip ALL exchange suffixes for dedup comparison — "DPM.TO" and "DPM" must match
+function dedupTk(t: string): string {
+  return normalizeTicker(t).replace(/\.[A-Z]{1,2}$/i, "");
+}
+
 function parseValor(v: string | number): number {
   if (typeof v === "number") return v;
   const s = String(v).trim();
@@ -611,7 +616,7 @@ function parseB3Excel(rows: Record<string, unknown>[]): { proventos: ProventoRow
 // dia para o mesmo ticker — sem o tipo, um seria descartado como "existente").
 function sigProvento(data: string, ticker: string, valor: number, decisao: string): string {
   const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
-  const t = normalizeTicker(ticker);
+  const t = dedupTk(ticker);
   const v = Math.round(Math.abs(valor) * 100);
   const tipo = decisao.toLowerCase().includes("imposto") ? "I" : "D";
   return `${d}|${t}|${tipo}|${v}`;
@@ -649,7 +654,7 @@ function dedupTrades(
   }> = [];
 
   for (const row of existing) {
-    const ticker = normalizeTicker(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? ""));
+    const ticker = dedupTk(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? ""));
     const rawTipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? "").trim();
     const tipo = normalizeTipo(rawTipo);
     const qty = Math.round(parseValor(String(row["quantidade"] ?? "0")) * 100) / 100;
@@ -657,8 +662,6 @@ function dedupTrades(
     if (ticker) existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
-  // Assinatura de trade (alinhada ao Python): TICKER|TIPO|round(qty)|round(preco).
-  // Quantidade e preço arredondados para inteiro.
   function findMatch(ticker: string, tipo: string, qty: number, preco: number): typeof existingTrades[0] | null {
     const q = Math.round(qty);
     const p = Math.round(preco);
@@ -688,7 +691,7 @@ function dedupTrades(
   const groups = new Map<string, number[]>();
   for (let i = 0; i < incoming.length; i++) {
     const t = incoming[i];
-    const key = `${normalizeTicker(t.Símbolo)}|${t["Tipo de transação"]}|${t.Data}`;
+    const key = `${dedupTk(t.Símbolo)}|${t["Tipo de transação"]}|${t.Data}`;
     const indices = groups.get(key) ?? [];
     indices.push(i);
     groups.set(key, indices);
@@ -709,7 +712,7 @@ function dedupTrades(
       totalValue += q * p;
     }
     const avgPrice = totalQty > 0 ? totalValue / totalQty : 0;
-    const ticker = normalizeTicker(rows[0].Símbolo);
+    const ticker = dedupTk(rows[0].Símbolo);
     const tipo = rows[0]["Tipo de transação"];
 
     const match = findMatch(ticker, tipo, Math.round(totalQty * 100) / 100, avgPrice);
@@ -723,7 +726,7 @@ function dedupTrades(
   for (let i = 0; i < incoming.length; i++) {
     if (processedIndices.has(i)) continue;
     const row = incoming[i];
-    const ticker = normalizeTicker(row.Símbolo);
+    const ticker = dedupTk(row.Símbolo);
     const tipo = row["Tipo de transação"];
     const qty = Math.round(Math.abs(parseValor(row.Quantidade)) * 100) / 100;
     const preco = Math.abs(parseValor(row.Preço));
