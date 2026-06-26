@@ -16,7 +16,7 @@ interface PreviewItem {
   valor: string;
   moeda: string;
   corretora: string;
-  categoria: "provento" | "trade";
+  categoria: "provento" | "trade" | "cambio";
   detalhe: string;
   status: "novo" | "existente" | "split";
   meta?: {
@@ -51,6 +51,16 @@ interface TradeRow {
   "Valor líquido": string;
   Moeda: string;
   Corretora: string;
+}
+
+interface CambioRow {
+  data: string;
+  moeda_origem: string;
+  moeda_destino: string;
+  valor_origem: string;
+  valor_destino: string;
+  taxa: string;
+  corretora: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -141,9 +151,10 @@ function detectSource(content: string): Source {
 
 // ── IBKR Parser (multiple formats) ──────────────────────────────────────────
 
-function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRow[] } {
+function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRow[]; cambio: CambioRow[] } {
   const proventos: ProventoRow[] = [];
   const trades: TradeRow[] = [];
+  const cambio: CambioRow[] = [];
   const lines = content.split(/\r?\n/);
 
   // Format 1: Portuguese "Histórico de transações"
@@ -160,6 +171,13 @@ function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRo
     const valorStr = parts[10] ?? "";
 
     if (!data || !simbolo) continue;
+
+    // Detect forex: symbol like "EUR.USD", "GBP.USD", "CAD.USD"
+    if (isForexSymbol(simbolo)) {
+      const fx = parseForexTrade(simbolo, data, tipo, parts);
+      if (fx) { cambio.push(fx); continue; }
+    }
+
     const ticker = normalizeTicker(simbolo);
     const moeda = resolveIbkrCurrency(moedaPreco, descricao);
 
@@ -177,14 +195,14 @@ function parseIBKR(content: string): { proventos: ProventoRow[]; trades: TradeRo
   }
 
   // Format 2: English Activity Statement (section-based)
-  if (proventos.length === 0 && trades.length === 0) {
-    parseActivityStatement(lines, proventos, trades);
+  if (proventos.length === 0 && trades.length === 0 && cambio.length === 0) {
+    parseActivityStatement(lines, proventos, trades, cambio);
   }
 
-  return { proventos, trades };
+  return { proventos, trades, cambio };
 }
 
-function parseActivityStatement(lines: string[], proventos: ProventoRow[], trades: TradeRow[]) {
+function parseActivityStatement(lines: string[], proventos: ProventoRow[], trades: TradeRow[], cambio: CambioRow[]) {
   for (const line of lines) {
     const parts = smartSplit(line);
     if (parts.length < 3) continue;
@@ -194,9 +212,18 @@ function parseActivityStatement(lines: string[], proventos: ProventoRow[], trade
     if (rowType !== "Data") continue;
 
     if (section === "Trades" && parts.length >= 10) {
+      const assetCategory = parts[3]?.trim() || "";
       const currency = parts[4]?.trim() || "USD";
-      const symbol = normalizeTicker(parts[5] ?? "");
+      const rawSymbol = parts[5] ?? "";
       const date = normalizeDate(parts[6] ?? "");
+
+      // Forex trades: asset category "Forex" or symbol like "EUR.USD"
+      if (assetCategory === "Forex" || isForexSymbol(rawSymbol)) {
+        const fx = parseForexTradeActivity(rawSymbol, date, parts);
+        if (fx) { cambio.push(fx); continue; }
+      }
+
+      const symbol = normalizeTicker(rawSymbol);
       const qty = Math.abs(parseValor(parts[7] ?? "0"));
       const price = Math.abs(parseValor(parts[8] ?? "0"));
       const proceeds = Math.abs(parseValor(parts[10] ?? "0"));
@@ -249,6 +276,94 @@ function parseActivityStatement(lines: string[], proventos: ProventoRow[], trade
       if (!ticker) continue;
       proventos.push(makeProvento(ticker, date, "IMPOSTO", Math.abs(amount), currency, "Ação Internacional"));
     }
+  }
+}
+
+// ── Forex helpers ───────────────────────────────────────────────────────────
+
+const FOREX_CURRENCIES = new Set(["USD", "EUR", "GBP", "CAD", "CHF", "JPY", "AUD", "HKD", "SGD", "SEK", "NOK", "DKK", "NZD", "BRL"]);
+
+function isForexSymbol(sym: string): boolean {
+  const s = sym.trim().toUpperCase();
+  const m = s.match(/^([A-Z]{3})\.([A-Z]{3})$/);
+  if (!m) return false;
+  return FOREX_CURRENCIES.has(m[1]) && FOREX_CURRENCIES.has(m[2]);
+}
+
+// Format 1 (Portuguese "Histórico de transações"): forex rows
+function parseForexTrade(symbol: string, date: string, tipo: string, parts: string[]): CambioRow | null {
+  const m = symbol.trim().toUpperCase().match(/^([A-Z]{3})\.([A-Z]{3})$/);
+  if (!m) return null;
+  const [, base, quote] = m;
+  const qty = parseValor(parts[7] ?? "0");
+  const price = Math.abs(parseValor(parts[8] ?? "0"));
+  if (qty === 0 || price === 0) return null;
+
+  // qty > 0 = bought base (sold quote), qty < 0 = sold base (bought quote)
+  // IBKR convention: positive qty = buy base currency
+  const absQty = Math.abs(qty);
+  const counterValue = absQty * price;
+
+  if (qty > 0) {
+    // Bought base, sold quote: e.g. bought EUR, sold USD
+    return {
+      data: date,
+      moeda_origem: quote,
+      moeda_destino: base,
+      valor_origem: formatValorBR(counterValue),
+      valor_destino: formatValorBR(absQty),
+      taxa: formatValorBR(price),
+      corretora: "IBKR",
+    };
+  } else {
+    // Sold base, bought quote: e.g. sold USD, bought EUR
+    return {
+      data: date,
+      moeda_origem: base,
+      moeda_destino: quote,
+      valor_origem: formatValorBR(absQty),
+      valor_destino: formatValorBR(counterValue),
+      taxa: formatValorBR(price),
+      corretora: "IBKR",
+    };
+  }
+}
+
+// Format 2 (Activity Statement): forex in Trades section
+function parseForexTradeActivity(rawSymbol: string, date: string, parts: string[]): CambioRow | null {
+  const sym = rawSymbol.trim().toUpperCase();
+  const m = sym.match(/^([A-Z]{3})\.([A-Z]{3})$/);
+  if (!m) return null;
+  const [, base, quote] = m;
+  const qty = parseValor(parts[7] ?? "0");
+  const price = Math.abs(parseValor(parts[8] ?? "0"));
+  if (qty === 0 || price === 0) return null;
+
+  if (!date || !date.match(/^\d{4}-\d{2}-\d{2}$/)) return null;
+
+  const absQty = Math.abs(qty);
+  const counterValue = absQty * price;
+
+  if (qty > 0) {
+    return {
+      data: date,
+      moeda_origem: quote,
+      moeda_destino: base,
+      valor_origem: formatValorBR(counterValue),
+      valor_destino: formatValorBR(absQty),
+      taxa: formatValorBR(price),
+      corretora: "IBKR",
+    };
+  } else {
+    return {
+      data: date,
+      moeda_origem: base,
+      moeda_destino: quote,
+      valor_origem: formatValorBR(absQty),
+      valor_destino: formatValorBR(counterValue),
+      taxa: formatValorBR(price),
+      corretora: "IBKR",
+    };
   }
 }
 
@@ -626,6 +741,49 @@ function dedupTrades(
   return statuses;
 }
 
+// ── Câmbio dedup ────────────────────────────────────────────────────────────
+
+function dedupCambio(
+  existing: Record<string, unknown>[],
+  incoming: CambioRow[],
+): Map<number, "novo" | "existente"> {
+  const existingOps: Array<{ data: string; orig: string; dest: string; val: number; matched: boolean }> = [];
+
+  for (const row of existing) {
+    const data = normalizeDate(String(row["data"] ?? row["date"] ?? ""));
+    const orig = String(row["moeda_origem"] ?? row["moeda origem"] ?? row["de"] ?? "").toUpperCase().trim();
+    const dest = String(row["moeda_destino"] ?? row["moeda destino"] ?? row["para"] ?? "").toUpperCase().trim();
+    const val = Math.round(parseValor(String(
+      row["valor_destino"] ?? row["valor total saída"] ?? row["valor saída"] ?? row["valor_saida"] ?? row["recebido"] ?? "0",
+    )));
+    if (data && (orig || dest)) existingOps.push({ data, orig, dest, val, matched: false });
+  }
+
+  const statuses = new Map<number, "novo" | "existente">();
+
+  for (let i = 0; i < incoming.length; i++) {
+    const c = incoming[i];
+    const data = c.data;
+    const dest = c.moeda_destino;
+    const val = Math.round(parseValor(c.valor_destino));
+
+    let found = false;
+    for (const e of existingOps) {
+      if (e.matched) continue;
+      if (e.data !== data) continue;
+      if (e.dest !== dest) continue;
+      if (Math.abs(e.val - val) > 1) continue;
+      e.matched = true;
+      found = true;
+      break;
+    }
+
+    statuses.set(i, found ? "existente" : "novo");
+  }
+
+  return statuses;
+}
+
 // ── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -641,6 +799,7 @@ export async function POST(request: Request) {
     // Parse based on detected source
     let proventos: ProventoRow[] = [];
     let trades: TradeRow[] = [];
+    let cambio: CambioRow[] = [];
 
     // Detecta Excel pela extensão ou mimetype.
     const name = (file.name ?? "").toLowerCase();
@@ -670,7 +829,7 @@ export async function POST(request: Request) {
         }, { status: 422 });
       }
 
-      return await buildResponse("b3", proventos, trades, dryRun);
+      return await buildResponse("b3", proventos, trades, cambio, dryRun);
     }
 
     const content = await file.text();
@@ -680,6 +839,7 @@ export async function POST(request: Request) {
       const parsed = parseIBKR(content);
       proventos = parsed.proventos;
       trades = parsed.trades;
+      cambio = parsed.cambio;
     } else if (source === "b3") {
       const parsed = parseB3(content);
       proventos = parsed.proventos;
@@ -688,10 +848,11 @@ export async function POST(request: Request) {
       // Try both parsers
       const ibkr = parseIBKR(content);
       const b3 = parseB3(content);
-      if (ibkr.proventos.length + ibkr.trades.length >= b3.proventos.length + b3.trades.length && (ibkr.proventos.length + ibkr.trades.length) > 0) {
+      if (ibkr.proventos.length + ibkr.trades.length + ibkr.cambio.length >= b3.proventos.length + b3.trades.length && (ibkr.proventos.length + ibkr.trades.length + ibkr.cambio.length) > 0) {
         source = "ibkr";
         proventos = ibkr.proventos;
         trades = ibkr.trades;
+        cambio = ibkr.cambio;
       } else if (b3.proventos.length + b3.trades.length > 0) {
         source = "b3";
         proventos = b3.proventos;
@@ -699,7 +860,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (proventos.length === 0 && trades.length === 0) {
+    if (proventos.length === 0 && trades.length === 0 && cambio.length === 0) {
       return NextResponse.json({
         error: "Nenhum dado reconhecido no arquivo.",
         hint: "Formatos aceitos: CSV do IBKR (português ou inglês), CSV/TXT de proventos da B3.",
@@ -707,7 +868,7 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    return await buildResponse(source, proventos, trades, dryRun);
+    return await buildResponse(source, proventos, trades, cambio, dryRun);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -719,17 +880,20 @@ async function buildResponse(
   source: Source,
   proventos: ProventoRow[],
   trades: TradeRow[],
+  cambio: CambioRow[],
   dryRun: boolean,
 ): Promise<NextResponse> {
   const store = getDataStore();
   // Fetch existing data for dedup
-  const [existingProventos, existingTrades] = await Promise.all([
+  const [existingProventos, existingTrades, existingCambio] = await Promise.all([
     proventos.length > 0 ? store.fetchTab("meus_proventos").catch(() => []) : Promise.resolve([]),
     trades.length > 0 ? store.fetchTab("meus_ativos").catch(() => []) : Promise.resolve([]),
+    cambio.length > 0 ? store.fetchTab("cambio").catch(() => []) : Promise.resolve([]),
   ]);
 
   const proventoStatuses = proventos.length > 0 ? dedupProventos(existingProventos, proventos) : new Map();
   const tradeStatuses = trades.length > 0 ? dedupTrades(existingTrades, trades) : new Map();
+  const cambioStatuses = cambio.length > 0 ? dedupCambio(existingCambio, cambio) : new Map();
 
   // Build preview items
   const items: PreviewItem[] = [];
@@ -764,8 +928,24 @@ async function buildResponse(
     });
   }
 
+  for (let i = 0; i < cambio.length; i++) {
+    const c = cambio[i];
+    items.push({
+      ticker: `${c.moeda_origem}→${c.moeda_destino}`,
+      data: c.data,
+      tipo: "Câmbio",
+      valor: c.valor_origem,
+      moeda: c.moeda_origem,
+      corretora: c.corretora,
+      categoria: "cambio",
+      detalhe: `${c.valor_origem} ${c.moeda_origem} → ${c.valor_destino} ${c.moeda_destino} @ ${c.taxa}`,
+      status: cambioStatuses.get(i) ?? "novo",
+    });
+  }
+
   const novosProventos = proventos.filter((_, i) => proventoStatuses.get(i) === "novo");
   const novosTrades = trades.filter((_, i) => tradeStatuses.get(i) === "novo");
+  const novosCambio = cambio.filter((_, i) => cambioStatuses.get(i) === "novo");
 
   // ── Yahoo Finance validation for new tickers ──
   // Collect unique tickers from new items, resolve via Yahoo, and attach
@@ -836,6 +1016,7 @@ async function buildResponse(
     resumo: {
       proventos: { total: proventos.length, novos: novosProventos.length, existentes: proventos.length - novosProventos.length },
       trades: { total: trades.length, novos: novosTrades.length, existentes: trades.length - novosTrades.length },
+      cambio: { total: cambio.length, novos: novosCambio.length, existentes: cambio.length - novosCambio.length },
     },
   };
 
@@ -844,17 +1025,20 @@ async function buildResponse(
   if (!dryRun) {
     let insertedProventos = 0;
     let insertedTrades = 0;
+    let insertedCambio = 0;
     const erros: string[] = [];
     const backups: Record<string, string> = {};
 
     // Backup antes de qualquer escrita
     try {
-      const [bkpP, bkpT] = await Promise.all([
+      const [bkpP, bkpT, bkpC] = await Promise.all([
         novosProventos.length > 0 ? backupTab("meus_proventos").then(r => r.backupName) : Promise.resolve(""),
         novosTrades.length > 0 ? backupTab("meus_ativos").then(r => r.backupName) : Promise.resolve(""),
+        novosCambio.length > 0 ? backupTab("cambio").then(r => r.backupName) : Promise.resolve(""),
       ]);
       if (bkpP) backups.meus_proventos = bkpP;
       if (bkpT) backups.meus_ativos = bkpT;
+      if (bkpC) backups.cambio = bkpC;
     } catch (e) {
       erros.push(`backup: ${e instanceof Error ? e.message : "falha no backup"}`);
     }
@@ -878,6 +1062,17 @@ async function buildResponse(
         insertedTrades = novosTrades.length;
       } catch (e) {
         erros.push(`operações: ${e instanceof Error ? e.message : "falha na escrita"}`);
+      }
+    }
+
+    if (novosCambio.length > 0) {
+      const COLS = ["data", "moeda_origem", "moeda_destino", "valor_origem", "valor_destino", "taxa", "corretora"];
+      const rows = novosCambio.map(c => COLS.map(col => (c as unknown as Record<string, string>)[col] ?? ""));
+      try {
+        await store.appendRows("cambio", rows);
+        insertedCambio = novosCambio.length;
+      } catch (e) {
+        erros.push(`câmbio: ${e instanceof Error ? e.message : "falha na escrita"}`);
       }
     }
 
@@ -905,9 +1100,20 @@ async function buildResponse(
             esperado: existingTrades.length + insertedTrades,
           };
     }
+    if (insertedCambio > 0) {
+      const depois = await store.fetchTab("cambio").catch(() => null);
+      verificacao.cambio = depois === null
+        ? { ok: false, detalhe: "não foi possível reler a aba" }
+        : {
+            ok: depois.length >= existingCambio.length + insertedCambio,
+            antes: existingCambio.length,
+            depois: depois.length,
+            esperado: existingCambio.length + insertedCambio,
+          };
+    }
 
     const verificacoes = Object.values(verificacao) as Array<{ ok: boolean }>;
-    result.inserted = { proventos: insertedProventos, trades: insertedTrades };
+    result.inserted = { proventos: insertedProventos, trades: insertedTrades, cambio: insertedCambio };
     result.verificacao = verificacao;
     result.verificado = verificacoes.length > 0 && verificacoes.every(v => v.ok);
     if (Object.keys(backups).length > 0) result.backups = backups;

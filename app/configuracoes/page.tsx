@@ -33,8 +33,9 @@ interface ImportResult {
   resumo?: {
     proventos: { total: number; novos: number; existentes: number };
     trades: { total: number; novos: number; existentes: number };
+    cambio?: { total: number; novos: number; existentes: number };
   };
-  inserted?: { proventos: number; trades: number };
+  inserted?: { proventos: number; trades: number; cambio?: number };
   verificado?: boolean;
   verificacao?: Record<string, { ok: boolean; antes?: number; depois?: number; esperado?: number; detalhe?: string }>;
   error?: string;
@@ -470,7 +471,8 @@ function ImportSection() {
     <div className="space-y-4">
       <p className="text-xs text-zinc-500 leading-relaxed">
         Importe arquivos CSV do <strong className="text-zinc-400">IBKR</strong> ou da <strong className="text-zinc-400">B3</strong>.
-        O sistema detecta automaticamente a origem e compara com os dados existentes na planilha.
+        O sistema detecta automaticamente a origem e compara com os dados existentes na planilha —
+        incluindo <strong className="text-zinc-400">operações</strong>, <strong className="text-zinc-400">proventos</strong> e <strong className="text-zinc-400">câmbio</strong> (forex).
         A importação é <strong className="text-zinc-400">idempotente</strong> — pode rodar múltiplas vezes sem duplicar dados.
       </p>
 
@@ -562,6 +564,15 @@ function ImportSection() {
                 <span className="text-zinc-500">{resumo.trades.existentes} existentes</span>
               </div>
             )}
+
+            {resumo.cambio && resumo.cambio.total > 0 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-zinc-500">Câmbio:</span>
+                <span className="text-emerald-400 font-semibold">{resumo.cambio.novos} novos</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-500">{resumo.cambio.existentes} existentes</span>
+              </div>
+            )}
           </div>
 
           {/* Inserted confirmation + verificação pós-escrita na planilha */}
@@ -570,14 +581,16 @@ function ImportSection() {
               <div className="flex items-center gap-2 text-xs text-emerald-400">
                 <CheckCircle2 size={14} />
                 {result.inserted.proventos > 0 && <span>{result.inserted.proventos} proventos inseridos</span>}
-                {result.inserted.proventos > 0 && result.inserted.trades > 0 && <span>·</span>}
+                {result.inserted.proventos > 0 && (result.inserted.trades > 0 || (result.inserted.cambio ?? 0) > 0) && <span>·</span>}
                 {result.inserted.trades > 0 && <span>{result.inserted.trades} operações inseridas</span>}
-                {result.inserted.proventos + result.inserted.trades === 0 && <span>Nada novo a inserir</span>}
+                {result.inserted.trades > 0 && (result.inserted.cambio ?? 0) > 0 && <span>·</span>}
+                {(result.inserted.cambio ?? 0) > 0 && <span>{result.inserted.cambio} câmbios inseridos</span>}
+                {result.inserted.proventos + result.inserted.trades + (result.inserted.cambio ?? 0) === 0 && <span>Nada novo a inserir</span>}
               </div>
               {result.verificacao && Object.entries(result.verificacao).map(([k, v]) => (
                 <p key={k} className={`text-[11px] flex items-center gap-1 ${v.ok ? "text-emerald-500/80" : "text-red-400"}`}>
                   {v.ok ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
-                  {k === "proventos" ? "meus_proventos" : "meus_ativos"}:{" "}
+                  {k === "proventos" ? "meus_proventos" : k === "cambio" ? "cambio" : "meus_ativos"}:{" "}
                   {v.ok
                     ? `verificado na planilha (${v.antes} → ${v.depois} linhas)`
                     : v.detalhe ?? `releitura não confirmou (esperado ${v.esperado}, encontrado ${v.depois})`}
@@ -587,7 +600,7 @@ function ImportSection() {
           )}
 
           {/* Dry run: aplicar direto, sem dança de toggle */}
-          {dryRun && (resumo.proventos.novos + resumo.trades.novos) > 0 && !result?.inserted && (
+          {dryRun && (resumo.proventos.novos + resumo.trades.novos + (resumo.cambio?.novos ?? 0)) > 0 && !result?.inserted && (
             <div className="flex items-center gap-3">
               <p className="text-xs text-amber-400 flex items-center gap-1">
                 <AlertCircle size={12} />
@@ -598,7 +611,7 @@ function ImportSection() {
                 disabled={loading}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-40"
               >
-                {loading ? "Aplicando…" : `Aplicar agora (${resumo.proventos.novos + resumo.trades.novos} novos)`}
+                {loading ? "Aplicando…" : `Aplicar agora (${resumo.proventos.novos + resumo.trades.novos + (resumo.cambio?.novos ?? 0)} novos)`}
               </button>
             </div>
           )}
