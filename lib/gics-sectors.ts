@@ -190,7 +190,8 @@ export function translateYahooSector(englishSector: string): string {
 
 export function getSetorEconomico(ticker: string, setorAtivo: string, apiSector?: string): string {
   // 0) Asset metadata (from Yahoo validation at import time) — primary source
-  const { getAssetMeta } = require("./asset-meta") as typeof import("./asset-meta");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getAssetMeta } = require("./asset-meta-cache") as typeof import("./asset-meta-cache");
   const meta = getAssetMeta(ticker);
   if (meta?.sector) return meta.sector;
 

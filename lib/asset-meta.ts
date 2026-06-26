@@ -9,28 +9,30 @@
  * Isso elimina os mapas hardcoded (INTL_SUFFIX_MAP, TICKER_CURRENCY_OVERRIDE,
  * EXCHANGE_SUFFIX_CURRENCY) como fonte primária — eles viram fallback para cold
  * start quando a aba ainda não existe.
+ *
+ * IMPORTANTE: a interface AssetMeta e o cache sync (getAssetMeta) vivem em
+ * asset-meta-cache.ts — módulo sem imports server-only, seguro para client
+ * bundles. Este módulo (asset-meta.ts) adiciona lógica server-only (Yahoo API,
+ * Google Sheets) e re-exporta o que os consumers precisam.
  */
 
 import { getDataStore } from "./data-store";
 import { translateYahooSector } from "./gics-sectors";
+import {
+  type AssetMeta,
+  cacheKey,
+  EXCHANGE_SUFFIX_RE,
+  getAssetMeta,
+  setAssetMeta,
+  getMetaCacheSize,
+  getAllCachedMeta,
+} from "./asset-meta-cache";
 
-// ── Interface ──────────────────────────────────────────────────────────────────
+// Re-export for consumers that already import from asset-meta
+export { type AssetMeta, getAssetMeta, getMetaCacheSize, getAllCachedMeta };
 
-export interface AssetMeta {
-  ticker: string;
-  yahooSymbol: string;
-  exchange: string;
-  currency: string;
-  quoteType: string;
-  sector: string;
-  industry: string;
-  longName: string;
-  lastUpdated: string;
-}
+// ── Sheet persistence ─────────────────────────────────────────────────────────
 
-// ── In-memory cache ────────────────────────────────────────────────────────────
-
-const _cache = new Map<string, AssetMeta>();
 let _cacheLoaded = false;
 let _cacheLoadPromise: Promise<void> | null = null;
 
@@ -39,12 +41,6 @@ const META_HEADERS = [
   "ticker", "yahoo_symbol", "exchange", "currency",
   "quote_type", "sector", "industry", "long_name", "last_updated",
 ];
-
-const EXCHANGE_SUFFIX_RE = /\.(SA|L|DE|TO|AS|PA|MI|MC|LS|KS|T|SW|HK|AX|TW|V|NS|SI)$/i;
-
-function cacheKey(ticker: string): string {
-  return ticker.toUpperCase().replace(EXCHANGE_SUFFIX_RE, "").trim();
-}
 
 // ── Load from Google Sheets (call once, idempotent) ────────────────────────────
 
@@ -71,7 +67,7 @@ export async function loadAssetMetaCache(): Promise<void> {
           lastUpdated: String(row["last_updated"] ?? "").trim(),
         };
         if (meta.yahooSymbol) {
-          _cache.set(cacheKey(ticker), meta);
+          setAssetMeta(cacheKey(ticker), meta);
         }
       }
       _cacheLoaded = true;
@@ -84,12 +80,6 @@ export async function loadAssetMetaCache(): Promise<void> {
   return _cacheLoadPromise;
 }
 
-// ── Sync lookup (for use in yahooTicker, identificarSetor — must be sync) ──────
-
-export function getAssetMeta(ticker: string): AssetMeta | undefined {
-  return _cache.get(cacheKey(ticker));
-}
-
 // ── Resolve via Yahoo Finance API ──────────────────────────────────────────────
 
 export async function resolveAssetMeta(
@@ -97,7 +87,7 @@ export async function resolveAssetMeta(
   hints?: { moeda?: string; corretora?: string },
 ): Promise<AssetMeta | null> {
   const key = cacheKey(rawTicker);
-  const cached = _cache.get(key);
+  const cached = getAssetMeta(rawTicker);
   if (cached) return cached;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -165,7 +155,7 @@ export async function resolveAssetMeta(
         longName: key,
         lastUpdated: new Date().toISOString().split("T")[0],
       };
-      _cache.set(key, fallbackMeta);
+      setAssetMeta(key, fallbackMeta);
       return fallbackMeta;
     }
 
@@ -201,7 +191,7 @@ export async function resolveAssetMeta(
     lastUpdated: new Date().toISOString().split("T")[0],
   };
 
-  _cache.set(key, meta);
+  setAssetMeta(key, meta);
   return meta;
 }
 
@@ -268,7 +258,7 @@ export async function resolveMultipleAssets(
 
   // Check cache first
   for (const t of tickers) {
-    const cached = _cache.get(cacheKey(t.ticker));
+    const cached = getAssetMeta(t.ticker);
     if (cached) {
       results.set(t.ticker, cached);
     } else {
@@ -298,7 +288,7 @@ export async function persistAssetMeta(meta: AssetMeta | AssetMeta[]): Promise<v
 
   // Update in-memory cache
   for (const m of items) {
-    _cache.set(cacheKey(m.ticker), m);
+    setAssetMeta(cacheKey(m.ticker), m);
   }
 
   try {
@@ -339,14 +329,4 @@ export async function persistAssetMeta(meta: AssetMeta | AssetMeta[]): Promise<v
   } catch {
     // Sheet write failed (no credentials or other issue) — cache is still updated
   }
-}
-
-// ── Export cache state (for debugging) ──────────────────────────────────────────
-
-export function getMetaCacheSize(): number {
-  return _cache.size;
-}
-
-export function getAllCachedMeta(): AssetMeta[] {
-  return [..._cache.values()];
 }

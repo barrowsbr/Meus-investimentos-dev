@@ -1,4 +1,4 @@
-import { getAssetMeta } from "./asset-meta";
+import { getAssetMeta } from "./asset-meta-cache";
 
 const RF_SETORES = new Set(["Renda Fixa USD", "Renda Fixa", "Caixa/Liquidez"]);
 
