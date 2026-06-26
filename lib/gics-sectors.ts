@@ -196,7 +196,7 @@ export function getSetorEconomico(ticker: string, setorAtivo: string, apiSector?
   }
 
   // 2) Static mapping
-  const t = ticker.toUpperCase().replace(/\.(SA|L|DE|TO|AS|KS|T|SW|PA|MI|MC|HK|AX|TW)$/i, "");
+  const t = ticker.toUpperCase().replace(/\.(SA|L|DE|TO|AS|KS|T|SW|PA|MI|MC|LS|HK|AX|TW)$/i, "");
   const mapped = SECTOR_MAP[t];
   if (mapped) return mapped;
 

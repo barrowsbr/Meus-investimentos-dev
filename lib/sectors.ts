@@ -23,12 +23,40 @@ const UNITS_ACOES = new Set([
   "ITUB11", "BBAS11", "EGIE11", "ENGI11", "TIET11", "CPFE11",
 ]);
 
+// Sufixo de bolsa (estilo Yahoo) → moeda nativa. FONTE ÚNICA para reconhecer
+// ativos estrangeiros automaticamente: basta escrever TICKER.SUFIXO na planilha
+// (ex.: VOW3.DE) e o sistema infere país (internacional), moeda e câmbio sozinho —
+// sem isso, um ticker como VOW3 cairia no padrão numérico da B3 e viraria "Ações
+// Brasil". Só inclui moedas com câmbio suportado em fxToBRL (BRL/EUR/GBP/CAD/USD).
+const EXCHANGE_SUFFIX_CURRENCY: Record<string, string> = {
+  SA: "BRL", // B3 — Brasil
+  DE: "EUR", // Xetra/Frankfurt — Alemanha
+  AS: "EUR", // Euronext Amsterdam — Holanda
+  PA: "EUR", // Euronext Paris — França
+  MI: "EUR", // Borsa Italiana — Itália
+  MC: "EUR", // BME — Espanha
+  LS: "EUR", // Euronext Lisbon — Portugal
+  TO: "CAD", // TSX — Canadá
+};
+
+// Extrai o sufixo de bolsa de um ticker (ex.: "VOW3.DE" → "DE"), ou "" se não houver.
+function exchangeSuffix(ticker: string): string {
+  const m = ticker.toUpperCase().trim().match(/\.([A-Z]{1,2})$/);
+  return m ? m[1] : "";
+}
+
 export function identificarSetor(ticker: string): string {
   const t = ticker.toUpperCase().trim();
   const tClean = t.replace(/\.(SA|L|DE|TO|AS)$/i, "");
 
   if (CRIPTO.has(tClean)) return "Cripto";
   if ((tClean.startsWith("BTC") || tClean.startsWith("ETH")) && tClean.length < 8) return "Cripto";
+
+  // Sufixo de bolsa estrangeira (≠ .SA) ⇒ ação internacional, ANTES do padrão
+  // numérico da B3 — senão VOW3.DE (Volkswagen/Frankfurt) cairia em "Ações Brasil"
+  // por terminar em 3. Vale para qualquer ticker.<bolsa> não-brasileiro.
+  const suf = exchangeSuffix(t);
+  if (suf && suf !== "SA" && EXCHANGE_SUFFIX_CURRENCY[suf]) return "Ações Internacional";
 
   if (ETFS_BR.has(tClean)) return "ETF";
 
@@ -79,6 +107,10 @@ export function getMoedaEfetiva(ticker: string, moedaPlanilha: string, setor: st
   if (setor === "Cripto") return "USD";
   const tClean = ticker.toUpperCase().replace(".SA", "").replace(".L", "");
   if (tClean === "VWRA") return "USD";
+  // Moeda inferida pelo sufixo de bolsa (fonte única) — ex.: VOW3.DE ⇒ EUR.
+  // A planilha pode vir com moeda vazia/BRL por engano; o sufixo é autoritativo.
+  const suf = exchangeSuffix(ticker);
+  if (suf && EXCHANGE_SUFFIX_CURRENCY[suf]) return EXCHANGE_SUFFIX_CURRENCY[suf];
   return moedaPlanilha || "BRL";
 }
 
