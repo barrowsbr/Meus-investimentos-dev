@@ -747,20 +747,43 @@ function dedupTrades(
 
 // ── Câmbio dedup ────────────────────────────────────────────────────────────
 
+// Mesma lógica de fuzzyGet do cambio.ts (3 camadas: exact → normalized → substring)
+function fGet(row: Record<string, unknown>, ...patterns: string[]): string {
+  const keys = Object.keys(row);
+  for (const p of patterns) {
+    if (row[p] !== undefined && row[p] !== null && row[p] !== "") return String(row[p]);
+  }
+  for (const p of patterns) {
+    const norm = p.replace(/[_\s]/g, "").toLowerCase();
+    for (const k of keys) {
+      if (k.replace(/[_\s]/g, "").toLowerCase() === norm && row[k] !== undefined && row[k] !== null && row[k] !== "")
+        return String(row[k]);
+    }
+  }
+  for (const p of patterns) {
+    for (const k of keys) {
+      if (k.toLowerCase().includes(p.toLowerCase()) && row[k] !== undefined && row[k] !== null && row[k] !== "")
+        return String(row[k]);
+    }
+  }
+  return "";
+}
+
 function dedupCambio(
   existing: Record<string, unknown>[],
   incoming: CambioRow[],
 ): Map<number, "novo" | "existente"> {
-  const existingOps: Array<{ data: string; orig: string; dest: string; val: number; matched: boolean }> = [];
+  const existingOps: Array<{ data: string; orig: string; dest: string; valDest: number; valOrig: number; matched: boolean }> = [];
 
   for (const row of existing) {
-    const data = normalizeDate(String(row["data"] ?? row["date"] ?? ""));
-    const orig = String(row["moeda_origem"] ?? row["moeda origem"] ?? row["de"] ?? "").toUpperCase().trim();
-    const dest = String(row["moeda_destino"] ?? row["moeda destino"] ?? row["para"] ?? "").toUpperCase().trim();
-    const val = Math.round(parseValor(String(
-      row["valor_destino"] ?? row["valor total saída"] ?? row["valor saída"] ?? row["valor_saida"] ?? row["recebido"] ?? "0",
-    )));
-    if (data && (orig || dest)) existingOps.push({ data, orig, dest, val, matched: false });
+    const data = normalizeDate(fGet(row, "data", "date"));
+    const orig = fGet(row, "moeda_origem", "moeda origem", "de", "origem").toUpperCase().trim();
+    const dest = fGet(row, "moeda_destino", "moeda destino", "para", "destino").toUpperCase().trim();
+    const valDestStr = fGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido", "usd") || "0";
+    const valOrigStr = fGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado", "brl") || "0";
+    const valDest = Math.round(parseValor(valDestStr));
+    const valOrig = Math.round(parseValor(valOrigStr));
+    if (data && (orig || dest)) existingOps.push({ data, orig, dest, valDest, valOrig, matched: false });
   }
 
   const statuses = new Map<number, "novo" | "existente">();
@@ -772,13 +795,17 @@ function dedupCambio(
     const val = Math.round(parseValor(c.valor_destino));
 
     const orig = c.moeda_origem;
+    const incomingValOrig = Math.round(parseValor(c.valor_origem));
     let found = false;
     for (const e of existingOps) {
       if (e.matched) continue;
       if (e.data !== data) continue;
-      if (e.orig !== orig) continue;
-      if (e.dest !== dest) continue;
-      if (Math.abs(e.val - val) > 1) continue;
+      if (e.dest && dest && e.dest !== dest) continue;
+      if (e.orig && orig && e.orig !== orig) continue;
+      // Match by destination value OR origin value (covers different column mappings)
+      const matchDest = e.valDest > 0 && Math.abs(e.valDest - val) <= 2;
+      const matchOrig = e.valOrig > 0 && Math.abs(e.valOrig - incomingValOrig) <= 2;
+      if (!matchDest && !matchOrig) continue;
       e.matched = true;
       found = true;
       break;
