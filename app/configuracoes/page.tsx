@@ -22,7 +22,7 @@ interface PreviewItem {
   valor: string;
   moeda: string;
   corretora: string;
-  categoria: "provento" | "trade";
+  categoria: "provento" | "trade" | "cambio";
   detalhe: string;
   status: "novo" | "existente" | "split";
 }
@@ -669,7 +669,9 @@ function ImportSection() {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                             item.categoria === "trade"
                               ? item.tipo === "Compra" ? "bg-blue-500/10 text-blue-400" : "bg-orange-500/10 text-orange-400"
-                              : "bg-violet-500/10 text-violet-400"
+                              : item.categoria === "cambio"
+                                ? "bg-cyan-500/10 text-cyan-400"
+                                : "bg-violet-500/10 text-violet-400"
                           }`}>
                             {item.tipo}
                           </span>
