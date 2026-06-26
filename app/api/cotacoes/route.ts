@@ -4,6 +4,7 @@ import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
+import { loadAssetMetaCache } from "@/lib/asset-meta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -19,6 +20,7 @@ export async function GET() {
       store.fetchTab("p_tax").catch(() => []),
       store.fetchTab("lb_historic").catch(() => []),
       store.fetchTab(MARGIN_TAB).catch(() => []),
+      loadAssetMetaCache(),
     ]);
 
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();

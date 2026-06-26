@@ -7,6 +7,7 @@ import { identificarSetor, isRendaFixa } from "@/lib/sectors";
 import { getSetorEconomico, translateYahooSector } from "@/lib/gics-sectors";
 import { toNumber } from "@/lib/format";
 import { loadFromGSheets, computeFromStored, computeLookThrough } from "@/lib/etf-holdings";
+import { loadAssetMetaCache } from "@/lib/asset-meta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
         store.fetchTab("fixa_aberta"),
         store.fetchTab("cambio").catch(() => []),
         store.fetchTab("p_tax").catch(() => []),
+        loadAssetMetaCache(),
       ]);
 
     // Portfolio snapshot
