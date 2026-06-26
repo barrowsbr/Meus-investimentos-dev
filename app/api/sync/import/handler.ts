@@ -299,13 +299,13 @@ function parseForexTrade(symbol: string, date: string, tipo: string, parts: stri
   const price = Math.abs(parseValor(parts[8] ?? "0"));
   if (qty === 0 || price === 0) return null;
 
-  // qty > 0 = bought base (sold quote), qty < 0 = sold base (bought quote)
-  // IBKR convention: positive qty = buy base currency
   const absQty = Math.abs(qty);
   const counterValue = absQty * price;
 
+  // IBKR gera micro-operações de arredondamento (qty < 10) que não são câmbio real
+  if (absQty < 10 && counterValue < 10) return null;
+
   if (qty > 0) {
-    // Bought base, sold quote: e.g. bought EUR, sold USD
     return {
       data: date,
       moeda_origem: quote,
@@ -316,7 +316,6 @@ function parseForexTrade(symbol: string, date: string, tipo: string, parts: stri
       corretora: "IBKR",
     };
   } else {
-    // Sold base, bought quote: e.g. sold USD, bought EUR
     return {
       data: date,
       moeda_origem: base,
@@ -343,6 +342,8 @@ function parseForexTradeActivity(rawSymbol: string, date: string, parts: string[
 
   const absQty = Math.abs(qty);
   const counterValue = absQty * price;
+
+  if (absQty < 10 && counterValue < 10) return null;
 
   if (qty > 0) {
     return {
