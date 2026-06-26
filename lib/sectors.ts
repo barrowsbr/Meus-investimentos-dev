@@ -1,3 +1,5 @@
+import { getAssetMeta } from "./asset-meta";
+
 const RF_SETORES = new Set(["Renda Fixa USD", "Renda Fixa", "Caixa/Liquidez"]);
 
 const CRIPTO = new Set([
@@ -48,6 +50,24 @@ function exchangeSuffix(ticker: string): string {
 export function identificarSetor(ticker: string): string {
   const t = ticker.toUpperCase().trim();
   const tClean = t.replace(/\.(SA|L|DE|TO|AS)$/i, "");
+
+  // Asset metadata (from Yahoo validation) is the primary source.
+  // Falls through to heuristics only on cold start / uncached tickers.
+  const meta = getAssetMeta(t);
+  if (meta) {
+    if (meta.quoteType === "CRYPTOCURRENCY") return "Cripto";
+    if (meta.quoteType === "ETF") {
+      if (meta.currency === "BRL") return "ETF";
+      return "ETF USA";
+    }
+    const isBR = meta.yahooSymbol.endsWith(".SA") || meta.exchange.includes("São Paulo") || meta.exchange.includes("SAO");
+    if (isBR) {
+      if (tClean.endsWith("11") && !UNITS_ACOES.has(tClean)) return "FIIs";
+      if (/3[2-5]$/.test(tClean)) return "BDRs";
+      return "Ações Brasil";
+    }
+    return "Ações Internacional";
+  }
 
   if (CRIPTO.has(tClean)) return "Cripto";
   if ((tClean.startsWith("BTC") || tClean.startsWith("ETH")) && tClean.length < 8) return "Cripto";
@@ -103,12 +123,14 @@ export function isRendaVariavel(setor: string): boolean {
 }
 
 export function getMoedaEfetiva(ticker: string, moedaPlanilha: string, setor: string): string {
+  // Asset metadata (from Yahoo validation) is the primary source for currency.
+  const meta = getAssetMeta(ticker);
+  if (meta?.currency) return meta.currency;
   if (setor === "ETF USA") return "USD";
   if (setor === "Cripto") return "USD";
   const tClean = ticker.toUpperCase().replace(".SA", "").replace(".L", "");
   if (tClean === "VWRA") return "USD";
-  // Moeda inferida pelo sufixo de bolsa (fonte única) — ex.: VOW3.DE ⇒ EUR.
-  // A planilha pode vir com moeda vazia/BRL por engano; o sufixo é autoritativo.
+  // Fallback: moeda inferida pelo sufixo de bolsa — ex.: VOW3.DE ⇒ EUR.
   const suf = exchangeSuffix(ticker);
   if (suf && EXCHANGE_SUFFIX_CURRENCY[suf]) return EXCHANGE_SUFFIX_CURRENCY[suf];
   return moedaPlanilha || "BRL";

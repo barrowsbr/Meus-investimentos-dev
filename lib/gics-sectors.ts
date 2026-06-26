@@ -189,6 +189,11 @@ export function translateYahooSector(englishSector: string): string {
 }
 
 export function getSetorEconomico(ticker: string, setorAtivo: string, apiSector?: string): string {
+  // 0) Asset metadata (from Yahoo validation at import time) — primary source
+  const { getAssetMeta } = require("./asset-meta") as typeof import("./asset-meta");
+  const meta = getAssetMeta(ticker);
+  if (meta?.sector) return meta.sector;
+
   // 1) Dynamic sector from Yahoo API takes priority
   if (apiSector) {
     const translated = YAHOO_SECTOR_PT[apiSector];

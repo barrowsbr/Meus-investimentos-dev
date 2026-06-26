@@ -1,4 +1,5 @@
 import { identificarSetor } from "./sectors";
+import { getAssetMeta } from "./asset-meta";
 
 export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
 
@@ -53,6 +54,10 @@ const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
 
 export function yahooTicker(ticker: string, _moeda: string, _corretora: string): string {
   const t = ticker.toUpperCase().trim();
+  // Metadata cache (populated from ativos_meta sheet) is the primary source —
+  // one Yahoo lookup at import time replaces all hardcoded maps.
+  const meta = getAssetMeta(t);
+  if (meta?.yahooSymbol) return meta.yahooSymbol;
   if (t.includes(".")) return t;
   const tClean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "");
   if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];

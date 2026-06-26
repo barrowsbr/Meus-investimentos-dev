@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getDataStore } from "@/lib/data-store";
 import { backupTab } from "@/lib/backup";
+import { resolveMultipleAssets, persistAssetMeta, type AssetMeta } from "@/lib/asset-meta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,6 +19,13 @@ interface PreviewItem {
   categoria: "provento" | "trade";
   detalhe: string;
   status: "novo" | "existente" | "split";
+  meta?: {
+    yahooSymbol: string;
+    exchange: string;
+    currency: string;
+    sector: string;
+    longName: string;
+  };
 }
 
 interface ProventoRow {
@@ -76,8 +84,10 @@ function normalizeDate(s: string): string {
 }
 
 function normalizeTicker(t: string): string {
-  const match = t.match(/^([A-Z0-9]+)/i);
-  return (match ? match[1] : t).replace(/\.(SA|TO|L|AS)$/i, "").trim().toUpperCase();
+  // Preserva sufixo de bolsa (ex.: VOW3.DE, DPM.TO) — o regex captura
+  // ticker + ponto + sufixo. Só remove .SA (B3 — adicionado automaticamente).
+  const match = t.match(/^([A-Z0-9]+(?:\.[A-Z]{1,2})?)/i);
+  return (match ? match[1] : t).replace(/\.SA$/i, "").trim().toUpperCase();
 }
 
 function parseValor(v: string | number): number {
@@ -757,6 +767,69 @@ async function buildResponse(
   const novosProventos = proventos.filter((_, i) => proventoStatuses.get(i) === "novo");
   const novosTrades = trades.filter((_, i) => tradeStatuses.get(i) === "novo");
 
+  // ── Yahoo Finance validation for new tickers ──
+  // Collect unique tickers from new items, resolve via Yahoo, and attach
+  // metadata (exchange, currency, sector, name) to each preview item.
+  const newTickerSet = new Set<string>();
+  for (const item of items) {
+    if (item.status === "novo") newTickerSet.add(item.ticker);
+  }
+
+  let metaMap = new Map<string, AssetMeta>();
+  if (newTickerSet.size > 0) {
+    try {
+      const tickersToResolve = [...newTickerSet].map(t => {
+        const item = items.find(i => i.ticker === t);
+        return { ticker: t, moeda: item?.moeda, corretora: item?.corretora };
+      });
+      metaMap = await resolveMultipleAssets(tickersToResolve);
+    } catch {
+      // Yahoo validation is best-effort — import still works without it
+    }
+  }
+
+  // Attach metadata to preview items and enrich ticker/currency with Yahoo data.
+  // If Yahoo returns a different symbol (e.g. VOW3 → VOW3.DE), update the trade/
+  // provento so the sheet stores the correct, self-describing ticker.
+  for (const item of items) {
+    const meta = metaMap.get(item.ticker);
+    if (meta) {
+      item.meta = {
+        yahooSymbol: meta.yahooSymbol,
+        exchange: meta.exchange,
+        currency: meta.currency,
+        sector: meta.sector,
+        longName: meta.longName,
+      };
+
+      // Enrich: use Yahoo-validated symbol as the canonical ticker
+      const cleanYahoo = meta.yahooSymbol.replace(/\.SA$/i, "");
+      if (cleanYahoo !== item.ticker && item.status === "novo") {
+        const oldTicker = item.ticker;
+        item.ticker = cleanYahoo;
+
+        // Update underlying trade/provento objects so sheet write uses the corrected ticker
+        for (const t of trades) {
+          if (t.Símbolo === oldTicker) t.Símbolo = cleanYahoo;
+        }
+        for (const p of proventos) {
+          if (p.ticker === oldTicker) p.ticker = cleanYahoo;
+        }
+      }
+
+      // Enrich currency from Yahoo when the import doesn't have it right
+      if (meta.currency && meta.currency !== item.moeda && item.status === "novo") {
+        item.moeda = meta.currency;
+        for (const t of trades) {
+          if (t.Símbolo === item.ticker) t.Moeda = meta.currency;
+        }
+        for (const p of proventos) {
+          if (p.ticker === item.ticker) p.moeda = meta.currency;
+        }
+      }
+    }
+  }
+
   const result: Record<string, unknown> = {
     source,
     items,
@@ -842,6 +915,13 @@ async function buildResponse(
       result.error = `Falha ao gravar na planilha — ${erros.join("; ")}`;
     } else if (verificacoes.length > 0 && !result.verificado) {
       result.error = "Escrita enviada mas a releitura da planilha não confirmou as novas linhas — confira a aba manualmente.";
+    }
+
+    // Persist asset metadata to ativos_meta sheet (best-effort)
+    if (metaMap.size > 0) {
+      try {
+        await persistAssetMeta([...metaMap.values()]);
+      } catch { /* metadata persistence is non-blocking */ }
     }
   }
 
