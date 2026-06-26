@@ -1099,8 +1099,58 @@ async function buildResponse(
     }
 
     if (novosCambio.length > 0) {
-      const COLS = ["data", "moeda_origem", "moeda_destino", "valor_origem", "valor_destino", "taxa", "corretora"];
-      const rows = novosCambio.map(c => COLS.map(col => (c as unknown as Record<string, string>)[col] ?? ""));
+      // Lê os headers reais da aba cambio para escrever na ordem correta.
+      // appendRows insere valores por posição, não por nome de coluna.
+      const sheetHeaders = existingCambio.length > 0
+        ? Object.keys(existingCambio[0])
+        : ["data", "moeda_origem", "moeda_destino", "valor_origem", "valor_destino", "taxa", "corretora"];
+
+      const FIELD_MAP: Record<string, (c: CambioRow) => string> = {
+        data: c => c.data,
+        date: c => c.data,
+        moeda_origem: c => c.moeda_origem,
+        "moeda origem": c => c.moeda_origem,
+        origem: c => c.moeda_origem,
+        de: c => c.moeda_origem,
+        moeda_destino: c => c.moeda_destino,
+        "moeda destino": c => c.moeda_destino,
+        destino: c => c.moeda_destino,
+        para: c => c.moeda_destino,
+        valor_origem: c => c.valor_origem,
+        "valor total entrada": c => c.valor_origem,
+        "valor entrada": c => c.valor_origem,
+        valor_entrada: c => c.valor_origem,
+        enviado: c => c.valor_origem,
+        valor_destino: c => c.valor_destino,
+        "valor total saída": c => c.valor_destino,
+        "valor total saida": c => c.valor_destino,
+        "valor saída": c => c.valor_destino,
+        valor_saida: c => c.valor_destino,
+        "valor saida": c => c.valor_destino,
+        recebido: c => c.valor_destino,
+        taxa: c => c.taxa,
+        vet: c => c.taxa,
+        "câmbio": c => c.taxa,
+        cambio: c => c.taxa,
+        rate: c => c.taxa,
+        corretora: c => c.corretora,
+        "corretora destino": c => c.corretora,
+        "instituição": c => c.corretora,
+        instituicao: c => c.corretora,
+      };
+
+      function resolveField(header: string): ((c: CambioRow) => string) | null {
+        const h = header.toLowerCase().trim();
+        if (FIELD_MAP[h]) return FIELD_MAP[h];
+        const norm = h.replace(/[_\s]/g, "");
+        for (const [k, fn] of Object.entries(FIELD_MAP)) {
+          if (k.replace(/[_\s]/g, "") === norm) return fn;
+        }
+        return null;
+      }
+
+      const mappers = sheetHeaders.map(h => resolveField(h));
+      const rows = novosCambio.map(c => mappers.map(fn => fn ? fn(c) : ""));
       try {
         await store.appendRows("cambio", rows);
         insertedCambio = novosCambio.length;
