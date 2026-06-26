@@ -9,7 +9,7 @@ import { ArrowLeftRight, DollarSign, TrendingUp, TrendingDown, Scale, Layers, Za
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { useSheetData } from "@/lib/hooks";
-import { toNumber, brl, usd, formatDate, compactBRL } from "@/lib/format";
+import { toNumber, brl, formatDate, compactBRL } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { getMoedaExposicao } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
@@ -54,48 +54,78 @@ export default function CambioPage() {
       .filter(Boolean) as { data: string; taxa: number }[];
   }, [rawData]);
 
+  const fzGet = (row: Record<string, unknown>, ...keys: string[]): unknown => {
+    for (const k of keys) if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+    const rKeys = Object.keys(row);
+    for (const p of keys) {
+      const norm = p.replace(/[_\s]/g, "").toLowerCase();
+      for (const k of rKeys) {
+        if (k.replace(/[_\s]/g, "").toLowerCase() === norm && row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+      }
+    }
+    return null;
+  };
+
+  const CCY_SYMBOL: Record<string, string> = { BRL: "R$", USD: "US$", EUR: "€", CAD: "C$", GBP: "£" };
+  const fmtVal = (val: unknown, moeda: string) => {
+    const n = toNumber(val);
+    if (n === null) return "—";
+    const sym = CCY_SYMBOL[moeda] || moeda;
+    return `${sym} ${Math.abs(n).toLocaleString(moeda === "BRL" ? "pt-BR" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const columns = [
     { key: "data", label: "Data", render: (v: unknown) => formatDate(v) },
     {
       key: "moeda_origem",
       label: "De",
       render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["moeda_origem"] || row["moeda origem"] || "—"),
+        String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "—"),
     },
     {
       key: "moeda_destino",
       label: "Para",
       render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["moeda_destino"] || row["moeda destino"] || "—"),
+        String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "—"),
     },
     {
       key: "valor_origem",
       label: "Enviado",
       align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        brl(row["valor_origem"] || row["valor total entrada"] || row["valor entrada"] || row["valor_entrada"]),
+      render: (_v: unknown, row: Record<string, unknown>) => {
+        const moeda = String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase();
+        const val = fzGet(row, "valor_origem", "valor total entrada", "valor entrada", "valor_entrada", "valor enviado", "enviado");
+        return fmtVal(val, moeda);
+      },
     },
     {
       key: "valor_destino",
       label: "Recebido",
       align: "right" as const,
-      render: (_v: unknown, row: Record<string, unknown>) =>
-        usd(row["valor_destino"] || row["valor total saída"] || row["valor total saida"] || row["valor saída"] || row["valor_saida"] || row["valor saida"]),
+      render: (_v: unknown, row: Record<string, unknown>) => {
+        const moeda = String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase();
+        const val = fzGet(row, "valor_destino", "valor total saída", "valor total saida", "valor saída", "valor_saida", "valor saida", "valor recebido", "recebido");
+        return fmtVal(val, moeda);
+      },
     },
     {
       key: "taxa",
       label: "Taxa/VET",
       align: "right" as const,
       render: (_v: unknown, row: Record<string, unknown>) => {
-        const t = toNumber(row["taxa"] || row["vet"]);
-        return t ? `R$ ${t.toFixed(4)}` : "—";
+        const t = toNumber(fzGet(row, "taxa", "vet", "câmbio", "cambio", "rate"));
+        if (!t) return "—";
+        const orig = String(fzGet(row, "moeda_origem", "moeda origem", "de", "origem") ?? "BRL").toUpperCase();
+        const dest = String(fzGet(row, "moeda_destino", "moeda destino", "para", "destino") ?? "USD").toUpperCase();
+        const sym = CCY_SYMBOL[orig] || orig;
+        return `${sym} ${t.toFixed(4)} /${dest}`;
       },
     },
     {
       key: "corretora",
       label: "Instituição",
       render: (_v: unknown, row: Record<string, unknown>) =>
-        String(row["corretora"] || row["corretora destino"] || row["instituição"] || "—"),
+        String(fzGet(row, "corretora", "corretora destino", "instituição", "instituicao") ?? "—"),
     },
   ];
 
