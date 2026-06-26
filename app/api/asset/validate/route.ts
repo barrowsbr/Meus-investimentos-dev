@@ -52,12 +52,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Máximo de 50 tickers por request" }, { status: 400 });
     }
 
-    const results = await resolveMultipleAssets(tickers);
+    const validTickers = tickers.filter(
+      (t): t is { ticker: string; moeda?: string; corretora?: string } =>
+        t != null && typeof t === "object" && typeof t.ticker === "string" && t.ticker.trim().length > 0,
+    );
+    if (validTickers.length === 0) {
+      return NextResponse.json({ error: "Nenhum ticker válido no array" }, { status: 400 });
+    }
+
+    const results = await resolveMultipleAssets(validTickers);
 
     const resolved: Record<string, unknown> = {};
     const notFound: string[] = [];
 
-    for (const t of tickers) {
+    for (const t of validTickers) {
       const meta = results.get(t.ticker);
       if (meta) {
         resolved[t.ticker] = meta;
@@ -73,7 +81,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       resolved,
       notFound,
-      total: tickers.length,
+      total: validTickers.length,
       resolvedCount: results.size,
     });
   } catch (e) {

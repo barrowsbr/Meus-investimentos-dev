@@ -40,8 +40,10 @@ const META_HEADERS = [
   "quote_type", "sector", "industry", "long_name", "last_updated",
 ];
 
+const EXCHANGE_SUFFIX_RE = /\.(SA|L|DE|TO|AS|PA|MI|MC|LS|KS|T|SW|HK|AX|TW|V|NS|SI)$/i;
+
 function cacheKey(ticker: string): string {
-  return ticker.toUpperCase().replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS|KS|T|SW|HK|AX|TW)$/i, "").trim();
+  return ticker.toUpperCase().replace(EXCHANGE_SUFFIX_RE, "").trim();
 }
 
 // ── Load from Google Sheets (call once, idempotent) ────────────────────────────
@@ -72,10 +74,10 @@ export async function loadAssetMetaCache(): Promise<void> {
           _cache.set(cacheKey(ticker), meta);
         }
       }
+      _cacheLoaded = true;
     } catch {
-      // Tab doesn't exist yet — that's fine, will be created on first persist
+      // Tab doesn't exist yet or network error — allow retry on next call
     }
-    _cacheLoaded = true;
     _cacheLoadPromise = null;
   })();
 
@@ -120,7 +122,7 @@ export async function resolveAssetMeta(
   if (!yahooSymbol) {
     try {
       const searchResult = await yf.search(
-        rawTicker.replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, ""),
+        rawTicker.replace(EXCHANGE_SUFFIX_RE, ""),
         { quotesCount: 8, newsCount: 0 },
         { validateResult: false },
       );
@@ -206,13 +208,13 @@ export async function resolveAssetMeta(
 // Pick best search result based on hints (currency, corretora)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function pickBestMatch(candidates: any[], rawTicker: string, hints?: { moeda?: string; corretora?: string }): any {
-  const clean = rawTicker.toUpperCase().replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, "");
+  const clean = rawTicker.toUpperCase().replace(EXCHANGE_SUFFIX_RE, "");
 
   // Score each candidate
   const scored = candidates.map(c => {
     let score = 0;
     const sym = (c.symbol ?? "").toUpperCase();
-    const symClean = sym.replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, "");
+    const symClean = sym.replace(EXCHANGE_SUFFIX_RE, "");
 
     // Exact ticker match (most important)
     if (symClean === clean) score += 100;
@@ -244,7 +246,7 @@ function pickBestMatch(candidates: any[], rawTicker: string, hints?: { moeda?: s
 const SUFFIX_CCY_MAP: Record<string, string> = {
   SA: "BRL", DE: "EUR", AS: "EUR", PA: "EUR", MI: "EUR", MC: "EUR", LS: "EUR",
   TO: "CAD", V: "CAD", L: "GBP", T: "JPY", HK: "HKD", AX: "AUD",
-  SW: "CHF", KS: "KRW", NS: "INR", SI: "SGD",
+  SW: "CHF", KS: "KRW", NS: "INR", SI: "SGD", TW: "TWD",
 };
 
 function guessCurrencyFromSuffix(symbol: string): string {

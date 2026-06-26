@@ -323,7 +323,7 @@ function parseForexTrade(symbol: string, date: string, tipo: string, parts: stri
       moeda_destino: quote,
       valor_origem: formatValorBR(absQty),
       valor_destino: formatValorBR(counterValue),
-      taxa: formatValorBR(price),
+      taxa: formatValorBR(absQty / counterValue),
       corretora: "IBKR",
     };
   }
@@ -361,7 +361,7 @@ function parseForexTradeActivity(rawSymbol: string, date: string, parts: string[
       moeda_destino: quote,
       valor_origem: formatValorBR(absQty),
       valor_destino: formatValorBR(counterValue),
-      taxa: formatValorBR(price),
+      taxa: formatValorBR(absQty / counterValue),
       corretora: "IBKR",
     };
   }
@@ -767,10 +767,12 @@ function dedupCambio(
     const dest = c.moeda_destino;
     const val = Math.round(parseValor(c.valor_destino));
 
+    const orig = c.moeda_origem;
     let found = false;
     for (const e of existingOps) {
       if (e.matched) continue;
       if (e.data !== data) continue;
+      if (e.orig !== orig) continue;
       if (e.dest !== dest) continue;
       if (Math.abs(e.val - val) > 1) continue;
       e.matched = true;
