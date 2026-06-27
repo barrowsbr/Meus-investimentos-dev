@@ -206,7 +206,8 @@ Registro de entradas, saídas e gastos com cartão.
 
 ## Fluxo de trabalho (preferências do dono)
 
-- **Sempre abrir o PR automaticamente** quando uma alteração estiver pronta para produção, na **direção correta**: `base: main` ← `compare: claude/add-repo-description-AanfH` (branch → main). O dono só clica em "Merge". Nunca abrir na direção invertida (main → branch).
+- **Sempre abrir o PR automaticamente** quando uma alteração estiver pronta para produção, na **direção correta**: `base: main` ← `compare: claude/add-repo-description-AanfH` (branch → main). Nunca abrir na direção invertida (main → branch).
+- **Mergear automaticamente** (squash) assim que a alteração estiver pronta e validada (type-check/lint), sem esperar o dono clicar — o dono pediu para deixar configurado para mergear sempre quando o trabalho vier por aqui. Exceção: se o dono pedir explicitamente para segurar um PR específico (ex.: querer revisar um tema visual no preview antes), aí sim aguardar.
 - Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.

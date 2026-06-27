@@ -164,6 +164,36 @@
   --cat-5:#FF6B35; --cat-6:#05FFA1; --cat-7:#7B2FF7; --cat-8:#FF9E00;
 }
 
+[data-theme="starwars"] {
+  /* Star Wars — espaço profundo: amarelo do letreiro, sabres azul/verde/vermelho */
+  --bg:            #05060A;
+  --panel:         #0B0E16;
+  --rail:          #07080E;
+  --input:         #0E1118;
+  --sel:           rgba(255,232,31,.10);
+  --hover:         rgba(59,169,255,.05);
+
+  --line:          #1A1E2B;
+  --line-strong:   #272C3C;
+
+  --accent:        #FFE81F;
+  --accent-wash:   rgba(255,232,31,.12);
+
+  --text:          #E8E6D8;
+  --text-2:        #AEB0A6;
+  --muted:         #6E6F78;
+  --faint:         #3A3C46;
+
+  --pos:           #43D17A;
+  --neg:           #FF3B3B;
+  --info:          #3BA9FF;
+
+  --bar-track:     rgba(59,169,255,.08);
+
+  --cat-1:#FFE81F; --cat-2:#3BA9FF; --cat-3:#FF3B3B; --cat-4:#43D17A;
+  --cat-5:#9D7BFF; --cat-6:#FFB02E; --cat-7:#22D3EE; --cat-8:#F97316;
+}
+
 /* ── Fundações ─────────────────────────────────────────────────────────────
    Geometria RETA. Sem border-radius, sem vidro/blur, sem brilho, sem sombra.
    Fontes ligadas ao next/font (variáveis injetadas no <html> pelo layout). */
@@ -1211,4 +1241,89 @@ body {
 [data-theme="blade"] [class*="border-slate-8"],
 [data-theme="blade"] [class*="border-neutral-8"] {
   border-color: rgba(56, 189, 248, 0.12) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAR WARS — espaço profundo, campo de estrelas em hiperespaço
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme="starwars"] .terminal-root { background: transparent !important; }
+[data-theme="starwars"] body { background: var(--bg); }
+
+[data-theme="starwars"] body { text-shadow: 0 0 1px rgba(59, 169, 255, 0.10); }
+[data-theme="starwars"] ::selection { background: rgba(255, 232, 31, 0.30); color: #fff; }
+[data-theme="starwars"] input,
+[data-theme="starwars"] textarea { caret-color: #FFE81F; }
+
+/* ── Canvas do campo de estrelas (fixo atrás do conteúdo) ── */
+.starwars-stars {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  display: block;
+}
+
+/* ── Glass card com glow amarelo/azul sutil ── */
+[data-theme="starwars"] .glass-card,
+[data-theme="starwars"] .t-panel {
+  border-color: rgba(255, 232, 31, 0.10) !important;
+  box-shadow: 0 0 12px rgba(59, 169, 255, 0.04), inset 0 0 0 1px rgba(255, 232, 31, 0.03);
+}
+[data-theme="starwars"] .glass-card:hover {
+  box-shadow: 0 0 18px rgba(255, 232, 31, 0.08), inset 0 0 0 1px rgba(59, 169, 255, 0.08);
+}
+
+[data-theme="starwars"] .nav-active { text-shadow: 0 0 6px rgba(255, 232, 31, 0.55); }
+[data-theme="starwars"] .t-blink { color: #FFE81F; text-shadow: 0 0 6px rgba(255, 232, 31, 0.75); }
+
+/* ── Coesão de cor: cinzas neutros → branco-quente/cinza-espaço ── */
+[data-theme="starwars"] .text-white,
+[data-theme="starwars"] .text-zinc-50,  [data-theme="starwars"] .text-zinc-100,
+[data-theme="starwars"] .text-zinc-200, [data-theme="starwars"] .text-zinc-300,
+[data-theme="starwars"] .text-gray-100, [data-theme="starwars"] .text-gray-200,
+[data-theme="starwars"] .text-gray-300, [data-theme="starwars"] .text-slate-100,
+[data-theme="starwars"] .text-slate-200,[data-theme="starwars"] .text-slate-300,
+[data-theme="starwars"] .text-neutral-100,[data-theme="starwars"] .text-neutral-200,
+[data-theme="starwars"] .text-neutral-300 {
+  color: #E8E6D8 !important;
+}
+[data-theme="starwars"] .text-zinc-400, [data-theme="starwars"] .text-zinc-500,
+[data-theme="starwars"] .text-gray-400, [data-theme="starwars"] .text-gray-500,
+[data-theme="starwars"] .text-slate-400,[data-theme="starwars"] .text-slate-500,
+[data-theme="starwars"] .text-neutral-400,[data-theme="starwars"] .text-neutral-500 {
+  color: #6E6F78 !important;
+}
+[data-theme="starwars"] .text-zinc-600,
+[data-theme="starwars"] .text-gray-600,
+[data-theme="starwars"] .text-slate-600,
+[data-theme="starwars"] .text-neutral-600 {
+  color: #3A3C46 !important;
+}
+[data-theme="starwars"] .text-zinc-700,
+[data-theme="starwars"] .text-gray-700,
+[data-theme="starwars"] .text-slate-700,
+[data-theme="starwars"] .text-neutral-700 {
+  color: #2A2C36 !important;
+}
+
+/* BG neutros → preto-espaço. */
+[data-theme="starwars"] [class*="bg-zinc-9"],
+[data-theme="starwars"] [class*="bg-zinc-8"],
+[data-theme="starwars"] [class*="bg-gray-9"],
+[data-theme="starwars"] [class*="bg-gray-8"],
+[data-theme="starwars"] [class*="bg-slate-9"],
+[data-theme="starwars"] [class*="bg-slate-8"],
+[data-theme="starwars"] [class*="bg-neutral-9"],
+[data-theme="starwars"] [class*="bg-neutral-8"] {
+  background-color: #0B0E16 !important;
+}
+/* Bordas neutras → hairline amarelo sutil. */
+[data-theme="starwars"] [class*="border-zinc-8"],
+[data-theme="starwars"] [class*="border-zinc-7"],
+[data-theme="starwars"] [class*="border-gray-8"],
+[data-theme="starwars"] [class*="border-gray-7"],
+[data-theme="starwars"] [class*="border-slate-8"],
+[data-theme="starwars"] [class*="border-neutral-8"] {
+  border-color: rgba(255, 232, 31, 0.10) !important;
 }

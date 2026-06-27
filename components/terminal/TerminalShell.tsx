@@ -13,6 +13,7 @@ import MiamiBackground from "./MiamiBackground";
 import BladeRunnerRain from "./BladeRunnerRain";
 import AmbarBackground from "./AmbarBackground";
 import JornalBackground from "./JornalBackground";
+import StarwarsBackground from "./StarwarsBackground";
 
 const COLLAPSED_KEY = "rail-collapsed";
 
@@ -42,6 +43,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
     <MatrixRain />
     <MiamiBackground />
     <BladeRunnerRain />
+    <StarwarsBackground />
     <div className="terminal-root relative z-[1] flex h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <Rail open={railOpen} collapsed={collapsed} onToggleCollapse={toggleCollapsed} onNavigate={() => setRailOpen(false)} />
 

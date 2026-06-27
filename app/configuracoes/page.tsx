@@ -1122,12 +1122,18 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
     desc: "Noir cyberpunk — chuva, neon laranja/ciano, megacidade distópica",
     preview: { bg: "#060A12", accent: "#FF6D00", text: "#C9D1D9", muted: "#6B7B8D", pos: "#3FB950", neg: "#F0504A" },
   },
+  {
+    key: "starwars",
+    label: "Star Wars",
+    desc: "Espaço profundo — campo de estrelas, saltos para o hiperespaço, amarelo do letreiro",
+    preview: { bg: "#05060A", accent: "#FFE81F", text: "#E8E6D8", muted: "#6E6F78", pos: "#43D17A", neg: "#FF3B3B" },
+  },
 ];
 
 function ThemeSection() {
   const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
 
-  const hasAnimation = theme === "ambar" || theme === "jornal" || theme === "matrix" || theme === "miami" || theme === "blade";
+  const hasAnimation = theme === "ambar" || theme === "jornal" || theme === "matrix" || theme === "miami" || theme === "blade" || theme === "starwars";
 
   return (
     <div className="space-y-4">

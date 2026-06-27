@@ -23,6 +23,9 @@ export async function GET(request: Request) {
       ok: true,
       ranAt: new Date().toISOString(),
       newPoints: report.newPoints,
+      writeMode: report.writeMode,
+      writeReason: report.writeReason,
+      written: report.written,
       anomalyCount: report.anomalyCount,
       tickerErrors: report.tickerErrors,
     });
