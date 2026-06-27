@@ -168,6 +168,8 @@ function mapPosition(p: any): Position {
     marketState: p.marketState ?? p.market_state ?? undefined,
     fatorBRL: p.fatorBRL ?? p.fator_brl ?? 1,
     fatorCusto: p.fatorCusto ?? p.fator_custo ?? 1,
+    vendido: p.vendido ?? false,
+    dataVenda: p.dataVenda ?? p.data_venda ?? null,
   };
 }
 
@@ -177,6 +179,7 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
   const cambio = data.cambio ?? {};
   return {
     positions: (data.positions ?? []).map(mapPosition),
+    closedPositions: (data.closedPositions ?? data.closed_positions ?? []).map(mapPosition),
     rvPatrimonioBRL: data.rvPatrimonioBRL ?? data.rv_patrimonio_brl ?? 0,
     rfPatrimonioBRL: data.rfPatrimonioBRL ?? data.rf_patrimonio_brl ?? 0,
     totalPatrimonioBRL: data.totalPatrimonioBRL ?? data.total_patrimonio_brl ?? 0,
