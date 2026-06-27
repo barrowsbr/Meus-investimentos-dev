@@ -41,7 +41,7 @@ export interface GoldenSourceStatus {
 
 export interface MarketDataStore {
   read(): Promise<GoldenSourceData>;
-  write(data: GoldenSourceData): Promise<void>;
+  write(data: GoldenSourceData, opts?: { force?: boolean }): Promise<import("./db-cotacoes").WriteResult>;
   status(data: GoldenSourceData): GoldenSourceStatus;
 }
 
@@ -75,9 +75,9 @@ class GSheetsMarketDataStore implements MarketDataStore {
     const { readGoldenSource } = await import("./db-cotacoes");
     return readGoldenSource();
   }
-  async write(data: GoldenSourceData): Promise<void> {
+  async write(data: GoldenSourceData, opts?: { force?: boolean }) {
     const { writeGoldenSource } = await import("./db-cotacoes");
-    return writeGoldenSource(data);
+    return writeGoldenSource(data, opts);
   }
   status(data: GoldenSourceData): GoldenSourceStatus {
     const { goldenSourceStatus } = require("./db-cotacoes") as typeof import("./db-cotacoes");

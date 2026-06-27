@@ -35,6 +35,11 @@ export interface SyncReport {
   anomalies: Anomaly[];
   anomalyCount: number;
   tickers: string[];
+  // Resultado da escrita na golden source: como foi gravado (append/rewrite/
+  // noop) ou se foi RECUSADO pelo gate de dupla verificação (preserva histórico).
+  writeMode?: "append" | "rewrite" | "refused" | "noop";
+  writeReason?: string;
+  written?: boolean;
 }
 
 export function detectAnomalies(data: GoldenSourceData): Anomaly[] {
@@ -200,16 +205,24 @@ export async function runCotacoesSync(
   };
 
   const anomalies = detectAnomalies(merged);
-  await mktStore.write(merged);
+  // Backfill explícito (manual) regrava tudo; update incremental passa pelo gate.
+  const writeResult = await mktStore.write(merged, { force: action === "backfill" });
+  const written = writeResult.mode !== "refused";
+
+  // Se o gate recusou, o estado real da aba é o que JÁ existia (não o merged).
+  const finalState = written ? merged : existing;
 
   return {
     action,
-    status: goldenSourceStatus(merged),
-    newPoints,
+    status: goldenSourceStatus(finalState),
+    newPoints: written ? newPoints : 0,
     weekendSkipped: weekendSkipped > 0 ? weekendSkipped : undefined,
     tickerErrors: tickerErrors.length > 0 ? tickerErrors : undefined,
     anomalies: anomalies.slice(0, 50),
     anomalyCount: anomalies.length,
-    tickers: merged.tickers,
+    tickers: finalState.tickers,
+    writeMode: writeResult.mode,
+    writeReason: writeResult.reason,
+    written,
   };
 }

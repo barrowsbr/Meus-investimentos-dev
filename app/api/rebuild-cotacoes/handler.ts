@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     await backupTab("db_cotacoes");
   } catch { /* best-effort */ }
 
-  await writeGoldenSource(rebuilt);
+  await writeGoldenSource(rebuilt, { force: true });
 
   return NextResponse.json({
     ok: true,
