@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell, PieChart, Pie, ReferenceLine,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight,
-  DollarSign, BarChart2, ChevronUp, ChevronDown, ChevronRight,
+  DollarSign, BarChart2, ChevronUp, ChevronDown, ChevronRight, StickyNote,
 } from "lucide-react";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { brl, compactBRL, pct, currency } from "@/lib/format";
@@ -18,7 +18,10 @@ import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import CandleChart from "@/components/CandleChart";
+import NotesModal from "@/components/NotesModal";
 import type { Position } from "@/lib/portfolio";
+
+type ViewFilter = "carteira" | "todos" | "vendidos";
 
 const TOOLTIP_STYLE = {
   background: "rgba(13,14,20,0.95)",
@@ -102,6 +105,9 @@ export default function RendaVariavelPage() {
   const [sortKey, setSortKey] = useState<SortKey>("valorAtualBRL");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
+  const [view, setView] = useState<ViewFilter>("carteira");
+  const [notesTicker, setNotesTicker] = useState<string | null>(null);
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
 
   const metrics = useMemo(() => {
     if (!data) return null;
@@ -144,10 +150,40 @@ export default function RendaVariavelPage() {
     };
   }, [data]);
 
-  const sortedPositions = useMemo(() => {
+  // Posições encerradas (vendidas) de RV — vêm separadas do snapshot p/ não
+  // poluir patrimônio/métricas. Só aparecem na tabela nos filtros Todos/Vendidos.
+  const closedRV = useMemo(
+    () => (data?.closedPositions ?? []).filter((p) => isRendaVariavel(p.setor)),
+    [data]
+  );
+
+  const tableRows = useMemo(() => {
     if (!metrics) return [];
+    if (view === "vendidos") return sortPositions(closedRV, sortKey, sortDir);
+    if (view === "todos") return sortPositions([...metrics.rv, ...closedRV], sortKey, sortDir);
     return sortPositions(metrics.rv, sortKey, sortDir);
-  }, [metrics, sortKey, sortDir]);
+  }, [metrics, closedRV, view, sortKey, sortDir]);
+
+  // Contagem de anotações por ticker (1 fetch) — para o badge no botão.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/notas")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { ticker: string }[]) => {
+        if (!alive || !Array.isArray(list)) return;
+        const counts: Record<string, number> = {};
+        for (const n of list) {
+          const t = String(n.ticker ?? "").toUpperCase();
+          if (t) counts[t] = (counts[t] ?? 0) + 1;
+        }
+        setNoteCounts(counts);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const handleNoteCount = (ticker: string, count: number) =>
+    setNoteCounts((prev) => ({ ...prev, [ticker.toUpperCase()]: count }));
 
   const txByTicker = useMemo(() => {
     const map: Record<string, Transaction[]> = {};
@@ -370,7 +406,33 @@ export default function RendaVariavelPage() {
 
       {/* ── Position Table ── */}
       <div className="glass-card p-5 animate-fade-in">
-        <h2 className="section-title mb-4">Posições — Renda Variável</h2>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <h2 className="section-title mb-0">Posições — Renda Variável</h2>
+          {/* Filtro: em carteira (padrão) · todos os ativos já comprados · só vendidos */}
+          <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>
+            {([
+              { id: "carteira" as ViewFilter, label: "Em carteira", count: metrics.rv.length },
+              { id: "todos" as ViewFilter, label: "Todos", count: metrics.rv.length + closedRV.length },
+              { id: "vendidos" as ViewFilter, label: "Vendidos", count: closedRV.length },
+            ]).map((opt) => {
+              const active = view === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setView(opt.id)}
+                  className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors"
+                  style={{
+                    background: active ? "var(--accent)" : "transparent",
+                    color: active ? "#0a0a0a" : "var(--muted)",
+                  }}
+                >
+                  {opt.label}
+                  <span className="ml-1.5 opacity-70 font-mono">{opt.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -392,24 +454,32 @@ export default function RendaVariavelPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedPositions.map((p, i) => {
+              {tableRows.map((p, i) => {
+                const vendido = p.vendido === true;
                 const corLucro = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
+                const corRealizado = (p.lucroRealizadoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corDia = (p.dayChangePct ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
                 const isExpanded = expandedTicker === p.ticker;
                 const txs = txByTicker[p.ticker] ?? [];
                 const colCount = 12 + (hasUSD ? 2 : 0);
+                const nNotes = noteCounts[p.ticker.toUpperCase()] ?? 0;
                 return (
-                  <React.Fragment key={p.ticker}>
+                  <React.Fragment key={`${p.ticker}-${vendido ? "x" : "o"}`}>
                     <tr
-                      className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors cursor-pointer ${i % 2 === 1 ? "bg-white/[0.01]" : ""} ${isExpanded ? "bg-white/[0.03]" : ""}`}
+                      className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors cursor-pointer ${i % 2 === 1 ? "bg-white/[0.01]" : ""} ${isExpanded ? "bg-white/[0.03]" : ""} ${vendido ? "opacity-80" : ""}`}
                       onClick={() => setExpandedTicker(isExpanded ? null : p.ticker)}
                     >
                       <td className="px-3 py-2.5">
                         <span className="inline-flex items-center gap-1">
                           <ChevronRight size={12} className={`text-zinc-600 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                           <span className="font-semibold text-zinc-200">{p.ticker}</span>
+                          {vendido && (
+                            <span className="tag ml-1" style={{ backgroundColor: "rgba(113,113,122,0.18)", color: "#a1a1aa" }}>
+                              Vendido
+                            </span>
+                          )}
                         </span>
                         <span className="text-zinc-600 text-[10px] ml-1">{p.moeda}</span>
                       </td>
@@ -419,20 +489,22 @@ export default function RendaVariavelPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
-                        {p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
+                        {vendido ? "—" : p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{currency(p.custoMedio, p.moeda)}</td>
+                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{vendido ? "—" : currency(p.custoMedio, p.moeda)}</td>
                       <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
                         {p.precoAtual !== null
                           ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{brl(p.valorAtualBRL)}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
-                        {p.lucroBRL !== null ? brl(p.lucroBRL) : "—"}
+                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{vendido ? "—" : brl(p.valorAtualBRL)}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${vendido ? corRealizado : corLucro}`}>
+                        {vendido
+                          ? brl(p.lucroRealizadoBRL)
+                          : (p.lucroBRL !== null ? brl(p.lucroBRL) : "—")}
                       </td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
-                        {p.lucroPct !== null ? pct(p.lucroPct) : "—"}
+                        {vendido ? "—" : (p.lucroPct !== null ? pct(p.lucroPct) : "—")}
                       </td>
                       <td className={`px-3 py-2.5 text-right font-semibold ${(p.retornoTotalPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
                         {p.retornoTotalPct !== null ? pct(p.retornoTotalPct) : "—"}
@@ -457,6 +529,35 @@ export default function RendaVariavelPage() {
                         </td>
                       )}
                     </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={colCount} className="px-3 pt-2.5 pb-1">
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+                              {vendido ? "Posição encerrada" : "Posição atual"}
+                              {vendido && p.dataVenda && ` · última venda ${formatTxDate(p.dataVenda)}`}
+                              {!vendido && p.precoAtual !== null && ` · ${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setNotesTicker(p.ticker); }}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                              style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
+                            >
+                              <StickyNote size={13} />
+                              Rascunhos & anotações
+                              {nNotes > 0 && (
+                                <span
+                                  className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold"
+                                  style={{ background: "var(--accent)", color: "#0a0a0a" }}
+                                >
+                                  {nNotes}
+                                </span>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {isExpanded && txs.length > 0 && (
                       <tr>
                         <td colSpan={colCount} className="p-0">
@@ -600,6 +701,14 @@ export default function RendaVariavelPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {notesTicker && (
+        <NotesModal
+          ticker={notesTicker}
+          onClose={() => setNotesTicker(null)}
+          onCountChange={handleNoteCount}
+        />
       )}
     </>
   );

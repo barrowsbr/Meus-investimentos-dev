@@ -57,10 +57,13 @@ export interface Position {
   marketState?: string;
   fatorBRL: number;
   fatorCusto: number;
+  vendido?: boolean;                  // true = posição encerrada (qtd atual = 0)
+  dataVenda?: string | null;          // data ISO da última venda (só posições encerradas)
 }
 
 export interface PortfolioSnapshot {
   positions: Position[];
+  closedPositions: Position[];        // ativos já comprados e TOTALMENTE vendidos (qtd=0)
   rvPatrimonioBRL: number;
   rfPatrimonioBRL: number;
   totalPatrimonioBRL: number;
@@ -461,6 +464,96 @@ export function calcularProventosBRL(
   return { totalBRL, porMes, porTicker, impostoBRL, impostoPorTicker };
 }
 
+// Posições ENCERRADAS — ativos comprados e totalmente vendidos (qtd atual = 0).
+// O enriquecerPosicoes descarta esses (não fazem parte do patrimônio/NAV), mas a
+// página de RV precisa deles para os filtros "Todos" e "Vendidos". Aqui montamos
+// objetos Position compatíveis, com os valores REALIZADOS (lucro de venda +
+// proventos) em vez dos não realizados. NÃO entram em nenhuma métrica agregada.
+export function construirPosicoesFechadas(
+  portfolio: Map<string, PosicaoInterna>,
+  transacoes: Row[],
+  quotes: Record<string, Quote>,
+  provPorTicker: Record<string, number>,
+  fxAtual: FxRates,
+): Position[] {
+  // Primeira compra e última venda por ticker (para datas de início/encerramento).
+  const datas = new Map<string, { firstBuy: string; lastSell: string }>();
+  for (const row of transacoes) {
+    const ticker = getTicker(row);
+    if (!ticker) continue;
+    const iso = getDataISO(row);
+    if (!iso) continue;
+    const tipo = getTipo(row);
+    const d = datas.get(ticker) ?? { firstBuy: "", lastSell: "" };
+    if (tipo === "Compra" && (!d.firstBuy || iso < d.firstBuy)) d.firstBuy = iso;
+    if (tipo === "Venda" && (!d.lastSell || iso > d.lastSell)) d.lastSell = iso;
+    datas.set(ticker, d);
+  }
+
+  const closed: Position[] = [];
+  for (const [ticker, pos] of portfolio) {
+    const qtd = pos.lotes.reduce((sum, l) => sum + l.qty, 0);
+    if (qtd >= 0.000001) continue;        // ainda em carteira → não é fechada
+    if (pos.custoVendido <= 0) continue;   // nunca teve posição real comprada/vendida
+
+    const setor = identificarSetor(ticker);
+    const moeda = getMoedaEfetiva(ticker, pos.moeda, setor);
+    const fator = fxToBRL(moeda, fxAtual);
+    const quote = quotes[ticker];
+
+    const custoHistBRL = pos.custoVendido * fator;            // capital historicamente aportado
+    const lucroRealizadoBRL = pos.lucroRealizado * fator;     // lucro das vendas FIFO
+    const proventosBRL = provPorTicker[tickerBase(ticker)] ?? 0;
+    const retornoTotalBRL = lucroRealizadoBRL + proventosBRL; // resultado total realizado
+    const retornoTotalPct = custoHistBRL > 0 ? (retornoTotalBRL / custoHistBRL) * 100 : null;
+    const d = datas.get(ticker);
+
+    closed.push({
+      ticker,
+      setor,
+      quantidade: 0,
+      moeda,
+      corretora: pos.corretora,
+      custoMedio: 0,
+      custoTotal: pos.custoVendido,
+      lucroRealizado: pos.lucroRealizado,
+      lucroRealizadoBRL,
+      precoAtual: quote?.price ?? null,
+      quoteCurrency: quote?.currency ?? null,
+      valorAtual: 0,
+      valorAtualBRL: 0,
+      custoTotalBRL: custoHistBRL,
+      lucroBRL: null,
+      lucroPct: null,
+      proventosBRL,
+      retornoTotalBRL,
+      retornoTotalPct,
+      ganhoAtivoBRL: null,
+      ganhoCambioBRL: null,
+      ganhoAtivoPuroBRL: null,
+      ganhoFXPrincipalBRL: null,
+      ganhoCruzadoBRL: null,
+      pmFxAquisicao: null,
+      fxAtualBRL: null,
+      dataInicioPos: d?.firstBuy || null,
+      retornoAnualizadoPct: null,
+      dayChange: null,
+      dayChangePct: null,
+      dayChangeBRL: null,
+      dayChangeFxBRL: null,
+      marketState: quote?.marketState,
+      fatorBRL: fator,
+      fatorCusto: fator,
+      vendido: true,
+      dataVenda: d?.lastSell || null,
+    });
+  }
+
+  // Mais recentes (última venda) primeiro.
+  closed.sort((a, b) => (b.dataVenda ?? "").localeCompare(a.dataVenda ?? ""));
+  return closed;
+}
+
 export function calcularRendaFixaBRL(fixaAberta: Row[], fx: FxRates): number {
   let totalBRL = 0;
   for (const row of fixaAberta) {
@@ -505,6 +598,10 @@ export function calcularSnapshot(
       }
     }
   }
+
+  // Posições encerradas (qtd=0) — para os filtros "Todos"/"Vendidos" na página RV.
+  // Separadas de `positions` para NÃO entrarem em patrimônio/NAV/setores/métricas.
+  const closedPositions = construirPosicoesFechadas(portfolio, transacoes, quotes, prov.porTicker, fxAtual);
 
   const rvPositions = positions.filter((p) => isRendaVariavel(p.setor));
   const rvPatrimonioBRL = rvPositions
@@ -587,6 +684,7 @@ export function calcularSnapshot(
 
   return {
     positions,
+    closedPositions,
     rvPatrimonioBRL,
     rfPatrimonioBRL,
     totalPatrimonioBRL,
