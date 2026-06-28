@@ -219,6 +219,7 @@ export default function AssetDetailModal({
                 corretora={txs[0]?.corretora ?? ""}
                 precoAtual={p.precoAtual}
                 purchases={purchases}
+                showPurchaseList={false}
               />
             </div>
           )}
