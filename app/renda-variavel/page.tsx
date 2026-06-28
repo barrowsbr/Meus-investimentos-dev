@@ -7,21 +7,34 @@ import {
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight,
-  DollarSign, BarChart2, ChevronUp, ChevronDown, ChevronRight, StickyNote,
+  DollarSign, BarChart2, StickyNote,
 } from "lucide-react";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
-import { brl, compactBRL, pct, currency } from "@/lib/format";
+import { brl, compactBRL, pct } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
-import CandleChart from "@/components/CandleChart";
 import NotesModal from "@/components/NotesModal";
+import AssetLogo from "@/components/AssetLogo";
+import AssetDetailModal from "@/components/AssetDetailModal";
+import { displayName } from "@/lib/asset-brands";
 import type { Position } from "@/lib/portfolio";
 
 type ViewFilter = "carteira" | "todos" | "vendidos";
+
+// Opções de ordenação da grade de cards (substitui os cabeçalhos clicáveis).
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "valorAtualBRL", label: "Valor atual" },
+  { key: "lucroBRL", label: "Lucro" },
+  { key: "lucroPct", label: "Valorização %" },
+  { key: "retornoTotalPct", label: "Retorno total %" },
+  { key: "dayChangePct", label: "Variação no dia %" },
+  { key: "ticker", label: "Ticker (A–Z)" },
+  { key: "setor", label: "Setor" },
+];
 
 const TOOLTIP_STYLE = {
   background: "rgba(13,14,20,0.95)",
@@ -82,15 +95,6 @@ function parseTransactions(rows: Record<string, unknown>[]): Transaction[] {
   }).filter(t => t.ticker && t.quantidade > 0);
 }
 
-function formatTxDate(raw: string): string {
-  if (!raw) return "—";
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
-  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (br) return raw.slice(0, 10);
-  return raw.slice(0, 10);
-}
-
 function parseDateSort(raw: string): number {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(raw).getTime();
@@ -104,7 +108,7 @@ export default function RendaVariavelPage() {
   const { data: rawTx } = useSheetData("meus_ativos");
   const [sortKey, setSortKey] = useState<SortKey>("valorAtualBRL");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [view, setView] = useState<ViewFilter>("carteira");
   const [notesTicker, setNotesTicker] = useState<string | null>(null);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
@@ -201,34 +205,12 @@ export default function RendaVariavelPage() {
     return map;
   }, [rawTx]);
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("desc"); }
-  };
-
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} tab="cotacoes" />;
   if (!data || !metrics) return <ErrorAlert message="Dados não disponíveis" />;
 
   const hasUSD = metrics.rv.some(p => p.moeda !== "BRL");
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <span className="text-zinc-700 ml-0.5">↕</span>;
-    return sortDir === "asc"
-      ? <ChevronUp size={10} className="inline ml-0.5 text-accent" />
-      : <ChevronDown size={10} className="inline ml-0.5 text-accent" />;
-  }
-
-  function SortTh({ col, label, right }: { col: SortKey; label: string; right?: boolean }) {
-    return (
-      <th
-        className={`px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider cursor-pointer hover:text-zinc-300 select-none ${right ? "text-right" : ""}`}
-        onClick={() => handleSort(col)}
-      >
-        {label}<SortIcon col={col} />
-      </th>
-    );
-  }
+  const selected = selectedTicker ? tableRows.find(p => p.ticker === selectedTicker) ?? null : null;
 
   return (
     <>
@@ -437,242 +419,77 @@ export default function RendaVariavelPage() {
             })}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <SortTh col="ticker" label="Ativo" />
-                <SortTh col="setor" label="Setor" />
-                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Qtd</th>
-                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">PM</th>
-                <th className="px-3 py-2.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider text-right">Preço</th>
-                <SortTh col="valorAtualBRL" label="Atual" right />
-                <SortTh col="lucroBRL" label="Lucro" right />
-                <SortTh col="lucroPct" label="Valoriz.%" right />
-                <SortTh col="retornoTotalPct" label="Ret.Tot.%" right />
-                <SortTh col="retornoAnualizadoPct" label="Anual%" right />
-                <SortTh col="dayChangePct" label="Dia%" right />
-                <SortTh col="dayChangeBRL" label="Dia R$" right />
-                {hasUSD && <SortTh col="ganhoAtivoBRL" label="G.Ativo" right />}
-                {hasUSD && <SortTh col="ganhoCambioBRL" label="G.Câmbio" right />}
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((p, i) => {
-                const vendido = p.vendido === true;
-                const corLucro = (p.lucroBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const corRealizado = (p.lucroRealizadoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const corDia = (p.dayChangePct ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const corAtivo = (p.ganhoAtivoBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const corCambio = (p.ganhoCambioBRL ?? 0) >= 0 ? "text-positive" : "text-negative";
-                const isExpanded = expandedTicker === p.ticker;
-                const txs = txByTicker[p.ticker] ?? [];
-                const colCount = 12 + (hasUSD ? 2 : 0);
-                const nNotes = noteCounts[p.ticker.toUpperCase()] ?? 0;
-                return (
-                  <React.Fragment key={`${p.ticker}-${vendido ? "x" : "o"}`}>
-                    <tr
-                      className={`border-b border-border/30 hover:bg-white/[0.025] transition-colors cursor-pointer ${i % 2 === 1 ? "bg-white/[0.01]" : ""} ${isExpanded ? "bg-white/[0.03]" : ""} ${vendido ? "opacity-80" : ""}`}
-                      onClick={() => setExpandedTicker(isExpanded ? null : p.ticker)}
-                    >
-                      <td className="px-3 py-2.5">
-                        <span className="inline-flex items-center gap-1">
-                          <ChevronRight size={12} className={`text-zinc-600 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                          <span className="font-semibold text-zinc-200">{p.ticker}</span>
-                          {vendido && (
-                            <span className="tag ml-1" style={{ backgroundColor: "rgba(113,113,122,0.18)", color: "#a1a1aa" }}>
-                              Vendido
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-zinc-600 text-[10px] ml-1">{p.moeda}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className="tag" style={{ backgroundColor: `${SECTOR_COLORS[p.setor] || "#71717a"}15`, color: SECTOR_COLORS[p.setor] || "#71717a" }}>
-                          {p.setor}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 font-mono text-xs">
-                        {vendido ? "—" : p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">{vendido ? "—" : currency(p.custoMedio, p.moeda)}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400 text-xs">
-                        {p.precoAtual !== null
-                          ? `${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-zinc-200">{vendido ? "—" : brl(p.valorAtualBRL)}</td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${vendido ? corRealizado : corLucro}`}>
-                        {vendido
-                          ? brl(p.lucroRealizadoBRL)
-                          : (p.lucroBRL !== null ? brl(p.lucroBRL) : "—")}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${corLucro}`}>
-                        {vendido ? "—" : (p.lucroPct !== null ? pct(p.lucroPct) : "—")}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right font-semibold ${(p.retornoTotalPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                        {p.retornoTotalPct !== null ? pct(p.retornoTotalPct) : "—"}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right text-xs font-semibold ${(p.retornoAnualizadoPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                        {p.retornoAnualizadoPct !== null ? pct(p.retornoAnualizadoPct) : "—"}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right text-xs font-semibold ${p.dayChangePct !== null ? corDia : "text-zinc-600"}`}>
-                        {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right text-xs ${p.dayChangeBRL !== null ? corDia : "text-zinc-600"}`}>
-                        {p.dayChangeBRL !== null ? brl(p.dayChangeBRL) : "—"}
-                      </td>
-                      {hasUSD && (
-                        <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoAtivoBRL !== null ? corAtivo : "text-zinc-600"}`}>
-                          {p.ganhoAtivoBRL !== null ? brl(p.ganhoAtivoBRL) : "—"}
-                        </td>
-                      )}
-                      {hasUSD && (
-                        <td className={`px-3 py-2.5 text-right text-xs ${p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? corCambio : "text-zinc-600"}`}>
-                          {p.ganhoCambioBRL !== null && p.ganhoCambioBRL !== 0 ? brl(p.ganhoCambioBRL) : "—"}
-                        </td>
-                      )}
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={colCount} className="px-3 pt-2.5 pb-1">
-                          <div className="flex items-center justify-between gap-3 flex-wrap">
-                            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
-                              {vendido ? "Posição encerrada" : "Posição atual"}
-                              {vendido && p.dataVenda && ` · última venda ${formatTxDate(p.dataVenda)}`}
-                              {!vendido && p.precoAtual !== null && ` · ${p.quoteCurrency ?? p.moeda} ${p.precoAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                            </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setNotesTicker(p.ticker); }}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                              style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
-                            >
-                              <StickyNote size={13} />
-                              Rascunhos & anotações
-                              {nNotes > 0 && (
-                                <span
-                                  className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold"
-                                  style={{ background: "var(--accent)", color: "#0a0a0a" }}
-                                >
-                                  {nNotes}
-                                </span>
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {isExpanded && txs.length > 0 && (
-                      <tr>
-                        <td colSpan={colCount} className="p-0">
-                          <div className="bg-zinc-900/60 border-l-2 border-indigo-500/40 mx-3 mb-2 rounded-lg overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="border-b border-zinc-800">
-                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Data</th>
-                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Tipo</th>
-                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Qtd</th>
-                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Preço</th>
-                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Total</th>
-                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">Lucro Lote</th>
-                                  <th className="px-3 py-2 text-right text-[10px] text-zinc-500 font-semibold uppercase">%</th>
-                                  <th className="px-3 py-2 text-left text-[10px] text-zinc-500 font-semibold uppercase">Corretora</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {txs.map((tx, j) => {
-                                  const isCompra = tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy");
-                                  const lotProfit = isCompra && p.precoAtual !== null ? (p.precoAtual - tx.preco) * tx.quantidade : null;
-                                  const lotPct = isCompra && p.precoAtual !== null && tx.preco > 0 ? (p.precoAtual - tx.preco) / tx.preco : null;
-                                  return (
-                                    <tr key={j} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
-                                      <td className="px-3 py-1.5 text-zinc-400 font-mono">{formatTxDate(tx.data)}</td>
-                                      <td className="px-3 py-1.5">
-                                        <span className={`font-semibold ${isCompra ? "text-emerald-400" : "text-red-400"}`}>
-                                          {tx.tipo || (isCompra ? "Compra" : "Venda")}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">
-                                        {tx.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-right text-zinc-400">
-                                        {currency(tx.preco, tx.moeda)}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-right text-zinc-300 font-medium">
-                                        {currency(tx.valorBruto, tx.moeda)}
-                                      </td>
-                                      <td className={`px-3 py-1.5 text-right font-medium ${lotProfit !== null ? (lotProfit >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
-                                        {lotProfit !== null ? currency(lotProfit, tx.moeda) : "—"}
-                                      </td>
-                                      <td className={`px-3 py-1.5 text-right font-medium ${lotPct !== null ? (lotPct >= 0 ? "text-positive" : "text-negative") : "text-zinc-600"}`}>
-                                        {lotPct !== null ? pct(lotPct) : "—"}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-zinc-500">{tx.corretora}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={colCount} className="p-0">
-                          <div className="mx-3 mb-3">
-                            <CandleChart
-                              ticker={p.ticker}
-                              moeda={p.moeda}
-                              corretora={txs[0]?.corretora ?? ""}
-                              precoAtual={p.precoAtual}
-                              purchases={txs
-                                .filter((tx) => tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy"))
-                                .map((tx) => ({ date: tx.data, price: tx.preco, quantidade: tx.quantidade, moeda: tx.moeda }))}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {isExpanded && txs.length === 0 && (
-                      <tr>
-                        <td colSpan={colCount} className="px-6 py-3 text-xs text-zinc-600 italic">
-                          Nenhuma transação encontrada para {p.ticker}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border font-semibold">
-                <td className="px-3 py-3 text-zinc-300" colSpan={5}>Total RV</td>
-                <td className="px-3 py-3 text-right text-zinc-200">{brl(data.rvPatrimonioBRL)}</td>
-                <td className={`px-3 py-3 text-right ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</td>
-                <td className={`px-3 py-3 text-right ${data.lucroPct >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.lucroPct)}</td>
-                <td className={`px-3 py-3 text-right ${(data.retornoTotalRVPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.retornoTotalRVPct ?? 0)}</td>
-                <td className="px-3 py-3 text-right text-zinc-600">—</td>
-                <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                  {pct(data.dayChangeTotalPct ?? 0)}
-                </td>
-                <td className={`px-3 py-3 text-right text-xs ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                  {brl(data.dayChangeTotalBRL ?? 0)}
-                </td>
-                {hasUSD && (
-                  <td className={`px-3 py-3 text-right text-xs ${data.ganhoAtivoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>
-                    {brl(data.ganhoAtivoTotalBRL)}
-                  </td>
-                )}
-                {hasUSD && (
-                  <td className={`px-3 py-3 text-right text-xs ${data.ganhoCambioTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>
-                    {brl(data.ganhoCambioTotalBRL)}
-                  </td>
-                )}
-              </tr>
-            </tfoot>
-          </table>
+        {/* Resumo da carteira (substitui o antigo rodapé da tabela) + ordenação */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs mb-4 pb-3" style={{ borderBottom: "1px solid var(--line)" }}>
+          <span style={{ color: "var(--muted)" }}>Total RV <span className="font-bold" style={{ color: "var(--text)" }}>{brl(data.rvPatrimonioBRL)}</span></span>
+          <span style={{ color: "var(--muted)" }}>Lucro <span className={`font-bold ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)} ({pct(data.lucroPct)})</span></span>
+          <span style={{ color: "var(--muted)" }}>Ret. total <span className={`font-bold ${(data.retornoTotalRVPct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{pct(data.retornoTotalRVPct ?? 0)}</span></span>
+          <span style={{ color: "var(--muted)" }}>Hoje <span className={`font-bold ${(data.dayChangeTotalBRL ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.dayChangeTotalBRL ?? 0)} ({pct(data.dayChangeTotalPct ?? 0)})</span></span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span style={{ color: "var(--muted)" }}>Ordenar</span>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              className="rounded-md px-2 py-1 text-xs outline-none"
+              style={{ background: "var(--input, rgba(255,255,255,0.04))", border: "1px solid var(--line)", color: "var(--text)" }}
+            >
+              {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+            <button
+              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              className="rounded-md px-2 py-1 text-xs font-bold"
+              style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+              title={sortDir === "asc" ? "Crescente" : "Decrescente"}
+            >
+              {sortDir === "asc" ? "↑" : "↓"}
+            </button>
+          </div>
         </div>
+
+        {/* Grade de cards — logo + nome. Clicar abre o modal com TODAS as infos. */}
+        {tableRows.length === 0 ? (
+          <p className="text-sm italic py-8 text-center" style={{ color: "var(--muted)" }}>Nenhum ativo neste filtro.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {tableRows.map((p) => {
+              const vendido = p.vendido === true;
+              const nNotes = noteCounts[p.ticker.toUpperCase()] ?? 0;
+              const dia = p.dayChangePct;
+              return (
+                <button
+                  key={`${p.ticker}-${vendido ? "x" : "o"}`}
+                  onClick={() => setSelectedTicker(p.ticker)}
+                  className={`group flex flex-col gap-2.5 p-3 rounded-xl text-left transition-all hover:-translate-y-0.5 ${vendido ? "opacity-75" : ""}`}
+                  style={{ background: "var(--panel)", border: "1px solid var(--line)" }}
+                >
+                  <div className="flex items-center gap-2.5 w-full min-w-0">
+                    <AssetLogo ticker={p.ticker} name={displayName(p.ticker)} size={42} />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-sm truncate" style={{ color: "var(--text)" }}>{displayName(p.ticker)}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{p.ticker.replace(/\.SA$/, "")}</span>
+                        {vendido && <span className="tag" style={{ backgroundColor: "rgba(113,113,122,0.18)", color: "#a1a1aa", fontSize: 9 }}>Vendido</span>}
+                        {nNotes > 0 && <StickyNote size={10} style={{ color: "var(--accent)" }} />}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+                      {vendido ? "Resultado" : brl(p.valorAtualBRL)}
+                    </span>
+                    <span className={`text-[11px] font-bold ${
+                      vendido
+                        ? ((p.lucroRealizadoBRL ?? 0) >= 0 ? "text-positive" : "text-negative")
+                        : (dia !== null ? (dia >= 0 ? "text-positive" : "text-negative") : "text-zinc-500")
+                    }`}>
+                      {vendido ? brl(p.lucroRealizadoBRL) : (dia !== null ? pct(dia) : "—")}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* FX decomposition summary */}
@@ -705,6 +522,17 @@ export default function RendaVariavelPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selected && (
+        <AssetDetailModal
+          position={selected}
+          txs={txByTicker[selected.ticker] ?? []}
+          hasUSD={hasUSD}
+          noteCount={noteCounts[selected.ticker.toUpperCase()] ?? 0}
+          onOpenNotes={(t) => setNotesTicker(t)}
+          onClose={() => setSelectedTicker(null)}
+        />
       )}
 
       {notesTicker && (
