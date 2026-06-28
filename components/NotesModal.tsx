@@ -37,6 +37,11 @@ export default function NotesModal({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // onCountChange via ref: se entrasse nas deps de `load`, um pai que recria a
+  // função a cada render dispararia o efeito em loop infinito (travava a UI).
+  const onCountChangeRef = useRef(onCountChange);
+  useEffect(() => { onCountChangeRef.current = onCountChange; }, [onCountChange]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -46,13 +51,13 @@ export default function NotesModal({
       if (!res.ok) throw new Error(json?.error ?? "Falha ao carregar");
       const list: Nota[] = Array.isArray(json) ? json : [];
       setNotas(list);
-      onCountChange?.(ticker, list.length);
+      onCountChangeRef.current?.(ticker, list.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar anotações");
     } finally {
       setLoading(false);
     }
-  }, [ticker, onCountChange]);
+  }, [ticker]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -86,7 +91,7 @@ export default function NotesModal({
       setTexto("");
       const next = [json.nota as Nota, ...notas];
       setNotas(next);
-      onCountChange?.(ticker, next.length);
+      onCountChangeRef.current?.(ticker, next.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar");
     } finally {
@@ -107,7 +112,7 @@ export default function NotesModal({
       if (!res.ok) throw new Error(json?.error ?? "Falha ao apagar");
       const next = notas.filter((n) => n.id !== id);
       setNotas(next);
-      onCountChange?.(ticker, next.length);
+      onCountChangeRef.current?.(ticker, next.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao apagar");
     } finally {
