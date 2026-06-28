@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, StickyNote } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import { brl, currency, pct } from "@/lib/format";
@@ -58,6 +59,12 @@ export default function AssetDetailModal({
 }) {
   const vendido = p.vendido === true;
   const sectorColor = SECTOR_COLORS[p.setor] || "#71717a";
+
+  // Portal para o body: o overlay `fixed` precisa cobrir a VIEWPORT inteira.
+  // Renderizado dentro do <main> (que tem transform via animate-fade-in), o
+  // `position: fixed` se prenderia ao <main> e cobriria só a 1ª tela.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -138,7 +145,9 @@ export default function AssetDetailModal({
     .filter((tx) => tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy"))
     .map((tx) => ({ date: tx.data, price: tx.preco, quantidade: tx.quantidade, moeda: tx.moeda }));
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       style={{ background: "rgba(0,0,0,0.62)", backdropFilter: "blur(4px)" }}
@@ -270,6 +279,7 @@ export default function AssetDetailModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
