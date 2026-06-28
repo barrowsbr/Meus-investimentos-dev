@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, Trash2, StickyNote, Loader2, Plus } from "lucide-react";
 
 interface Nota {
@@ -61,6 +62,11 @@ export default function NotesModal({
 
   useEffect(() => { load(); }, [load]);
 
+  // Portal para o body: o overlay `fixed` precisa cobrir a viewport inteira
+  // (dentro do <main>, que tem transform, ele se prenderia só à 1ª tela).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Fecha com ESC; trava o scroll do body enquanto aberto.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -120,7 +126,9 @@ export default function NotesModal({
     }
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       style={{ background: "rgba(0,0,0,0.62)", backdropFilter: "blur(4px)" }}
@@ -253,6 +261,7 @@ export default function NotesModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
