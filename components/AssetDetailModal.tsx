@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, StickyNote } from "lucide-react";
+import { X, StickyNote, ExternalLink } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import { brl, currency, pct } from "@/lib/format";
 import { displayName } from "@/lib/asset-brands";
+import { yahooTicker } from "@/lib/yahoo-symbol";
 import AssetLogo from "@/components/AssetLogo";
 import CandleChart from "@/components/CandleChart";
 
@@ -145,6 +146,11 @@ export default function AssetDetailModal({
     .filter((tx) => tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy"))
     .map((tx) => ({ date: tx.data, price: tx.preco, quantidade: tx.quantidade, moeda: tx.moeda }));
 
+  // Link para a página do ativo no Yahoo Finance — usa a MESMA conversão canônica
+  // que busca as cotações (ticker interno → símbolo Yahoo, ex.: PETR4 → PETR4.SA,
+  // BTC → BTC-USD), garantindo que o link aponte pro mesmo ativo do gráfico.
+  const yfUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(yahooTicker(p.ticker, p.moeda, ""))}`;
+
   if (!mounted) return null;
 
   return createPortal(
@@ -191,19 +197,32 @@ export default function AssetDetailModal({
                 <div className={`text-xs font-semibold ${cor(pos(retTotPct))}`}>Retorno total {pct(retTotPct)}</div>
               )}
             </div>
-            <button
-              onClick={() => onOpenNotes(p.ticker)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-              style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
-            >
-              <StickyNote size={13} />
-              Rascunhos & anotações
-              {noteCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold" style={{ background: "var(--accent)", color: "#0a0a0a" }}>
-                  {noteCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href={yfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Abrir ${p.ticker} no Yahoo Finance`}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
+                style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+              >
+                <ExternalLink size={13} />
+                Yahoo Finance
+              </a>
+              <button
+                onClick={() => onOpenNotes(p.ticker)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                <StickyNote size={13} />
+                Rascunhos & anotações
+                {noteCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold" style={{ background: "var(--accent)", color: "#0a0a0a" }}>
+                    {noteCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Grade de métricas — tudo que a tabela mostrava (e mais) */}

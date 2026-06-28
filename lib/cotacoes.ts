@@ -1,5 +1,8 @@
-import { identificarSetor } from "./sectors";
-import { getAssetMeta } from "./asset-meta-cache";
+import { yahooTicker } from "./yahoo-symbol";
+
+// Re-exporta a conversão canônica ticker→Yahoo (movida para yahoo-symbol.ts,
+// client-safe). Mantém a FONTE ÚNICA e os imports existentes `from "@/lib/cotacoes"`.
+export { yahooTicker };
 
 export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
 
@@ -31,16 +34,6 @@ export interface CotacoesData {
 
 const DEFAULTS_FX: FxRates = { USDBRL: 5.7, EURBRL: 6.4, GBPBRL: 7.6, CADBRL: 4.1 };
 
-const INTL_SUFFIX_MAP: Record<string, string> = {
-  VWRA: "VWRA.L",
-  VWCE: "VWCE.DE",
-  DPM: "DPM.TO",
-  CSPX: "CSPX.L",
-  EIMI: "EIMI.L",
-  IWDA: "IWDA.L",
-  ASML: "ASML.AS",
-};
-
 // Map tickers to their actual currencies (overrides API detection if needed)
 const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
   "VWRA.L": "USD",      // LSE but priced in USD
@@ -51,24 +44,6 @@ const TICKER_CURRENCY_OVERRIDE: Record<string, string> = {
   "ASML.AS": "EUR",     // Amsterdam exchange in EUR
   "DPM.TO": "CAD",      // Toronto exchange in CAD
 };
-
-export function yahooTicker(ticker: string, _moeda: string, _corretora: string): string {
-  const t = ticker.toUpperCase().trim();
-  // Metadata cache (populated from ativos_meta sheet) is the primary source —
-  // one Yahoo lookup at import time replaces all hardcoded maps.
-  const meta = getAssetMeta(t);
-  if (meta?.yahooSymbol) return meta.yahooSymbol;
-  if (t.includes(".")) return t;
-  const tClean = t.replace(".SA", "").replace(".L", "").replace(".AS", "").replace(".DE", "").replace(".TO", "");
-  if (INTL_SUFFIX_MAP[tClean]) return INTL_SUFFIX_MAP[tClean];
-  const setor = identificarSetor(t);
-  if (setor === "Cripto") {
-    if (t.endsWith("-USD")) return t;
-    return `${t}-USD`;
-  }
-  if (["Ações Brasil", "ETF", "FIIs", "BDRs"].includes(setor)) return `${t}.SA`;
-  return t;
-}
 
 // --- FX rate sources with proper fallback chain ---
 
