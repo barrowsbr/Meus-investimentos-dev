@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { getServiceAccountAuth, listSheetNames, resetSheetNamesCache } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -29,11 +30,56 @@ function genId(): string {
   return `nota-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
-// ── GET — lista notas (todas ou filtradas por ?ticker=X), mais recentes primeiro ──
+// ── GET — lista notas, ou diagnóstico (?diag=1) ──────────────────────────────
 export async function GET(req: Request) {
   try {
     const store = getDataStore();
-    const ticker = new URL(req.url).searchParams.get("ticker")?.trim().toUpperCase();
+    const params = new URL(req.url).searchParams;
+
+    // Diagnóstico: roda em PRODUÇÃO (onde as credenciais existem) e devolve a
+    // verdade do ambiente — SA presente? qual e-mail? aba existe? Se não existe,
+    // TENTA criar e reporta o erro LITERAL do Google (sem paráfrase).
+    if (params.get("diag")) {
+      const auth = getServiceAccountAuth();
+      let saEmail = "";
+      try {
+        const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "{}");
+        saEmail = sa.client_email ?? "";
+      } catch { /* sem json */ }
+
+      resetSheetNamesCache();
+      let tabs: string[] = [];
+      let listErr = "";
+      try { tabs = await listSheetNames(); } catch (e) { listErr = e instanceof Error ? e.message : String(e); }
+      const tabExists = tabs.some((t) => t.toLowerCase().replace(/[_\s]/g, "") === "ativosnotas");
+
+      let createTried = false;
+      let createErr = "";
+      let createOk = false;
+      if (!tabExists) {
+        createTried = true;
+        try {
+          await store.ensureTab(TAB, HEADERS);
+          createOk = true;
+        } catch (e) {
+          createErr = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      return NextResponse.json({
+        saPresente: !!auth,
+        saEmail,                       // confira se ESTE e-mail é Editor na planilha
+        spreadsheetId: (process.env.SPREADSHEET_ID ?? "").slice(0, 6) + "…",
+        abaExiste: tabExists,
+        totalAbas: tabs.length,
+        listarAbasErro: listErr || undefined,
+        tentouCriar: createTried,
+        criou: createOk,
+        criarErroLiteral: createErr || undefined,   // ← a verdade do Google
+      });
+    }
+
+    const ticker = params.get("ticker")?.trim().toUpperCase();
 
     const rows = await store.fetchTab(TAB).catch(() => []);
     let notas = rows.map(rowToNota).filter((n) => n.id && n.texto);
