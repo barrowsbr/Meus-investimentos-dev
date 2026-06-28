@@ -58,7 +58,17 @@ export async function POST(req: Request) {
     if (!texto) return NextResponse.json({ error: "texto é obrigatório" }, { status: 400 });
     if (texto.length > 5000) return NextResponse.json({ error: "texto muito longo (máx 5000)" }, { status: 400 });
 
-    await store.ensureTab(TAB, HEADERS);
+    // Tenta garantir a aba. Criar aba (addSheet) é operação ESTRUTURAL e pode
+    // falhar se a service account não tiver permissão para criar abas — nesse
+    // caso seguimos mesmo assim: se a aba já existir, o append funciona (igual
+    // às outras escritas do app). Só falha de verdade se a aba não existir E
+    // não puder ser criada.
+    let ensureErr = "";
+    try {
+      await store.ensureTab(TAB, HEADERS);
+    } catch (e) {
+      ensureErr = e instanceof Error ? e.message : String(e);
+    }
 
     const nota: Nota = {
       id: genId(),
@@ -67,7 +77,18 @@ export async function POST(req: Request) {
       data: new Date().toISOString(),
       texto,
     };
-    await store.appendRows(TAB, [[nota.id, nota.ticker, nota.data, nota.texto]]);
+
+    try {
+      await store.appendRows(TAB, [[nota.id, nota.ticker, nota.data, nota.texto]]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const permissao = /permission|permiss|403|PERMISSION_DENIED/i.test(msg + ensureErr);
+      return NextResponse.json({
+        error: permissao
+          ? `Não foi possível salvar: a aba "${TAB}" não existe e a conta de serviço não tem permissão para criá-la. Crie a aba "${TAB}" na planilha (colunas: ${HEADERS.join(", ")}) — depois disso as anotações salvam normalmente.`
+          : `Falha ao salvar a anotação: ${msg}`,
+      }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, nota });
   } catch (e) {
