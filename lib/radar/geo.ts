@@ -13,6 +13,7 @@
 
 import { COUNTRY_TO_ISO_NUM, signedNorm } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2 } from "./countries";
+import { adrOriginCountry } from "@/lib/ticker-country";
 import type { CurrencyData, ExposureResponse } from "./types";
 
 // ISO numérico → nome PT do país (inverso de COUNTRY_TO_ISO_NUM).
@@ -217,6 +218,7 @@ export interface HeatEntry {
   region?: string;     // para o filtro de região dimar o choropleth
   country: string;
   flag: string;
+  adrTickers?: string[]; // tickers que chegaram aqui via ADR (ex: TSM em Taiwan)
 }
 
 const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -343,45 +345,50 @@ const ISO2_TO_ISO_NUM: Record<string, string> = Object.fromEntries(
   Object.entries(ISO_NUM_TO_ISO2).map(([num, a2]) => [a2, num]),
 );
 
-// Camada ETF (exposição do portfólio): magnitude da alocação geográfica.
-// Escala SEQUENCIAL azul (0→1) — não há "bom/ruim", só magnitude de exposição.
+const fmtBRLk = (v: number) =>
+  `R$ ${v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(1) + "K" : v.toFixed(0)}`;
+
+// Camada ALOCAÇÃO (exposição DIRETA do portfólio): marca os países onde há
+// posição DIRETA (ações/ETFs detidos diretamente), NÃO o look-through de ETFs.
+// ADRs são creditados ao país de ORIGEM (TSM → Taiwan), via computeCountryAllocation.
+// Escala SEQUENCIAL azul (0→1) — só magnitude de exposição, sem "bom/ruim".
 export function buildExposureHeat(exposure: ExposureResponse | null): Map<string, HeatEntry> {
   const map = new Map<string, HeatEntry>();
   if (!exposure || exposure.exposure.length === 0) return map;
 
-  const maxPct = Math.max(...exposure.exposure.map(e => e.pct));
-  if (maxPct <= 0) return map;
+  // Só alocação DIRETA: ignora países que só aparecem via look-through de ETF.
+  const direct = exposure.exposure.filter((e) => (e.directBRL ?? 0) > 0);
+  if (direct.length === 0) return map;
 
-  // PISO de visibilidade: como um ETF global concentra ~50% nos EUA, uma escala
-  // 0→1 deixaria Japão/UK/China num azul quase igual ao fundo (= "sumiriam",
-  // mesmo tendo dinheiro lá). Todo país com QUALQUER exposição recebe no mínimo
-  // FLOOR de intensidade (azul claramente distinto do neutro) e cresce daí até 1
-  // no país de maior exposição. Assim o mapa mostra TODOS os países que você tem
-  // — igual aos pontos do mapa da página de ETF — com gradiente por tamanho.
+  const totalDirect = direct.reduce((s, e) => s + e.directBRL, 0);
+  const maxDirect = Math.max(...direct.map((e) => e.directBRL));
+  if (maxDirect <= 0) return map;
+
+  // PISO de visibilidade: todo país com QUALQUER alocação direta recebe no mínimo
+  // FLOOR de intensidade (azul distinto do neutro) e cresce até 1 no maior.
   const FLOOR = 0.32;
 
-  for (const entry of exposure.exposure) {
-    if (entry.pct <= 0) continue;
+  for (const entry of direct) {
     const isoNum = ISO2_TO_ISO_NUM[entry.iso2];
     if (!isoNum) continue;
     const country = ISO_NUM_TO_COUNTRY[isoNum] ?? entry.countryPT;
     const region = COUNTRY_REGION[country];
+    const pctDirect = totalDirect > 0 ? (entry.directBRL / totalDirect) * 100 : 0;
 
-    const sources: string[] = [];
-    if (entry.directBRL > 0) sources.push("direta");
-    if (entry.etfBRL > 0) sources.push("ETFs");
-    const via = sources.join(" + ");
+    // ADRs deste país (negociam nos EUA, origem aqui) — para a observação no tooltip.
+    const adrTickers = (entry.tickers ?? []).filter((t) => adrOriginCountry(t) === entry.iso2);
 
-    // sqrt abre o miolo; o piso garante que mesmo 0,3% fique visível.
-    const norm = Math.sqrt(entry.pct / maxPct);
+    const norm = Math.sqrt(entry.directBRL / maxDirect);
+    const adrNote = adrTickers.length > 0 ? ` · ADR ${adrTickers.join(", ")}` : "";
     map.set(isoNum, {
       intensity: FLOOR + (1 - FLOOR) * norm,
-      label: `${entry.pct.toFixed(entry.pct < 1 ? 2 : 1)}% do portfólio`,
-      valueText: `R$ ${entry.totalBRL >= 1e6 ? (entry.totalBRL / 1e6).toFixed(1) + "M" : entry.totalBRL >= 1e3 ? (entry.totalBRL / 1e3).toFixed(1) + "K" : entry.totalBRL.toFixed(0)} · ${via}`,
+      label: `${pctDirect.toFixed(pctDirect < 1 ? 2 : 1)}% · alocação direta`,
+      valueText: `${fmtBRLk(entry.directBRL)}${adrNote}`,
       positive: true,
       region,
       country,
       flag: "",
+      adrTickers: adrTickers.length > 0 ? adrTickers : undefined,
     });
   }
   return map;

@@ -359,6 +359,19 @@ function inferCountryFromTicker(ticker: string): string | null {
   return ADR_COUNTRY[clean] ?? null;
 }
 
+// País de ORIGEM de um ADR (ação estrangeira listada nos EUA sem sufixo Yahoo),
+// ou null se não for ADR conhecido. Ex: adrOriginCountry("TSM") → "TW".
+// Escalável: basta acrescentar o ticker em ADR_COUNTRY acima.
+export function adrOriginCountry(ticker: string): string | null {
+  const t = (ticker ?? "").toUpperCase().trim();
+  if (!t || t.includes(".")) return null;        // com sufixo não é ADR US-listed
+  return ADR_COUNTRY[t] ?? null;
+}
+
+export function isADRTicker(ticker: string): boolean {
+  return adrOriginCountry(ticker) !== null;
+}
+
 // ── Main: compute country allocation ─────────────────────────────────────────
 
 export async function computeCountryAllocation(

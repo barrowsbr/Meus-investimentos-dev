@@ -21,8 +21,12 @@ import {
   useInstability, useBrief, useCountryNews, useSignals,
   useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
-import type { RadarLayer, SelectedCountry, SymbolTarget } from "@/lib/radar/types";
-import { RadarMap } from "./RadarMap";
+import { usePortfolio } from "@/lib/hooks";
+import { isRendaVariavel } from "@/lib/sectors";
+import { buildExchangeAllocation } from "@/lib/radar/exchanges";
+import type { RadarLayer, SelectedCountry, SymbolTarget, ExposureMode } from "@/lib/radar/types";
+import { RadarMap, type ExchangeMarker } from "./RadarMap";
+import ExchangePanel from "./ExchangePanel";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
@@ -39,6 +43,10 @@ export default function RadarShell() {
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedCountry | null>(null);
   const [detailTarget, setDetailTarget] = useState<SymbolTarget | null>(null);
+  // Sub-modo da camada Alocação: por país (alocação direta) ou por bolsa (pins).
+  const [exposureMode, setExposureMode] = useState<ExposureMode>("alocacao");
+
+  const { data: portfolio } = usePortfolio();
 
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
@@ -64,6 +72,32 @@ export default function RadarShell() {
     if (layer === "etf") return buildExposureHeat(exposure);
     return new Map();
   }, [layer, markets, moedas, exposure]);
+
+  // ── Visão Bolsas: alocação por praça (fonte canônica = posições do snapshot) ──
+  const exchangeAlloc = useMemo(() => {
+    const rv = (portfolio?.positions ?? []).filter((p) => isRendaVariavel(p.setor) && p.valorAtualBRL > 0);
+    return buildExchangeAllocation(
+      rv.map((p) => ({ ticker: p.ticker, moeda: p.moeda, setor: p.setor, valorAtualBRL: p.valorAtualBRL })),
+    );
+  }, [portfolio]);
+
+  const markers = useMemo<ExchangeMarker[]>(() => {
+    // País com +1 bolsa → marca todas as praças daquele país como "multi".
+    const perCountry = new Map<string, number>();
+    for (const e of exchangeAlloc) perCountry.set(e.exchange.iso2, (perCountry.get(e.exchange.iso2) ?? 0) + 1);
+    return exchangeAlloc.map((e) => ({
+      code: e.exchange.code,
+      name: e.exchange.name,
+      city: e.exchange.city,
+      coords: e.exchange.coords,
+      brl: e.brl,
+      pct: e.pct,
+      count: e.tickers.length,
+      multi: (perCountry.get(e.exchange.iso2) ?? 0) > 1,
+    }));
+  }, [exchangeAlloc]);
+
+  const bolsasView = layer === "etf" && exposureMode === "bolsas";
 
   const regions = useMemo(() => {
     if (layer === "instabilidade") return Object.keys(REGION_COLORS).sort();
@@ -204,7 +238,7 @@ export default function RadarShell() {
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
           { key: "instabilidade" as const, label: "Risco", icon: Shield },
-          { key: "etf" as const, label: "ETF", icon: Layers },
+          { key: "etf" as const, label: "Alocação", icon: Layers },
         ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
@@ -222,6 +256,27 @@ export default function RadarShell() {
             </button>
           );
         })}
+        {layer === "etf" && (
+          <>
+            <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
+            {([
+              { id: "alocacao" as ExposureMode, label: "Alocação" },
+              { id: "bolsas" as ExposureMode, label: "Bolsas" },
+            ]).map(({ id, label }) => {
+              const on = exposureMode === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setExposureMode(id)}
+                  className="shrink-0 rounded-full px-3 py-2 text-[11px] font-medium"
+                  style={{ background: on ? "rgba(56,189,248,0.22)" : "rgba(255,255,255,0.08)", border: `1px solid ${on ? "rgba(56,189,248,0.5)" : "rgba(255,255,255,0.15)"}`, color: on ? "#fff" : "#a1a1aa" }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </>
+        )}
         <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
         {regions.map((r) => {
           const c = REGION_COLORS[r] ?? "#888";
@@ -249,6 +304,8 @@ export default function RadarShell() {
             regionFilter={regionFilter}
             setRegionFilter={setRegionFilter}
             markets={markets}
+            exposureMode={exposureMode}
+            setExposureMode={setExposureMode}
           />
           <div className="mt-3">
             <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
@@ -263,7 +320,9 @@ export default function RadarShell() {
             selectedIso={selected?.iso ?? null}
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}
+            markers={bolsasView ? markers : undefined}
           />
+          {bolsasView && <ExchangePanel allocation={exchangeAlloc} onPickCountry={selectByName} />}
           <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} onOpenSymbol={setDetailTarget} />
           {detailTarget && (
             <SymbolDetail target={detailTarget} dossierOpen={!!selected} onClose={() => setDetailTarget(null)} />

@@ -7,12 +7,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, ZoomableGroup, Marker } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { GEO_URL, intensityColor, etfIntensityColor } from "@/lib/world-map";
 import { type HeatEntry } from "@/lib/radar/geo";
 import { resolveCountryMeta } from "@/lib/radar/countries";
 import type { RadarLayer } from "@/lib/radar/types";
+
+export interface ExchangeMarker {
+  code: string;
+  name: string;
+  city: string;
+  coords: [number, number]; // [lng, lat]
+  brl: number;
+  pct: number;
+  count: number;     // nº de ativos nessa praça
+  multi: boolean;    // país tem +1 bolsa → realce visual
+}
 
 interface RadarMapProps {
   layer: RadarLayer;
@@ -20,9 +31,13 @@ interface RadarMapProps {
   selectedIso: string | null;
   regionFilter: string | null;
   onSelectCountry: (iso: string, name: string) => void;
+  markers?: ExchangeMarker[];
 }
 
 interface Tip { x: number; y: number; title: string; sub: string; value: string | null; positive: boolean }
+
+const fmtBRLk = (v: number) =>
+  `R$ ${v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(1) + "K" : v.toFixed(0)}`;
 
 const NEUTRAL = "#161a24";
 
@@ -35,8 +50,9 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
 };
 
 function RadarMapInner({
-  layer, heat, selectedIso, regionFilter, onSelectCountry,
+  layer, heat, selectedIso, regionFilter, onSelectCountry, markers,
 }: RadarMapProps) {
+  const maxMarkerBrl = markers && markers.length > 0 ? Math.max(...markers.map((m) => m.brl)) : 0;
   const [zoom, setZoom] = useState(1);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
   const [tip, setTip] = useState<Tip | null>(null);
@@ -151,6 +167,47 @@ function RadarMapInner({
               })
             }
           </Geographies>
+
+          {/* Pins de bolsas (visão Bolsas). Tamanho ∝ √alocação; contra-escala
+              pelo zoom para o pin não inflar ao aproximar. Praça em país com +1
+              bolsa ganha anel branco para deixar o multi-bolsa claro. */}
+          {markers?.map((m) => {
+            const norm = maxMarkerBrl > 0 ? Math.sqrt(m.brl / maxMarkerBrl) : 0.5;
+            const r = (5 + 11 * norm) / zoom;
+            return (
+              <Marker key={m.code} coordinates={m.coords}>
+                {m.multi && (
+                  <circle r={r + 2.5 / zoom} fill="none" stroke="#fff" strokeWidth={1.4 / zoom} opacity={0.9} />
+                )}
+                <circle
+                  r={r}
+                  fill="#38bdf8"
+                  fillOpacity={0.85}
+                  stroke="#0a0a0a"
+                  strokeWidth={1 / zoom}
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={(e: React.MouseEvent) =>
+                    setTip({
+                      x: e.clientX, y: e.clientY,
+                      title: `${m.name} · ${m.city}`,
+                      sub: `${m.count} ativo${m.count === 1 ? "" : "s"}${m.multi ? " · país com +1 bolsa" : ""}`,
+                      value: `${fmtBRLk(m.brl)} · ${m.pct.toFixed(1)}%`,
+                      positive: true,
+                    })
+                  }
+                  onMouseMove={(e: React.MouseEvent) => setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))}
+                  onMouseLeave={() => setTip(null)}
+                />
+                <text
+                  textAnchor="middle"
+                  y={-r - 3 / zoom}
+                  style={{ fontSize: 9 / zoom, fontWeight: 700, fill: "#e0f2fe", pointerEvents: "none" }}
+                >
+                  {m.name}
+                </text>
+              </Marker>
+            );
+          })}
         </ZoomableGroup>
       </ComposableMap>
 
