@@ -9,7 +9,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  ReferenceLine,
   ReferenceDot,
   Cell,
 } from "recharts";
@@ -224,6 +223,9 @@ interface CandleChartProps {
   corretora?: string;
   purchases: PurchaseMarker[];
   precoAtual?: number | null;
+  // Mostra a tabela "Compras marcadas no gráfico" abaixo do gráfico. Desligue
+  // quando o consumidor já exibe a lista de transações (evita duplicar as compras).
+  showPurchaseList?: boolean;
 }
 
 export default function CandleChart({
@@ -232,6 +234,7 @@ export default function CandleChart({
   corretora = "",
   purchases,
   precoAtual,
+  showPurchaseList = true,
 }: CandleChartProps) {
   const [range, setRange] = useState<RangeOption>("6mo");
   const [ohlcData, setOhlcData] = useState<CandleData[]>([]);
@@ -406,7 +409,7 @@ export default function CandleChart({
       </div>
 
       {/* Per-purchase return summary */}
-      {!loading && !error && mappedPurchases.length > 0 && (
+      {showPurchaseList && !loading && !error && mappedPurchases.length > 0 && (
         <div className="border-t border-zinc-800/50">
           <div className="px-3 sm:px-4 py-2 flex items-center gap-2 bg-zinc-900/30">
             <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/90">
