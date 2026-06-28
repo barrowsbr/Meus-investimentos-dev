@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { brandFor } from "@/lib/asset-brands";
 
 // Normaliza o ticker para o nome do arquivo de logo em /public/logos.
 // Ex: "PETR4.SA" → "PETR4", "tsm" → "TSM".
@@ -32,8 +31,8 @@ function initials(name: string, ticker: string): string {
 /**
  * Logo do ativo com cascata de fontes:
  *  1. Arquivo commitado em /public/logos/<SLUG>.png (prioritário — permanente/offline)
- *  2. Clearbit pelo domínio da marca (carrega no navegador) — cobre o que ainda
- *     não foi commitado, sem depender do sandbox.
+ *  2. Resolver /api/logo/<TICKER> — busca por ticker (Clearbit/FMP/logo.dev) e o
+ *     CDN cacheia por 1 ano. ESCALÁVEL: qualquer ativo novo resolve sozinho.
  *  3. Avatar de iniciais coloridas (sempre bonito, zero dependência).
  */
 export default function AssetLogo({
@@ -48,12 +47,11 @@ export default function AssetLogo({
   rounded?: string;
 }) {
   const slug = logoSlug(ticker);
-  const domain = brandFor(ticker)?.domain;
 
   // Cascata de URLs candidatas (em ordem).
   const sources = [
     slug ? `/logos/${slug}.png` : "",
-    domain ? `https://logo.clearbit.com/${domain}?size=128` : "",
+    ticker ? `/api/logo/${encodeURIComponent(ticker)}` : "",
   ].filter(Boolean);
 
   const [idx, setIdx] = useState(0);
