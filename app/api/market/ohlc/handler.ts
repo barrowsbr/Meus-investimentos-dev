@@ -10,8 +10,11 @@ function rangeToStartDate(range: string): string {
     case "1mo": d.setMonth(d.getMonth() - 1); break;
     case "3mo": d.setMonth(d.getMonth() - 3); break;
     case "6mo": d.setMonth(d.getMonth() - 6); break;
+    case "ytd": return `${d.getFullYear()}-01-01`;
     case "1y": d.setFullYear(d.getFullYear() - 1); break;
-    case "max": d.setFullYear(d.getFullYear() - 10); break;
+    case "2y": d.setFullYear(d.getFullYear() - 2); break;
+    case "5y": d.setFullYear(d.getFullYear() - 5); break;
+    case "max": d.setFullYear(d.getFullYear() - 20); break;
     default: d.setMonth(d.getMonth() - 6);
   }
   return d.toISOString().split("T")[0];
