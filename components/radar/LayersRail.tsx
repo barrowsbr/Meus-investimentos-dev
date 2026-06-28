@@ -6,15 +6,15 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, Shield, Layers, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers, TrendingUp, TrendingDown, Globe, Building2 } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
-import type { RadarLayer, BolsasResponse } from "@/lib/radar/types";
+import type { RadarLayer, BolsasResponse, ExposureMode } from "@/lib/radar/types";
 
 const LAYERS: { key: RadarLayer; label: string; sub: string; icon: typeof BarChart3 }[] = [
   { key: "mercados", label: "Mercados", sub: "Variação do índice local", icon: BarChart3 },
   { key: "cambio", label: "Câmbio", sub: "Força da moeda vs USD", icon: ArrowLeftRight },
   { key: "instabilidade", label: "Risco", sub: "Índice de instabilidade", icon: Shield },
-  { key: "etf", label: "ETF", sub: "Exposição geográfica do portfólio", icon: Layers },
+  { key: "etf", label: "Alocação", sub: "Países onde tenho alocação direta", icon: Layers },
 ];
 
 interface Props {
@@ -24,9 +24,11 @@ interface Props {
   regionFilter: string | null;
   setRegionFilter: (r: string | null) => void;
   markets: BolsasResponse | null;
+  exposureMode: ExposureMode;
+  setExposureMode: (m: ExposureMode) => void;
 }
 
-export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets }: Props) {
+export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets, exposureMode, setExposureMode }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* Camadas */}
@@ -54,6 +56,32 @@ export default function LayersRail({ layer, setLayer, regions, regionFilter, set
             );
           })}
         </div>
+
+        {/* Sub-filtro da camada Alocação: por país × por bolsa */}
+        {layer === "etf" && (
+          <div className="mt-2 flex gap-1.5 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {([
+              { id: "alocacao" as ExposureMode, label: "Alocação", icon: Globe },
+              { id: "bolsas" as ExposureMode, label: "Bolsas", icon: Building2 },
+            ]).map(({ id, label, icon: Icon }) => {
+              const on = exposureMode === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setExposureMode(id)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-all"
+                  style={{
+                    background: on ? "rgba(59,130,246,0.22)" : "transparent",
+                    border: `1px solid ${on ? "rgba(59,130,246,0.5)" : "transparent"}`,
+                    color: on ? "#fff" : "#a1a1aa",
+                  }}
+                >
+                  <Icon size={12} /> {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Filtro de região */}

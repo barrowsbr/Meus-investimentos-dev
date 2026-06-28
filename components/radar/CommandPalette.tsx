@@ -79,7 +79,7 @@ export default function CommandPalette({ onPickCountry, onSetLayer, onOpenSymbol
       { id: "layer-mercados", label: "Camada: Mercados", sublabel: "Variação dos índices locais", icon: BarChart3, action: () => onSetLayer("mercados"), category: "Camadas" },
       { id: "layer-cambio", label: "Camada: Câmbio", sublabel: "Força da moeda vs USD", icon: ArrowLeftRight, action: () => onSetLayer("cambio"), category: "Camadas" },
       { id: "layer-risco", label: "Camada: Risco", sublabel: "Índice de instabilidade", icon: Shield, action: () => onSetLayer("instabilidade"), category: "Camadas" },
-      { id: "layer-etf", label: "Camada: ETF", sublabel: "Exposição geográfica do portfólio", icon: Layers, action: () => onSetLayer("etf"), category: "Camadas" },
+      { id: "layer-etf", label: "Camada: Alocação", sublabel: "Países onde tenho alocação direta", icon: Layers, action: () => onSetLayer("etf"), category: "Camadas" },
     );
 
     // Country commands
