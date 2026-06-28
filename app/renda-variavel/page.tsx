@@ -182,8 +182,12 @@ export default function RendaVariavelPage() {
     return () => { alive = false; };
   }, []);
 
-  const handleNoteCount = (ticker: string, count: number) =>
+  // Memoizado: passado como prop ao modal. Sem isso, mudaria a cada render e
+  // dispararia o useEffect de carga do modal em loop infinito (travava a UI).
+  const handleNoteCount = React.useCallback((ticker: string, count: number) => {
     setNoteCounts((prev) => ({ ...prev, [ticker.toUpperCase()]: count }));
+  }, []);
+  const closeNotes = React.useCallback(() => setNotesTicker(null), []);
 
   const txByTicker = useMemo(() => {
     const map: Record<string, Transaction[]> = {};
@@ -706,7 +710,7 @@ export default function RendaVariavelPage() {
       {notesTicker && (
         <NotesModal
           ticker={notesTicker}
-          onClose={() => setNotesTicker(null)}
+          onClose={closeNotes}
           onCountChange={handleNoteCount}
         />
       )}
