@@ -209,12 +209,17 @@ export function makeCambioRow(p: {
 
 // Assinatura: YYYYMMDD | TICKER_sem_sufixo | I(mposto)/D(ividendo) | round(valor*100).
 // O tipo distingue dividendo e withholding de mesmo valor/dia/ticker.
-export function sigProvento(data: string, ticker: string, valor: number, decisao: string): string {
-  const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
+// Tipo do provento: imposto/withholding (I) × dividendo (D). Reconhece rótulos
+// PT e EN nos dois lados (planilha pode ter "Tax"/"Withholding" de imports antigos).
+function provTipo(decisao: string): "I" | "D" {
+  return /imposto|withhold|\btax\b|reten/.test((decisao ?? "").toLowerCase()) ? "I" : "D";
+}
+
+export function sigProvento(dataISO: string, ticker: string, valor: number, decisao: string): string {
+  const d = dataISO.replace(/-/g, "").slice(0, 8);
   const t = dedupTk(ticker);
   const v = Math.round(Math.abs(valor) * 100);
-  const tipo = decisao.toLowerCase().includes("imposto") ? "I" : "D";
-  return `${d}|${t}|${tipo}|${v}`;
+  return `${d}|${t}|${provTipo(decisao)}|${v}`;
 }
 
 export function dedupProventos(
@@ -225,16 +230,28 @@ export function dedupProventos(
 
   for (const row of existing) {
     const ticker = String(row["ticker"] ?? "");
-    const data = String(row["data"] ?? "");
+    const data = normalizeDate(String(row["data"] ?? ""));
     const valor = parseValor(String(row["valor"] ?? "0"));
     const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
-    existingKeys.add(sigProvento(data, ticker, valor, decisao));
+    if (!data) { existingKeys.add(sigProvento(data, ticker, valor, decisao)); continue; }
+    // Janela de ±2 dias: a data de report (IBKR) pode divergir da data de
+    // pagamento gravada na planilha (ex-date × pay-date × report-date). Sem isso,
+    // proventos legítimos apareciam todos como "faltantes".
+    try {
+      const base = new Date(data + "T12:00:00Z");
+      for (let off = -2; off <= 2; off++) {
+        const d = new Date(base.getTime() + off * 86400000).toISOString().slice(0, 10);
+        existingKeys.add(sigProvento(d, ticker, valor, decisao));
+      }
+    } catch {
+      existingKeys.add(sigProvento(data, ticker, valor, decisao));
+    }
   }
 
   const statuses = new Map<number, "novo" | "existente">();
   for (let i = 0; i < incoming.length; i++) {
     const ev = incoming[i];
-    const key = sigProvento(ev.data, ev.ticker, parseValor(ev.valor), ev.decisao);
+    const key = sigProvento(normalizeDate(ev.data), ev.ticker, parseValor(ev.valor), ev.decisao);
     statuses.set(i, existingKeys.has(key) ? "existente" : "novo");
   }
   return statuses;
