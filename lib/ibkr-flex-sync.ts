@@ -14,14 +14,19 @@ import {
   dedupTrades,
   dedupCambio,
   cambioRowsForSheet,
+  sigProvento,
+  normalizeDate,
+  dedupTk,
+  parseValor,
 } from "./broker-import";
 import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
 
 export async function runFlexSync(
-  opts: { mode?: string; dryRun?: boolean } = {},
+  opts: { mode?: string; dryRun?: boolean; debug?: boolean } = {},
 ): Promise<Record<string, unknown>> {
   const mode = opts.mode ?? "both";
   const dryRun = opts.dryRun ?? false;
+  const debug = opts.debug ?? false;
   const wantProv = ["proventos", "both"].includes(mode);
   const wantTrades = ["trades", "both"].includes(mode);
 
@@ -53,6 +58,42 @@ export async function runFlexSync(
     const st = dedupProventos(existing, proventos);
     const novos = proventos.filter((_, i) => st.get(i) === "novo");
     result.proventos = { total: proventos.length, faltantes: novos.length, preview: novos.slice(0, 300) };
+
+    // ── Diagnóstico (?debug=1): por que os proventos não casam? ──
+    if (debug) {
+      // Chaves existentes por ticker (sem sufixo) para enxergar os "near misses".
+      const existingByTk: Record<string, string[]> = {};
+      const existingSample = existing.slice(0, 8).map((row) => {
+        const data = normalizeDate(String(row["data"] ?? ""));
+        const ticker = String(row["ticker"] ?? "");
+        const valor = parseValor(String(row["valor"] ?? "0"));
+        const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
+        const tk = dedupTk(ticker);
+        const sig = sigProvento(data, ticker, valor, decisao);
+        (existingByTk[tk] ??= []).push(sig);
+        return { ticker, tk, data, valor, decisao, sig, headers: Object.keys(row) };
+      });
+      for (const row of existing) {
+        const tk = dedupTk(String(row["ticker"] ?? ""));
+        const sig = sigProvento(normalizeDate(String(row["data"] ?? "")), String(row["ticker"] ?? ""), parseValor(String(row["valor"] ?? "0")), String(row["decisao"] ?? row["lancamento"] ?? ""));
+        (existingByTk[tk] ??= []).push(sig);
+      }
+      const incomingSample = proventos.slice(0, 12).map((ev, i) => {
+        const tk = dedupTk(ev.ticker);
+        return {
+          ticker: ev.ticker, tk, data: ev.data, valor: ev.valor, decisao: ev.decisao,
+          sig: sigProvento(normalizeDate(ev.data), ev.ticker, parseValor(ev.valor), ev.decisao),
+          status: st.get(i),
+          existentesMesmoTicker: [...new Set(existingByTk[tk] ?? [])].slice(0, 6),
+        };
+      });
+      (result.proventos as Record<string, unknown>).debug = {
+        existingCount: existing.length,
+        existingHeaders: existing[0] ? Object.keys(existing[0]) : [],
+        existingSample,
+        incomingSample,
+      };
+    }
 
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_proventos").catch(() => {});

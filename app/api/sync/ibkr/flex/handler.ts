@@ -21,7 +21,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const sp = req.nextUrl.searchParams;
     const mode = sp.get("mode") ?? "both";
     const dryRun = sp.get("dry_run") === "true" || sp.get("dryRun") === "true";
-    return NextResponse.json(await runFlexSync({ mode, dryRun }));
+    const debug = sp.get("debug") === "1" || sp.get("debug") === "true";
+    // debug força dry-run (só leitura) para inspecionar sem gravar.
+    return NextResponse.json(await runFlexSync({ mode, dryRun: dryRun || debug, debug }));
   } catch (e) {
     return handleError(e);
   }
