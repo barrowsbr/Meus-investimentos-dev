@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle } from "lucide-react";
+import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
@@ -605,6 +605,121 @@ function NoticiasDestaques() {
   );
 }
 
+// ── IbkrDayStrip (faixa IBKR — retorno do dia em US$) ───────────────────────
+
+const IBKR_RED = "#d6001c";
+
+function compactUSD(v: number | null | undefined): string {
+  if (v == null) return "—";
+  const a = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (a >= 1e6) return `${sign}US$ ${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1e4) return `${sign}US$ ${(a / 1e3).toFixed(1)}k`;
+  return `${sign}US$ ${a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+const signedUSD = (v: number | null | undefined) => (v != null && v >= 0 ? "+" : "") + compactUSD(v);
+
+interface IbkrStripData {
+  meta: { accountId: string; toDate: string; usdbrl: number | null };
+  kpis: {
+    patrimonioUSD: number | null;
+    patrimonioBRL: number;
+    lucroDiaUSD: number | null;
+    lucroDiaBRL: number;
+    lucroDiaPct: number | null;
+    posicoes?: number;
+  };
+}
+
+// Faixa enxuta da Interactive Brokers: marca + retorno do dia em US$ (destaque),
+// com % e R$ de apoio + patrimônio de contexto. Lê /api/ibkr/overview de forma
+// assíncrona; enquanto não há dado (carregando, não configurado ou erro) NÃO
+// renderiza nada — nunca quebra a Home nem deixa espaço vazio.
+function IbkrDayStrip() {
+  const [data, setData] = useState<IbkrStripData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ibkr/overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && d.kpis) setData(d as IbkrStripData); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!data) return null;
+  const k = data.kpis;
+  const up = (k.lucroDiaUSD ?? k.lucroDiaBRL ?? 0) >= 0;
+  const dayColor = up ? "var(--pos)" : "var(--neg)";
+
+  return (
+    <Link
+      href="/ibkr"
+      className="group block mt-4 animate-fade-in animate-delay-1"
+      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${IBKR_RED}`, background: "var(--panel)" }}
+    >
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(214,0,28,0.10) 0%, transparent 42%)` }}
+      >
+        {/* Marca IBKR */}
+        <div className="flex items-center gap-3 min-w-0">
+          <Image
+            src="/midias/51q7eieUfKL.png"
+            alt="Interactive Brokers"
+            width={40}
+            height={40}
+            className="shrink-0 object-cover"
+            style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }}
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Interactive Brokers</span>
+              <span
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                style={{ background: "rgba(214,0,28,0.12)", color: IBKR_RED, fontSize: 9, fontWeight: 700 }}
+              >
+                <Wifi size={9} /> Flex
+              </span>
+            </div>
+            <p className="font-mono mt-0.5 truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+              Conta {data.meta.accountId || "—"}{data.meta.usdbrl ? ` · USD/BRL ${data.meta.usdbrl.toFixed(3)}` : ""}
+            </p>
+          </div>
+        </div>
+
+        {/* Retorno do dia em US$ (destaque) + patrimônio de contexto */}
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Retorno do dia
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
+              <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
+                {signedUSD(k.lucroDiaUSD)}
+              </span>
+            </div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
+              {k.lucroDiaPct != null ? `${pct(k.lucroDiaPct * 100)} · ` : ""}
+              {(k.lucroDiaBRL >= 0 ? "+" : "")}{compactBRL(k.lucroDiaBRL)}
+            </div>
+          </div>
+
+          {/* Patrimônio — contexto, oculto em telas pequenas */}
+          <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactUSD(k.patrimonioUSD)}</div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{compactBRL(k.patrimonioBRL)}</div>
+          </div>
+
+          <ChevronRight size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" style={{ color: "var(--faint)" }} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 interface IndexQuote {
@@ -799,6 +914,11 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* ── IBKR · Retorno do dia em US$ (entre métricas e ticker) ── */}
+        <ErrorBoundary fallback={null}>
+          <IbkrDayStrip />
+        </ErrorBoundary>
 
         {/* ── Row 2: Ticker Tape ── */}
         {!loading && tickerItems.length > 0 && (
