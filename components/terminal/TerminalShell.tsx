@@ -19,6 +19,24 @@ import StarwarsBackground from "./StarwarsBackground";
 
 const COLLAPSED_KEY = "rail-collapsed";
 
+// Hard refresh: além de bustar o cache de DADOS (bumpDataVersion via ?v=),
+// limpa o Cache Storage e desregistra service workers (PWA) para que o
+// app-shell / JS / CSS venham novos do servidor — evita ficar vendo versão
+// antiga após um deploy. Best-effort: qualquer falha não bloqueia o reload.
+async function hardReload(): Promise<void> {
+  try {
+    if (typeof caches !== "undefined") {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch { /* best-effort — segue pro reload de qualquer jeito */ }
+  window.location.reload();
+}
+
 export default function TerminalShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [railOpen, setRailOpen] = useState(false);
@@ -79,8 +97,9 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
       setPull((p) => {
         if (p >= THRESHOLD && !refreshing) {
           setRefreshing(true);
-          bumpDataVersion();
-          setTimeout(() => window.location.reload(), 450);
+          bumpDataVersion(); // busta o cache de DADOS do CDN (?v=)
+          // Hard refresh: limpa Cache Storage + service workers e recarrega.
+          setTimeout(() => { void hardReload(); }, 450);
           return THRESHOLD; // segura o spinner no lugar enquanto recarrega
         }
         return 0;
