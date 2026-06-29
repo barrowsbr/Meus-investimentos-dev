@@ -104,6 +104,8 @@ function PasswordSection() {
   const [senhaSet, setSenhaSet] = useState(false);
   const [protectedPages, setProtectedPages] = useState<string[]>([]);
   const [allProtected, setAllProtected] = useState(true);
+  const [loginEnabled, setLoginEnabled] = useState(true);
+  const [savingLogin, setSavingLogin] = useState(false);
 
   // Password change form
   const [currentPass, setCurrentPass] = useState("");
@@ -127,6 +129,7 @@ function PasswordSection() {
         const pp: string[] = data.protectedPages ?? [];
         setProtectedPages(pp);
         setAllProtected(pp.length === 0);
+        setLoginEnabled(data.loginEnabled ?? true);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -156,6 +159,24 @@ function PasswordSection() {
       setPassMsg({ ok: false, text: "Erro de conexão" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleLogin(next: boolean) {
+    setLoginEnabled(next);
+    setSavingLogin(true);
+    try {
+      await fetch(`${API_URL}/api/auth/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginEnabled: next }),
+      });
+      sessionStorage.setItem("mi_login_enabled", next ? "1" : "0");
+    } catch {
+      // reverte em caso de erro
+      setLoginEnabled(!next);
+    } finally {
+      setSavingLogin(false);
     }
   }
 
@@ -210,6 +231,46 @@ function PasswordSection() {
 
   return (
     <div className="space-y-6">
+      {/* ── Exigir login (página de login opcional) ── */}
+      <div>
+        <h3 className="flex items-center gap-2 text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">
+          <Lock size={13} /> Senha de Acesso
+        </h3>
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-200">Exigir senha para entrar</p>
+            <p className="text-xs text-zinc-500 leading-relaxed mt-0.5">
+              Quando <strong className="text-zinc-400">desligado</strong>, a página de login não aparece —
+              o app abre direto (a primeira senha do home deixa de ser pedida). Quando ligado, vale a
+              proteção por página abaixo.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            {savingLogin && <Loader2 size={13} className="animate-spin text-zinc-500" />}
+            <div
+              className={`w-10 h-5.5 rounded-full transition-colors relative ${loginEnabled ? "bg-emerald-500" : "bg-zinc-600"}`}
+              style={{ width: 40, height: 22 }}
+              onClick={() => !savingLogin && handleToggleLogin(!loginEnabled)}
+            >
+              <div
+                className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-all"
+                style={{ left: loginEnabled ? 20 : 2 }}
+              />
+            </div>
+            <span className={`text-xs font-mono font-bold ${loginEnabled ? "text-emerald-400" : "text-zinc-500"}`}>
+              {loginEnabled ? "ON" : "OFF"}
+            </span>
+          </label>
+        </div>
+        {!loginEnabled && (
+          <p className="text-[11px] text-amber-400/80 mt-2 flex items-center gap-1.5">
+            <ShieldCheck size={12} /> Login desativado — qualquer pessoa com o link acessa o dashboard.
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
       {/* ── Alterar Senha ── */}
       <div>
         <h3 className="flex items-center gap-2 text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">
@@ -297,7 +358,7 @@ function PasswordSection() {
 
         <p className="text-xs text-zinc-500 leading-relaxed mb-3">
           Escolha quais páginas exigem login. Páginas não selecionadas ficam acessíveis sem senha.
-          Com <strong className="text-zinc-400">"Todas"</strong> ativo, toda a aplicação exige autenticação.
+          Com <strong className="text-zinc-400">&quot;Todas&quot;</strong> ativo, toda a aplicação exige autenticação.
         </p>
 
         <div className="flex items-center gap-3 mb-4">
