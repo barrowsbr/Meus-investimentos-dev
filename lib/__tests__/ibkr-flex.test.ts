@@ -9,6 +9,8 @@ const SAMPLE = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
      <Trade currency="USD" symbol="AAPL" tradeDate="20260601" dateTime="20260601;101010" quantity="10" tradePrice="190.50" tradeMoney="1905.00" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-1906.00" buySell="BUY" assetCategory="STK" levelOfDetail="EXECUTION" />
      <Trade currency="USD" symbol="VOO" tradeDate="20260602" quantity="-5" tradePrice="500.00" tradeMoney="-2500.00" ibCommission="-1.00" netCash="2499.00" buySell="SELL" assetCategory="STK" levelOfDetail="EXECUTION" />
      <Trade currency="USD" symbol="AAPL" quantity="999" tradePrice="0" buySell="BUY" levelOfDetail="SYMBOL_SUMMARY" />
+     <Trade currency="CAD" symbol="USD.CAD" tradeDate="20260427" quantity="-398.92" tradePrice="1.36715" buySell="SELL" assetCategory="CASH" />
+     <Trade currency="CAD" symbol="USD.CAD" tradeDate="20260117" quantity="0.53336246" tradePrice="1.36867526" buySell="BUY" assetCategory="CASH" />
    </Trades>
    <CashTransactions>
      <CashTransaction type="Dividends" currency="USD" symbol="AAPL" amount="12.34" reportDate="20260610" description="AAPL CASH DIVIDEND" levelOfDetail="DETAIL" />
@@ -23,7 +25,18 @@ const SAMPLE = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
 </FlexQueryResponse>`;
 
 describe("parseFlexXml", () => {
-  const { trades, proventos, positions } = parseFlexXml(SAMPLE);
+  const { trades, proventos, positions, cambio } = parseFlexXml(SAMPLE);
+
+  it("roteia forex para câmbio e filtra micro-ajustes (<10)", () => {
+    // O SELL de 398.92 USD.CAD vira câmbio; o BUY de 0.53 (ajuste) é descartado.
+    expect(cambio).toHaveLength(1);
+    expect(cambio[0].moeda_origem).toBe("USD");
+    expect(cambio[0].moeda_destino).toBe("CAD");
+    expect(cambio[0].valor_origem).toBe("398,92");
+    expect(cambio[0].data).toBe("2026-04-27");
+    // E NÃO contamina as operações de ação.
+    expect(trades.every((t) => t.Símbolo !== "USD.CAD")).toBe(true);
+  });
 
   it("mapeia trades BUY/SELL e ignora linhas de Symbol Summary", () => {
     expect(trades).toHaveLength(2);

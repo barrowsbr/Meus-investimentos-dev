@@ -422,13 +422,22 @@ interface FlexProventoRow {
   valor: string;
   moeda: string;
 }
+interface FlexCambioRow {
+  data: string;
+  moeda_origem: string;
+  moeda_destino: string;
+  valor_origem: string;
+  valor_destino: string;
+  taxa: string;
+}
 interface FlexResult {
   error?: string;
   source?: string;
   dry_run?: boolean;
-  parsed?: { proventos: number; trades: number; positions: number };
+  parsed?: { proventos: number; trades: number; cambio?: number; positions: number };
   proventos?: { total: number; faltantes: number; inserted?: number; preview?: FlexProventoRow[] };
   trades?: { total: number; existing_count?: number; faltantes: number; potential_splits?: number; inserted?: number; preview?: FlexTradeRow[] };
+  cambio?: { total: number; faltantes: number; inserted?: number; preview?: FlexCambioRow[] };
 }
 
 function FlexSyncSection() {
@@ -454,10 +463,11 @@ function FlexSyncSection() {
     }
   }
 
-  const faltantes = (result?.proventos?.faltantes ?? 0) + (result?.trades?.faltantes ?? 0);
-  const inseridos = (result?.proventos?.inserted ?? 0) + (result?.trades?.inserted ?? 0);
+  const faltantes = (result?.proventos?.faltantes ?? 0) + (result?.trades?.faltantes ?? 0) + (result?.cambio?.faltantes ?? 0);
+  const inseridos = (result?.proventos?.inserted ?? 0) + (result?.trades?.inserted ?? 0) + (result?.cambio?.inserted ?? 0);
   const tradeRows = result?.trades?.preview ?? [];
   const provRows = result?.proventos?.preview ?? [];
+  const cambioRows = result?.cambio?.preview ?? [];
 
   return (
     <div className="space-y-4">
@@ -510,6 +520,8 @@ function FlexSyncSection() {
               <span className="text-zinc-600">·</span>
               <span className="text-zinc-300 font-semibold">{result.parsed?.proventos ?? 0} proventos</span>
               <span className="text-zinc-600">·</span>
+              <span className="text-zinc-300 font-semibold">{result.parsed?.cambio ?? 0} câmbios</span>
+              <span className="text-zinc-600">·</span>
               <span className="text-zinc-300 font-semibold">{result.parsed?.positions ?? 0} posições</span>
             </div>
           </div>
@@ -519,6 +531,8 @@ function FlexSyncSection() {
             <span className="text-emerald-400 font-semibold">{result.trades?.faltantes ?? 0} operações</span>
             <span className="text-zinc-600">·</span>
             <span className="text-emerald-400 font-semibold">{result.proventos?.faltantes ?? 0} proventos</span>
+            <span className="text-zinc-600">·</span>
+            <span className="text-emerald-400 font-semibold">{result.cambio?.faltantes ?? 0} câmbios</span>
             {(result.trades?.potential_splits ?? 0) > 0 && (
               <>
                 <span className="text-zinc-600">·</span>
@@ -548,7 +562,7 @@ function FlexSyncSection() {
                   </thead>
                   <tbody>
                     {tradeRows.map((t, i) => {
-                      const isSplit = t.status_match === "POTENTIAL_SPLIT";
+                      const isSplit = t.status_match === "split";
                       return (
                         <tr key={i} className="border-t border-zinc-800/60">
                           <td className="px-2 py-1 font-mono text-zinc-400">{t.Data}</td>
@@ -601,6 +615,39 @@ function FlexSyncSection() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tabela: câmbio a considerar */}
+          {cambioRows.length > 0 && (
+            <div>
+              <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">
+                Câmbio a considerar ({cambioRows.length})
+              </h4>
+              <div className="overflow-auto rounded-lg border border-zinc-800" style={{ maxHeight: 280 }}>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-zinc-900">
+                    <tr className="text-zinc-500">
+                      <th className="px-2 py-1.5 text-left font-semibold">Data</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">De → Para</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Origem</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Destino</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Taxa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cambioRows.map((c, i) => (
+                      <tr key={i} className="border-t border-zinc-800/60">
+                        <td className="px-2 py-1 font-mono text-zinc-400">{c.data}</td>
+                        <td className="px-2 py-1 text-zinc-300">{c.moeda_origem} → {c.moeda_destino}</td>
+                        <td className="px-2 py-1 text-right font-mono text-zinc-400">{c.valor_origem}</td>
+                        <td className="px-2 py-1 text-right font-mono text-zinc-400">{c.valor_destino}</td>
+                        <td className="px-2 py-1 text-right text-zinc-500">{c.taxa}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
