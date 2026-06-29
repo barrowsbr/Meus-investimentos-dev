@@ -82,6 +82,33 @@ function getTag(xml: string, tag: string): string | null {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+export interface FlexMeta {
+  accountId: string;
+  fromDate: string;
+  toDate: string;
+}
+
+/** Metadados do extrato (conta, período coberto). */
+export function parseFlexMeta(xml: string): FlexMeta {
+  const m = xml.match(/<FlexStatement\b([^>]*)>/);
+  const a = m ? parseAttrs(m[1]) : {};
+  return {
+    accountId: a.accountId ?? "",
+    fromDate: normalizeDate(a.fromDate ?? ""),
+    toDate: normalizeDate(a.toDate ?? ""),
+  };
+}
+
+// Cache em memória do XML — a geração do extrato leva ~10s; evita refetch a cada
+// abertura de página. TTL padrão 30 min (o extrato muda no máximo 1×/dia).
+let _flexCache: { at: number; xml: string } | null = null;
+export async function getFlexXmlCached(token: string, queryId: string, ttlMs = 1_800_000): Promise<string> {
+  if (_flexCache && Date.now() - _flexCache.at < ttlMs) return _flexCache.xml;
+  const xml = await fetchFlexStatement(token, queryId);
+  _flexCache = { at: Date.now(), xml };
+  return xml;
+}
+
 // ── Fetch (SendRequest → poll GetStatement) ────────────────────────────────────
 
 async function flexGet(url: string): Promise<string> {
