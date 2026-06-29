@@ -404,6 +404,143 @@ function PasswordSection() {
   );
 }
 
+// ── IBKR Flex Sync (API, sem arquivo) ───────────────────────────────────────
+
+interface FlexResult {
+  error?: string;
+  source?: string;
+  dry_run?: boolean;
+  parsed?: { proventos: number; trades: number; positions: number };
+  proventos?: { total: number; faltantes: number; inserted?: number };
+  trades?: { total: number; existing_count?: number; faltantes: number; potential_splits?: number; inserted?: number };
+}
+
+function FlexSyncSection() {
+  const [dryRun, setDryRun] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<FlexResult | null>(null);
+
+  async function run(forceApply = false) {
+    const simular = forceApply ? false : dryRun;
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch(`${API_URL}/api/sync/ibkr/flex?dry_run=${simular}`);
+      const data: FlexResult = await res.json();
+      setResult(data);
+      if (forceApply) setDryRun(false);
+      // Escrita real → invalida o CDN cache dos endpoints de leitura.
+      if (res.ok && !simular && !data.error) bumpDataVersion();
+    } catch (e) {
+      setResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const faltantes = (result?.proventos?.faltantes ?? 0) + (result?.trades?.faltantes ?? 0);
+  const inseridos = (result?.proventos?.inserted ?? 0) + (result?.trades?.inserted ?? 0);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-zinc-500 leading-relaxed">
+        Busca trades e proventos direto da <strong className="text-zinc-400">IBKR via Flex Web Service</strong> (sem precisar de arquivo).
+        Compara com a planilha e mostra o que falta — <strong className="text-zinc-400">idempotente</strong>, pode rodar quantas vezes quiser.
+        Roda sozinho todo dia (cron), mas use o botão para conferir/validar o fluxo manualmente.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${dryRun ? "bg-amber-500" : "bg-emerald-500"}`}
+            onClick={() => setDryRun(v => !v)}
+          >
+            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${dryRun ? "left-0.5" : "left-4"}`} />
+          </div>
+          <span className="text-xs text-zinc-400">{dryRun ? "Simular (não escreve)" : "Aplicar em produção"}</span>
+        </label>
+
+        <button
+          onClick={() => run()}
+          disabled={loading}
+          className="btn-primary text-sm px-4 py-2 disabled:opacity-40 ml-auto"
+        >
+          {loading
+            ? <><RefreshCw size={14} className="animate-spin inline mr-1" />Conferindo…</>
+            : <><RefreshCw size={14} className="inline mr-1" />{dryRun ? "Conferir IBKR" : "Sincronizar IBKR"}</>
+          }
+        </button>
+      </div>
+
+      {result?.error && (
+        <div className="rounded-xl p-4 text-sm bg-red-500/10 border border-red-500/20">
+          <p className="text-red-400 flex items-center gap-2"><XCircle size={15} />{result.error}</p>
+          {result.error.includes("não configurados") && (
+            <p className="text-xs text-zinc-500 mt-1">Defina <code className="bg-zinc-800 px-1 rounded">IBKR_FLEX_TOKEN</code> e <code className="bg-zinc-800 px-1 rounded">IBKR_FLEX_QUERY_ID</code> nas env vars.</p>
+          )}
+        </div>
+      )}
+
+      {result && !result.error && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-red-400 bg-red-500/10 border-red-500/20">IBKR · API</span>
+            {result.dry_run && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-amber-400 bg-amber-500/10 border-amber-500/20">Simulação</span>}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-zinc-500">Lidos:</span>
+              <span className="text-zinc-300 font-semibold">{result.parsed?.trades ?? 0} trades</span>
+              <span className="text-zinc-600">·</span>
+              <span className="text-zinc-300 font-semibold">{result.parsed?.proventos ?? 0} proventos</span>
+              <span className="text-zinc-600">·</span>
+              <span className="text-zinc-300 font-semibold">{result.parsed?.positions ?? 0} posições</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs flex-wrap">
+            <span className="text-zinc-500">Faltando na planilha:</span>
+            <span className="text-emerald-400 font-semibold">{result.trades?.faltantes ?? 0} operações</span>
+            <span className="text-zinc-600">·</span>
+            <span className="text-emerald-400 font-semibold">{result.proventos?.faltantes ?? 0} proventos</span>
+            {(result.trades?.potential_splits ?? 0) > 0 && (
+              <>
+                <span className="text-zinc-600">·</span>
+                <span className="text-amber-400 font-semibold">{result.trades?.potential_splits} possíveis splits</span>
+              </>
+            )}
+          </div>
+
+          {inseridos > 0 && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <CheckCircle2 size={14} />
+              <span>{result.trades?.inserted ?? 0} operações e {result.proventos?.inserted ?? 0} proventos inseridos na planilha</span>
+            </div>
+          )}
+
+          {result.dry_run && faltantes > 0 && (
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-amber-400 flex items-center gap-1">
+                <AlertCircle size={12} />
+                Simulação — nada foi escrito ainda.
+              </p>
+              <button
+                onClick={() => run(true)}
+                disabled={loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-40"
+              >
+                {loading ? "Aplicando…" : `Aplicar agora (${faltantes} novos)`}
+              </button>
+            </div>
+          )}
+
+          {result.dry_run && faltantes === 0 && (
+            <p className="text-xs text-emerald-500/80 flex items-center gap-1"><CheckCircle2 size={12} />Tudo já está na planilha — nada a inserir.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Unified Import Section ──────────────────────────────────────────────────
 
 const STATUS_COLORS = {
@@ -1254,6 +1391,10 @@ export default function ConfiguracoesPage() {
 
         <SectionCard title="Importar Dados (IBKR / B3)" icon={<Upload size={16} />}>
           <ImportSection />
+        </SectionCard>
+
+        <SectionCard title="Sincronizar IBKR (API · sem arquivo)" icon={<RefreshCw size={16} />}>
+          <FlexSyncSection />
         </SectionCard>
 
         <SectionCard title="Variáveis de Ambiente" icon={<Settings size={16} />}>
