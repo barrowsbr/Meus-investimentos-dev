@@ -101,14 +101,6 @@ function TickerTape({ items }: { items: TickerItem[] }) {
         className="w-full flex items-stretch overflow-hidden"
         style={{ height: 38, cursor: "pointer" }}
       >
-        <div className="shrink-0 flex items-center gap-1.5 px-3 border-r"
-          style={{ borderColor: "var(--line)", background: "rgba(232,163,61,0.06)" }}>
-          <span className="w-[5px] h-[5px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
-          <span className="text-[9px] font-extrabold tracking-[2px] whitespace-nowrap font-mono" style={{ color: "var(--accent)" }}>
-            {expanded ? "▼" : "▶"}
-          </span>
-        </div>
-
         <div className="flex-1 overflow-hidden flex items-center"
           style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
           <div
@@ -191,7 +183,6 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
         <div className="flex items-center gap-2">
-          <span className="w-[6px] h-[6px] rounded-full animate-pulse" style={{ background: "var(--pos)" }} />
           <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
             Radar do Dia · Destaques
           </span>

@@ -36,6 +36,7 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "financas": return import("@/app/api/financas/handler");
     case "health": return import("@/app/api/health/handler");
     case "hoje/comentario": return import("@/app/api/hoje/comentario/handler");
+    case "ibkr/overview": return import("@/app/api/ibkr/overview/handler");
     case "ir": return import("@/app/api/ir/handler");
     case "ir/agente": return import("@/app/api/ir/agente/handler");
     case "ir/chat": return import("@/app/api/ir/chat/handler");
@@ -62,6 +63,8 @@ async function loadHandler(path: string): Promise<Module | null> {
     case "sync/b3": return import("@/app/api/sync/b3/handler");
     case "sync/cotacoes": return import("@/app/api/sync/cotacoes/handler");
     case "sync/ibkr": return import("@/app/api/sync/ibkr/handler");
+    case "sync/ibkr/flex": return import("@/app/api/sync/ibkr/flex/handler");
+    case "sync/ibkr/reconcile": return import("@/app/api/sync/ibkr/reconcile/handler");
     case "sync/import": return import("@/app/api/sync/import/handler");
     case "twr/debug": return import("@/app/api/twr/debug/handler");
     case "twr/decomposicao": return import("@/app/api/twr/decomposicao/handler");

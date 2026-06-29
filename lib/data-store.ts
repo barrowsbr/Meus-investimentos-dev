@@ -22,6 +22,7 @@ export interface DataStore {
   fetchTab(tabName: string): Promise<Row[]>;
   writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void>;
   appendRows(tabName: string, rows: string[][]): Promise<void>;
+  updateCells(tabName: string, updates: { a1: string; value: string }[]): Promise<void>;
   ensureTab(tabName: string, headers: string[]): Promise<boolean>;
   syncHeaders(tabName: string, headers: string[]): Promise<void>;
 }
@@ -59,6 +60,10 @@ class GSheetsDataStore implements DataStore {
   async appendRows(tabName: string, rows: string[][]): Promise<void> {
     const { appendRows } = await import("./gsheets");
     return appendRows(tabName, rows);
+  }
+  async updateCells(tabName: string, updates: { a1: string; value: string }[]): Promise<void> {
+    const { updateCells } = await import("./gsheets");
+    return updateCells(tabName, updates);
   }
   async ensureTab(tabName: string, headers: string[]): Promise<boolean> {
     const { ensureTab } = await import("./gsheets");

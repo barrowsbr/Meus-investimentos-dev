@@ -70,6 +70,30 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
   });
 }
 
+// Atualiza células específicas (A1 relativo à aba) num único batch — para
+// correções pontuais sem reescrever a aba inteira. Faz backup antes.
+export async function updateCells(tabName: string, updates: { a1: string; value: string }[]): Promise<void> {
+  assertNotDemo();
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+  if (updates.length === 0) return;
+
+  try {
+    const { backupTab: doBackup } = await import("./backup");
+    await doBackup(tabName);
+  } catch { /* backup falhou — prossegue com a escrita */ }
+
+  const sheets = google.sheets({ version: "v4", auth });
+  const resolved = await resolveTabName(tabName);
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data: updates.map((u) => ({ range: `${resolved}!${u.a1}`, values: [[u.value]] })),
+    },
+  });
+}
+
 // Reescreve a linha 1 (cabeçalho) de uma aba existente. Necessário quando o
 // schema ganha colunas novas: ensureTab não toca em abas que já existem, e
 // fetchTab descarta colunas sem header — dados em colunas extras ficariam
