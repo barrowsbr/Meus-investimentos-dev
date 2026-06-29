@@ -103,7 +103,7 @@ function getVal(row: Row, ...keys: string[]): unknown {
 
 function getTipo(row: Row): string {
   const raw = String(
-    getVal(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo") ?? ""
+    getVal(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo", "operação", "operacao") ?? ""
   ).toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "");
   if (raw.includes("compra") || raw.includes("buy") || raw.includes("aporte") || raw.includes("entrada") || raw.includes("subscri")) return "Compra";
   if (raw.includes("venda") || raw.includes("sell") || raw.includes("resgate") || raw.includes("saida")) return "Venda";
@@ -112,7 +112,7 @@ function getTipo(row: Row): string {
 }
 
 function getTicker(row: Row): string {
-  return String(getVal(row, "símbolo", "simbolo", "ticker", "symbol") ?? "").toUpperCase().trim();
+  return String(getVal(row, "símbolo", "simbolo", "ticker", "symbol", "ativo", "papel") ?? "").toUpperCase().trim();
 }
 
 function getMoeda(row: Row): string {
