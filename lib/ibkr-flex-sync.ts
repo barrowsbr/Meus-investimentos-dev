@@ -21,8 +21,28 @@ import {
   normalizeTipo,
   dedupTk,
   parseValor,
+  pick,
 } from "./broker-import";
 import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
+
+// Maior data (ISO yyyy-mm-dd) já presente na aba — o "corte" do sync.
+// Comparação lexicográfica de yyyy-mm-dd == comparação cronológica.
+function maxExistingISO(rows: Record<string, unknown>[], aliases: string[]): string {
+  let max = "";
+  for (const row of rows) {
+    const iso = normalizeDate(pick(row, ...aliases));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && iso > max) max = iso;
+  }
+  return max;
+}
+
+// Filtro de segurança: só é "novo de verdade" se a data for ESTRITAMENTE
+// posterior ao último dado da aba. Garante que o histórico existente nunca é
+// reescrito/duplicado — só entra o que é genuinamente novo (data futura).
+function afterCutoff(rawDate: string, cutoff: string): boolean {
+  if (!cutoff) return true; // aba vazia → aceita tudo
+  return normalizeDate(rawDate) > cutoff;
+}
 
 export async function runFlexSync(
   opts: { mode?: string; dryRun?: boolean; debug?: boolean } = {},
@@ -59,8 +79,16 @@ export async function runFlexSync(
   if (wantProv && proventos.length > 0) {
     const existing = await store.fetchTab("meus_proventos");
     const st = dedupProventos(existing, proventos);
-    const novos = proventos.filter((_, i) => st.get(i) === "novo");
-    result.proventos = { total: proventos.length, faltantes: novos.length, preview: novos.slice(0, 300) };
+    const cutoff = maxExistingISO(existing, ["data", "date", "pagamento"]);
+    const novosDedup = proventos.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((p) => afterCutoff(p.data, cutoff));
+    result.proventos = {
+      total: proventos.length,
+      corte_data: cutoff,
+      faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
+      preview: novos.slice(0, 300),
+    };
 
     // ── Diagnóstico (?debug=1): por que os proventos não casam? ──
     if (debug) {
@@ -113,7 +141,9 @@ export async function runFlexSync(
   if (wantTrades && trades.length > 0) {
     const existing = await store.fetchTab("meus_ativos");
     const st = dedupTrades(existing, trades);
-    const novos = trades.filter((_, i) => st.get(i) === "novo");
+    const cutoff = maxExistingISO(existing, ["data", "date"]);
+    const novosDedup = trades.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((t) => afterCutoff(t.Data, cutoff));
     const splits = trades.filter((_, i) => st.get(i) === "split");
     const preview = trades
       .map((t, i) => ({ ...t, status_match: st.get(i) }))
@@ -123,7 +153,9 @@ export async function runFlexSync(
     result.trades = {
       total: trades.length,
       existing_count: existing.length,
+      corte_data: cutoff,
       faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
       potential_splits: splits.length,
       preview,
     };
@@ -161,8 +193,16 @@ export async function runFlexSync(
   if (wantTrades && cambio.length > 0) {
     const existing = await store.fetchTab("cambio");
     const st = dedupCambio(existing, cambio);
-    const novos = cambio.filter((_, i) => st.get(i) === "novo");
-    result.cambio = { total: cambio.length, faltantes: novos.length, preview: novos.slice(0, 300) };
+    const cutoff = maxExistingISO(existing, ["data", "date"]);
+    const novosDedup = cambio.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((c) => afterCutoff(c.data, cutoff));
+    result.cambio = {
+      total: cambio.length,
+      corte_data: cutoff,
+      faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
+      preview: novos.slice(0, 300),
+    };
 
     if (!dryRun && novos.length > 0) {
       await backupTab("cambio").catch(() => {});
