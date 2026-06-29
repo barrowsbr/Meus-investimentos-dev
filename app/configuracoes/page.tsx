@@ -440,6 +440,14 @@ interface FlexResult {
   cambio?: { total: number; faltantes: number; inserted?: number; preview?: FlexCambioRow[] };
 }
 
+interface ReconResult {
+  error?: string;
+  dry_run?: boolean;
+  divergencias: number;
+  corrigidas?: number;
+  detalhes: Array<{ ticker: string; data: string; tipo: string; de: string; para: string }>;
+}
+
 function FlexSyncSection() {
   const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -460,6 +468,24 @@ function FlexSyncSection() {
       setResult({ error: e instanceof Error ? e.message : "Erro de conexão" });
     } finally {
       setLoading(false);
+    }
+  }
+
+  const [reconLoading, setReconLoading] = useState(false);
+  const [recon, setRecon] = useState<ReconResult | null>(null);
+
+  async function reconcile(apply = false) {
+    setReconLoading(true);
+    setRecon(null);
+    try {
+      const res = await fetch(`${API_URL}/api/sync/ibkr/reconcile?dry_run=${!apply}`);
+      const data: ReconResult = await res.json();
+      setRecon(data);
+      if (apply && res.ok && !data.error) bumpDataVersion();
+    } catch (e) {
+      setRecon({ error: e instanceof Error ? e.message : "Erro de conexão", divergencias: 0, detalhes: [] });
+    } finally {
+      setReconLoading(false);
     }
   }
 
@@ -687,6 +713,68 @@ function FlexSyncSection() {
           )}
         </div>
       )}
+
+      {/* Reconciliação de valores divergentes (manual, fora do cron) */}
+      <div className="pt-3" style={{ borderTop: "1px solid var(--line)" }}>
+        <p className="text-xs text-zinc-500 leading-relaxed mb-2">
+          <strong className="text-zinc-400">Reconciliar valores:</strong> quando a IBKR revisa um provento/imposto que já está na planilha (mesma data+ticker+tipo), corrige a planilha com o valor da IBKR (preserva o sinal; faz backup). Verifique antes de aplicar.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => reconcile(false)}
+            disabled={reconLoading}
+            className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-40"
+            style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+          >
+            {reconLoading ? "Verificando…" : "Verificar valores divergentes"}
+          </button>
+          {recon && !recon.error && recon.dry_run && recon.divergencias > 0 && (
+            <button
+              onClick={() => reconcile(true)}
+              disabled={reconLoading}
+              className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/25 hover:bg-amber-500/25 transition-all disabled:opacity-40"
+            >
+              {reconLoading ? "Corrigindo…" : `Corrigir ${recon.divergencias} valores`}
+            </button>
+          )}
+        </div>
+
+        {recon?.error && (
+          <p className="text-xs text-red-400 mt-2 flex items-center gap-1"><XCircle size={12} />{recon.error}</p>
+        )}
+        {recon && !recon.error && (recon.corrigidas ?? 0) > 0 && (
+          <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1"><CheckCircle2 size={12} />{recon.corrigidas} valores corrigidos na planilha.</p>
+        )}
+        {recon && !recon.error && recon.dry_run && recon.divergencias === 0 && (
+          <p className="text-xs text-emerald-500/80 mt-2 flex items-center gap-1"><CheckCircle2 size={12} />Nenhuma divergência — a planilha bate com a IBKR.</p>
+        )}
+        {recon && !recon.error && recon.dry_run && recon.divergencias > 0 && (
+          <div className="mt-2 overflow-auto rounded-lg border border-zinc-800" style={{ maxHeight: 280 }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-zinc-900">
+                <tr className="text-zinc-500">
+                  <th className="px-2 py-1.5 text-left font-semibold">Data</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Ticker</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Tipo</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">Planilha</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">→ IBKR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recon.detalhes.map((d, i) => (
+                  <tr key={i} className="border-t border-zinc-800/60">
+                    <td className="px-2 py-1 font-mono text-zinc-400">{d.data}</td>
+                    <td className="px-2 py-1 text-zinc-300">{d.ticker}</td>
+                    <td className={`px-2 py-1 font-semibold ${d.tipo === "Imposto" ? "text-red-400" : "text-emerald-400"}`}>{d.tipo}</td>
+                    <td className="px-2 py-1 text-right font-mono text-zinc-500">{d.de}</td>
+                    <td className="px-2 py-1 text-right font-mono text-amber-300">{d.para}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
