@@ -18,6 +18,7 @@ import {
   tradeRowsForSheet,
   sigProvento,
   normalizeDate,
+  normalizeTipo,
   dedupTk,
   parseValor,
 } from "./broker-import";
@@ -126,6 +127,26 @@ export async function runFlexSync(
       potential_splits: splits.length,
       preview,
     };
+
+    // ── Diagnóstico de trades (?debug=1) ──
+    if (debug) {
+      const readTrade = (row: Record<string, unknown>) => ({
+        ticker: dedupTk(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "")),
+        tipo: normalizeTipo(String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? "")),
+        qty: parseValor(String(row["quantidade"] ?? "0")),
+        preco: parseValor(String(row["preço"] ?? row["preco"] ?? row["precio"] ?? "0")),
+      });
+      (result.trades as Record<string, unknown>).debug = {
+        existingCount: existing.length,
+        existingHeaders: existing[0] ? Object.keys(existing[0]) : [],
+        existingSample: existing.slice(0, 6).map((r) => ({ ...readTrade(r), headers: Object.keys(r) })),
+        incomingSample: trades.slice(0, 8).map((t, i) => ({
+          ticker: dedupTk(t.Símbolo), tipo: normalizeTipo(t["Tipo de transação"]),
+          qty: parseValor(t.Quantidade), preco: parseValor(t.Preço),
+          status: st.get(i),
+        })),
+      };
+    }
 
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_ativos").catch(() => {});
