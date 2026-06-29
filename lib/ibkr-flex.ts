@@ -39,6 +39,7 @@ export interface FlexParsed {
   trades: TradeRow[];
   cambio: CambioRow[];
   positions: IbkrPosition[];
+  proventosDupsRemoved: number;
 }
 
 // ── XML helpers (formato Flex é plano: elementos auto-fechados com atributos) ──
@@ -222,5 +223,18 @@ export function parseFlexXml(xml: string): FlexParsed {
     });
   }
 
-  return { proventos, trades, cambio, positions };
+  // A seção Cash Transactions da Flex pode emitir cada lançamento 2× (bit-idêntico)
+  // — colapsa as duplicatas. Pares dividendo+imposto NÃO são duplicata (decisao/
+  // valor diferentes), então são preservados.
+  const seenProv = new Set<string>();
+  let proventosDupsRemoved = 0;
+  const proventosUnique: ProventoRow[] = [];
+  for (const p of proventos) {
+    const k = `${p.data}|${p.ticker}|${p.decisao}|${p.valor}|${p.moeda}`;
+    if (seenProv.has(k)) { proventosDupsRemoved++; continue; }
+    seenProv.add(k);
+    proventosUnique.push(p);
+  }
+
+  return { proventos: proventosUnique, trades, cambio, positions, proventosDupsRemoved };
 }

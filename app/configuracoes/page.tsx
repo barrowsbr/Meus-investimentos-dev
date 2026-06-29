@@ -434,7 +434,7 @@ interface FlexResult {
   error?: string;
   source?: string;
   dry_run?: boolean;
-  parsed?: { proventos: number; trades: number; cambio?: number; positions: number };
+  parsed?: { proventos: number; trades: number; cambio?: number; positions: number; proventos_duplicados_removidos?: number };
   proventos?: { total: number; faltantes: number; inserted?: number; preview?: FlexProventoRow[] };
   trades?: { total: number; existing_count?: number; faltantes: number; potential_splits?: number; inserted?: number; preview?: FlexTradeRow[] };
   cambio?: { total: number; faltantes: number; inserted?: number; preview?: FlexCambioRow[] };
@@ -524,6 +524,11 @@ function FlexSyncSection() {
               <span className="text-zinc-600">·</span>
               <span className="text-zinc-300 font-semibold">{result.parsed?.positions ?? 0} posições</span>
             </div>
+            {(result.parsed?.proventos_duplicados_removidos ?? 0) > 0 && (
+              <span className="text-[10px] text-amber-400/80" title="A query Flex da IBKR emitiu cada lançamento em dobro; as cópias idênticas foram ignoradas.">
+                {result.parsed?.proventos_duplicados_removidos} duplicatas da IBKR ignoradas
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 text-xs flex-wrap">

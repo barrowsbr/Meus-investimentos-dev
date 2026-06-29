@@ -32,13 +32,19 @@ export async function runFlexSync(
   }
 
   const xml = await fetchFlexStatement(token, queryId);
-  const { proventos, trades, cambio, positions } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, proventosDupsRemoved } = parseFlexXml(xml);
 
   const store = getDataStore();
   const result: Record<string, unknown> = {
     source: "flex",
     dry_run: dryRun,
-    parsed: { proventos: proventos.length, trades: trades.length, cambio: cambio.length, positions: positions.length },
+    parsed: {
+      proventos: proventos.length,
+      trades: trades.length,
+      cambio: cambio.length,
+      positions: positions.length,
+      proventos_duplicados_removidos: proventosDupsRemoved,
+    },
   };
 
   // ── Proventos → meus_proventos ──

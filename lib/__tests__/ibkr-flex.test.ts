@@ -14,6 +14,7 @@ const SAMPLE = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
    </Trades>
    <CashTransactions>
      <CashTransaction type="Dividends" currency="USD" symbol="AAPL" amount="12.34" reportDate="20260610" description="AAPL CASH DIVIDEND" levelOfDetail="DETAIL" />
+     <CashTransaction type="Dividends" currency="USD" symbol="AAPL" amount="12.34" reportDate="20260610" description="AAPL CASH DIVIDEND" levelOfDetail="DETAIL" />
      <CashTransaction type="Withholding Tax" currency="USD" symbol="AAPL" amount="-1.85" reportDate="20260610" description="AAPL WHT" levelOfDetail="DETAIL" />
      <CashTransaction type="Broker Interest Received" currency="USD" symbol="" amount="0.50" reportDate="20260611" levelOfDetail="DETAIL" />
    </CashTransactions>
@@ -25,7 +26,12 @@ const SAMPLE = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
 </FlexQueryResponse>`;
 
 describe("parseFlexXml", () => {
-  const { trades, proventos, positions, cambio } = parseFlexXml(SAMPLE);
+  const { trades, proventos, positions, cambio, proventosDupsRemoved } = parseFlexXml(SAMPLE);
+
+  it("colapsa proventos duplicados bit-idênticos (artefato da Flex)", () => {
+    expect(proventosDupsRemoved).toBe(1); // o 2º dividendo AAPL idêntico é removido
+    expect(proventos.filter((p) => p.ticker === "AAPL" && p.decisao === "Dividendo")).toHaveLength(1);
+  });
 
   it("roteia forex para câmbio e filtra micro-ajustes (<10)", () => {
     // O SELL de 398.92 USD.CAD vira câmbio; o BUY de 0.53 (ajuste) é descartado.
