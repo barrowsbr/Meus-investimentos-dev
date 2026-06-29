@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Loader2, Wifi, AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { pct, currency } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
@@ -37,9 +38,15 @@ function IbkrHero({ data }: { data: IbkrOverview }) {
       <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "radial-gradient(circle at 85% 20%, #fff 0, transparent 45%)" }} />
       <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center shrink-0" style={{ width: 64, height: 64, background: "#fff", borderRadius: 14, boxShadow: "0 4px 18px rgba(0,0,0,.35)" }}>
-            <span style={{ color: IBKR_RED, fontWeight: 900, fontSize: 22, letterSpacing: "-1px", fontFamily: "system-ui, sans-serif" }}>IBKR</span>
-          </div>
+          <Image
+            src="/midias/51q7eieUfKL.png"
+            alt="Interactive Brokers"
+            width={64}
+            height={64}
+            priority
+            className="shrink-0 object-cover"
+            style={{ borderRadius: 14, boxShadow: "0 4px 18px rgba(0,0,0,.35)" }}
+          />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-white" style={{ fontSize: 22, letterSpacing: "-.01em" }}>Interactive Brokers</span>
