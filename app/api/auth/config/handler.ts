@@ -23,6 +23,8 @@ export async function GET() {
     let usuario = "";
     let senhaSet = false;
     let protectedPages: string[] = [];
+    // Interruptor mestre do login. Ausente = ON (preserva o comportamento atual).
+    let loginEnabled = true;
 
     for (const r of rows) {
       const k = key(r);
@@ -32,9 +34,13 @@ export async function GET() {
         const raw = val(r);
         protectedPages = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
       }
+      if (k === "exigir_login" || k === "login_habilitado" || k === "require_login") {
+        const v = val(r).toLowerCase();
+        loginEnabled = !(v === "0" || v === "false" || v === "nao" || v === "não" || v === "off");
+      }
     }
 
-    return NextResponse.json({ usuario, senhaSet, protectedPages });
+    return NextResponse.json({ usuario, senhaSet, protectedPages, loginEnabled });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
@@ -45,10 +51,11 @@ export async function POST(req: NextRequest) {
   try {
     const store = getDataStore();
     const body = await req.json();
-    const { currentPassword, newPassword, protectedPages } = body as {
+    const { currentPassword, newPassword, protectedPages, loginEnabled } = body as {
       currentPassword?: string;
       newPassword?: string;
       protectedPages?: string[];
+      loginEnabled?: boolean;
     };
 
     await store.ensureTab(TAB, HEADERS);
@@ -85,6 +92,11 @@ export async function POST(req: NextRequest) {
       } else {
         configMap.set("paginas_protegidas", protectedPages.join(","));
       }
+    }
+
+    // Interruptor mestre do login (página de login opcional).
+    if (loginEnabled !== undefined) {
+      configMap.set("exigir_login", loginEnabled ? "1" : "0");
     }
 
     // Write back to sheet.

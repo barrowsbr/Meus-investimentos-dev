@@ -12,6 +12,7 @@ const AUTH_KEY = "mi_auth";
 const COTACOES_KEY = "mi_cotacoes_sync";
 const DEMO_KEY = "mi_demo";
 const PROTECTED_PAGES_KEY = "mi_protected_pages";
+const LOGIN_ENABLED_KEY = "mi_login_enabled";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -23,6 +24,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [protectedPages, setProtectedPages] = useState<string[] | null>(null);
+  const [loginEnabled, setLoginEnabled] = useState(true);
   const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
@@ -33,11 +35,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         setProtectedPages(JSON.parse(stored));
         setConfigLoaded(true);
       }
+      const le = sessionStorage.getItem(LOGIN_ENABLED_KEY);
+      if (le !== null) setLoginEnabled(le !== "0");
     } catch { /* ignore */ }
     setMounted(true);
   }, []);
 
-  // Fetch protected pages config once on mount — authoritative source.
+  // Fetch auth config once on mount — authoritative source.
   useEffect(() => {
     fetch("/api/auth/config")
       .then(r => r.json())
@@ -45,6 +49,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         if (Array.isArray(data.protectedPages)) {
           setProtectedPages(data.protectedPages);
           sessionStorage.setItem(PROTECTED_PAGES_KEY, JSON.stringify(data.protectedPages));
+        }
+        if (typeof data.loginEnabled === "boolean") {
+          setLoginEnabled(data.loginEnabled);
+          sessionStorage.setItem(LOGIN_ENABLED_KEY, data.loginEnabled ? "1" : "0");
         }
       })
       .catch(() => {})
@@ -103,6 +111,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   // If protected pages list is configured (non-empty), only those pages require auth.
   // Empty list or null = ALL pages require auth (default behavior).
   const needsAuth = (() => {
+    // Interruptor mestre: login desligado → nada exige senha (login opcional).
+    if (!loginEnabled) return false;
     if (!protectedPages || protectedPages.length === 0) return true;
     return protectedPages.some(p => {
       if (p === "/") return pathname === "/";
