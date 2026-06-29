@@ -18,6 +18,8 @@ import {
   dedupTrades,
   dedupCambio,
   cambioRowsForSheet,
+  proventoRowsForSheet,
+  tradeRowsForSheet,
 } from "@/lib/broker-import";
 
 export const dynamic = "force-dynamic";
@@ -774,8 +776,10 @@ async function buildResponse(
     }
 
     if (novosProventos.length > 0) {
-      const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
-      const rows = novosProventos.map(e => COLS.map(c => (e as unknown as Record<string, string>)[c] ?? ""));
+      // Header-aware: grava por NOME de coluna (não por posição) — senão a data
+      // cai em "lançamento" e o Sheets a converte em serial.
+      const headers = existingProventos.length > 0 ? Object.keys(existingProventos[0]) : [];
+      const rows = proventoRowsForSheet(headers, novosProventos);
       try {
         await store.appendRows("meus_proventos", rows);
         insertedProventos = novosProventos.length;
@@ -785,8 +789,8 @@ async function buildResponse(
     }
 
     if (novosTrades.length > 0) {
-      const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
-      const rows = novosTrades.map(t => COLS.map(c => (t as unknown as Record<string, string>)[c] ?? ""));
+      const headers = existingTrades.length > 0 ? Object.keys(existingTrades[0]) : [];
+      const rows = tradeRowsForSheet(headers, novosTrades);
       try {
         await store.appendRows("meus_ativos", rows);
         insertedTrades = novosTrades.length;

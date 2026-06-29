@@ -481,3 +481,57 @@ export function cambioRowsForSheet(sheetHeaders: string[], cambio: CambioRow[]):
   const mappers = headers.map(h => resolveField(h));
   return cambio.map(c => mappers.map(fn => fn ? fn(c) : ""));
 }
+
+// Resolve um campo por NOME de coluna (exact → sem _/espaço), ignorando ordem.
+function resolveBy<T>(map: Record<string, (x: T) => string>, header: string): ((x: T) => string) | null {
+  const h = header.toLowerCase().trim();
+  if (map[h]) return map[h];
+  const norm = h.replace(/[_\s]/g, "");
+  for (const [k, fn] of Object.entries(map)) {
+    if (k.replace(/[_\s]/g, "") === norm) return fn;
+  }
+  return null;
+}
+
+// Proventos → linhas na ORDEM REAL das colunas da aba (evita o write posicional
+// desalinhar quando a planilha tem outra ordem — bug que jogava a data na coluna
+// de "lançamento" e o Sheets a convertia em serial).
+export function proventoRowsForSheet(sheetHeaders: string[], proventos: ProventoRow[]): string[][] {
+  const FIELD_MAP: Record<string, (p: ProventoRow) => string> = {
+    ticker: p => p.ticker, simbolo: p => p.ticker, "símbolo": p => p.ticker, symbol: p => p.ticker,
+    data: p => p.data, date: p => p.data, pagamento: p => p.data,
+    decisao: p => p.decisao, "decisão": p => p.decisao,
+    mes: p => p.mes, "mês": p => p.mes,
+    ano: p => p.ano, year: p => p.ano,
+    lancamento: p => p.lancamento, "lançamento": p => p.lancamento,
+    categoria: p => p.categoria,
+    valor: p => p.valor, value: p => p.valor,
+    moeda: p => p.moeda, currency: p => p.moeda,
+  };
+  const headers = sheetHeaders.length > 0
+    ? sheetHeaders
+    : ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
+  const mappers = headers.map(h => resolveBy(FIELD_MAP, h));
+  return proventos.map(p => mappers.map(fn => fn ? fn(p) : ""));
+}
+
+// Trades → linhas na ORDEM REAL das colunas de meus_ativos.
+export function tradeRowsForSheet(sheetHeaders: string[], trades: TradeRow[]): string[][] {
+  const FIELD_MAP: Record<string, (t: TradeRow) => string> = {
+    data: t => t.Data, date: t => t.Data,
+    "tipo de transação": t => t["Tipo de transação"], "tipo de transacao": t => t["Tipo de transação"], tipo: t => t["Tipo de transação"],
+    "símbolo": t => t.Símbolo, simbolo: t => t.Símbolo, ticker: t => t.Símbolo, symbol: t => t.Símbolo,
+    quantidade: t => t.Quantidade, qtd: t => t.Quantidade,
+    "preço": t => t.Preço, preco: t => t.Preço, price: t => t.Preço,
+    "valor bruto": t => t["Valor bruto"],
+    "taxa de corretagem": t => t["Taxa de corretagem"], corretagem: t => t["Taxa de corretagem"],
+    "valor líquido": t => t["Valor líquido"], "valor liquido": t => t["Valor líquido"],
+    moeda: t => t.Moeda, currency: t => t.Moeda,
+    corretora: t => t.Corretora, broker: t => t.Corretora,
+  };
+  const headers = sheetHeaders.length > 0
+    ? sheetHeaders
+    : ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
+  const mappers = headers.map(h => resolveBy(FIELD_MAP, h));
+  return trades.map(t => mappers.map(fn => fn ? fn(t) : ""));
+}
