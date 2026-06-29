@@ -9,6 +9,7 @@ import { displayName } from "@/lib/asset-brands";
 import { yahooTicker } from "@/lib/yahoo-symbol";
 import AssetLogo from "@/components/AssetLogo";
 import CandleChart from "@/components/CandleChart";
+import AssetNews from "@/components/AssetNews";
 
 export interface AssetTx {
   data: string;
@@ -296,6 +297,9 @@ export default function AssetDetailModal({
               </table>
             </div>
           )}
+
+          {/* Notícias relacionadas ao ativo — imagens preferenciais (estilo Home) */}
+          <AssetNews ticker={p.ticker} nome={displayName(p.ticker)} moeda={p.moeda} />
         </div>
       </div>
     </div>,
