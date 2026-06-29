@@ -94,6 +94,25 @@ export function dedupTk(t: string): string {
   return normalizeTicker(t).replace(/\.[A-Z]{1,2}$/i, "");
 }
 
+// Normaliza um nome de coluna: minúsculo, sem acento, sem _/espaço.
+function normHeader(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[_\s]/g, "").trim();
+}
+
+// Getter FUZZY de coluna: casa o header por nome normalizado (ignora caixa,
+// acento, underscore e espaço). Robusto a variações de schema da planilha —
+// "Símbolo", "simbolo", "Ticker", "ativo" caem todos no mesmo lugar.
+export function pick(row: Record<string, unknown>, ...aliases: string[]): string {
+  const want = new Set(aliases.map(normHeader));
+  for (const k of Object.keys(row)) {
+    if (want.has(normHeader(k))) {
+      const v = row[k];
+      if (v !== undefined && v !== null && v !== "") return String(v);
+    }
+  }
+  return "";
+}
+
 export function parseValor(v: string | number): number {
   if (typeof v === "number") return v;
   const s = String(v).trim();
@@ -229,11 +248,11 @@ export function dedupProventos(
   const existingKeys = new Set<string>();
 
   for (const row of existing) {
-    const ticker = String(row["ticker"] ?? "");
-    const data = normalizeDate(String(row["data"] ?? ""));
-    const valor = parseValor(String(row["valor"] ?? "0"));
-    // Tipo: a planilha pode usar "decisao", "lancamento" OU "tipo" como coluna.
-    const decisao = String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? "");
+    // Leitura FUZZY — robusta a qualquer nome de coluna (Símbolo/Ticker/Ativo, etc.).
+    const ticker = pick(row, "ticker", "símbolo", "simbolo", "symbol", "ativo", "papel");
+    const data = normalizeDate(pick(row, "data", "date", "pagamento", "dt"));
+    const valor = parseValor(pick(row, "valor", "value", "valor recebido") || "0");
+    const decisao = pick(row, "decisao", "decisão", "lancamento", "lançamento", "tipo");
     if (!data) { existingKeys.add(sigProvento(data, ticker, valor, decisao)); continue; }
     // Janela de ±2 dias: a data de report (IBKR) pode divergir da data de
     // pagamento gravada na planilha (ex-date × pay-date × report-date). Sem isso,
@@ -269,11 +288,11 @@ export function dedupTrades(
   }> = [];
 
   for (const row of existing) {
-    const ticker = dedupTk(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? ""));
-    const rawTipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? "").trim();
-    const tipo = normalizeTipo(rawTipo);
-    const qty = Math.round(parseValor(String(row["quantidade"] ?? "0")) * 100) / 100;
-    const preco = parseValor(String(row["preço"] ?? row["preco"] ?? row["precio"] ?? "0"));
+    // Leitura FUZZY — robusta a qualquer nome de coluna.
+    const ticker = dedupTk(pick(row, "símbolo", "simbolo", "ticker", "symbol", "ativo", "papel"));
+    const tipo = normalizeTipo(pick(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo", "operação", "operacao"));
+    const qty = Math.round(parseValor(pick(row, "quantidade", "qtd", "quantity", "qty") || "0") * 100) / 100;
+    const preco = parseValor(pick(row, "preço", "preco", "precio", "price", "preço unitário", "preco unitario") || "0");
     if (ticker) existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
