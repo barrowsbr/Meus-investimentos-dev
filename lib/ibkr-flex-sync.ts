@@ -69,7 +69,7 @@ export async function runFlexSync(
         const data = normalizeDate(String(row["data"] ?? ""));
         const ticker = String(row["ticker"] ?? "");
         const valor = parseValor(String(row["valor"] ?? "0"));
-        const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
+        const decisao = String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? "");
         const tk = dedupTk(ticker);
         const sig = sigProvento(data, ticker, valor, decisao);
         (existingByTk[tk] ??= []).push(sig);
@@ -77,7 +77,7 @@ export async function runFlexSync(
       });
       for (const row of existing) {
         const tk = dedupTk(String(row["ticker"] ?? ""));
-        const sig = sigProvento(normalizeDate(String(row["data"] ?? "")), String(row["ticker"] ?? ""), parseValor(String(row["valor"] ?? "0")), String(row["decisao"] ?? row["lancamento"] ?? ""));
+        const sig = sigProvento(normalizeDate(String(row["data"] ?? "")), String(row["ticker"] ?? ""), parseValor(String(row["valor"] ?? "0")), String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? ""));
         (existingByTk[tk] ??= []).push(sig);
       }
       const incomingSample = proventos.slice(0, 12).map((ev, i) => {

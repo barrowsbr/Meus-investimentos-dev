@@ -432,7 +432,7 @@ export function calcularProventosBRL(
     // IMPOSTO retido na fonte abate o provento (líquido = bruto − IR).
     // Para IMPOSTO: Math.abs garante negativo independente do sinal na planilha.
     // Para dividendos: preserva o sinal original (negativo = reversão/correção).
-    const decisao = String(getVal(row, "decisao", "decisão") ?? "").toLowerCase();
+    const decisao = String(getVal(row, "decisao", "decisão", "lancamento", "lançamento", "tipo") ?? "").toLowerCase();
     const isImposto = decisao.includes("imposto");
 
     const moeda = getMoeda(row);
