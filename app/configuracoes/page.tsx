@@ -406,13 +406,29 @@ function PasswordSection() {
 
 // ── IBKR Flex Sync (API, sem arquivo) ───────────────────────────────────────
 
+interface FlexTradeRow {
+  Data: string;
+  "Tipo de transação": string;
+  "Símbolo": string;
+  Quantidade: string;
+  "Preço": string;
+  Moeda: string;
+  status_match?: string;
+}
+interface FlexProventoRow {
+  ticker: string;
+  data: string;
+  decisao: string;
+  valor: string;
+  moeda: string;
+}
 interface FlexResult {
   error?: string;
   source?: string;
   dry_run?: boolean;
   parsed?: { proventos: number; trades: number; positions: number };
-  proventos?: { total: number; faltantes: number; inserted?: number };
-  trades?: { total: number; existing_count?: number; faltantes: number; potential_splits?: number; inserted?: number };
+  proventos?: { total: number; faltantes: number; inserted?: number; preview?: FlexProventoRow[] };
+  trades?: { total: number; existing_count?: number; faltantes: number; potential_splits?: number; inserted?: number; preview?: FlexTradeRow[] };
 }
 
 function FlexSyncSection() {
@@ -440,6 +456,8 @@ function FlexSyncSection() {
 
   const faltantes = (result?.proventos?.faltantes ?? 0) + (result?.trades?.faltantes ?? 0);
   const inseridos = (result?.proventos?.inserted ?? 0) + (result?.trades?.inserted ?? 0);
+  const tradeRows = result?.trades?.preview ?? [];
+  const provRows = result?.proventos?.preview ?? [];
 
   return (
     <div className="space-y-4">
@@ -508,6 +526,86 @@ function FlexSyncSection() {
               </>
             )}
           </div>
+
+          {/* Tabela: operações a considerar */}
+          {tradeRows.length > 0 && (
+            <div>
+              <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">
+                Operações a considerar ({tradeRows.length})
+              </h4>
+              <div className="overflow-auto rounded-lg border border-zinc-800" style={{ maxHeight: 280 }}>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-zinc-900">
+                    <tr className="text-zinc-500">
+                      <th className="px-2 py-1.5 text-left font-semibold">Data</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Tipo</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Símbolo</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Qtd</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Preço</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Moeda</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tradeRows.map((t, i) => {
+                      const isSplit = t.status_match === "POTENTIAL_SPLIT";
+                      return (
+                        <tr key={i} className="border-t border-zinc-800/60">
+                          <td className="px-2 py-1 font-mono text-zinc-400">{t.Data}</td>
+                          <td className={`px-2 py-1 font-semibold ${t["Tipo de transação"] === "Compra" ? "text-emerald-400" : "text-red-400"}`}>{t["Tipo de transação"]}</td>
+                          <td className="px-2 py-1 text-zinc-300">{t["Símbolo"]}</td>
+                          <td className="px-2 py-1 text-right font-mono text-zinc-400">{t.Quantidade}</td>
+                          <td className="px-2 py-1 text-right text-zinc-400">{t["Preço"]}</td>
+                          <td className="px-2 py-1 text-zinc-500">{t.Moeda}</td>
+                          <td className="px-2 py-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isSplit ? "text-amber-400 bg-amber-500/10" : "text-emerald-400 bg-emerald-500/10"}`}>
+                              {isSplit ? "Split?" : "Novo"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tabela: proventos a considerar */}
+          {provRows.length > 0 && (
+            <div>
+              <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">
+                Proventos a considerar ({provRows.length})
+              </h4>
+              <div className="overflow-auto rounded-lg border border-zinc-800" style={{ maxHeight: 280 }}>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-zinc-900">
+                    <tr className="text-zinc-500">
+                      <th className="px-2 py-1.5 text-left font-semibold">Data</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Ticker</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Tipo</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Valor</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">Moeda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {provRows.map((p, i) => {
+                      const imposto = p.decisao === "IMPOSTO";
+                      return (
+                        <tr key={i} className="border-t border-zinc-800/60">
+                          <td className="px-2 py-1 font-mono text-zinc-400">{p.data}</td>
+                          <td className="px-2 py-1 text-zinc-300">{p.ticker}</td>
+                          <td className={`px-2 py-1 font-semibold ${imposto ? "text-red-400" : "text-emerald-400"}`}>{imposto ? "Imposto" : "Dividendo"}</td>
+                          <td className="px-2 py-1 text-right font-mono text-zinc-400">{p.valor}</td>
+                          <td className="px-2 py-1 text-zinc-500">{p.moeda}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {inseridos > 0 && (
             <div className="flex items-center gap-2 text-xs text-emerald-400">

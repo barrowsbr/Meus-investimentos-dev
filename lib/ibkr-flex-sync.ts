@@ -34,7 +34,7 @@ export async function runFlexSync(
   if (["proventos", "both"].includes(mode) && proventos.length > 0) {
     const existing = await store.fetchTab("meus_proventos");
     const missing = findMissingProventos(existing, proventos);
-    result.proventos = { total: proventos.length, faltantes: missing.length, preview: missing.slice(0, 5) };
+    result.proventos = { total: proventos.length, faltantes: missing.length, preview: missing.slice(0, 300) };
 
     if (!dryRun && missing.length > 0) {
       await backupTab("meus_proventos").catch(() => {});
@@ -56,7 +56,7 @@ export async function runFlexSync(
       existing_count: existing.length,
       faltantes: trulyMissing.length,
       potential_splits: potentialSplits.length,
-      preview: allMissing.slice(0, 10),
+      preview: allMissing.slice(0, 300),
     };
 
     if (!dryRun && trulyMissing.length > 0) {
