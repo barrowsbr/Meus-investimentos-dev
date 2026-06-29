@@ -166,6 +166,12 @@ function parseIBKRCsv(content: string): { proventos: IbkrEvent[]; trades: IbkrTr
 
 // ── Dedup check ───────────────────────────────────────────────────────────────
 
+// Normalização de ticker para COMPARAÇÃO: remove qualquer sufixo de bolsa
+// (.TO, .AS, .SA, .DE, .L, …) para casar DPM↔DPM.TO, ASML↔ASML.AS, etc.
+function dedupTk(t: string): string {
+  return String(t ?? "").toUpperCase().trim().replace(/\.[A-Z]{1,2}$/i, "");
+}
+
 function findMissingProventos(
   existing: Record<string, unknown>[],
   incoming: IbkrEvent[]
@@ -173,10 +179,12 @@ function findMissingProventos(
   const existingKeys = new Set<string>();
 
   for (const row of existing) {
-    const ticker = normalizeTicker(String(row["ticker"] ?? ""));
+    const ticker = dedupTk(String(row["ticker"] ?? ""));
     const data = normalizeDate(String(row["data"] ?? ""));
     const decisao = String(row["decisao"] ?? row["decisão"] ?? row["lancamento"] ?? row["lançamento"] ?? "").toUpperCase();
-    const valor = Math.round(parseValor(String(row["valor"] ?? "0")) * 10);
+    // Valor SEM sinal: imposto costuma ser gravado negativo (dedução) e o IBKR
+    // manda em módulo — sem o abs, nenhum IMPOSTO casaria.
+    const valor = Math.round(Math.abs(parseValor(String(row["valor"] ?? "0"))) * 10);
     const tipo = (decisao.includes("IMPOSTO") || decisao.includes("TAX")) ? "IMPOSTO" : "DIVIDENDO";
 
     // ±3 day window
@@ -193,9 +201,9 @@ function findMissingProventos(
   }
 
   return incoming.filter(ev => {
-    const ticker = normalizeTicker(ev.ticker);
+    const ticker = dedupTk(ev.ticker);
     const tipo = ev.decisao === "IMPOSTO" ? "IMPOSTO" : "DIVIDENDO";
-    const valor = Math.round(parseValor(ev.valor) * 10);
+    const valor = Math.round(Math.abs(parseValor(ev.valor)) * 10);
     const key = `${ev.data}|${ticker}|${tipo}|${valor}`;
     return !existingKeys.has(key);
   });
