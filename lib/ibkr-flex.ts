@@ -5,19 +5,22 @@
  *   1. SendRequest?t=TOKEN&q=QUERY_ID  → ReferenceCode
  *   2. GetStatement?t=TOKEN&q=REF      → XML do extrato (poll: 1019 = gerando)
  *
- * O XML é mapeado para os MESMOS objetos do parser de CSV (buildTrade/
- * buildProvento de lib/ibkr-sync.ts), então flui pela mesma dedup e gravação.
+ * O XML é mapeado para os MESMOS objetos do import por arquivo (lib/broker-import.ts),
+ * então flui pela MESMA dedup/filtros — inclusive forex → aba câmbio.
  */
 
 import {
-  IbkrEvent,
-  IbkrTrade,
-  buildTrade,
-  buildProvento,
+  ProventoRow,
+  TradeRow,
+  CambioRow,
+  makeProvento,
+  makeTradeRow,
+  makeCambioRow,
   normalizeDate,
   normalizeTicker,
   parseValor,
-} from "./ibkr-sync";
+  isForexSymbol,
+} from "./broker-import";
 
 const FLEX_BASE = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService";
 
@@ -32,9 +35,11 @@ export interface IbkrPosition {
 }
 
 export interface FlexParsed {
-  proventos: IbkrEvent[];
-  trades: IbkrTrade[];
+  proventos: ProventoRow[];
+  trades: TradeRow[];
+  cambio: CambioRow[];
   positions: IbkrPosition[];
+  proventosDupsRemoved: number;
 }
 
 // ── XML helpers (formato Flex é plano: elementos auto-fechados com atributos) ──
@@ -59,7 +64,7 @@ function parseAttrs(s: string): Record<string, string> {
   return attrs;
 }
 
-/** Extrai os atributos de cada `<Tag .../>`. O `\b` evita casar Trade com Trades. */
+/** Extrai os atributos de cada `<Tag ...>`. O `\b` evita casar Trade com Trades. */
 function extractElements(xml: string, tag: string): Record<string, string>[] {
   const out: Record<string, string>[] = [];
   const re = new RegExp(`<${tag}\\b([^>]*)>`, "g");
@@ -131,11 +136,11 @@ export async function fetchFlexStatement(
 // ── Parser: XML → objetos internos ─────────────────────────────────────────────
 
 export function parseFlexXml(xml: string): FlexParsed {
-  const proventos: IbkrEvent[] = [];
-  const trades: IbkrTrade[] = [];
+  const proventos: ProventoRow[] = [];
+  const trades: TradeRow[] = [];
+  const cambio: CambioRow[] = [];
   const positions: IbkrPosition[] = [];
 
-  // Trades (compra/venda). Ignora linhas de agregação (Symbol/Asset Summary).
   for (const a of extractElements(xml, "Trade")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
     if (lod === "SYMBOL_SUMMARY" || lod === "ASSET_SUMMARY") continue;
@@ -143,18 +148,39 @@ export function parseFlexXml(xml: string): FlexParsed {
     const buySell = (a.buySell ?? "").toUpperCase();
     if (!symbol || (buySell !== "BUY" && buySell !== "SELL")) continue;
 
-    const qtd = Math.abs(parseValor(a.quantity ?? "0"));
+    const date = normalizeDate(a.tradeDate ?? a.dateTime ?? "");
+    const absQty = Math.abs(parseValor(a.quantity ?? "0"));
     const preco = Math.abs(parseValor(a.tradePrice ?? "0"));
+
+    // Forex (USD.CAD, EUR.USD…) → aba câmbio (com filtro de micro-ajustes).
+    const fx = symbol.toUpperCase().match(/^([A-Z]{3})\.([A-Z]{3})$/);
+    if (isForexSymbol(symbol) && fx) {
+      const row = makeCambioRow({
+        date,
+        base: fx[1],
+        quote: fx[2],
+        signedQty: buySell === "BUY" ? absQty : -absQty,
+        price: preco,
+        corretora: "IBKR",
+      });
+      if (row) cambio.push(row);
+      continue;
+    }
+
     const comissao = Math.abs(parseValor(a.ibCommission ?? "0"));
     let valorBruto = Math.abs(parseValor(a.tradeMoney ?? "0"));
-    if (valorBruto === 0 && qtd > 0 && preco > 0) valorBruto = Math.round(qtd * preco * 100) / 100;
+    if (valorBruto === 0 && absQty > 0 && preco > 0) valorBruto = Math.round(absQty * preco * 100) / 100;
 
-    trades.push(buildTrade({
-      data: normalizeDate(a.tradeDate ?? a.dateTime ?? ""),
+    trades.push(makeTradeRow({
+      data: date,
       tipo: buySell === "BUY" ? "Compra" : "Venda",
       ticker: normalizeTicker(symbol),
-      qtd, preco, valorBruto, comissao,
+      qtd: absQty,
+      preco,
+      valorBruto,
+      comissao,
       moeda: (a.currency ?? "USD").toUpperCase(),
+      corretora: "IBKR",
     }));
   }
 
@@ -171,17 +197,17 @@ export function parseFlexXml(xml: string): FlexParsed {
     const isDividend = type.includes("dividend") || type.includes("lieu");
     if (!isImposto && !isDividend) continue;
 
-    proventos.push(buildProvento({
-      ticker: normalizeTicker(symbol),
-      data: normalizeDate(a.reportDate ?? a.dateTime ?? a.settleDate ?? ""),
-      isImposto,
-      valor: amount,
-      moeda: (a.currency ?? "USD").toUpperCase(),
-    }));
+    proventos.push(makeProvento(
+      normalizeTicker(symbol),
+      normalizeDate(a.reportDate ?? a.dateTime ?? a.settleDate ?? ""),
+      isImposto ? "IMPOSTO" : "Dividendo",
+      amount,
+      (a.currency ?? "USD").toUpperCase(),
+      "Ação Internacional",
+    ));
   }
 
-  // Open positions — foto atual (para reconciliação; NÃO é gravada na planilha,
-  // pois as posições de RV são derivadas das transações via FIFO).
+  // Open positions — foto atual (reconciliação; NÃO gravada na planilha).
   for (const a of extractElements(xml, "OpenPosition")) {
     const symbol = a.symbol ?? "";
     if (!symbol) continue;
@@ -197,5 +223,18 @@ export function parseFlexXml(xml: string): FlexParsed {
     });
   }
 
-  return { proventos, trades, positions };
+  // A seção Cash Transactions da Flex pode emitir cada lançamento 2× (bit-idêntico)
+  // — colapsa as duplicatas. Pares dividendo+imposto NÃO são duplicata (decisao/
+  // valor diferentes), então são preservados.
+  const seenProv = new Set<string>();
+  let proventosDupsRemoved = 0;
+  const proventosUnique: ProventoRow[] = [];
+  for (const p of proventos) {
+    const k = `${p.data}|${p.ticker}|${p.decisao}|${p.valor}|${p.moeda}`;
+    if (seenProv.has(k)) { proventosDupsRemoved++; continue; }
+    seenProv.add(k);
+    proventosUnique.push(p);
+  }
+
+  return { proventos: proventosUnique, trades, cambio, positions, proventosDupsRemoved };
 }
