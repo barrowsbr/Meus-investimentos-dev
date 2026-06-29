@@ -1,38 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Wifi, AlertCircle } from "lucide-react";
-import { compactBRL, pct, currency } from "@/lib/format";
+import Image from "next/image";
+import { Loader2, Wifi, AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { pct, currency } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
 import type { IbkrOverview } from "@/lib/ibkr-overview";
 
 const IBKR_RED = "#d6001c";
-
 const cor = (v: number) => (v >= 0 ? "var(--pos)" : "var(--neg)");
+
+const nf = (v: number, d = 2) => v.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/** Formato compacto com símbolo (US$ / R$). */
+function compact(v: number | null | undefined, sym: string): string {
+  if (v == null) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e6) return `${sym} ${(v / 1e6).toFixed(2)}M`;
+  if (a >= 1e4) return `${sym} ${(v / 1e3).toFixed(1)}k`;
+  return `${sym} ${nf(v, 2)}`;
+}
+const signed = (v: number | null | undefined, sym: string) => (v != null && v >= 0 ? "+" : "") + compact(v, sym);
+const pctOr = (v: number | null | undefined) => (v == null ? "—" : pct(v));
 
 function fmtDate(s: string): string {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
 }
 
-// ── IBKR brand hero (logo destacada) ─────────────────────────────────────────
+// ── Hero (marca IBKR + patrimônio em US$ no topo) ─────────────────────────────
 
-function IbkrHero({ meta }: { meta: IbkrOverview["meta"] }) {
+function IbkrHero({ data }: { data: IbkrOverview }) {
+  const k = data.kpis;
+  const dayPos = k.lucroDiaBRL >= 0;
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl p-5 md:p-6 mb-5"
-      style={{
-        background: `linear-gradient(135deg, ${IBKR_RED} 0%, #8c0012 100%)`,
-        border: "1px solid rgba(255,255,255,0.12)",
-      }}
-    >
+    <div className="relative overflow-hidden rounded-2xl p-5 md:p-6 mb-5" style={{ background: `linear-gradient(135deg, ${IBKR_RED} 0%, #8c0012 100%)`, border: "1px solid rgba(255,255,255,0.12)" }}>
       <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "radial-gradient(circle at 85% 20%, #fff 0, transparent 45%)" }} />
-      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
         <div className="flex items-center gap-4">
-          {/* Wordmark IBKR */}
-          <div className="flex items-center justify-center shrink-0" style={{ width: 64, height: 64, background: "#fff", borderRadius: 14, boxShadow: "0 4px 18px rgba(0,0,0,.35)" }}>
-            <span style={{ color: IBKR_RED, fontWeight: 900, fontSize: 22, letterSpacing: "-1px", fontFamily: "system-ui, sans-serif" }}>IBKR</span>
-          </div>
+          <Image
+            src="/midias/51q7eieUfKL.png"
+            alt="Interactive Brokers"
+            width={64}
+            height={64}
+            priority
+            className="shrink-0 object-cover"
+            style={{ borderRadius: 14, boxShadow: "0 4px 18px rgba(0,0,0,.35)" }}
+          />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-white" style={{ fontSize: 22, letterSpacing: "-.01em" }}>Interactive Brokers</span>
@@ -41,27 +55,47 @@ function IbkrHero({ meta }: { meta: IbkrOverview["meta"] }) {
               </span>
             </div>
             <p className="font-mono text-[11px] mt-1" style={{ color: "rgba(255,255,255,.78)" }}>
-              Conta {meta.accountId || "—"} · período {fmtDate(meta.fromDate)} → {fmtDate(meta.toDate)}
+              Conta {data.meta.accountId || "—"} · {fmtDate(data.meta.fromDate)} → {fmtDate(data.meta.toDate)}
+              {data.meta.usdbrl ? ` · USD/BRL ${nf(data.meta.usdbrl, 3)}` : ""}
             </p>
           </div>
         </div>
+
+        {/* Patrimônio — dólar em destaque, real abaixo, + lucro do dia */}
         <div className="text-left md:text-right">
-          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,.7)" }}>Câmbio</div>
-          <div className="font-mono text-[11px]" style={{ color: "rgba(255,255,255,.9)" }}>fonte: {meta.fxSource}</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,.7)" }}>Patrimônio</div>
+          <div className="font-mono font-extrabold text-white tnum" style={{ fontSize: 30, lineHeight: 1.05 }}>{compact(k.patrimonioUSD, "US$")}</div>
+          <div className="font-mono text-sm" style={{ color: "rgba(255,255,255,.85)" }}>{compact(k.patrimonioBRL, "R$")}</div>
+          <div className="inline-flex items-center gap-1 mt-1 font-mono text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,.22)", color: dayPos ? "#7cffb2" : "#ffb4ab" }}>
+            {dayPos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+            dia {signed(k.lucroDiaUSD, "US$")} · {signed(k.lucroDiaBRL, "R$")} · {pctOr(k.lucroDiaPct)}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── KPI card ──────────────────────────────────────────────────────────────────
+// ── KPI card (US$ em destaque, R$ abaixo) ─────────────────────────────────────
 
-function Kpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+function Kpi({ label, usd, brl, sub, color }: { label: string; usd: string; brl: string; sub?: string; color?: string }) {
   return (
     <div className="flex flex-col justify-center px-4 py-3" style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
       <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>{label}</span>
-      <span className="font-mono text-lg font-bold tnum" style={{ color: color ?? "var(--text)" }}>{value}</span>
-      {sub && <span className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>{sub}</span>}
+      <span className="font-mono text-lg font-bold tnum" style={{ color: color ?? "var(--text)" }}>{usd}</span>
+      <span className="font-mono text-[11px] tnum" style={{ color: "var(--muted)" }}>{brl}</span>
+      {sub && <span className="font-mono text-[9px] mt-0.5" style={{ color: "var(--faint)" }}>{sub}</span>}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
+        <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>{title}</span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -72,18 +106,16 @@ function Dashboard({ data }: { data: IbkrOverview }) {
   const k = data.kpis;
   return (
     <div className="animate-fade-in">
-      <IbkrHero meta={data.meta} />
+      <IbkrHero data={data} />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px mb-5" style={{ background: "var(--line)", border: "1px solid var(--line)" }}>
-        <Kpi label="Patrimônio (IBKR)" value={compactBRL(k.patrimonioBRL)} sub="valor de mercado" />
-        <Kpi label="Custo" value={compactBRL(k.custoBRL)} />
-        <Kpi label="Resultado" value={compactBRL(k.resultadoBRL)} sub={k.resultadoPct !== null ? pct(k.resultadoPct) : undefined} color={cor(k.resultadoBRL)} />
-        <Kpi label="Posições" value={String(k.posicoes)} />
-        <Kpi label="Dividendos (período)" value={compactBRL(k.dividendosBRL)} color="var(--pos)" />
-        <Kpi label="Imposto retido" value={compactBRL(k.impostosBRL)} color="var(--neg)" />
-        <Kpi label="Dividendo líquido" value={compactBRL(k.dividendosLiquidoBRL)} color={cor(k.dividendosLiquidoBRL)} />
-        <Kpi label="Moedas" value={String(data.byCurrency.length)} sub={data.byCurrency.map((c) => c.moeda).join(" · ")} />
+      {/* Métricas principais — US$ no topo de cada card, R$ abaixo */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px mb-5" style={{ background: "var(--line)", border: "1px solid var(--line)" }}>
+        <Kpi label="Patrimônio" usd={compact(k.patrimonioUSD, "US$")} brl={compact(k.patrimonioBRL, "R$")} sub={`${k.posicoes} posições`} />
+        <Kpi label="Custo" usd={compact(k.custoUSD, "US$")} brl={compact(k.custoBRL, "R$")} />
+        <Kpi label="Resultado total" usd={signed(k.resultadoUSD, "US$")} brl={signed(k.resultadoBRL, "R$")} sub={pctOr(k.resultadoPct)} color={cor(k.resultadoBRL)} />
+        <Kpi label="Lucro do dia" usd={signed(k.lucroDiaUSD, "US$")} brl={signed(k.lucroDiaBRL, "R$")} sub={pctOr(k.lucroDiaPct)} color={cor(k.lucroDiaBRL)} />
+        <Kpi label="Dividendos líq." usd={compact(k.dividendosLiquidoUSD, "US$")} brl={compact(k.dividendosLiquidoBRL, "R$")} sub={`bruto ${compact(k.dividendosBRL, "R$")}`} color="var(--pos)" />
+        <Kpi label="Imposto retido" usd={compact(k.impostosUSD, "US$")} brl={compact(k.impostosBRL, "R$")} color="var(--neg)" />
       </div>
 
       {/* Por moeda */}
@@ -93,20 +125,21 @@ function Dashboard({ data }: { data: IbkrOverview }) {
             <div key={c.moeda} className="px-3 py-2 rounded-lg" style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
               <span className="font-mono text-[10px] font-bold" style={{ color: "var(--accent)" }}>{c.moeda}</span>
               <span className="font-mono text-xs ml-2" style={{ color: "var(--text)" }}>{currency(c.marketValue, c.moeda)}</span>
-              <span className="font-mono text-[10px] ml-2" style={{ color: cor(c.pnl) }}>{c.pnl >= 0 ? "▲" : "▼"} {currency(c.pnl, c.moeda)}</span>
+              <span className="font-mono text-[10px] ml-2" style={{ color: cor(c.pnl) }}>tot {c.pnl >= 0 ? "+" : ""}{nf(c.pnl, 0)}</span>
+              <span className="font-mono text-[10px] ml-2" style={{ color: cor(c.dayPnl) }}>dia {c.dayPnl >= 0 ? "+" : ""}{nf(c.dayPnl, 0)}</span>
               <span className="font-mono text-[9px] ml-2" style={{ color: "var(--muted)" }}>· {c.count} pos.</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Posições */}
+      {/* Posições — valor em US$ e R$, com variação do dia e resultado total */}
       <Section title={`Posições (${data.positions.length})`}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--line)" }}>
-                {["Ativo", "Classe", "Qtd", "Preço médio", "Preço atual", "Valor", "Valor R$", "Result."].map((h, i) => (
+                {["Ativo", "Classe", "Qtd", "Preço atual", "Dia", "Valor US$", "Valor R$", "Result."].map((h, i) => (
                   <th key={h} className={`px-3 py-2 text-[10px] font-bold uppercase ${i >= 2 ? "text-right" : "text-left"}`} style={{ color: "var(--muted)" }}>{h}</th>
                 ))}
               </tr>
@@ -117,13 +150,11 @@ function Dashboard({ data }: { data: IbkrOverview }) {
                   <td className="px-3 py-1.5 font-bold" style={{ color: "var(--text)" }}>{p.ticker}</td>
                   <td className="px-3 py-1.5" style={{ color: "var(--muted)" }}>{p.assetClass}</td>
                   <td className="px-3 py-1.5 text-right font-mono" style={{ color: "var(--text)" }}>{p.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}</td>
-                  <td className="px-3 py-1.5 text-right font-mono" style={{ color: "var(--muted)" }}>{currency(p.custoPreco, p.moeda)}</td>
                   <td className="px-3 py-1.5 text-right font-mono" style={{ color: "var(--muted)" }}>{currency(p.markPrice, p.moeda)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono" style={{ color: "var(--text)" }}>{currency(p.marketValue, p.moeda)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{p.marketValueBRL !== null ? compactBRL(p.marketValueBRL) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>
-                    {p.pnlPct !== null ? pct(p.pnlPct) : "—"}
-                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono font-medium" style={{ color: cor(p.dayPnl) }}>{p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}</td>
+                  <td className="px-3 py-1.5 text-right font-mono" style={{ color: "var(--text)" }}>{p.marketValueUSD !== null ? compact(p.marketValueUSD, "US$") : "—"}</td>
+                  <td className="px-3 py-1.5 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{p.marketValueBRL !== null ? compact(p.marketValueBRL, "R$") : "—"}</td>
+                  <td className="px-3 py-1.5 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? pct(p.pnlPct) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -245,19 +276,8 @@ function Dashboard({ data }: { data: IbkrOverview }) {
       )}
 
       <p className="text-[10px] mt-5" style={{ color: "var(--faint)" }}>
-        Dados do extrato IBKR Flex (Activity). Valores em moeda nativa; conversão R$ via {data.meta.fxSource}. Atualiza no máximo 1×/dia.
+        Posições e custo do extrato IBKR Flex; preço atual e variação do dia via cotações ao vivo. Conversão US$/R$ via {data.meta.fxSource}.
       </p>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-      <div className="px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-        <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>{title}</span>
-      </div>
-      {children}
     </div>
   );
 }
@@ -288,7 +308,7 @@ export default function IbkrPage() {
       {loading ? (
         <div className="p-10 text-center animate-fade-in" style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
           <Loader2 size={22} className="animate-spin mx-auto" style={{ color: IBKR_RED }} />
-          <p className="text-xs mt-3" style={{ color: "var(--muted)" }}>Buscando o extrato da IBKR (pode levar alguns segundos)…</p>
+          <p className="text-xs mt-3" style={{ color: "var(--muted)" }}>Buscando o extrato da IBKR e cotações (pode levar alguns segundos)…</p>
         </div>
       ) : error ? (
         <div className="p-5 rounded-xl flex items-start gap-2" style={{ background: "rgba(214,0,28,0.08)", border: "1px solid rgba(214,0,28,0.25)" }}>

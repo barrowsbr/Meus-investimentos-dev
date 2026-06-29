@@ -1,11 +1,12 @@
 /**
- * Visão gerencial da conta IBKR, montada 100% a partir do extrato Flex
- * (sem depender da planilha). Alimenta a página /ibkr.
+ * Visão gerencial da conta IBKR, montada a partir do extrato Flex (posições,
+ * custo, proventos) + cotações ao vivo (preço atual e variação do dia).
+ * Todos os totais em US$ e R$ (via FX). Não depende da planilha. Alimenta /ibkr.
  */
 
 import { getFlexXmlCached, parseFlexXml, parseFlexMeta } from "./ibkr-flex";
 import { parseValor } from "./broker-import";
-import { fetchFxRates, fxToBRL, type FxRates } from "./cotacoes";
+import { fetchCotacoes, fxToBRL, type FxRates, type Quote } from "./cotacoes";
 
 export interface OverviewPosition {
   ticker: string;
@@ -15,25 +16,31 @@ export interface OverviewPosition {
   custoPreco: number;
   markPrice: number;
   marketValue: number;
+  marketValueBRL: number | null;
+  marketValueUSD: number | null;
   cost: number;
   pnl: number;
   pnlPct: number | null;
-  marketValueBRL: number | null;
+  dayChange: number;
+  dayChangePct: number | null;
+  dayPnl: number;
+  dayPnlBRL: number | null;
+  dayPnlUSD: number | null;
 }
 
 export interface IbkrOverview {
-  meta: { accountId: string; fromDate: string; toDate: string; fxSource: string; brlOk: boolean };
+  meta: { accountId: string; fromDate: string; toDate: string; fxSource: string; brlOk: boolean; usdbrl: number | null };
   kpis: {
-    patrimonioBRL: number;
-    custoBRL: number;
-    resultadoBRL: number;
-    resultadoPct: number | null;
+    patrimonioBRL: number; patrimonioUSD: number | null;
+    custoBRL: number; custoUSD: number | null;
+    resultadoBRL: number; resultadoUSD: number | null; resultadoPct: number | null;
+    lucroDiaBRL: number; lucroDiaUSD: number | null; lucroDiaPct: number | null;
     posicoes: number;
-    dividendosBRL: number;
-    impostosBRL: number;
-    dividendosLiquidoBRL: number;
+    dividendosBRL: number; dividendosUSD: number | null;
+    impostosBRL: number; impostosUSD: number | null;
+    dividendosLiquidoBRL: number; dividendosLiquidoUSD: number | null;
   };
-  byCurrency: Array<{ moeda: string; marketValue: number; cost: number; pnl: number; count: number }>;
+  byCurrency: Array<{ moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>;
   dividendsByTicker: Array<{ ticker: string; moeda: string; dividendos: number; impostos: number; liquido: number }>;
   positions: OverviewPosition[];
   proventos: Array<{ ticker: string; data: string; tipo: "Dividendo" | "Imposto"; valor: string; moeda: string }>;
@@ -50,33 +57,49 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   const { proventos, trades, cambio, positions } = parseFlexXml(xml);
   const meta = parseFlexMeta(xml);
 
+  // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
   let fx: FxRates | null = null;
   let fxSource = "indisponível";
+  let quotes: Record<string, Quote> = {};
   try {
-    const r = await fetchFxRates();
-    fx = r.fx;
-    fxSource = r.fxSource;
-  } catch { /* sem FX → totais ficam só em moeda nativa */ }
-  const toBRL = (val: number, moeda: string): number | null => (fx ? val * fxToBRL(moeda, fx) : null);
+    const cot = await fetchCotacoes(positions.map((p) => ({ ticker: p.ticker, moeda: p.moeda, corretora: "IBKR" })));
+    fx = cot.fx; fxSource = cot.fxSource; quotes = cot.quotes;
+  } catch { /* sem FX/cotações → cai pro preço do extrato e totais nativos */ }
 
-  // ── Posições enriquecidas ──
+  const usdbrl = fx ? fx.USDBRL : null;
+  const toBRL = (val: number, moeda: string): number | null => (fx ? val * fxToBRL(moeda, fx) : null);
+  const toUSD = (val: number, moeda: string): number | null => (fx && usdbrl ? (val * fxToBRL(moeda, fx)) / usdbrl : null);
+  const brlToUsd = (brl: number): number | null => (usdbrl ? brl / usdbrl : null);
+
+  // ── Posições enriquecidas (preço ao vivo + variação do dia) ──
   const pos: OverviewPosition[] = positions
     .map((p) => {
-      const marketValue = p.quantidade * p.markPrice;
+      const q = quotes[p.ticker];
+      const markPrice = q?.price ?? p.markPrice; // preço ao vivo, fallback extrato
+      const marketValue = p.quantidade * markPrice;
       const cost = p.custoTotal;
       const pnl = marketValue - cost;
+      const dayChange = q?.change ?? 0;
+      const dayPnl = p.quantidade * dayChange;
       return {
         ticker: p.ticker,
         moeda: p.moeda,
         assetClass: p.assetClass,
         quantidade: p.quantidade,
         custoPreco: p.custoPreco,
-        markPrice: p.markPrice,
+        markPrice,
         marketValue,
+        marketValueBRL: toBRL(marketValue, p.moeda),
+        marketValueUSD: toUSD(marketValue, p.moeda),
         cost,
         pnl,
         pnlPct: cost !== 0 ? pnl / Math.abs(cost) : null,
-        marketValueBRL: toBRL(marketValue, p.moeda),
+        dayChange,
+        // changePercent vem como número percentual (ex.: 1.82 = 1,82%) → razão p/ pct()
+        dayChangePct: q && q.changePercent != null ? q.changePercent / 100 : null,
+        dayPnl,
+        dayPnlBRL: toBRL(dayPnl, p.moeda),
+        dayPnlUSD: toUSD(dayPnl, p.moeda),
       };
     })
     .sort((a, b) => (b.marketValueBRL ?? b.marketValue) - (a.marketValueBRL ?? a.marketValue));
@@ -84,24 +107,25 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   const patrimonioBRL = pos.reduce((s, p) => s + (toBRL(p.marketValue, p.moeda) ?? 0), 0);
   const custoBRL = pos.reduce((s, p) => s + (toBRL(p.cost, p.moeda) ?? 0), 0);
   const resultadoBRL = patrimonioBRL - custoBRL;
+  const lucroDiaBRL = pos.reduce((s, p) => s + (p.dayPnlBRL ?? 0), 0);
+  const baseDia = patrimonioBRL - lucroDiaBRL; // patrimônio de ontem
 
   // ── Agregado por moeda ──
-  const ccyMap = new Map<string, { moeda: string; marketValue: number; cost: number; pnl: number; count: number }>();
+  const ccyMap = new Map<string, { moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>();
   for (const p of pos) {
-    const e = ccyMap.get(p.moeda) ?? { moeda: p.moeda, marketValue: 0, cost: 0, pnl: 0, count: 0 };
-    e.marketValue += p.marketValue; e.cost += p.cost; e.pnl += p.pnl; e.count += 1;
+    const e = ccyMap.get(p.moeda) ?? { moeda: p.moeda, marketValue: 0, cost: 0, pnl: 0, dayPnl: 0, count: 0 };
+    e.marketValue += p.marketValue; e.cost += p.cost; e.pnl += p.pnl; e.dayPnl += p.dayPnl; e.count += 1;
     ccyMap.set(p.moeda, e);
   }
 
   // ── Proventos / impostos do período ──
   const isImposto = (decisao: string) => decisao.toUpperCase().includes("IMPOSTO");
   const sumBRL = (rows: typeof proventos) => rows.reduce((s, r) => s + (toBRL(Math.abs(parseValor(r.valor)), r.moeda) ?? 0), 0);
-  const divs = proventos.filter((p) => !isImposto(p.decisao));
-  const taxes = proventos.filter((p) => isImposto(p.decisao));
-  const dividendosBRL = sumBRL(divs);
-  const impostosBRL = sumBRL(taxes);
+  const dividendosBRL = sumBRL(proventos.filter((p) => !isImposto(p.decisao)));
+  const impostosBRL = sumBRL(proventos.filter((p) => isImposto(p.decisao)));
+  const liquidoBRL = dividendosBRL - impostosBRL;
 
-  // ── Dividendos/impostos agregados por ativo (todos os proventos do período) ──
+  // ── Dividendos/impostos agregados por ativo ──
   const dtMap = new Map<string, { ticker: string; moeda: string; dividendos: number; impostos: number }>();
   for (const p of proventos) {
     const e = dtMap.get(p.ticker) ?? { ticker: p.ticker, moeda: p.moeda, dividendos: 0, impostos: 0 };
@@ -114,16 +138,16 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     .sort((a, b) => b.dividendos - a.dividendos);
 
   return {
-    meta: { accountId: meta.accountId, fromDate: meta.fromDate, toDate: meta.toDate, fxSource, brlOk: fx !== null },
+    meta: { accountId: meta.accountId, fromDate: meta.fromDate, toDate: meta.toDate, fxSource, brlOk: fx !== null, usdbrl },
     kpis: {
-      patrimonioBRL,
-      custoBRL,
-      resultadoBRL,
-      resultadoPct: custoBRL !== 0 ? resultadoBRL / custoBRL : null,
+      patrimonioBRL, patrimonioUSD: brlToUsd(patrimonioBRL),
+      custoBRL, custoUSD: brlToUsd(custoBRL),
+      resultadoBRL, resultadoUSD: brlToUsd(resultadoBRL), resultadoPct: custoBRL !== 0 ? resultadoBRL / custoBRL : null,
+      lucroDiaBRL, lucroDiaUSD: brlToUsd(lucroDiaBRL), lucroDiaPct: baseDia !== 0 ? lucroDiaBRL / baseDia : null,
       posicoes: pos.length,
-      dividendosBRL,
-      impostosBRL,
-      dividendosLiquidoBRL: dividendosBRL - impostosBRL,
+      dividendosBRL, dividendosUSD: brlToUsd(dividendosBRL),
+      impostosBRL, impostosUSD: brlToUsd(impostosBRL),
+      dividendosLiquidoBRL: liquidoBRL, dividendosLiquidoUSD: brlToUsd(liquidoBRL),
     },
     byCurrency: [...ccyMap.values()].sort((a, b) => b.marketValue - a.marketValue),
     dividendsByTicker,
