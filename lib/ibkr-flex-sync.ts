@@ -14,6 +14,8 @@ import {
   dedupTrades,
   dedupCambio,
   cambioRowsForSheet,
+  proventoRowsForSheet,
+  tradeRowsForSheet,
   sigProvento,
   normalizeDate,
   dedupTk,
@@ -97,8 +99,10 @@ export async function runFlexSync(
 
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_proventos").catch(() => {});
-      const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
-      const rows = novos.map((e) => COLS.map((c) => (e as unknown as Record<string, string>)[c] ?? ""));
+      // Header-aware: grava cada campo na coluna certa pelo NOME (não por posição),
+      // senão a data cai em "lançamento" e o Sheets a vira serial.
+      const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
+      const rows = proventoRowsForSheet(headers, novos);
       await store.appendRows("meus_proventos", rows);
       (result.proventos as Record<string, unknown>).inserted = novos.length;
     }
@@ -125,8 +129,8 @@ export async function runFlexSync(
 
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_ativos").catch(() => {});
-      const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
-      const rows = novos.map((t) => COLS.map((c) => (t as unknown as Record<string, string>)[c] ?? ""));
+      const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
+      const rows = tradeRowsForSheet(headers, novos);
       await store.appendRows("meus_ativos", rows);
       (result.trades as Record<string, unknown>).inserted = novos.length;
     }
