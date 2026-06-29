@@ -72,6 +72,7 @@ function RadarMapInner({
   return (
     <div
       ref={wrapRef}
+      data-no-pull
       className="relative h-full w-full overflow-hidden rounded-xl md:rounded-2xl"
       style={{ background: "transparent" }}
       onMouseLeave={() => setTip(null)}
