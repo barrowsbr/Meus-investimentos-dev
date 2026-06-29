@@ -232,7 +232,8 @@ export function dedupProventos(
     const ticker = String(row["ticker"] ?? "");
     const data = normalizeDate(String(row["data"] ?? ""));
     const valor = parseValor(String(row["valor"] ?? "0"));
-    const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
+    // Tipo: a planilha pode usar "decisao", "lancamento" OU "tipo" como coluna.
+    const decisao = String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? "");
     if (!data) { existingKeys.add(sigProvento(data, ticker, valor, decisao)); continue; }
     // Janela de ±2 dias: a data de report (IBKR) pode divergir da data de
     // pagamento gravada na planilha (ex-date × pay-date × report-date). Sem isso,
