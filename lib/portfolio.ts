@@ -17,6 +17,11 @@ interface PosicaoInterna {
   custoVendido: number;
   moeda: string;
   corretora: string;
+  // ── Realizado decomposto em BRL (câmbio da DATA DA VENDA, fiscalmente correto) ──
+  // Acumulados só para as parcelas "cobertas" (USD com PTAX da compra e da venda).
+  realizadoAtivoBRL: number;      // Σ (preço−pm)·qtd·Pvenda − corretagem·Pvenda
+  realizadoCambioBRL: number;     // Σ pm·qtd·(Pvenda − Pcompra)
+  realizadoCoveredNative: number; // parcela native (USD) que foi convertida acima
 }
 
 export interface Position {
@@ -29,6 +34,8 @@ export interface Position {
   custoTotal: number;
   lucroRealizado: number;
   lucroRealizadoBRL: number;
+  realizadoAtivoBRL: number;          // realizado: parte do ATIVO (ex-câmbio), R$
+  realizadoCambioBRL: number;         // realizado: parte do CÂMBIO, R$
   precoAtual: number | null;
   quoteCurrency: string | null;
   valorAtual: number | null;
@@ -76,6 +83,8 @@ export interface PortfolioSnapshot {
   lucroPct: number;                  // RV: Valorização % (sem proventos)
   proventosRVBRL: number;            // RV: proventos líquidos acumulados
   realizadoRVBRL: number;            // RV: lucro realizado (FIFO) — ABERTAS + ENCERRADAS
+  realizadoAtivoRVBRL: number;       // RV: realizado — parte do ATIVO (ex-câmbio)
+  realizadoCambioRVBRL: number;      // RV: realizado — parte do CÂMBIO (PTAX da venda)
   retornoTotalRVBRL: number;         // RV: valorização + realizado + proventos
   retornoTotalRVPct: number;         // RV: Retorno Total %
   ganhoAtivoTotalBRL: number;
@@ -185,7 +194,7 @@ export function calcularCarteiraFIFO(
     const dateISO = getDataISO(row);
 
     if (!portfolio.has(ticker)) {
-      portfolio.set(ticker, { ticker, lotes: [], lucroRealizado: 0, custoVendido: 0, moeda, corretora });
+      portfolio.set(ticker, { ticker, lotes: [], lucroRealizado: 0, custoVendido: 0, moeda, corretora, realizadoAtivoBRL: 0, realizadoCambioBRL: 0, realizadoCoveredNative: 0 });
     }
     const pos = portfolio.get(ticker)!;
 
@@ -199,22 +208,43 @@ export function calcularCarteiraFIFO(
     } else if (tipo === "Venda") {
       let qtdVender = quantidade;
       let lucroOp = 0;
-
       let custoOp = 0;
+
+      // Câmbio (PTAX) da DATA DA VENDA — base do realizado fiscalmente correto.
+      // Só disponível para USD (fxByDate é USD); demais moedas caem no fallback.
+      const saleFx = isUsdAsset && fxByDate ? lookupFx(fxByDate, dateISO) : undefined;
+      let coveredAtivoBRL = 0;   // (preço−pm)·qtd·Pvenda  das parcelas com PTAX
+      let coveredCambioBRL = 0;  // pm·qtd·(Pvenda−Pcompra)
+      let coveredNative = 0;     // (preço−pm)·qtd native das mesmas parcelas
+
       while (qtdVender > 0.000001 && pos.lotes.length > 0) {
         const lote = pos.lotes[0];
         const qtdConsumida = Math.min(lote.qty, qtdVender);
-        lucroOp += (preco - lote.pm) * qtdConsumida;
+        const ativoNative = (preco - lote.pm) * qtdConsumida;
+        lucroOp += ativoNative;
         custoOp += lote.pm * qtdConsumida;
+        // "Coberto" = USD com PTAX da venda E da compra → decomposição real.
+        if (saleFx != null && lote.fxBRL != null && lote.fxBRL > 0) {
+          coveredAtivoBRL += ativoNative * saleFx;
+          coveredCambioBRL += lote.pm * qtdConsumida * (saleFx - lote.fxBRL);
+          coveredNative += ativoNative;
+        }
         lote.qty -= qtdConsumida;
         qtdVender -= qtdConsumida;
         if (lote.qty < 0.000001) pos.lotes.shift();
       }
 
-      // Corretagem da venda reduz o lucro realizado — simétrico à compra,
-      // onde a taxa entra no custo do lote (linha do custoTotal acima).
+      // Corretagem da venda reduz o lucro realizado — simétrico à compra, onde a
+      // taxa entra no custo do lote. No bucket coberto, convertida ao câmbio da venda.
+      if (saleFx != null) {
+        coveredAtivoBRL -= taxas * saleFx;
+        coveredNative -= taxas;
+      }
       pos.lucroRealizado += lucroOp - taxas;
       pos.custoVendido += custoOp;
+      pos.realizadoAtivoBRL += coveredAtivoBRL;
+      pos.realizadoCambioBRL += coveredCambioBRL;
+      pos.realizadoCoveredNative += coveredNative;
     }
   }
 
@@ -234,6 +264,23 @@ function lookupFx(fxMap: Map<string, number>, date: string): number | undefined 
 }
 
 export type FxDayChange = Record<string, { changePct: number }>;
+
+/** Finaliza o realizado em BRL decomposto em ativo × câmbio. As parcelas USD
+ *  com PTAX (compra+venda) usam o câmbio da data da venda (fiscalmente correto);
+ *  o restante (BRL, ou USD sem PTAX) cai no câmbio ATUAL no bucket ativo, sem
+ *  efeito câmbio separável. ativoBRL + cambioBRL = lucroRealizadoBRL (reconcilia). */
+function finalizeRealizado(pos: PosicaoInterna, fatorAtual: number): {
+  lucroRealizadoBRL: number; realizadoAtivoBRL: number; realizadoCambioBRL: number;
+} {
+  const uncoveredNative = pos.lucroRealizado - pos.realizadoCoveredNative;
+  const realizadoAtivoBRL = pos.realizadoAtivoBRL + uncoveredNative * fatorAtual;
+  const realizadoCambioBRL = pos.realizadoCambioBRL;
+  return {
+    lucroRealizadoBRL: realizadoAtivoBRL + realizadoCambioBRL,
+    realizadoAtivoBRL,
+    realizadoCambioBRL,
+  };
+}
 
 export function enriquecerPosicoes(
   portfolio: Map<string, PosicaoInterna>,
@@ -372,7 +419,8 @@ export function enriquecerPosicoes(
       custoMedio,
       custoTotal,
       lucroRealizado: pos.lucroRealizado,
-      lucroRealizadoBRL: pos.lucroRealizado * fatorAtual,
+      ...((): { lucroRealizadoBRL: number; realizadoAtivoBRL: number; realizadoCambioBRL: number } =>
+        finalizeRealizado(pos, fatorAtual))(),
       precoAtual,
       quoteCurrency,
       valorAtual,
@@ -503,7 +551,9 @@ export function construirPosicoesFechadas(
     const quote = quotes[ticker];
 
     const custoHistBRL = pos.custoVendido * fator;            // capital historicamente aportado
-    const lucroRealizadoBRL = pos.lucroRealizado * fator;     // lucro das vendas FIFO
+    // Realizado decomposto (câmbio da venda p/ USD; fallback câmbio atual).
+    const real = finalizeRealizado(pos, fator);
+    const lucroRealizadoBRL = real.lucroRealizadoBRL;        // lucro das vendas FIFO
     const proventosBRL = provPorTicker[tickerBase(ticker)] ?? 0;
     const retornoTotalBRL = lucroRealizadoBRL + proventosBRL; // resultado total realizado
     const retornoTotalPct = custoHistBRL > 0 ? (retornoTotalBRL / custoHistBRL) * 100 : null;
@@ -519,6 +569,8 @@ export function construirPosicoesFechadas(
       custoTotal: pos.custoVendido,
       lucroRealizado: pos.lucroRealizado,
       lucroRealizadoBRL,
+      realizadoAtivoBRL: real.realizadoAtivoBRL,
+      realizadoCambioBRL: real.realizadoCambioBRL,
       precoAtual: quote?.price ?? null,
       quoteCurrency: quote?.currency ?? null,
       valorAtual: 0,
@@ -620,20 +672,19 @@ export function calcularSnapshot(
   const totalAtualRV = rvPositions.reduce((s, p) => s + p.valorAtualBRL, 0);
   const lucroBRL = totalAtualRV - totalInvestidoRV;            // valorização (preço+câmbio)
   const lucroPct = totalInvestidoRV > 0 ? (lucroBRL / totalInvestidoRV) * 100 : 0;
-  // Realized gains from open positions only
-  const realizadoOpenBRL = rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
-  // Include realized gains from CLOSED positions (qty=0, skipped by enriquecerPosicoes)
-  let realizadoClosedBRL = 0;
-  for (const [ticker, pos] of portfolio) {
-    const qtd = pos.lotes.reduce((sum, l) => sum + l.qty, 0);
-    if (qtd >= 0.000001) continue;
-    if (Math.abs(pos.lucroRealizado) < 0.01) continue;
-    const setor = identificarSetor(ticker);
-    if (!isRendaVariavel(setor)) continue;
-    const moeda = getMoedaEfetiva(ticker, pos.moeda, setor);
-    realizadoClosedBRL += pos.lucroRealizado * fxToBRL(moeda, fxAtual);
-  }
-  const realizadoRVBRL = realizadoOpenBRL + realizadoClosedBRL;
+  // Realizado RV CANÔNICO = ABERTAS + ENCERRADAS, decomposto em ativo × câmbio
+  // (câmbio da DATA DA VENDA para USD; fallback câmbio atual). As duas lentes do
+  // Resumo — por natureza e por fator — reconciliam no mesmo Retorno Total.
+  const rvClosed = closedPositions.filter((p) => isRendaVariavel(p.setor));
+  const realizadoRVBRL =
+    rvPositions.reduce((s, p) => s + p.lucroRealizadoBRL, 0) +
+    rvClosed.reduce((s, p) => s + p.lucroRealizadoBRL, 0);
+  const realizadoAtivoRVBRL =
+    rvPositions.reduce((s, p) => s + p.realizadoAtivoBRL, 0) +
+    rvClosed.reduce((s, p) => s + p.realizadoAtivoBRL, 0);
+  const realizadoCambioRVBRL =
+    rvPositions.reduce((s, p) => s + p.realizadoCambioBRL, 0) +
+    rvClosed.reduce((s, p) => s + p.realizadoCambioBRL, 0);
   // Proventos from closed positions are already in prov.porTicker (not filtered by qty)
   const proventosClosedBRL = (() => {
     const openTickers = new Set(rvPositions.map(p => p.ticker));
@@ -698,6 +749,8 @@ export function calcularSnapshot(
     lucroPct,
     proventosRVBRL,
     realizadoRVBRL,
+    realizadoAtivoRVBRL,
+    realizadoCambioRVBRL,
     retornoTotalRVBRL,
     retornoTotalRVPct,
     ganhoAtivoTotalBRL,

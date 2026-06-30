@@ -117,6 +117,9 @@ export default function ResumoPage() {
   // Motor canônico de RF manual (mesma fonte da página /renda-fixa) — usado na DRE.
   const [rfData, setRfData] = useState<{ lucroNaoRealizado: number; lucroRealizado: number; totalInvestidoAberto: number } | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>("global");
+  // Lente do bloco de Renda Variável: "natureza" (não realizado/realizado) ou
+  // "fator" (ativo ex-câmbio / efeito câmbio). Ambas somam o mesmo ganho de RV.
+  const [rvLens, setRvLens] = useState<"natureza" | "fator">("natureza");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("alocacao");
@@ -565,6 +568,14 @@ export default function ResumoPage() {
         const ganhoCambio = fxPrincipal + fxCruzado;
         const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvNaoReal - ganhoCambio);
 
+        // Lente "por fator" do RV: junta o realizado (decomposto, câmbio da venda)
+        // ao não realizado. ativoLente + cambioLente = rvGanho (reconcilia com a
+        // lente "por natureza": não realizado + realizado).
+        const realizadoAtivoRV = data.realizadoAtivoRVBRL ?? 0;
+        const realizadoCambioRV = data.realizadoCambioRVBRL ?? 0;
+        const ativoLente = ganhoAtivo + realizadoAtivoRV;
+        const cambioLente = ganhoCambio + realizadoCambioRV;
+
         // Resultado total
         const resultadoTotal = rvGanho + rfGanho + proventosTotal;
 
@@ -659,21 +670,49 @@ export default function ResumoPage() {
               </div>
             </div>
 
-            {/* Renda Variável — ganho de capital */}
+            {/* Renda Variável — ganho de capital, com duas lentes (natureza / fator) */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-semibold text-blue-400">Renda Variável</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-blue-400">Renda Variável</span>
+                  <div className="flex rounded-md overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                    {(["natureza", "fator"] as const).map((l) => (
+                      <button
+                        key={l}
+                        onClick={() => setRvLens(l)}
+                        className={`px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide transition-colors ${rvLens === l ? "bg-blue-500/20 text-blue-300" : "text-zinc-600 hover:text-zinc-400"}`}
+                      >
+                        {l === "natureza" ? "Natureza" : "Fator"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <span className={`text-[12px] font-bold ${clr(rvGanho)}`}>{fmt(rvGanho)}</span>
               </div>
               <div className="pl-3 space-y-0.5">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-zinc-500">Não realizado</span>
-                  <span className={clrSub(rvNaoReal)}>{fmt(rvNaoReal)}</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-zinc-500">Realizado</span>
-                  <span className={clrSub(rvReal)}>{fmt(rvReal)}</span>
-                </div>
+                {rvLens === "natureza" ? (
+                  <>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Não realizado</span>
+                      <span className={clrSub(rvNaoReal)}>{fmt(rvNaoReal)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Realizado <span className="text-zinc-700">(vendas)</span></span>
+                      <span className={clrSub(rvReal)}>{fmt(rvReal)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Ativo <span className="text-zinc-700">(ex-câmbio)</span></span>
+                      <span className={clrSub(ativoLente)}>{fmt(ativoLente)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-zinc-500">Efeito câmbio</span>
+                      <span className={clrSub(cambioLente)}>{fmt(cambioLente)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
