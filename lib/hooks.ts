@@ -191,6 +191,7 @@ function mapPortfolioResponse(data: any): PortfolioResponse {
     lucroBRL: data.lucroBRL ?? data.lucro_brl ?? 0,
     lucroPct: data.lucroPct ?? data.lucro_pct ?? 0,
     proventosRVBRL: data.proventosRVBRL ?? data.proventos_rv_brl ?? 0,
+    realizadoRVBRL: data.realizadoRVBRL ?? data.realizado_rv_brl ?? 0,
     retornoTotalRVBRL: data.retornoTotalRVBRL ?? data.retorno_total_rv_brl ?? 0,
     retornoTotalRVPct: data.retornoTotalRVPct ?? data.retorno_total_rv_pct ?? 0,
     ganhoAtivoTotalBRL: data.ganhoAtivoTotalBRL ?? data.ganho_ativo_total_brl ?? 0,

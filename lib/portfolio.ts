@@ -75,7 +75,8 @@ export interface PortfolioSnapshot {
   lucroBRL: number;                  // RV: valorização total (preço + câmbio)
   lucroPct: number;                  // RV: Valorização % (sem proventos)
   proventosRVBRL: number;            // RV: proventos líquidos acumulados
-  retornoTotalRVBRL: number;         // RV: valorização + proventos
+  realizadoRVBRL: number;            // RV: lucro realizado (FIFO) — ABERTAS + ENCERRADAS
+  retornoTotalRVBRL: number;         // RV: valorização + realizado + proventos
   retornoTotalRVPct: number;         // RV: Retorno Total %
   ganhoAtivoTotalBRL: number;
   ganhoCambioTotalBRL: number;
@@ -696,6 +697,7 @@ export function calcularSnapshot(
     lucroBRL,
     lucroPct,
     proventosRVBRL,
+    realizadoRVBRL,
     retornoTotalRVBRL,
     retornoTotalRVPct,
     ganhoAtivoTotalBRL,
