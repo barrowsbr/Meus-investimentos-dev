@@ -14,14 +14,42 @@ import {
   dedupTrades,
   dedupCambio,
   cambioRowsForSheet,
+  proventoRowsForSheet,
+  tradeRowsForSheet,
+  sigProvento,
+  normalizeDate,
+  normalizeTipo,
+  dedupTk,
+  parseValor,
+  pick,
 } from "./broker-import";
 import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
 
+// Maior data (ISO yyyy-mm-dd) já presente na aba — o "corte" do sync.
+// Comparação lexicográfica de yyyy-mm-dd == comparação cronológica.
+function maxExistingISO(rows: Record<string, unknown>[], aliases: string[]): string {
+  let max = "";
+  for (const row of rows) {
+    const iso = normalizeDate(pick(row, ...aliases));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && iso > max) max = iso;
+  }
+  return max;
+}
+
+// Filtro de segurança: só é "novo de verdade" se a data for ESTRITAMENTE
+// posterior ao último dado da aba. Garante que o histórico existente nunca é
+// reescrito/duplicado — só entra o que é genuinamente novo (data futura).
+function afterCutoff(rawDate: string, cutoff: string): boolean {
+  if (!cutoff) return true; // aba vazia → aceita tudo
+  return normalizeDate(rawDate) > cutoff;
+}
+
 export async function runFlexSync(
-  opts: { mode?: string; dryRun?: boolean } = {},
+  opts: { mode?: string; dryRun?: boolean; debug?: boolean } = {},
 ): Promise<Record<string, unknown>> {
   const mode = opts.mode ?? "both";
   const dryRun = opts.dryRun ?? false;
+  const debug = opts.debug ?? false;
   const wantProv = ["proventos", "both"].includes(mode);
   const wantTrades = ["trades", "both"].includes(mode);
 
@@ -51,13 +79,59 @@ export async function runFlexSync(
   if (wantProv && proventos.length > 0) {
     const existing = await store.fetchTab("meus_proventos");
     const st = dedupProventos(existing, proventos);
-    const novos = proventos.filter((_, i) => st.get(i) === "novo");
-    result.proventos = { total: proventos.length, faltantes: novos.length, preview: novos.slice(0, 300) };
+    const cutoff = maxExistingISO(existing, ["data", "date", "pagamento"]);
+    const novosDedup = proventos.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((p) => afterCutoff(p.data, cutoff));
+    result.proventos = {
+      total: proventos.length,
+      corte_data: cutoff,
+      faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
+      preview: novos.slice(0, 300),
+    };
+
+    // ── Diagnóstico (?debug=1): por que os proventos não casam? ──
+    if (debug) {
+      // Chaves existentes por ticker (sem sufixo) para enxergar os "near misses".
+      const existingByTk: Record<string, string[]> = {};
+      const existingSample = existing.slice(0, 8).map((row) => {
+        const data = normalizeDate(String(row["data"] ?? ""));
+        const ticker = String(row["ticker"] ?? "");
+        const valor = parseValor(String(row["valor"] ?? "0"));
+        const decisao = String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? "");
+        const tk = dedupTk(ticker);
+        const sig = sigProvento(data, ticker, valor, decisao);
+        (existingByTk[tk] ??= []).push(sig);
+        return { ticker, tk, data, valor, decisao, sig, headers: Object.keys(row) };
+      });
+      for (const row of existing) {
+        const tk = dedupTk(String(row["ticker"] ?? ""));
+        const sig = sigProvento(normalizeDate(String(row["data"] ?? "")), String(row["ticker"] ?? ""), parseValor(String(row["valor"] ?? "0")), String(row["decisao"] ?? row["lancamento"] ?? row["tipo"] ?? ""));
+        (existingByTk[tk] ??= []).push(sig);
+      }
+      const incomingSample = proventos.slice(0, 12).map((ev, i) => {
+        const tk = dedupTk(ev.ticker);
+        return {
+          ticker: ev.ticker, tk, data: ev.data, valor: ev.valor, decisao: ev.decisao,
+          sig: sigProvento(normalizeDate(ev.data), ev.ticker, parseValor(ev.valor), ev.decisao),
+          status: st.get(i),
+          existentesMesmoTicker: [...new Set(existingByTk[tk] ?? [])].slice(0, 6),
+        };
+      });
+      (result.proventos as Record<string, unknown>).debug = {
+        existingCount: existing.length,
+        existingHeaders: existing[0] ? Object.keys(existing[0]) : [],
+        existingSample,
+        incomingSample,
+      };
+    }
 
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_proventos").catch(() => {});
-      const COLS = ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
-      const rows = novos.map((e) => COLS.map((c) => (e as unknown as Record<string, string>)[c] ?? ""));
+      // Header-aware: grava cada campo na coluna certa pelo NOME (não por posição),
+      // senão a data cai em "lançamento" e o Sheets a vira serial.
+      const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
+      const rows = proventoRowsForSheet(headers, novos);
       await store.appendRows("meus_proventos", rows);
       (result.proventos as Record<string, unknown>).inserted = novos.length;
     }
@@ -67,7 +141,9 @@ export async function runFlexSync(
   if (wantTrades && trades.length > 0) {
     const existing = await store.fetchTab("meus_ativos");
     const st = dedupTrades(existing, trades);
-    const novos = trades.filter((_, i) => st.get(i) === "novo");
+    const cutoff = maxExistingISO(existing, ["data", "date"]);
+    const novosDedup = trades.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((t) => afterCutoff(t.Data, cutoff));
     const splits = trades.filter((_, i) => st.get(i) === "split");
     const preview = trades
       .map((t, i) => ({ ...t, status_match: st.get(i) }))
@@ -77,15 +153,37 @@ export async function runFlexSync(
     result.trades = {
       total: trades.length,
       existing_count: existing.length,
+      corte_data: cutoff,
       faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
       potential_splits: splits.length,
       preview,
     };
 
+    // ── Diagnóstico de trades (?debug=1) ──
+    if (debug) {
+      const readTrade = (row: Record<string, unknown>) => ({
+        ticker: dedupTk(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "")),
+        tipo: normalizeTipo(String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? "")),
+        qty: parseValor(String(row["quantidade"] ?? "0")),
+        preco: parseValor(String(row["preço"] ?? row["preco"] ?? row["precio"] ?? "0")),
+      });
+      (result.trades as Record<string, unknown>).debug = {
+        existingCount: existing.length,
+        existingHeaders: existing[0] ? Object.keys(existing[0]) : [],
+        existingSample: existing.slice(0, 6).map((r) => ({ ...readTrade(r), headers: Object.keys(r) })),
+        incomingSample: trades.slice(0, 8).map((t, i) => ({
+          ticker: dedupTk(t.Símbolo), tipo: normalizeTipo(t["Tipo de transação"]),
+          qty: parseValor(t.Quantidade), preco: parseValor(t.Preço),
+          status: st.get(i),
+        })),
+      };
+    }
+
     if (!dryRun && novos.length > 0) {
       await backupTab("meus_ativos").catch(() => {});
-      const COLS = ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
-      const rows = novos.map((t) => COLS.map((c) => (t as unknown as Record<string, string>)[c] ?? ""));
+      const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
+      const rows = tradeRowsForSheet(headers, novos);
       await store.appendRows("meus_ativos", rows);
       (result.trades as Record<string, unknown>).inserted = novos.length;
     }
@@ -95,8 +193,16 @@ export async function runFlexSync(
   if (wantTrades && cambio.length > 0) {
     const existing = await store.fetchTab("cambio");
     const st = dedupCambio(existing, cambio);
-    const novos = cambio.filter((_, i) => st.get(i) === "novo");
-    result.cambio = { total: cambio.length, faltantes: novos.length, preview: novos.slice(0, 300) };
+    const cutoff = maxExistingISO(existing, ["data", "date"]);
+    const novosDedup = cambio.filter((_, i) => st.get(i) === "novo");
+    const novos = novosDedup.filter((c) => afterCutoff(c.data, cutoff));
+    result.cambio = {
+      total: cambio.length,
+      corte_data: cutoff,
+      faltantes: novos.length,
+      bloqueados_por_data: novosDedup.length - novos.length,
+      preview: novos.slice(0, 300),
+    };
 
     if (!dryRun && novos.length > 0) {
       await backupTab("cambio").catch(() => {});

@@ -6,7 +6,6 @@ import type { ConvergenceResult } from "@/lib/radar/convergence";
 import { localFxMove } from "@/lib/radar/geo";
 import { formatMacro } from "./format-macro";
 import HeatmapCalendar from "../charts/HeatmapCalendar";
-import BubbleScatter from "../charts/BubbleScatter";
 
 function StatChip({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -139,25 +138,6 @@ export default function ResumoTab({
         </section>
       )}
 
-      {/* Bolhas risco × retorno — contexto visual rápido */}
-      {tradable.length >= 2 && exposure && exposure.exposure.length > 0 && (
-        <section>
-          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Contexto Global</span>
-          <div className="rounded-xl p-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <BubbleScatter
-              bubbles={exposure.exposure.filter(e => e.pct >= 1).slice(0, 8).map(e => ({
-                label: e.countryPT,
-                x: e.pct,
-                y: tradable.find(t => t.country === e.countryPT)?.changePct ?? 0,
-                size: e.totalBRL,
-                highlight: e.countryPT === countryName,
-              }))}
-              xLabel="Exposição →"
-              yLabel="Retorno →"
-            />
-          </div>
-        </section>
-      )}
     </div>
   );
 }

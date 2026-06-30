@@ -94,6 +94,25 @@ export function dedupTk(t: string): string {
   return normalizeTicker(t).replace(/\.[A-Z]{1,2}$/i, "");
 }
 
+// Normaliza um nome de coluna: minúsculo, sem acento, sem _/espaço.
+function normHeader(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[_\s]/g, "").trim();
+}
+
+// Getter FUZZY de coluna: casa o header por nome normalizado (ignora caixa,
+// acento, underscore e espaço). Robusto a variações de schema da planilha —
+// "Símbolo", "simbolo", "Ticker", "ativo" caem todos no mesmo lugar.
+export function pick(row: Record<string, unknown>, ...aliases: string[]): string {
+  const want = new Set(aliases.map(normHeader));
+  for (const k of Object.keys(row)) {
+    if (want.has(normHeader(k))) {
+      const v = row[k];
+      if (v !== undefined && v !== null && v !== "") return String(v);
+    }
+  }
+  return "";
+}
+
 export function parseValor(v: string | number): number {
   if (typeof v === "number") return v;
   const s = String(v).trim();
@@ -209,12 +228,17 @@ export function makeCambioRow(p: {
 
 // Assinatura: YYYYMMDD | TICKER_sem_sufixo | I(mposto)/D(ividendo) | round(valor*100).
 // O tipo distingue dividendo e withholding de mesmo valor/dia/ticker.
-export function sigProvento(data: string, ticker: string, valor: number, decisao: string): string {
-  const d = normalizeDate(data).replace(/-/g, "").slice(0, 8);
+// Tipo do provento: imposto/withholding (I) × dividendo (D). Reconhece rótulos
+// PT e EN nos dois lados (planilha pode ter "Tax"/"Withholding" de imports antigos).
+function provTipo(decisao: string): "I" | "D" {
+  return /imposto|withhold|\btax\b|reten/.test((decisao ?? "").toLowerCase()) ? "I" : "D";
+}
+
+export function sigProvento(dataISO: string, ticker: string, valor: number, decisao: string): string {
+  const d = dataISO.replace(/-/g, "").slice(0, 8);
   const t = dedupTk(ticker);
   const v = Math.round(Math.abs(valor) * 100);
-  const tipo = decisao.toLowerCase().includes("imposto") ? "I" : "D";
-  return `${d}|${t}|${tipo}|${v}`;
+  return `${d}|${t}|${provTipo(decisao)}|${v}`;
 }
 
 export function dedupProventos(
@@ -224,17 +248,30 @@ export function dedupProventos(
   const existingKeys = new Set<string>();
 
   for (const row of existing) {
-    const ticker = String(row["ticker"] ?? "");
-    const data = String(row["data"] ?? "");
-    const valor = parseValor(String(row["valor"] ?? "0"));
-    const decisao = String(row["decisao"] ?? row["lancamento"] ?? "");
-    existingKeys.add(sigProvento(data, ticker, valor, decisao));
+    // Leitura FUZZY — robusta a qualquer nome de coluna (Símbolo/Ticker/Ativo, etc.).
+    const ticker = pick(row, "ticker", "símbolo", "simbolo", "symbol", "ativo", "papel");
+    const data = normalizeDate(pick(row, "data", "date", "pagamento", "dt"));
+    const valor = parseValor(pick(row, "valor", "value", "valor recebido") || "0");
+    const decisao = pick(row, "decisao", "decisão", "lancamento", "lançamento", "tipo");
+    if (!data) { existingKeys.add(sigProvento(data, ticker, valor, decisao)); continue; }
+    // Janela de ±2 dias: a data de report (IBKR) pode divergir da data de
+    // pagamento gravada na planilha (ex-date × pay-date × report-date). Sem isso,
+    // proventos legítimos apareciam todos como "faltantes".
+    try {
+      const base = new Date(data + "T12:00:00Z");
+      for (let off = -2; off <= 2; off++) {
+        const d = new Date(base.getTime() + off * 86400000).toISOString().slice(0, 10);
+        existingKeys.add(sigProvento(d, ticker, valor, decisao));
+      }
+    } catch {
+      existingKeys.add(sigProvento(data, ticker, valor, decisao));
+    }
   }
 
   const statuses = new Map<number, "novo" | "existente">();
   for (let i = 0; i < incoming.length; i++) {
     const ev = incoming[i];
-    const key = sigProvento(ev.data, ev.ticker, parseValor(ev.valor), ev.decisao);
+    const key = sigProvento(normalizeDate(ev.data), ev.ticker, parseValor(ev.valor), ev.decisao);
     statuses.set(i, existingKeys.has(key) ? "existente" : "novo");
   }
   return statuses;
@@ -251,11 +288,11 @@ export function dedupTrades(
   }> = [];
 
   for (const row of existing) {
-    const ticker = dedupTk(String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? ""));
-    const rawTipo = String(row["tipo de transação"] ?? row["tipo de transacao"] ?? row["tipo"] ?? "").trim();
-    const tipo = normalizeTipo(rawTipo);
-    const qty = Math.round(parseValor(String(row["quantidade"] ?? "0")) * 100) / 100;
-    const preco = parseValor(String(row["preço"] ?? row["preco"] ?? row["precio"] ?? "0"));
+    // Leitura FUZZY — robusta a qualquer nome de coluna.
+    const ticker = dedupTk(pick(row, "símbolo", "simbolo", "ticker", "symbol", "ativo", "papel"));
+    const tipo = normalizeTipo(pick(row, "tipo de transação", "tipo de transacao", "tipo_transacao", "tipo", "operação", "operacao"));
+    const qty = Math.round(parseValor(pick(row, "quantidade", "qtd", "quantity", "qty") || "0") * 100) / 100;
+    const preco = parseValor(pick(row, "preço", "preco", "precio", "price", "preço unitário", "preco unitario") || "0");
     if (ticker) existingTrades.push({ ticker, tipo, qty, preco, matched: false });
   }
 
@@ -463,4 +500,58 @@ export function cambioRowsForSheet(sheetHeaders: string[], cambio: CambioRow[]):
     : ["data", "moeda_origem", "moeda_destino", "valor_origem", "valor_destino", "taxa", "corretora"];
   const mappers = headers.map(h => resolveField(h));
   return cambio.map(c => mappers.map(fn => fn ? fn(c) : ""));
+}
+
+// Resolve um campo por NOME de coluna (exact → sem _/espaço), ignorando ordem.
+function resolveBy<T>(map: Record<string, (x: T) => string>, header: string): ((x: T) => string) | null {
+  const h = header.toLowerCase().trim();
+  if (map[h]) return map[h];
+  const norm = h.replace(/[_\s]/g, "");
+  for (const [k, fn] of Object.entries(map)) {
+    if (k.replace(/[_\s]/g, "") === norm) return fn;
+  }
+  return null;
+}
+
+// Proventos → linhas na ORDEM REAL das colunas da aba (evita o write posicional
+// desalinhar quando a planilha tem outra ordem — bug que jogava a data na coluna
+// de "lançamento" e o Sheets a convertia em serial).
+export function proventoRowsForSheet(sheetHeaders: string[], proventos: ProventoRow[]): string[][] {
+  const FIELD_MAP: Record<string, (p: ProventoRow) => string> = {
+    ticker: p => p.ticker, simbolo: p => p.ticker, "símbolo": p => p.ticker, symbol: p => p.ticker,
+    data: p => p.data, date: p => p.data, pagamento: p => p.data,
+    decisao: p => p.decisao, "decisão": p => p.decisao,
+    mes: p => p.mes, "mês": p => p.mes,
+    ano: p => p.ano, year: p => p.ano,
+    lancamento: p => p.lancamento, "lançamento": p => p.lancamento,
+    categoria: p => p.categoria,
+    valor: p => p.valor, value: p => p.valor,
+    moeda: p => p.moeda, currency: p => p.moeda,
+  };
+  const headers = sheetHeaders.length > 0
+    ? sheetHeaders
+    : ["ticker", "data", "decisao", "mes", "ano", "lancamento", "categoria", "valor", "moeda"];
+  const mappers = headers.map(h => resolveBy(FIELD_MAP, h));
+  return proventos.map(p => mappers.map(fn => fn ? fn(p) : ""));
+}
+
+// Trades → linhas na ORDEM REAL das colunas de meus_ativos.
+export function tradeRowsForSheet(sheetHeaders: string[], trades: TradeRow[]): string[][] {
+  const FIELD_MAP: Record<string, (t: TradeRow) => string> = {
+    data: t => t.Data, date: t => t.Data,
+    "tipo de transação": t => t["Tipo de transação"], "tipo de transacao": t => t["Tipo de transação"], tipo: t => t["Tipo de transação"],
+    "símbolo": t => t.Símbolo, simbolo: t => t.Símbolo, ticker: t => t.Símbolo, symbol: t => t.Símbolo,
+    quantidade: t => t.Quantidade, qtd: t => t.Quantidade,
+    "preço": t => t.Preço, preco: t => t.Preço, price: t => t.Preço,
+    "valor bruto": t => t["Valor bruto"],
+    "taxa de corretagem": t => t["Taxa de corretagem"], corretagem: t => t["Taxa de corretagem"],
+    "valor líquido": t => t["Valor líquido"], "valor liquido": t => t["Valor líquido"],
+    moeda: t => t.Moeda, currency: t => t.Moeda,
+    corretora: t => t.Corretora, broker: t => t.Corretora,
+  };
+  const headers = sheetHeaders.length > 0
+    ? sheetHeaders
+    : ["Data", "Tipo de transação", "Símbolo", "Quantidade", "Preço", "Valor bruto", "Taxa de corretagem", "Valor líquido", "Moeda", "Corretora"];
+  const mappers = headers.map(h => resolveBy(FIELD_MAP, h));
+  return trades.map(t => mappers.map(fn => fn ? fn(t) : ""));
 }

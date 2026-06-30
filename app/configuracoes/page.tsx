@@ -104,6 +104,8 @@ function PasswordSection() {
   const [senhaSet, setSenhaSet] = useState(false);
   const [protectedPages, setProtectedPages] = useState<string[]>([]);
   const [allProtected, setAllProtected] = useState(true);
+  const [loginEnabled, setLoginEnabled] = useState(true);
+  const [savingLogin, setSavingLogin] = useState(false);
 
   // Password change form
   const [currentPass, setCurrentPass] = useState("");
@@ -127,6 +129,7 @@ function PasswordSection() {
         const pp: string[] = data.protectedPages ?? [];
         setProtectedPages(pp);
         setAllProtected(pp.length === 0);
+        setLoginEnabled(data.loginEnabled ?? true);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -156,6 +159,24 @@ function PasswordSection() {
       setPassMsg({ ok: false, text: "Erro de conexão" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleLogin(next: boolean) {
+    setLoginEnabled(next);
+    setSavingLogin(true);
+    try {
+      await fetch(`${API_URL}/api/auth/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginEnabled: next }),
+      });
+      sessionStorage.setItem("mi_login_enabled", next ? "1" : "0");
+    } catch {
+      // reverte em caso de erro
+      setLoginEnabled(!next);
+    } finally {
+      setSavingLogin(false);
     }
   }
 
@@ -210,6 +231,46 @@ function PasswordSection() {
 
   return (
     <div className="space-y-6">
+      {/* ── Exigir login (página de login opcional) ── */}
+      <div>
+        <h3 className="flex items-center gap-2 text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">
+          <Lock size={13} /> Senha de Acesso
+        </h3>
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-200">Exigir senha para entrar</p>
+            <p className="text-xs text-zinc-500 leading-relaxed mt-0.5">
+              Quando <strong className="text-zinc-400">desligado</strong>, a página de login não aparece —
+              o app abre direto (a primeira senha do home deixa de ser pedida). Quando ligado, vale a
+              proteção por página abaixo.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            {savingLogin && <Loader2 size={13} className="animate-spin text-zinc-500" />}
+            <div
+              className={`w-10 h-5.5 rounded-full transition-colors relative ${loginEnabled ? "bg-emerald-500" : "bg-zinc-600"}`}
+              style={{ width: 40, height: 22 }}
+              onClick={() => !savingLogin && handleToggleLogin(!loginEnabled)}
+            >
+              <div
+                className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-all"
+                style={{ left: loginEnabled ? 20 : 2 }}
+              />
+            </div>
+            <span className={`text-xs font-mono font-bold ${loginEnabled ? "text-emerald-400" : "text-zinc-500"}`}>
+              {loginEnabled ? "ON" : "OFF"}
+            </span>
+          </label>
+        </div>
+        {!loginEnabled && (
+          <p className="text-[11px] text-amber-400/80 mt-2 flex items-center gap-1.5">
+            <ShieldCheck size={12} /> Login desativado — qualquer pessoa com o link acessa o dashboard.
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
       {/* ── Alterar Senha ── */}
       <div>
         <h3 className="flex items-center gap-2 text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">
@@ -297,7 +358,7 @@ function PasswordSection() {
 
         <p className="text-xs text-zinc-500 leading-relaxed mb-3">
           Escolha quais páginas exigem login. Páginas não selecionadas ficam acessíveis sem senha.
-          Com <strong className="text-zinc-400">"Todas"</strong> ativo, toda a aplicação exige autenticação.
+          Com <strong className="text-zinc-400">&quot;Todas&quot;</strong> ativo, toda a aplicação exige autenticação.
         </p>
 
         <div className="flex items-center gap-3 mb-4">
@@ -1069,55 +1130,6 @@ function ImportSection() {
   );
 }
 
-// ── Environment Variables Section ─────────────────────────────────────────────
-
-function EnvSection() {
-  const vars = [
-    { key: "SPREADSHEET_ID",              desc: "ID da planilha Google Sheets (gdados)",           required: true },
-    { key: "GOOGLE_API_KEY",              desc: "API Key Google — leitura da planilha",             required: true },
-    { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: "Service Account JSON — escrita, sync e import",    required: true },
-    { key: "CRON_SECRET",                 desc: "Token para autenticação dos Vercel Crons",         required: true },
-    { key: "APP_PASSWORD",                desc: "Senha fallback (se planilha não tiver config)",     required: false },
-    { key: "GEMINI_API_KEY",              desc: "Google Gemini — Agente IA (tier 1)",               required: false },
-    { key: "OPENAI_API_KEY",              desc: "OpenAI GPT-4o — Agente IA (fallback tier 1)",     required: false },
-    { key: "DEEPSEEK_API_KEY",            desc: "DeepSeek V3 — Agente IA (fallback tier 2)",       required: false },
-    { key: "GROQ_API_KEY",               desc: "Groq/Llama — Agente IA (fallback tier 3, free)",  required: false },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-zinc-500">Configure no painel da Vercel em <strong className="text-zinc-400">Settings &rarr; Environment Variables</strong>.</p>
-      <div className="overflow-x-auto rounded-lg border border-zinc-800">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-zinc-800 bg-zinc-900/40">
-              <th className="text-left py-2 px-3 text-zinc-500 font-semibold uppercase tracking-wider">Variável</th>
-              <th className="text-left py-2 px-3 text-zinc-500 font-semibold uppercase tracking-wider hidden md:table-cell">Descrição</th>
-              <th className="text-center py-2 px-3 text-zinc-500 font-semibold uppercase tracking-wider">Tipo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vars.map((v, i) => (
-              <tr key={v.key} className={`border-b border-zinc-900 ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}>
-                <td className="py-2 px-3">
-                  <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-200 font-mono text-[11px]">{v.key}</code>
-                </td>
-                <td className="py-2 px-3 text-zinc-400 hidden md:table-cell">{v.desc}</td>
-                <td className="py-2 px-3 text-center">
-                  {v.required
-                    ? <span className="text-amber-400 text-[10px] font-semibold">Obrigatória</span>
-                    : <span className="text-zinc-600 text-[10px]">Opcional</span>
-                  }
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 // ── Golden Source (db_cotacoes) Section ──────────────────────────────────────
@@ -1611,7 +1623,7 @@ export default function ConfiguracoesPage() {
     <>
       <PageHeader
         title="Configurações"
-        description="Gerencie senha de acesso, importação de dados e variáveis de ambiente."
+        description="Gerencie senha de acesso, tema, base de cotações e sincronização de dados."
       />
 
       <div className="max-w-4xl">
@@ -1635,11 +1647,7 @@ export default function ConfiguracoesPage() {
           <FlexSyncSection />
         </SectionCard>
 
-        <SectionCard title="Variáveis de Ambiente" icon={<Settings size={16} />}>
-          <EnvSection />
-        </SectionCard>
-
-        <SectionCard title="Sobre o Sistema" icon={<Info size={16} />} defaultOpen>
+        <SectionCard title="Sobre o Sistema" icon={<Info size={16} />}>
           <div className="space-y-5">
             {/* Stack técnica */}
             <div>
@@ -1728,11 +1736,12 @@ export default function ConfiguracoesPage() {
                   { label: "Google Sheets", desc: "Leitura + escrita com backup" },
                   { label: "Yahoo Finance", desc: "Cotações e histórico" },
                   { label: "Banco Central", desc: "PTAX multi-moeda (BCB)" },
-                  { label: "IBKR / B3", desc: "Import CSV idempotente" },
+                  { label: "IBKR", desc: "Flex API + CSV (sync diário)" },
+                  { label: "B3", desc: "Import CSV idempotente" },
                   { label: "FMP / AlphaVantage", desc: "Holdings de ETFs" },
                   { label: "Polymarket / Kalshi", desc: "Mercados preditivos" },
                   { label: "Reddit", desc: "Inteligência de mercado" },
-                  { label: "Vercel Cron", desc: "Cotações auto (23h UTC)" },
+                  { label: "Vercel Cron", desc: "Cotações 20h · IBKR 6h (BRT)" },
                 ].map(s => (
                   <div key={s.label} className="rounded-lg bg-zinc-800/40 px-3 py-2">
                     <p className="text-[10px] text-zinc-600 uppercase">{s.label}</p>
@@ -1750,7 +1759,7 @@ export default function ConfiguracoesPage() {
               </div>
               <div className="flex items-start gap-2">
                 <FileText size={13} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-                <p>Importações idempotentes — sem risco de duplicatas. Detecta automaticamente IBKR ou B3. Modo demo (login test/test) escala valores ×15 sem expor números reais.</p>
+                <p>Importações idempotentes — sem risco de duplicatas. O sync diário do IBKR (6h BRT) é <strong className="text-zinc-400">append-only</strong>: só grava o que tem data posterior ao último dado, nunca apaga nem reescreve. Modo demo (login test/test) escala valores ×15 sem expor números reais.</p>
               </div>
             </div>
           </div>

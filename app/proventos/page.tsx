@@ -76,7 +76,7 @@ function rowValueBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
 }
 
 function rowIsImposto(r: Record<string, unknown>): boolean {
-  return String(r["decisao"] ?? "").toLowerCase().includes("imposto");
+  return String(r["decisao"] ?? r["lancamento"] ?? r["tipo"] ?? "").toLowerCase().includes("imposto");
 }
 
 function rowAbsBRL(r: Record<string, unknown>, fx: FxRatesSimple): number {
@@ -235,7 +235,7 @@ export default function ProventosPage() {
   const options = useMemo(() => {
     const years = [...new Set(rawData.map(r => rowYear(r)).filter(Boolean))].sort().reverse();
     const tickers = [...new Set(rawData.map(r => String(r["ticker"] ?? "").toUpperCase().trim()).filter(Boolean))].sort();
-    const tipos = [...new Set(rawData.map(r => String(r["lancamento"] ?? r["decisao"] ?? "").trim()).filter(Boolean))].sort();
+    const tipos = [...new Set(rawData.map(r => String(r["lancamento"] ?? r["decisao"] ?? r["tipo"] ?? "").trim()).filter(Boolean))].sort();
     const moedas = [...new Set(rawData.map(r => String(r["moeda"] ?? "BRL").toUpperCase().trim()).filter(Boolean))].sort();
     return { years, tickers, tipos, moedas };
   }, [rawData]);
@@ -245,7 +245,7 @@ export default function ProventosPage() {
       if (filters.year !== "all" && rowYear(r) !== filters.year) return false;
       if (filters.ticker !== "all" && String(r["ticker"] ?? "").toUpperCase().trim() !== filters.ticker) return false;
       if (filters.tipo !== "all") {
-        const tipo = String(r["lancamento"] ?? r["decisao"] ?? "").trim();
+        const tipo = String(r["lancamento"] ?? r["decisao"] ?? r["tipo"] ?? "").trim();
         if (tipo !== filters.tipo) return false;
       }
       if (filters.moeda !== "all" && String(r["moeda"] ?? "BRL").toUpperCase() !== filters.moeda) return false;
@@ -332,7 +332,7 @@ export default function ProventosPage() {
   const byTypeChart = useMemo(() => {
     const acc: Record<string, number> = {};
     filteredData.forEach(r => {
-      const t = String(r["lancamento"] ?? r["decisao"] ?? "Outro").trim() || "Outro";
+      const t = String(r["lancamento"] ?? r["decisao"] ?? r["tipo"] ?? "Outro").trim() || "Outro";
       acc[t] = (acc[t] ?? 0) + rowValueBRL(r, fx);
     });
     return Object.entries(acc)
