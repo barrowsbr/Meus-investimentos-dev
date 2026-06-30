@@ -77,10 +77,9 @@ export async function GET() {
               existing.atual = saldo;
               updated = true;
             }
-          } else {
-            caixa.push({ ticker: "CAIXA", atual: saldo, moeda });
-            updated = true;
           }
+          // Removido em v19.1: NÃO criar linhas automaticamente
+          // Se o usuário deletou, a IBKR não deve recrear
         }
 
         // 2b. Adiciona os saldos de margem (dívida) da IBKR
