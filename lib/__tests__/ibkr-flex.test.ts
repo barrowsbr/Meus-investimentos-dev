@@ -78,6 +78,24 @@ describe("parseFlexXml", () => {
     expect(tax.lancamento).toBe("IMPOSTO");
   });
 
+  it("agrega saldos de caixa da IBKR por moeda quando a Flex emite múltiplas linhas", () => {
+    const SAMPLE_DUP = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
+ <FlexStatements count="1">
+  <FlexStatement accountId="U14836620" fromDate="20260101" toDate="20260628">
+   <CashReportCurrency currency="USD" endingCash="100.00" />
+   <CashReportCurrency currency="USD" endingCash="50.00" />
+   <CashReportCurrency currency="BRL" endingCash="300.00" />
+  </FlexStatement>
+ </FlexStatements>
+</FlexQueryResponse>`;
+
+    const { cashBalances } = parseFlexXml(SAMPLE_DUP);
+    expect(cashBalances).toEqual([
+      { moeda: "USD", saldo: 150 },
+      { moeda: "BRL", saldo: 300 },
+    ]);
+  });
+
   it("lê a foto das posições abertas", () => {
     expect(positions).toHaveLength(1);
     expect(positions[0].ticker).toBe("AAPL");
