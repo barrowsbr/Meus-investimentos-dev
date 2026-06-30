@@ -96,6 +96,20 @@ describe("parseFlexXml", () => {
     ]);
   });
 
+  it("ignora linhas de resumo do Cash Report como BASE SUMMARY", () => {
+    const SAMPLE_SUMMARY = `<FlexQueryResponse queryName="Dashboard Sync" type="AF">
+ <FlexStatements count="1">
+  <FlexStatement accountId="U14836620" fromDate="20260101" toDate="20260628">
+   <CashReportCurrency currency="USD" endingCash="100.00" />
+   <CashReportCurrency currency="BASE SUMMARY" endingCash="578.00" />
+  </FlexStatement>
+ </FlexStatements>
+</FlexQueryResponse>`;
+
+    const { cashBalances } = parseFlexXml(SAMPLE_SUMMARY);
+    expect(cashBalances).toEqual([{ moeda: "USD", saldo: 100 }]);
+  });
+
   it("lê a foto das posições abertas", () => {
     expect(positions).toHaveLength(1);
     expect(positions[0].ticker).toBe("AAPL");
