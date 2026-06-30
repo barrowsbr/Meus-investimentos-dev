@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularCarteiraFIFO, enriquecerPosicoes, calcularSnapshot, type Position } from "@/lib/portfolio";
+import { calcularCarteiraFIFO, enriquecerPosicoes, calcularSnapshot, construirPosicoesFechadas, type Position } from "@/lib/portfolio";
 import { isRendaVariavel } from "@/lib/sectors";
 import type { Quote, FxRates } from "@/lib/cotacoes";
 
@@ -274,6 +274,50 @@ describe("taxas de venda no FIFO", () => {
     const pos = carteira.get("PETR4")!;
     // (12 − 10) × 50 − 8 = 92 (sem o fix dava 100: taxa da venda sumia)
     expect(pos.lucroRealizado).toBeCloseTo(92, 6);
+  });
+});
+
+// ── Realizado USD: câmbio da DATA DA VENDA + decomposição ativo × câmbio ──────
+// Compra 10 @ US$100 com PTAX 5,0; vende 10 @ US$120 com PTAX 5,5.
+//   ativo  = (120−100)·10·5,5 = 1100   (lucro do papel ao câmbio da venda)
+//   câmbio = 100·10·(5,5−5,0)  = 500    (valorização do dólar sobre o custo)
+//   total  = proceeds(120·10·5,5) − custo(100·10·5,0) = 6600 − 5000 = 1600
+// O câmbio ATUAL (9,9) é passado de propósito: se o motor usasse ele, o total
+// seria 200·9,9 = 1980 — o teste falharia. Garante uso do câmbio da venda.
+describe("realizado USD — câmbio da venda + ativo × câmbio", () => {
+  const fxByDate = new Map<string, number>([["2023-01-02", 5.0], ["2023-06-01", 5.5]]);
+  const rows = [
+    compra("AAPL", 10, 100, "USD", "2023-01-02"),
+    { "símbolo": "AAPL", "tipo de transação": "Venda", quantidade: 10, "preço": 120, moeda: "USD", data: "2023-06-01" } as Record<string, unknown>,
+  ];
+  const carteira = calcularCarteiraFIFO(rows, fxByDate);
+  const closed = construirPosicoesFechadas(carteira, rows, {}, {}, fx(9.9));
+  const p = closed.find(x => x.ticker === "AAPL")!;
+
+  it("ativo = (preço−PM)·qtd·PTAXvenda", () => {
+    expect(p.realizadoAtivoBRL).toBeCloseTo(1100, 6);
+  });
+  it("câmbio = PM·qtd·(PTAXvenda − PTAXcompra)", () => {
+    expect(p.realizadoCambioBRL).toBeCloseTo(500, 6);
+  });
+  it("total = ativo + câmbio (reconcilia) e usa câmbio da venda, não o atual", () => {
+    expect(p.lucroRealizadoBRL).toBeCloseTo(1600, 6);
+    expect(p.realizadoAtivoBRL + p.realizadoCambioBRL).toBeCloseTo(p.lucroRealizadoBRL, 6);
+  });
+});
+
+// Venda em BRL: sem efeito câmbio separável (câmbio = 0, ativo = total).
+describe("realizado BRL — sem efeito câmbio", () => {
+  const rows = [
+    compra("PETR4", 100, 10, "BRL", "2024-01-02"),
+    { "símbolo": "PETR4", "tipo de transação": "Venda", quantidade: 100, "preço": 12, moeda: "BRL", data: "2024-06-03" } as Record<string, unknown>,
+  ];
+  const carteira = calcularCarteiraFIFO(rows);
+  const p = construirPosicoesFechadas(carteira, rows, {}, {}, fx(5.0)).find(x => x.ticker === "PETR4")!;
+  it("câmbio = 0 e ativo = total = (12−10)·100", () => {
+    expect(p.realizadoCambioBRL).toBeCloseTo(0, 6);
+    expect(p.realizadoAtivoBRL).toBeCloseTo(200, 6);
+    expect(p.lucroRealizadoBRL).toBeCloseTo(200, 6);
   });
 });
 
