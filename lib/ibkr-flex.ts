@@ -144,7 +144,7 @@ export async function fetchFlexStatement(
 
   // 2. GetStatement → poll (ErrorCode 1019 = extrato ainda em geração)
   const deadline = Date.now() + maxWaitMs;
-  for (;;) {
+  for (; ;) {
     const xml = await flexGet(`${baseUrl}?t=${t}&q=${encodeURIComponent(referenceCode)}&v=3`);
     if (xml.includes("<FlexQueryResponse")) return xml;
 
@@ -255,24 +255,36 @@ export function parseFlexXml(xml: string): FlexParsed {
   }
 
   // Cash balances — tag <CashReportCurrency>
+  const cashBalancesMap = new Map<string, number>();
+  const marginBalancesMap = new Map<string, { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }>();
+
   for (const a of extractElements(xml, "CashReportCurrency")) {
     const currency = (a.currency ?? "").toUpperCase();
     if (!currency) continue; // ignora a linha total (sem moeda explícita)
     const saldo = parseValor(a.endingCash ?? "0");
-    
+
     if (saldo < -0.001) {
       // Saldo negativo = margem (alavancagem)
-      marginBalances.push({ 
-        moeda: currency, 
-        saldo: Math.abs(saldo), // armazena o tamanho da dívida como positivo
-        jurosAcruados: 0, 
-        initMargin: 0, 
-        maintMargin: 0 
-      });
+      const existing = marginBalancesMap.get(currency) ?? {
+        moeda: currency,
+        saldo: 0,
+        jurosAcruados: 0,
+        initMargin: 0,
+        maintMargin: 0,
+      };
+      existing.saldo += Math.abs(saldo);
+      marginBalancesMap.set(currency, existing);
     } else if (saldo > 0.001) {
-      // Saldo positivo = caixa
-      cashBalances.push({ moeda: currency, saldo });
+      cashBalancesMap.set(currency, (cashBalancesMap.get(currency) ?? 0) + saldo);
     }
+  }
+
+  for (const [currency, saldo] of cashBalancesMap.entries()) {
+    cashBalances.push({ moeda: currency, saldo });
+  }
+
+  for (const mb of marginBalancesMap.values()) {
+    marginBalances.push(mb);
   }
 
   // Interest Accruals (Juros acruados de margem)

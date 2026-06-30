@@ -1,0 +1,17 @@
+diff --git a/app/api/alavancagem/handler.ts b/app/api/alavancagem/handler.ts
+index 4622761..5a5409a 100644
+--- a/app/api/alavancagem/handler.ts
++++ b/app/api/alavancagem/handler.ts
+@@ -40,10 +40,10 @@ async function loadEntries(): Promise<MarginEntry[]> {
+ // GET — entradas + métricas + benchmarks atuais + fx
+ export async function GET() {
+   try {
+-    const [entries, benchmarks, fx] = await Promise.all([
++    const [initialEntries, benchmarks, fx] = await Promise.all([
+       loadEntries(), fetchBenchmarks(), fetchFxBRL(),
+     ]);
+-    let entries = await loadEntries();
++    let entries = initialEntries;
+     try {
+       const token = process.env.IBKR_FLEX_TOKEN;
+       const queryId = process.env.IBKR_FLEX_QUERY_ID;

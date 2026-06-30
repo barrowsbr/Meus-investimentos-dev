@@ -26,7 +26,7 @@ export async function GET() {
   try {
     const store = getDataStore();
     const rows = await store.fetchTab(TAB);
-    const caixa: { ticker: string; atual: number; moeda: string }[] = [];
+    let caixa: { ticker: string; atual: number; moeda: string }[] = [];
     const margin: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
     let updated = false;
     let ibkrSuccess = false;
@@ -40,6 +40,20 @@ export async function GET() {
       caixa.push({ ticker, atual, moeda });
     }
 
+    // 1b. Agrega múltiplas linhas de caixa da mesma moeda em uma só entrada.
+    if (caixa.length > 1) {
+      const aggregated = new Map<string, { ticker: string; atual: number; moeda: string }>();
+      for (const item of caixa) {
+        const existing = aggregated.get(item.moeda);
+        if (existing) {
+          existing.atual += item.atual;
+        } else {
+          aggregated.set(item.moeda, { ...item });
+        }
+      }
+      caixa = [...aggregated.values()];
+    }
+
     // 2. Buscar saldos do IBKR (se configurado)
     try {
       const token = process.env.IBKR_FLEX_TOKEN;
@@ -48,25 +62,29 @@ export async function GET() {
         // Import dinâmico para não quebrar dependências caso IBKR não seja usado
         const { getFlexXmlCached, parseFlexXml } = await import("@/lib/ibkr-flex");
         const xml = await getFlexXmlCached(token, queryId);
-        const { cashBalances } = parseFlexXml(xml);
+        const { cashBalances, marginBalances } = parseFlexXml(xml);
 
+        // Agrega saldos da IBKR por moeda antes de atualizar o caixa local.
+        const ibkrCashByCurrency = new Map<string, number>();
         for (const ibkr of cashBalances) {
-          // Procura se já existe uma linha de caixa com esta moeda
-          const existing = caixa.find(c => c.moeda === ibkr.moeda);
+          ibkrCashByCurrency.set(ibkr.moeda, (ibkrCashByCurrency.get(ibkr.moeda) ?? 0) + ibkr.saldo);
+        }
+
+        for (const [moeda, saldo] of ibkrCashByCurrency.entries()) {
+          const existing = caixa.find(c => c.moeda === moeda);
           if (existing) {
-            if (Math.abs(existing.atual - ibkr.saldo) > 0.02) {
-              existing.atual = ibkr.saldo;
+            if (Math.abs(existing.atual - saldo) > 0.02) {
+              existing.atual = saldo;
               updated = true;
             }
           } else {
-            // Cria nova linha de caixa para a moeda
-            caixa.push({ ticker: "CAIXA", atual: ibkr.saldo, moeda: ibkr.moeda });
+            caixa.push({ ticker: "CAIXA", atual: saldo, moeda });
             updated = true;
           }
         }
 
         // 2b. Adiciona os saldos de margem (dívida) da IBKR
-        for (const mb of parseFlexXml(xml).marginBalances) {
+        for (const mb of marginBalances) {
           margin.push(mb);
         }
         ibkrSuccess = true;
