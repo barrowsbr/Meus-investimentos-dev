@@ -635,18 +635,7 @@ interface IbkrStripData {
 // com % e R$ de apoio + patrimônio de contexto. Lê /api/ibkr/overview de forma
 // assíncrona; enquanto não há dado (carregando, não configurado ou erro) NÃO
 // renderiza nada — nunca quebra a Home nem deixa espaço vazio.
-function IbkrDayStrip() {
-  const [data, setData] = useState<IbkrStripData | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/ibkr/overview")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d && d.kpis) setData(d as IbkrStripData); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
+function IbkrDayStrip({ data }: { data: IbkrStripData | null }) {
   if (!data) return null;
   const k = data.kpis;
   const up = (k.lucroDiaUSD ?? k.lucroDiaBRL ?? 0) >= 0;
@@ -730,6 +719,7 @@ interface IndexQuote {
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [nasdaq, setNasdaq] = useState<IndexQuote | null>(null);
+  const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -741,13 +731,50 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  // Fonte âncora do retorno do dia: API da IBKR (book internacional, sem erro).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ibkr/overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
   const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
-  const isDayUp = (dayChangeBRL ?? 0) >= 0;
   const usdDayChangePct = typeof data?.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null;
+
+  // ── Retorno do dia (modelo IBKR-âncora) ───────────────────────────────────
+  // Internacional vem da IBKR (lucro do dia em US$ × câmbio — só preço do ativo).
+  // BR vem do snapshot (B3). Soma o efeito do dólar do dia sobre o principal
+  // estrangeiro (IBKR). Fallback: dayChange do snapshot se a IBKR indisponível.
+  const brDayBRL = useMemo(() => {
+    if (!data?.positions) return 0;
+    return data.positions
+      .filter((p) => (p.moeda ?? "BRL") === "BRL" && !isRendaFixa(p.setor ?? "") && (p.quantidade ?? 0) > 0)
+      .reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
+  }, [data?.positions]);
+
+  const dayReturn = useMemo(() => {
+    const k = ibkrOverview?.kpis;
+    if (!k || !usdbrl) return null; // sem IBKR → usa o fallback do snapshot
+    const intlAssetBRL = k.lucroDiaBRL ?? 0;                          // internacional (IBKR, só ativo)
+    const fxFrac = (usdDayChangePct ?? 0) / 100;                      // variação do dólar no dia
+    const principalBRL = (k.patrimonioUSD ?? 0) * usdbrl;            // principal estrangeiro em R$ (hoje)
+    const fxPrincipalBRL = fxFrac !== 0 ? principalBRL * (fxFrac / (1 + fxFrac)) : 0; // efeito do dólar do dia
+    const brl = intlAssetBRL + brDayBRL + fxPrincipalBRL;
+    const base = totalBRL != null ? totalBRL - brl : null;          // patrimônio de ontem
+    const pct = base && base > 0 ? (brl / base) * 100 : null;
+    return { brl, pct };
+  }, [ibkrOverview, usdbrl, usdDayChangePct, brDayBRL, totalBRL]);
+
+  const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
+  const dayPctFinal = dayReturn?.pct ?? dayChangePct;
+  const isDayUp = (dayBRLfinal ?? 0) >= 0;
 
   const sessionTag = useMemo(() => {
     if (!data?.positions) return null;
@@ -861,16 +888,16 @@ export default function HomePage() {
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>
                 Retorno Dia{sessionTag ? <span style={{ color: "var(--accent)", marginLeft: 4, fontSize: 8 }}>{sessionTag}</span> : null}
               </span>
-              {loading || dayChangePct === null ? (
+              {loading || dayPctFinal === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
               ) : (
                 <>
                   <span className="font-mono text-lg font-bold tnum" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)" }}>
-                    {pct(dayChangePct)}
+                    {pct(dayPctFinal)}
                   </span>
-                  {dayChangeBRL !== null && (
+                  {dayBRLfinal !== null && (
                     <span className="font-mono text-[9px] mt-0.5" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
-                      {isDayUp ? "+" : ""}{compactBRL(dayChangeBRL)}
+                      {isDayUp ? "+" : ""}{compactBRL(dayBRLfinal)}
                     </span>
                   )}
                 </>
@@ -917,7 +944,7 @@ export default function HomePage() {
 
         {/* ── IBKR · Retorno do dia em US$ (entre métricas e ticker) ── */}
         <ErrorBoundary fallback={null}>
-          <IbkrDayStrip />
+          <IbkrDayStrip data={ibkrOverview} />
         </ErrorBoundary>
 
         {/* ── Row 2: Ticker Tape ── */}
