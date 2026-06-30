@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  Scale, Crosshair, Sunrise, Layers, Banknote,
+  Scale, Crosshair, Sunrise, Layers,
   Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -45,14 +45,13 @@ export const NAV: NavGroup[] = [
       { href: "/simulacoes", label: "Simulações", icon: FlaskConical, sub: "Projeções e cenários de carteira" },
       { href: "/trades", label: "Trades", icon: ArrowUpDown, sub: "Histórico de operações e desempenho" },
       { href: "/etf", label: "ETFs", icon: Layers, sub: "Composição, look-through e alocação" },
-      { href: "/alavancagem", label: "Alavancagem", icon: Scale, sub: "Margem, garantias e nível de risco" },
     ],
   },
   {
     label: "Gestão",
     items: [
       { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
-      { href: "/caixa", label: "Caixa", icon: Banknote, sub: "Saldos de caixa e disponibilidades" },
+      { href: "/caixa", label: "Caixa & Margem", icon: Scale, sub: "Liquidez (caixa) e margem — automático via IBKR" },
       { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
       { href: "/fluxos", label: "Fluxos", icon: ArrowDownUp, sub: "Entradas, saídas e movimentações" },
     ],

@@ -28,6 +28,9 @@ export async function GET() {
     const rows = await store.fetchTab(TAB);
     let caixa: { ticker: string; atual: number; moeda: string }[] = [];
     const margin: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
+    // Caixa CRU da IBKR por moeda (automático; independente da planilha) — a UI
+    // mostra o BRL manual e este como "automático via IBKR".
+    const ibkrCash: { moeda: string; saldo: number }[] = [];
     let updated = false;
     let ibkrSuccess = false;
 
@@ -69,6 +72,7 @@ export async function GET() {
         for (const ibkr of cashBalances) {
           ibkrCashByCurrency.set(ibkr.moeda, (ibkrCashByCurrency.get(ibkr.moeda) ?? 0) + ibkr.saldo);
         }
+        for (const [moeda, saldo] of ibkrCashByCurrency.entries()) ibkrCash.push({ moeda, saldo });
 
         for (const [moeda, saldo] of ibkrCashByCurrency.entries()) {
           const existing = caixa.find(c => c.moeda === moeda);
@@ -137,7 +141,7 @@ export async function GET() {
         console.error("Erro ao auto-salvar caixa:", e);
       }
     }
-    return NextResponse.json({ caixa, margin, ibkrSynced: ibkrSuccess });
+    return NextResponse.json({ caixa, margin, ibkrCash, ibkrSynced: ibkrSuccess });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: msg }, { status: 500 });
