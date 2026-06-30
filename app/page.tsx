@@ -755,7 +755,16 @@ export default function HomePage() {
   const brDayBRL = useMemo(() => {
     if (!data?.positions) return 0;
     return data.positions
-      .filter((p) => (p.moeda ?? "BRL") === "BRL" && !isRendaFixa(p.setor ?? "") && (p.quantidade ?? 0) > 0)
+      .filter((p) => (p.moeda ?? "BRL") === "BRL" && !isRendaFixa(p.setor ?? "") && p.setor !== "Cripto" && (p.quantidade ?? 0) > 0)
+      .reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
+  }, [data?.positions]);
+
+  // Cripto: fora da IBKR e em USD → entra separado. O dayChangeBRL do snapshot
+  // já inclui preço + câmbio (consistente com o resultado real em R$).
+  const cryptoDayBRL = useMemo(() => {
+    if (!data?.positions) return 0;
+    return data.positions
+      .filter((p) => p.setor === "Cripto" && (p.quantidade ?? 0) > 0)
       .reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
   }, [data?.positions]);
 
@@ -766,11 +775,11 @@ export default function HomePage() {
     const fxFrac = (usdDayChangePct ?? 0) / 100;                      // variação do dólar no dia
     const principalBRL = (k.patrimonioUSD ?? 0) * usdbrl;            // principal estrangeiro em R$ (hoje)
     const fxPrincipalBRL = fxFrac !== 0 ? principalBRL * (fxFrac / (1 + fxFrac)) : 0; // efeito do dólar do dia
-    const brl = intlAssetBRL + brDayBRL + fxPrincipalBRL;
+    const brl = intlAssetBRL + brDayBRL + cryptoDayBRL + fxPrincipalBRL;
     const base = totalBRL != null ? totalBRL - brl : null;          // patrimônio de ontem
     const pct = base && base > 0 ? (brl / base) * 100 : null;
     return { brl, pct };
-  }, [ibkrOverview, usdbrl, usdDayChangePct, brDayBRL, totalBRL]);
+  }, [ibkrOverview, usdbrl, usdDayChangePct, brDayBRL, cryptoDayBRL, totalBRL]);
 
   const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
   const dayPctFinal = dayReturn?.pct ?? dayChangePct;
