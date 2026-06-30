@@ -36,7 +36,7 @@ function CaixaManager({ fx }: { fx?: FxRates }) {
       .then(d => {
         setPositions(d.caixa ?? []);
         if (d.ibkrSynced) {
-          setMessage({ type: "ok", text: "Saldo atualizado automaticamente via IBKR Flex." });
+          setMessage({ type: "ok", text: "Saldos conferidos com a IBKR Flex." });
         }
       })
       .catch(() => {})

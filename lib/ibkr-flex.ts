@@ -40,6 +40,7 @@ export interface FlexParsed {
   cambio: CambioRow[];
   positions: IbkrPosition[];
   cashBalances: { moeda: string; saldo: number }[];
+  marginBalances: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[];
   proventosDupsRemoved: number;
 }
 
@@ -169,6 +170,7 @@ export function parseFlexXml(xml: string): FlexParsed {
   const cambio: CambioRow[] = [];
   const positions: IbkrPosition[] = [];
   const cashBalances: { moeda: string; saldo: number }[] = [];
+  const marginBalances: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
 
   for (const a of extractElements(xml, "Trade")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
@@ -257,8 +259,41 @@ export function parseFlexXml(xml: string): FlexParsed {
     const currency = (a.currency ?? "").toUpperCase();
     if (!currency) continue; // ignora a linha total (sem moeda explícita)
     const saldo = parseValor(a.endingCash ?? "0");
-    if (Math.abs(saldo) > 0.001) { // ignora saldos residuais minúsculos
+    
+    if (saldo < -0.001) {
+      // Saldo negativo = margem (alavancagem)
+      marginBalances.push({ 
+        moeda: currency, 
+        saldo: Math.abs(saldo), // armazena o tamanho da dívida como positivo
+        jurosAcruados: 0, 
+        initMargin: 0, 
+        maintMargin: 0 
+      });
+    } else if (saldo > 0.001) {
+      // Saldo positivo = caixa
       cashBalances.push({ moeda: currency, saldo });
+    }
+  }
+
+  // Interest Accruals (Juros acruados de margem)
+  for (const a of extractElements(xml, "InterestAccrualsCurrency")) {
+    const currency = (a.currency ?? "").toUpperCase();
+    if (!currency) continue;
+    const accrued = Math.abs(parseValor(a.accruedInterest ?? "0"));
+    const mb = marginBalances.find(m => m.moeda === currency);
+    if (mb) {
+      mb.jurosAcruados = accrued;
+    }
+  }
+
+  // Margin Report (Requisitos de margem)
+  for (const a of extractElements(xml, "MarginReport")) {
+    const currency = (a.currency ?? "").toUpperCase();
+    if (!currency || currency === "BASE_SUMMARY") continue;
+    const mb = marginBalances.find(m => m.moeda === currency);
+    if (mb) {
+      mb.initMargin = parseValor(a.initialMarginRequirement ?? "0");
+      mb.maintMargin = parseValor(a.maintenanceMarginRequirement ?? "0");
     }
   }
 
@@ -275,5 +310,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, proventosDupsRemoved };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved };
 }

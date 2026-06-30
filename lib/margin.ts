@@ -235,6 +235,36 @@ export function computeMarginResumo(
   };
 }
 
+export function mergeIbkrMargin(entries: MarginEntry[], ibkrBalances: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[]): MarginEntry[] {
+  const result = [...entries];
+  for (const mb of ibkrBalances) {
+    if (mb.saldo <= 0) continue; // no debt
+    // Find existing IBKR entry for this currency
+    const idx = result.findIndex(e => e.status === "aberta" && e.corretora.toUpperCase() === "IBKR" && e.moeda === mb.moeda);
+    
+    // We create a mock entry or update the existing one
+    if (idx >= 0) {
+      result[idx] = { ...result[idx], valor: mb.saldo, obs: `IBKR Flex: Juros Acruados Mês ${mb.jurosAcruados.toFixed(2)}` };
+    } else {
+      result.push({
+        id: `ibkr-${mb.moeda}`,
+        data: new Date().toISOString().slice(0, 10),
+        corretora: "IBKR",
+        moeda: mb.moeda,
+        valor: mb.saldo,
+        benchmark: BENCHMARK_POR_MOEDA[mb.moeda]?.code ?? "USD",
+        taxaBenchmark: 0,
+        spread: 1.5,
+        status: "aberta",
+        dataFechamento: "",
+        valorFechamento: 0,
+        obs: `IBKR Flex: Juros Acruados Mês ${mb.jurosAcruados.toFixed(2)}`
+      });
+    }
+  }
+  return result;
+}
+
 // ── Integração com o motor geral (snapshot/performance) ─────────────────────
 //
 // Para os APIs que já têm o snapshot: lê a aba e devolve a dívida aberta em
