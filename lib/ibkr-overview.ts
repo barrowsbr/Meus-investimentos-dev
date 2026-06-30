@@ -57,7 +57,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   if (!token || !queryId) throw new Error("IBKR_FLEX_TOKEN e/ou IBKR_FLEX_QUERY_ID não configurados");
 
   const xml = await getFlexXmlCached(token, queryId);
-  const { proventos, trades, cambio, positions, cash } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, cashBalances } = parseFlexXml(xml);
   const meta = parseFlexMeta(xml);
 
   // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
@@ -114,8 +114,8 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   const baseDia = patrimonioBRL - lucroDiaBRL; // patrimônio de ontem
 
   // ── Caixa (saldo) por moeda ──
-  const cashByCurrency = cash
-    .map((c) => ({ moeda: c.moeda, valor: c.valor, valorBRL: toBRL(c.valor, c.moeda) }))
+  const cashByCurrency = cashBalances
+    .map((c) => ({ moeda: c.moeda, valor: c.saldo, valorBRL: toBRL(c.saldo, c.moeda) }))
     .sort((a, b) => (b.valorBRL ?? b.valor) - (a.valorBRL ?? a.valor));
   const caixaBRL = cashByCurrency.reduce((s, c) => s + (c.valorBRL ?? 0), 0);
   const patrimonioTotalBRL = patrimonioBRL + caixaBRL;
