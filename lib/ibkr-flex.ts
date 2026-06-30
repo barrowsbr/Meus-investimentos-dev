@@ -259,8 +259,8 @@ export function parseFlexXml(xml: string): FlexParsed {
   const marginBalancesMap = new Map<string, { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }>();
 
   for (const a of extractElements(xml, "CashReportCurrency")) {
-    const currency = (a.currency ?? "").toUpperCase();
-    if (!currency) continue; // ignora a linha total (sem moeda explícita)
+    const currency = (a.currency ?? "").toUpperCase().trim();
+    if (!/^[A-Z]{3}$/.test(currency)) continue; // ignora totais/resumos como BASE SUMMARY
     const saldo = parseValor(a.endingCash ?? "0");
 
     if (saldo < -0.001) {
