@@ -4,7 +4,7 @@ import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
-import { computeLookThrough, loadFromGSheets, computeFromStored } from "@/lib/etf-holdings";
+import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
@@ -483,6 +483,28 @@ export async function GET() {
 
     let ltResult: Awaited<ReturnType<typeof computeLookThrough>>;
     const { stored, storedSources, updatedAt } = await loadFromGSheets();
+
+    // Automação: ETFs elegíveis que NÃO estão no cache (aba `composicao`) são
+    // buscados ao vivo (cascata FMP/AlphaVantage/Yahoo/embutido) e injetados no
+    // stored. Garante que um ETF como VWRA apareça mesmo sem estar na aba — o
+    // cache deixa de ser pré-requisito, é só otimização.
+    const LT_SECTORS = new Set(["ETF USA", "ETF"]);
+    const missingEtfs = [...new Set(
+      ltPositions
+        .filter(p => LT_SECTORS.has(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
+        .map(p => p.ticker.toUpperCase().replace(".SA", ""))
+        .filter(t => !(stored[t]?.length) && !(stored[`${t}.SA`]?.length))
+    )];
+    if (missingEtfs.length > 0) {
+      await Promise.all(missingEtfs.map(async (t) => {
+        const { holdings, source } = await fetchHoldings(t);
+        if (holdings && holdings.length > 0) {
+          stored[t] = holdings;
+          storedSources[t] = source;
+        }
+      }));
+    }
+
     if (Object.keys(stored).length > 0) {
       ltResult = computeFromStored(stored, ltPositions, 50, storedSources);
       if (updatedAt) ltResult.updated_at = updatedAt;

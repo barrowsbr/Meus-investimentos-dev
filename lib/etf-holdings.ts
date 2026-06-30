@@ -688,6 +688,7 @@ export function computeFromStored(
     const keys = [pos.ticker.toUpperCase(), pos.ticker.replace(".SA", "").toUpperCase(), pos.ticker];
     let holdings: Holding[] | null = null;
     let matchedKey = "";
+    let fromEmbedded = false;
     for (const key of keys) {
       if (storedCompositions[key] && storedCompositions[key].length > 0) {
         holdings = storedCompositions[key].slice(0, topN);
@@ -696,13 +697,22 @@ export function computeFromStored(
       }
     }
 
+    // Fallback EMBUTIDO (tier-4): ETFs com dados embedded (ex.: VWRA UCITS) que
+    // não estão na aba `composicao` apareciam como "não suportados" porque este
+    // caminho (stored) não tinha o fallback que o caminho live tem. Agora cai
+    // para o embedded, igual ao computeLookThrough.
+    if (!holdings) {
+      const emb = fetchEmbedded(pos.ticker.replace(".SA", "")) ?? fetchEmbedded(pos.ticker);
+      if (emb && emb.length > 0) { holdings = emb; fromEmbedded = true; }
+    }
+
     if (holdings && holdings.length > 0) {
       supported.push(pos.ticker);
       totalLookThroughBRL += pos.valorAtualBRL;
       // Preserva a proveniência original ("stored:embedded" denuncia dado
       // hardcoded antigo; "stored:alphavantage"/"stored:live" são confiáveis).
       const origSrc = storedSources[matchedKey];
-      const rawSource = origSrc ? `stored:${origSrc}` : "stored";
+      const rawSource = fromEmbedded ? "embedded" : (origSrc ? `stored:${origSrc}` : "stored");
       const assembled = assembleHoldings(pos.ticker, holdings, rawSource, topN);
       sources[pos.ticker] = assembled.source;
 
