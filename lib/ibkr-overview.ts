@@ -32,6 +32,8 @@ export interface IbkrOverview {
   meta: { accountId: string; fromDate: string; toDate: string; fxSource: string; brlOk: boolean; usdbrl: number | null };
   kpis: {
     patrimonioBRL: number; patrimonioUSD: number | null;
+    caixaBRL: number; caixaUSD: number | null;
+    patrimonioTotalBRL: number; patrimonioTotalUSD: number | null;
     custoBRL: number; custoUSD: number | null;
     resultadoBRL: number; resultadoUSD: number | null; resultadoPct: number | null;
     lucroDiaBRL: number; lucroDiaUSD: number | null; lucroDiaPct: number | null;
@@ -40,6 +42,7 @@ export interface IbkrOverview {
     impostosBRL: number; impostosUSD: number | null;
     dividendosLiquidoBRL: number; dividendosLiquidoUSD: number | null;
   };
+  cashByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null }>;
   byCurrency: Array<{ moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>;
   dividendsByTicker: Array<{ ticker: string; moeda: string; dividendos: number; impostos: number; liquido: number }>;
   positions: OverviewPosition[];
@@ -54,7 +57,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   if (!token || !queryId) throw new Error("IBKR_FLEX_TOKEN e/ou IBKR_FLEX_QUERY_ID não configurados");
 
   const xml = await getFlexXmlCached(token, queryId);
-  const { proventos, trades, cambio, positions } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, cash } = parseFlexXml(xml);
   const meta = parseFlexMeta(xml);
 
   // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
@@ -110,6 +113,13 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   const lucroDiaBRL = pos.reduce((s, p) => s + (p.dayPnlBRL ?? 0), 0);
   const baseDia = patrimonioBRL - lucroDiaBRL; // patrimônio de ontem
 
+  // ── Caixa (saldo) por moeda ──
+  const cashByCurrency = cash
+    .map((c) => ({ moeda: c.moeda, valor: c.valor, valorBRL: toBRL(c.valor, c.moeda) }))
+    .sort((a, b) => (b.valorBRL ?? b.valor) - (a.valorBRL ?? a.valor));
+  const caixaBRL = cashByCurrency.reduce((s, c) => s + (c.valorBRL ?? 0), 0);
+  const patrimonioTotalBRL = patrimonioBRL + caixaBRL;
+
   // ── Agregado por moeda ──
   const ccyMap = new Map<string, { moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>();
   for (const p of pos) {
@@ -141,6 +151,8 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     meta: { accountId: meta.accountId, fromDate: meta.fromDate, toDate: meta.toDate, fxSource, brlOk: fx !== null, usdbrl },
     kpis: {
       patrimonioBRL, patrimonioUSD: brlToUsd(patrimonioBRL),
+      caixaBRL, caixaUSD: brlToUsd(caixaBRL),
+      patrimonioTotalBRL, patrimonioTotalUSD: brlToUsd(patrimonioTotalBRL),
       custoBRL, custoUSD: brlToUsd(custoBRL),
       resultadoBRL, resultadoUSD: brlToUsd(resultadoBRL), resultadoPct: custoBRL !== 0 ? resultadoBRL / custoBRL : null,
       lucroDiaBRL, lucroDiaUSD: brlToUsd(lucroDiaBRL), lucroDiaPct: baseDia !== 0 ? lucroDiaBRL / baseDia : null,
@@ -149,6 +161,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
       impostosBRL, impostosUSD: brlToUsd(impostosBRL),
       dividendosLiquidoBRL: liquidoBRL, dividendosLiquidoUSD: brlToUsd(liquidoBRL),
     },
+    cashByCurrency,
     byCurrency: [...ccyMap.values()].sort((a, b) => b.marketValue - a.marketValue),
     dividendsByTicker,
     positions: pos,
