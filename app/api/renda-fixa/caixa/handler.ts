@@ -27,7 +27,9 @@ export async function GET() {
     const store = getDataStore();
     const rows = await store.fetchTab(TAB);
     const caixa: { ticker: string; atual: number; moeda: string }[] = [];
+    const margin: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
     let updated = false;
+    let ibkrSuccess = false;
 
     // 1. Ler os valores do Sheets
     for (const row of rows) {
@@ -62,6 +64,12 @@ export async function GET() {
             updated = true;
           }
         }
+
+        // 2b. Adiciona os saldos de margem (dívida) da IBKR
+        for (const mb of parseFlexXml(xml).marginBalances) {
+          margin.push(mb);
+        }
+        ibkrSuccess = true;
       }
     } catch (e) {
       console.error("Erro ao buscar caixa da IBKR:", e);
@@ -112,7 +120,7 @@ export async function GET() {
         console.error("Erro ao auto-salvar caixa:", e);
       }
     }
-    return NextResponse.json({ caixa, ibkrSynced: updated });
+    return NextResponse.json({ caixa, margin, ibkrSynced: ibkrSuccess });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: msg }, { status: 500 });

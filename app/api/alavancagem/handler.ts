@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
 import {
   MARGIN_TAB, MARGIN_HEADERS, BENCHMARK_POR_MOEDA,
-  parseMarginRows, entryToRow, fetchBenchmarks, computeMarginResumo,
+  parseMarginRows, entryToRow, fetchBenchmarks, computeMarginResumo, mergeIbkrMargin,
   type MarginEntry,
 } from "@/lib/margin";
 
@@ -43,6 +43,20 @@ export async function GET() {
     const [entries, benchmarks, fx] = await Promise.all([
       loadEntries(), fetchBenchmarks(), fetchFxBRL(),
     ]);
+    let entries = await loadEntries();
+    try {
+      const token = process.env.IBKR_FLEX_TOKEN;
+      const queryId = process.env.IBKR_FLEX_QUERY_ID;
+      if (token && queryId) {
+        const { getFlexXmlCached, parseFlexXml } = await import("@/lib/ibkr-flex");
+        const xml = await getFlexXmlCached(token, queryId, 1800000);
+        const ibkrMargin = parseFlexXml(xml).marginBalances;
+        if (ibkrMargin.length > 0) entries = mergeIbkrMargin(entries, ibkrMargin);
+      }
+    } catch (e) {
+      console.error("Erro ao buscar margem IBKR:", e);
+    }
+
     const resumo = computeMarginResumo(entries, fx, benchmarks);
     return NextResponse.json({
       ...resumo,
