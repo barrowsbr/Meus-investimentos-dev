@@ -33,7 +33,12 @@ function CaixaManager({ fx }: { fx?: FxRates }) {
   useEffect(() => {
     fetch("/api/renda-fixa/caixa")
       .then(r => r.json())
-      .then(d => setPositions(d.caixa ?? []))
+      .then(d => {
+        setPositions(d.caixa ?? []);
+        if (d.ibkrSynced) {
+          setMessage({ type: "ok", text: "Saldo atualizado automaticamente via IBKR Flex." });
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

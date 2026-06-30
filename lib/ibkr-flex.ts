@@ -39,6 +39,7 @@ export interface FlexParsed {
   trades: TradeRow[];
   cambio: CambioRow[];
   positions: IbkrPosition[];
+  cashBalances: { moeda: string; saldo: number }[];
   proventosDupsRemoved: number;
 }
 
@@ -167,6 +168,7 @@ export function parseFlexXml(xml: string): FlexParsed {
   const trades: TradeRow[] = [];
   const cambio: CambioRow[] = [];
   const positions: IbkrPosition[] = [];
+  const cashBalances: { moeda: string; saldo: number }[] = [];
 
   for (const a of extractElements(xml, "Trade")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
@@ -250,6 +252,16 @@ export function parseFlexXml(xml: string): FlexParsed {
     });
   }
 
+  // Cash balances — tag <CashReportCurrency>
+  for (const a of extractElements(xml, "CashReportCurrency")) {
+    const currency = (a.currency ?? "").toUpperCase();
+    if (!currency) continue; // ignora a linha total (sem moeda explícita)
+    const saldo = parseValor(a.endingCash ?? "0");
+    if (Math.abs(saldo) > 0.001) { // ignora saldos residuais minúsculos
+      cashBalances.push({ moeda: currency, saldo });
+    }
+  }
+
   // A seção Cash Transactions da Flex pode emitir cada lançamento 2× (bit-idêntico)
   // — colapsa as duplicatas. Pares dividendo+imposto NÃO são duplicata (decisao/
   // valor diferentes), então são preservados.
@@ -263,5 +275,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, proventosDupsRemoved };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, proventosDupsRemoved };
 }
