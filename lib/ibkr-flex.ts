@@ -39,7 +39,7 @@ export interface FlexParsed {
   trades: TradeRow[];
   cambio: CambioRow[];
   positions: IbkrPosition[];
-  cash: Array<{ moeda: string; valor: number }>;   // saldo (caixa) por moeda
+  cashBalances: { moeda: string; saldo: number }[];
   proventosDupsRemoved: number;
 }
 
@@ -168,7 +168,7 @@ export function parseFlexXml(xml: string): FlexParsed {
   const trades: TradeRow[] = [];
   const cambio: CambioRow[] = [];
   const positions: IbkrPosition[] = [];
-  const cash: Array<{ moeda: string; valor: number }> = [];
+  const cashBalances: { moeda: string; saldo: number }[] = [];
 
   for (const a of extractElements(xml, "Trade")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
@@ -252,15 +252,14 @@ export function parseFlexXml(xml: string): FlexParsed {
     });
   }
 
-  // Saldo (caixa) por moeda — seção Cash Report do extrato Flex. A linha
-  // BASE_SUMMARY é o total na moeda-base; pegamos por moeda e somamos via FX.
-  // Se a query Flex não inclui o Cash Report, fica vazio (saldo indisponível).
+  // Cash balances — tag <CashReportCurrency>
   for (const a of extractElements(xml, "CashReportCurrency")) {
-    const cur = (a.currency ?? "").toUpperCase();
-    if (!cur || cur === "BASE_SUMMARY" || cur === "BASE_CURRENCY") continue;
-    const ending = parseValor(a.endingCash ?? a.endingSettledCash ?? "0");
-    if (ending === 0) continue;
-    cash.push({ moeda: cur, valor: ending });
+    const currency = (a.currency ?? "").toUpperCase();
+    if (!currency) continue; // ignora a linha total (sem moeda explícita)
+    const saldo = parseValor(a.endingCash ?? "0");
+    if (Math.abs(saldo) > 0.001) { // ignora saldos residuais minúsculos
+      cashBalances.push({ moeda: currency, saldo });
+    }
   }
 
   // A seção Cash Transactions da Flex pode emitir cada lançamento 2× (bit-idêntico)
@@ -276,5 +275,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, cash, proventosDupsRemoved };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, proventosDupsRemoved };
 }

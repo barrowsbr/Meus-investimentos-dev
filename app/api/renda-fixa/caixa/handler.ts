@@ -27,6 +27,9 @@ export async function GET() {
     const store = getDataStore();
     const rows = await store.fetchTab(TAB);
     const caixa: { ticker: string; atual: number; moeda: string }[] = [];
+    let updated = false;
+
+    // 1. Ler os valores do Sheets
     for (const row of rows) {
       const ticker = String(row["ticker"] ?? row["ativo"] ?? "").trim();
       if (!ticker || !isCashTicker(ticker)) continue;
@@ -34,7 +37,82 @@ export async function GET() {
       const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";
       caixa.push({ ticker, atual, moeda });
     }
-    return NextResponse.json({ caixa });
+
+    // 2. Buscar saldos do IBKR (se configurado)
+    try {
+      const token = process.env.IBKR_FLEX_TOKEN;
+      const queryId = process.env.IBKR_FLEX_QUERY_ID;
+      if (token && queryId) {
+        // Import dinâmico para não quebrar dependências caso IBKR não seja usado
+        const { getFlexXmlCached, parseFlexXml } = await import("@/lib/ibkr-flex");
+        const xml = await getFlexXmlCached(token, queryId);
+        const { cashBalances } = parseFlexXml(xml);
+
+        for (const ibkr of cashBalances) {
+          // Procura se já existe uma linha de caixa com esta moeda
+          const existing = caixa.find(c => c.moeda === ibkr.moeda);
+          if (existing) {
+            if (Math.abs(existing.atual - ibkr.saldo) > 0.02) {
+              existing.atual = ibkr.saldo;
+              updated = true;
+            }
+          } else {
+            // Cria nova linha de caixa para a moeda
+            caixa.push({ ticker: "CAIXA", atual: ibkr.saldo, moeda: ibkr.moeda });
+            updated = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao buscar caixa da IBKR:", e);
+    }
+
+    // 3. Se houveram mudanças, salva automaticamente na planilha
+    if (updated) {
+      try {
+        const sheets = getAuthSheets();
+        const res = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: TAB,
+          valueRenderOption: "UNFORMATTED_VALUE",
+        });
+        const allRows = res.data.values;
+        if (allRows && allRows.length >= 1) {
+          const header = allRows[0] as string[];
+          const headerLower = header.map(h => String(h).trim().toLowerCase());
+          const tickerIdx = headerLower.findIndex(h => h === "ticker" || h === "ativo");
+          const atualIdx = headerLower.findIndex(h => ["atual", "valor_atual", "saldo", "valor atual"].includes(h));
+          const moedaIdx = headerLower.findIndex(h => h === "moeda");
+
+          if (tickerIdx >= 0 && atualIdx >= 0) {
+            const nonCashRows = allRows.slice(1).filter(row => {
+              const ticker = String(row[tickerIdx] ?? "").trim();
+              return ticker && !isCashTicker(ticker);
+            });
+
+            const cashRows = caixa.filter(p => p.ticker.trim() && p.atual > 0).map(p => {
+              const row: (string | number)[] = new Array(header.length).fill("");
+              row[tickerIdx] = p.ticker.trim();
+              row[atualIdx] = p.atual;
+              if (moedaIdx >= 0) row[moedaIdx] = p.moeda || "BRL";
+              return row;
+            });
+
+            await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: TAB });
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SPREADSHEET_ID,
+              range: `${TAB}!A1`,
+              valueInputOption: "USER_ENTERED",
+              requestBody: { values: [header, ...nonCashRows, ...cashRows] },
+            });
+            // Opcional: invalidar o cache da aba no store, mas o frontend dará reload ou usará o array atualizado
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao auto-salvar caixa:", e);
+      }
+    }
+    return NextResponse.json({ caixa, ibkrSynced: updated });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: msg }, { status: 500 });
