@@ -528,7 +528,16 @@ export default function ResumoPage() {
 
         // RV — snapshot
         const rvNaoReal = data.lucroBRL;                                       // valorização (preço+câmbio)
-        const rvReal = rvPositions.reduce((s, p) => s + (p.lucroRealizadoBRL ?? 0), 0);
+        // Realizado RV CANÔNICO = posições ABERTAS + ENCERRADAS (100% vendidas).
+        // Bug anterior: somava só `data.positions` (abertas), perdendo o lucro
+        // realizado das posições já zeradas (que vivem em `closedPositions`) —
+        // o que podia jogar o realizado pra negativo. Usa o campo canônico do
+        // snapshot, com fallback robusto a abertas+encerradas (cache antigo).
+        const rvClosed = (data.closedPositions ?? []).filter(p => isRendaVariavel(p.setor));
+        const rvReal = data.realizadoRVBRL || (
+          rvPositions.reduce((s, p) => s + (p.lucroRealizadoBRL ?? 0), 0)
+          + rvClosed.reduce((s, p) => s + (p.lucroRealizadoBRL ?? 0), 0)
+        );
         const rvGanho = rvNaoReal + rvReal;
 
         // RF — motor canônico de RF (manual) + RF-como-posições (snapshot: SHV/BIL...)
