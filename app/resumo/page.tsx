@@ -120,6 +120,7 @@ export default function ResumoPage() {
   // Lente do bloco de Renda Variável: "natureza" (não realizado/realizado) ou
   // "fator" (ativo ex-câmbio / efeito câmbio). Ambas somam o mesmo ganho de RV.
   const [rvLens, setRvLens] = useState<"natureza" | "fator">("natureza");
+  const [dreExpanded, setDreExpanded] = useState(false);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("alocacao");
@@ -613,12 +614,32 @@ export default function ResumoPage() {
 
         return (
           <div className="glass-card p-4 sm:p-5 mb-3 animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Demonstrativo de Resultado</h2>
-              <span className="text-[10px] text-zinc-600">{composicao?.computed_at ? formatComputedAt(composicao.computed_at) : ""}</span>
-            </div>
+            {/* Header — clique para expandir/recolher */}
+            <button
+              onClick={() => setDreExpanded(v => !v)}
+              aria-expanded={dreExpanded}
+              className="w-full flex items-center justify-between gap-3 text-left"
+              style={{ marginBottom: dreExpanded ? 16 : 0 }}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {dreExpanded
+                  ? <ChevronDown size={14} className="text-zinc-500 shrink-0" />
+                  : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
+                <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Demonstrativo de Resultado</h2>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Resumo sempre visível quando recolhido: patrimônio + resultado */}
+                {!dreExpanded && (
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-[11px] text-zinc-500">{compactBRL(data.alavancagem.netBRL)}</span>
+                    <span className={`text-[11px] font-bold ${clr(resultadoTotal)}`}>{fmt(resultadoTotal)}</span>
+                  </span>
+                )}
+                <span className="text-[10px] text-zinc-600 hidden sm:inline">{composicao?.computed_at ? formatComputedAt(composicao.computed_at) : ""}</span>
+              </div>
+            </button>
 
+            {dreExpanded && (<>
             {/* ── 1. Patrimônio (AUM) & Alocação ── */}
             {/* Net = bruto − dívida de margin: o "Net liq" da corretora, o dinheiro que é meu. */}
             <div className="flex items-baseline justify-between mb-1">
@@ -898,6 +919,7 @@ export default function ResumoPage() {
                 </>
               );
             })()}
+            </>)}
           </div>
         );
       })()}
