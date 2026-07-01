@@ -3,7 +3,7 @@ import { getDataStore } from "@/lib/data-store";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
-import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances } from "@/lib/margin";
 import { loadAssetMetaCache } from "@/lib/asset-meta";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,8 @@ export const maxDuration = 30;
 export async function GET() {
   try {
     const store = getDataStore();
+    // Margem IBKR (Flex, cache 30 min) em paralelo com o resto do carregamento.
+    const ibkrMarginPromise = loadIbkrMarginBalances();
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, lbRows, marginRows] = await Promise.all([
       store.fetchTab("meus_ativos"),
       store.fetchTab("meus_proventos"),
@@ -71,7 +73,11 @@ export async function GET() {
     const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate, fxDayChange);
 
     // Alavancagem (margin): bruto = snapshot; net = bruto − dívida aberta.
-    const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
+    // Entradas canônicas = aba + saldos reais da IBKR (mesma regra das demais rotas).
+    let marginEntries = parseMarginRows(marginRows);
+    const ibkrMargin = await ibkrMarginPromise;
+    if (ibkrMargin.length > 0) marginEntries = mergeIbkrMargin(marginEntries, ibkrMargin);
+    const marginResumo = computeMarginResumo(marginEntries, {
       BRL: 1,
       USD: fxAtual.USDBRL,
       EUR: fxAtual.EURBRL,

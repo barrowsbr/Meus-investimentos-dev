@@ -3,6 +3,7 @@ import { getDataStore } from "@/lib/data-store";
 import {
   MARGIN_TAB, MARGIN_HEADERS, BENCHMARK_POR_MOEDA,
   parseMarginRows, entryToRow, fetchBenchmarks, computeMarginResumo, mergeIbkrMargin,
+  loadIbkrMarginBalances,
   type MarginEntry,
 } from "@/lib/margin";
 
@@ -40,22 +41,11 @@ async function loadEntries(): Promise<MarginEntry[]> {
 // GET — entradas + métricas + benchmarks atuais + fx
 export async function GET() {
   try {
-    const [initialEntries, benchmarks, fx] = await Promise.all([
-      loadEntries(), fetchBenchmarks(), fetchFxBRL(),
+    const [initialEntries, benchmarks, fx, ibkrMargin] = await Promise.all([
+      loadEntries(), fetchBenchmarks(), fetchFxBRL(), loadIbkrMarginBalances(),
     ]);
     let entries = initialEntries;
-    try {
-      const token = process.env.IBKR_FLEX_TOKEN;
-      const queryId = process.env.IBKR_FLEX_QUERY_ID;
-      if (token && queryId) {
-        const { getFlexXmlCached, parseFlexXml } = await import("@/lib/ibkr-flex");
-        const xml = await getFlexXmlCached(token, queryId, 1800000);
-        const ibkrMargin = parseFlexXml(xml).marginBalances;
-        if (ibkrMargin.length > 0) entries = mergeIbkrMargin(entries, ibkrMargin);
-      }
-    } catch (e) {
-      console.error("Erro ao buscar margem IBKR:", e);
-    }
+    if (ibkrMargin.length > 0) entries = mergeIbkrMargin(entries, ibkrMargin);
 
     const resumo = computeMarginResumo(entries, fx, benchmarks);
     return NextResponse.json({

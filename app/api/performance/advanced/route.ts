@@ -4,7 +4,7 @@ import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
 import { calcularSnapshot, calcularRendaFixaBRL, tickerBase } from "@/lib/portfolio";
-import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
+import { MARGIN_TAB, computeMarginResumo, aplicarAlavancagem, loadMarginEntriesCanonicas } from "@/lib/margin";
 import { identificarSetor, getMoedaEfetiva, isRendaFixa, isRendaFixaPrecificavel } from "@/lib/sectors";
 import { readLockedMonthly, lockNewMonths, mergeWithLocked } from "@/lib/twr-monthly-lock";
 import { fetchCdiDiario } from "@/lib/bcb";
@@ -574,7 +574,8 @@ export async function GET(request: Request) {
     );
     const caixaBRL = calcularRendaFixaBRL(caixaRows, lastFx);
     // Margin (alavancagem): net = bruto − dívida aberta — o "Net liq" da corretora.
-    const marginEntries = parseMarginRows(marginRows);
+    // Entradas canônicas = aba + saldos reais da IBKR (mesma regra das demais rotas).
+    const marginEntries = await loadMarginEntriesCanonicas(marginRows);
     const marginFxMap: Record<string, number> = {
       BRL: 1, USD: lastFx.USDBRL, EUR: lastFx.EURBRL, GBP: lastFx.GBPBRL,
       CAD: lastFx.CADBRL, CHF: lastFx.CHFBRL ?? 0, JPY: lastFx.JPYBRL ?? 0,

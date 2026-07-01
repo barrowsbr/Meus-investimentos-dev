@@ -6,7 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings, hasHoldingsProxy } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
-import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin } from "@/lib/margin";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
 
@@ -90,18 +90,9 @@ export async function GET(req: Request) {
       store.fetchTab(MARGIN_TAB).catch(() => []),
     ]);
 
-    let ibkrMargin: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
-    try {
-      const token = process.env.IBKR_FLEX_TOKEN;
-      const queryId = process.env.IBKR_FLEX_QUERY_ID;
-      if (token && queryId) {
-        const { getFlexXmlCached, parseFlexXml } = await import("@/lib/ibkr-flex");
-        const xml = await getFlexXmlCached(token, queryId, 1800000); // 30 min cache
-        ibkrMargin = parseFlexXml(xml).marginBalances;
-      }
-    } catch (e) {
-      console.error("Erro ao buscar margem IBKR no resumo:", e);
-    }
+    // Margem IBKR (Flex, cache 30 min) — dispara em paralelo com o resto do
+    // carregamento; o await fica lá embaixo, na montagem da alavancagem.
+    const ibkrMarginPromise = loadIbkrMarginBalances();
 
     // ── 2. Get quotes and build snapshot ─────────────────────────────────────
     const tickerSet = new Map<string, { moeda: string; corretora: string }>();
@@ -615,6 +606,11 @@ export async function GET(req: Request) {
       todosTickers: positions.map(p => p.ticker),
     } : undefined;
 
+    // Entradas canônicas de margin: aba + saldos reais da IBKR (helper único).
+    const ibkrMargin = await ibkrMarginPromise;
+    let marginEntries = parseMarginRows(marginRows);
+    if (ibkrMargin.length > 0) marginEntries = mergeIbkrMargin(marginEntries, ibkrMargin);
+
     return NextResponse.json(
       {
         ...(_debug ? { _debug } : {}),
@@ -626,9 +622,7 @@ export async function GET(req: Request) {
           GBPBRL: fxAtual.GBPBRL,
         },
         alavancagem: (() => {
-          let entries = parseMarginRows(marginRows);
-          if (ibkrMargin.length > 0) entries = mergeIbkrMargin(entries, ibkrMargin);
-          const m = computeMarginResumo(entries, {
+          const m = computeMarginResumo(marginEntries, {
             BRL: 1, USD: fxAtual.USDBRL, EUR: fxAtual.EURBRL, GBP: fxAtual.GBPBRL,
             CAD: fxAtual.CADBRL, CHF: fxAtual.CHFBRL ?? 0, JPY: fxAtual.JPYBRL ?? 0,
           });

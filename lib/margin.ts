@@ -265,6 +265,45 @@ export function mergeIbkrMargin(entries: MarginEntry[], ibkrBalances: { moeda: s
   return result;
 }
 
+// ── Margin canônico: aba + IBKR Flex (fonte única — regra dura) ──────────────
+//
+// A dívida real pode existir na IBKR sem estar espelhada na aba `alavancagem`.
+// Historicamente só /api/composicao/resumo e /api/alavancagem faziam o merge
+// com o Flex, enquanto /api/cotacoes (o canônico!), /api/performance/advanced
+// e o cron de alertas liam só a aba — e o "Net" divergia entre páginas.
+// TODA rota que calcula alavancagem deve montar as entradas por aqui.
+
+export interface IbkrMarginBalance {
+  moeda: string;
+  saldo: number;
+  jurosAcruados: number;
+  initMargin: number;
+  maintMargin: number;
+}
+
+/** Saldos de margin reais da IBKR (Flex, cache 30 min). Best-effort: sem env
+ *  vars ou com Flex fora do ar retorna [] — a aba continua valendo sozinha. */
+export async function loadIbkrMarginBalances(): Promise<IbkrMarginBalance[]> {
+  try {
+    const token = process.env.IBKR_FLEX_TOKEN;
+    const queryId = process.env.IBKR_FLEX_QUERY_ID;
+    if (!token || !queryId) return [];
+    const { getFlexXmlCached, parseFlexXml } = await import("./ibkr-flex");
+    const xml = await getFlexXmlCached(token, queryId, 1800000); // 30 min cache
+    return parseFlexXml(xml).marginBalances;
+  } catch (e) {
+    console.error("Erro ao buscar margem IBKR:", e);
+    return [];
+  }
+}
+
+/** Entradas de margin CANÔNICAS: aba `alavancagem` + merge dos saldos IBKR. */
+export async function loadMarginEntriesCanonicas(marginRows: Row[]): Promise<MarginEntry[]> {
+  const entries = parseMarginRows(marginRows);
+  const ibkr = await loadIbkrMarginBalances();
+  return ibkr.length > 0 ? mergeIbkrMargin(entries, ibkr) : entries;
+}
+
 // ── Integração com o motor geral (snapshot/performance) ─────────────────────
 //
 // Para os APIs que já têm o snapshot: lê a aba e devolve a dívida aberta em
