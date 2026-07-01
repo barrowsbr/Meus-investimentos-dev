@@ -36,6 +36,7 @@ import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import CryptoMarket from "@/components/CryptoMarket";
+import BitcoinBlocks from "@/components/BitcoinBlocks";
 import type { Position } from "@/lib/portfolio";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -355,6 +356,7 @@ export default function CriptoativosPage() {
     return (
       <>
         {header}
+        <BitcoinBlocks />
         <CryptoMarket />
       </>
     );
