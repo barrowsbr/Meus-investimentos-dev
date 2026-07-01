@@ -19,6 +19,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import MetricCard from "@/components/MetricCard";
 import { brl, compactBRL, pct } from "@/lib/format";
+import { usePortfolio } from "@/lib/hooks";
 import { bumpDataVersion, withDataVersion } from "@/lib/data-version";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
 import { useTheme } from "@/components/terminal/TerminalProvider";
@@ -583,6 +584,22 @@ export default function PerformancePage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
+  // Patrimônio CANÔNICO — MESMA fonte do Resumo (usePortfolio → /api/cotacoes,
+  // cotações ao vivo), para o número bater byte a byte entre as páginas. O
+  // snapshot do /api/performance/advanced usa preços da golden source (último
+  // fechamento), que diverge intraday. Sem filtros de ativo, o display usa este.
+  const { data: canonData } = usePortfolio();
+  const patrimonioCanon = useMemo(() => {
+    if (!canonData || !(canonData.totalPatrimonioBRL > 0)) return null;
+    const alav = canonData.alavancagem;
+    return {
+      total: canonData.totalPatrimonioBRL,
+      net: alav?.netBRL ?? canonData.totalPatrimonioBRL,
+      divida: alav?.dividaBRL ?? 0,
+      alavancagemPct: alav?.alavancagemPct ?? 0,
+      usdbrl: canonData.usdbrl ?? 0,
+    };
+  }, [canonData]);
   const [currencyView, setCurrencyView] = useState<CurrencyView>("BRL");
   const [monthlyView, setMonthlyView] = useState<"twr" | "mtm">("twr");
   const [predMethod, setPredMethod] = useState(PRED_METHODS[0].id);
@@ -989,6 +1006,16 @@ export default function PerformancePage() {
       {(() => {
         const mwrTotal = s.duracaoAnos > 0 ? (Math.pow(1 + s.mwr, s.duracaoAnos) - 1) * 100 : mwrPct;
         const navAtual = s.patrimonio?.total ?? s.navFinal;
+        // Patrimônio ATUAL não depende do período — só dos filtros de ativo.
+        // Sem filtros: usa o canônico (cotações ao vivo, bate com o Resumo).
+        // Com filtro: mantém o patrimônio da fatia filtrada (golden source).
+        const assetUnfiltered = classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter;
+        const patCanon = assetUnfiltered && patrimonioCanon ? patrimonioCanon : null;
+        const patToCurr = (v: number) => patCanon && isUsd && patCanon.usdbrl > 0 ? v / patCanon.usdbrl : v;
+        const patDivida = patCanon ? patCanon.divida : (s.patrimonio?.divida ?? 0);
+        const patNet = patCanon ? patToCurr(patCanon.net) : (s.patrimonio?.net ?? navAtual);
+        const patBruto = patCanon ? patToCurr(patCanon.total) : navAtual;
+        const patAlavPct = patCanon ? patCanon.alavancagemPct : (s.patrimonio?.alavancagemPct ?? 0);
         const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
@@ -1046,7 +1073,7 @@ export default function PerformancePage() {
                 </div>
                 <p className="font-mono" style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
                   {formatDuracao(s.duracaoAnos)} · {formatDate(s.primeiraData)} → {formatDate(s.ultimaData)}
-                  {" · "}Patrimônio {compactCurr(s.patrimonio?.net ?? navAtual)}
+                  {" · "}Patrimônio {compactCurr(patNet)}
                 </p>
               </section>
 
@@ -1142,13 +1169,13 @@ export default function PerformancePage() {
                       </span>
                     ))}
                   </div>
-                  <div className="ml-auto flex items-center gap-2" title={`Patrimônio${(s.patrimonio?.divida ?? 0) > 0 ? " líquido (bruto " + compactCurr(navAtual) + " − margin " + compactCurr(s.patrimonio!.divida!) + ")" : ""}`}>
+                  <div className="ml-auto flex items-center gap-2" title={`Patrimônio${patDivida > 0 ? " líquido (bruto " + compactCurr(patBruto) + " − margin " + compactCurr(patToCurr(patDivida)) + ")" : ""}`}>
                     <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">
-                      {(s.patrimonio?.divida ?? 0) > 0 ? "Net" : "Patrimônio"}
+                      {patDivida > 0 ? "Net" : "Patrimônio"}
                     </span>
-                    <span className="text-sm font-bold text-zinc-100">{compactCurr(s.patrimonio?.net ?? navAtual)}</span>
-                    {(s.patrimonio?.divida ?? 0) > 0 && (
-                      <span className="text-[9px] text-amber-400/70 font-medium">({(s.patrimonio!.alavancagemPct ?? 0).toFixed(1)}%)</span>
+                    <span className="text-sm font-bold text-zinc-100">{compactCurr(patNet)}</span>
+                    {patDivida > 0 && (
+                      <span className="text-[9px] text-amber-400/70 font-medium">({patAlavPct.toFixed(1)}%)</span>
                     )}
                   </div>
                 </div>
