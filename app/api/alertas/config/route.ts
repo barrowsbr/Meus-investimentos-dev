@@ -20,11 +20,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const chatId = String(body?.chatId ?? "").trim();
     const limiteRaw = Number(body?.limiteAlavancagemPct);
-    const ativo = Boolean(body?.ativo);
+    // Flags booleanos: quando ausentes no payload, mantém ligado (default true).
+    const flag = (v: unknown) => v === undefined ? true : Boolean(v);
     await writeAlertasConfig({
       chatId,
       limiteAlavancagemPct: Number.isFinite(limiteRaw) && limiteRaw > 0 ? limiteRaw : 30,
-      ativo,
+      ativo: flag(body?.ativo),
+      darfAtivo: flag(body?.darfAtivo),
+      dirpfAtivo: flag(body?.dirpfAtivo),
+      alavancagemAtivo: flag(body?.alavancagemAtivo),
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

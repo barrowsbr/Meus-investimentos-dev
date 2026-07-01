@@ -471,7 +471,34 @@ interface AlertasConfigResp {
   chatId: string;
   limiteAlavancagemPct: number;
   ativo: boolean;
+  darfAtivo: boolean;
+  dirpfAtivo: boolean;
+  alavancagemAtivo: boolean;
   tokenConfigured: boolean;
+}
+
+// Linha de liga/desliga reutilizável (título + descrição + toggle ON/OFF).
+function ToggleRow({ title, desc, on, onToggle, disabled }: {
+  title: string; desc: string; on: boolean; onToggle: () => void; disabled?: boolean;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 transition-opacity ${disabled ? "opacity-40" : ""}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-zinc-200">{title}</p>
+        <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{desc}</p>
+      </div>
+      <label className={`flex items-center gap-2 select-none shrink-0 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
+        <div
+          className={`rounded-full transition-colors relative ${on ? "bg-emerald-500" : "bg-zinc-600"}`}
+          style={{ width: 40, height: 22 }}
+          onClick={() => !disabled && onToggle()}
+        >
+          <div className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-all" style={{ left: on ? 20 : 2 }} />
+        </div>
+        <span className={`text-xs font-mono font-bold ${on ? "text-emerald-400" : "text-zinc-500"}`}>{on ? "ON" : "OFF"}</span>
+      </label>
+    </div>
+  );
 }
 
 function AlertasSection() {
@@ -479,6 +506,9 @@ function AlertasSection() {
   const [chatId, setChatId] = useState("");
   const [limite, setLimite] = useState(30);
   const [ativo, setAtivo] = useState(true);
+  const [darfAtivo, setDarfAtivo] = useState(true);
+  const [dirpfAtivo, setDirpfAtivo] = useState(true);
+  const [alavancagemAtivo, setAlavancagemAtivo] = useState(true);
   const [tokenConfigured, setTokenConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -492,6 +522,9 @@ function AlertasSection() {
         setChatId(d.chatId ?? "");
         setLimite(d.limiteAlavancagemPct ?? 30);
         setAtivo(d.ativo ?? true);
+        setDarfAtivo(d.darfAtivo ?? true);
+        setDirpfAtivo(d.dirpfAtivo ?? true);
+        setAlavancagemAtivo(d.alavancagemAtivo ?? true);
         setTokenConfigured(d.tokenConfigured ?? false);
         setLoading(false);
       })
@@ -505,7 +538,7 @@ function AlertasSection() {
       const res = await fetch(`${API_URL}/api/alertas/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, limiteAlavancagemPct: limite, ativo }),
+        body: JSON.stringify({ chatId, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo }),
       });
       const data = await res.json();
       if (data.ok) setMsg({ ok: true, text: "Configuração salva" });
@@ -579,21 +612,39 @@ function AlertasSection() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
-        <div>
-          <p className="text-sm font-semibold text-zinc-200">Alertas ativos</p>
-          <p className="text-xs text-zinc-500 mt-0.5">Desligado: o cron avalia, mas não envia mensagem nenhuma.</p>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
-          <div
-            className={`rounded-full transition-colors relative ${ativo ? "bg-emerald-500" : "bg-zinc-600"}`}
-            style={{ width: 40, height: 22 }}
-            onClick={() => setAtivo(a => !a)}
-          >
-            <div className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-all" style={{ left: ativo ? 20 : 2 }} />
-          </div>
-          <span className={`text-xs font-mono font-bold ${ativo ? "text-emerald-400" : "text-zinc-500"}`}>{ativo ? "ON" : "OFF"}</span>
-        </label>
+      <ToggleRow
+        title="Alertas ativos (chave geral)"
+        desc="Desligado: o cron avalia, mas não envia mensagem nenhuma — desativa todos os avisos abaixo."
+        on={ativo}
+        onToggle={() => setAtivo(a => !a)}
+      />
+
+      {/* O que enviar — liga/desliga cada tipo de aviso individualmente */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 space-y-2.5">
+        <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+          <Bell size={12} /> O que enviar
+        </p>
+        <ToggleRow
+          title="DARF (imposto sobre vendas)"
+          desc="Aviso de DARF a vencer (≤3 dias) e de DARF vencido enquanto não regularizado."
+          on={darfAtivo}
+          onToggle={() => setDarfAtivo(v => !v)}
+          disabled={!ativo}
+        />
+        <ToggleRow
+          title="DIRPF (declaração anual)"
+          desc="Lembrete do prazo (31/05): semanal a partir de abril, diário na última semana e aviso de atraso em junho."
+          on={dirpfAtivo}
+          onToggle={() => setDirpfAtivo(v => !v)}
+          disabled={!ativo}
+        />
+        <ToggleRow
+          title="Alavancagem acima do limite"
+          desc={`Aviso quando a alavancagem passar de ${limite}% (limite configurável acima).`}
+          on={alavancagemAtivo}
+          onToggle={() => setAlavancagemAtivo(v => !v)}
+          disabled={!ativo}
+        />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

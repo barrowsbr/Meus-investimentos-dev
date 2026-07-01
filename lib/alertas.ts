@@ -92,18 +92,33 @@ export function computeAlavancagemAlerta(alavancagemPct: number, limitePct: numb
 }
 
 // ── Consolidado ───────────────────────────────────────────────────────────────
+// Cada categoria pode ser ligada/desligada individualmente (`enabled`); o
+// default é ligado (undefined → true) para manter compatibilidade.
+export interface AlertasEnabled {
+  darf?: boolean;
+  dirpf?: boolean;
+  alavancagem?: boolean;
+}
+
 export function computeAlertas(input: {
   meses: Pick<MesApuracao, "mes" | "irTotal" | "vencimento" | "darfCodigo">[];
   mesAtual: string;
   hoje: string;
   alavancagemPct: number;
   limiteAlavancagemPct: number;
+  enabled?: AlertasEnabled;
 }): AlertaTrigger[] {
-  const out = computeDarfAlertas(input.meses, input.mesAtual, input.hoje);
-  const dirpf = computeDirpfAlerta(input.hoje);
-  if (dirpf) out.push(dirpf);
-  const alav = computeAlavancagemAlerta(input.alavancagemPct, input.limiteAlavancagemPct);
-  if (alav) out.push(alav);
+  const en = input.enabled ?? {};
+  const out: AlertaTrigger[] = [];
+  if (en.darf !== false) out.push(...computeDarfAlertas(input.meses, input.mesAtual, input.hoje));
+  if (en.dirpf !== false) {
+    const dirpf = computeDirpfAlerta(input.hoje);
+    if (dirpf) out.push(dirpf);
+  }
+  if (en.alavancagem !== false) {
+    const alav = computeAlavancagemAlerta(input.alavancagemPct, input.limiteAlavancagemPct);
+    if (alav) out.push(alav);
+  }
   return out;
 }
 
