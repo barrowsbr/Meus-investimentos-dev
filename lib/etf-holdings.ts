@@ -82,6 +82,13 @@ const HOLDINGS_PROXY: Record<string, string> = {
   EIMI: "IEMG", "EIMI.L": "IEMG", // MSCI EM IMI
 };
 
+// ETFs com proxy devem SEMPRE usar o proxy ao vivo (ignorar cache antigo da aba
+// `composicao`, que pode ter dado obsoleto/errado do tempo pré-proxy).
+export function hasHoldingsProxy(ticker: string): boolean {
+  return HOLDINGS_PROXY[ticker.toUpperCase().replace(".SA", "")] !== undefined
+    || HOLDINGS_PROXY[ticker.toUpperCase()] !== undefined;
+}
+
 // ── Embedded fallback (Q1-2025, approximate) ─────────────────────────────────
 
 const EMBEDDED: Record<string, Array<[string, string, number]>> = {
