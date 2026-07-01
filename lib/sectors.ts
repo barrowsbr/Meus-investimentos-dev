@@ -52,6 +52,13 @@ export function identificarSetor(ticker: string): string {
   const t = ticker.toUpperCase().trim();
   const tClean = t.replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, "");
 
+  // ETFs conhecidos (lista curada) têm PRECEDÊNCIA — sobre a meta do Yahoo e
+  // sobre a heurística de sufixo de bolsa estrangeira. Sem isto, VWRA.L (ETF
+  // UCITS em Londres) caía em "Ações Internacional" por causa do ".L" e sumia
+  // do look-through de ETFs. Usa tClean (sufixo de bolsa já removido).
+  if (ETFS_BR.has(tClean)) return "ETF";
+  if (ETFS_USA.has(tClean)) return "ETF USA";
+
   // Asset metadata (from Yahoo validation) is the primary source.
   // Falls through to heuristics only on cold start / uncached tickers.
   const meta = getAssetMeta(t);
@@ -79,13 +86,9 @@ export function identificarSetor(ticker: string): string {
   const suf = exchangeSuffix(t);
   if (suf && suf !== "SA" && EXCHANGE_SUFFIX_CURRENCY[suf]) return "Ações Internacional";
 
-  if (ETFS_BR.has(tClean)) return "ETF";
-
   if (COMMODITIES.has(tClean)) return "Commodities";
 
   if (RENDA_FIXA_USD.has(tClean)) return "Renda Fixa USD";
-
-  if (ETFS_USA.has(tClean)) return "ETF USA";
 
   if (RF_TERMS.some((term) => tClean.includes(term))) return "Renda Fixa";
 
