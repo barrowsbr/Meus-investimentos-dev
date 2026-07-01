@@ -33,13 +33,18 @@ export async function sendTelegramMessage(token: string, chatId: string, text: s
   }
 }
 
-// Envia uma FOTO (PNG/JPEG) com legenda opcional (Markdown). Usado pelo digest
-// diário — a imagem é gerada com next/og e mandada como multipart/form-data.
+// Botão inline (linha × coluna) — só botões de URL, o suficiente pro digest.
+export interface TelegramUrlButton { text: string; url: string }
+
+// Envia uma FOTO (PNG/JPEG) com legenda opcional. Usado pelo digest diário —
+// a imagem é gerada com next/og e mandada como multipart/form-data. `opts`
+// permite HTML (blockquote expansível, links) e botões inline de URL.
 export async function sendTelegramPhoto(
   token: string,
   chatId: string,
   photo: ArrayBuffer | Uint8Array,
   caption?: string,
+  opts?: { parseMode?: "HTML" | "Markdown"; buttons?: TelegramUrlButton[][] },
 ): Promise<TelegramSendResult> {
   if (!token) return { ok: false, error: "token do bot não configurado" };
   if (!chatId) return { ok: false, error: "chat_id não configurado" };
@@ -49,9 +54,11 @@ export async function sendTelegramPhoto(
     const form = new FormData();
     form.append("chat_id", chatId);
     if (caption) {
-      // Legenda do Telegram: limite de 1024 caracteres.
-      form.append("caption", caption.slice(0, 1024));
-      form.append("parse_mode", "Markdown");
+      form.append("caption", caption);
+      form.append("parse_mode", opts?.parseMode ?? "Markdown");
+    }
+    if (opts?.buttons?.length) {
+      form.append("reply_markup", JSON.stringify({ inline_keyboard: opts.buttons }));
     }
     form.append("photo", new Blob([bytes as BlobPart], { type: "image/png" }), "digest.png");
 
