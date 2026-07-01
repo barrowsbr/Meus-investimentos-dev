@@ -6,9 +6,9 @@
 // AI brief, country news e predictive signals ao dossiê.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Layers, Smartphone } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
@@ -163,22 +163,6 @@ export default function RadarShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markets, didDeepLink]);
 
-  const [showLandscapeHint, setShowLandscapeHint] = useState(false);
-  const [hintDismissing, setHintDismissing] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const isMobile = window.innerWidth < 768;
-    const alreadySeen = sessionStorage.getItem("radar-landscape-hint");
-    if (isMobile && !alreadySeen) setShowLandscapeHint(true);
-  }, []);
-
-  const dismissHint = useCallback(() => {
-    setHintDismissing(true);
-    sessionStorage.setItem("radar-landscape-hint", "1");
-    setTimeout(() => setShowLandscapeHint(false), 350);
-  }, []);
-
   if (loading) {
     return <div className="flex h-[60vh] items-center justify-center"><LoadingSpinner /></div>;
   }
@@ -188,48 +172,6 @@ export default function RadarShell() {
 
   return (
     <div className="flex h-[calc(100dvh-10rem)] flex-col gap-2 overflow-hidden md:h-[calc(100dvh-5rem)]">
-      {/* Landscape hint — mobile only, once per session */}
-      {showLandscapeHint && (
-        <div
-          className={`fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${hintDismissing ? "opacity-0" : "opacity-100"}`}
-          onClick={dismissHint}
-        >
-          <div
-            className={`mx-6 max-w-xs rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center shadow-2xl transition-all duration-300 ${hintDismissing ? "scale-90 opacity-0" : "scale-100 opacity-100"}`}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="mb-4 flex justify-center">
-              <div className="relative">
-                <Smartphone
-                  size={48}
-                  className="text-blue-400"
-                  style={{
-                    animation: "radar-rotate-phone 2s ease-in-out infinite",
-                  }}
-                />
-              </div>
-            </div>
-            <p className="mb-1 text-sm font-semibold text-zinc-100">
-              Gire o celular
-            </p>
-            <p className="mb-5 text-xs leading-relaxed text-zinc-400">
-              A experiência desta página é melhor com o celular na horizontal.
-            </p>
-            <button
-              onClick={dismissHint}
-              className="rounded-full bg-blue-500 px-6 py-2.5 text-xs font-semibold text-white transition-all active:scale-95 hover:bg-blue-400"
-            >
-              Entendi
-            </button>
-          </div>
-          <style>{`
-            @keyframes radar-rotate-phone {
-              0%, 100% { transform: rotate(0deg); }
-              30%, 70% { transform: rotate(-90deg); }
-            }
-          `}</style>
-        </div>
-      )}
       <RadarTopBar lastUpdate={markets?.lastUpdate} onPickCountry={selectByName} />
 
       {/* Controles compactos no mobile */}
