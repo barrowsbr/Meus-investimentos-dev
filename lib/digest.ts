@@ -151,33 +151,50 @@ export async function buildDigest(): Promise<DigestData> {
   };
 }
 
-// ── Legenda (texto) enviada junto com a foto (Markdown, ≤1024 chars) ──────────
+// ── Legenda (HTML) enviada junto com a foto ───────────────────────────────────
+// UI Telegram-nativa, SEM duplicar o que a imagem já mostra:
+//   • 1ª linha = preview da notificação push (resultado do dia + patrimônio).
+//   • Manchetes viram LINKS clicáveis (a imagem não é clicável) dentro de um
+//     <blockquote expandable> — recolhido por padrão, toque expande.
+// Limite do Telegram: 1024 chars VISÍVEIS (URLs em href não contam).
 function money(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+function signMoney(v: number): string {
+  return `${v >= 0 ? "+" : ""}${money(v)}`;
 }
 function signPct(v: number): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function safeHref(url: string): string {
+  return url.replace(/"/g, "%22").replace(/&/g, "&amp;");
+}
+
+/** URL pública do app para os botões inline (env explícita > domínio Vercel). */
+export function resolveAppUrl(): string | null {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL;
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercel) return `https://${vercel}`;
+  return null;
+}
 
 export function buildDigestCaption(d: DigestData): string {
   const up = d.dayBRL >= 0;
-  const lines: string[] = [];
-  lines.push(`*Resumo do dia* · ${d.dateLabel}`);
-  lines.push("");
-  lines.push(`${up ? "🟢" : "🔴"} Patrimônio *${money(d.patrimonioBRL)}*  (${up ? "+" : ""}${money(d.dayBRL)} · ${signPct(d.dayPct)})`);
-  if (d.ibkr) {
-    lines.push(`🏦 IBKR ${d.ibkr.patrimonioUSD != null ? `US$ ${Math.round(d.ibkr.patrimonioUSD).toLocaleString("pt-BR")}` : money(d.ibkr.patrimonioBRL)} · dia ${d.ibkr.lucroDiaUSD != null ? `${d.ibkr.lucroDiaUSD >= 0 ? "+" : ""}US$ ${Math.round(d.ibkr.lucroDiaUSD).toLocaleString("pt-BR")}` : money(d.ibkr.lucroDiaBRL)}`);
-  }
-  lines.push(`💵 USD/BRL ${d.usdbrl.toFixed(2)}${d.usdbrlDayPct != null ? ` (${signPct(d.usdbrlDayPct)})` : ""} · efeito câmbio ${d.fxDayBRL >= 0 ? "+" : ""}${money(d.fxDayBRL)}`);
-  if (d.gainers.length || d.losers.length) {
-    lines.push("");
-    if (d.gainers.length) lines.push(`📈 ${d.gainers.map(g => `${g.ticker} ${signPct(g.changePct)}`).join("  ·  ")}`);
-    if (d.losers.length) lines.push(`📉 ${d.losers.map(g => `${g.ticker} ${signPct(g.changePct)}`).join("  ·  ")}`);
-  }
+  const lines: string[] = [
+    // Preview da push: o dia em uma linha.
+    `${up ? "🟢" : "🔴"} <b>${signMoney(d.dayBRL)} (${signPct(d.dayPct)})</b> · Patrimônio <b>${money(d.patrimonioBRL)}</b>`,
+    `<i>Resumo do dia — ${escapeHtml(d.dateLabel)}, ${d.timeLabel}</i>`,
+  ];
   if (d.headlines.length) {
-    lines.push("");
-    lines.push("*Manchetes*");
-    for (const h of d.headlines.slice(0, 3)) lines.push(`• ${h.titulo}`);
+    const items = d.headlines.slice(0, 4).map(h => {
+      const titulo = h.titulo.length > 90 ? `${h.titulo.slice(0, 89)}…` : h.titulo;
+      return `▸ <a href="${safeHref(h.link)}">${escapeHtml(titulo)}</a> — ${escapeHtml(h.fonte)}`;
+    });
+    lines.push(`<blockquote expandable>📰 <b>Manchetes do dia</b>\n${items.join("\n")}</blockquote>`);
   }
-  return lines.join("\n").slice(0, 1024);
+  return lines.join("\n");
 }
