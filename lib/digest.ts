@@ -33,6 +33,11 @@ export interface DigestExposure {
   pct: number;
 }
 
+export interface DigestMercado {
+  label: string;            // IBOV, S&P 500, BTC
+  changePct: number;
+}
+
 export interface DigestData {
   dateLabel: string;
   timeLabel: string;
@@ -48,6 +53,13 @@ export interface DigestData {
   losers: DigestMover[];
   exposicao: DigestExposure[];
   headlines: DigestHeadline[];
+  // ── Seções extras do card vertical ──
+  rvBRL: number;                    // patrimônio em renda variável
+  rfBRL: number;                    // patrimônio em renda fixa
+  proventosMesBRL: number;          // proventos recebidos no mês corrente
+  proventosMedia12mBRL: number;     // média mensal dos últimos 12 meses
+  proventosTotalBRL: number;        // acumulado histórico
+  mercados: DigestMercado[];        // IBOV / S&P 500 / BTC — variação do dia
 }
 
 const TZ = "America/Sao_Paulo";
@@ -87,14 +99,21 @@ export async function buildDigest(): Promise<DigestData> {
   const fxCusto = buildPmFxRates(cambio);
   const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
 
-  // Variação cambial do dia (para o efeito do câmbio e o par USD/BRL).
+  // Variação cambial do dia (para o efeito do câmbio e o par USD/BRL) e os
+  // termômetros de mercado (IBOV / S&P 500 / BTC) numa só chamada — best-effort.
   const fxDayChange: Record<string, { change: number; changePct: number }> = {};
+  const mercados: DigestMercado[] = [];
   try {
     const fxTk: Record<string, string> = { USD: "BRL=X", EUR: "EURBRL=X", CAD: "CADBRL=X", GBP: "GBPBRL=X" };
-    const q = await fetchQuotes(Object.values(fxTk));
+    const mktTk: Record<string, string> = { IBOV: "^BVSP", "S&P 500": "^GSPC", BTC: "BTC-USD" };
+    const q = await fetchQuotes([...Object.values(fxTk), ...Object.values(mktTk)]);
     for (const [ccy, tk] of Object.entries(fxTk)) {
       const qq = q.quotes[tk];
       if (qq) fxDayChange[ccy] = { change: qq.change, changePct: qq.changePercent };
+    }
+    for (const [label, tk] of Object.entries(mktTk)) {
+      const qq = q.quotes[tk];
+      if (qq && qq.changePercent != null) mercados.push({ label, changePct: qq.changePercent });
     }
   } catch { /* não crítico */ }
 
@@ -118,10 +137,10 @@ export async function buildDigest(): Promise<DigestData> {
     .filter(p => (p.quantidade ?? 0) > 0 && p.dayChangePct != null && p.valorAtualBRL > 50)
     .map(p => ({ ticker: p.ticker, changePct: p.dayChangePct as number, changeBRL: p.dayChangeBRL ?? 0, moeda: p.moeda ?? "BRL" }));
   const sorted = [...movers].sort((a, b) => b.changePct - a.changePct);
-  const gainers = sorted.filter(m => m.changePct > 0).slice(0, 3);
-  const losers = sorted.filter(m => m.changePct < 0).slice(-3).reverse();
+  const gainers = sorted.filter(m => m.changePct > 0).slice(0, 5);
+  const losers = sorted.filter(m => m.changePct < 0).slice(-5).reverse();
 
-  // Exposição cambial (moedas != BRL, top 3 por valor).
+  // Exposição cambial (moedas != BRL, top 4 por valor).
   const expo = snapshot.exposicaoCambial ?? {};
   const totalExpo = Object.values(expo).reduce((s, v) => s + Math.abs(v), 0) || 1;
   const exposicao = Object.entries(expo)
@@ -129,7 +148,16 @@ export async function buildDigest(): Promise<DigestData> {
     .map(([moeda, valorBRL]) => ({ moeda, valorBRL, pct: (valorBRL / totalExpo) * 100 }))
     .filter(e => e.valorBRL > 0)
     .sort((a, b) => b.valorBRL - a.valorBRL)
-    .slice(0, 3);
+    .slice(0, 4);
+
+  // Proventos: mês corrente (chave YYYY-MM, fuso de Brasília) + média 12m.
+  const porMes = snapshot.proventosMensais ?? {};
+  const mesAtualKey = new Date().toLocaleDateString("sv-SE", { timeZone: TZ }).slice(0, 7);
+  const proventosMesBRL = porMes[mesAtualKey] ?? 0;
+  const ult12 = Object.keys(porMes).sort().slice(-12);
+  const proventosMedia12mBRL = ult12.length > 0
+    ? ult12.reduce((s, k) => s + (porMes[k] ?? 0), 0) / ult12.length
+    : 0;
 
   const { dateLabel, timeLabel } = labels();
 
@@ -148,6 +176,12 @@ export async function buildDigest(): Promise<DigestData> {
     losers,
     exposicao,
     headlines,
+    rvBRL: snapshot.rvPatrimonioBRL,
+    rfBRL: snapshot.rfPatrimonioBRL,
+    proventosMesBRL,
+    proventosMedia12mBRL,
+    proventosTotalBRL: snapshot.totalProventosBRL,
+    mercados,
   };
 }
 
