@@ -223,20 +223,42 @@ export interface HeatEntry {
 
 const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 
-// Camada MERCADOS: ISO numérico → índice de maior |variação| daquele país.
+// Índice PREFERIDO por país no mapa de calor: quando um país tem vários índices
+// (ex.: EUA = S&P 500, Dow, Nasdaq), o benchmark que melhor representa o mercado
+// vence — em vez do de maior |variação| (que puxava pro Nasdaq, mais volátil).
+// EUA → S&P 500 (^GSPC).
+const PREFERRED_INDEX_BY_COUNTRY: Record<string, string> = {
+  EUA: "^GSPC",
+};
+
+// Camada MERCADOS: ISO numérico → índice representativo do país.
+// Regra: se o país tem índice preferido (PREFERRED_INDEX_BY_COUNTRY), usa ele;
+// senão, o de maior |variação|. Fallback: se o preferido não vier nas cotações,
+// usa provisoriamente o de maior |variação| entre os demais.
 // range 2.5% + gamma: separa visualmente +1% de +2% sem estourar tudo no extremo.
 export function buildMarketHeat(
   indices: { symbol: string; country: string; changePct: number; name: string; flag: string; region?: string }[],
 ): Map<string, HeatEntry> {
-  type Raw = { changePct: number; name: string; flag: string; region?: string };
+  type Raw = { changePct: number; name: string; flag: string; region?: string; preferred: boolean };
   const best = new Map<string, Raw>();
   for (const idx of indices) {
     if (idx.symbol === "^VIX") continue;
     const iso = COUNTRY_TO_ISO_NUM[idx.country];
     if (!iso) continue;
+    const preferredSym = PREFERRED_INDEX_BY_COUNTRY[idx.country];
+    const isPreferred = preferredSym === idx.symbol;
     const cur = best.get(iso);
+    if (preferredSym) {
+      if (cur?.preferred) { if (isPreferred) best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region, preferred: true }); continue; }
+      if (isPreferred) { best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region, preferred: true }); continue; }
+      // preferido ainda não apareceu: mantém o de maior |variação| como provisório
+      if (!cur || Math.abs(idx.changePct) > Math.abs(cur.changePct)) {
+        best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region, preferred: false });
+      }
+      continue;
+    }
     if (!cur || Math.abs(idx.changePct) > Math.abs(cur.changePct)) {
-      best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region });
+      best.set(iso, { changePct: idx.changePct, name: idx.name, flag: idx.flag, region: idx.region, preferred: false });
     }
   }
   const map = new Map<string, HeatEntry>();
