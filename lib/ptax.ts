@@ -23,11 +23,17 @@ interface CacheEntry {
 }
 
 const TTL_MS = 6 * 60 * 60 * 1000;
+// Entrada VAZIA (BCB falhou e planilha sem a moeda) expira rápido: um mapa
+// vazio cacheado por 6h bloqueava retry E impedia o seed da planilha — uma
+// única falha do BCB forçava os DEFAULTS em cálculo fiscal por 6 horas.
+const EMPTY_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, CacheEntry>();
 
 function getCached(moeda: string): CacheEntry | null {
   const entry = cache.get(moeda);
-  if (entry && Date.now() - entry.fetchedAt < TTL_MS) return entry;
+  if (!entry) return null;
+  const ttl = entry.map.size > 0 ? TTL_MS : EMPTY_TTL_MS;
+  if (Date.now() - entry.fetchedAt < ttl) return entry;
   return null;
 }
 
@@ -36,6 +42,11 @@ function setCache(moeda: string, map: Map<string, number>): CacheEntry {
   const entry: CacheEntry = { map, dates, fetchedAt: Date.now() };
   cache.set(moeda, entry);
   return entry;
+}
+
+/** Limpa o cache em memória (para testes). */
+export function resetPtaxCache(): void {
+  cache.clear();
 }
 
 // ─── BCB API ─────────────────────────────────────────────────────────────────
@@ -60,19 +71,29 @@ async function fetchBcbCurrency(
     ? `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@di,dataFinalCotacao=@df)?@di='${di}'&@df='${df}'&$top=10000&$format=json&$select=cotacaoVenda,dataHoraCotacao`
     : `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@di,dataFinalCotacao=@df)?@moeda='${moeda}'&@di='${di}'&@df='${df}'&$top=10000&$format=json&$select=cotacaoVenda,dataHoraCotacao`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`BCB PTAX API ${res.status} for ${moeda}`);
+  // 2 tentativas (10s cada) — a OLINDA oscila; uma falha pontual não pode
+  // derrubar o cálculo fiscal para os constantes.
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) throw new Error(`BCB PTAX API ${res.status} for ${moeda}`);
 
-  const json = await res.json();
-  const values: BcbRecord[] = json.value ?? [];
+      const json = await res.json();
+      const values: BcbRecord[] = json.value ?? [];
 
-  const map = new Map<string, number>();
-  for (const v of values) {
-    if (!v.cotacaoVenda || v.cotacaoVenda <= 0) continue;
-    const m = v.dataHoraCotacao.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (m) map.set(m[0], v.cotacaoVenda);
+      const map = new Map<string, number>();
+      for (const v of values) {
+        if (!v.cotacaoVenda || v.cotacaoVenda <= 0) continue;
+        const m = v.dataHoraCotacao.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (m) map.set(m[0], v.cotacaoVenda);
+      }
+      return map;
+    } catch (e) {
+      lastErr = e;
+    }
   }
-  return map;
+  throw lastErr instanceof Error ? lastErr : new Error(`BCB PTAX indisponível para ${moeda}`);
 }
 
 // ─── Carregar PTAX do BCB com fallback para planilha ─────────────────────────
@@ -121,7 +142,10 @@ export function seedCacheFromSheet(ptaxRows: Row[]): void {
   }
 
   for (const [moeda, map] of maps) {
-    if (!getCached(moeda) && map.size > 0) {
+    const cached = getCached(moeda);
+    // Semeia quando não há cache OU quando o cache é um marcador de falha
+    // (mapa vazio) — a planilha nunca pode ficar bloqueada por falha do BCB.
+    if ((!cached || cached.map.size === 0) && map.size > 0) {
       setCache(moeda, map);
     }
   }
@@ -142,26 +166,60 @@ function forwardFill(entry: CacheEntry, dateISO: string): number {
 
 const DEFAULTS: Record<string, number> = { USD: 5.0, EUR: 6.0, CAD: 4.0, GBP: 7.0 };
 
+export interface PtaxDetalhado {
+  ptax: PtaxLookup;
+  /** Avisos de corretude fiscal — moedas que caíram no valor FIXO aproximado
+   *  (BCB indisponível E aba p_tax sem a moeda). Preenchido no load E em cada
+   *  lookup que usar o fallback; dedup por moeda. Se não estiver vazio, os
+   *  números de IR calculados com esse lookup NÃO são confiáveis. */
+  avisos: string[];
+  /** Diagnóstico por moeda solicitada: quantos pontos de dados existem. */
+  fontes: Record<string, number>;
+}
+
 /**
- * Constrói um PtaxLookup multi-moeda.
+ * Constrói um PtaxLookup multi-moeda COM relatório de corretude.
  *
  * 1. Seda o cache com dados da planilha (instantâneo, sem rede)
- * 2. Tenta buscar do BCB para cada moeda encontrada nas transações
+ * 2. Busca do BCB para cada moeda das transações (2 tentativas; falha não
+ *    bloqueia a planilha — ver EMPTY_TTL_MS/seedCacheFromSheet)
  * 3. Forward-fill: para qualquer (moeda, data), retorna a última PTAX ≤ data
- *
- * Uso: `const ptax = await buildMultiCurrencyPtax(ptaxRows, ["USD", "EUR", "CAD"]);`
+ * 4. Último recurso: valor FIXO aproximado (DEFAULTS) — registrado em `avisos`,
+ *    NUNCA silencioso: número fiscal com taxa chutada precisa aparecer na UI.
  */
-export async function buildMultiCurrencyPtax(
+export async function buildMultiCurrencyPtaxDetalhado(
   ptaxRows: Row[],
   currencies: string[] = ["USD", "EUR", "CAD"],
-): Promise<PtaxLookup> {
+): Promise<PtaxDetalhado> {
   seedCacheFromSheet(ptaxRows);
 
   await Promise.allSettled(
     currencies.map(m => loadPtaxFromBcb(m.toUpperCase())),
   );
 
-  return (moeda: string, dateISO: string): number => {
+  const avisos: string[] = [];
+  const avisadas = new Set<string>();
+  const fontes: Record<string, number> = {};
+
+  const registrarFallback = (key: string) => {
+    if (avisadas.has(key)) return;
+    avisadas.add(key);
+    avisos.push(
+      `PTAX indisponível para ${key} — usando taxa fixa aproximada (${(DEFAULTS[key] ?? 5.0).toFixed(2)}). ` +
+      `Os valores de IR nessa moeda NÃO são confiáveis: verifique a conexão com o BCB ou preencha a aba p_tax.`,
+    );
+  };
+
+  // Aviso proativo: moeda solicitada sem NENHUM dado (nem BCB, nem planilha).
+  for (const m of currencies) {
+    const key = m.toUpperCase();
+    if (key === "BRL") continue;
+    const entry = getCached(key);
+    fontes[key] = entry?.map.size ?? 0;
+    if (!entry || entry.dates.length === 0) registrarFallback(key);
+  }
+
+  const ptax: PtaxLookup = (moeda: string, dateISO: string): number => {
     const key = (moeda || "BRL").toUpperCase().trim();
     if (key === "BRL") return 1;
 
@@ -171,8 +229,21 @@ export async function buildMultiCurrencyPtax(
       if (rate > 0) return rate;
     }
 
+    registrarFallback(key);
     return DEFAULTS[key] ?? 5.0;
   };
+
+  return { ptax, avisos, fontes };
+}
+
+/** Versão compatível (só o lookup) — preferir a Detalhado em rotas fiscais,
+ *  que DEVEM expor os avisos na resposta. */
+export async function buildMultiCurrencyPtax(
+  ptaxRows: Row[],
+  currencies: string[] = ["USD", "EUR", "CAD"],
+): Promise<PtaxLookup> {
+  const { ptax } = await buildMultiCurrencyPtaxDetalhado(ptaxRows, currencies);
+  return ptax;
 }
 
 /**

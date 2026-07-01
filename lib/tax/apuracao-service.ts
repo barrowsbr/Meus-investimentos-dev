@@ -8,7 +8,7 @@ import { getDataStore } from "@/lib/data-store";
 import { toNumber } from "@/lib/format";
 import { processarVendas, type RawTx, type CorpEvent, type Posicao, type PtaxLookup } from "./engine";
 import { apurar, type Apuracao } from "./apurador";
-import { buildMultiCurrencyPtax } from "@/lib/ptax";
+import { buildMultiCurrencyPtaxDetalhado } from "@/lib/ptax";
 
 type Row = Record<string, unknown>;
 
@@ -84,6 +84,9 @@ export interface ApuracaoBuild {
   posicoes: Posicao[];
   realizados: ReturnType<typeof processarVendas>["eventos"];
   ptax: PtaxLookup;
+  /** Avisos de corretude do PTAX (moeda em taxa fixa aproximada) — as rotas
+   *  fiscais DEVEM expor isto na resposta para a UI alertar o usuário. */
+  ptaxAvisos: string[];
 }
 
 /** Apura SEMPRE com o histórico completo (preço médio depende de todas as
@@ -98,11 +101,11 @@ export async function buildApuracao(): Promise<ApuracaoBuild> {
 
   const txs = parseTransacoes(ativos);
   const currencies = detectCurrencies(ativos);
-  const ptax = await buildMultiCurrencyPtax(ptaxRows, currencies);
+  const { ptax, avisos: ptaxAvisos } = await buildMultiCurrencyPtaxDetalhado(ptaxRows, currencies);
   const eventos = parseEventos(eventosRows);
 
   const { eventos: realizados, posicoes } = processarVendas(txs, eventos, ptax);
   const apuracao = apurar(realizados);
 
-  return { apuracao, posicoes, realizados, ptax };
+  return { apuracao, posicoes, realizados, ptax, ptaxAvisos };
 }

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   try {
     const store = getDataStore();
-    const [{ apuracao, posicoes, realizados, ptax }, cambioRows] = await Promise.all([
+    const [{ apuracao, posicoes, realizados, ptax, ptaxAvisos }, cambioRows] = await Promise.all([
       buildApuracao(),
       store.fetchTab("cambio").catch(() => []),
     ]);
@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       acoesVendasMesAtual,
       limiteIsencaoAcoes: regra("acoes_swing", hoje).isencaoMensalVendas ?? 20000,
       cambioIr,
+      ptaxAvisos,
     };
 
     if (year) {
