@@ -14,10 +14,18 @@ function rangeToStartDate(range: string): string {
     case "1y": d.setFullYear(d.getFullYear() - 1); break;
     case "2y": d.setFullYear(d.getFullYear() - 2); break;
     case "5y": d.setFullYear(d.getFullYear() - 5); break;
+    case "10y": d.setFullYear(d.getFullYear() - 10); break;
     case "max": d.setFullYear(d.getFullYear() - 20); break;
     default: d.setMonth(d.getMonth() - 6);
   }
   return d.toISOString().split("T")[0];
+}
+
+// Ranges curtos precisam de intervalo intradiário (o Yahoo v8 entrega assim).
+function rangeToInterval(range: string): string {
+  if (range === "1d") return "5m";
+  if (range === "5d") return "30m";
+  return "1d";
 }
 
 interface OHLCPoint {
@@ -33,6 +41,8 @@ async function fetchViaYF2(symbol: string, range: string): Promise<OHLCPoint[]> 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const YF: any = (await import("yahoo-finance2")).default;
   const yf = typeof YF === "function" ? new YF() : YF;
+  // Intradiário (1d/5d) não vem do histórico diário do yf2 → deixa o v8 tratar.
+  if (range === "1d" || range === "5d") throw new Error("intraday → v8");
   const startDate = rangeToStartDate(range);
   const endDate = new Date().toISOString().split("T")[0];
   const rows = await yf.historical(
@@ -54,7 +64,8 @@ async function fetchViaYF2(symbol: string, range: string): Promise<OHLCPoint[]> 
 }
 
 async function fetchViaV8(symbol: string, range: string): Promise<OHLCPoint[]> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d&includeAdjustedClose=true`;
+  const interval = rangeToInterval(range);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includeAdjustedClose=true`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
@@ -75,7 +86,10 @@ async function fetchViaV8(symbol: string, range: string): Promise<OHLCPoint[]> {
     return timestamps.flatMap((ts, i) => {
       const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i];
       if (o == null || h == null || l == null || c == null) return [];
-      return [{ date: new Date(ts * 1000).toISOString().split("T")[0], open: o, high: h, low: l, close: c, volume: q.volume?.[i] ?? 0 }];
+      // Diário → data (YYYY-MM-DD); intradiário → ISO com horário (barras distintas).
+      const iso = new Date(ts * 1000).toISOString();
+      const date = interval === "1d" ? iso.split("T")[0] : iso;
+      return [{ date, open: o, high: h, low: l, close: c, volume: q.volume?.[i] ?? 0 }];
     });
   } finally {
     clearTimeout(timer);
