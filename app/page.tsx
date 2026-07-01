@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight } from "lucide-react";
@@ -88,42 +88,96 @@ function timeAgo(dateStr: string): string {
 
 function TickerTape({ items }: { items: TickerItem[] }) {
   const [expanded, setExpanded] = useState(false);
-  const duration = Math.max(18, items.length * 4);
-  if (items.length === 0) return null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const moved = useRef(false);
+  const startX = useRef(0);
+  const startScroll = useRef(0);
+  const pauseUntil = useRef(0);
 
+  // Auto-scroll suave via rAF (loop contínuo — conteúdo duplicado). Pausa
+  // enquanto o usuário arrasta e por 2,5s depois, para dar controle manual.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let raf = 0;
+    const step = () => {
+      if (el && !dragging.current && performance.now() >= pauseUntil.current) {
+        const half = el.scrollWidth / 2;
+        el.scrollLeft = half > 0 ? (el.scrollLeft + 0.4) % half : 0;
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [items.length]);
+
+  const onDown = (e: React.PointerEvent) => {
+    const el = scrollRef.current; if (!el) return;
+    dragging.current = true; moved.current = false;
+    startX.current = e.clientX; startScroll.current = el.scrollLeft;
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const el = scrollRef.current; if (!el || !dragging.current) return;
+    const dx = e.clientX - startX.current;
+    if (Math.abs(dx) > 4) moved.current = true;
+    const half = el.scrollWidth / 2;
+    let s = startScroll.current - dx;
+    if (half > 0) { s = ((s % half) + half) % half; }
+    el.scrollLeft = s;
+  };
+  const onUp = () => { dragging.current = false; pauseUntil.current = performance.now() + 2500; };
+  const onItemClick = (e: React.MouseEvent) => { if (moved.current) e.preventDefault(); };
+
+  if (items.length === 0) return null;
   const best5 = items.slice(0, 5);
   const worst5 = [...items].reverse().slice(0, 5);
 
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-stretch overflow-hidden"
-        style={{ height: 38, cursor: "pointer" }}
-      >
-        <div className="flex-1 overflow-hidden flex items-center"
-          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)" }}>
-          <div
-            className="inline-flex items-center whitespace-nowrap"
-            style={{ animation: `tickerScroll ${duration}s linear infinite` }}
-          >
+      <div className="flex items-stretch" style={{ height: 38 }}>
+        <div
+          ref={scrollRef}
+          className="flex-1 flex items-center overflow-x-auto scrollbar-hide"
+          style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)", cursor: dragging.current ? "grabbing" : "grab", touchAction: "pan-y", overscrollBehaviorX: "contain" }}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerLeave={() => { if (dragging.current) onUp(); }}
+        >
+          <div className="inline-flex items-center whitespace-nowrap">
             {[...items, ...items].map((p, i) => {
               const ext = p.marketState === "PRE" || p.marketState === "PREPRE" ? "PRÉ"
                 : p.marketState === "POST" || p.marketState === "POSTPOST" ? "PÓS" : null;
               return (
-                <span key={i} className="inline-flex items-center gap-1.5 px-4 font-mono" style={{ fontSize: 12 }}>
+                <Link
+                  key={i}
+                  href={`/renda-variavel?ticker=${encodeURIComponent(p.ticker)}`}
+                  onClick={onItemClick}
+                  draggable={false}
+                  className="inline-flex items-center gap-1.5 px-4 font-mono transition-colors hover:bg-white/[0.05]"
+                  style={{ fontSize: 12 }}
+                >
                   <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
                   {ext && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--accent)", letterSpacing: ".06em" }}>{ext}</span>}
                   <span className="tnum" style={{ color: "var(--muted)" }}>{fmtPrice(p.price, p.moeda)}</span>
                   <span className="font-bold tnum" style={{ color: (p.changePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)" }}>
                     {(p.changePct ?? 0) > 0 ? "▲" : (p.changePct ?? 0) < 0 ? "▼" : "▬"} {(p.changePct ?? 0) >= 0 ? "+" : ""}{(p.changePct ?? 0).toFixed(2)}%
                   </span>
-                </span>
+                </Link>
               );
             })}
           </div>
         </div>
-      </button>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="shrink-0 px-2.5 flex items-center justify-center transition-colors hover:bg-white/[0.03]"
+          style={{ borderLeft: "1px solid var(--line)", color: "var(--muted)", fontSize: 11 }}
+          aria-label="Top altas e baixas"
+        >
+          {expanded ? "▴" : "▾"}
+        </button>
+      </div>
 
       {expanded && (
         <div className="grid grid-cols-2 gap-0" style={{ borderTop: "1px solid var(--line)" }}>
@@ -720,6 +774,7 @@ export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [nasdaq, setNasdaq] = useState<IndexQuote | null>(null);
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
+  const [ibkrLoaded, setIbkrLoaded] = useState(false);
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
 
   useEffect(() => {
@@ -738,7 +793,8 @@ export default function HomePage() {
     fetch("/api/ibkr/overview")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIbkrLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -911,7 +967,7 @@ export default function HomePage() {
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>
                 Retorno Dia{sessionTag ? <span style={{ color: "var(--accent)", marginLeft: 4, fontSize: 8 }}>{sessionTag}</span> : null}
               </span>
-              {loading || dayPctFinal === null ? (
+              {loading || !ibkrLoaded || dayPctFinal === null ? (
                 <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
               ) : (
                 <>
