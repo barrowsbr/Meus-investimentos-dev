@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readAlertasConfig } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { buildDigest, buildDigestCaption } from "@/lib/digest";
 import { renderDigestImage } from "@/lib/digest-image";
 import { sendTelegramPhoto } from "@/lib/telegram";
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
     const data = await buildDigest();
     const png = await renderDigestImage(data).arrayBuffer();
-    const res = await sendTelegramPhoto(config.chatId, png, buildDigestCaption(data));
+    const res = await sendTelegramPhoto(resolveBotToken(config), config.chatId, png, buildDigestCaption(data));
 
     return NextResponse.json({ ok: res.ok, ranAt: new Date().toISOString(), error: res.ok ? undefined : res.error });
   } catch (e) {

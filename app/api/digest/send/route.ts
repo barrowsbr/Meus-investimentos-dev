@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDemoRequest } from "@/lib/demo";
-import { readAlertasConfig } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { buildDigest, buildDigestCaption } from "@/lib/digest";
 import { renderDigestImage } from "@/lib/digest-image";
 import { sendTelegramPhoto } from "@/lib/telegram";
@@ -21,7 +21,7 @@ export async function POST() {
     }
     const data = await buildDigest();
     const png = await renderDigestImage(data).arrayBuffer();
-    const res = await sendTelegramPhoto(config.chatId, png, buildDigestCaption(data));
+    const res = await sendTelegramPhoto(resolveBotToken(config), config.chatId, png, buildDigestCaption(data));
     if (!res.ok) return NextResponse.json({ error: res.error ?? "Falha ao enviar" }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {

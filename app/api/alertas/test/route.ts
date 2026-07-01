@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDemoRequest } from "@/lib/demo";
-import { readAlertasConfig } from "@/lib/alertas-store";
+import { readAlertasConfig, resolveBotToken } from "@/lib/alertas-store";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ export async function POST() {
       return NextResponse.json({ error: "Configure e salve o chat_id primeiro" }, { status: 400 });
     }
     const res = await sendTelegramMessage(
+      resolveBotToken(config),
       config.chatId,
       "✅ *Meus Investimentos* — alertas conectados! Você vai receber avisos de DARF, DIRPF e alavancagem por aqui.",
     );

@@ -70,7 +70,9 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
      `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` (cascata do agente IA),
      `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias),
      `TELEGRAM_BOT_TOKEN` (alertas determinísticos — DARF/DIRPF/alavancagem — e o
-     resumo do dia em imagem via cron; o chat_id vai em Configurações, não é env var)
+     resumo do dia em imagem via cron; a env var tem prioridade, mas o token
+     também pode ser salvo em Configurações — aba `alertas_config`, nunca reenviado
+     ao cliente; o chat_id igualmente vai em Configurações)
 4. A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor)
 
 ## Acesso ao Google Sheets

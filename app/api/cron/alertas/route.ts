@@ -6,7 +6,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cam
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
 import { buildApuracao } from "@/lib/tax/apuracao-service";
 import { computeAlertas, shouldSend } from "@/lib/alertas";
-import { readAlertasConfig, readAlertasEstado, writeAlertasEstado } from "@/lib/alertas-store";
+import { readAlertasConfig, readAlertasEstado, writeAlertasEstado, resolveBotToken } from "@/lib/alertas-store";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +59,11 @@ export async function GET(request: Request) {
     const estado = await readAlertasEstado();
     const toSend = triggers.filter((t) => shouldSend(t, estado, hoje));
 
+    const token = resolveBotToken(config);
     const enviados: string[] = [];
     const falhas: string[] = [];
     for (const t of toSend) {
-      const res = await sendTelegramMessage(config.chatId, t.texto);
+      const res = await sendTelegramMessage(token, config.chatId, t.texto);
       if (res.ok) { enviados.push(t.chave); estado[t.chave] = hoje; }
       else falhas.push(`${t.chave}: ${res.error}`);
     }
