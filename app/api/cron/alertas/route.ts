@@ -3,7 +3,7 @@ import { getDataStore } from "@/lib/data-store";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
-import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem } from "@/lib/margin";
+import { MARGIN_TAB, computeMarginResumo, aplicarAlavancagem, loadMarginEntriesCanonicas } from "@/lib/margin";
 import { buildApuracao } from "@/lib/tax/apuracao-service";
 import { computeAlertas, shouldSend } from "@/lib/alertas";
 import { readAlertasConfig, readAlertasEstado, writeAlertasEstado, resolveBotToken } from "@/lib/alertas-store";
@@ -113,7 +113,9 @@ async function computeAlavancagemAtual(): Promise<number> {
   const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
   const snapshot = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
 
-  const marginResumo = computeMarginResumo(parseMarginRows(marginRows), {
+  // Entradas canônicas = aba + saldos reais da IBKR — o alerta usa o MESMO
+  // alavancagemPct que as páginas exibem.
+  const marginResumo = computeMarginResumo(await loadMarginEntriesCanonicas(marginRows), {
     BRL: 1,
     USD: fxAtual.USDBRL,
     EUR: fxAtual.EURBRL,
