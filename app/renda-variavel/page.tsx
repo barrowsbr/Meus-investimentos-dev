@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell, PieChart, Pie, ReferenceLine,
@@ -108,13 +109,21 @@ export default function RendaVariavelPage() {
   const { data: rawTx } = useSheetData("meus_ativos");
   const [sortKey, setSortKey] = useState<SortKey>("valorAtualBRL");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const router = useRouter();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [view, setView] = useState<ViewFilter>("carteira");
+  // Rastreia se o card foi aberto via deep-link da Home: nesse caso, ao fechar,
+  // volta pra Home (router.back). Se foi aberto clicando na própria RV, só fecha.
+  const openedFromHome = useRef(false);
   // Deep-link: /renda-variavel?ticker=XXXX abre o card do ativo direto (vindo da Home).
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("ticker");
-    if (t) setSelectedTicker(t);
+    if (t) { setSelectedTicker(t); openedFromHome.current = true; }
   }, []);
+  const closeAssetModal = () => {
+    if (openedFromHome.current) { openedFromHome.current = false; router.back(); }
+    else setSelectedTicker(null);
+  };
   const [notesTicker, setNotesTicker] = useState<string | null>(null);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
 
@@ -463,7 +472,7 @@ export default function RendaVariavelPage() {
               return (
                 <button
                   key={`${p.ticker}-${vendido ? "x" : "o"}`}
-                  onClick={() => setSelectedTicker(p.ticker)}
+                  onClick={() => { setSelectedTicker(p.ticker); openedFromHome.current = false; }}
                   className={`group flex flex-col gap-2.5 p-3 rounded-xl text-left transition-all hover:-translate-y-0.5 ${vendido ? "opacity-75" : ""}`}
                   style={{ background: "var(--panel)", border: "1px solid var(--line)" }}
                 >
@@ -536,7 +545,7 @@ export default function RendaVariavelPage() {
           hasUSD={hasUSD}
           noteCount={noteCounts[selected.ticker.toUpperCase()] ?? 0}
           onOpenNotes={(t) => setNotesTicker(t)}
-          onClose={() => setSelectedTicker(null)}
+          onClose={closeAssetModal}
         />
       )}
 
