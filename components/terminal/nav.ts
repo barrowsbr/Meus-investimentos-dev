@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  Scale, Crosshair, Sunrise, Layers, SlidersHorizontal,
+  Scale, Crosshair, Sunrise, Layers,
   Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -42,7 +42,7 @@ export const NAV: NavGroup[] = [
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
-      { href: "/simulacoes", label: "Simulações", icon: FlaskConical, sub: "Projeções e cenários de carteira" },
+      { href: "/simulacoes", label: "Simulações", icon: FlaskConical, sub: "Cenários de compra/venda e rebalanceamento por classe" },
       { href: "/trades", label: "Trades", icon: ArrowUpDown, sub: "Histórico de operações e desempenho" },
       { href: "/etf", label: "ETFs", icon: Layers, sub: "Composição, look-through e alocação" },
     ],
@@ -52,7 +52,6 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/impostos", label: "Impostos", icon: Receipt, sub: "Apuração de IR, DARFs e eventos" },
       { href: "/caixa", label: "Caixa & Margem", icon: Scale, sub: "Liquidez (caixa) e margem — automático via IBKR" },
-      { href: "/rebalanceamento", label: "Rebalanceamento", icon: SlidersHorizontal, sub: "Metas por classe, desvio vs alvo e ações sugeridas" },
       { href: "/financas", label: "Finanças", icon: Wallet, sub: "Contas, cartões e fluxo pessoal" },
       { href: "/fluxos", label: "Fluxos", icon: ArrowDownUp, sub: "Entradas, saídas e movimentações" },
     ],
