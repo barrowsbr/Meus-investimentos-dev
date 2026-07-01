@@ -106,11 +106,27 @@ export function renderDigestImage(d: DigestData): ImageResponse {
   const rvPct = alocTotal > 0 ? (d.rvBRL / alocTotal) * 100 : 0;
   const rfPct = alocTotal > 0 ? 100 - rvPct : 0;
 
+  // ── Altura DINÂMICA ──
+  // O layout-base (H=1920) foi medido com todas as seções presentes: mercados,
+  // 5 linhas de movers e 3 moedas de exposição. Quando uma seção opcional falta
+  // (IBKR fora do ar, sem cotação de mercados, menos posições/moedas), o card
+  // ENCOLHE na mesma medida — informação até o final, nunca um vazio antes do
+  // rodapé (o flex:1 só absorve folga residual de poucas dezenas de px).
+  const moverRows = Math.max(1, Math.min(5, Math.max(d.gainers.length, d.losers.length)));
+  const expoRows = Math.min(4, d.exposicao.length);
+  let height = H;
+  if (d.mercados.length === 0) height -= 204;              // seção Mercados hoje inteira
+  height -= (5 - moverRows) * 51;                          // linhas de movers ausentes
+  if (expoRows === 0) height -= 254;                       // painel Exposição inteiro
+  else height -= (3 - expoRows) * 50;                      // baseline = 3 moedas (4 → cresce)
+  if (alocTotal <= 0) height -= 96;                        // barra RV/RF
+  height = Math.max(1200, Math.min(2000, Math.round(height)));
+
   return new ImageResponse(
     (
       <div
         style={{
-          width: W, height: H, display: "flex", flexDirection: "column",
+          width: W, height, display: "flex", flexDirection: "column",
           background: "linear-gradient(165deg, #0c0c0e 0%, #0a0a0b 55%, #100c06 100%)",
           padding: 56, color: TEXT, fontFamily: "sans-serif",
         }}
@@ -240,6 +256,6 @@ export function renderDigestImage(d: DigestData): ImageResponse {
         </div>
       </div>
     ),
-    { width: W, height: H },
+    { width: W, height },
   );
 }
