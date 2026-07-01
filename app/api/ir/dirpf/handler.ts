@@ -4,7 +4,7 @@ import { toNumber } from "@/lib/format";
 import type { RawTx, CorpEvent } from "@/lib/tax/engine";
 import { bensDireitosRV, classificarRendimentos } from "@/lib/tax/dirpf";
 import { apurarRf, rfPosicoesAbertas } from "@/lib/tax/rf";
-import { buildMultiCurrencyPtax } from "@/lib/ptax";
+import { buildMultiCurrencyPtaxDetalhado } from "@/lib/ptax";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 
     const txs = parseTransacoes(ativos);
     const currencies = detectCurrencies(ativos);
-    const ptax = await buildMultiCurrencyPtax(ptaxRows, currencies);
+    const { ptax, avisos: ptaxAvisos } = await buildMultiCurrencyPtaxDetalhado(ptaxRows, currencies);
     const eventos = parseEventos(eventosRows);
     const fxHoje = ptax("USD", new Date().toISOString().slice(0, 10));
 
@@ -105,6 +105,7 @@ export async function GET(request: Request) {
         bensDireitosCusto: bens.reduce((s, b) => s + b.custoAno, 0),
         rfIrRetido: rfRend.reduce((s, r) => s + r.irRetido, 0),
       },
+      ptaxAvisos,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });

@@ -61,6 +61,7 @@ interface IrResponse {
   posicoes: Posicao[]; fxHoje: number; mesAtual: string;
   acoesVendasMesAtual: number; limiteIsencaoAcoes: number;
   cambioIr?: CambioIr;
+  ptaxAvisos?: string[];
 }
 
 interface BemDireito {
@@ -1063,6 +1064,21 @@ export default function ImpostosPage() {
               );
             })}
           </div>
+
+          {/* ── PTAX indisponível — números fiscais NÃO confiáveis ── */}
+          {(data.ptaxAvisos?.length ?? 0) > 0 && (
+            <div className="glass-card p-4 mb-4 border-red-500/25 bg-red-500/[0.04]">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle size={14} className="text-red-400" />
+                <span className="text-sm font-semibold text-red-300">PTAX indisponível — valores estimados</span>
+              </div>
+              <div className="space-y-1">
+                {data.ptaxAvisos!.map((a, i) => (
+                  <p key={i} className="text-[11px] text-zinc-400 leading-relaxed">{a}</p>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ════ 🇧🇷 BRASIL ════ */}
           {tab === "brasil" && (
