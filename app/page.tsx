@@ -720,6 +720,7 @@ export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [nasdaq, setNasdaq] = useState<IndexQuote | null>(null);
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
+  const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/bolsas")
@@ -741,8 +742,21 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const totalBRL = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
+  // Patrimônio do dia (só para o quadro da Home) — endpoint dedicado.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/patrimonio-dia")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && typeof d?.patrimonio_dia_brl === "number" && d.patrimonio_dia_brl > 0) setPatrimonioDia(d.patrimonio_dia_brl); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const totalBRLCanon = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
+  // Patrimônio do DIA (quadro da Home): IBKR + BRL + cripto via /api/patrimonio-dia.
+  // NÃO é o canônico — só reflete a realidade do dia. Fallback: canônico do snapshot.
+  const totalBRL = patrimonioDia ?? totalBRLCanon;
   const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
