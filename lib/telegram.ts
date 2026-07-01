@@ -1,16 +1,15 @@
-// Envio de mensagem via Telegram Bot API. O token do bot fica SÓ como env var
-// (TELEGRAM_BOT_TOKEN) — nunca na planilha, nunca no cliente. O chat_id (não é
-// segredo por si só — sem o token ninguém envia nada com ele) é configurável
-// em Configurações e persistido na aba `alertas_config`.
+// Envio via Telegram Bot API. O `token` é resolvido pelo chamador
+// (resolveBotToken: env var TELEGRAM_BOT_TOKEN tem prioridade; senão o salvo na
+// planilha) e passado explicitamente — este módulo não lê o token de lugar
+// nenhum, para o token nunca vazar por acidente.
 
 export interface TelegramSendResult {
   ok: boolean;
   error?: string;
 }
 
-export async function sendTelegramMessage(chatId: string, text: string): Promise<TelegramSendResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return { ok: false, error: "TELEGRAM_BOT_TOKEN não configurado" };
+export async function sendTelegramMessage(token: string, chatId: string, text: string): Promise<TelegramSendResult> {
+  if (!token) return { ok: false, error: "token do bot não configurado" };
   if (!chatId) return { ok: false, error: "chat_id não configurado" };
 
   try {
@@ -37,12 +36,12 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
 // Envia uma FOTO (PNG/JPEG) com legenda opcional (Markdown). Usado pelo digest
 // diário — a imagem é gerada com next/og e mandada como multipart/form-data.
 export async function sendTelegramPhoto(
+  token: string,
   chatId: string,
   photo: ArrayBuffer | Uint8Array,
   caption?: string,
 ): Promise<TelegramSendResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return { ok: false, error: "TELEGRAM_BOT_TOKEN não configurado" };
+  if (!token) return { ok: false, error: "token do bot não configurado" };
   if (!chatId) return { ok: false, error: "chat_id não configurado" };
 
   try {

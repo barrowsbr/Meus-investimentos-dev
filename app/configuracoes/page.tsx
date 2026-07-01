@@ -476,6 +476,7 @@ interface AlertasConfigResp {
   alavancagemAtivo: boolean;
   resumoAtivo: boolean;
   tokenConfigured: boolean;
+  tokenSource: "env" | "config" | "none";
 }
 
 // Linha de liga/desliga reutilizável (título + descrição + toggle ON/OFF).
@@ -511,7 +512,10 @@ function AlertasSection() {
   const [dirpfAtivo, setDirpfAtivo] = useState(true);
   const [alavancagemAtivo, setAlavancagemAtivo] = useState(true);
   const [resumoAtivo, setResumoAtivo] = useState(true);
+  const [botToken, setBotToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [tokenConfigured, setTokenConfigured] = useState(false);
+  const [tokenSource, setTokenSource] = useState<"env" | "config" | "none">("none");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -531,6 +535,7 @@ function AlertasSection() {
         setAlavancagemAtivo(d.alavancagemAtivo ?? true);
         setResumoAtivo(d.resumoAtivo ?? true);
         setTokenConfigured(d.tokenConfigured ?? false);
+        setTokenSource(d.tokenSource ?? "none");
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -543,11 +548,13 @@ function AlertasSection() {
       const res = await fetch(`${API_URL}/api/alertas/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo }),
+        body: JSON.stringify({ chatId, botToken, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo }),
       });
       const data = await res.json();
-      if (data.ok) setMsg({ ok: true, text: "Configuração salva" });
-      else setMsg({ ok: false, text: data.error || "Erro ao salvar" });
+      if (data.ok) {
+        setMsg({ ok: true, text: "Configuração salva" });
+        if (botToken.trim()) { setTokenConfigured(true); setTokenSource(s => s === "env" ? "env" : "config"); setBotToken(""); }
+      } else setMsg({ ok: false, text: data.error || "Erro ao salvar" });
     } catch {
       setMsg({ ok: false, text: "Erro de conexão" });
     } finally {
@@ -606,8 +613,8 @@ function AlertasSection() {
         <div className="rounded-lg p-3 text-xs bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-start gap-2">
           <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
           <span>
-            <code className="bg-zinc-800 px-1 rounded">TELEGRAM_BOT_TOKEN</code> não configurado na Vercel — o bot não
-            consegue enviar mensagens até essa env var ser adicionada (Vercel → Settings → Environment Variables).
+            Token do bot ainda não configurado — cole o token abaixo e salve, <strong>ou</strong> defina a env var{" "}
+            <code className="bg-zinc-800 px-1 rounded">TELEGRAM_BOT_TOKEN</code> na Vercel. Sem token, o bot não envia nada.
           </span>
         </div>
       )}
@@ -620,9 +627,34 @@ function AlertasSection() {
             placeholder="ex: 1737564761" className={inputCls}
           />
           <p className="text-[10px] text-zinc-600 mt-1">
-            Mande uma mensagem pro bot e pegue o id em <code className="bg-zinc-800 px-1 rounded">/getUpdates</code>.
+            É o SEU id de usuário (não o do bot). Pegue em <code className="bg-zinc-800 px-1 rounded">/getUpdates</code> depois de mandar uma mensagem pro bot.
           </p>
         </div>
+        <div>
+          <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">
+            Token do bot {tokenSource === "env" ? <span className="text-emerald-400/70 normal-case">· via env var</span> : tokenConfigured ? <span className="text-emerald-400/70 normal-case">· salvo</span> : null}
+          </label>
+          <div className="relative flex items-center">
+            <input
+              type={showToken ? "text" : "password"}
+              value={botToken} onChange={e => setBotToken(e.target.value)}
+              placeholder={tokenConfigured ? "•••••••• (deixe em branco p/ manter)" : "123456:AA..."}
+              className={inputCls}
+              disabled={tokenSource === "env"}
+            />
+            <button type="button" onClick={() => setShowToken(s => !s)} className="absolute right-2 text-zinc-500 hover:text-zinc-300">
+              {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            {tokenSource === "env"
+              ? "Definido na env var da Vercel (tem prioridade sobre o salvo aqui)."
+              : "Salvo na planilha e nunca reenviado pro navegador. A planilha é compartilhada como leitor — trate como sensível."}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-1">Limite de alavancagem (%)</label>
           <input
