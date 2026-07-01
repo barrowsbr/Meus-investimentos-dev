@@ -88,6 +88,16 @@ function timeAgo(dateStr: string): string {
 
 function TickerTape({ items }: { items: TickerItem[] }) {
   const [expanded, setExpanded] = useState(false);
+  // Persiste o estado estendido: ao clicar num ativo do Top/Baixas e voltar
+  // (router.back da RV), a Home restaura a barra estendida como estava.
+  useEffect(() => {
+    if (sessionStorage.getItem("home-tape-expanded") === "1") setExpanded(true);
+  }, []);
+  const toggleExpanded = () => setExpanded((v) => {
+    const n = !v;
+    try { sessionStorage.setItem("home-tape-expanded", n ? "1" : "0"); } catch { /* ignore */ }
+    return n;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const moved = useRef(false);
@@ -176,7 +186,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
           </div>
         </div>
         <button
-          onClick={() => setExpanded((v) => !v)}
+          onClick={toggleExpanded}
           className="shrink-0 px-2.5 flex items-center justify-center transition-colors hover:bg-white/[0.03]"
           style={{ borderLeft: "1px solid var(--line)", color: "var(--muted)", fontSize: 11 }}
           aria-label="Top altas e baixas"
