@@ -68,6 +68,20 @@ const PROVIDER_URLS: Record<string, { provider: string; url: string; type: "xlsx
 PROVIDER_URLS["IVVB11"] = PROVIDER_URLS["IVV"];
 PROVIDER_URLS["VOO"] = PROVIDER_URLS["SPY"];
 
+// ── Proxy de COMPOSIÇÃO: UCITS → equivalente US do MESMO índice ───────────────
+// ETFs UCITS (Londres) não são cobertos por FMP/AlphaVantage, e a gestora
+// bloqueia fetch. Mas rastreiam índices com um par US-listado que as fontes
+// curadas cobrem 100%. Usamos o proxy SÓ para holdings (preço/câmbio seguem o
+// ticker original). Correto porque reflete o mesmo índice — ao contrário do
+// erro antigo (VWRA→iShares MSCI World, que EXCLUI emergentes).
+const HOLDINGS_PROXY: Record<string, string> = {
+  VWRA: "VT", "VWRA.L": "VT",     // FTSE All-World ≈ FTSE Global All Cap (VT)
+  VWCE: "VT", "VWCE.DE": "VT",    // idem (versão EUR acc)
+  CSPX: "IVV", "CSPX.L": "IVV",   // S&P 500
+  IWDA: "URTH", "IWDA.L": "URTH", // MSCI World
+  EIMI: "IEMG", "EIMI.L": "IEMG", // MSCI EM IMI
+};
+
 // ── Embedded fallback (Q1-2025, approximate) ─────────────────────────────────
 
 const EMBEDDED: Record<string, Array<[string, string, number]>> = {
@@ -157,7 +171,8 @@ function assembleHoldings(
 ): { holdings: Holding[]; coveredPct: number; source: string } {
   const clean = ticker.toUpperCase().replace(".SA", "");
   const real = rawHoldings.filter(h => !h.ticker.startsWith("OUTROS."));
-  const baseSource = rawSource.replace("stored:", "");
+  // Remove prefixo "stored:" e sufixo ":proxy(VT)" para checar a confiança da fonte.
+  const baseSource = rawSource.replace("stored:", "").replace(/:proxy\([^)]*\)/, "");
   const rawSum = real.reduce((s, h) => s + h.weight_pct, 0);
   const embedded = EMBEDDED[clean];
   const coverage = ETF_TOP_COVERAGE[clean];
@@ -405,40 +420,37 @@ export async function fetchHoldings(ticker: string): Promise<{ holdings: Holding
     return { holdings: cached.data, source: cached.source };
   }
 
+  // Proxy de composição: UCITS (VWRA…) → equivalente US do mesmo índice (VT…).
+  // Os tiers reais (FMP/AV/live/Yahoo) consultam o proxy; o embedded (tier 4)
+  // continua no ticker ORIGINAL como última rede. A tag ":proxy(VT)" deixa
+  // explícito na UI que a composição veio do par que segue o mesmo índice.
+  const proxy = HOLDINGS_PROXY[t];
+  const fetchKey = proxy ?? t;
+  const tag = (s: string) => (proxy ? `${s}:proxy(${proxy})` : s);
+  const done = (holdings: Holding[], source: string) => {
+    holdingsCache.set(t, { data: holdings, source, ts: Date.now() });
+    return { holdings, source };
+  };
+
   // Tier 1: FMP
-  let holdings = await fetchFMP(t);
-  if (holdings && holdings.length > 0) {
-    holdingsCache.set(t, { data: holdings, source: "fmp", ts: Date.now() });
-    return { holdings, source: "fmp" };
-  }
+  let holdings = await fetchFMP(fetchKey);
+  if (holdings && holdings.length > 0) return done(holdings, tag("fmp"));
 
   // Tier 1.5: Alpha Vantage (holdings completos, qualquer ETF US)
-  holdings = await fetchAlphaVantage(t);
-  if (holdings && holdings.length > 0) {
-    holdingsCache.set(t, { data: holdings, source: "alphavantage", ts: Date.now() });
-    return { holdings, source: "alphavantage" };
-  }
+  holdings = await fetchAlphaVantage(fetchKey);
+  if (holdings && holdings.length > 0) return done(holdings, tag("alphavantage"));
 
   // Tier 2: Live provider
-  holdings = await fetchLiveProvider(t);
-  if (holdings && holdings.length > 0) {
-    holdingsCache.set(t, { data: holdings, source: "live", ts: Date.now() });
-    return { holdings, source: "live" };
-  }
+  holdings = await fetchLiveProvider(fetchKey);
+  if (holdings && holdings.length > 0) return done(holdings, tag("live"));
 
   // Tier 3: Yahoo Finance
-  holdings = await fetchYahooQS(t);
-  if (holdings && holdings.length > 0) {
-    holdingsCache.set(t, { data: holdings, source: "yahoo", ts: Date.now() });
-    return { holdings, source: "yahoo" };
-  }
+  holdings = await fetchYahooQS(fetchKey);
+  if (holdings && holdings.length > 0) return done(holdings, tag("yahoo"));
 
-  // Tier 4: Embedded
+  // Tier 4: Embedded — ticker ORIGINAL (VWRA tem embedded; o proxy pode não ter)
   holdings = fetchEmbedded(t);
-  if (holdings && holdings.length > 0) {
-    holdingsCache.set(t, { data: holdings, source: "embedded", ts: Date.now() });
-    return { holdings, source: "embedded" };
-  }
+  if (holdings && holdings.length > 0) return done(holdings, "embedded");
 
   return { holdings: null, source: "none" };
 }
