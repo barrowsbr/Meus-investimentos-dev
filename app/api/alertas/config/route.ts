@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       darfAtivo: flag(body?.darfAtivo),
       dirpfAtivo: flag(body?.dirpfAtivo),
       alavancagemAtivo: flag(body?.alavancagemAtivo),
+      resumoAtivo: flag(body?.resumoAtivo),
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -474,6 +474,7 @@ interface AlertasConfigResp {
   darfAtivo: boolean;
   dirpfAtivo: boolean;
   alavancagemAtivo: boolean;
+  resumoAtivo: boolean;
   tokenConfigured: boolean;
 }
 
@@ -509,11 +510,14 @@ function AlertasSection() {
   const [darfAtivo, setDarfAtivo] = useState(true);
   const [dirpfAtivo, setDirpfAtivo] = useState(true);
   const [alavancagemAtivo, setAlavancagemAtivo] = useState(true);
+  const [resumoAtivo, setResumoAtivo] = useState(true);
   const [tokenConfigured, setTokenConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sendingDigest, setSendingDigest] = useState(false);
+  const [digestMsg, setDigestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/alertas/config`)
@@ -525,6 +529,7 @@ function AlertasSection() {
         setDarfAtivo(d.darfAtivo ?? true);
         setDirpfAtivo(d.dirpfAtivo ?? true);
         setAlavancagemAtivo(d.alavancagemAtivo ?? true);
+        setResumoAtivo(d.resumoAtivo ?? true);
         setTokenConfigured(d.tokenConfigured ?? false);
         setLoading(false);
       })
@@ -538,7 +543,7 @@ function AlertasSection() {
       const res = await fetch(`${API_URL}/api/alertas/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo }),
+        body: JSON.stringify({ chatId, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo }),
       });
       const data = await res.json();
       if (data.ok) setMsg({ ok: true, text: "Configuração salva" });
@@ -562,6 +567,21 @@ function AlertasSection() {
       setTestMsg({ ok: false, text: "Erro de conexão" });
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function handleSendDigest() {
+    setSendingDigest(true);
+    setDigestMsg(null);
+    try {
+      const res = await fetch(`${API_URL}/api/digest/send`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) setDigestMsg({ ok: true, text: "Resumo enviado — confira o Telegram" });
+      else setDigestMsg({ ok: false, text: data.error || "Erro ao enviar" });
+    } catch {
+      setDigestMsg({ ok: false, text: "Erro de conexão" });
+    } finally {
+      setSendingDigest(false);
     }
   }
 
@@ -645,6 +665,13 @@ function AlertasSection() {
           onToggle={() => setAlavancagemAtivo(v => !v)}
           disabled={!ativo}
         />
+        <ToggleRow
+          title="Resumo do dia (imagem)"
+          desc="1x/dia (18h BRT): um card com patrimônio, resultado, efeito do câmbio, melhores/piores, IBKR e manchetes."
+          on={resumoAtivo}
+          onToggle={() => setResumoAtivo(v => !v)}
+          disabled={!ativo}
+        />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -662,6 +689,25 @@ function AlertasSection() {
         >
           {testing ? "Enviando…" : "Enviar teste"}
         </button>
+        <button
+          onClick={handleSendDigest} disabled={sendingDigest || !chatId}
+          className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-40"
+          style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+        >
+          {sendingDigest ? "Gerando…" : "Enviar resumo agora"}
+        </button>
+        <a
+          href={`${API_URL}/api/digest/image`} target="_blank" rel="noreferrer"
+          className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
+          style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+        >
+          Ver imagem
+        </a>
+        {digestMsg && (
+          <span className={`text-xs font-mono flex items-center gap-1 ${digestMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+            {digestMsg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {digestMsg.text}
+          </span>
+        )}
         {msg && (
           <span className={`text-xs font-mono flex items-center gap-1 ${msg.ok ? "text-emerald-400" : "text-red-400"}`}>
             {msg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {msg.text}
