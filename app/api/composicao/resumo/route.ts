@@ -4,7 +4,7 @@ import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
-import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings } from "@/lib/etf-holdings";
+import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings, hasHoldingsProxy } from "@/lib/etf-holdings";
 import { computeCountryAllocation } from "@/lib/ticker-country";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
@@ -488,18 +488,21 @@ export async function GET() {
     // buscados ao vivo (cascata FMP/AlphaVantage/Yahoo/embutido) e injetados no
     // stored. Garante que um ETF como VWRA apareça mesmo sem estar na aba — o
     // cache deixa de ser pré-requisito, é só otimização.
+    // Busca ao vivo: (a) ETFs elegíveis AUSENTES do cache; e (b) ETFs com PROXY
+    // (VWRA→VT, CSPX→IVV…), que devem sempre usar o proxy ao vivo — o cache da
+    // aba pode ter dado obsoleto do tempo pré-proxy, então o proxy tem precedência.
     const LT_SECTORS = new Set(["ETF USA", "ETF"]);
-    const missingEtfs = [...new Set(
+    const toFetchLive = [...new Set(
       ltPositions
         .filter(p => LT_SECTORS.has(p.setor) && p.quantidade > 0 && p.valorAtualBRL > 0)
         .map(p => p.ticker.toUpperCase().replace(".SA", ""))
-        .filter(t => !(stored[t]?.length) && !(stored[`${t}.SA`]?.length))
+        .filter(t => hasHoldingsProxy(t) || (!(stored[t]?.length) && !(stored[`${t}.SA`]?.length)))
     )];
-    if (missingEtfs.length > 0) {
-      await Promise.all(missingEtfs.map(async (t) => {
+    if (toFetchLive.length > 0) {
+      await Promise.all(toFetchLive.map(async (t) => {
         const { holdings, source } = await fetchHoldings(t);
         if (holdings && holdings.length > 0) {
-          stored[t] = holdings;
+          stored[t] = holdings;          // sobrescreve cache antigo (proxy tem precedência)
           storedSources[t] = source;
         }
       }));
