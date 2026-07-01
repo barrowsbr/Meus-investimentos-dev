@@ -132,10 +132,10 @@ function TickerTape({ items }: { items: TickerItem[] }) {
               <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--pos)" }}>Top 5 Altas</span>
             </div>
             {best5.map((p) => (
-              <div key={p.ticker} className="flex items-center justify-between px-3 py-1.5 font-mono" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
+              <Link key={p.ticker} href={`/renda-variavel?ticker=${encodeURIComponent(p.ticker)}`} className="flex items-center justify-between px-3 py-1.5 font-mono transition-colors hover:bg-white/[0.03]" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
                 <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
                 <span className="font-bold tnum" style={{ color: "var(--pos)" }}>+{(p.changePct).toFixed(2)}%</span>
-              </div>
+              </Link>
             ))}
           </div>
           <div>
@@ -143,10 +143,10 @@ function TickerTape({ items }: { items: TickerItem[] }) {
               <span className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--neg)" }}>Top 5 Baixas</span>
             </div>
             {worst5.map((p) => (
-              <div key={p.ticker} className="flex items-center justify-between px-3 py-1.5 font-mono" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
+              <Link key={p.ticker} href={`/renda-variavel?ticker=${encodeURIComponent(p.ticker)}`} className="flex items-center justify-between px-3 py-1.5 font-mono transition-colors hover:bg-white/[0.03]" style={{ fontSize: 11, borderBottom: "1px solid var(--line)" }}>
                 <span className="font-bold" style={{ color: "var(--text)" }}>{p.label}</span>
                 <span className="font-bold tnum" style={{ color: "var(--neg)" }}>{(p.changePct).toFixed(2)}%</span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

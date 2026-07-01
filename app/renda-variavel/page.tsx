@@ -110,6 +110,11 @@ export default function RendaVariavelPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [view, setView] = useState<ViewFilter>("carteira");
+  // Deep-link: /renda-variavel?ticker=XXXX abre o card do ativo direto (vindo da Home).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("ticker");
+    if (t) setSelectedTicker(t);
+  }, []);
   const [notesTicker, setNotesTicker] = useState<string | null>(null);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
 

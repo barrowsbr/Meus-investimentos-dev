@@ -35,9 +35,11 @@ export interface PurchaseMarker {
   moeda: string;
 }
 
-export type RangeOption = "1mo" | "3mo" | "6mo" | "ytd" | "1y" | "2y" | "5y" | "max";
+export type RangeOption = "1d" | "5d" | "1mo" | "3mo" | "6mo" | "ytd" | "1y" | "2y" | "5y" | "10y" | "max";
 
 const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
+  { label: "1D", value: "1d" },
+  { label: "5D", value: "5d" },
   { label: "1M", value: "1mo" },
   { label: "3M", value: "3mo" },
   { label: "6M", value: "6mo" },
@@ -45,6 +47,7 @@ const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
   { label: "1A", value: "1y" },
   { label: "2A", value: "2y" },
   { label: "5A", value: "5y" },
+  { label: "10A", value: "10y" },
   { label: "ALL", value: "max" },
 ];
 
