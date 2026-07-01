@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Target, Plus, Trash2, Save, FolderOpen, ArrowRight,
-  ChevronDown, ChevronRight, X, RefreshCw, Loader2, Layers,
+  ChevronDown, ChevronRight, X, RefreshCw, Loader2, Layers, SlidersHorizontal,
 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
@@ -19,6 +19,9 @@ import { getSetorEconomico, SETOR_ECONOMICO_COLORS } from "@/lib/gics-sectors";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import AnaliseCenario from "@/components/simulacoes/AnaliseCenario";
+import RebalanceamentoPanel from "@/components/simulacoes/RebalanceamentoPanel";
+
+type SimTab = "simulacoes" | "rebalanceamento";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -310,7 +313,15 @@ function CompareBar({ label, before, after, color }: {
 
 export default function SimulacoesPage() {
   const { data, loading } = usePortfolio();
+  const [tab, setTab] = useState<SimTab>("simulacoes");
   const [ops, setOps] = useState<SimOp[]>([]);
+
+  // Deep-link: /simulacoes?tab=rebalanceamento abre direto a aba (client-only,
+  // sem useSearchParams para manter a página estática/prerenderizável).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("tab");
+    if (p === "rebalanceamento" || p === "reb") setTab("rebalanceamento");
+  }, []);
   const [scenarioName, setScenarioName] = useState("Novo Cenário");
   const [savedScenarios, setSavedScenarios] = useState<Record<string, SimOp[]>>({});
   const [loadMenuOpen, setLoadMenuOpen] = useState(false);
@@ -691,17 +702,41 @@ export default function SimulacoesPage() {
     return buildAllocation([...posMap.values()], quoteCache);
   }, [ops, currentPositions, data, fxMap, quoteCache]);
 
-  if (loading) return <LoadingSpinner />;
-
   const hasSim = simAlloc !== null;
 
   return (
     <>
       <PageHeader
         title="Simulações"
-        description="Simule compras e vendas para visualizar o impacto na alocação"
+        description={tab === "rebalanceamento"
+          ? "Metas por classe, desvio vs alvo e ações sugeridas — alocação do motor canônico"
+          : "Simule compras e vendas para visualizar o impacto na alocação"}
       />
 
+      {/* Abas: Simulações (cenários de compra/venda) × Rebalanceamento (metas por classe) */}
+      <div className="flex items-center gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        {([
+          { id: "simulacoes" as const, label: "Simulações", icon: Target },
+          { id: "rebalanceamento" as const, label: "Rebalanceamento", icon: SlidersHorizontal },
+        ]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={tab === id
+              ? { background: "rgba(232,163,61,0.12)", border: "1px solid rgba(232,163,61,0.25)", color: "var(--accent)" }
+              : { border: "1px solid transparent", color: "var(--muted)" }}
+          >
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "rebalanceamento" ? (
+        <RebalanceamentoPanel />
+      ) : loading ? (
+        <LoadingSpinner />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── Left: Operation editor ── */}
         <div className="lg:col-span-1">
@@ -1240,6 +1275,7 @@ export default function SimulacoesPage() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }
