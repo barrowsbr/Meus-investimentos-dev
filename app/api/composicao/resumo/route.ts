@@ -74,7 +74,7 @@ function fxFactor(moeda: string, fx: FxRates): number {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: Request) {
   const errors: string[] = [];
 
   try {
@@ -599,8 +599,25 @@ export async function GET() {
     }));
     const countryAllocation = await computeCountryAllocation(lookThroughCompositions, [...directForGeo, ...rfForGeo]);
 
+    // Debug de diagnóstico (?debug=etf): revela por que um ETF (ex.: VWRA) não
+    // entra no look-through — se está nas posições, setor, preço, valor, proxy.
+    const debugParam = new URL(req.url).searchParams.get("debug");
+    const _debug = debugParam === "etf" ? {
+      vwra: positions.find(p => p.ticker.toUpperCase().includes("VWRA"))
+        ? (() => { const v = positions.find(p => p.ticker.toUpperCase().includes("VWRA"))!;
+            return { ticker: v.ticker, setor: v.setor, precoAtual: v.precoAtual, valorAtualBRL: v.valorAtualBRL, quantidade: v.quantidade,
+              elegivel: ["ETF USA", "ETF"].includes(v.setor) && v.quantidade > 0 && v.valorAtualBRL > 0,
+              temProxy: hasHoldingsProxy(v.ticker), supported: ltResult.supported.includes(v.ticker), unsupported: ltResult.unsupported.includes(v.ticker),
+              fonte: ltResult.sources[v.ticker] ?? null }; })()
+        : "VWRA NÃO está nas posições (snapshot.positions)",
+      etfs: positions.filter(p => ["ETF USA", "ETF", "Ações Internacional"].includes(p.setor))
+        .map(p => ({ ticker: p.ticker, setor: p.setor, valorAtualBRL: p.valorAtualBRL, qtd: p.quantidade, supported: ltResult.supported.includes(p.ticker) })),
+      todosTickers: positions.map(p => p.ticker),
+    } : undefined;
+
     return NextResponse.json(
       {
+        ...(_debug ? { _debug } : {}),
         computed_at: new Date().toISOString(),
         fx: {
           USDBRL: fxAtual.USDBRL,
