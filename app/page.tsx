@@ -94,6 +94,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
   const startX = useRef(0);
   const startScroll = useRef(0);
   const pauseUntil = useRef(0);
+  const pos = useRef(0); // acumulador float (scrollLeft é inteiro → precisa acumular)
 
   // Auto-scroll suave via rAF (loop contínuo — conteúdo duplicado). Pausa
   // enquanto o usuário arrasta e por 2,5s depois, para dar controle manual.
@@ -102,9 +103,13 @@ function TickerTape({ items }: { items: TickerItem[] }) {
     if (!el) return;
     let raf = 0;
     const step = () => {
-      if (el && !dragging.current && performance.now() >= pauseUntil.current) {
-        const half = el.scrollWidth / 2;
-        el.scrollLeft = half > 0 ? (el.scrollLeft + 0.4) % half : 0;
+      const node = scrollRef.current;
+      if (node && !dragging.current && performance.now() >= pauseUntil.current) {
+        const half = node.scrollWidth / 2;
+        if (half > 0) {
+          pos.current = (pos.current + 0.6) % half; // ~36px/s
+          node.scrollLeft = pos.current;
+        }
       }
       raf = requestAnimationFrame(step);
     };
@@ -125,6 +130,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
     let s = startScroll.current - dx;
     if (half > 0) { s = ((s % half) + half) % half; }
     el.scrollLeft = s;
+    pos.current = s; // mantém o acumulador em sincronia com o arrasto
   };
   const onUp = () => { dragging.current = false; pauseUntil.current = performance.now() + 2500; };
   const onItemClick = (e: React.MouseEvent) => { if (moved.current) e.preventDefault(); };
