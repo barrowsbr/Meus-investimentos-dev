@@ -18,6 +18,7 @@ export interface AlertasConfig {
   darfAtivo: boolean;        // avisos de DARF (a vencer/vencido)
   dirpfAtivo: boolean;       // avisos de prazo da DIRPF
   alavancagemAtivo: boolean; // aviso de alavancagem acima do limite
+  resumoAtivo: boolean;      // resumo do dia (imagem) via Telegram
 }
 
 export async function readAlertasConfig(): Promise<AlertasConfig> {
@@ -35,6 +36,7 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
     darfAtivo: on("darf_ativo"),
     dirpfAtivo: on("dirpf_ativo"),
     alavancagemAtivo: on("alavancagem_ativo"),
+    resumoAtivo: on("resumo_ativo"),
   };
 }
 
@@ -47,6 +49,7 @@ export async function writeAlertasConfig(config: AlertasConfig): Promise<void> {
     ["darf_ativo", String(config.darfAtivo)],
     ["dirpf_ativo", String(config.dirpfAtivo)],
     ["alavancagem_ativo", String(config.alavancagemAtivo)],
+    ["resumo_ativo", String(config.resumoAtivo)],
   ]);
 }
 
