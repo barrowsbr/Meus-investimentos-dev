@@ -102,6 +102,48 @@ describe("computeAlertas — consolidado", () => {
     expect(chaves).toContain("dirpf_2026_atrasado");
     expect(chaves).toContain("alavancagem_acima_limite");
   });
+
+  const inputTodosDisparam = {
+    meses: [{ mes: "2026-04", irTotal: 500, vencimento: "2026-05-29", darfCodigo: "6015" }],
+    mesAtual: "2026-06",
+    hoje: "2026-06-05",
+    alavancagemPct: 40,
+    limiteAlavancagemPct: 30,
+  };
+
+  it("enabled undefined → todas as categorias ligadas (default)", () => {
+    const out = computeAlertas(inputTodosDisparam);
+    expect(out).toHaveLength(3);
+  });
+
+  it("desliga só DARF via enabled.darf=false", () => {
+    const out = computeAlertas({ ...inputTodosDisparam, enabled: { darf: false } });
+    const chaves = out.map(t => t.chave);
+    expect(chaves).not.toContain("darf_vencido_2026-04");
+    expect(chaves).toContain("dirpf_2026_atrasado");
+    expect(chaves).toContain("alavancagem_acima_limite");
+  });
+
+  it("desliga só DIRPF via enabled.dirpf=false", () => {
+    const out = computeAlertas({ ...inputTodosDisparam, enabled: { dirpf: false } });
+    const chaves = out.map(t => t.chave);
+    expect(chaves).toContain("darf_vencido_2026-04");
+    expect(chaves).not.toContain("dirpf_2026_atrasado");
+    expect(chaves).toContain("alavancagem_acima_limite");
+  });
+
+  it("desliga só alavancagem via enabled.alavancagem=false", () => {
+    const out = computeAlertas({ ...inputTodosDisparam, enabled: { alavancagem: false } });
+    const chaves = out.map(t => t.chave);
+    expect(chaves).toContain("darf_vencido_2026-04");
+    expect(chaves).toContain("dirpf_2026_atrasado");
+    expect(chaves).not.toContain("alavancagem_acima_limite");
+  });
+
+  it("todas desligadas → nenhum alerta", () => {
+    const out = computeAlertas({ ...inputTodosDisparam, enabled: { darf: false, dirpf: false, alavancagem: false } });
+    expect(out).toHaveLength(0);
+  });
 });
 
 describe("shouldSend — throttle", () => {

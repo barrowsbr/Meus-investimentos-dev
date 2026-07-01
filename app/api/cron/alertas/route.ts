@@ -49,6 +49,11 @@ export async function GET(request: Request) {
       hoje,
       alavancagemPct,
       limiteAlavancagemPct: config.limiteAlavancagemPct,
+      enabled: {
+        darf: config.darfAtivo,
+        dirpf: config.dirpfAtivo,
+        alavancagem: config.alavancagemAtivo,
+      },
     });
 
     const estado = await readAlertasEstado();

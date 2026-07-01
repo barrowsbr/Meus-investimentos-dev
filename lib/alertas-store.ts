@@ -14,7 +14,10 @@ const DEFAULT_LIMITE_ALAVANCAGEM_PCT = 30;
 export interface AlertasConfig {
   chatId: string;
   limiteAlavancagemPct: number;
-  ativo: boolean;
+  ativo: boolean;            // master switch — desliga tudo
+  darfAtivo: boolean;        // avisos de DARF (a vencer/vencido)
+  dirpfAtivo: boolean;       // avisos de prazo da DIRPF
+  alavancagemAtivo: boolean; // aviso de alavancagem acima do limite
 }
 
 export async function readAlertasConfig(): Promise<AlertasConfig> {
@@ -23,10 +26,15 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
   try { rows = await store.fetchTab(ALERTAS_CONFIG_TAB); } catch { /* aba ainda não existe */ }
   const map = new Map(rows.map((r) => [String(r["chave"] ?? "").trim(), String(r["valor"] ?? "").trim()]));
   const limite = Number(map.get("limite_alavancagem_pct"));
+  // Todos os flags default = ligado (só desligam quando salvos explicitamente como "false").
+  const on = (chave: string) => map.get(chave) !== "false";
   return {
     chatId: map.get("telegram_chat_id") ?? "",
     limiteAlavancagemPct: Number.isFinite(limite) && limite > 0 ? limite : DEFAULT_LIMITE_ALAVANCAGEM_PCT,
-    ativo: map.get("ativo") !== "false", // default ligado (só desliga se explicitamente salvo como "false")
+    ativo: on("ativo"),
+    darfAtivo: on("darf_ativo"),
+    dirpfAtivo: on("dirpf_ativo"),
+    alavancagemAtivo: on("alavancagem_ativo"),
   };
 }
 
@@ -36,6 +44,9 @@ export async function writeAlertasConfig(config: AlertasConfig): Promise<void> {
     ["telegram_chat_id", config.chatId],
     ["limite_alavancagem_pct", String(config.limiteAlavancagemPct)],
     ["ativo", String(config.ativo)],
+    ["darf_ativo", String(config.darfAtivo)],
+    ["dirpf_ativo", String(config.dirpfAtivo)],
+    ["alavancagem_ativo", String(config.alavancagemAtivo)],
   ]);
 }
 
