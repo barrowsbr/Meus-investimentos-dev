@@ -68,7 +68,9 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
    - **Escrita na planilha** (sync IBKR/B3, cron de cotações, backups): `GOOGLE_SERVICE_ACCOUNT_JSON`
    - **Opcionais**: `APP_PASSWORD` (tela de senha/AuthGate), `ALPHAVANTAGE_API_KEY` (holdings de ETFs US),
      `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` (cascata do agente IA),
-     `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias)
+     `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias),
+     `TELEGRAM_BOT_TOKEN` (alertas determinísticos — DARF/DIRPF/alavancagem via cron;
+     o chat_id vai em Configurações, não é env var)
 4. A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor)
 
 ## Acesso ao Google Sheets
