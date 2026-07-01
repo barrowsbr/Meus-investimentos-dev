@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDataStore } from "@/lib/data-store";
 import { getServiceAccountAuth } from "@/lib/gsheets";
+import { isDemoRequest } from "@/lib/demo";
 import { REBALANCE_TAB, REBALANCE_HEADERS, type RebalanceMeta } from "@/lib/rebalance";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,12 @@ export async function GET() {
 // POST — salva o conjunto COMPLETO de metas (reescrita idempotente da aba).
 export async function POST(req: Request) {
   try {
+    // Modo demonstração (test/test) é somente leitura — escrita direta via
+    // google.sheets não passa por writeTab, então o guard vem explícito aqui.
+    if (isDemoRequest()) {
+      return NextResponse.json({ error: "Modo demonstração: escrita em planilha desabilitada" }, { status: 403 });
+    }
+
     const body = await req.json();
     const metas: RebalanceMeta[] = Array.isArray(body?.metas) ? body.metas : [];
 

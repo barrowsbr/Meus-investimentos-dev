@@ -694,6 +694,8 @@ interface IbkrStripData {
   kpis: {
     patrimonioUSD: number | null;
     patrimonioBRL: number;
+    patrimonioTotalBRL?: number;   // posições + caixa (real IBKR) — base do quadro Patrimônio
+    patrimonioTotalUSD?: number | null;
     lucroDiaUSD: number | null;
     lucroDiaBRL: number;
     lucroDiaPct: number | null;
@@ -826,9 +828,22 @@ export default function HomePage() {
 
   const totalBRLCanon = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
-  // Patrimônio do DIA (quadro da Home): IBKR + BRL + cripto via /api/patrimonio-dia.
-  // NÃO é o canônico — só reflete a realidade do dia. Fallback: canônico do snapshot.
-  const totalBRL = patrimonioDia ?? totalBRLCanon;
+  // Patrimônio do DIA (quadro da Home) = CONSEQUÊNCIA DIRETA do book IBKR da faixa
+  // abaixo. Reusa o MESMO `ibkrOverview` que a faixa renderiza (posições + caixa,
+  // dado real da IBKR) + BR (real) + Cripto do snapshot — sem dupla contagem com
+  // USD/EUR/CAD (que já vêm da IBKR). Assim, quando a IBKR se move, o quadro se
+  // move junto. Ordem de preferência:
+  //   1) client (IBKR ao vivo da faixa) — o normal quando a IBKR responde
+  //   2) /api/patrimonio-dia — mesma fórmula no servidor (fallback)
+  //   3) canônico do snapshot — só quando a IBKR está indisponível de todo
+  const expo = data?.exposicaoCambial ?? {};
+  const brBRL = typeof expo["BRL"] === "number" ? expo["BRL"] : 0;
+  const criptoBRL = typeof expo["Cripto"] === "number" ? expo["Cripto"] : 0;
+  const ibkrTotalBRL = ibkrOverview?.kpis?.patrimonioTotalBRL ?? null;
+  // Só usa o cálculo client quando IBKR E snapshot já chegaram (evita "piscar"
+  // um valor só-IBKR antes do BR/Cripto entrarem).
+  const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL : null;
+  const totalBRL = patrimonioDiaClient ?? patrimonioDia ?? totalBRLCanon;
   const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
