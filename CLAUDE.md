@@ -212,6 +212,12 @@ Registro de entradas, saídas e gastos com cartão.
 
 - **Sempre abrir o PR automaticamente** quando uma alteração estiver pronta para produção, na **direção correta**: `base: main` ← `compare: claude/add-repo-description-AanfH` (branch → main). Nunca abrir na direção invertida (main → branch).
 - **Mergear automaticamente** (squash) assim que a alteração estiver pronta e validada (type-check/lint), sem esperar o dono clicar — o dono pediu para deixar configurado para mergear sempre quando o trabalho vier por aqui. Exceção: se o dono pedir explicitamente para segurar um PR específico (ex.: querer revisar um tema visual no preview antes), aí sim aguardar.
+- **Depois de CADA squash-merge, sincronizar a branch com a main E dar push**:
+  `git fetch origin main && git checkout -B claude/add-repo-description-AanfH origin/main && git push --force-with-lease -u origin claude/add-repo-description-AanfH`.
+  Sem esse push, a ponta remota fica no commit pré-squash e o GitHub mostra a branch
+  como "1 ahead" da main (banner de Compare & PR, aparência de merge pendente) —
+  mesmo com tudo já mergeado. O force-with-lease é seguro aqui: a branch só contém
+  história já mergeada.
 - Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
