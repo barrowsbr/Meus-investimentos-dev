@@ -1270,7 +1270,11 @@ export default function PerformancePage() {
               <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="section-title"><TrendingUp size={15} />Rentabilidade Acumulada (%)</h2>
                 {showFxDecomp && (
-                  <div className="flex items-center gap-3 text-[10.5px]" style={{ color: "var(--muted)" }}>
+                  <div
+                    className="flex items-center gap-3 text-[10.5px] flex-wrap"
+                    style={{ color: "var(--muted)" }}
+                    title="Decomposição multiplicativa do TWR: (1 + Ativo) × (1 + Câmbio) = 1 + TWR. Refere-se à linha do TWR — o MWR não é decomposto."
+                  >
                     <span className="inline-flex items-center gap-1.5">
                       <span style={{ width: 14, borderTop: `2px dashed ${C.ativo}`, display: "inline-block" }} />
                       Ativo (moeda local)
@@ -1278,6 +1282,10 @@ export default function PerformancePage() {
                     <span className="inline-flex items-center gap-1.5">
                       <span style={{ width: 14, borderTop: `2px dashed ${C.fx}`, display: "inline-block" }} />
                       Efeito câmbio
+                    </span>
+                    <span style={{ color: "var(--faint)" }}>
+                      Ativo × Câmbio = <span style={{ color: C.twr }}>TWR</span>
+                      {showMwr && " · MWR não é decomposto"}
                     </span>
                   </div>
                 )}
