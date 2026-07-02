@@ -16,6 +16,8 @@ export const ALERTAS_CONFIG_TAB = "alertas_config";
 export const ALERTAS_ESTADO_TAB = "alertas_estado";
 
 const DEFAULT_LIMITE_ALAVANCAGEM_PCT = 30;
+// Horário padrão do resumo (18h BRT) — comportamento anterior à configuração.
+const DEFAULT_RESUMO_HORARIOS = [18];
 
 export interface AlertasConfig {
   chatId: string;
@@ -26,6 +28,18 @@ export interface AlertasConfig {
   dirpfAtivo: boolean;       // avisos de prazo da DIRPF
   alavancagemAtivo: boolean; // aviso de alavancagem acima do limite
   resumoAtivo: boolean;      // resumo do dia (imagem) via Telegram
+  /** Horas do dia (0–23, fuso de Brasília) em que o resumo é enviado. O cron
+   *  roda de hora em hora e só envia quando a hora atual está na lista —
+   *  assim o horário é configurável pela UI sem deploy (cron fixo). */
+  resumoHorarios: number[];
+}
+
+function parseHorarios(raw: string | undefined): number[] {
+  if (!raw) return DEFAULT_RESUMO_HORARIOS;
+  const hs = raw.split(",")
+    .map(s => Number(String(s).trim()))
+    .filter(h => Number.isInteger(h) && h >= 0 && h <= 23);
+  return hs.length > 0 ? [...new Set(hs)].sort((a, b) => a - b) : DEFAULT_RESUMO_HORARIOS;
 }
 
 // Token efetivo: env var tem prioridade (mais segura); senão, o salvo na planilha.
@@ -52,6 +66,7 @@ export async function readAlertasConfig(): Promise<AlertasConfig> {
     dirpfAtivo: on("dirpf_ativo"),
     alavancagemAtivo: on("alavancagem_ativo"),
     resumoAtivo: on("resumo_ativo"),
+    resumoHorarios: parseHorarios(map.get("resumo_horarios")),
   };
 }
 
@@ -66,6 +81,7 @@ export async function writeAlertasConfig(config: AlertasConfig): Promise<void> {
     ["dirpf_ativo", String(config.dirpfAtivo)],
     ["alavancagem_ativo", String(config.alavancagemAtivo)],
     ["resumo_ativo", String(config.resumoAtivo)],
+    ["resumo_horarios", config.resumoHorarios.join(",")],
   ]);
 }
 

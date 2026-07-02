@@ -7,8 +7,15 @@ import { sendTelegramPhoto } from "@/lib/telegram";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Resumo do dia (imagem + legenda) via Telegram — 1x/dia pelo Vercel Cron.
-// Mesmo padrão de auth dos outros crons (Authorization: Bearer CRON_SECRET).
+// Hora atual no fuso de Brasília (0–23). hourCycle h23 evita o "24" da meia-noite.
+function horaBRT(): number {
+  return Number(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hourCycle: "h23" }));
+}
+
+// Resumo do dia (imagem + legenda) via Telegram. O Vercel Cron dispara de HORA
+// em hora ("0 * * * *"); os horários de envio vêm da config (resumo_horarios,
+// fuso de Brasília) — configuráveis pela UI sem precisar de deploy. Mesmo
+// padrão de auth dos outros crons (Authorization: Bearer CRON_SECRET).
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
@@ -25,6 +32,18 @@ export async function GET(request: Request) {
         ok: true,
         ranAt: new Date().toISOString(),
         skipped: !config.chatId ? "chat_id não configurado" : (!config.ativo ? "alertas desativados" : "resumo diário desativado"),
+      });
+    }
+
+    // Gate de horário: só envia quando a hora atual (BRT) está na lista.
+    // `?force=1` pula o gate (útil pra testar o cron manualmente).
+    const force = new URL(request.url).searchParams.get("force") === "1";
+    const hora = horaBRT();
+    if (!force && !config.resumoHorarios.includes(hora)) {
+      return NextResponse.json({
+        ok: true,
+        ranAt: new Date().toISOString(),
+        skipped: `fora do horário (agora ${hora}h BRT; configurado: ${config.resumoHorarios.map(h => `${h}h`).join(", ")})`,
       });
     }
 
