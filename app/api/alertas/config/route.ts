@@ -35,6 +35,14 @@ export async function POST(req: Request) {
     const tokenInput = typeof body?.botToken === "string" ? body.botToken.trim() : "";
     // Flags booleanos: quando ausentes no payload, mantém ligado (default true).
     const flag = (v: unknown) => v === undefined ? true : Boolean(v);
+    // Horários do resumo (0–23, BRT): valida e deduplica; ausente/inválido → mantém o salvo.
+    let horarios: number[] = existing.resumoHorarios;
+    if (Array.isArray(body?.resumoHorarios)) {
+      const parsed: number[] = (body.resumoHorarios as unknown[])
+        .map((h) => Number(h))
+        .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23);
+      horarios = [...new Set(parsed)].sort((a, b) => a - b);
+    }
     await writeAlertasConfig({
       chatId,
       botToken: tokenInput || existing.botToken,
@@ -44,6 +52,7 @@ export async function POST(req: Request) {
       dirpfAtivo: flag(body?.dirpfAtivo),
       alavancagemAtivo: flag(body?.alavancagemAtivo),
       resumoAtivo: flag(body?.resumoAtivo),
+      resumoHorarios: horarios.length > 0 ? horarios : existing.resumoHorarios,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -475,6 +475,7 @@ interface AlertasConfigResp {
   dirpfAtivo: boolean;
   alavancagemAtivo: boolean;
   resumoAtivo: boolean;
+  resumoHorarios: number[];
   tokenConfigured: boolean;
   tokenSource: "env" | "config" | "none";
 }
@@ -512,6 +513,7 @@ function AlertasSection() {
   const [dirpfAtivo, setDirpfAtivo] = useState(true);
   const [alavancagemAtivo, setAlavancagemAtivo] = useState(true);
   const [resumoAtivo, setResumoAtivo] = useState(true);
+  const [resumoHorarios, setResumoHorarios] = useState<number[]>([18]);
   const [botToken, setBotToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [tokenConfigured, setTokenConfigured] = useState(false);
@@ -534,6 +536,7 @@ function AlertasSection() {
         setDirpfAtivo(d.dirpfAtivo ?? true);
         setAlavancagemAtivo(d.alavancagemAtivo ?? true);
         setResumoAtivo(d.resumoAtivo ?? true);
+        setResumoHorarios(Array.isArray(d.resumoHorarios) && d.resumoHorarios.length > 0 ? d.resumoHorarios : [18]);
         setTokenConfigured(d.tokenConfigured ?? false);
         setTokenSource(d.tokenSource ?? "none");
         setLoading(false);
@@ -548,7 +551,7 @@ function AlertasSection() {
       const res = await fetch(`${API_URL}/api/alertas/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, botToken, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo }),
+        body: JSON.stringify({ chatId, botToken, limiteAlavancagemPct: limite, ativo, darfAtivo, dirpfAtivo, alavancagemAtivo, resumoAtivo, resumoHorarios }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -697,13 +700,73 @@ function AlertasSection() {
           onToggle={() => setAlavancagemAtivo(v => !v)}
           disabled={!ativo}
         />
+      </div>
+
+      {/* Resumo do dia — sub-card próprio: toggle + horários de envio + ações */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 space-y-2.5">
+        <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+          <Bell size={12} /> Resumo do dia (imagem)
+        </p>
         <ToggleRow
-          title="Resumo do dia (imagem)"
-          desc="1x/dia (18h BRT): um card com patrimônio, resultado, efeito do câmbio, melhores/piores, IBKR e manchetes."
+          title="Enviar resumo do dia"
+          desc="Card com patrimônio, resultado, mercados, melhores/piores, exposição e proventos — nos horários abaixo."
           on={resumoAtivo}
           onToggle={() => setResumoAtivo(v => !v)}
           disabled={!ativo}
         />
+
+        {/* Horários de envio (fuso de Brasília) — o cron roda de hora em hora e
+            envia só nas horas marcadas; salvar aqui já vale, sem deploy. */}
+        <div className={`rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 transition-opacity ${(!ativo || !resumoAtivo) ? "opacity-40 pointer-events-none" : ""}`}>
+          <p className="text-xs font-semibold text-zinc-200 mb-0.5">Horários de envio</p>
+          <p className="text-[10px] text-zinc-600 mb-2">
+            Horário de Brasília · {resumoHorarios.length} envio{resumoHorarios.length === 1 ? "" : "s"}/dia
+            {resumoHorarios.length > 0 ? ` (${[...resumoHorarios].sort((a, b) => a - b).map(h => `${h}h`).join(", ")})` : ""}
+          </p>
+          <div className="grid grid-cols-8 sm:grid-cols-12 gap-1">
+            {Array.from({ length: 24 }, (_, h) => {
+              const on = resumoHorarios.includes(h);
+              return (
+                <button
+                  key={h}
+                  onClick={() => setResumoHorarios(prev => on ? prev.filter(x => x !== h) : [...prev, h].sort((a, b) => a - b))}
+                  className={`py-1.5 text-[11px] font-mono font-semibold rounded-md border transition-colors ${
+                    on
+                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                      : "border-zinc-800 bg-zinc-800/30 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  }`}
+                >
+                  {h}h
+                </button>
+              );
+            })}
+          </div>
+          {resumoHorarios.length === 0 && (
+            <p className="text-[10px] text-amber-400/80 mt-2">Nenhum horário marcado — o resumo não será enviado.</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleSendDigest} disabled={sendingDigest || !chatId}
+            className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-40"
+            style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+          >
+            {sendingDigest ? "Gerando…" : "Enviar resumo agora"}
+          </button>
+          <a
+            href={`${API_URL}/api/digest/image`} target="_blank" rel="noreferrer"
+            className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
+            style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+          >
+            Ver imagem
+          </a>
+          {digestMsg && (
+            <span className={`text-xs font-mono flex items-center gap-1 ${digestMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+              {digestMsg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {digestMsg.text}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -721,25 +784,6 @@ function AlertasSection() {
         >
           {testing ? "Enviando…" : "Enviar teste"}
         </button>
-        <button
-          onClick={handleSendDigest} disabled={sendingDigest || !chatId}
-          className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-40"
-          style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
-        >
-          {sendingDigest ? "Gerando…" : "Enviar resumo agora"}
-        </button>
-        <a
-          href={`${API_URL}/api/digest/image`} target="_blank" rel="noreferrer"
-          className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
-          style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
-        >
-          Ver imagem
-        </a>
-        {digestMsg && (
-          <span className={`text-xs font-mono flex items-center gap-1 ${digestMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
-            {digestMsg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {digestMsg.text}
-          </span>
-        )}
         {msg && (
           <span className={`text-xs font-mono flex items-center gap-1 ${msg.ok ? "text-emerald-400" : "text-red-400"}`}>
             {msg.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />} {msg.text}
