@@ -12,23 +12,29 @@ export const maxDuration = 60;
 // As chamadas ao GDELT respeitam o limite de 1 req/5s (gap serializado).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GEO = "https://api.gdeltproject.org/api/v2/geo/geo";
+const GEO_HTTPS = "https://api.gdeltproject.org/api/v2/geo/geo";
+const GEO_HTTP = "http://api.gdeltproject.org/api/v2/geo/geo";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface Probe { name: string; url: string; gdelt?: boolean }
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
+interface Probe { name: string; url: string; gdelt?: boolean; ua?: string }
+
+// Rodada 1 provou: TODAS as URLs https com nossos params dão 404 (até a mínima),
+// mas EONET/USGS funcionam. Rodada 2 isola: protocolo (http×https), formato do
+// timespan (minutos — GEO cobre no máx. 24h, não aceita "7d"), o exemplo exato
+// indexado pelo Google (mode=country&format=html) e bloqueio por User-Agent.
 const PROBES: Probe[] = [
-  // 1. O endpoint GEO está vivo? (query mínima, um termo, sem extras)
-  { name: "geo-1-minimo", url: `${GEO}?query=airstrike&format=GeoJSON`, gdelt: true },
-  // 2. Forma ANTIGA (OR sem parênteses) — esperamos falha; confirma o bug original
-  { name: "geo-2-or-sem-parenteses", url: `${GEO}?query=${encodeURIComponent("protest OR riot")}&format=GeoJSON&mode=PointData&timespan=7d`, gdelt: true },
-  // 3. Forma ATUAL de produção (parênteses + mode + timespan + maxpoints)
-  { name: "geo-3-atual-producao", url: `${GEO}?query=${encodeURIComponent("(protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR protesters)")}&format=GeoJSON&mode=PointData&timespan=7d&maxpoints=500`, gdelt: true },
-  // 4. Atual SEM maxpoints — isola se o maxpoints é o vilão
-  { name: "geo-4-sem-maxpoints", url: `${GEO}?query=${encodeURIComponent("(protest OR riot)")}&format=GeoJSON&mode=PointData&timespan=7d`, gdelt: true },
-  // 5/6. Fontes de desastres (sem rate-limit)
-  { name: "eonet", url: "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&limit=3" },
-  { name: "usgs", url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson" },
+  // 1. Exemplo indexado pelo Google — se ESTE 404ar, o problema é IP/UA, não params
+  { name: "geo-1-exemplo-indexado", url: `${GEO_HTTPS}?query=theme:env_nuclearpower&mode=country&format=html`, gdelt: true },
+  // 2. Mínima + timespan em MINUTOS (1440 = 24h, formato correto do GEO)
+  { name: "geo-2-minutos-https", url: `${GEO_HTTPS}?query=airstrike&format=GeoJSON&mode=PointData&timespan=1440`, gdelt: true },
+  // 3. Igual à 2, via HTTP puro — isola o vhost https
+  { name: "geo-3-minutos-http", url: `${GEO_HTTP}?query=airstrike&format=GeoJSON&mode=PointData&timespan=1440`, gdelt: true },
+  // 4. Igual à 2, com User-Agent de navegador — isola bloqueio por UA
+  { name: "geo-4-ua-navegador", url: `${GEO_HTTPS}?query=airstrike&format=GeoJSON&mode=PointData&timespan=1440`, gdelt: true, ua: BROWSER_UA },
+  // 5. Query real de protestos no formato candidato (parênteses + minutos)
+  { name: "geo-5-protestos-candidata", url: `${GEO_HTTPS}?query=${encodeURIComponent("(protest OR riot OR unrest)")}&format=GeoJSON&mode=PointData&timespan=1440&maxpoints=250`, gdelt: true },
 ];
 
 interface ProbeResult {
@@ -51,7 +57,7 @@ export async function GET() {
     }
     try {
       const res = await fetch(p.url, {
-        headers: { "User-Agent": "meus-investimentos (diagnostico)" },
+        headers: { "User-Agent": p.ua ?? "meus-investimentos (diagnostico)" },
         signal: AbortSignal.timeout(15_000),
         cache: "no-store",
       });
@@ -89,7 +95,7 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      leitura: "geo-1 ok + geo-2 falha = parênteses eram o bug; geo-3 falha + geo-4 ok = maxpoints é o vilão; tudo geo falha = endpoint/params errados; eonet/usgs falham = problema nos desastres",
+      leitura: "geo-2 ok = timespan em minutos resolve · geo-3 ok e geo-2 falha = GEO é http-only · geo-4 ok e geo-2 falha = bloqueio por User-Agent · geo-1 falha também = bloqueio de IP/algo além de params · tudo falha = GEO aposentado (pivotar fonte)",
       results,
     },
     { headers: { "Cache-Control": "no-store" } },
