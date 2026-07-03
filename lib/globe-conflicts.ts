@@ -10,6 +10,8 @@
 // Sem rede / GDELT fora do ar → [] e a rota cai na lista curada (FALLBACK_ZONES).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { gdeltJson } from "@/lib/gdelt-fetch";
+
 export interface ConflictZoneData {
   id: string;
   name: string;            // nome amigável PT (ex.: "Guerra Rússia–Ucrânia")
@@ -20,6 +22,8 @@ export interface ConflictZoneData {
   fatalities?: number;     // não disponível no GDELT (fica undefined)
   periodDias?: number;     // janela (7)
   country?: string;        // país (inglês), para debug
+  detail?: string;         // rótulo secundário pronto (ex.: "Magnitude 6.2 · sismo")
+  source?: string;         // fonte dos dados (ex.: "USGS", "NASA EONET", "GDELT")
 }
 
 // Nome amigável PT para os conflitos mais conhecidos; fallback = "Conflito — <país>".
@@ -199,25 +203,16 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
   const url = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(theme.query)}&format=GeoJSON&mode=PointData&timespan=${PERIOD_DIAS}d&maxpoints=500`;
   const MIN_MENTIONS = theme.minMentions;
 
+  // Passa pelo wrapper serializado (gdeltJson): respeita 1 req/5s, detecta o
+  // aviso de throttle (que antes virava "404"/erro) e cacheia por URL.
   let features: GdeltFeature[] = [];
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "meus-investimentos" },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (diag) diag.httpStatus = res.status;
-    if (!res.ok) {
-      if (diag) diag.error = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`;
-      throw new Error(`GDELT HTTP ${res.status}`);
-    }
-    const json = await res.json();
-    features = Array.isArray(json?.features) ? json.features : [];
-    if (diag) diag.featuresReturned = features.length;
-  } catch (e) {
-    if (diag && !diag.error) diag.error = e instanceof Error ? e.message : "erro";
-    console.error("GDELT indisponível:", e);
+  const json = await gdeltJson<{ features?: GdeltFeature[] }>(url);
+  if (!json) {
+    if (diag && !diag.error) diag.error = "sem resposta do GDELT (throttle/rede)";
     return [];
   }
+  features = Array.isArray(json.features) ? json.features : [];
+  if (diag) { diag.httpStatus = 200; diag.featuresReturned = features.length; }
 
   // Agrega por país; centroide ponderado pelo volume de menções.
   interface Agg { country: string; mentions: number; sumLat: number; sumLng: number; wsum: number }
