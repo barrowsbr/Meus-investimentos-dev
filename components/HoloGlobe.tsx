@@ -344,7 +344,6 @@ const NEBULAS: { pos: [number, number, number]; scale: number; color: string; op
 ];
 
 function SpaceEnvironment() {
-  const envRef = useRef<THREE.Group>(null);
   const starMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 } },
     vertexShader: STAR_VERT,
@@ -363,14 +362,15 @@ function SpaceEnvironment() {
     starMat.dispose(); glowTex.dispose();
   }, [skyGeo, bandGeo, dustGeo, starMat, glowTex]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock }) => {
+    // Só a cintilação anima; o CÉU FICA PARADO — no modelo físico (Sol fixo,
+    // Terra girando 1 volta/24h) as estrelas não orbitam a Terra. A deriva
+    // estética que existia aqui quebrava exatamente isso.
     starMat.uniforms.uTime.value = clock.getElapsedTime();
-    // Deriva lentíssima do céu inteiro — o espaço respira.
-    if (envRef.current) envRef.current.rotation.y += delta * 0.0035;
   });
 
   return (
-    <group ref={envRef}>
+    <group>
       <points geometry={skyGeo} material={starMat} />
       <points geometry={dustGeo} material={starMat} />
 
