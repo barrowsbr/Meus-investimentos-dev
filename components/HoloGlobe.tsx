@@ -23,9 +23,15 @@ interface ConflictZone {
   lat: number;
   lng: number;
   nearbyMarkets: string[];
+  // Campos ao vivo (ACLED) — opcionais para o fallback continuar válido.
+  events?: number;       // eventos violentos no período
+  fatalities?: number;   // mortes no período
+  periodDias?: number;   // janela (30)
 }
 
-const CONFLICT_ZONES: ConflictZone[] = [
+// Reserva caso /api/globe/conflicts não responda (a rota já tem seu próprio
+// fallback ACLED→curado; este é o último recurso client-side).
+const FALLBACK_CONFLICT_ZONES: ConflictZone[] = [
   { id: "ukraine", name: "Guerra Rússia–Ucrânia", lat: 48.5, lng: 32.0, nearbyMarkets: ["^STOXX50E", "^GDAXI", "^FCHI"] },
   { id: "israel-palestine", name: "Conflito Israel–Palestina", lat: 31.5, lng: 34.8, nearbyMarkets: ["^TA125.TA", "^CASE30"] },
   { id: "sudan", name: "Guerra Civil no Sudão", lat: 15.5, lng: 32.5, nearbyMarkets: ["^CASE30", "^JN0U.JO"] },
@@ -307,7 +313,7 @@ function ConflictMarker({
 
 // ── Scene ────────────────────────────────────────────────────────────────────
 
-function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (item: SelectedItem | null) => void }) {
+function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -357,7 +363,7 @@ function GlobeScene({ markets, onSelect }: { markets: MarketPoint[]; onSelect: (
           />
         ))}
 
-        {CONFLICT_ZONES.map(z => (
+        {conflicts.map(z => (
           <ConflictMarker
             key={z.id}
             zone={z}
@@ -430,7 +436,11 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
-  const aiQuery = `Analise o conflito "${zone.name}": quais os impactos econômicos e geopolíticos atuais? Como está afetando os mercados financeiros da região e as bolsas globais?`;
+  // Contexto ao vivo da ACLED (quando disponível) deixa a pergunta bem mais específica.
+  const ctx = zone.events
+    ? ` (dados ACLED: ${zone.events} eventos violentos${zone.fatalities ? ` e ${zone.fatalities} mortes` : ""} nos últimos ${zone.periodDias ?? 30} dias)`
+    : "";
+  const aiQuery = `Analise o conflito "${zone.name}"${ctx}: quais os impactos econômicos e geopolíticos atuais? Como está afetando os mercados financeiros da região e as bolsas globais?`;
 
   return (
     <a
@@ -447,7 +457,13 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
         <span className="text-[10px]">⚠️</span>
         <span className="text-[10px] font-extrabold text-red-400 uppercase tracking-wider">Conflito Ativo</span>
       </div>
-      <p className="text-[12px] font-bold text-white leading-snug mb-2">{zone.name}</p>
+      <p className="text-[12px] font-bold text-white leading-snug mb-1">{zone.name}</p>
+      {zone.events != null && (
+        <p className="text-[9px] text-red-300/80 font-mono mb-2">
+          {zone.events} eventos{zone.fatalities ? ` · ${zone.fatalities} mortes` : ""} · {zone.periodDias ?? 30}d
+          <span className="text-zinc-600"> · ACLED</span>
+        </p>
+      )}
 
       {nearbyMarkets.length > 0 && (
         <>
@@ -1767,6 +1783,7 @@ function PlanetSceneContent({ planet }: { planet: PlanetMode }) {
 
 export default function HoloGlobe({ mode }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
@@ -1799,6 +1816,13 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
                 changePct: i.changePct, price: i.price, currency: i.currency,
               })));
             }
+          })
+          .catch(() => {});
+        // Zonas de conflito ao vivo (ACLED) — cai no curado se a rota falhar.
+        fetch("/api/globe/conflicts")
+          .then(r => r.json())
+          .then(d => {
+            if (Array.isArray(d?.zones) && d.zones.length > 0) setConflicts(d.zones as ConflictZone[]);
           })
           .catch(() => {});
       }
@@ -1865,7 +1889,7 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             ) : isPlanet ? (
               <PlanetSceneContent planet={displayMode as PlanetMode} />
             ) : (
-              <GlobeScene markets={markets} onSelect={setSelected} />
+              <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
             )}
           </React.Suspense>
         </Canvas>

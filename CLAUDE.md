@@ -69,6 +69,8 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
    - **Opcionais**: `APP_PASSWORD` (tela de senha/AuthGate), `ALPHAVANTAGE_API_KEY` (holdings de ETFs US),
      `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` (cascata do agente IA),
      `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias),
+     `ACLED_API_KEY` / `ACLED_EMAIL` (zonas de conflito ao vivo no HoloGlobe —
+     registro grátis em acleddata.com; sem elas o globo usa a lista curada),
      `TELEGRAM_BOT_TOKEN` (alertas determinísticos — DARF/DIRPF/alavancagem — e o
      resumo do dia em imagem via cron; a env var tem prioridade, mas o token
      também pode ser salvo em Configurações — aba `alertas_config`, nunca reenviado
