@@ -802,6 +802,20 @@ body {
   color: rgba(103,232,249,.75);
 }
 
+/* Variante CLÁSSICA (Configurações → Preferências do Sistema): a janela
+   compacta com bordas de antes — cantos no box, legenda acima do globo. */
+.holo-stage[data-variant="classico"] {
+  width: min(420px, 92vw); height: min(440px, 86vh);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  overflow: visible;
+}
+.holo-stage[data-variant="classico"] .holo-corner { width: 18px; height: 18px; border-color: rgba(103,232,249,.5); }
+.holo-stage[data-variant="classico"] .holo-corner-tl { top: 0; left: 0; }
+.holo-stage[data-variant="classico"] .holo-corner-tr { top: 0; right: 0; }
+.holo-stage[data-variant="classico"] .holo-corner-bl { bottom: 0; left: 0; }
+.holo-stage[data-variant="classico"] .holo-corner-br { bottom: 0; right: 0; }
+.holo-stage[data-variant="classico"] .holo-legend { position: static; transform: none; margin-bottom: 8px; }
+
 .holo-sweep { position: absolute; left: 0; right: 0; top: 0; height: 2px;
   background: linear-gradient(90deg, transparent, rgba(103,232,249,.7), transparent); pointer-events: none; opacity: 0; }
 .holo-stage[data-open="true"] .holo-sweep { animation: holo-sweep 1.1s ease-out .1s 1; }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { X, Globe } from "lucide-react";
 import { useGlobeOverlay } from "./GlobeOverlayContext";
+import { getHoloStyle, HOLO_STYLE_EVENT, type HoloStyle } from "@/lib/holo-style";
 
 // Globo three.js já existente — só no cliente.
 const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
@@ -20,6 +21,20 @@ export default function HoloOverlay() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [cone, setCone] = useState<{ x: number; y: number } | null>(null);
   const [coneOn, setConeOn] = useState(false);
+  // Estilo do globo (Configurações → Preferências do Sistema): imersivo (tela
+  // cheia) ou clássico (janela com bordas). Reage ao evento sem recarregar.
+  const [holoStyle, setHoloStyleState] = useState<HoloStyle>("imersivo");
+
+  useEffect(() => {
+    setHoloStyleState(getHoloStyle());
+    const onChange = () => setHoloStyleState(getHoloStyle());
+    window.addEventListener(HOLO_STYLE_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener(HOLO_STYLE_EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
 
   // Offset logo→centro: deixa o stage (fechado) posicionado sobre a logo, para
   // o globo "sair" exatamente dela em qualquer resolução.
@@ -96,6 +111,7 @@ export default function HoloOverlay() {
         className="holo-stage"
         data-open={open ? "true" : "false"}
         data-closing={closing ? "true" : "false"}
+        data-variant={holoStyle}
         style={{ "--holo-ox": `${offset.x}px`, "--holo-oy": `${offset.y}px` } as CSSProperties}
       >
         <span className="holo-corner holo-corner-tl" />
@@ -105,11 +121,18 @@ export default function HoloOverlay() {
 
         <div className="holo-legend">Mercados Globais · Tempo Real</div>
 
-        {/* O globo preenche o palco inteiro (tela cheia) — imersão no espaço.
-            pointerEvents só quando aberto: fechado, o wrapper cobre a tela
-            invisível e NÃO pode engolir os cliques do dashboard. */}
-        <div style={{ pointerEvents: open ? "auto" : "none", position: "absolute", inset: 0 }}>
-          <HoloGlobe mode={open ? "globe" : "off"} />
+        {/* Imersivo: o globo preenche o palco inteiro (tela cheia).
+            Clássico: janela compacta centralizada (como era antes).
+            pointerEvents só quando aberto: fechado, o wrapper não pode
+            engolir os cliques do dashboard. */}
+        <div
+          style={
+            holoStyle === "classico"
+              ? { pointerEvents: open ? "auto" : "none", width: "100%", display: "flex", justifyContent: "center" }
+              : { pointerEvents: open ? "auto" : "none", position: "absolute", inset: 0 }
+          }
+        >
+          <HoloGlobe mode={open ? "globe" : "off"} variant={holoStyle} />
         </div>
 
         <span className="holo-sweep" aria-hidden />
