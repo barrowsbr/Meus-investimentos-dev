@@ -1,30 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { fetchAcledConflicts, FALLBACK_ZONES } from "@/lib/globe-conflicts";
+import { fetchAcledConflicts, FALLBACK_ZONES, resetAcledToken } from "@/lib/globe-conflicts";
 
 function acledRow(country: string, event_type: string, fatalities: number, lat: number, lng: number) {
   return { country, event_type, fatalities: String(fatalities), latitude: String(lat), longitude: String(lng) };
 }
 
+// Mock URL-aware: /oauth/token → devolve access_token; /acled/read → devolve data.
 function mockAcled(rows: unknown[]) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ success: true, data: rows }),
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+    if (String(url).includes("/oauth/token")) {
+      return { ok: true, json: async () => ({ access_token: "tok", expires_in: 86400 }) };
+    }
+    return { ok: true, json: async () => ({ success: true, data: rows }) };
   }));
 }
 
 beforeEach(() => {
-  process.env.ACLED_API_KEY = "k";
+  resetAcledToken();
   process.env.ACLED_EMAIL = "e@e.com";
+  process.env.ACLED_PASSWORD = "pw";
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.ACLED_API_KEY;
   delete process.env.ACLED_EMAIL;
+  delete process.env.ACLED_PASSWORD;
 });
 
 describe("fetchAcledConflicts — agregação", () => {
   it("sem credenciais → [] (rota cai no fallback)", async () => {
-    delete process.env.ACLED_API_KEY;
+    delete process.env.ACLED_PASSWORD;
     const out = await fetchAcledConflicts();
     expect(out).toEqual([]);
   });
@@ -70,9 +74,20 @@ describe("fetchAcledConflicts — agregação", () => {
     expect(uk.fatalities).toBe(32);
   });
 
-  it("ACLED erro → [] (rota usará FALLBACK_ZONES)", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: false, error: "bad key" }) }));
+  it("read com erro (success:false) → [] (rota usará FALLBACK_ZONES)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes("/oauth/token")) return { ok: true, json: async () => ({ access_token: "tok", expires_in: 86400 }) };
+      return { ok: true, json: async () => ({ success: false, error: "bad request" }) };
+    }));
     expect(await fetchAcledConflicts()).toEqual([]);
     expect(FALLBACK_ZONES.length).toBeGreaterThan(0);
+  });
+
+  it("OAuth sem access_token → [] (credencial inválida)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes("/oauth/token")) return { ok: false, json: async () => ({ error: "invalid_grant" }) };
+      return { ok: true, json: async () => ({ success: true, data: [] }) };
+    }));
+    expect(await fetchAcledConflicts()).toEqual([]);
   });
 });

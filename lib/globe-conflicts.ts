@@ -130,36 +130,78 @@ const MIN_EVENTS = 8;    // limiar p/ um país virar "foco de conflito" (30 dias
 const MAX_ZONES = 12;    // no máx. 12 marcadores no globo
 const PERIOD_DIAS = 30;
 
+// ── OAuth (fluxo novo da ACLED, 2024+) ───────────────────────────────────────
+// POST /oauth/token com username(e-mail)+senha → access_token (24h). Cacheado
+// em memória com folga de 1 min; reautentica quando expira.
+let cachedToken: { token: string; exp: number } | null = null;
+
+/** Limpa o token cacheado (para testes). */
+export function resetAcledToken(): void {
+  cachedToken = null;
+}
+
+async function getAcledToken(): Promise<string | null> {
+  const email = process.env.ACLED_EMAIL;
+  const password = process.env.ACLED_PASSWORD;
+  if (!email || !password) return null;
+  if (cachedToken && Date.now() < cachedToken.exp) return cachedToken.token;
+
+  try {
+    const body = new URLSearchParams({
+      username: email,
+      password,
+      grant_type: "password",
+      client_id: "acled",
+      scope: "authenticated",
+    });
+    const res = await fetch("https://acleddata.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`ACLED OAuth HTTP ${res.status}`);
+    const json = await res.json();
+    const token = json?.access_token;
+    if (!token) throw new Error("ACLED OAuth sem access_token");
+    const ttlMs = (Number(json?.expires_in) || 86400) * 1000;
+    cachedToken = { token, exp: Date.now() + ttlMs - 60_000 };
+    return token;
+  } catch (e) {
+    console.error("ACLED OAuth falhou:", e);
+    return null;
+  }
+}
+
 /**
  * Busca e agrega os focos de conflito da ACLED (últimos 30 dias).
- * A construção da query fica ISOLADA aqui — se o formato de acesso da tua conta
- * ACLED for diferente (ex.: token OAuth novo), é só ajustar esta função.
+ * Autenticação: OAuth (Bearer). Credenciais: ACLED_EMAIL + ACLED_PASSWORD.
  */
 export async function fetchAcledConflicts(): Promise<ConflictZoneData[]> {
-  const key = process.env.ACLED_API_KEY;
-  const email = process.env.ACLED_EMAIL;
-  if (!key || !email) return [];
+  const token = await getAcledToken();
+  if (!token) return [];
 
   const to = new Date();
   const from = new Date(to.getTime() - PERIOD_DIAS * 86400000);
 
   const params = new URLSearchParams({
-    key,
-    email,
     event_date: `${ymd(from)}|${ymd(to)}`,
     event_date_where: "BETWEEN",
     fields: "country|latitude|longitude|fatalities|event_type",
     limit: "20000",
   });
-  const url = `https://api.acleddata.com/acled/read?${params.toString()}`;
+  const url = `https://acleddata.com/api/acled/read?${params.toString()}`;
 
   let rows: AcledRow[] = [];
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
+    });
     if (!res.ok) throw new Error(`ACLED HTTP ${res.status}`);
     const json = await res.json();
     if (json?.success === false) throw new Error(`ACLED erro: ${json?.error ?? "desconhecido"}`);
-    rows = Array.isArray(json?.data) ? json.data : [];
+    rows = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
   } catch (e) {
     console.error("ACLED indisponível:", e);
     return [];
