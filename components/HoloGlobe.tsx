@@ -164,6 +164,190 @@ function Atmosphere({ radius }: { radius: number }) {
   );
 }
 
+// ── Espaço imersivo — estrelas, Via Láctea, nebulosas e poeira ───────────────
+//
+// O globo deixa de ser um objeto "numa caixa": a cena é um pedaço de espaço.
+// Tudo procedural (zero texturas externas): estrelas são THREE.Points com
+// shader próprio (disco suave + cintilação por fase), a Via Láctea é uma banda
+// inclinada de estrelas + brilhos alongados, as nebulosas são sprites aditivos
+// de gradiente radial e a poeira PRÓXIMA da câmera dá paralaxe real ao zoom —
+// é ela que vende a sensação de atravessar o espaço ao mergulhar até a Terra.
+
+const STAR_VERT = `
+  attribute float aSize;
+  attribute float aPhase;
+  attribute float aAlpha;
+  attribute vec3 aColor;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vPhase;
+  void main() {
+    vColor = aColor;
+    vAlpha = aAlpha;
+    vPhase = aPhase;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aSize * (140.0 / -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+const STAR_FRAG = `
+  uniform float uTime;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vPhase;
+  void main() {
+    float d = length(gl_PointCoord - vec2(0.5));
+    float disc = smoothstep(0.5, 0.08, d);
+    float tw = 0.72 + 0.28 * sin(uTime * (0.4 + fract(vPhase * 7.31) * 1.8) + vPhase * 6.2831);
+    float a = disc * vAlpha * tw;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(vColor, a);
+  }
+`;
+
+// Aproximação de gaussiana (soma de uniformes) — espalhamento natural da banda.
+function gauss(): number {
+  return Math.random() + Math.random() + Math.random() - 1.5;
+}
+
+type StarKind = "sky" | "band" | "dust";
+
+function buildStarGeometry(count: number, kind: StarKind): THREE.BufferGeometry {
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const size = new Float32Array(count);
+  const phase = new Float32Array(count);
+  const alpha = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    let x = 0, y = 0, z = 0;
+    if (kind === "band") {
+      // Anel no plano XZ com espalhamento gaussiano — vira a Via Láctea quando
+      // o grupo é inclinado.
+      const ang = Math.random() * Math.PI * 2;
+      const r = 46 + Math.random() * 18;
+      x = Math.cos(ang) * r + gauss() * 2.2;
+      y = gauss() * 3.4;
+      z = Math.sin(ang) * r + gauss() * 2.2;
+    } else {
+      // Esfera uniforme: céu distante (42–75) ou casca de poeira próxima (2.5–9).
+      const u = Math.random() * 2 - 1;
+      const t = Math.random() * Math.PI * 2;
+      const s = Math.sqrt(1 - u * u);
+      const r = kind === "dust" ? 2.5 + Math.random() * 6.5 : 42 + Math.random() * 33;
+      x = s * Math.cos(t) * r;
+      y = u * r;
+      z = s * Math.sin(t) * r;
+    }
+    pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+
+    // Cor: maioria branca, ~22% azuladas, ~10% quentes (gigantes vermelhas).
+    const roll = Math.random();
+    let cr = 1, cg = 1, cb = 1;
+    if (kind === "dust") { cr = 0.66; cg = 0.75; cb = 0.85; }
+    else if (roll < 0.1) { cr = 1; cg = 0.82; cb = 0.62; }
+    else if (roll < 0.32) { cr = 0.74; cg = 0.85; cb = 1; }
+    else { const j = 0.92 + Math.random() * 0.08; cr = j; cg = j; cb = 1; }
+    col[i * 3] = cr; col[i * 3 + 1] = cg; col[i * 3 + 2] = cb;
+
+    if (kind === "sky") {
+      const bright = Math.random() < 0.06;
+      size[i] = bright ? 2.4 + Math.random() * 1.3 : 0.5 + Math.random() * 1.4;
+      alpha[i] = 0.25 + Math.pow(Math.random(), 1.6) * 0.75;
+    } else if (kind === "band") {
+      size[i] = 0.4 + Math.random() * 0.9;
+      alpha[i] = 0.14 + Math.random() * 0.42;
+    } else {
+      size[i] = 0.05 + Math.random() * 0.08;
+      alpha[i] = 0.1 + Math.random() * 0.16;
+    }
+    phase[i] = Math.random();
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aColor", new THREE.BufferAttribute(col, 3));
+  geo.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
+  geo.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
+  geo.setAttribute("aAlpha", new THREE.BufferAttribute(alpha, 1));
+  return geo;
+}
+
+function makeGlowTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,0.85)");
+  g.addColorStop(0.3, "rgba(255,255,255,0.28)");
+  g.addColorStop(0.7, "rgba(255,255,255,0.06)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+// Nebulosas: cores escuras + blending aditivo = brilho suave, não "algodão doce".
+const NEBULAS: { pos: [number, number, number]; scale: number; color: string; opacity: number }[] = [
+  { pos: [-30, 14, -44], scale: 58, color: "#24457f", opacity: 0.36 },
+  { pos: [40, -8, -30], scale: 46, color: "#0d5d6e", opacity: 0.32 },
+  { pos: [8, 32, 38], scale: 50, color: "#472a6b", opacity: 0.3 },
+  { pos: [-36, -26, 22], scale: 40, color: "#5c2333", opacity: 0.2 },
+];
+
+function SpaceEnvironment() {
+  const envRef = useRef<THREE.Group>(null);
+  const starMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: STAR_VERT,
+    fragmentShader: STAR_FRAG,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), []);
+  const skyGeo = useMemo(() => buildStarGeometry(2200, "sky"), []);
+  const bandGeo = useMemo(() => buildStarGeometry(900, "band"), []);
+  const dustGeo = useMemo(() => buildStarGeometry(160, "dust"), []);
+  const glowTex = useMemo(makeGlowTexture, []);
+
+  useEffect(() => () => {
+    skyGeo.dispose(); bandGeo.dispose(); dustGeo.dispose();
+    starMat.dispose(); glowTex.dispose();
+  }, [skyGeo, bandGeo, dustGeo, starMat, glowTex]);
+
+  useFrame(({ clock }, delta) => {
+    starMat.uniforms.uTime.value = clock.getElapsedTime();
+    // Deriva lentíssima do céu inteiro — o espaço respira.
+    if (envRef.current) envRef.current.rotation.y += delta * 0.0035;
+  });
+
+  return (
+    <group ref={envRef}>
+      <points geometry={skyGeo} material={starMat} />
+      <points geometry={dustGeo} material={starMat} />
+
+      {/* Via Láctea: banda de estrelas + brilhos alongados, plano inclinado */}
+      <group rotation={[1.02, 0, 0.42]}>
+        <points geometry={bandGeo} material={starMat} />
+        {[0, 1, 2, 3].map(i => {
+          const ang = (i / 4) * Math.PI * 2 + 0.4;
+          return (
+            <sprite key={i} position={[Math.cos(ang) * 52, 0, Math.sin(ang) * 52]} scale={[74, 20, 1]}>
+              <spriteMaterial map={glowTex} color="#8ea6c8" transparent opacity={0.075} blending={THREE.AdditiveBlending} depthWrite={false} />
+            </sprite>
+          );
+        })}
+      </group>
+
+      {NEBULAS.map((n, i) => (
+        <sprite key={i} position={n.pos} scale={[n.scale, n.scale * 0.8, 1]}>
+          <spriteMaterial map={glowTex} color={n.color} transparent opacity={n.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </sprite>
+      ))}
+    </group>
+  );
+}
+
 // ── Market marker ────────────────────────────────────────────────────────────
 
 function MarkerPoint({
@@ -329,10 +513,28 @@ function ConflictMarker({
 
 // ── Scene ────────────────────────────────────────────────────────────────────
 
+// Chegada cinematográfica: a câmera nasce no fundo do espaço e desliza até a
+// órbita de contemplação (4.1 — a Terra "jogada" no espaço, com estrelas ao
+// redor). Qualquer input do usuário assume o controle na hora.
+const INTRO_FROM = new THREE.Vector3(0.6, 1.3, 7.3);
+const INTRO_TO = new THREE.Vector3(0, 0, 4.1);
+
 function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const introDone = useRef(
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  );
+
+  useEffect(() => {
+    if (!introDone.current) {
+      camera.position.copy(INTRO_FROM);
+      camera.lookAt(0, 0, 0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectMarket = useCallback((p: MarketPoint) => {
     setSelectedId(prev => {
@@ -356,6 +558,13 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * (selectedId ? 0.015 : 0.06);
     }
+    if (!introDone.current) {
+      camera.position.lerp(INTRO_TO, 1 - Math.exp(-2.2 * delta));
+      if (camera.position.distanceTo(INTRO_TO) < 0.05) {
+        camera.position.copy(INTRO_TO);
+        introDone.current = true;
+      }
+    }
   });
 
   return (
@@ -365,41 +574,49 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
       <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
       <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
 
-      <group ref={groupRef}>
-        <EarthSphere radius={R} />
-        <Atmosphere radius={R} />
+      <SpaceEnvironment />
 
-        {markets.filter(m => m.symbol !== "^VIX").map(m => (
-          <MarkerPoint
-            key={m.symbol}
-            point={m}
-            radius={R + 0.005}
-            isSelected={selectedId === m.symbol}
-            onSelect={handleSelectMarket}
-          />
-        ))}
+      {/* Inclinação axial real da Terra (23,4°) — o giro acontece no eixo inclinado */}
+      <group rotation={[0, 0, -0.41]}>
+        <group ref={groupRef}>
+          <EarthSphere radius={R} />
+          <Atmosphere radius={R} />
 
-        {conflicts.map(z => (
-          <ConflictMarker
-            key={z.id}
-            zone={z}
-            color={zoneColor(z.id)}
-            radius={R + 0.005}
-            isSelected={selectedId === z.id}
-            onSelect={handleSelectConflict}
-          />
-        ))}
+          {markets.filter(m => m.symbol !== "^VIX").map(m => (
+            <MarkerPoint
+              key={m.symbol}
+              point={m}
+              radius={R + 0.005}
+              isSelected={selectedId === m.symbol}
+              onSelect={handleSelectMarket}
+            />
+          ))}
+
+          {conflicts.map(z => (
+            <ConflictMarker
+              key={z.id}
+              zone={z}
+              color={zoneColor(z.id)}
+              radius={R + 0.005}
+              isSelected={selectedId === z.id}
+              onSelect={handleSelectConflict}
+            />
+          ))}
+        </group>
       </group>
 
+      {/* Zoom com limites de imersão: 1.25 = rasante na atmosfera; 7.5 = a Terra
+          vira um ponto azul entre as estrelas. A poeira próxima dá o paralaxe. */}
       <OrbitControls
         enableZoom
         enablePan={false}
-        minDistance={1.5}
-        maxDistance={3.5}
+        minDistance={1.25}
+        maxDistance={7.5}
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.4}
-        zoomSpeed={0.5}
+        zoomSpeed={0.6}
+        onStart={() => { introDone.current = true; }}
       />
     </>
   );
@@ -1915,14 +2132,12 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   };
 
   return (
-    <div className={animClass} style={{ width: "100%" }}>
-      <div style={{
-        width: isBlackHole ? "min(420px, 95vw)" : "min(320px, 80vw)",
-        height: isBlackHole ? "min(360px, 82vw)" : "min(320px, 80vw)",
-        margin: isBlackHole ? "-10px auto -16px" : "0 auto",
-      }}>
+    <div className={animClass} data-no-pull style={{ position: "relative", width: "100%", height: "100%" }}>
+      {/* O canvas ocupa a tela inteira — o "quadrado" sumiu. O palco é o espaço:
+          céu estrelado infinito com a Terra imersa nele; a UI vira HUD flutuante. */}
+      <div style={{ position: "absolute", inset: 0 }}>
         <Canvas
-          camera={{ position: [0, 0, 3.2], fov: 40 }}
+          camera={{ position: [0, 0, 4.1], fov: 40 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
           dpr={[1, 2]}
@@ -1932,7 +2147,10 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             {isBlackHole ? (
               <BlackHoleScene />
             ) : isPlanet ? (
-              <PlanetSceneContent planet={displayMode as PlanetMode} />
+              <>
+                <SpaceEnvironment />
+                <PlanetSceneContent planet={displayMode as PlanetMode} />
+              </>
             ) : (
               <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
             )}
@@ -1940,53 +2158,75 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
         </Canvas>
       </div>
 
-      {/* Legenda das camadas (todas convivem no globo — não filtra, só orienta a
-          leitura das cores; mostra a contagem de focos de cada categoria). */}
+      {/* HUD inferior do globo: camadas (não filtram — orientam a leitura das
+          cores, com contagem) + escala de calor, num pill translúcido. */}
       {displayMode === "globe" && (
-        <div className="flex items-center justify-center gap-2.5 mt-1">
-          {GLOBE_LAYERS.map(l => {
-            const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
-            const dim = n === 0;
-            return (
-              <div
-                key={l.id}
-                className="flex items-center gap-1"
-                style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
-              >
-                <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
-                {l.label}
-                {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
-              </div>
-            );
-          })}
+        <div
+          className="absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1.5"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 64px)", pointerEvents: "none" }}
+        >
+          <div
+            className="flex items-center gap-2.5 rounded-full px-3.5 py-1.5"
+            style={{ background: "rgba(6,10,16,0.55)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(8px)" }}
+          >
+            {GLOBE_LAYERS.map(l => {
+              const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
+              const dim = n === 0;
+              return (
+                <div
+                  key={l.id}
+                  className="flex items-center gap-1"
+                  style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
+                >
+                  <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
+                  {l.label}
+                  {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
+                </div>
+              );
+            })}
+            <span className="text-[8px] text-zinc-700">|</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-semibold text-red-400/60">-4%</span>
+              <div style={{ width: 44, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
+              <span className="text-[8px] font-semibold text-emerald-400/60">+4%</span>
+            </div>
+          </div>
+          <span
+            className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
+            aria-hidden
+          >
+            arraste para girar · role para mergulhar
+          </span>
         </div>
       )}
 
-      {/* Shadow */}
-      <div
-        style={{
-          width: isBlackHole ? "50%" : "40%",
-          height: isBlackHole ? 12 : 14,
-          margin: isBlackHole ? "0 auto 0" : "-6px auto 0",
-          background: isBlackHole
-            ? "radial-gradient(ellipse, rgba(255,120,20,0.12) 0%, transparent 65%)"
-            : displayMode === "sol"
-            ? "radial-gradient(ellipse, rgba(255,170,0,0.15) 0%, rgba(0,0,0,0.25) 40%, transparent 70%)"
-            : "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
-          filter: "blur(6px)",
-          pointerEvents: "none",
-        }}
-      />
+      {/* Card de detalhe: flutua sobre o espaço — direita no desktop, acima do
+          HUD no mobile. */}
+      {displayMode === "globe" && selected && (
+        <div className="absolute z-20 left-1/2 bottom-[118px] -translate-x-1/2 sm:bottom-auto sm:left-auto sm:right-10 sm:top-1/2 sm:translate-x-0 sm:-translate-y-1/2">
+          {selected.type === "market" ? (
+            <MarketInfoCard point={selected.data} />
+          ) : (
+            <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
+          )}
+        </div>
+      )}
 
-      {isBlackHole ? (
-        /* Black hole caption */
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+      {/* Legendas dos easter eggs (buraco negro / planetas) — HUD inferior */}
+      {isBlackHole && (
+        <div
+          className="absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-0.5"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 64px)", pointerEvents: "none" }}
+        >
           <span className="text-[9px] font-bold text-orange-400/50 uppercase tracking-[3px]">Gargantua</span>
           <span className="text-[7px] text-zinc-600 italic">Easter egg · Clique na logo para fechar</span>
         </div>
-      ) : isPlanet ? (
-        /* Planet caption */
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+      )}
+      {isPlanet && (
+        <div
+          className="absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-0.5"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 64px)", pointerEvents: "none" }}
+        >
           <span className={`text-[9px] font-bold uppercase tracking-[3px] ${planetCaptionColor[displayMode] || "text-zinc-400/60"}`}>
             {PLANET_CAPTIONS[displayMode as PlanetMode].name}
           </span>
@@ -1994,31 +2234,6 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             {PLANET_CAPTIONS[displayMode as PlanetMode].fact}
           </span>
         </div>
-      ) : (
-        <>
-          {/* Heat legend — centered */}
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
-            <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
-            <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
-            <span className="text-[8px] text-zinc-600 mx-1">|</span>
-            <span className="text-[8px] text-red-500/70 font-semibold flex items-center gap-1">
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff4444", display: "inline-block", boxShadow: "0 0 4px #ff4444" }} />
-              Conflitos
-            </span>
-          </div>
-
-          {/* Info card below globe when selected */}
-          {selected && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-              {selected.type === "market" ? (
-                <MarketInfoCard point={selected.data} />
-              ) : (
-                <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
-              )}
-            </div>
-          )}
-        </>
       )}
 
       <style jsx global>{`
@@ -2037,6 +2252,14 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
         .animate-globe-in { animation: globe-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-globe-out { animation: globe-out 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
         .animate-card-in { animation: card-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes holo-hint {
+          0% { opacity: 0; }
+          12% { opacity: 0.8; }
+          72% { opacity: 0.8; }
+          100% { opacity: 0; }
+        }
+        .holo-hint { opacity: 0; animation: holo-hint 6.5s ease 1.2s forwards; }
+        @media (prefers-reduced-motion: reduce) { .holo-hint { animation: none; opacity: 0.6; } }
       `}</style>
     </div>
   );
