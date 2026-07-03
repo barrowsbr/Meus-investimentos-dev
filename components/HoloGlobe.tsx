@@ -513,11 +513,11 @@ function ConflictMarker({
 
 // ── Scene ────────────────────────────────────────────────────────────────────
 
-// Chegada cinematográfica: a câmera nasce no fundo do espaço e desliza até a
-// órbita de contemplação (4.1 — a Terra "jogada" no espaço, com estrelas ao
-// redor). Qualquer input do usuário assume o controle na hora.
-const INTRO_FROM = new THREE.Vector3(0.6, 1.3, 7.3);
-const INTRO_TO = new THREE.Vector3(0, 0, 4.1);
+// Abertura cinematográfica em "pull-back": a Terra nasce mais perto e RECUA
+// até o zoom-out máximo — o globo abre pequeno, jogado no meio das estrelas
+// (e o gesto já ensina que dá pra mergulhar). Qualquer input assume na hora.
+const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
+const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
 function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
@@ -560,8 +560,12 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
     }
     if (!introDone.current) {
       camera.position.lerp(INTRO_TO, 1 - Math.exp(-2.2 * delta));
+      // Re-mira na Terra a CADA frame do intro: o OrbitControls só corrige o
+      // lookAt quando há interação — sem isso o globo estaciona fora do centro.
+      camera.lookAt(0, 0, 0);
       if (camera.position.distanceTo(INTRO_TO) < 0.05) {
         camera.position.copy(INTRO_TO);
+        camera.lookAt(0, 0, 0);
         introDone.current = true;
       }
     }
@@ -2137,7 +2141,7 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
           céu estrelado infinito com a Terra imersa nele; a UI vira HUD flutuante. */}
       <div style={{ position: "absolute", inset: 0 }}>
         <Canvas
-          camera={{ position: [0, 0, 4.1], fov: 40 }}
+          camera={{ position: [0, 0, 7.45], fov: 40 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
           dpr={[1, 2]}
