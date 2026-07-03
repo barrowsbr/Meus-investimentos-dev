@@ -6,7 +6,7 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, Shield, Layers, TrendingUp, TrendingDown, Globe, Building2 } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers, TrendingUp, TrendingDown, Globe, Building2, Activity } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
 import type { RadarLayer, BolsasResponse, ExposureMode } from "@/lib/radar/types";
 
@@ -15,6 +15,7 @@ const LAYERS: { key: RadarLayer; label: string; sub: string; icon: typeof BarCha
   { key: "cambio", label: "Câmbio", sub: "Força da moeda vs USD", icon: ArrowLeftRight },
   { key: "instabilidade", label: "Risco", sub: "Índice de instabilidade", icon: Shield },
   { key: "etf", label: "Alocação", sub: "Países onde tenho alocação direta", icon: Layers },
+  { key: "gdelt", label: "GDELT", sub: "Pulso do mundo pela notícia global", icon: Activity },
 ];
 
 interface Props {

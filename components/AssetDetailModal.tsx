@@ -10,6 +10,7 @@ import { yahooTicker } from "@/lib/yahoo-symbol";
 import AssetLogo from "@/components/AssetLogo";
 import CandleChart from "@/components/CandleChart";
 import AssetNews from "@/components/AssetNews";
+import AssetBuzz from "@/components/AssetBuzz";
 
 export interface AssetTx {
   data: string;
@@ -297,6 +298,9 @@ export default function AssetDetailModal({
               </table>
             </div>
           )}
+
+          {/* Buzz & Sentimento (GDELT) — cobertura + tom da notícia global */}
+          <AssetBuzz nome={displayName(p.ticker)} />
 
           {/* Notícias relacionadas ao ativo — imagens preferenciais (estilo Home) */}
           <AssetNews ticker={p.ticker} nome={displayName(p.ticker)} moeda={p.moeda} />
