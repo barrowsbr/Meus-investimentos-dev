@@ -171,18 +171,20 @@ export interface GlobeTheme {
   useWarLabels: boolean;  // conflitos usam os nomes amigáveis de guerra
   prefix: string;         // prefixo do rótulo p/ os demais temas
 }
+// ATENÇÃO à sintaxe do GDELT: listas de OR precisam estar ENTRE PARÊNTESES —
+// "(a OR b)" — senão a API rejeita a query (o GEO responde 404 seco).
 export const GLOBE_THEMES: Record<string, GlobeTheme> = {
   conflitos: {
     id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 8, useWarLabels: true, prefix: "Conflito",
-    query: "airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen",
+    query: "(airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen)",
   },
   protestos: {
     id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 8, useWarLabels: false, prefix: "Protestos",
-    query: "protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR protesters",
+    query: "(protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR protesters)",
   },
   desastres: {
     id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 8, useWarLabels: false, prefix: "Alerta",
-    query: "earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR floods",
+    query: "(earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR floods)",
   },
 };
 export const DEFAULT_THEME = "conflitos";

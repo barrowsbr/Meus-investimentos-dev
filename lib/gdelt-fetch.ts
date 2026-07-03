@@ -67,6 +67,9 @@ export async function gdeltJson<T = unknown>(url: string, cacheMs = DEFAULT_CACH
         return (hit?.data as T) ?? null; // serve cache velho se houver
       }
       if (!res.ok) {
+        // 4xx é erro DURO (query malformada/rota errada): re-tentar não muda
+        // nada e só queima o maxDuration da função — desiste na hora.
+        if (res.status >= 400 && res.status < 500) return (hit?.data as T) ?? null;
         if (attempt < MAX_RETRIES) { await sleep(1500); continue; }
         return (hit?.data as T) ?? null;
       }

@@ -120,7 +120,8 @@ export interface GdeltWorld {
 export async function fetchGdeltWorld(): Promise<GdeltWorld> {
   const [buzz, events] = await Promise.all([
     // Tom/volume "do mundo" a partir de uma consulta ampla de risco/economia.
-    fetchGdeltBuzz("conflict OR war OR crisis OR economy OR inflation OR sanctions", 30).catch(() => null),
+    // Parênteses obrigatórios: o GDELT rejeita lista de OR sem eles.
+    fetchGdeltBuzz("(conflict OR war OR crisis OR economy OR inflation OR sanctions)", 30).catch(() => null),
     fetchGdeltEvents("conflitos").catch(() => []),
   ]);
 
