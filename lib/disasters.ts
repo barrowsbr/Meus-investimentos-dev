@@ -13,11 +13,13 @@
 
 import type { ConflictZoneData } from "@/lib/globe-conflicts";
 
-const EONET_URL = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&limit=120";
-// M4.5+ na última semana — significativos o bastante p/ importar, sem poluir.
+// Só o que aconteceu HOJE ou ONTEM (pedido do dono): janela de 48h.
+const EONET_URL = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=2&limit=120";
+// M4.5+ da semana, filtrado por 48h abaixo (o feed diário só cobre 24h).
 const USGS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson";
 
-const PERIOD_DIAS = 20;
+const WINDOW_MS = 48 * 3600_000;
+const PERIOD_DIAS = 2;
 const MAX_ZONES = 16;
 
 // Categoria EONET → rótulo PT + peso de severidade (p/ ranquear entre si e vs sismos).
@@ -125,25 +127,30 @@ function fromEonet(events: EonetEvent[]): Ranked[] {
   return out;
 }
 
-// USGS: terremotos M4.5+; severidade = magnitude (rankeia junto com EONET).
+// USGS: terremotos M4.5+ das últimas 48h; severidade = magnitude.
 function fromUsgs(features: UsgsFeature[]): Ranked[] {
   const out: Ranked[] = [];
+  const cutoff = Date.now() - WINDOW_MS;
   for (const f of features) {
     const mag = Number(f.properties?.mag);
+    const time = Number(f.properties?.time);
     const coords = f.geometry?.coordinates;
     if (!Number.isFinite(mag) || !Array.isArray(coords) || coords.length < 2) continue;
+    if (Number.isFinite(time) && time < cutoff) continue; // só hoje/ontem
     const lng = Number(coords[0]);
     const lat = Number(coords[1]);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const place = (f.properties?.place ?? "Terremoto").replace(/^\d+\s*km.*?of\s*/i, "").trim();
+    // "hoje"/"ontem" no card — dado que a janela é 48h, o rótulo diz qual dos dois.
+    const isToday = Number.isFinite(time) && new Date(time).getUTCDate() === new Date().getUTCDate();
     out.push({
       id: `desastres-usgs-${f.id ?? slug(place)}`,
       name: `Terremoto — ${place}`,
       lat, lng,
       nearbyMarkets: [],
       events: Math.round(mag * 10),
-      periodDias: 7,
-      detail: `Magnitude ${mag.toFixed(1)} · sismo`,
+      periodDias: PERIOD_DIAS,
+      detail: `Magnitude ${mag.toFixed(1)} · ${isToday ? "hoje" : "ontem"}`,
       source: "USGS",
       score: mag,
     });

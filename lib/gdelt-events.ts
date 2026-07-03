@@ -24,6 +24,7 @@ const COL_MENTIONS = 31;   // NumMentions
 const COL_GEO_NAME = 52;   // ActionGeo_FullName ("Cidade, Região, País")
 const COL_LAT = 56;        // ActionGeo_Lat
 const COL_LNG = 57;        // ActionGeo_Long
+const COL_SOURCE = 60;     // SOURCEURL (notícia que reportou o evento)
 
 // Códigos que interessam às camadas do globo (parse único, filtro por tema).
 const KEEP_CODES = new Set(["14", "18", "19", "20"]);
@@ -34,6 +35,7 @@ export interface GdeltEventPoint {
   lat: number;
   lng: number;
   mentions: number;
+  sourceUrl: string; // URL da notícia (p/ derivar manchete no card)
 }
 
 const CACHE_MS = 14 * 60_000; // novo arquivo a cada 15 min
@@ -94,7 +96,7 @@ function parseCsv(csv: string, out: GdeltEventPoint[]): void {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const fullName = (c[COL_GEO_NAME] ?? "").trim();
     if (!fullName) continue;
-    out.push({ code, fullName, lat, lng, mentions: Number(c[COL_MENTIONS]) || 1 });
+    out.push({ code, fullName, lat, lng, mentions: Number(c[COL_MENTIONS]) || 1, sourceUrl: (c[COL_SOURCE] ?? "").trim() });
   }
 }
 

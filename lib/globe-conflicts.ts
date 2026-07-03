@@ -25,6 +25,8 @@ export interface ConflictZoneData {
   country?: string;        // país (inglês), para debug
   detail?: string;         // rótulo secundário pronto (ex.: "Magnitude 6.2 · sismo")
   source?: string;         // fonte dos dados (ex.: "USGS", "NASA EONET", "GDELT")
+  spots?: string[];        // cidades-foco dentro do país (ex.: ["Los Angeles", "Seattle"])
+  headlines?: string[];    // manchetes derivadas das notícias que reportaram os eventos
 }
 
 // Nome amigável PT para os conflitos mais conhecidos; fallback = "Conflito — <país>".
@@ -188,6 +190,26 @@ function zoneName(country: string, theme: GlobeTheme): string {
   return `${theme.prefix} — ${ptCountry(country)}`;
 }
 
+// Manchete "de graça": o slug da URL da notícia costuma ser o próprio título
+// ("/us/la-protests-immigration-raids" → "La protests immigration raids").
+// Devolve null quando o slug é lixo (ids, curto demais) — melhor nada que ruído.
+function headlineFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    let seg = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
+    seg = seg.replace(/\.(html?|php|aspx?|shtml|cms)$/i, "");
+    const words = seg.split(/[-_]+/).filter(w => w.length > 1 && !/^\d+$/.test(w) && !/^\d{4,}/.test(w));
+    if (words.length < 3) return null;
+    const text = words.join(" ");
+    if (text.length < 18) return null;
+    const host = u.hostname.replace(/^www\./, "");
+    const t = text.charAt(0).toUpperCase() + text.slice(1);
+    return `${t.length > 80 ? t.slice(0, 77) + "…" : t} (${host})`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Busca e agrega focos de um TEMA por país, a partir dos eventos GDELT 2.0
  * (janela ~1h, arquivos de 15 min). Sem autenticação, sem rate-limit.
@@ -205,18 +227,35 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
   }
   if (diag) { diag.httpStatus = 200; diag.featuresReturned = points.length; }
 
-  // Agrega por país; centroide ponderado pelo volume de menções.
-  interface Agg { country: string; mentions: number; sumLat: number; sumLng: number; wsum: number }
+  // Agrega por país; centroide ponderado pelo volume de menções. Guarda também
+  // as cidades mais citadas e as melhores URLs (viram o conteúdo do card).
+  interface Agg {
+    country: string; mentions: number; sumLat: number; sumLng: number; wsum: number;
+    cities: Map<string, number>;
+    topUrls: { mentions: number; url: string }[];
+  }
   const byCountry = new Map<string, Agg>();
   for (const p of points) {
     const country = extractCountry(p.fullName);
     if (!country || country.length < 3) continue;
     const w = p.mentions;
-    const a = byCountry.get(country) ?? { country, mentions: 0, sumLat: 0, sumLng: 0, wsum: 0 };
+    const a = byCountry.get(country) ?? { country, mentions: 0, sumLat: 0, sumLng: 0, wsum: 0, cities: new Map<string, number>(), topUrls: [] };
     a.mentions += w;
     a.sumLat += p.lat * w;
     a.sumLng += p.lng * w;
     a.wsum += w;
+    // Cidade = 1º segmento quando o nome tem "Cidade, Região, País".
+    const parts = p.fullName.split(",").map(s => s.trim());
+    if (parts.length >= 3 && parts[0] && parts[0] !== country) {
+      a.cities.set(parts[0], (a.cities.get(parts[0]) ?? 0) + w);
+    }
+    if (p.sourceUrl) {
+      a.topUrls.push({ mentions: w, url: p.sourceUrl });
+      if (a.topUrls.length > 12) {
+        a.topUrls.sort((x, y) => y.mentions - x.mentions);
+        a.topUrls.length = 8;
+      }
+    }
     byCountry.set(country, a);
   }
 
@@ -229,17 +268,28 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
     diag.top = ranked.slice(0, 8).map(a => ({ country: a.country, mentions: a.mentions }));
   }
 
-  const zones = ranked.slice(0, MAX_ZONES).map(a => ({
-    id: `${theme.id}-${slug(a.country)}`,
-    name: zoneName(a.country, theme),
-    lat: a.sumLat / a.wsum,
-    lng: a.sumLng / a.wsum,
-    nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
-    events: a.mentions,
-    detail: `${a.mentions} menções · última hora`,
-    source: "GDELT",
-    country: a.country,
-  }));
+  const zones = ranked.slice(0, MAX_ZONES).map(a => {
+    const spots = [...a.cities.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([c]) => c);
+    const headlines: string[] = [];
+    for (const { url } of a.topUrls.sort((x, y) => y.mentions - x.mentions)) {
+      const h = headlineFromUrl(url);
+      if (h && !headlines.some(e => e.slice(0, 30) === h.slice(0, 30))) headlines.push(h);
+      if (headlines.length >= 2) break;
+    }
+    return {
+      id: `${theme.id}-${slug(a.country)}`,
+      name: zoneName(a.country, theme),
+      lat: a.sumLat / a.wsum,
+      lng: a.sumLng / a.wsum,
+      nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
+      events: a.mentions,
+      detail: `${a.mentions} menções · última hora`,
+      source: "GDELT",
+      country: a.country,
+      spots: spots.length > 0 ? spots : undefined,
+      headlines: headlines.length > 0 ? headlines : undefined,
+    };
+  });
   if (diag) diag.zonesReturned = zones.length;
   return zones;
 }

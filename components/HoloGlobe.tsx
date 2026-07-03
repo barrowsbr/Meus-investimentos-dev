@@ -29,6 +29,8 @@ interface ConflictZone {
   periodDias?: number;   // janela (30)
   detail?: string;       // rótulo pronto p/ desastres (ex.: "Magnitude 6.2 · sismo")
   source?: string;       // fonte (USGS / NASA EONET / GDELT)
+  spots?: string[];      // cidades-foco dentro do país
+  headlines?: string[];  // manchetes derivadas das notícias (GDELT)
 }
 
 // Reserva caso /api/globe/conflicts não responda (a rota já tem seu próprio
@@ -793,8 +795,12 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
   const kind = cat === "protestos" ? "Protesto Ativo" : cat === "desastres" ? "Alerta Ativo" : "Conflito Ativo";
   // Pergunta enxuta para a IA do sistema: explicar de forma sintética e precisa
   // o que está acontecendo. (Voltamos do Gemini porque lá exigiria o dono digitar
-  // /enviar; aqui a pergunta já dispara sozinha.) Contexto extra só quando útil.
-  const ctx = zone.detail ? ` (${zone.detail})` : "";
+  // /enviar; aqui a pergunta já dispara sozinha.) Cidades-foco entram no contexto.
+  const ctxParts = [
+    zone.spots?.length ? `focos em ${zone.spots.join(", ")}` : "",
+    zone.detail ?? "",
+  ].filter(Boolean);
+  const ctx = ctxParts.length > 0 ? ` (${ctxParts.join("; ")})` : "";
   const question = `Explique de forma sintética e precisa o que está acontecendo agora: ${zone.name}${ctx}.`;
 
   return (
@@ -814,16 +820,30 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
       </div>
       <p className="text-[12px] font-bold text-white leading-snug mb-1">{zone.name}</p>
       {zone.detail ? (
-        <p className="text-[9px] font-mono mb-2" style={{ color: `${col}cc` }}>
+        <p className="text-[9px] font-mono mb-1.5" style={{ color: `${col}cc` }}>
           {zone.detail}
           {zone.source && <span className="text-zinc-600"> · {zone.source}</span>}
         </p>
       ) : zone.events != null ? (
-        <p className="text-[9px] font-mono mb-2" style={{ color: `${col}cc` }}>
+        <p className="text-[9px] font-mono mb-1.5" style={{ color: `${col}cc` }}>
           {zone.events} menções · {zone.periodDias ?? 7}d
           <span className="text-zinc-600"> · GDELT</span>
         </p>
       ) : null}
+
+      {/* O que está acontecendo, de fato: cidades-foco + manchetes das notícias */}
+      {zone.spots && zone.spots.length > 0 && (
+        <p className="text-[9px] text-zinc-300 mb-1 leading-snug">
+          <span className="text-zinc-500">Focos:</span> {zone.spots.join(" · ")}
+        </p>
+      )}
+      {zone.headlines && zone.headlines.length > 0 && (
+        <div className="mb-2 flex flex-col gap-0.5">
+          {zone.headlines.map((h, i) => (
+            <p key={i} className="text-[8px] text-zinc-400 leading-snug">▸ {h}</p>
+          ))}
+        </div>
+      )}
 
       {nearbyMarkets.length > 0 && (
         <>
