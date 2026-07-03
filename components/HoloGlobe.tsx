@@ -62,6 +62,9 @@ type HoloMode = "off" | "globe" | "sol" | "mercurio" | "venus" | "terra" | "mart
 
 interface HoloGlobeProps {
   mode: HoloMode;
+  // "imersivo" (padrão): tela cheia, espaço infinito, zoom com limites.
+  // "classico": janela compacta com bordas (comportamento antigo).
+  variant?: "imersivo" | "classico";
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -519,13 +522,15 @@ function ConflictMarker({
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
+  // Clássico: sem intro (câmera fixa em 3.2, como era antes).
   const introDone = useRef(
-    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+    classic ||
+    (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true),
   );
 
   useEffect(() => {
@@ -578,10 +583,11 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
       <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
       <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
 
-      <SpaceEnvironment />
+      {!classic && <SpaceEnvironment />}
 
-      {/* Inclinação axial real da Terra (23,4°) — o giro acontece no eixo inclinado */}
-      <group rotation={[0, 0, -0.41]}>
+      {/* Inclinação axial real da Terra (23,4°) — só no imersivo; o clássico
+          gira reto, como era antes. */}
+      <group rotation={[0, 0, classic ? 0 : -0.41]}>
         <group ref={groupRef}>
           <EarthSphere radius={R} />
           <Atmosphere radius={R} />
@@ -609,17 +615,17 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
         </group>
       </group>
 
-      {/* Zoom com limites de imersão: 1.25 = rasante na atmosfera; 7.5 = a Terra
-          vira um ponto azul entre as estrelas. A poeira próxima dá o paralaxe. */}
+      {/* Zoom: imersivo tem limites largos (1.25 = rasante na atmosfera; 7.5 =
+          a Terra vira um ponto entre as estrelas); clássico mantém os antigos. */}
       <OrbitControls
         enableZoom
         enablePan={false}
-        minDistance={1.25}
-        maxDistance={7.5}
+        minDistance={classic ? 1.5 : 1.25}
+        maxDistance={classic ? 3.5 : 7.5}
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.4}
-        zoomSpeed={0.6}
+        zoomSpeed={classic ? 0.5 : 0.6}
         onStart={() => { introDone.current = true; }}
       />
     </>
@@ -2035,7 +2041,8 @@ const GLOBE_LAYERS = [
   { id: "desastres", label: "Desastres", color: "#38bdf8" },
 ] as const;
 
-export default function HoloGlobe({ mode }: HoloGlobeProps) {
+export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps) {
+  const classic = variant === "classico";
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -2134,6 +2141,128 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
     urano: "text-cyan-400/60",
     netuno: "text-blue-500/60",
   };
+
+  // ── Variante CLÁSSICA: janela compacta com bordas (comportamento antigo) ──
+  if (classic) {
+    return (
+      <div className={animClass} style={{ width: "100%" }}>
+        <div style={{
+          width: isBlackHole ? "min(420px, 95vw)" : "min(320px, 80vw)",
+          height: isBlackHole ? "min(360px, 82vw)" : "min(320px, 80vw)",
+          margin: isBlackHole ? "-10px auto -16px" : "0 auto",
+        }}>
+          <Canvas
+            camera={{ position: [0, 0, 3.2], fov: 40 }}
+            gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+            onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
+            dpr={[1, 2]}
+            style={{ background: "transparent" }}
+          >
+            <React.Suspense fallback={null}>
+              {isBlackHole ? (
+                <BlackHoleScene />
+              ) : isPlanet ? (
+                <PlanetSceneContent planet={displayMode as PlanetMode} />
+              ) : (
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} classic />
+              )}
+            </React.Suspense>
+          </Canvas>
+        </div>
+
+        {/* Legenda das camadas (contagem por categoria) */}
+        {displayMode === "globe" && (
+          <div className="flex items-center justify-center gap-2.5 mt-1">
+            {GLOBE_LAYERS.map(l => {
+              const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
+              const dim = n === 0;
+              return (
+                <div
+                  key={l.id}
+                  className="flex items-center gap-1"
+                  style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
+                >
+                  <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
+                  {l.label}
+                  {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sombra sob o globo */}
+        <div
+          style={{
+            width: isBlackHole ? "50%" : "40%",
+            height: isBlackHole ? 12 : 14,
+            margin: isBlackHole ? "0 auto 0" : "-6px auto 0",
+            background: isBlackHole
+              ? "radial-gradient(ellipse, rgba(255,120,20,0.12) 0%, transparent 65%)"
+              : displayMode === "sol"
+              ? "radial-gradient(ellipse, rgba(255,170,0,0.15) 0%, rgba(0,0,0,0.25) 40%, transparent 70%)"
+              : "radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)",
+            filter: "blur(6px)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {isBlackHole ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+            <span className="text-[9px] font-bold text-orange-400/50 uppercase tracking-[3px]">Gargantua</span>
+            <span className="text-[7px] text-zinc-600 italic">Easter egg · Clique na logo para fechar</span>
+          </div>
+        ) : isPlanet ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 6, gap: 2 }}>
+            <span className={`text-[9px] font-bold uppercase tracking-[3px] ${planetCaptionColor[displayMode] || "text-zinc-400/60"}`}>
+              {PLANET_CAPTIONS[displayMode as PlanetMode].name}
+            </span>
+            <span className="text-[7px] text-zinc-600 italic">
+              {PLANET_CAPTIONS[displayMode as PlanetMode].fact}
+            </span>
+          </div>
+        ) : (
+          <>
+            {/* Escala de calor */}
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
+              <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
+              <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
+            </div>
+
+            {/* Card de detalhe abaixo do globo */}
+            {selected && (
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+                {selected.type === "market" ? (
+                  <MarketInfoCard point={selected.data} />
+                ) : (
+                  <ConflictInfoCard zone={selected.data} nearbyMarkets={selected.nearbyData} />
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        <style jsx global>{`
+          @keyframes globe-in {
+            from { opacity: 0; transform: translateY(-16px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes globe-out {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-16px); }
+          }
+          @keyframes card-in {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          .animate-globe-in { animation: globe-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+          .animate-globe-out { animation: globe-out 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
+          .animate-card-in { animation: card-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className={animClass} data-no-pull style={{ position: "relative", width: "100%", height: "100%" }}>

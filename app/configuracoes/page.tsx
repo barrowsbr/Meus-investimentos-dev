@@ -6,10 +6,12 @@ import {
   FileText, RefreshCw, Shield, Info, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database, Palette,
   Eye, EyeOff, KeyRound, ShieldCheck, Loader2, Bell,
+  Globe as GlobeIcon,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
 import { useTheme, type Theme } from "@/components/terminal";
+import { getHoloStyle, setHoloStyle, type HoloStyle } from "@/lib/holo-style";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -1857,8 +1859,16 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
   },
 ];
 
+const HOLO_OPTIONS: { key: HoloStyle; label: string; desc: string }[] = [
+  { key: "imersivo", label: "Imersivo", desc: "Tela cheia: espaço infinito com estrelas, Via Láctea e zoom livre — do rasante na atmosfera até a Terra virar um ponto." },
+  { key: "classico", label: "Clássico", desc: "Janela compacta com bordas, como era antes — o globo abre numa moldura central." },
+];
+
 function ThemeSection() {
   const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
+  const [holo, setHolo] = useState<HoloStyle>("imersivo");
+
+  useEffect(() => { setHolo(getHoloStyle()); }, []);
 
   const hasAnimation = theme === "ambar" || theme === "jornal" || theme === "matrix" || theme === "miami" || theme === "blade" || theme === "starwars";
 
@@ -1954,6 +1964,62 @@ function ThemeSection() {
           </span>
         </div>
       )}
+
+      {/* HoloGlobo — estilo de abertura do globo (clique na logo) */}
+      <div className="pt-3 border-t border-zinc-800/50 space-y-2">
+        <div className="flex items-center gap-2">
+          <GlobeIcon size={13} className="text-cyan-400" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">HoloGlobo</span>
+        </div>
+        <p className="text-xs text-zinc-500">Como o globo abre ao clicar na logo do terminal. A escolha vale na hora, sem recarregar.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+          {HOLO_OPTIONS.map((opt) => {
+            const active = holo === opt.key;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => { setHoloStyle(opt.key); setHolo(opt.key); }}
+                className="relative text-left transition-all hover:scale-[1.01] rounded-lg"
+                style={{
+                  background: "rgba(8,15,20,0.6)",
+                  border: active ? "2px solid rgba(103,232,249,0.6)" : "2px solid rgba(128,128,128,0.2)",
+                  boxShadow: active ? "0 0 16px rgba(103,232,249,0.15)" : "none",
+                  padding: 14,
+                }}
+              >
+                {active && (
+                  <div className="absolute top-2.5 right-2.5">
+                    <Check size={14} className="text-cyan-300" />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  {/* Mini-preview: imersivo = globo solto no espaço; clássico = globo emoldurado */}
+                  <span
+                    className="grid place-items-center"
+                    style={{
+                      width: 34, height: 34,
+                      border: opt.key === "classico" ? "1px solid rgba(103,232,249,0.5)" : "1px solid transparent",
+                      background: opt.key === "imersivo" ? "radial-gradient(circle at 30% 30%, rgba(103,232,249,0.12), transparent 70%)" : "transparent",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: opt.key === "imersivo" ? 10 : 20,
+                        height: opt.key === "imersivo" ? 10 : 20,
+                        borderRadius: 999,
+                        background: "radial-gradient(circle at 35% 30%, #38bdf8, #0369a1 60%, #082f49)",
+                        boxShadow: "0 0 8px rgba(56,189,248,0.5)",
+                      }}
+                    />
+                  </span>
+                  <span className="font-mono text-sm font-bold text-zinc-200">{opt.label}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-zinc-500">{opt.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1971,7 +2037,7 @@ export default function ConfiguracoesPage() {
           <PasswordSection />
         </SectionCard>
 
-        <SectionCard title="Tema do Sistema" icon={<Palette size={16} />}>
+        <SectionCard title="Preferências do Sistema" icon={<Palette size={16} />}>
           <ThemeSection />
         </SectionCard>
 
