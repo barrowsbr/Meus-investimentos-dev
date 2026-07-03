@@ -453,22 +453,31 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
+  const [copied, setCopied] = useState(false);
   // Cor + rótulo derivam da categoria da zona (id começa com o tema).
   const cat = zoneCategory(zone.id);
   const col = LAYER_COLOR[cat];
   const kind = cat === "protestos" ? "Protesto Ativo" : cat === "desastres" ? "Alerta Ativo" : "Conflito Ativo";
-  // Contexto para a IA: desastres vêm com `detail` pronto (USGS/EONET); conflitos
-  // e protestos vêm do GDELT (volume de menções).
-  const ctx = zone.detail
-    ? ` (${zone.detail}${zone.source ? `, via ${zone.source}` : ""})`
-    : zone.events
-      ? ` (GDELT: ${zone.events} menções em notícias nos últimos ${zone.periodDias ?? 7} dias)`
-      : "";
-  const aiQuery = `Analise a situação: "${zone.name}"${ctx}. Quais os impactos econômicos e geopolíticos atuais e como está afetando os mercados financeiros da região e as bolsas globais?`;
+  // Pergunta enxuta: só explicar o que está acontecendo, de forma sintética e
+  // precisa. Contexto extra apenas quando útil (magnitude/tipo do desastre).
+  const ctx = zone.detail ? ` (${zone.detail})` : "";
+  const question = `Explique de forma sintética e precisa o que está acontecendo agora: ${zone.name}${ctx}.`;
+  // Direciona para o site do Gemini (plano pago do dono). O prefill por URL não
+  // é garantido no Gemini, então também copiamos a pergunta ao clicar — assim
+  // basta colar. Abre em nova aba para não perder o dashboard.
+  const geminiUrl = `https://gemini.google.com/app?q=${encodeURIComponent(question)}`;
+  const handleClick = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(question).then(() => setCopied(true)).catch(() => {});
+    }
+  };
 
   return (
     <a
-      href={`/agente-ia?q=${encodeURIComponent(aiQuery)}`}
+      href={geminiUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={handleClick}
       className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[220px] block cursor-pointer transition-all duration-200 hover:brightness-125"
       style={{
         background: "rgba(13,14,20,0.92)",
@@ -522,7 +531,9 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
       )}
 
       <div className="flex items-center justify-center gap-1.5 pt-1.5" style={{ borderTop: `1px solid ${col}26` }}>
-        <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: `${col}b3` }}>Perguntar à IA →</span>
+        <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: copied ? "#34d399" : `${col}b3` }}>
+          {copied ? "✓ Pergunta copiada — cole no Gemini" : "Explicar no Gemini →"}
+        </span>
       </div>
     </a>
   );
