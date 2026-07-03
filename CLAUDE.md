@@ -222,6 +222,11 @@ Registro de entradas, saídas e gastos com cartão.
   mesmo com tudo já mergeado. O force-with-lease é seguro aqui: a branch só contém
   história já mergeada.
 - Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
+- **Preview da branch DESLIGADO** (`vercel.json` → `git.deploymentEnabled` com a
+  branch = `false`): antes cada tarefa gerava 2-3 deploys (Preview do push + Production
+  do merge + Preview do force-push de sync), queimando a cota do Hobby e poluindo.
+  Agora só a `main` faz deploy (1 por tarefa). Não reativar sem motivo; se precisar
+  ver um preview específico, ligar pontualmente e desligar depois.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
 - **Vercel é plano HOBBY (regra dura de deploy)**: cron só pode rodar **1×/dia**
   (schedule sub-diário como `0 * * * *` FAZ O BUILD DE PRODUÇÃO FALHAR — e como o
