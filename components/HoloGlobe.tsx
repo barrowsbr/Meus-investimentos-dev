@@ -436,9 +436,9 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
-  // Contexto ao vivo da ACLED (quando disponível) deixa a pergunta bem mais específica.
+  // Contexto ao vivo do GDELT (quando disponível) deixa a pergunta bem mais específica.
   const ctx = zone.events
-    ? ` (dados ACLED: ${zone.events} eventos violentos${zone.fatalities ? ` e ${zone.fatalities} mortes` : ""} nos últimos ${zone.periodDias ?? 30} dias)`
+    ? ` (GDELT: ${zone.events} menções de conflito em notícias nos últimos ${zone.periodDias ?? 7} dias)`
     : "";
   const aiQuery = `Analise o conflito "${zone.name}"${ctx}: quais os impactos econômicos e geopolíticos atuais? Como está afetando os mercados financeiros da região e as bolsas globais?`;
 
@@ -460,8 +460,8 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
       <p className="text-[12px] font-bold text-white leading-snug mb-1">{zone.name}</p>
       {zone.events != null && (
         <p className="text-[9px] text-red-300/80 font-mono mb-2">
-          {zone.events} eventos{zone.fatalities ? ` · ${zone.fatalities} mortes` : ""} · {zone.periodDias ?? 30}d
-          <span className="text-zinc-600"> · ACLED</span>
+          {zone.events} menções · {zone.periodDias ?? 7}d
+          <span className="text-zinc-600"> · GDELT</span>
         </p>
       )}
 
