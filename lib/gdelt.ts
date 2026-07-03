@@ -2,7 +2,8 @@
 // Fundação GDELT (aberto, sem key) compartilhada por:
 //  • Buzz & Sentimento de um ativo (Renda Variável) — timelinevol + timelinetone
 //  • Termômetro/visão GDELT do Radar — tom e volume globais + focos
-//  • Camadas do globo — GEO 2.0 (ver lib/globe-conflicts.ts)
+//  • Camadas do globo — GDELT Events 2.0 (ver lib/globe-conflicts.ts;
+//    a API GEO 2.0 foi aposentada — 404 universal)
 //
 // DOC 2.0 API: https://api.gdeltproject.org/api/v2/doc/doc
 //   mode=timelinevol  → "Volume Intensity" (% da cobertura global) por dia

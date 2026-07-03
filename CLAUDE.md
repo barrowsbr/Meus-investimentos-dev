@@ -69,9 +69,13 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
    - **Opcionais**: `APP_PASSWORD` (tela de senha/AuthGate), `ALPHAVANTAGE_API_KEY` (holdings de ETFs US),
      `OPENAI_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` (cascata do agente IA),
      `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (notícias),
-     (zonas de conflito ao vivo no HoloGlobe vêm do GDELT GEO 2.0 — aberto, SEM
-     key; ACLED foi descartado porque o tier gratuito de e-mail pessoal não dá
-     acesso à API),
+     (conflitos/protestos ao vivo no HoloGlobe vêm do **GDELT Events 2.0** —
+     arquivos CSV de 15 min em data.gdeltproject.org, abertos, SEM key, filtrados
+     por código CAMEO em `lib/gdelt-events.ts`; desastres vêm de NASA EONET +
+     USGS. A API GDELT **GEO 2.0 foi APOSENTADA** — devolve 404 para qualquer
+     query, NÃO tentar de novo; a DOC 2.0 segue viva mas limita 1 req/5s, ver
+     `lib/gdelt-fetch.ts`. ACLED foi descartado porque o tier gratuito de e-mail
+     pessoal não dá acesso à API),
      `TELEGRAM_BOT_TOKEN` (alertas determinísticos — DARF/DIRPF/alavancagem — e o
      resumo do dia em imagem via cron; a env var tem prioridade, mas o token
      também pode ser salvo em Configurações — aba `alertas_config`, nunca reenviado
