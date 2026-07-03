@@ -79,6 +79,27 @@ function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   );
 }
 
+// ── Sol real — ponto subsolar (lat/lng onde o Sol está a pino) em UTC ────────
+// Astronomia de baixa precisão (±0,1°, sobra para visual): longitude eclíptica
+// do Sol → declinação (lat) e, via equação do tempo, a longitude onde o meio-
+// dia solar é agora. Posicionar o Sol nessa direção (no MESMO frame geográfico
+// dos marcadores) dá o terminador dia/noite correto em tempo real.
+function subsolarPoint(now: Date): { lat: number; lng: number } {
+  const RAD = Math.PI / 180;
+  const d = (now.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000; // dias desde J2000
+  const g = (357.528 + 0.9856003 * d) * RAD;                  // anomalia média
+  const L = 280.46 + 0.9856474 * d;                           // longitude média (°)
+  const lambda = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * RAD; // long. eclíptica
+  const eps = 23.439 * RAD;                                   // obliquidade
+  const lat = Math.asin(Math.sin(eps) * Math.sin(lambda)) / RAD; // declinação = lat subsolar
+  const alpha = Math.atan2(Math.cos(eps) * Math.sin(lambda), Math.cos(lambda)) / RAD; // ascensão reta (°)
+  const eot = ((L - alpha) % 360 + 540) % 360 - 180;          // equação do tempo (°)
+  const utcH = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+  let lng = 15 * (12 - utcH) - eot;                           // long. do meio-dia solar
+  lng = ((lng + 540) % 360) - 180;
+  return { lat, lng };
+}
+
 function heatHex(pct: number): string {
   const t = Math.max(0, Math.min(1, (pct + 4) / 8));
   let r: number, g: number, b: number;
@@ -106,15 +127,17 @@ function fmtPrice(price: number): string {
 const EARTH_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-blue-marble.jpg";
 const BUMP_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-topology.png";
 const WATER_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-water.png";
+const NIGHT_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-night.jpg";
 
-function EarthSphere({ radius }: { radius: number }) {
-  const [color, bump, water] = useTexture([EARTH_TEX, BUMP_TEX, WATER_TEX]);
+function EarthSphere({ radius, night = false }: { radius: number; night?: boolean }) {
+  // `night` (imersivo): luzes de cidade como emissivo — brilham onde o Sol não
+  // alcança. A lista de texturas muda com a variante, mas a variante nunca muda
+  // com a cena montada (o Canvas remonta ao trocar de estilo).
+  const textures = useTexture(night ? [EARTH_TEX, BUMP_TEX, WATER_TEX, NIGHT_TEX] : [EARTH_TEX, BUMP_TEX, WATER_TEX]);
+  const [color, bump, water, nightMap] = textures;
   useMemo(() => {
-    const maxAniso = 8;
-    color.anisotropy = maxAniso;
-    bump.anisotropy = maxAniso;
-    water.anisotropy = maxAniso;
-  }, [color, bump, water]);
+    for (const t of textures) t.anisotropy = 8;
+  }, [textures]);
 
   return (
     <mesh>
@@ -127,6 +150,9 @@ function EarthSphere({ radius }: { radius: number }) {
         roughness={0.85}
         metalness={0.08}
         envMapIntensity={0.6}
+        emissiveMap={night ? nightMap : undefined}
+        emissive={night ? "#ffffff" : "#000000"}
+        emissiveIntensity={night ? 0.55 : 0}
       />
     </mesh>
   );
@@ -134,22 +160,34 @@ function EarthSphere({ radius }: { radius: number }) {
 
 // ── Atmosphere glow ──────────────────────────────────────────────────────────
 
-function Atmosphere({ radius }: { radius: number }) {
+// Com Sol real (sunDirRef), a atmosfera clareia no lado iluminado e quase some
+// no lado noturno — um halo uniforme denunciaria que a luz é fake.
+function Atmosphere({ radius, sunDirRef }: { radius: number; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
   const mat = useMemo(() => {
     return new THREE.ShaderMaterial({
+      uniforms: {
+        uSunDir: { value: new THREE.Vector3(1, 0, 0) },
+        uReal: { value: sunDirRef ? 1 : 0 },
+      },
       vertexShader: `
         varying vec3 vNormal;
+        varying vec3 vWorldNormal;
         void main() {
           vNormal = normalize(normalMatrix * normal);
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
+        uniform vec3 uSunDir;
+        uniform float uReal;
         varying vec3 vNormal;
+        varying vec3 vWorldNormal;
         void main() {
           float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-          vec3 atmosphere = vec3(0.3, 0.6, 1.0) * intensity;
-          gl_FragColor = vec4(atmosphere, intensity * 0.65);
+          float day = mix(1.0, 0.18 + 0.95 * smoothstep(-0.25, 0.55, dot(vWorldNormal, uSunDir)), uReal);
+          vec3 atmosphere = vec3(0.3, 0.6, 1.0) * intensity * day;
+          gl_FragColor = vec4(atmosphere, intensity * 0.65 * day);
         }
       `,
       blending: THREE.AdditiveBlending,
@@ -157,7 +195,12 @@ function Atmosphere({ radius }: { radius: number }) {
       transparent: true,
       depthWrite: false,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useFrame(() => {
+    if (sunDirRef) mat.uniforms.uSunDir.value.copy(sunDirRef.current);
+  });
 
   return (
     <mesh scale={[1.12, 1.12, 1.12]}>
@@ -559,9 +602,32 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
     });
   }, [onSelect, markets]);
 
-  useFrame((_, delta) => {
+  // Sol real (imersivo): âncora posicionada no ponto subsolar dentro do MESMO
+  // grupo que gira com a Terra — o terminador dia/noite fica geograficamente
+  // correto mesmo com o giro estético do globo. A luz principal vive na âncora
+  // (aponta para a origem); o "luar" azulado vive na âncora oposta.
+  const SUN_DIST = 40;
+  const sunAnchorRef = useRef<THREE.Group>(null);
+  const fillAnchorRef = useRef<THREE.Group>(null);
+  const sunDirWorld = useRef(new THREE.Vector3(1, 0, 0));
+  const lastSunUpdate = useRef(-Infinity);
+  const sunGlowTex = useMemo(makeGlowTexture, []);
+  useEffect(() => () => { sunGlowTex.dispose(); }, [sunGlowTex]);
+
+  useFrame(({ clock }, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * (selectedId ? 0.015 : 0.06);
+    }
+    if (!classic && sunAnchorRef.current) {
+      // O ponto subsolar anda ~0,25°/min — recalcular a cada 10s já é contínuo.
+      if (clock.elapsedTime - lastSunUpdate.current > 10) {
+        lastSunUpdate.current = clock.elapsedTime;
+        const { lat, lng } = subsolarPoint(new Date());
+        sunAnchorRef.current.position.copy(latLngToVec3(lat, lng, SUN_DIST));
+        fillAnchorRef.current?.position.copy(latLngToVec3(-lat, lng + 180, SUN_DIST));
+      }
+      // Direção do Sol no mundo (p/ a atmosfera) — acompanha o giro do grupo.
+      sunAnchorRef.current.getWorldPosition(sunDirWorld.current).normalize();
     }
     if (!introDone.current) {
       camera.position.lerp(INTRO_TO, 1 - Math.exp(-2.2 * delta));
@@ -578,10 +644,19 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
 
   return (
     <>
-      <ambientLight intensity={1.0} />
-      <directionalLight position={[5, 3, 5]} intensity={1.8} color="#fffdf0" />
-      <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
-      <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
+      {classic ? (
+        <>
+          <ambientLight intensity={1.0} />
+          <directionalLight position={[5, 3, 5]} intensity={1.8} color="#fffdf0" />
+          <directionalLight position={[-3, -1, -4]} intensity={0.5} color="#a0c4ff" />
+          <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
+        </>
+      ) : (
+        // Imersivo: quem ilumina é o SOL (na âncora subsolar). Ambiente mínimo
+        // para o lado noturno não virar breu total — as luzes de cidade
+        // (emissiveMap) fazem o resto.
+        <ambientLight intensity={0.16} />
+      )}
 
       {!classic && <SpaceEnvironment />}
 
@@ -589,8 +664,30 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
           gira reto, como era antes. */}
       <group rotation={[0, 0, classic ? 0 : -0.41]}>
         <group ref={groupRef}>
-          <EarthSphere radius={R} />
-          <Atmosphere radius={R} />
+          {!classic && (
+            <>
+              {/* O Sol: luz principal + disco/halos aditivos, no ponto subsolar */}
+              <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
+                <directionalLight intensity={2.6} color="#fff3d6" />
+                <sprite scale={[30, 30, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
+                <sprite scale={[12, 12, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
+                <sprite scale={[5, 5, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#fff9e8" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
+              </group>
+              {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol */}
+              <group ref={fillAnchorRef} position={[-SUN_DIST, 0, 0]}>
+                <directionalLight intensity={0.22} color="#7d95c9" />
+              </group>
+            </>
+          )}
+
+          <EarthSphere radius={R} night={!classic} />
+          <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} />
 
           {markets.filter(m => m.symbol !== "^VIX").map(m => (
             <MarkerPoint
