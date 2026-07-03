@@ -11,14 +11,15 @@ export async function GET() {
   try {
     const live = await fetchAcledConflicts();
     const usingLive = live.length > 0;
+    const source = usingLive ? "acled" : "fallback";
     return NextResponse.json(
-      { zones: usingLive ? live : FALLBACK_ZONES, source: usingLive ? "acled" : "fallback" },
-      { headers: { "Cache-Control": "s-maxage=21600, stale-while-revalidate=43200" } },
+      { zones: usingLive ? live : FALLBACK_ZONES, source, count: usingLive ? live.length : FALLBACK_ZONES.length },
+      { headers: { "Cache-Control": "s-maxage=21600, stale-while-revalidate=43200", "X-Conflicts-Source": source } },
     );
   } catch (e) {
     return NextResponse.json(
       { zones: FALLBACK_ZONES, source: "fallback", error: e instanceof Error ? e.message : "erro" },
-      { headers: { "Cache-Control": "s-maxage=600" } },
+      { headers: { "Cache-Control": "s-maxage=600", "X-Conflicts-Source": "fallback-error" } },
     );
   }
 }
