@@ -94,6 +94,41 @@ function subsolarPoint(now: Date): { lat: number; lng: number } {
   return { lat, lng };
 }
 
+// ── Lua real — posição de baixa precisão (~1°, sobra para visual) ────────────
+// Devolve a direção da Lua no MESMO frame fixo do Sol: lat = declinação e
+// refLng = deslocamento de longitude em relação ao Sol (αsol − αlua). Como a
+// luz direcional do Sol ilumina a cena toda, a FASE da Lua sai correta de
+// graça — lua cheia quando oposta ao Sol, nova quando alinhada.
+function moonPoint(now: Date): { lat: number; refLng: number } {
+  const RAD = Math.PI / 180;
+  const d = (now.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000;
+  const eps = 23.439 * RAD;
+
+  // α do Sol (mesmas contas do subsolarPoint)
+  const gs = (357.528 + 0.9856003 * d) * RAD;
+  const Ls = 280.46 + 0.9856474 * d;
+  const lamS = (Ls + 1.915 * Math.sin(gs) + 0.02 * Math.sin(2 * gs)) * RAD;
+  const alphaS = Math.atan2(Math.cos(eps) * Math.sin(lamS), Math.cos(lamS)) / RAD;
+
+  // Lua: longitude/latitude eclípticas (termos principais)
+  const Lp = 218.316 + 13.176396 * d;   // longitude média
+  const Mm = (134.963 + 13.064993 * d) * RAD; // anomalia média
+  const F = (93.272 + 13.22935 * d) * RAD;    // argumento da latitude
+  const lamM = (Lp + 6.289 * Math.sin(Mm)) * RAD;
+  const betM = 5.128 * Math.sin(F) * RAD;
+
+  // Eclíptica → equatorial
+  const sinDec = Math.sin(betM) * Math.cos(eps) + Math.cos(betM) * Math.sin(eps) * Math.sin(lamM);
+  const lat = Math.asin(sinDec) / RAD;
+  const alphaM = Math.atan2(
+    Math.sin(lamM) * Math.cos(eps) - Math.tan(betM) * Math.sin(eps),
+    Math.cos(lamM),
+  ) / RAD;
+
+  const refLng = ((alphaS - alphaM) % 360 + 540) % 360 - 180;
+  return { lat, refLng };
+}
+
 function heatHex(pct: number): string {
   const t = Math.max(0, Math.min(1, (pct + 4) / 8));
   let r: number, g: number, b: number;
@@ -146,7 +181,7 @@ function EarthSphere({ radius, night = false }: { radius: number; night?: boolea
         envMapIntensity={0.6}
         emissiveMap={night ? nightMap : undefined}
         emissive={night ? "#ffffff" : "#000000"}
-        emissiveIntensity={night ? 0.55 : 0}
+        emissiveIntensity={night ? 0.95 : 0}
       />
     </mesh>
   );
@@ -327,13 +362,26 @@ function makeGlowTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-// Nebulosas: cores escuras + blending aditivo = brilho suave, não "algodão doce".
-const NEBULAS: { pos: [number, number, number]; scale: number; color: string; opacity: number }[] = [
-  { pos: [-30, 14, -44], scale: 58, color: "#24457f", opacity: 0.36 },
-  { pos: [40, -8, -30], scale: 46, color: "#0d5d6e", opacity: 0.32 },
-  { pos: [8, 32, 38], scale: 50, color: "#472a6b", opacity: 0.3 },
-  { pos: [-36, -26, 22], scale: 40, color: "#5c2333", opacity: 0.2 },
-];
+
+// Céu REAL de fundo: panorama estelar equiretangular (Via Láctea de verdade),
+// numa esfera gigante vista por dentro. As estrelas procedurais ficam POR CIMA
+// só para dar cintilação e profundidade; a banda/nebulosas fake saíram — o
+// panorama já traz as de verdade.
+const SKY_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/night-sky.png";
+
+function SkySphere() {
+  const tex = useTexture(SKY_TEX);
+  useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+  }, [tex]);
+  return (
+    <mesh scale={[-1, 1, 1]} renderOrder={-2}>
+      <sphereGeometry args={[90, 48, 48]} />
+      <meshBasicMaterial map={tex} side={THREE.BackSide} depthWrite={false} />
+    </mesh>
+  );
+}
 
 function SpaceEnvironment() {
   const starMat = useMemo(() => new THREE.ShaderMaterial({
@@ -344,46 +392,45 @@ function SpaceEnvironment() {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   }), []);
-  const skyGeo = useMemo(() => buildStarGeometry(2200, "sky"), []);
-  const bandGeo = useMemo(() => buildStarGeometry(900, "band"), []);
+  const skyGeo = useMemo(() => buildStarGeometry(1400, "sky"), []);
   const dustGeo = useMemo(() => buildStarGeometry(160, "dust"), []);
-  const glowTex = useMemo(makeGlowTexture, []);
 
   useEffect(() => () => {
-    skyGeo.dispose(); bandGeo.dispose(); dustGeo.dispose();
-    starMat.dispose(); glowTex.dispose();
-  }, [skyGeo, bandGeo, dustGeo, starMat, glowTex]);
+    skyGeo.dispose(); dustGeo.dispose(); starMat.dispose();
+  }, [skyGeo, dustGeo, starMat]);
 
   useFrame(({ clock }) => {
     // Só a cintilação anima; o CÉU FICA PARADO — no modelo físico (Sol fixo,
-    // Terra girando 1 volta/24h) as estrelas não orbitam a Terra. A deriva
-    // estética que existia aqui quebrava exatamente isso.
+    // Terra girando 1 volta/24h) as estrelas não orbitam a Terra.
     starMat.uniforms.uTime.value = clock.getElapsedTime();
   });
 
   return (
     <group>
+      <SkySphere />
       <points geometry={skyGeo} material={starMat} />
       <points geometry={dustGeo} material={starMat} />
+    </group>
+  );
+}
 
-      {/* Via Láctea: banda de estrelas + brilhos alongados, plano inclinado */}
-      <group rotation={[1.02, 0, 0.42]}>
-        <points geometry={bandGeo} material={starMat} />
-        {[0, 1, 2, 3].map(i => {
-          const ang = (i / 4) * Math.PI * 2 + 0.4;
-          return (
-            <sprite key={i} position={[Math.cos(ang) * 52, 0, Math.sin(ang) * 52]} scale={[74, 20, 1]}>
-              <spriteMaterial map={glowTex} color="#8ea6c8" transparent opacity={0.075} blending={THREE.AdditiveBlending} depthWrite={false} />
-            </sprite>
-          );
-        })}
-      </group>
+// ── Lua ──────────────────────────────────────────────────────────────────────
+// Companheira do globo: posição real (moonPoint) no mesmo frame fixo do Sol, e
+// como quem ilumina é a MESMA luz direcional do Sol, a fase aparece correta
+// (cheia oposta ao Sol, nova alinhada). Escala cinematográfica: proporção real
+// de tamanho (0,27×Terra), distância comprimida para caber na cena.
+const MOON_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/lunar_surface.jpg";
+const MOON_DIST = 12;
 
-      {NEBULAS.map((n, i) => (
-        <sprite key={i} position={n.pos} scale={[n.scale, n.scale * 0.8, 1]}>
-          <spriteMaterial map={glowTex} color={n.color} transparent opacity={n.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
-        </sprite>
-      ))}
+function Moon({ anchorRef }: { anchorRef: React.RefObject<THREE.Group> }) {
+  const tex = useTexture(MOON_TEX);
+  useMemo(() => { tex.anisotropy = 8; }, [tex]);
+  return (
+    <group ref={anchorRef} position={[MOON_DIST, 0, -4]}>
+      <mesh>
+        <sphereGeometry args={[0.27, 48, 48]} />
+        <meshStandardMaterial map={tex} roughness={1} metalness={0} />
+      </mesh>
     </group>
   );
 }
@@ -608,6 +655,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
   const RAD = Math.PI / 180;
   const sunAnchorRef = useRef<THREE.Group>(null);
   const fillAnchorRef = useRef<THREE.Group>(null);
+  const moonAnchorRef = useRef<THREE.Group>(null);
   const sunDirWorld = useRef(new THREE.Vector3(1, 0, 0));
   const lastSunUpdate = useRef(-Infinity);
   const sunGlowTex = useMemo(makeGlowTexture, []);
@@ -623,10 +671,16 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
       // Recalcular a cada 10s basta: a Terra anda 0,04° nesse intervalo.
       if (clock.elapsedTime - lastSunUpdate.current > 10) {
         lastSunUpdate.current = clock.elapsedTime;
-        const { lat, lng } = subsolarPoint(new Date());
+        const now = new Date();
+        const { lat, lng } = subsolarPoint(now);
         groupRef.current.rotation.y = -lng * RAD;                       // Terra: ângulo real
         sunAnchorRef.current.position.copy(latLngToVec3(lat, 0, SUN_DIST));       // Sol fixo
         fillAnchorRef.current?.position.copy(latLngToVec3(-lat, 180, SUN_DIST));  // anti-sol
+        if (moonAnchorRef.current) {
+          const m = moonPoint(now);
+          moonAnchorRef.current.position.copy(latLngToVec3(m.lat, m.refLng, MOON_DIST));
+          moonAnchorRef.current.lookAt(0, 0, 0); // face travada para a Terra
+        }
       }
       // Direção do Sol no mundo (p/ a atmosfera).
       sunAnchorRef.current.getWorldPosition(sunDirWorld.current).normalize();
@@ -657,7 +711,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
         // Imersivo: quem ilumina é o SOL (na âncora subsolar). Ambiente mínimo
         // para o lado noturno não virar breu total — as luzes de cidade
         // (emissiveMap) fazem o resto.
-        <ambientLight intensity={0.16} />
+        <ambientLight intensity={0.12} />
       )}
 
       {!classic && <SpaceEnvironment />}
@@ -682,10 +736,15 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
                 <spriteMaterial map={sunGlowTex} color="#fff9e8" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
             </group>
-            {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol */}
+            {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol.
+                Mais fraco que antes: a noite escura faz as luzes de cidade
+                brilharem de verdade. */}
             <group ref={fillAnchorRef} position={[-SUN_DIST, 0, 0]}>
-              <directionalLight intensity={0.22} color="#7d95c9" />
+              <directionalLight intensity={0.1} color="#7d95c9" />
             </group>
+
+            {/* A Lua — posição e fase reais */}
+            <Moon anchorRef={moonAnchorRef} />
           </>
         )}
 
@@ -2253,11 +2312,15 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
     return () => { cancelled = true; };
   }, [mode]);
 
-  // Force canvas to recalculate viewport after mount
+  // Re-mede o canvas DEPOIS da animação de escala do palco (0.74s): o r3f mede
+  // via getBoundingClientRect, que é afetado pelo transform — medir no meio da
+  // animação deixa o buffer MENOR que a tela (render "recortado" no canto).
+  // O transform não dispara ResizeObserver, então forçamos re-medições em
+  // instantes que cobrem o fim da animação (e uma tardia p/ devices lentos).
   useEffect(() => {
     if (visible) {
-      const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 120);
-      return () => clearTimeout(t);
+      const ts = [150, 900, 2200].map(ms => setTimeout(() => window.dispatchEvent(new Event("resize")), ms));
+      return () => ts.forEach(clearTimeout);
     }
   }, [visible]);
 
