@@ -42,6 +42,18 @@ const FALLBACK_CONFLICT_ZONES: ConflictZone[] = [
   { id: "red-sea", name: "Crise no Mar Vermelho (Houthis)", lat: 14.5, lng: 42.5, nearbyMarkets: ["^CASE30", "^BSESN", "^TA125.TA"] },
 ];
 
+// Categoria de uma zona a partir do id (as três camadas convivem no globo ao
+// mesmo tempo; a cor de cada ponto vem da sua própria categoria). Zonas curadas
+// de reserva (ids "ukraine", "red-sea"…) caem no default = conflito.
+type ZoneCategory = "conflitos" | "protestos" | "desastres";
+const LAYER_COLOR: Record<ZoneCategory, string> = { conflitos: "#ff4444", protestos: "#f59e0b", desastres: "#38bdf8" };
+function zoneCategory(id: string): ZoneCategory {
+  if (id.startsWith("protestos")) return "protestos";
+  if (id.startsWith("desastres")) return "desastres";
+  return "conflitos";
+}
+function zoneColor(id: string): string { return LAYER_COLOR[zoneCategory(id)]; }
+
 type SelectedItem =
   | { type: "market"; data: MarketPoint }
   | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
@@ -317,7 +329,7 @@ function ConflictMarker({
 
 // ── Scene ────────────────────────────────────────────────────────────────────
 
-function GlobeScene({ markets, conflicts, conflictColor, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; conflictColor: string; onSelect: (item: SelectedItem | null) => void }) {
+function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -371,7 +383,7 @@ function GlobeScene({ markets, conflicts, conflictColor, onSelect }: { markets: 
           <ConflictMarker
             key={z.id}
             zone={z}
-            color={conflictColor}
+            color={zoneColor(z.id)}
             radius={R + 0.005}
             isSelected={selectedId === z.id}
             onSelect={handleSelectConflict}
@@ -441,11 +453,10 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
-  // Cor + rótulo derivam do tema (o id da zona começa com o tema).
-  const isProtesto = zone.id.startsWith("protestos");
-  const isDesastre = zone.id.startsWith("desastres");
-  const col = isProtesto ? "#f59e0b" : isDesastre ? "#38bdf8" : "#ff4444";
-  const kind = isProtesto ? "Protesto Ativo" : isDesastre ? "Alerta Ativo" : "Conflito Ativo";
+  // Cor + rótulo derivam da categoria da zona (id começa com o tema).
+  const cat = zoneCategory(zone.id);
+  const col = LAYER_COLOR[cat];
+  const kind = cat === "protestos" ? "Protesto Ativo" : cat === "desastres" ? "Alerta Ativo" : "Conflito Ativo";
   // Contexto para a IA: desastres vêm com `detail` pronto (USGS/EONET); conflitos
   // e protestos vêm do GDELT (volume de menções).
   const ctx = zone.detail
@@ -1809,9 +1820,7 @@ const GLOBE_LAYERS = [
 export default function HoloGlobe({ mode }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
-  const [activeLayer, setActiveLayer] = useState<string>("conflitos");
   const [selected, setSelected] = useState<SelectedItem | null>(null);
-  const layerColor = GLOBE_LAYERS.find(l => l.id === activeLayer)?.color ?? "#ff4444";
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
   const [displayMode, setDisplayMode] = useState<"globe" | "blackhole" | PlanetMode>("globe");
@@ -1864,21 +1873,27 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Focos da camada ativa (GDELT) — refaz ao trocar de camada. Camada "conflitos"
-  // tem fallback curado; as outras somem se não vier dado (sem quebrar o globo).
+  // Focos de TODAS as camadas ao mesmo tempo (conflitos + protestos + desastres),
+  // convivendo no globo — cada ponto pinta pela sua própria categoria. Busca as
+  // três em paralelo, mescla e limita por camada para não poluir. Se tudo vier
+  // vazio (rede fora), cai na lista curada de conflitos.
   useEffect(() => {
     if (mode !== "globe") return;
     let cancelled = false;
-    fetch(`/api/globe/conflicts?theme=${activeLayer}`)
-      .then(r => r.json())
-      .then(d => {
-        if (cancelled) return;
-        const zones = Array.isArray(d?.zones) ? (d.zones as ConflictZone[]) : [];
-        setConflicts(zones.length > 0 ? zones : (activeLayer === "conflitos" ? FALLBACK_CONFLICT_ZONES : []));
-      })
-      .catch(() => { if (!cancelled && activeLayer === "conflitos") setConflicts(FALLBACK_CONFLICT_ZONES); });
+    const CAP: Record<string, number> = { conflitos: 10, protestos: 8, desastres: 10 };
+    Promise.all(GLOBE_LAYERS.map(l =>
+      fetch(`/api/globe/conflicts?theme=${l.id}`)
+        .then(r => r.json())
+        .then(d => (Array.isArray(d?.zones) ? (d.zones as ConflictZone[]) : []).slice(0, CAP[l.id] ?? 10))
+        .catch(() => [] as ConflictZone[])
+    )).then(groups => {
+      if (cancelled) return;
+      const seen = new Set<string>();
+      const merged = groups.flat().filter(z => (seen.has(z.id) ? false : (seen.add(z.id), true)));
+      setConflicts(merged.length > 0 ? merged : FALLBACK_CONFLICT_ZONES);
+    });
     return () => { cancelled = true; };
-  }, [mode, activeLayer]);
+  }, [mode]);
 
   // Force canvas to recalculate viewport after mount
   useEffect(() => {
@@ -1925,32 +1940,29 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             ) : isPlanet ? (
               <PlanetSceneContent planet={displayMode as PlanetMode} />
             ) : (
-              <GlobeScene markets={markets} conflicts={conflicts} conflictColor={layerColor} onSelect={setSelected} />
+              <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
             )}
           </React.Suspense>
         </Canvas>
       </div>
 
-      {/* Switcher de camadas GDELT (só no globo) */}
+      {/* Legenda das camadas (todas convivem no globo — não filtra, só orienta a
+          leitura das cores; mostra a contagem de focos de cada categoria). */}
       {displayMode === "globe" && (
-        <div className="flex items-center justify-center gap-1.5 mt-1">
+        <div className="flex items-center justify-center gap-2.5 mt-1">
           {GLOBE_LAYERS.map(l => {
-            const on = activeLayer === l.id;
+            const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
+            const dim = n === 0;
             return (
-              <button
+              <div
                 key={l.id}
-                onClick={() => setActiveLayer(l.id)}
-                className="flex items-center gap-1 rounded-full transition-all"
-                style={{
-                  padding: "3px 9px", fontSize: 9, fontWeight: 700, letterSpacing: ".04em",
-                  border: `1px solid ${on ? l.color : "rgba(255,255,255,0.1)"}`,
-                  background: on ? `${l.color}22` : "transparent",
-                  color: on ? l.color : "#71717a",
-                }}
+                className="flex items-center gap-1"
+                style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
               >
-                <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: on ? 1 : 0.5 }} />
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
                 {l.label}
-              </button>
+                {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
+              </div>
             );
           })}
         </div>
