@@ -602,11 +602,16 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
     });
   }, [onSelect, markets]);
 
-  // Sol real (imersivo): âncora posicionada no ponto subsolar dentro do MESMO
-  // grupo que gira com a Terra — o terminador dia/noite fica geograficamente
-  // correto mesmo com o giro estético do globo. A luz principal vive na âncora
-  // (aponta para a origem); o "luar" azulado vive na âncora oposta.
+  // Sol real (imersivo) — modelo FÍSICO: o Sol fica PARADO no mundo e a TERRA
+  // gira 1 volta a cada 24h (real; ~0,004°/s — sem movimento visível, como na
+  // vida). O Sol vive fora do grupo de rotação, numa longitude de referência
+  // fixa (0 → direção +x); o ângulo da Terra é ABSOLUTO, derivado do ponto
+  // subsolar: rotation.y = −lngSubsolar. Assim o meridiano do meio-dia sempre
+  // encara o Sol, o terminador fica exato e a rotação real vem de graça
+  // (a longitude subsolar anda 15°/h). A declinação sazonal vira a altura do
+  // Sol (lat na longitude de referência).
   const SUN_DIST = 40;
+  const RAD = Math.PI / 180;
   const sunAnchorRef = useRef<THREE.Group>(null);
   const fillAnchorRef = useRef<THREE.Group>(null);
   const sunDirWorld = useRef(new THREE.Vector3(1, 0, 0));
@@ -615,18 +620,21 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
   useEffect(() => () => { sunGlowTex.dispose(); }, [sunGlowTex]);
 
   useFrame(({ clock }, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * (selectedId ? 0.015 : 0.06);
-    }
-    if (!classic && sunAnchorRef.current) {
-      // O ponto subsolar anda ~0,25°/min — recalcular a cada 10s já é contínuo.
+    if (classic) {
+      // Clássico mantém o giro estético de antes.
+      if (groupRef.current) {
+        groupRef.current.rotation.y += delta * (selectedId ? 0.015 : 0.06);
+      }
+    } else if (sunAnchorRef.current && groupRef.current) {
+      // Recalcular a cada 10s basta: a Terra anda 0,04° nesse intervalo.
       if (clock.elapsedTime - lastSunUpdate.current > 10) {
         lastSunUpdate.current = clock.elapsedTime;
         const { lat, lng } = subsolarPoint(new Date());
-        sunAnchorRef.current.position.copy(latLngToVec3(lat, lng, SUN_DIST));
-        fillAnchorRef.current?.position.copy(latLngToVec3(-lat, lng + 180, SUN_DIST));
+        groupRef.current.rotation.y = -lng * RAD;                       // Terra: ângulo real
+        sunAnchorRef.current.position.copy(latLngToVec3(lat, 0, SUN_DIST));       // Sol fixo
+        fillAnchorRef.current?.position.copy(latLngToVec3(-lat, 180, SUN_DIST));  // anti-sol
       }
-      // Direção do Sol no mundo (p/ a atmosfera) — acompanha o giro do grupo.
+      // Direção do Sol no mundo (p/ a atmosfera).
       sunAnchorRef.current.getWorldPosition(sunDirWorld.current).normalize();
     }
     if (!introDone.current) {
@@ -663,29 +671,31 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
       {/* Inclinação axial real da Terra (23,4°) — só no imersivo; o clássico
           gira reto, como era antes. */}
       <group rotation={[0, 0, classic ? 0 : -0.41]}>
-        <group ref={groupRef}>
-          {!classic && (
-            <>
-              {/* O Sol: luz principal + disco/halos aditivos, no ponto subsolar */}
-              <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
-                <directionalLight intensity={2.6} color="#fff3d6" />
-                <sprite scale={[30, 30, 1]}>
-                  <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
-                </sprite>
-                <sprite scale={[12, 12, 1]}>
-                  <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
-                </sprite>
-                <sprite scale={[5, 5, 1]}>
-                  <spriteMaterial map={sunGlowTex} color="#fff9e8" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
-                </sprite>
-              </group>
-              {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol */}
-              <group ref={fillAnchorRef} position={[-SUN_DIST, 0, 0]}>
-                <directionalLight intensity={0.22} color="#7d95c9" />
-              </group>
-            </>
-          )}
+        {/* Sol e "luar" FORA do grupo que gira: o Sol fica parado no mundo
+            enquanto a Terra roda dentro (1 volta/24h, tempo real). */}
+        {!classic && (
+          <>
+            {/* O Sol: luz principal + disco/halos aditivos, na direção subsolar */}
+            <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
+              <directionalLight intensity={2.6} color="#fff3d6" />
+              <sprite scale={[30, 30, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
+              </sprite>
+              <sprite scale={[12, 12, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+              </sprite>
+              <sprite scale={[5, 5, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#fff9e8" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
+              </sprite>
+            </group>
+            {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol */}
+            <group ref={fillAnchorRef} position={[-SUN_DIST, 0, 0]}>
+              <directionalLight intensity={0.22} color="#7d95c9" />
+            </group>
+          </>
+        )}
 
+        <group ref={groupRef}>
           <EarthSphere radius={R} night={!classic} />
           <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} />
 
