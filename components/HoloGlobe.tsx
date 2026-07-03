@@ -169,6 +169,10 @@ const EARTH_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-blue-
 const BUMP_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-topology.png";
 const WATER_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-water.png";
 const NIGHT_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-night.jpg";
+// Nuvens estáticas (acervo clássico de demos three.js — branco sobre preto,
+// serve de map E alphaMap). Só entram quando a textura VIVA não carrega —
+// a imagem do GIBS já traz as nuvens reais do dia embutidas.
+const CLOUDS_TEX = "https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png";
 
 function EarthSphere({ radius, night = false }: { radius: number; night?: boolean }) {
   // `night` (imersivo): luzes de cidade como emissivo — brilham onde o Sol não
@@ -180,22 +184,67 @@ function EarthSphere({ radius, night = false }: { radius: number; night?: boolea
     for (const t of textures) t.anisotropy = 8;
   }, [textures]);
 
+  // "A Terra de hoje": mosaico diário de satélite (NASA GIBS via nossa API,
+  // nuvens/tempestades reais do dia). Carregamento FORA do Suspense: falhou →
+  // fica o blue marble + nuvens estáticas, sem drama. Só no imersivo.
+  const [liveMap, setLiveMap] = useState<THREE.Texture | null>(null);
+  const [clouds, setClouds] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    if (!night) return;
+    let dead = false;
+    const loader = new THREE.TextureLoader();
+    loader.load("/api/globe/earth-today", t => {
+      if (dead) { t.dispose(); return; }
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 8;
+      setLiveMap(t);
+    }, undefined, () => { /* sem live hoje — segue o blue marble */ });
+    loader.load(CLOUDS_TEX, t => {
+      if (dead) { t.dispose(); return; }
+      t.anisotropy = 4;
+      setClouds(t);
+    }, undefined, () => { /* sem nuvens estáticas — segue sem */ });
+    return () => { dead = true; };
+  }, [night]);
+  useEffect(() => () => { liveMap?.dispose(); }, [liveMap]);
+  useEffect(() => () => { clouds?.dispose(); }, [clouds]);
+
   return (
-    <mesh>
-      <sphereGeometry args={[radius, 96, 96]} />
-      <meshStandardMaterial
-        map={color}
-        bumpMap={bump}
-        bumpScale={0.02}
-        roughnessMap={water}
-        roughness={0.85}
-        metalness={0.08}
-        envMapIntensity={0.6}
-        emissiveMap={night ? nightMap : undefined}
-        emissive={night ? "#ffffff" : "#000000"}
-        emissiveIntensity={night ? 0.95 : 0}
-      />
-    </mesh>
+    <group>
+      <mesh>
+        <sphereGeometry args={[radius, 96, 96]} />
+        <meshStandardMaterial
+          map={liveMap ?? color}
+          bumpMap={bump}
+          bumpScale={0.02}
+          roughnessMap={water}
+          roughness={0.85}
+          metalness={0.08}
+          envMapIntensity={0.6}
+          emissiveMap={night ? nightMap : undefined}
+          emissive={night ? "#ffffff" : "#000000"}
+          emissiveIntensity={night ? 0.95 : 0}
+        />
+      </mesh>
+
+      {/* Nuvens estáticas — casca fina acima da superfície, iluminada pelo
+          mesmo Sol (some no lado noturno). Ocultas quando o live está ativo
+          (as nuvens reais já vêm na imagem do dia). */}
+      {night && clouds && !liveMap && (
+        <mesh scale={[1.012, 1.012, 1.012]}>
+          <sphereGeometry args={[radius, 64, 64]} />
+          <meshStandardMaterial
+            map={clouds}
+            alphaMap={clouds}
+            transparent
+            opacity={0.85}
+            depthWrite={false}
+            roughness={1}
+            metalness={0}
+          />
+        </mesh>
+      )}
+    </group>
   );
 }
 
