@@ -27,6 +27,8 @@ interface ConflictZone {
   events?: number;       // eventos violentos no período
   fatalities?: number;   // mortes no período
   periodDias?: number;   // janela (30)
+  detail?: string;       // rótulo pronto p/ desastres (ex.: "Magnitude 6.2 · sismo")
+  source?: string;       // fonte (USGS / NASA EONET / GDELT)
 }
 
 // Reserva caso /api/globe/conflicts não responda (a rota já tem seu próprio
@@ -444,9 +446,13 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
   const isDesastre = zone.id.startsWith("desastres");
   const col = isProtesto ? "#f59e0b" : isDesastre ? "#38bdf8" : "#ff4444";
   const kind = isProtesto ? "Protesto Ativo" : isDesastre ? "Alerta Ativo" : "Conflito Ativo";
-  const ctx = zone.events
-    ? ` (GDELT: ${zone.events} menções em notícias nos últimos ${zone.periodDias ?? 7} dias)`
-    : "";
+  // Contexto para a IA: desastres vêm com `detail` pronto (USGS/EONET); conflitos
+  // e protestos vêm do GDELT (volume de menções).
+  const ctx = zone.detail
+    ? ` (${zone.detail}${zone.source ? `, via ${zone.source}` : ""})`
+    : zone.events
+      ? ` (GDELT: ${zone.events} menções em notícias nos últimos ${zone.periodDias ?? 7} dias)`
+      : "";
   const aiQuery = `Analise a situação: "${zone.name}"${ctx}. Quais os impactos econômicos e geopolíticos atuais e como está afetando os mercados financeiros da região e as bolsas globais?`;
 
   return (
@@ -465,12 +471,17 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
         <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: col }}>{kind}</span>
       </div>
       <p className="text-[12px] font-bold text-white leading-snug mb-1">{zone.name}</p>
-      {zone.events != null && (
+      {zone.detail ? (
+        <p className="text-[9px] font-mono mb-2" style={{ color: `${col}cc` }}>
+          {zone.detail}
+          {zone.source && <span className="text-zinc-600"> · {zone.source}</span>}
+        </p>
+      ) : zone.events != null ? (
         <p className="text-[9px] font-mono mb-2" style={{ color: `${col}cc` }}>
           {zone.events} menções · {zone.periodDias ?? 7}d
           <span className="text-zinc-600"> · GDELT</span>
         </p>
-      )}
+      ) : null}
 
       {nearbyMarkets.length > 0 && (
         <>

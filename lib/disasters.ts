@@ -1,0 +1,143 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Camada "Desastres" do HoloGlobe — dados REAIS de eventos naturais, não menções
+// de notícia. Duas fontes abertas (sem key, SEM rate-limit como o GDELT):
+//   • NASA EONET v3 — incêndios, tempestades, vulcões, enchentes, ciclones…
+//     https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=N
+//   • USGS — terremotos significativos (M4.5+) da última semana (GeoJSON).
+//
+// Por que trocar o GDELT aqui: o GDELT limita a 1 req/5s e devolve menções de
+// texto (imprecisas p/ localizar um desastre). EONET/USGS dão coordenadas exatas
+// e severidade — a camada fica de fato distinta das de conflito/protesto (era a
+// reclamação: "tá muito igual"). Cada evento vira um ponto individual no globo.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import type { ConflictZoneData } from "@/lib/globe-conflicts";
+
+const EONET_URL = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&limit=120";
+// M4.5+ na última semana — significativos o bastante p/ importar, sem poluir.
+const USGS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson";
+
+const PERIOD_DIAS = 20;
+const MAX_ZONES = 16;
+
+// Categoria EONET → rótulo PT + peso de severidade (p/ ranquear entre si e vs sismos).
+const EONET_CAT: Record<string, { pt: string; weight: number }> = {
+  wildfires: { pt: "Incêndio florestal", weight: 5.2 },
+  severeStorms: { pt: "Tempestade severa", weight: 6.0 },
+  volcanoes: { pt: "Atividade vulcânica", weight: 6.2 },
+  floods: { pt: "Enchente", weight: 5.6 },
+  landslides: { pt: "Deslizamento", weight: 5.4 },
+  drought: { pt: "Seca", weight: 4.8 },
+  dustHaze: { pt: "Tempestade de poeira", weight: 4.5 },
+  seaLakeIce: { pt: "Gelo marinho", weight: 4.2 },
+  snow: { pt: "Nevasca", weight: 4.6 },
+  tempExtremes: { pt: "Extremo de temperatura", weight: 4.7 },
+  manmade: { pt: "Evento provocado", weight: 4.4 },
+  waterColor: { pt: "Alteração da água", weight: 4.0 },
+};
+
+interface EonetGeometry { date?: string; type?: string; coordinates?: number[] }
+interface EonetEvent {
+  id?: string;
+  title?: string;
+  categories?: { id?: string; title?: string }[];
+  geometry?: EonetGeometry[];
+}
+interface UsgsFeature {
+  id?: string;
+  properties?: { mag?: number; place?: string; time?: number };
+  geometry?: { type?: string; coordinates?: number[] };
+}
+
+interface Ranked extends ConflictZoneData { score: number }
+
+function slug(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+async function fetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "meus-investimentos (dashboard pessoal)" },
+      signal: AbortSignal.timeout(15_000),
+      next: { revalidate: 1800 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+// EONET: último ponto de cada evento com geometria de ponto.
+function fromEonet(events: EonetEvent[]): Ranked[] {
+  const out: Ranked[] = [];
+  for (const ev of events) {
+    const cat = ev.categories?.[0]?.id ?? "";
+    const meta = EONET_CAT[cat];
+    if (!meta) continue;
+    const geos = (ev.geometry ?? []).filter(g => g.type === "Point" && Array.isArray(g.coordinates) && g.coordinates.length >= 2);
+    if (geos.length === 0) continue;
+    const g = geos[geos.length - 1]; // ponto mais recente
+    const lng = Number(g.coordinates![0]);
+    const lat = Number(g.coordinates![1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const title = (ev.title ?? meta.pt).trim();
+    out.push({
+      id: `desastres-eonet-${slug(ev.id ?? title)}`,
+      name: title,
+      lat, lng,
+      nearbyMarkets: [],
+      periodDias: PERIOD_DIAS,
+      detail: meta.pt,
+      source: "NASA EONET",
+      score: meta.weight,
+    });
+  }
+  return out;
+}
+
+// USGS: terremotos M4.5+; severidade = magnitude (rankeia junto com EONET).
+function fromUsgs(features: UsgsFeature[]): Ranked[] {
+  const out: Ranked[] = [];
+  for (const f of features) {
+    const mag = Number(f.properties?.mag);
+    const coords = f.geometry?.coordinates;
+    if (!Number.isFinite(mag) || !Array.isArray(coords) || coords.length < 2) continue;
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const place = (f.properties?.place ?? "Terremoto").replace(/^\d+\s*km.*?of\s*/i, "").trim();
+    out.push({
+      id: `desastres-usgs-${f.id ?? slug(place)}`,
+      name: `Terremoto — ${place}`,
+      lat, lng,
+      nearbyMarkets: [],
+      events: Math.round(mag * 10),
+      periodDias: 7,
+      detail: `Magnitude ${mag.toFixed(1)} · sismo`,
+      source: "USGS",
+      score: mag,
+    });
+  }
+  return out;
+}
+
+/**
+ * Focos de desastres naturais ao vivo (EONET + USGS), ranqueados por severidade.
+ * Cada evento é um ponto individual (coordenada real). Sem key, sem rate-limit.
+ */
+export async function fetchDisasters(): Promise<ConflictZoneData[]> {
+  const [eonet, usgs] = await Promise.all([
+    fetchJson<{ events?: EonetEvent[] }>(EONET_URL),
+    fetchJson<{ features?: UsgsFeature[] }>(USGS_URL),
+  ]);
+
+  const ranked: Ranked[] = [
+    ...fromEonet(eonet?.events ?? []),
+    ...fromUsgs(usgs?.features ?? []),
+  ].sort((a, b) => b.score - a.score);
+
+  // Remove o campo interno `score` antes de devolver.
+  return ranked.slice(0, MAX_ZONES).map(({ score: _score, ...z }) => z);
+}

@@ -9,6 +9,8 @@
 //   mode=timelinetone → "Average Tone" (sentimento, ~-10..+10) por dia
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { gdeltJson } from "@/lib/gdelt-fetch";
+
 const DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc";
 
 export interface GdeltPoint {
@@ -40,15 +42,11 @@ function gdeltDate(s: string): string {
 
 async function fetchTimeline(query: string, mode: "timelinevol" | "timelinetone", days: number): Promise<Map<string, number>> {
   // GDELT não decodifica "+" como espaço — usar %20 (encodeURIComponent), não
-  // URLSearchParams (que produz "+", quebrando a query).
+  // URLSearchParams (que produz "+", quebrando a query). A chamada passa pelo
+  // wrapper serializado (gdeltJson): respeita o limite de 1 req/5s e cacheia.
   const url = `${DOC_URL}?query=${encodeURIComponent(query)}&mode=${mode}&format=json&timespan=${days}d`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": "meus-investimentos" },
-    signal: AbortSignal.timeout(18_000),
-  });
-  if (!res.ok) throw new Error(`GDELT ${mode} HTTP ${res.status}`);
-  const json: GdeltTimelineResp = await res.json();
-  const data = json.timeline?.[0]?.data ?? [];
+  const json = await gdeltJson<GdeltTimelineResp>(url);
+  const data = json?.timeline?.[0]?.data ?? [];
   const out = new Map<string, number>();
   for (const d of data) {
     if (!d.date || typeof d.value !== "number") continue;
