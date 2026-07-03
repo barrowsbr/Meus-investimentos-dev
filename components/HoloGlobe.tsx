@@ -458,10 +458,11 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
   const cat = zoneCategory(zone.id);
   const col = LAYER_COLOR[cat];
   const kind = cat === "protestos" ? "Protesto Ativo" : cat === "desastres" ? "Alerta Ativo" : "Conflito Ativo";
-  // Pergunta enxuta: só explicar o que está acontecendo, de forma sintética e
-  // precisa. Contexto extra apenas quando útil (magnitude/tipo do desastre).
+  // Pergunta em dois passos: (1) explicar o que está acontecendo, sintético e
+  // preciso; (2) gerar uma imagem fiel da situação a partir do que se conhece
+  // dela. Contexto extra apenas quando útil (magnitude/tipo do desastre).
   const ctx = zone.detail ? ` (${zone.detail})` : "";
-  const question = `Explique de forma sintética e precisa o que está acontecendo agora: ${zone.name}${ctx}.`;
+  const question = `Explique de forma sintética e precisa o que está acontecendo agora: ${zone.name}${ctx}. Em seguida, gere uma imagem realista que retrate essa situação, com base nas características conhecidas dela (local, tipo de evento, paisagem e contexto atual).`;
   // Direciona para o site do Gemini (plano pago do dono). O prefill por URL não
   // é garantido no Gemini, então também copiamos a pergunta ao clicar — assim
   // basta colar. Abre em nova aba para não perder o dashboard.
@@ -1885,24 +1886,21 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
   }, [mode]);
 
   // Focos de TODAS as camadas ao mesmo tempo (conflitos + protestos + desastres),
-  // convivendo no globo — cada ponto pinta pela sua própria categoria. Busca as
-  // três em paralelo, mescla e limita por camada para não poluir. Se tudo vier
-  // vazio (rede fora), cai na lista curada de conflitos.
+  // convivendo no globo — cada ponto pinta pela sua própria categoria. Um ÚNICO
+  // endpoint devolve os três já mesclados: o servidor serializa as chamadas do
+  // GDELT (1 req/5s só funciona dentro da mesma invocação). Se vier vazio, cai
+  // na lista curada de conflitos.
   useEffect(() => {
     if (mode !== "globe") return;
     let cancelled = false;
-    const CAP: Record<string, number> = { conflitos: 10, protestos: 8, desastres: 10 };
-    Promise.all(GLOBE_LAYERS.map(l =>
-      fetch(`/api/globe/conflicts?theme=${l.id}`)
-        .then(r => r.json())
-        .then(d => (Array.isArray(d?.zones) ? (d.zones as ConflictZone[]) : []).slice(0, CAP[l.id] ?? 10))
-        .catch(() => [] as ConflictZone[])
-    )).then(groups => {
-      if (cancelled) return;
-      const seen = new Set<string>();
-      const merged = groups.flat().filter(z => (seen.has(z.id) ? false : (seen.add(z.id), true)));
-      setConflicts(merged.length > 0 ? merged : FALLBACK_CONFLICT_ZONES);
-    });
+    fetch(`/api/globe/foci`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const zones = Array.isArray(d?.zones) ? (d.zones as ConflictZone[]) : [];
+        setConflicts(zones.length > 0 ? zones : FALLBACK_CONFLICT_ZONES);
+      })
+      .catch(() => { if (!cancelled) setConflicts(FALLBACK_CONFLICT_ZONES); });
     return () => { cancelled = true; };
   }, [mode]);
 

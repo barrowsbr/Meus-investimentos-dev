@@ -21,7 +21,8 @@ const PERIOD_DIAS = 20;
 const MAX_ZONES = 16;
 
 // Categoria EONET → rótulo PT + peso de severidade (p/ ranquear entre si e vs sismos).
-const EONET_CAT: Record<string, { pt: string; weight: number }> = {
+interface CatMeta { pt: string; weight: number }
+const EONET_CAT: Record<string, CatMeta> = {
   wildfires: { pt: "Incêndio florestal", weight: 5.2 },
   severeStorms: { pt: "Tempestade severa", weight: 6.0 },
   volcanoes: { pt: "Atividade vulcânica", weight: 6.2 },
@@ -36,11 +37,39 @@ const EONET_CAT: Record<string, { pt: string; weight: number }> = {
   waterColor: { pt: "Alteração da água", weight: 4.0 },
 };
 
+// Casamento por TÍTULO (robusto a mudança de id da API — v3 pode usar id numérico
+// ou string; o título "Wildfires"/"Severe Storms"… é estável). "Earthquakes" fica
+// de fora de propósito: sismos vêm do USGS (mais precisos), evitando duplicar.
+const EONET_TITLE_MATCH: { kw: string; meta: CatMeta }[] = [
+  { kw: "wildfire", meta: EONET_CAT.wildfires },
+  { kw: "storm", meta: EONET_CAT.severeStorms },
+  { kw: "cyclone", meta: EONET_CAT.severeStorms },
+  { kw: "volcano", meta: EONET_CAT.volcanoes },
+  { kw: "flood", meta: EONET_CAT.floods },
+  { kw: "landslide", meta: EONET_CAT.landslides },
+  { kw: "drought", meta: EONET_CAT.drought },
+  { kw: "dust", meta: EONET_CAT.dustHaze },
+  { kw: "haze", meta: EONET_CAT.dustHaze },
+  { kw: "ice", meta: EONET_CAT.seaLakeIce },
+  { kw: "snow", meta: EONET_CAT.snow },
+  { kw: "temperature", meta: EONET_CAT.tempExtremes },
+  { kw: "water", meta: EONET_CAT.waterColor },
+];
+
+function resolveEonetCat(c?: { id?: string | number; title?: string }): CatMeta | null {
+  if (!c) return null;
+  const key = String(c.id ?? "").trim();
+  if (EONET_CAT[key]) return EONET_CAT[key];
+  const t = (c.title ?? "").toLowerCase();
+  if (/earthquake/.test(t)) return null; // fica com o USGS
+  return EONET_TITLE_MATCH.find(m => t.includes(m.kw))?.meta ?? null;
+}
+
 interface EonetGeometry { date?: string; type?: string; coordinates?: number[] }
 interface EonetEvent {
   id?: string;
   title?: string;
-  categories?: { id?: string; title?: string }[];
+  categories?: { id?: string | number; title?: string }[];
   geometry?: EonetGeometry[];
 }
 interface UsgsFeature {
@@ -73,8 +102,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 function fromEonet(events: EonetEvent[]): Ranked[] {
   const out: Ranked[] = [];
   for (const ev of events) {
-    const cat = ev.categories?.[0]?.id ?? "";
-    const meta = EONET_CAT[cat];
+    const meta = resolveEonetCat(ev.categories?.[0]);
     if (!meta) continue;
     const geos = (ev.geometry ?? []).filter(g => g.type === "Point" && Array.isArray(g.coordinates) && g.coordinates.length >= 2);
     if (geos.length === 0) continue;
