@@ -223,6 +223,14 @@ Registro de entradas, saídas e gastos com cartão.
   história já mergeada.
 - Desenvolver sempre na branch `claude/add-repo-description-AanfH`; commitar e dar push lá.
 - Produção é a `main` (deploy automático na Vercel). Crons (`vercel.json`) só são registrados no deploy de produção da `main`.
+- **Vercel é plano HOBBY (regra dura de deploy)**: cron só pode rodar **1×/dia**
+  (schedule sub-diário como `0 * * * *` FAZ O BUILD DE PRODUÇÃO FALHAR — e como o
+  build falha, TODOS os merges seguintes param de subir pra produção, sem aviso
+  óbvio). Nunca usar schedule mais frequente que diário no `vercel.json`. Para
+  disparo intra-dia (ex.: digest em vários horários), usar cron externo grátis
+  (cron-job.org) batendo em `/api/cron/digest?force=1`, ou o gate por hora que já
+  existe. Diagnóstico quando "não sobe": Vercel → Deployments, filtro de Status
+  costuma esconder os **Error** — é lá que aparece a falha de cron.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
 - **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
 
