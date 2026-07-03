@@ -105,7 +105,10 @@ export default function HoloOverlay() {
 
         <div className="holo-legend">Mercados Globais · Tempo Real</div>
 
-        <div style={{ pointerEvents: "auto", width: "100%", display: "flex", justifyContent: "center" }}>
+        {/* O globo preenche o palco inteiro (tela cheia) — imersão no espaço.
+            pointerEvents só quando aberto: fechado, o wrapper cobre a tela
+            invisível e NÃO pode engolir os cliques do dashboard. */}
+        <div style={{ pointerEvents: open ? "auto" : "none", position: "absolute", inset: 0 }}>
           <HoloGlobe mode={open ? "globe" : "off"} />
         </div>
 
