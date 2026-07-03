@@ -48,6 +48,18 @@ const FALLBACK_CONFLICT_ZONES: ConflictZone[] = [
 // seguem nas libs para virarem filtros). Uma cor, um significado.
 const CONFLICT_COLOR = "#ff4444";
 
+// Error boundary de assets: se uma textura falhar (404/rede/CDN fora), o
+// pedaço some e a cena segue — SEM isso, qualquer falha de useTexture estoura
+// no render e derruba a página inteira ("Application error" do Next).
+class SafeVisual extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: unknown) {
+    console.error("[HoloGlobe] asset falhou — seguindo sem ele:", err);
+  }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
 type SelectedItem =
   | { type: "market"; data: MarketPoint }
   | { type: "conflict"; data: ConflictZone; nearbyData: MarketPoint[] };
@@ -407,7 +419,12 @@ function SpaceEnvironment() {
 
   return (
     <group>
-      <SkySphere />
+      {/* Se o panorama falhar, as estrelas procedurais seguram o fundo */}
+      <SafeVisual>
+        <React.Suspense fallback={null}>
+          <SkySphere />
+        </React.Suspense>
+      </SafeVisual>
       <points geometry={skyGeo} material={starMat} />
       <points geometry={dustGeo} material={starMat} />
     </group>
@@ -743,8 +760,12 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
               <directionalLight intensity={0.1} color="#7d95c9" />
             </group>
 
-            {/* A Lua — posição e fase reais */}
-            <Moon anchorRef={moonAnchorRef} />
+            {/* A Lua — posição e fase reais (se a textura falhar, fica sem Lua) */}
+            <SafeVisual>
+              <React.Suspense fallback={null}>
+                <Moon anchorRef={moonAnchorRef} />
+              </React.Suspense>
+            </SafeVisual>
           </>
         )}
 
@@ -2357,15 +2378,17 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
             dpr={[1, 2]}
             style={{ background: "transparent" }}
           >
-            <React.Suspense fallback={null}>
-              {isBlackHole ? (
-                <BlackHoleScene />
-              ) : isPlanet ? (
-                <PlanetSceneContent planet={displayMode as PlanetMode} />
-              ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} classic />
-              )}
-            </React.Suspense>
+            <SafeVisual>
+              <React.Suspense fallback={null}>
+                {isBlackHole ? (
+                  <BlackHoleScene />
+                ) : isPlanet ? (
+                  <PlanetSceneContent planet={displayMode as PlanetMode} />
+                ) : (
+                  <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} classic />
+                )}
+              </React.Suspense>
+            </SafeVisual>
           </Canvas>
         </div>
 
@@ -2459,18 +2482,20 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           dpr={[1, 2]}
           style={{ background: "transparent" }}
         >
-          <React.Suspense fallback={null}>
-            {isBlackHole ? (
-              <BlackHoleScene />
-            ) : isPlanet ? (
-              <>
-                <SpaceEnvironment />
-                <PlanetSceneContent planet={displayMode as PlanetMode} />
-              </>
-            ) : (
-              <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
-            )}
-          </React.Suspense>
+          <SafeVisual>
+            <React.Suspense fallback={null}>
+              {isBlackHole ? (
+                <BlackHoleScene />
+              ) : isPlanet ? (
+                <>
+                  <SpaceEnvironment />
+                  <PlanetSceneContent planet={displayMode as PlanetMode} />
+                </>
+              ) : (
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
+              )}
+            </React.Suspense>
+          </SafeVisual>
         </Canvas>
       </div>
 
