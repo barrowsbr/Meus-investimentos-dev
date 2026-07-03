@@ -1,16 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Zonas de conflito do HoloGlobe — AO VIVO via GDELT (GEO 2.0 API).
-// GDELT é aberto: SEM login, SEM key, SEM tier. Retorna menções geolocalizadas
-// de notícia global; aqui filtramos por termos de conflito, agregamos por país
-// (últimos 7 dias) e ranqueamos por volume de menções → focos de conflito.
+// Zonas de conflito/protesto do HoloGlobe — AO VIVO via GDELT Events 2.0
+// (arquivos de 15 min em data.gdeltproject.org; ver lib/gdelt-events.ts).
+// A antiga API GEO 2.0 foi APOSENTADA (404 para qualquer query — provado pela
+// sonda /api/debug/gdelt-probe); os eventos brutos são a porta que funciona:
+// abertos, sem key, sem rate-limit. Filtramos por código CAMEO, agregamos por
+// país (janela ~1h) e ranqueamos por menções → focos.
 //
-// (A tentativa anterior com ACLED esbarrou no tier: conta de e-mail pessoal =
-// nível "Open", que NÃO inclui API. GDELT não tem essa restrição.)
+// (ACLED foi descartado antes: e-mail pessoal = tier "Open", sem API.)
 //
 // Sem rede / GDELT fora do ar → [] e a rota cai na lista curada (FALLBACK_ZONES).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { gdeltJson } from "@/lib/gdelt-fetch";
+import { fetchGdeltEventPoints, type GdeltEventPoint } from "@/lib/gdelt-events";
 
 export interface ConflictZoneData {
   id: string;
@@ -153,38 +154,31 @@ export interface ConflictDiag {
   top?: { country: string; mentions: number }[];
 }
 
-interface GdeltFeature {
-  properties?: { name?: string; count?: number };
-  geometry?: { type?: string; coordinates?: number[] };
-}
-
-const PERIOD_DIAS = 7;
 const MAX_ZONES = 12;
 
-// Camadas do globo (temas GDELT). Cada uma: cor, query e rótulo próprios.
+// Camadas do globo. conflitos/protestos vêm dos eventos GDELT (código CAMEO);
+// desastres vem do EONET/USGS (lib/disasters.ts) — rootCodes vazio.
 export interface GlobeTheme {
   id: string;
   label: string;
   color: string;
-  query: string;
+  rootCodes: string[];    // EventRootCodes CAMEO (GDELT Events 2.0)
   minMentions: number;
   useWarLabels: boolean;  // conflitos usam os nomes amigáveis de guerra
   prefix: string;         // prefixo do rótulo p/ os demais temas
 }
-// ATENÇÃO à sintaxe do GDELT: listas de OR precisam estar ENTRE PARÊNTESES —
-// "(a OR b)" — senão a API rejeita a query (o GEO responde 404 seco).
 export const GLOBE_THEMES: Record<string, GlobeTheme> = {
   conflitos: {
-    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 8, useWarLabels: true, prefix: "Conflito",
-    query: "(airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen)",
+    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 10, useWarLabels: true, prefix: "Conflito",
+    rootCodes: ["18", "19", "20"], // agressão / combate / violência em massa
   },
   protestos: {
-    id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 8, useWarLabels: false, prefix: "Protestos",
-    query: "(protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR protesters)",
+    id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 10, useWarLabels: false, prefix: "Protestos",
+    rootCodes: ["14"], // protesto (CAMEO)
   },
   desastres: {
-    id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 8, useWarLabels: false, prefix: "Alerta",
-    query: "(earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR floods)",
+    id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 0, useWarLabels: false, prefix: "Alerta",
+    rootCodes: [], // não usa GDELT — fonte é EONET/USGS
   },
 };
 export const DEFAULT_THEME = "conflitos";
@@ -195,50 +189,39 @@ function zoneName(country: string, theme: GlobeTheme): string {
 }
 
 /**
- * Busca e agrega focos de um TEMA do GDELT (GEO 2.0, últimos 7 dias) por país.
- * Sem autenticação.
+ * Busca e agrega focos de um TEMA por país, a partir dos eventos GDELT 2.0
+ * (janela ~1h, arquivos de 15 min). Sem autenticação, sem rate-limit.
  */
 export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: ConflictDiag): Promise<ConflictZoneData[]> {
   const theme = GLOBE_THEMES[themeId] ?? GLOBE_THEMES[DEFAULT_THEME];
-  // ATENÇÃO: o GDELT NÃO decodifica "+" como espaço — precisa ser %20. Por isso
-  // a query é montada com encodeURIComponent (não URLSearchParams, que usa "+").
-  const url = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(theme.query)}&format=GeoJSON&mode=PointData&timespan=${PERIOD_DIAS}d&maxpoints=500`;
-  const MIN_MENTIONS = theme.minMentions;
+  if (theme.rootCodes.length === 0) return []; // desastres: fonte é EONET/USGS
 
-  // Passa pelo wrapper serializado (gdeltJson): respeita 1 req/5s, detecta o
-  // aviso de throttle (que antes virava "404"/erro) e cacheia por URL.
-  let features: GdeltFeature[] = [];
-  const json = await gdeltJson<{ features?: GdeltFeature[] }>(url);
-  if (!json) {
-    if (diag && !diag.error) diag.error = "sem resposta do GDELT (throttle/rede)";
+  let points: GdeltEventPoint[] = [];
+  try {
+    points = await fetchGdeltEventPoints(theme.rootCodes);
+  } catch (e) {
+    if (diag && !diag.error) diag.error = e instanceof Error ? e.message : "erro no feed de eventos";
     return [];
   }
-  features = Array.isArray(json.features) ? json.features : [];
-  if (diag) { diag.httpStatus = 200; diag.featuresReturned = features.length; }
+  if (diag) { diag.httpStatus = 200; diag.featuresReturned = points.length; }
 
   // Agrega por país; centroide ponderado pelo volume de menções.
   interface Agg { country: string; mentions: number; sumLat: number; sumLng: number; wsum: number }
   const byCountry = new Map<string, Agg>();
-  for (const f of features) {
-    const name = String(f.properties?.name ?? "").trim();
-    const coords = f.geometry?.coordinates;
-    if (!name || !Array.isArray(coords) || coords.length < 2) continue;
-    const lng = Number(coords[0]);
-    const lat = Number(coords[1]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    const country = extractCountry(name);
+  for (const p of points) {
+    const country = extractCountry(p.fullName);
     if (!country || country.length < 3) continue;
-    const count = Number(f.properties?.count) || 1;
+    const w = p.mentions;
     const a = byCountry.get(country) ?? { country, mentions: 0, sumLat: 0, sumLng: 0, wsum: 0 };
-    a.mentions += count;
-    a.sumLat += lat * count;
-    a.sumLng += lng * count;
-    a.wsum += count;
+    a.mentions += w;
+    a.sumLat += p.lat * w;
+    a.sumLng += p.lng * w;
+    a.wsum += w;
     byCountry.set(country, a);
   }
 
   const ranked = [...byCountry.values()]
-    .filter(a => a.mentions >= MIN_MENTIONS && a.wsum > 0)
+    .filter(a => a.mentions >= theme.minMentions && a.wsum > 0)
     .sort((a, b) => b.mentions - a.mentions);
 
   if (diag) {
@@ -253,7 +236,8 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
     lng: a.sumLng / a.wsum,
     nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
     events: a.mentions,
-    periodDias: PERIOD_DIAS,
+    detail: `${a.mentions} menções · última hora`,
+    source: "GDELT",
     country: a.country,
   }));
   if (diag) diag.zonesReturned = zones.length;
