@@ -1,31 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Zonas de conflito do HoloGlobe — AO VIVO via ACLED (Armed Conflict Location &
-// Event Data). Agrega os eventos violentos dos últimos 30 dias por país, ranqueia
-// por intensidade (eventos + mortes) e devolve os focos de conflito para o globo.
+// Zonas de conflito do HoloGlobe — AO VIVO via GDELT (GEO 2.0 API).
+// GDELT é aberto: SEM login, SEM key, SEM tier. Retorna menções geolocalizadas
+// de notícia global; aqui filtramos por termos de conflito, agregamos por país
+// (últimos 7 dias) e ranqueamos por volume de menções → focos de conflito.
 //
-// Antes era uma lista fixa de 6 guerras no código. Agora atualiza sozinho:
-// guerra nova que passe do limiar aparece; guerra que esfriou some.
+// (A tentativa anterior com ACLED esbarrou no tier: conta de e-mail pessoal =
+// nível "Open", que NÃO inclui API. GDELT não tem essa restrição.)
 //
-// Credenciais: ACLED_API_KEY + ACLED_EMAIL (registro grátis em acleddata.com;
-// uso pessoal/não-comercial permitido). Sem credenciais ou com a ACLED fora do
-// ar → retorna [] e a rota cai na lista curada (FALLBACK_ZONES).
+// Sem rede / GDELT fora do ar → [] e a rota cai na lista curada (FALLBACK_ZONES).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ConflictZoneData {
   id: string;
-  name: string;          // nome amigável PT (ex.: "Guerra Rússia–Ucrânia")
+  name: string;            // nome amigável PT (ex.: "Guerra Rússia–Ucrânia")
   lat: number;
   lng: number;
   nearbyMarkets: string[]; // símbolos de índices próximos (para o card)
-  events?: number;         // nº de eventos violentos no período
-  fatalities?: number;     // mortes no período
-  periodDias?: number;     // janela (30)
-  country?: string;        // país ACLED (inglês), para debug
+  events?: number;         // intensidade = menções de conflito no período
+  fatalities?: number;     // não disponível no GDELT (fica undefined)
+  periodDias?: number;     // janela (7)
+  country?: string;        // país (inglês), para debug
 }
 
 // Nome amigável PT para os conflitos mais conhecidos; fallback = "Conflito — <país>".
 const COUNTRY_LABEL: Record<string, string> = {
   Ukraine: "Guerra Rússia–Ucrânia",
+  Russia: "Guerra Rússia–Ucrânia",
   Palestine: "Conflito Israel–Palestina",
   Israel: "Conflito Israel–Palestina",
   Sudan: "Guerra Civil no Sudão",
@@ -47,7 +47,6 @@ const COUNTRY_LABEL: Record<string, string> = {
   Iran: "Tensão no Irã",
 };
 
-// Nome PT do país (fallback do rótulo). Cobertura parcial — o resto usa o inglês.
 const COUNTRY_PT: Record<string, string> = {
   Ukraine: "Ucrânia", Russia: "Rússia", Sudan: "Sudão", Myanmar: "Myanmar",
   Yemen: "Iêmen", Syria: "Síria", Somalia: "Somália", Nigeria: "Nigéria",
@@ -59,7 +58,6 @@ const COUNTRY_PT: Record<string, string> = {
 };
 
 // País → índices próximos (símbolos Yahoo já presentes nas bolsas do globo).
-// Símbolo ausente na lista de mercados apenas não aparece — sem erro.
 const COUNTRY_INDICES: Record<string, string[]> = {
   Ukraine: ["^STOXX50E", "^GDAXI", "^FCHI"],
   Russia: ["^STOXX50E", "^GDAXI"],
@@ -86,6 +84,22 @@ const COUNTRY_INDICES: Record<string, string[]> = {
   Colombia: ["^GSPC", "^BVSP"],
 };
 
+// Variações de nome de país que o GDELT usa → forma canônica dos mapas acima.
+const COUNTRY_NORMALIZE: Record<string, string> = {
+  "Congo (Kinshasa)": "Democratic Republic of Congo",
+  "Democratic Republic of the Congo": "Democratic Republic of Congo",
+  "DR Congo": "Democratic Republic of Congo",
+  "Congo Kinshasa": "Democratic Republic of Congo",
+  Burma: "Myanmar",
+  "Palestinian Territory": "Palestine",
+  "Occupied Palestinian Territory": "Palestine",
+  "West Bank": "Palestine",
+  "Gaza Strip": "Palestine",
+  Gaza: "Palestine",
+  "United States of America": "United States",
+  "Russian Federation": "Russia",
+};
+
 function ptCountry(en: string): string {
   return COUNTRY_PT[en] ?? en;
 }
@@ -96,7 +110,14 @@ function slug(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-// Lista curada de reserva (server-side) — usada quando a ACLED não responde.
+// Extrai o país do nome GDELT ("Cidade, Região, País" → "País"), com normalização.
+function extractCountry(name: string): string {
+  const parts = name.split(",").map(s => s.trim()).filter(Boolean);
+  const last = parts[parts.length - 1] ?? name.trim();
+  return COUNTRY_NORMALIZE[last] ?? last;
+}
+
+// Lista curada de reserva (server-side) — usada quando o GDELT não responde.
 export const FALLBACK_ZONES: ConflictZoneData[] = [
   { id: "ukraine", name: "Guerra Rússia–Ucrânia", lat: 48.5, lng: 32.0, nearbyMarkets: ["^STOXX50E", "^GDAXI", "^FCHI"] },
   { id: "israel-palestine", name: "Conflito Israel–Palestina", lat: 31.5, lng: 34.8, nearbyMarkets: ["^TA125.TA", "^CASE30"] },
@@ -106,177 +127,99 @@ export const FALLBACK_ZONES: ConflictZoneData[] = [
   { id: "red-sea", name: "Crise no Mar Vermelho (Houthis)", lat: 14.5, lng: 42.5, nearbyMarkets: ["^CASE30", "^BSESN", "^TA125.TA"] },
 ];
 
-interface AcledRow {
-  country?: string;
-  latitude?: string | number;
-  longitude?: string | number;
-  fatalities?: string | number;
-  event_type?: string;
-}
-
-function toNum(v: unknown): number {
-  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function ymd(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-// Só estes tipos contam como "conflito armado" (corta protesto pacífico etc.).
-const VIOLENT_TYPES = new Set(["Battles", "Explosions/Remote violence", "Violence against civilians"]);
-
-const MIN_EVENTS = 8;    // limiar p/ um país virar "foco de conflito" (30 dias)
-const MAX_ZONES = 12;    // no máx. 12 marcadores no globo
-const PERIOD_DIAS = 30;
-
-// ── OAuth (fluxo novo da ACLED, 2024+) ───────────────────────────────────────
-// POST /oauth/token com username(e-mail)+senha → access_token (24h). Cacheado
-// em memória com folga de 1 min; reautentica quando expira.
-let cachedToken: { token: string; exp: number } | null = null;
-
-/** Limpa o token cacheado (para testes). */
-export function resetAcledToken(): void {
-  cachedToken = null;
-}
-
-// Diagnóstico (para /api/globe/conflicts?debug=1) — NUNCA inclui senha/token,
-// só booleanos, status HTTP, contadores e mensagens de erro.
-export interface AcledDiag {
-  hasEmail: boolean;
-  hasPassword: boolean;
-  tokenObtained: boolean;
-  oauthStatus?: number;
-  oauthError?: string;
-  readStatus?: number;
-  readError?: string;
-  rowsReturned?: number;
+// Diagnóstico (para /api/globe/conflicts?debug=1).
+export interface ConflictDiag {
+  provider: "gdelt";
+  httpStatus?: number;
+  error?: string;
+  featuresReturned?: number;
   countriesAgg?: number;
   zonesReturned: number;
-  top?: { country: string; events: number; fatalities: number }[];
+  top?: { country: string; mentions: number }[];
 }
 
-async function getAcledToken(diag?: AcledDiag): Promise<string | null> {
-  const email = process.env.ACLED_EMAIL;
-  const password = process.env.ACLED_PASSWORD;
-  if (diag) { diag.hasEmail = !!email?.trim(); diag.hasPassword = !!password?.trim(); }
-  if (!email || !password) return null;
-  if (cachedToken && Date.now() < cachedToken.exp) { if (diag) diag.tokenObtained = true; return cachedToken.token; }
-
-  try {
-    const body = new URLSearchParams({
-      username: email,
-      password,
-      grant_type: "password",
-      client_id: "acled",
-      scope: "authenticated",
-    });
-    const res = await fetch("https://acleddata.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (diag) diag.oauthStatus = res.status;
-    if (!res.ok) {
-      if (diag) diag.oauthError = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
-      throw new Error(`ACLED OAuth HTTP ${res.status}`);
-    }
-    const json = await res.json();
-    const token = json?.access_token;
-    if (!token) {
-      if (diag) diag.oauthError = `resposta sem access_token: ${JSON.stringify(json).slice(0, 300)}`;
-      throw new Error("ACLED OAuth sem access_token");
-    }
-    const ttlMs = (Number(json?.expires_in) || 86400) * 1000;
-    cachedToken = { token, exp: Date.now() + ttlMs - 60_000 };
-    if (diag) diag.tokenObtained = true;
-    return token;
-  } catch (e) {
-    if (diag && !diag.oauthError) diag.oauthError = e instanceof Error ? e.message : "erro";
-    console.error("ACLED OAuth falhou:", e);
-    return null;
-  }
+interface GdeltFeature {
+  properties?: { name?: string; count?: number };
+  geometry?: { type?: string; coordinates?: number[] };
 }
+
+// Termos fortemente ligados a conflito armado (evita "guerra" metafórica).
+const GDELT_QUERY = "airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen";
+const PERIOD_DIAS = 7;
+const MIN_MENTIONS = 10;  // piso p/ cortar ruído de menção isolada
+const MAX_ZONES = 12;
 
 /**
- * Busca e agrega os focos de conflito da ACLED (últimos 30 dias).
- * Autenticação: OAuth (Bearer). Credenciais: ACLED_EMAIL + ACLED_PASSWORD.
+ * Busca e agrega os focos de conflito do GDELT (GEO 2.0, últimos 7 dias).
+ * Sem autenticação. Agrega as menções geolocalizadas por país.
  */
-export async function fetchAcledConflicts(diag?: AcledDiag): Promise<ConflictZoneData[]> {
-  const token = await getAcledToken(diag);
-  if (!token) return [];
-
-  const to = new Date();
-  const from = new Date(to.getTime() - PERIOD_DIAS * 86400000);
-
+export async function fetchLiveConflicts(diag?: ConflictDiag): Promise<ConflictZoneData[]> {
   const params = new URLSearchParams({
-    event_date: `${ymd(from)}|${ymd(to)}`,
-    event_date_where: "BETWEEN",
-    fields: "country|latitude|longitude|fatalities|event_type",
-    limit: "20000",
+    query: GDELT_QUERY,
+    format: "GeoJSON",
+    mode: "PointData",
+    timespan: `${PERIOD_DIAS}d`,
+    maxpoints: "500",
   });
-  const url = `https://acleddata.com/api/acled/read?${params.toString()}`;
+  const url = `https://api.gdeltproject.org/api/v2/geo/geo?${params.toString()}`;
 
-  let rows: AcledRow[] = [];
+  let features: GdeltFeature[] = [];
   try {
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { "User-Agent": "meus-investimentos" },
       signal: AbortSignal.timeout(20_000),
     });
-    if (diag) diag.readStatus = res.status;
+    if (diag) diag.httpStatus = res.status;
     if (!res.ok) {
-      if (diag) diag.readError = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
-      throw new Error(`ACLED HTTP ${res.status}`);
+      if (diag) diag.error = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`;
+      throw new Error(`GDELT HTTP ${res.status}`);
     }
     const json = await res.json();
-    if (json?.success === false) {
-      if (diag) diag.readError = `ACLED erro: ${JSON.stringify(json?.error ?? json).slice(0, 300)}`;
-      throw new Error(`ACLED erro: ${json?.error ?? "desconhecido"}`);
-    }
-    rows = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
-    if (diag) diag.rowsReturned = rows.length;
+    features = Array.isArray(json?.features) ? json.features : [];
+    if (diag) diag.featuresReturned = features.length;
   } catch (e) {
-    console.error("ACLED indisponível:", e);
+    if (diag && !diag.error) diag.error = e instanceof Error ? e.message : "erro";
+    console.error("GDELT indisponível:", e);
     return [];
   }
 
-  // Agrega por país (só eventos violentos).
-  interface Agg { country: string; events: number; fatalities: number; sumLat: number; sumLng: number }
+  // Agrega por país; centroide ponderado pelo volume de menções.
+  interface Agg { country: string; mentions: number; sumLat: number; sumLng: number; wsum: number }
   const byCountry = new Map<string, Agg>();
-  for (const r of rows) {
-    const country = String(r.country ?? "").trim();
-    if (!country) continue;
-    if (r.event_type && !VIOLENT_TYPES.has(String(r.event_type))) continue;
-    const lat = toNum(r.latitude);
-    const lng = toNum(r.longitude);
-    if (lat === 0 && lng === 0) continue;
-    const a = byCountry.get(country) ?? { country, events: 0, fatalities: 0, sumLat: 0, sumLng: 0 };
-    a.events += 1;
-    a.fatalities += toNum(r.fatalities);
-    a.sumLat += lat;
-    a.sumLng += lng;
+  for (const f of features) {
+    const name = String(f.properties?.name ?? "").trim();
+    const coords = f.geometry?.coordinates;
+    if (!name || !Array.isArray(coords) || coords.length < 2) continue;
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const country = extractCountry(name);
+    if (!country || country.length < 3) continue;
+    const count = Number(f.properties?.count) || 1;
+    const a = byCountry.get(country) ?? { country, mentions: 0, sumLat: 0, sumLng: 0, wsum: 0 };
+    a.mentions += count;
+    a.sumLat += lat * count;
+    a.sumLng += lng * count;
+    a.wsum += count;
     byCountry.set(country, a);
   }
 
   const ranked = [...byCountry.values()]
-    .filter(a => a.events >= MIN_EVENTS)
-    // Intensidade: eventos + peso nas mortes (guerra letal sobe).
-    .sort((a, b) => (b.events + b.fatalities * 0.5) - (a.events + a.fatalities * 0.5));
+    .filter(a => a.mentions >= MIN_MENTIONS && a.wsum > 0)
+    .sort((a, b) => b.mentions - a.mentions);
 
   if (diag) {
     diag.countriesAgg = byCountry.size;
-    diag.top = ranked.slice(0, 8).map(a => ({ country: a.country, events: a.events, fatalities: Math.round(a.fatalities) }));
+    diag.top = ranked.slice(0, 8).map(a => ({ country: a.country, mentions: a.mentions }));
   }
 
   const zones = ranked.slice(0, MAX_ZONES).map(a => ({
-    id: `acled-${slug(a.country)}`,
+    id: `gdelt-${slug(a.country)}`,
     name: labelFor(a.country),
-    lat: a.sumLat / a.events,
-    lng: a.sumLng / a.events,
+    lat: a.sumLat / a.wsum,
+    lng: a.sumLng / a.wsum,
     nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
-    events: a.events,
-    fatalities: Math.round(a.fatalities),
+    events: a.mentions,
     periodDias: PERIOD_DIAS,
     country: a.country,
   }));
