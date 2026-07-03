@@ -128,33 +128,21 @@ interface HistoryPart {
 
 // ── Gemini provider ────────────────────────────────────────────────────────────
 
-async function geminiStream(
+// Gerador de tokens do Gemini. Erros de cota/rede estouram na PRIMEIRA iteração
+// (que engloba sendMessageStream + 1º chunk) — assim o probe da cascata detecta
+// a falha ANTES de comprometer a resposta com este modelo.
+async function* geminiTokens(
   model: string, apiKey: string,
   systemPrompt: string, history: HistoryPart[], message: string,
-): Promise<ReadableStream> {
+): AsyncGenerator<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const m = genAI.getGenerativeModel({ model, systemInstruction: systemPrompt });
   const chat = m.startChat({ history });
   const streamResult = await chat.sendMessageStream(message);
-
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of streamResult.stream) {
-          const text = chunk.text();
-          if (text) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
-          }
-        }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-      } catch (err) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: String(err) })}\n\n`));
-      } finally {
-        controller.close();
-      }
-    },
-  });
+  for await (const chunk of streamResult.stream) {
+    const text = chunk.text();
+    if (text) yield text;
+  }
 }
 
 async function geminiComplete(
@@ -181,15 +169,19 @@ function toOpenAIMessages(systemPrompt: string, history: HistoryPart[], message:
   ];
 }
 
-async function openaiStream(
+// Gerador de tokens de provedores OpenAI-compat (GPT, DeepSeek, Groq). O fetch
+// tem timeout (um provedor pendurado NÃO pode travar a cascata) e o !res.ok
+// estoura na 1ª iteração — o probe detecta 429/limite antes de comprometer.
+async function* openaiTokens(
   model: string, apiKey: string, baseUrl: string,
   systemPrompt: string, history: HistoryPart[], message: string,
-): Promise<ReadableStream> {
+): AsyncGenerator<string> {
   const messages = toOpenAIMessages(systemPrompt, history, message);
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model, messages, stream: true, max_tokens: 4096 }),
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {
@@ -199,39 +191,24 @@ async function openaiStream(
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-
-  return new ReadableStream({
-    async start(controller) {
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") continue;
       try {
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const payload = line.slice(6).trim();
-            if (payload === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(payload);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: content })}\n\n`));
-              }
-            } catch { /* skip malformed chunk */ }
-          }
-        }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-      } catch (err) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: String(err) })}\n\n`));
-      } finally {
-        controller.close();
-      }
-    },
-  });
+        const parsed = JSON.parse(payload);
+        const content = parsed.choices?.[0]?.delta?.content;
+        if (content) yield content as string;
+      } catch { /* skip malformed chunk */ }
+    }
+  }
 }
 
 async function openaiComplete(
@@ -243,6 +220,7 @@ async function openaiComplete(
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model, messages, max_tokens: 4096 }),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -293,28 +271,38 @@ export async function POST(req: NextRequest) {
 
       try {
         if (wantStream) {
-          let stream: ReadableStream;
+          // Probe do 1º token: só nos comprometemos com este modelo depois de
+          // receber um token de verdade. Se ele estourar cota/limite/timeout
+          // ANTES do 1º token (caso do Groq/Llama no limite), o erro é lançado
+          // aqui e a cascata avança para o próximo — o cliente nunca vê a falha.
+          const gen = entry.provider === "gemini"
+            ? geminiTokens(entry.model, apiKey, systemPrompt, history, message)
+            : openaiTokens(entry.model, apiKey, entry.baseUrl!, systemPrompt, history, message);
 
-          if (entry.provider === "gemini") {
-            stream = await geminiStream(entry.model, apiKey, systemPrompt, history, message);
-          } else {
-            stream = await openaiStream(entry.model, apiKey, entry.baseUrl!, systemPrompt, history, message);
+          const first = await gen.next();
+          if (first.done || !first.value) {
+            throw new Error("resposta vazia do modelo");
           }
 
           const encoder = new TextEncoder();
-          const modelHeader = encoder.encode(
-            `data: ${JSON.stringify({ model: entry.label })}\n\n`,
-          );
+          const firstToken = first.value;
           const prefixed = new ReadableStream({
             async start(controller) {
-              controller.enqueue(modelHeader);
-              const reader = stream.getReader();
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                controller.enqueue(value);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ model: entry.label })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: firstToken })}\n\n`));
+              try {
+                for await (const tok of gen) {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: tok })}\n\n`));
+                }
+              } catch (err) {
+                // Erro DEPOIS do 1º token: já estamos comprometidos com o stream,
+                // então repassamos o erro ao cliente (não dá para trocar de modelo
+                // no meio de uma resposta já iniciada).
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: String(err) })}\n\n`));
+              } finally {
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                controller.close();
               }
-              controller.close();
             },
           });
 
@@ -333,15 +321,16 @@ export async function POST(req: NextRequest) {
         } else {
           responseText = await openaiComplete(entry.model, apiKey, entry.baseUrl!, systemPrompt, history, message);
         }
+        if (!responseText?.trim()) throw new Error("resposta vazia do modelo");
         return Response.json({ response: responseText, model: entry.label });
       } catch (err) {
         lastError = err;
         if (isQuotaError(err)) {
           markCooldown(entry.model);
-          console.warn(`[Chat] ${entry.label} → quota/rate limit, trying next... (cooldown 60s)`);
-          continue;
+          console.warn(`[Chat] ${entry.label} → cota/limite, tentando o próximo… (cooldown 60s)`);
+        } else {
+          console.error(`[Chat] ${entry.label} → erro, tentando o próximo:`, err);
         }
-        console.error(`[Chat] ${entry.label} → error:`, err);
         continue;
       }
     }
