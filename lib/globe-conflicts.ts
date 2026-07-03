@@ -140,11 +140,28 @@ export function resetAcledToken(): void {
   cachedToken = null;
 }
 
-async function getAcledToken(): Promise<string | null> {
+// Diagnóstico (para /api/globe/conflicts?debug=1) — NUNCA inclui senha/token,
+// só booleanos, status HTTP, contadores e mensagens de erro.
+export interface AcledDiag {
+  hasEmail: boolean;
+  hasPassword: boolean;
+  tokenObtained: boolean;
+  oauthStatus?: number;
+  oauthError?: string;
+  readStatus?: number;
+  readError?: string;
+  rowsReturned?: number;
+  countriesAgg?: number;
+  zonesReturned: number;
+  top?: { country: string; events: number; fatalities: number }[];
+}
+
+async function getAcledToken(diag?: AcledDiag): Promise<string | null> {
   const email = process.env.ACLED_EMAIL;
   const password = process.env.ACLED_PASSWORD;
+  if (diag) { diag.hasEmail = !!email?.trim(); diag.hasPassword = !!password?.trim(); }
   if (!email || !password) return null;
-  if (cachedToken && Date.now() < cachedToken.exp) return cachedToken.token;
+  if (cachedToken && Date.now() < cachedToken.exp) { if (diag) diag.tokenObtained = true; return cachedToken.token; }
 
   try {
     const body = new URLSearchParams({
@@ -160,14 +177,23 @@ async function getAcledToken(): Promise<string | null> {
       body: body.toString(),
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) throw new Error(`ACLED OAuth HTTP ${res.status}`);
+    if (diag) diag.oauthStatus = res.status;
+    if (!res.ok) {
+      if (diag) diag.oauthError = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      throw new Error(`ACLED OAuth HTTP ${res.status}`);
+    }
     const json = await res.json();
     const token = json?.access_token;
-    if (!token) throw new Error("ACLED OAuth sem access_token");
+    if (!token) {
+      if (diag) diag.oauthError = `resposta sem access_token: ${JSON.stringify(json).slice(0, 300)}`;
+      throw new Error("ACLED OAuth sem access_token");
+    }
     const ttlMs = (Number(json?.expires_in) || 86400) * 1000;
     cachedToken = { token, exp: Date.now() + ttlMs - 60_000 };
+    if (diag) diag.tokenObtained = true;
     return token;
   } catch (e) {
+    if (diag && !diag.oauthError) diag.oauthError = e instanceof Error ? e.message : "erro";
     console.error("ACLED OAuth falhou:", e);
     return null;
   }
@@ -177,8 +203,8 @@ async function getAcledToken(): Promise<string | null> {
  * Busca e agrega os focos de conflito da ACLED (últimos 30 dias).
  * Autenticação: OAuth (Bearer). Credenciais: ACLED_EMAIL + ACLED_PASSWORD.
  */
-export async function fetchAcledConflicts(): Promise<ConflictZoneData[]> {
-  const token = await getAcledToken();
+export async function fetchAcledConflicts(diag?: AcledDiag): Promise<ConflictZoneData[]> {
+  const token = await getAcledToken(diag);
   if (!token) return [];
 
   const to = new Date();
@@ -198,10 +224,18 @@ export async function fetchAcledConflicts(): Promise<ConflictZoneData[]> {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) throw new Error(`ACLED HTTP ${res.status}`);
+    if (diag) diag.readStatus = res.status;
+    if (!res.ok) {
+      if (diag) diag.readError = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      throw new Error(`ACLED HTTP ${res.status}`);
+    }
     const json = await res.json();
-    if (json?.success === false) throw new Error(`ACLED erro: ${json?.error ?? "desconhecido"}`);
+    if (json?.success === false) {
+      if (diag) diag.readError = `ACLED erro: ${JSON.stringify(json?.error ?? json).slice(0, 300)}`;
+      throw new Error(`ACLED erro: ${json?.error ?? "desconhecido"}`);
+    }
     rows = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+    if (diag) diag.rowsReturned = rows.length;
   } catch (e) {
     console.error("ACLED indisponível:", e);
     return [];
@@ -225,20 +259,27 @@ export async function fetchAcledConflicts(): Promise<ConflictZoneData[]> {
     byCountry.set(country, a);
   }
 
-  return [...byCountry.values()]
+  const ranked = [...byCountry.values()]
     .filter(a => a.events >= MIN_EVENTS)
     // Intensidade: eventos + peso nas mortes (guerra letal sobe).
-    .sort((a, b) => (b.events + b.fatalities * 0.5) - (a.events + a.fatalities * 0.5))
-    .slice(0, MAX_ZONES)
-    .map(a => ({
-      id: `acled-${slug(a.country)}`,
-      name: labelFor(a.country),
-      lat: a.sumLat / a.events,
-      lng: a.sumLng / a.events,
-      nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
-      events: a.events,
-      fatalities: Math.round(a.fatalities),
-      periodDias: PERIOD_DIAS,
-      country: a.country,
-    }));
+    .sort((a, b) => (b.events + b.fatalities * 0.5) - (a.events + a.fatalities * 0.5));
+
+  if (diag) {
+    diag.countriesAgg = byCountry.size;
+    diag.top = ranked.slice(0, 8).map(a => ({ country: a.country, events: a.events, fatalities: Math.round(a.fatalities) }));
+  }
+
+  const zones = ranked.slice(0, MAX_ZONES).map(a => ({
+    id: `acled-${slug(a.country)}`,
+    name: labelFor(a.country),
+    lat: a.sumLat / a.events,
+    lng: a.sumLng / a.events,
+    nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
+    events: a.events,
+    fatalities: Math.round(a.fatalities),
+    periodDias: PERIOD_DIAS,
+    country: a.country,
+  }));
+  if (diag) diag.zonesReturned = zones.length;
+  return zones;
 }
