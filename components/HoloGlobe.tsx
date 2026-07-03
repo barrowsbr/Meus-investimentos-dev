@@ -2161,12 +2161,20 @@ function PlanetSceneContent({ planet }: { planet: PlanetMode }) {
 
 // ── Exported component ───────────────────────────────────────────────────────
 
-// Camadas GDELT do globo (id/label/cor batem com lib/globe-conflicts.ts).
-const GLOBE_LAYERS = [
-  { id: "conflitos", label: "Conflitos", color: "#ff4444" },
-  { id: "protestos", label: "Protestos", color: "#f59e0b" },
-  { id: "desastres", label: "Desastres", color: "#38bdf8" },
-] as const;
+// Só CONFLITOS no globo (protestos/desastres saíram da UI — não agregavam;
+// os motores seguem nas libs para virarem filtros no futuro).
+function ConflictLegend({ count }: { count: number }) {
+  return (
+    <div
+      className="flex items-center gap-1"
+      style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: "#ff4444" }}
+    >
+      <span style={{ width: 5, height: 5, borderRadius: 999, background: "#ff4444" }} />
+      Conflitos
+      {count > 0 && <span style={{ opacity: 0.65 }}>·{count}</span>}
+    </div>
+  );
+}
 
 export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps) {
   const classic = variant === "classico";
@@ -2297,24 +2305,10 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           </Canvas>
         </div>
 
-        {/* Legenda das camadas (contagem por categoria) */}
+        {/* Legenda: conflitos ao vivo */}
         {displayMode === "globe" && (
-          <div className="flex items-center justify-center gap-2.5 mt-1">
-            {GLOBE_LAYERS.map(l => {
-              const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
-              const dim = n === 0;
-              return (
-                <div
-                  key={l.id}
-                  className="flex items-center gap-1"
-                  style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
-                >
-                  <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
-                  {l.label}
-                  {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-center mt-1">
+            <ConflictLegend count={conflicts.length} />
           </div>
         )}
 
@@ -2418,8 +2412,8 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
         </Canvas>
       </div>
 
-      {/* HUD inferior do globo: camadas (não filtram — orientam a leitura das
-          cores, com contagem) + escala de calor, num pill translúcido. */}
+      {/* HUD inferior do globo: conflitos ao vivo + escala de calor, num pill
+          translúcido. */}
       {displayMode === "globe" && (
         <div
           className="absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1.5"
@@ -2429,21 +2423,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
             className="flex items-center gap-2.5 rounded-full px-3.5 py-1.5"
             style={{ background: "rgba(6,10,16,0.55)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(8px)" }}
           >
-            {GLOBE_LAYERS.map(l => {
-              const n = conflicts.filter(z => zoneCategory(z.id) === l.id).length;
-              const dim = n === 0;
-              return (
-                <div
-                  key={l.id}
-                  className="flex items-center gap-1"
-                  style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: dim ? "#52525b" : l.color }}
-                >
-                  <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: dim ? 0.35 : 1 }} />
-                  {l.label}
-                  {n > 0 && <span style={{ opacity: 0.65 }}>·{n}</span>}
-                </div>
-              );
-            })}
+            <ConflictLegend count={conflicts.length} />
             <span className="text-[8px] text-zinc-700">|</span>
             <div className="flex items-center gap-1.5">
               <span className="text-[8px] font-semibold text-red-400/60">-4%</span>
