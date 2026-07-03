@@ -44,17 +44,9 @@ const FALLBACK_CONFLICT_ZONES: ConflictZone[] = [
   { id: "red-sea", name: "Crise no Mar Vermelho (Houthis)", lat: 14.5, lng: 42.5, nearbyMarkets: ["^CASE30", "^BSESN", "^TA125.TA"] },
 ];
 
-// Categoria de uma zona a partir do id (as três camadas convivem no globo ao
-// mesmo tempo; a cor de cada ponto vem da sua própria categoria). Zonas curadas
-// de reserva (ids "ukraine", "red-sea"…) caem no default = conflito.
-type ZoneCategory = "conflitos" | "protestos" | "desastres";
-const LAYER_COLOR: Record<ZoneCategory, string> = { conflitos: "#ff4444", protestos: "#f59e0b", desastres: "#38bdf8" };
-function zoneCategory(id: string): ZoneCategory {
-  if (id.startsWith("protestos")) return "protestos";
-  if (id.startsWith("desastres")) return "desastres";
-  return "conflitos";
-}
-function zoneColor(id: string): string { return LAYER_COLOR[zoneCategory(id)]; }
+// O globo mostra só CONFLITOS (protestos/desastres saíram da UI; os motores
+// seguem nas libs para virarem filtros). Uma cor, um significado.
+const CONFLICT_COLOR = "#ff4444";
 
 type SelectedItem =
   | { type: "market"; data: MarketPoint }
@@ -715,7 +707,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
             <ConflictMarker
               key={z.id}
               zone={z}
-              color={zoneColor(z.id)}
+              color={CONFLICT_COLOR}
               radius={R + 0.005}
               isSelected={selectedId === z.id}
               onSelect={handleSelectConflict}
@@ -789,10 +781,8 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
-  // Cor + rótulo derivam da categoria da zona (id começa com o tema).
-  const cat = zoneCategory(zone.id);
-  const col = LAYER_COLOR[cat];
-  const kind = cat === "protestos" ? "Protesto Ativo" : cat === "desastres" ? "Alerta Ativo" : "Conflito Ativo";
+  const col = CONFLICT_COLOR;
+  const kind = "Conflito Ativo";
   // Pergunta enxuta para a IA do sistema: explicar de forma sintética e precisa
   // o que está acontecendo. (Voltamos do Gemini porque lá exigiria o dono digitar
   // /enviar; aqui a pergunta já dispara sozinha.) Cidades-foco entram no contexto.
@@ -2161,17 +2151,28 @@ function PlanetSceneContent({ planet }: { planet: PlanetMode }) {
 
 // ── Exported component ───────────────────────────────────────────────────────
 
-// Só CONFLITOS no globo (protestos/desastres saíram da UI — não agregavam;
-// os motores seguem nas libs para virarem filtros no futuro).
+// Legenda dos dois tipos de ponto do globo: conflitos (vermelho, GDELT) e
+// bolsas (pontos coloridos pelo dia do índice). Cada indicador com nome.
 function ConflictLegend({ count }: { count: number }) {
   return (
     <div
       className="flex items-center gap-1"
-      style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: "#ff4444" }}
+      style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: CONFLICT_COLOR }}
     >
-      <span style={{ width: 5, height: 5, borderRadius: 999, background: "#ff4444" }} />
-      Conflitos
+      <span style={{ width: 5, height: 5, borderRadius: 999, background: CONFLICT_COLOR, boxShadow: `0 0 4px ${CONFLICT_COLOR}` }} />
+      Conflitos ao vivo
       {count > 0 && <span style={{ opacity: 0.65 }}>·{count}</span>}
+    </div>
+  );
+}
+
+function MarketHeatLegend() {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[9px] font-bold tracking-[.04em] text-zinc-400">Bolsas</span>
+      <span className="text-[8px] font-semibold text-red-400/60">-4%</span>
+      <div style={{ width: 44, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
+      <span className="text-[8px] font-semibold text-emerald-400/60">+4%</span>
     </div>
   );
 }
@@ -2344,11 +2345,9 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           </div>
         ) : (
           <>
-            {/* Escala de calor */}
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span className="text-[8px] text-red-400/60 font-semibold">-4%</span>
-              <div style={{ width: 56, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
-              <span className="text-[8px] text-emerald-400/60 font-semibold">+4%</span>
+            {/* Escala de calor das bolsas */}
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 4 }}>
+              <MarketHeatLegend />
             </div>
 
             {/* Card de detalhe abaixo do globo */}
@@ -2425,11 +2424,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           >
             <ConflictLegend count={conflicts.length} />
             <span className="text-[8px] text-zinc-700">|</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8px] font-semibold text-red-400/60">-4%</span>
-              <div style={{ width: 44, height: 3, borderRadius: 4, background: "linear-gradient(90deg, #ef4444, #facc15, #22c55e)", opacity: 0.5 }} />
-              <span className="text-[8px] font-semibold text-emerald-400/60">+4%</span>
-            </div>
+            <MarketHeatLegend />
           </div>
           <span
             className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
