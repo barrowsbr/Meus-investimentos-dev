@@ -8,12 +8,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Layers } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Layers, Activity } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
-  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, buildExposureHeat, currencyForCountry, type HeatEntry,
+  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, buildExposureHeat, buildGdeltHeat, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
 import { ISO_NUM_TO_ISO2, resolveCountryMeta } from "@/lib/radar/countries";
 import {
@@ -33,6 +33,7 @@ import CountryDossier from "./CountryDossier";
 import SymbolDetail from "./SymbolDetail";
 import CommandPalette from "./CommandPalette";
 import DigestPanel from "./DigestPanel";
+import GdeltPanel from "./GdeltPanel";
 
 export default function RadarShell() {
   const searchParams = useSearchParams();
@@ -47,6 +48,18 @@ export default function RadarShell() {
   const [exposureMode, setExposureMode] = useState<ExposureMode>("alocacao");
 
   const { data: portfolio } = usePortfolio();
+
+  // Focos de conflito GDELT (para o heat da camada "gdelt"). Busca 1x ao entrar.
+  const [gdeltHotspots, setGdeltHotspots] = useState<{ iso: string; countryPT: string; mentions: number }[]>([]);
+  useEffect(() => {
+    if (layer !== "gdelt" || gdeltHotspots.length > 0) return;
+    let cancelled = false;
+    fetch("/api/gdelt/world")
+      .then(r => r.json())
+      .then(d => { if (!cancelled && Array.isArray(d?.hotspots)) setGdeltHotspots(d.hotspots); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [layer, gdeltHotspots.length]);
 
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
@@ -70,8 +83,9 @@ export default function RadarShell() {
       return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
     if (layer === "etf") return buildExposureHeat(exposure);
+    if (layer === "gdelt") return buildGdeltHeat(gdeltHotspots);
     return new Map();
-  }, [layer, markets, moedas, exposure]);
+  }, [layer, markets, moedas, exposure, gdeltHotspots]);
 
   // ── Visão Bolsas: alocação por praça (fonte canônica = posições do snapshot) ──
   const exchangeAlloc = useMemo(() => {
@@ -181,6 +195,7 @@ export default function RadarShell() {
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
           { key: "instabilidade" as const, label: "Risco", icon: Shield },
           { key: "etf" as const, label: "Alocação", icon: Layers },
+          { key: "gdelt" as const, label: "GDELT", icon: Activity },
         ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
@@ -250,7 +265,9 @@ export default function RadarShell() {
             setExposureMode={setExposureMode}
           />
           <div className="mt-3">
-            <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
+            {layer === "gdelt"
+              ? <GdeltPanel onPickCountry={selectByName} />
+              : <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />}
           </div>
         </div>
 

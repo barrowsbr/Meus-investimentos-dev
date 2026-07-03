@@ -247,17 +247,19 @@ function ConflictMarker({
   zone,
   radius,
   isSelected,
+  color,
   onSelect,
 }: {
   zone: ConflictZone;
   radius: number;
   isSelected: boolean;
+  color: string;
   onSelect: (z: ConflictZone) => void;
 }) {
   const ring1Ref = useRef<THREE.Mesh>(null);
   const ring2Ref = useRef<THREE.Mesh>(null);
   const pos = useMemo(() => latLngToVec3(zone.lat, zone.lng, radius), [zone.lat, zone.lng, radius]);
-  const warColor = useMemo(() => new THREE.Color("#ff4444"), []);
+  const warColor = useMemo(() => new THREE.Color(color), [color]);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -313,7 +315,7 @@ function ConflictMarker({
 
 // ── Scene ────────────────────────────────────────────────────────────────────
 
-function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void }) {
+function GlobeScene({ markets, conflicts, conflictColor, onSelect }: { markets: MarketPoint[]; conflicts: ConflictZone[]; conflictColor: string; onSelect: (item: SelectedItem | null) => void }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -367,6 +369,7 @@ function GlobeScene({ markets, conflicts, onSelect }: { markets: MarketPoint[]; 
           <ConflictMarker
             key={z.id}
             zone={z}
+            color={conflictColor}
             radius={R + 0.005}
             isSelected={selectedId === z.id}
             onSelect={handleSelectConflict}
@@ -436,11 +439,15 @@ function MarketInfoCard({ point }: { point: MarketPoint }) {
 }
 
 function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyMarkets: MarketPoint[] }) {
-  // Contexto ao vivo do GDELT (quando disponível) deixa a pergunta bem mais específica.
+  // Cor + rótulo derivam do tema (o id da zona começa com o tema).
+  const isProtesto = zone.id.startsWith("protestos");
+  const isDesastre = zone.id.startsWith("desastres");
+  const col = isProtesto ? "#f59e0b" : isDesastre ? "#38bdf8" : "#ff4444";
+  const kind = isProtesto ? "Protesto Ativo" : isDesastre ? "Alerta Ativo" : "Conflito Ativo";
   const ctx = zone.events
-    ? ` (GDELT: ${zone.events} menções de conflito em notícias nos últimos ${zone.periodDias ?? 7} dias)`
+    ? ` (GDELT: ${zone.events} menções em notícias nos últimos ${zone.periodDias ?? 7} dias)`
     : "";
-  const aiQuery = `Analise o conflito "${zone.name}"${ctx}: quais os impactos econômicos e geopolíticos atuais? Como está afetando os mercados financeiros da região e as bolsas globais?`;
+  const aiQuery = `Analise a situação: "${zone.name}"${ctx}. Quais os impactos econômicos e geopolíticos atuais e como está afetando os mercados financeiros da região e as bolsas globais?`;
 
   return (
     <a
@@ -448,18 +455,18 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
       className="animate-card-in rounded-xl px-3.5 py-2.5 w-full max-w-[220px] block cursor-pointer transition-all duration-200 hover:brightness-125"
       style={{
         background: "rgba(13,14,20,0.92)",
-        border: "1px solid rgba(255,68,68,0.3)",
-        boxShadow: "0 0 20px rgba(255,68,68,0.1), 0 4px 16px rgba(0,0,0,0.5)",
+        border: `1px solid ${col}4d`,
+        boxShadow: `0 0 20px ${col}1a, 0 4px 16px rgba(0,0,0,0.5)`,
         backdropFilter: "blur(12px)",
       }}
     >
       <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-[10px]">⚠️</span>
-        <span className="text-[10px] font-extrabold text-red-400 uppercase tracking-wider">Conflito Ativo</span>
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: col, display: "inline-block" }} />
+        <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: col }}>{kind}</span>
       </div>
       <p className="text-[12px] font-bold text-white leading-snug mb-1">{zone.name}</p>
       {zone.events != null && (
-        <p className="text-[9px] text-red-300/80 font-mono mb-2">
+        <p className="text-[9px] font-mono mb-2" style={{ color: `${col}cc` }}>
           {zone.events} menções · {zone.periodDias ?? 7}d
           <span className="text-zinc-600"> · GDELT</span>
         </p>
@@ -492,8 +499,8 @@ function ConflictInfoCard({ zone, nearbyMarkets }: { zone: ConflictZone; nearbyM
         </>
       )}
 
-      <div className="flex items-center justify-center gap-1.5 pt-1.5" style={{ borderTop: "1px solid rgba(255,68,68,0.15)" }}>
-        <span className="text-[8px] text-red-400/70 font-semibold uppercase tracking-wider">Perguntar à IA →</span>
+      <div className="flex items-center justify-center gap-1.5 pt-1.5" style={{ borderTop: `1px solid ${col}26` }}>
+        <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: `${col}b3` }}>Perguntar à IA →</span>
       </div>
     </a>
   );
@@ -1781,10 +1788,19 @@ function PlanetSceneContent({ planet }: { planet: PlanetMode }) {
 
 // ── Exported component ───────────────────────────────────────────────────────
 
+// Camadas GDELT do globo (id/label/cor batem com lib/globe-conflicts.ts).
+const GLOBE_LAYERS = [
+  { id: "conflitos", label: "Conflitos", color: "#ff4444" },
+  { id: "protestos", label: "Protestos", color: "#f59e0b" },
+  { id: "desastres", label: "Desastres", color: "#38bdf8" },
+] as const;
+
 export default function HoloGlobe({ mode }: HoloGlobeProps) {
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
+  const [activeLayer, setActiveLayer] = useState<string>("conflitos");
   const [selected, setSelected] = useState<SelectedItem | null>(null);
+  const layerColor = GLOBE_LAYERS.find(l => l.id === activeLayer)?.color ?? "#ff4444";
   const [visible, setVisible] = useState(false);
   const [animClass, setAnimClass] = useState("");
   const [displayMode, setDisplayMode] = useState<"globe" | "blackhole" | PlanetMode>("globe");
@@ -1818,13 +1834,6 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             }
           })
           .catch(() => {});
-        // Zonas de conflito ao vivo (ACLED) — cai no curado se a rota falhar.
-        fetch("/api/globe/conflicts")
-          .then(r => r.json())
-          .then(d => {
-            if (Array.isArray(d?.zones) && d.zones.length > 0) setConflicts(d.zones as ConflictZone[]);
-          })
-          .catch(() => {});
       }
     } else if (mode === "blackhole" || PLANET_MODES.includes(mode as PlanetMode)) {
       setSelected(null);
@@ -1843,6 +1852,22 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // Focos da camada ativa (GDELT) — refaz ao trocar de camada. Camada "conflitos"
+  // tem fallback curado; as outras somem se não vier dado (sem quebrar o globo).
+  useEffect(() => {
+    if (mode !== "globe") return;
+    let cancelled = false;
+    fetch(`/api/globe/conflicts?theme=${activeLayer}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const zones = Array.isArray(d?.zones) ? (d.zones as ConflictZone[]) : [];
+        setConflicts(zones.length > 0 ? zones : (activeLayer === "conflitos" ? FALLBACK_CONFLICT_ZONES : []));
+      })
+      .catch(() => { if (!cancelled && activeLayer === "conflitos") setConflicts(FALLBACK_CONFLICT_ZONES); });
+    return () => { cancelled = true; };
+  }, [mode, activeLayer]);
 
   // Force canvas to recalculate viewport after mount
   useEffect(() => {
@@ -1889,11 +1914,36 @@ export default function HoloGlobe({ mode }: HoloGlobeProps) {
             ) : isPlanet ? (
               <PlanetSceneContent planet={displayMode as PlanetMode} />
             ) : (
-              <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
+              <GlobeScene markets={markets} conflicts={conflicts} conflictColor={layerColor} onSelect={setSelected} />
             )}
           </React.Suspense>
         </Canvas>
       </div>
+
+      {/* Switcher de camadas GDELT (só no globo) */}
+      {displayMode === "globe" && (
+        <div className="flex items-center justify-center gap-1.5 mt-1">
+          {GLOBE_LAYERS.map(l => {
+            const on = activeLayer === l.id;
+            return (
+              <button
+                key={l.id}
+                onClick={() => setActiveLayer(l.id)}
+                className="flex items-center gap-1 rounded-full transition-all"
+                style={{
+                  padding: "3px 9px", fontSize: 9, fontWeight: 700, letterSpacing: ".04em",
+                  border: `1px solid ${on ? l.color : "rgba(255,255,255,0.1)"}`,
+                  background: on ? `${l.color}22` : "transparent",
+                  color: on ? l.color : "#71717a",
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: l.color, opacity: on ? 1 : 0.5 }} />
+                {l.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Shadow */}
       <div

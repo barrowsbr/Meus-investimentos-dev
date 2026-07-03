@@ -100,9 +100,20 @@ const COUNTRY_NORMALIZE: Record<string, string> = {
   "Russian Federation": "Russia",
 };
 
+// País (inglês) → ISO numérico 3 dígitos (para o heat do Radar).
+export const COUNTRY_ISO_NUM: Record<string, string> = {
+  Ukraine: "804", Russia: "643", Sudan: "729", "South Sudan": "728",
+  Palestine: "275", Israel: "376", Lebanon: "422", Syria: "760", Iraq: "368",
+  Iran: "364", Yemen: "887", Myanmar: "104", Somalia: "706", Ethiopia: "231",
+  "Democratic Republic of Congo": "180", Nigeria: "566", Mali: "466",
+  "Burkina Faso": "854", Niger: "562", Pakistan: "586", Afghanistan: "004",
+  Mexico: "484", Colombia: "170", India: "356", Turkey: "792", Egypt: "818",
+};
+
 function ptCountry(en: string): string {
   return COUNTRY_PT[en] ?? en;
 }
+export const ptCountryName = ptCountry;
 function labelFor(country: string): string {
   return COUNTRY_LABEL[country] ?? `Conflito — ${ptCountry(country)}`;
 }
@@ -143,25 +154,55 @@ interface GdeltFeature {
   geometry?: { type?: string; coordinates?: number[] };
 }
 
-// Termos fortemente ligados a conflito armado (evita "guerra" metafórica).
-const GDELT_QUERY = "airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen";
 const PERIOD_DIAS = 7;
-const MIN_MENTIONS = 10;  // piso p/ cortar ruído de menção isolada
 const MAX_ZONES = 12;
 
+// Camadas do globo (temas GDELT). Cada uma: cor, query e rótulo próprios.
+export interface GlobeTheme {
+  id: string;
+  label: string;
+  color: string;
+  query: string;
+  minMentions: number;
+  useWarLabels: boolean;  // conflitos usam os nomes amigáveis de guerra
+  prefix: string;         // prefixo do rótulo p/ os demais temas
+}
+export const GLOBE_THEMES: Record<string, GlobeTheme> = {
+  conflitos: {
+    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 10, useWarLabels: true, prefix: "Conflito",
+    query: "airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen",
+  },
+  protestos: {
+    id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 18, useWarLabels: false, prefix: "Protestos",
+    query: "protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR \"anti-government\"",
+  },
+  desastres: {
+    id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 15, useWarLabels: false, prefix: "Alerta",
+    query: "earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR \"flash flood\"",
+  },
+};
+export const DEFAULT_THEME = "conflitos";
+
+function zoneName(country: string, theme: GlobeTheme): string {
+  if (theme.useWarLabels) return labelFor(country);
+  return `${theme.prefix} — ${ptCountry(country)}`;
+}
+
 /**
- * Busca e agrega os focos de conflito do GDELT (GEO 2.0, últimos 7 dias).
- * Sem autenticação. Agrega as menções geolocalizadas por país.
+ * Busca e agrega focos de um TEMA do GDELT (GEO 2.0, últimos 7 dias) por país.
+ * Sem autenticação.
  */
-export async function fetchLiveConflicts(diag?: ConflictDiag): Promise<ConflictZoneData[]> {
+export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: ConflictDiag): Promise<ConflictZoneData[]> {
+  const theme = GLOBE_THEMES[themeId] ?? GLOBE_THEMES[DEFAULT_THEME];
   const params = new URLSearchParams({
-    query: GDELT_QUERY,
+    query: theme.query,
     format: "GeoJSON",
     mode: "PointData",
     timespan: `${PERIOD_DIAS}d`,
     maxpoints: "500",
   });
   const url = `https://api.gdeltproject.org/api/v2/geo/geo?${params.toString()}`;
+  const MIN_MENTIONS = theme.minMentions;
 
   let features: GdeltFeature[] = [];
   try {
@@ -214,8 +255,8 @@ export async function fetchLiveConflicts(diag?: ConflictDiag): Promise<ConflictZ
   }
 
   const zones = ranked.slice(0, MAX_ZONES).map(a => ({
-    id: `gdelt-${slug(a.country)}`,
-    name: labelFor(a.country),
+    id: `${theme.id}-${slug(a.country)}`,
+    name: zoneName(a.country, theme),
     lat: a.sumLat / a.wsum,
     lng: a.sumLng / a.wsum,
     nearbyMarkets: COUNTRY_INDICES[a.country] ?? [],
@@ -225,4 +266,9 @@ export async function fetchLiveConflicts(diag?: ConflictDiag): Promise<ConflictZ
   }));
   if (diag) diag.zonesReturned = zones.length;
   return zones;
+}
+
+/** Compat: mantém o nome antigo usado pela rota/testes (tema = conflitos). */
+export function fetchLiveConflicts(diag?: ConflictDiag): Promise<ConflictZoneData[]> {
+  return fetchGdeltEvents(DEFAULT_THEME, diag);
 }

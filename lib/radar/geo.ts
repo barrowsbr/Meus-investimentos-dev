@@ -277,6 +277,31 @@ export function buildMarketHeat(
   return map;
 }
 
+// Camada GDELT: ISO numérico → intensidade de conflito (menções GDELT). Só os
+// focos acendem (vermelho por intensidade), o resto do mapa fica neutro — a
+// leitura de "outlier" fica imediata.
+export function buildGdeltHeat(
+  hotspots: { iso: string; countryPT: string; mentions: number }[],
+): Map<string, HeatEntry> {
+  const map = new Map<string, HeatEntry>();
+  const max = Math.max(1, ...hotspots.map(h => h.mentions));
+  for (const h of hotspots) {
+    if (!h.iso) continue;
+    const country = ISO_NUM_TO_COUNTRY[h.iso] ?? h.countryPT;
+    const norm = 0.45 + 0.55 * Math.min(1, h.mentions / max);
+    map.set(h.iso, {
+      intensity: -norm,                    // negativo = vermelho
+      label: h.countryPT,
+      valueText: `${h.mentions} menções · GDELT`,
+      positive: false,
+      region: COUNTRY_REGION[country],
+      country,
+      flag: "",
+    });
+  }
+  return map;
+}
+
 // Camada CÂMBIO: ISO numérico → força da moeda local vs USD.
 // A cotação é "1 USD = X local"; logo rate ↑ = moeda local mais fraca. Invertendo
 // o sinal, o calor fica intuitivo: verde = moeda local valorizou.
