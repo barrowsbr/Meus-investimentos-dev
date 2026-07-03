@@ -2,6 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
+  "git": {
+    "deploymentEnabled": {
+      "claude/add-repo-description-AanfH": false
+    }
+  },
   "functions": {
     "api/index.py": {
       "maxDuration": 30
