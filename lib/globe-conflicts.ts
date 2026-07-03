@@ -169,16 +169,16 @@ export interface GlobeTheme {
 }
 export const GLOBE_THEMES: Record<string, GlobeTheme> = {
   conflitos: {
-    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 10, useWarLabels: true, prefix: "Conflito",
+    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 8, useWarLabels: true, prefix: "Conflito",
     query: "airstrike OR shelling OR militants OR insurgents OR bombardment OR paramilitary OR ceasefire OR frontline OR airstrikes OR gunmen",
   },
   protestos: {
-    id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 18, useWarLabels: false, prefix: "Protestos",
-    query: "protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR \"anti-government\"",
+    id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 8, useWarLabels: false, prefix: "Protestos",
+    query: "protest OR demonstration OR riot OR unrest OR uprising OR crackdown OR protesters",
   },
   desastres: {
-    id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 15, useWarLabels: false, prefix: "Alerta",
-    query: "earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR \"flash flood\"",
+    id: "desastres", label: "Desastres", color: "#38bdf8", minMentions: 8, useWarLabels: false, prefix: "Alerta",
+    query: "earthquake OR flood OR wildfire OR hurricane OR cyclone OR volcano OR landslide OR typhoon OR floods",
   },
 };
 export const DEFAULT_THEME = "conflitos";
@@ -194,14 +194,9 @@ function zoneName(country: string, theme: GlobeTheme): string {
  */
 export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: ConflictDiag): Promise<ConflictZoneData[]> {
   const theme = GLOBE_THEMES[themeId] ?? GLOBE_THEMES[DEFAULT_THEME];
-  const params = new URLSearchParams({
-    query: theme.query,
-    format: "GeoJSON",
-    mode: "PointData",
-    timespan: `${PERIOD_DIAS}d`,
-    maxpoints: "500",
-  });
-  const url = `https://api.gdeltproject.org/api/v2/geo/geo?${params.toString()}`;
+  // ATENÇÃO: o GDELT NÃO decodifica "+" como espaço — precisa ser %20. Por isso
+  // a query é montada com encodeURIComponent (não URLSearchParams, que usa "+").
+  const url = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(theme.query)}&format=GeoJSON&mode=PointData&timespan=${PERIOD_DIAS}d&maxpoints=500`;
   const MIN_MENTIONS = theme.minMentions;
 
   let features: GdeltFeature[] = [];

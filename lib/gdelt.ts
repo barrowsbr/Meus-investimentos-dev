@@ -39,13 +39,10 @@ function gdeltDate(s: string): string {
 }
 
 async function fetchTimeline(query: string, mode: "timelinevol" | "timelinetone", days: number): Promise<Map<string, number>> {
-  const params = new URLSearchParams({
-    query,
-    mode,
-    format: "json",
-    timespan: `${days}d`,
-  });
-  const res = await fetch(`${DOC_URL}?${params.toString()}`, {
+  // GDELT não decodifica "+" como espaço — usar %20 (encodeURIComponent), não
+  // URLSearchParams (que produz "+", quebrando a query).
+  const url = `${DOC_URL}?query=${encodeURIComponent(query)}&mode=${mode}&format=json&timespan=${days}d`;
+  const res = await fetch(url, {
     headers: { "User-Agent": "meus-investimentos" },
     signal: AbortSignal.timeout(18_000),
   });
