@@ -175,10 +175,63 @@ const NIGHT_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-night
 // a imagem do GIBS já traz as nuvens reais do dia embutidas.
 const CLOUDS_TEX = "https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png";
 
+// Camada do satélite do dia COMPOSTA sobre o blue marble: o mosaico diário tem
+// buracos (faixas sem passagem do satélite, noite polar) — em vez de trocar a
+// textura inteira (buraco = mancha preta), o shader deixa TRANSPARENTE onde não
+// há dado (revela o blue marble) e esmaece no lado noturno (revela as luzes de
+// cidade). Iluminação lambertiana pela mesma direção do Sol da cena.
+function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Texture; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: map },
+      uSunDir: { value: new THREE.Vector3(1, 0, 0) },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      void main() {
+        vUv = uv;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uMap;
+      uniform vec3 uSunDir;
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      void main() {
+        vec3 c = texture2D(uMap, vUv).rgb;
+        // Sem dado (preto) → transparente: o blue marble aparece por baixo.
+        float data = smoothstep(0.02, 0.07, max(c.r, max(c.g, c.b)));
+        float sun = dot(vWorldNormal, uSunDir);
+        // No lado noturno o satélite some (revela as luzes de cidade da base).
+        float dayside = smoothstep(-0.05, 0.3, sun);
+        float lambert = 0.12 + 1.05 * max(sun, 0.0);
+        gl_FragColor = vec4(c * min(lambert, 1.15), data * dayside);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+  }), [map]);
+
+  useFrame(() => {
+    if (sunDirRef) mat.uniforms.uSunDir.value.copy(sunDirRef.current);
+  });
+  useEffect(() => () => { mat.dispose(); }, [mat]);
+
+  return (
+    <mesh scale={[1.001, 1.001, 1.001]}>
+      <sphereGeometry args={[radius, 96, 96]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
+}
+
 // `liveClouds`: camada de nuvens/satélite do dia LIGADA (padrão). Desligada →
 // blue marble limpo, sem casca de nuvens. As texturas seguem carregadas; o
 // toggle é instantâneo.
-function EarthSphere({ radius, night = false, liveClouds = true }: { radius: number; night?: boolean; liveClouds?: boolean }) {
+function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef }: { radius: number; night?: boolean; liveClouds?: boolean; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
   // `night` (imersivo): luzes de cidade como emissivo — brilham onde o Sol não
   // alcança. A lista de texturas muda com a variante, mas a variante nunca muda
   // com a cena montada (o Canvas remonta ao trocar de estilo).
@@ -199,7 +252,8 @@ function EarthSphere({ radius, night = false, liveClouds = true }: { radius: num
     const loader = new THREE.TextureLoader();
     loader.load("/api/globe/earth-today", t => {
       if (dead) { t.dispose(); return; }
-      t.colorSpace = THREE.SRGBColorSpace;
+      // SEM marcar sRGB: o overlay usa ShaderMaterial cru (sem re-encode de
+      // saída) — deixar os valores passarem direto exibe as cores corretas.
       t.anisotropy = 8;
       setLiveMap(t);
     }, undefined, () => { /* sem live hoje — segue o blue marble */ });
@@ -218,7 +272,7 @@ function EarthSphere({ radius, night = false, liveClouds = true }: { radius: num
       <mesh>
         <sphereGeometry args={[radius, 96, 96]} />
         <meshStandardMaterial
-          map={liveClouds && liveMap ? liveMap : color}
+          map={color}
           bumpMap={bump}
           bumpScale={0.02}
           roughnessMap={water}
@@ -230,6 +284,11 @@ function EarthSphere({ radius, night = false, liveClouds = true }: { radius: num
           emissiveIntensity={night ? 0.95 : 0}
         />
       </mesh>
+
+      {/* Satélite do dia composto por cima (buracos ficam transparentes) */}
+      {night && liveClouds && liveMap && (
+        <LiveOverlay radius={radius} map={liveMap} sunDirRef={sunDirRef} />
+      )}
 
       {/* Nuvens estáticas — casca fina acima da superfície, iluminada pelo
           mesmo Sol (some no lado noturno). Ocultas quando o live está ativo
@@ -823,7 +882,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
         )}
 
         <group ref={groupRef}>
-          <EarthSphere radius={R} night={!classic} liveClouds={liveClouds} />
+          <EarthSphere radius={R} night={!classic} liveClouds={liveClouds} sunDirRef={classic ? undefined : sunDirWorld} />
           <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} />
 
           {markets.filter(m => m.symbol !== "^VIX").map(m => (
