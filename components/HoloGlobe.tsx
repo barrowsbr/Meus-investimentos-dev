@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Cloud, Rocket } from "lucide-react";
+import { Cloud, Rocket, ChevronsUp, ChevronsDown, Square } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -1035,10 +1035,11 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
 // clique/toque mira a Terra de volta. Limites: não entra na Terra (1.15) nem
 // foge do universo (70). Ao SAIR do modo, a câmera volta ao regime de órbita
 // (distância clampada, norte endireitado, mirando a Terra).
-function FreeFly({ onUserStart, targets, warpRef }: {
+function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
   onUserStart?: () => void;
   targets: SolarTarget[];
   warpRef?: React.MutableRefObject<((id: string) => void) | null>;
+  flightCmd?: React.MutableRefObject<{ thrust: number; stop: boolean }>;
 }) {
   const { camera, gl } = useThree();
   const dragging = useRef(false);
@@ -1177,6 +1178,16 @@ function FreeFly({ onUserStart, targets, warpRef }: {
       if (w.t >= 1) warp.current = null;
       return;
     }
+    // Botoeira de voo (segurar = empuxo contínuo; ⏹ zera na hora).
+    if (flightCmd?.current) {
+      if (flightCmd.current.stop) {
+        speed.current = 0;
+        flightCmd.current.stop = false;
+      }
+      if (flightCmd.current.thrust !== 0) {
+        speed.current = THREE.MathUtils.clamp(speed.current + flightCmd.current.thrust * 30 * delta, -18, 18);
+      }
+    }
     // Inércia do olhar.
     if (!dragging.current && Math.abs(lookVel.current.x) + Math.abs(lookVel.current.y) > 0.02) {
       lookBy(lookVel.current.x, lookVel.current.y);
@@ -1218,7 +1229,7 @@ function FreeFly({ onUserStart, targets, warpRef }: {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, targets = [], warpRef }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null> }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; stop: boolean }> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1419,7 +1430,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
           onStart={() => { introDone.current = true; }}
         />
       ) : freeFly ? (
-        <FreeFly onUserStart={() => { introDone.current = true; }} targets={targets} warpRef={warpRef} />
+        <FreeFly onUserStart={() => { introDone.current = true; }} targets={targets} warpRef={warpRef} flightCmd={flightCmd} />
       ) : (
         <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={() => { introDone.current = true; }} />
       )}
@@ -3024,6 +3035,8 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
     if (mode === "globe") setSolarTargets(computeSolarTargets(new Date()));
   }, [mode]);
   const warpRef = useRef<((id: string) => void) | null>(null);
+  // Botoeira de voo: empuxo contínuo enquanto o botão está pressionado.
+  const flightCmd = useRef<{ thrust: number; stop: boolean }>({ thrust: 0, stop: false });
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3257,7 +3270,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} targets={solarTargets} warpRef={warpRef} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3345,6 +3358,41 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               arraste para girar · role para mergulhar
             </span>
           )}
+        </div>
+      )}
+
+      {/* Botoeira de voo (só no Voo): ▲ acelera enquanto pressionado, ⏹ para,
+          ▼ dá ré — essencial no celular, onde roda de scroll não existe. */}
+      {displayMode === "globe" && freeFly && (
+        <div
+          className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2"
+          style={{ pointerEvents: "auto" }}
+        >
+          {([
+            { key: "fwd", icon: ChevronsUp, title: "Acelerar (segure)", down: () => { flightCmd.current.thrust = 1; }, up: () => { flightCmd.current.thrust = 0; } },
+            { key: "stop", icon: Square, title: "Parar", down: () => { flightCmd.current.stop = true; }, up: () => {} },
+            { key: "back", icon: ChevronsDown, title: "Ré (segure)", down: () => { flightCmd.current.thrust = -1; }, up: () => { flightCmd.current.thrust = 0; } },
+          ]).map(({ key, icon: Icon, title, down, up }) => (
+            <button
+              key={key}
+              title={title}
+              onPointerDown={(e) => { e.preventDefault(); down(); }}
+              onPointerUp={up}
+              onPointerLeave={up}
+              onPointerCancel={up}
+              onContextMenu={(e) => e.preventDefault()}
+              className="grid place-items-center rounded-full transition-colors active:bg-cyan-400/25"
+              style={{
+                width: 46, height: 46,
+                background: "rgba(6,10,16,0.66)",
+                border: "1px solid rgba(103,232,249,0.35)",
+                color: "#67e8f9",
+                touchAction: "none",
+              }}
+            >
+              <Icon size={key === "stop" ? 13 : 20} />
+            </button>
+          ))}
         </div>
       )}
 
