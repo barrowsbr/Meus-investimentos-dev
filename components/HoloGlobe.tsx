@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X } from "lucide-react";
+import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X, Tags } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -1147,18 +1147,11 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       onUserStart?.();
       speed.current = THREE.MathUtils.clamp(speed.current - e.deltaY * 0.004, -18, 18);
     };
-    const onDbl = () => {
-      // "Onde está a Terra?" — mira de volta.
-      camera.up.set(0, 1, 0);
-      camera.lookAt(0, 0, 0);
-    };
-
     el.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("dblclick", onDbl);
     const cam = camera;
     return () => {
       el.removeEventListener("pointerdown", onDown);
@@ -1166,7 +1159,6 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("dblclick", onDbl);
       // Reentrada na órbita: volta para o envelope do FreeOrbit.
       const dist = THREE.MathUtils.clamp(cam.position.length(), 1.25, 7.5);
       cam.position.setLength(dist);
@@ -1255,7 +1247,7 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; stop: boolean }> }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; stop: boolean }> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1398,7 +1390,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
 
             {/* Labels de navegação (só no voo): tamanho constante na tela,
                 clicáveis = warp */}
-            {freeFly && (
+            {freeFly && showLabels && (
               <NavLabels targets={targets} onWarp={(id) => warpRef?.current?.(id)} />
             )}
             {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol.
@@ -3090,6 +3082,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
   // Botoeira de voo: empuxo contínuo enquanto o botão está pressionado.
   const flightCmd = useRef<{ thrust: number; strafe: number; stop: boolean }>({ thrust: 0, strafe: 0, stop: false });
   const [navOpen, setNavOpen] = useState(true);
+  const [labelsOn, setLabelsOn] = useState(true);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3323,7 +3316,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3358,6 +3351,15 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: navOpen ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
                 >
                   <Compass size={10} strokeWidth={2.5} /> Destinos
+                </button>
+                <span className="text-[8px] text-zinc-700">|</span>
+                <button
+                  onClick={() => setLabelsOn(v => !v)}
+                  title={labelsOn ? "Esconder rótulos dos corpos" : "Mostrar rótulos dos corpos"}
+                  className="flex items-center gap-1 transition-colors"
+                  style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: labelsOn ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  <Tags size={10} strokeWidth={2.5} /> Rótulos
                 </button>
               </>
             ) : (
@@ -3407,7 +3409,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               {navOpen && (
               <div
                 className="grid grid-cols-5 gap-1 rounded-xl px-2.5 py-2"
-                style={{ background: "rgba(6,10,16,0.72)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: 340 }}
+                style={{ background: "rgba(6,10,16,0.72)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: "min(340px, calc(100vw - 156px))" }}
               >
                 {solarTargets.map(t => (
                   <button
@@ -3425,7 +3427,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               </div>
               )}
               <span className="text-[9px] tracking-[0.14em] text-cyan-200/60 uppercase" aria-hidden>
-                arraste para olhar · botões para voar · 2 toques mira a Terra
+                arraste para olhar · botões para voar · 🌍 no painel volta pra casa
               </span>
             </>
           ) : (
@@ -3443,8 +3445,8 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           ◀▶ deslocamento lateral, ⏹ para. Aceleração mansa (segurar). */}
       {displayMode === "globe" && freeFly && (
         <div
-          className="absolute right-3 top-1/2 z-20 -translate-y-1/2"
-          style={{ pointerEvents: "auto" }}
+          className="absolute right-2 z-20"
+          style={{ pointerEvents: "auto", bottom: "calc(env(safe-area-inset-bottom) + 74px)" }}
         >
           <div className="grid grid-cols-3 gap-1" style={{ width: 132 }}>
             {([
