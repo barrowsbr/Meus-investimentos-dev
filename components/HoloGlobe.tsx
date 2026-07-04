@@ -2372,9 +2372,10 @@ function MarketHeatLegend() {
 export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps) {
   const classic = variant === "classico";
   // Nuvens/satélite do dia: toggle discreto no HUD, preferência lembrada.
-  const [cloudsOn, setCloudsOn] = useState(true);
+  // DESLIGADO por padrão (pedido do dono) — só liga quem escolheu ("1").
+  const [cloudsOn, setCloudsOn] = useState(false);
   useEffect(() => {
-    setCloudsOn(window.localStorage.getItem("holoCloudsOn") !== "0");
+    setCloudsOn(window.localStorage.getItem("holoCloudsOn") === "1");
   }, []);
   const toggleClouds = useCallback(() => {
     setCloudsOn(v => {
