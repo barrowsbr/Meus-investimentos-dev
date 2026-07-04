@@ -47,7 +47,6 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
   cambio: ["Moeda fraca", "Moeda forte"],
   instabilidade: ["Risco alto", "Risco baixo"],
   etf: ["Menor", "Maior exposição"],
-  gdelt: ["Foco de conflito", "—"],
 };
 
 function RadarMapInner({
