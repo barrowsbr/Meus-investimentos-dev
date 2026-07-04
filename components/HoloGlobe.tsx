@@ -147,12 +147,16 @@ function moonPoint(now: Date): { lat: number; refLng: number } {
 // [a(UA), e, I°, L0°, L°/século, ϖ°, Ω°]. Posição heliocêntrica → geocêntrica
 // (menos a Terra) → equatorial → direção no MESMO frame fixo do Sol/Lua
 // (lat = declinação; refLng = αsol − αplaneta).
-// Escala de distâncias do sistema: 1 UA = 40 unidades no ponto do Sol, e as
-// distâncias geocêntricas seguem √UA (compressão clássica de planetário —
-// preserva ordem e proporção relativa; escala linear não cabe: Netuno a 30 UA
-// ficaria 1.200 unidades longe). dist = SUN_DIST · √(UA).
-const SUN_DIST = 40;
-const distForAU = (rAU: number) => SUN_DIST * Math.sqrt(rAU);
+// ── ESCALA REAL (pedido do dono: "é isso aí mesmo") ──────────────────────────
+// 1 unidade = 1 raio da Terra (6.371 km). Tudo em proporção verdadeira:
+//   Sol: raio 109, a 23.481 unidades (= 1 UA exata) — 0,53° no céu, como o real
+//   Lua: raio 0,273 a 60,3 — mesmos 0,5° aparentes do Sol (por isso há eclipses)
+//   Netuno: ~30 UA ≈ 700 mil unidades
+// As proporções são longas MESMO — navegar é papel do computador de bordo do
+// modo Voo (warp + velocidade adaptativa), não de comprimir o universo.
+const KM_PER_UNIT = 6371;
+const SUN_DIST = 23_481;                       // 1 UA em raios terrestres
+const distForAU = (rAU: number) => rAU * SUN_DIST;
 
 const PLANET_ELEMENTS: Record<string, [number, number, number, number, number, number, number]> = {
   mercurio: [0.387098, 0.20563, 7.005, 252.251, 149472.674, 77.457, 48.331],
@@ -204,6 +208,50 @@ function planetPoint(id: string, now: Date): { lat: number; refLng: number; rAU:
   const alphaS = Math.atan2(Math.cos(eps) * Math.sin(lamS), Math.cos(lamS)) / RAD;
   const refLng = ((alphaS - alphaP) % 360 + 540) % 360 - 180;
   return { lat, refLng, rAU };
+}
+
+// Raios reais em raios terrestres.
+const SOLAR_RADII: Record<string, number> = {
+  mercurio: 0.383, venus: 0.949, marte: 0.532,
+  jupiter: 10.97, saturno: 9.14, urano: 3.98, netuno: 3.86,
+};
+const PLANET_LABELS: [string, string, string][] = [
+  ["mercurio", "Mercúrio", "☿"], ["venus", "Vênus", "♀"], ["marte", "Marte", "♂"],
+  ["jupiter", "Júpiter", "♃"], ["saturno", "Saturno", "♄"], ["urano", "Urano", "♅"], ["netuno", "Netuno", "♆"],
+];
+
+// O grupo do sistema vive dentro do tilt (z = −0,41); navegação (voo/warp)
+// acontece em coordenadas de MUNDO — cada alvo carrega as duas.
+const TILT_Z = -0.41;
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+export interface SolarTarget {
+  id: string; label: string; emoji: string;
+  r: number;                 // raio real (raios terrestres)
+  local: THREE.Vector3;      // frame do tilt (para renderizar)
+  world: THREE.Vector3;      // frame do mundo (para navegar)
+  km: number;                // distância real da Terra
+}
+
+function computeSolarTargets(now: Date): SolarTarget[] {
+  const list: SolarTarget[] = [];
+  const push = (id: string, label: string, emoji: string, r: number, local: THREE.Vector3) =>
+    list.push({ id, label, emoji, r, local, world: local.clone().applyAxisAngle(Z_AXIS, TILT_Z), km: local.length() * KM_PER_UNIT });
+  push("terra", "Terra", "🌍", 1, new THREE.Vector3(0, 0, 0));
+  const m = moonPoint(now);
+  push("lua", "Lua", "🌙", 0.273, latLngToVec3(m.lat, m.refLng, MOON_DIST));
+  const s = subsolarPoint(now);
+  push("sol", "Sol", "☀️", 109, latLngToVec3(s.lat, 0, SUN_DIST));
+  for (const [id, label, emoji] of PLANET_LABELS) {
+    const pt = planetPoint(id, now);
+    push(id, label, emoji, SOLAR_RADII[id], latLngToVec3(pt.lat, pt.refLng, distForAU(pt.rAU)));
+  }
+  return list;
+}
+
+function fmtDist(km: number): string {
+  if (km < 2e6) return `${Math.round(km / 1000)} mil km`;
+  return `${(km / 149_597_870).toFixed(2)} UA`;
 }
 
 function heatHex(pct: number): string {
@@ -565,7 +613,7 @@ function SkySphere() {
   }, [tex]);
   return (
     <mesh scale={[-1, 1, 1]} renderOrder={-2}>
-      <sphereGeometry args={[320, 48, 48]} />
+      <sphereGeometry args={[1_500_000, 48, 48]} />
       <meshBasicMaterial map={tex} side={THREE.BackSide} depthWrite={false} />
     </mesh>
   );
@@ -620,8 +668,10 @@ const MOON_TEXES = [
   "https://unpkg.com/three-globe@2.41.12/example/img/lunar_surface.jpg",
   "https://cdn.jsdelivr.net/npm/three-globe@2.41.12/example/img/lunar_surface.jpg",
   "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/moon_1024.jpg",
+  "https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/moonmap1k.jpg",
+  "https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/moonmap1k.jpg",
 ];
-const MOON_DIST = 12;
+const MOON_DIST = 60.27;  // 384.400 km reais em raios terrestres
 
 function Moon({ anchorRef }: { anchorRef: React.RefObject<THREE.Group> }) {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
@@ -649,7 +699,7 @@ function Moon({ anchorRef }: { anchorRef: React.RefObject<THREE.Group> }) {
   return (
     <group ref={anchorRef} position={[MOON_DIST, 0, -4]}>
       <mesh>
-        <sphereGeometry args={[0.27, 48, 48]} />
+        <sphereGeometry args={[0.273, 48, 48]} />
         {tex ? (
           <meshStandardMaterial map={tex} roughness={1} metalness={0} />
         ) : (
@@ -941,13 +991,48 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
 // clique/toque mira a Terra de volta. Limites: não entra na Terra (1.15) nem
 // foge do universo (70). Ao SAIR do modo, a câmera volta ao regime de órbita
 // (distância clampada, norte endireitado, mirando a Terra).
-function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
+function FreeFly({ onUserStart, targets, warpRef }: {
+  onUserStart?: () => void;
+  targets: SolarTarget[];
+  warpRef?: React.MutableRefObject<((id: string) => void) | null>;
+}) {
   const { camera, gl } = useThree();
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
   const lookVel = useRef({ x: 0, y: 0 });
-  const speed = useRef(0); // unidades/s (+ frente, − ré)
+  const speed = useRef(0); // "manete" (+ frente, − ré); escala com a distância
   const pinchDist = useRef<number | null>(null);
+  const warp = useRef<{ from: THREE.Vector3; to: THREE.Vector3; look: THREE.Vector3; t: number } | null>(null);
+
+  // Distância à superfície do corpo mais próximo — dita a velocidade efetiva
+  // (perto = fino; no vazio interplanetário = milhares de raios/s) e o near
+  // da câmera (precisão de profundidade acompanha a escala local).
+  const nearestSurface = useCallback(() => {
+    let min = Infinity;
+    for (const t of targets) {
+      const d = camera.position.distanceTo(t.world) - t.r;
+      if (d < min) min = d;
+    }
+    return Math.max(min, 0.05);
+  }, [targets, camera]);
+
+  // Warp: viagem suave (~1,6s) até o corpo escolhido no computador de bordo.
+  useEffect(() => {
+    if (!warpRef) return;
+    warpRef.current = (id: string) => {
+      const t = targets.find(x => x.id === id);
+      if (!t) return;
+      const dir = camera.position.clone().sub(t.world);
+      if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+      dir.normalize();
+      const to = t.world.clone().add(dir.multiplyScalar(t.r * 3.5 + 0.6));
+      warp.current = { from: camera.position.clone(), to, look: t.world.clone(), t: 0 };
+      speed.current = 0;
+      lookVel.current = { x: 0, y: 0 };
+      camera.up.set(0, 1, 0);
+    };
+    return () => { warpRef.current = null; };
+  }, [warpRef, targets, camera]);
 
   const lookBy = useCallback((dxPx: number, dyPx: number) => {
     camera.rotateY(-dxPx * 0.0021);
@@ -1022,10 +1107,22 @@ function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
       cam.position.setLength(dist);
       cam.up.set(0, 1, 0);
       cam.lookAt(0, 0, 0);
+      cam.near = 0.1;
+      cam.updateProjectionMatrix();
     };
   }, [gl, camera, lookBy, onUserStart]);
 
   useFrame((_, delta) => {
+    // Warp em andamento tem prioridade.
+    if (warp.current) {
+      const w = warp.current;
+      w.t = Math.min(1, w.t + delta / 1.6);
+      const s = w.t * w.t * (3 - 2 * w.t); // smoothstep
+      camera.position.lerpVectors(w.from, w.to, s);
+      camera.lookAt(w.look);
+      if (w.t >= 1) warp.current = null;
+      return;
+    }
     // Inércia do olhar.
     if (!dragging.current && Math.abs(lookVel.current.x) + Math.abs(lookVel.current.y) > 0.02) {
       lookBy(lookVel.current.x, lookVel.current.y);
@@ -1034,14 +1131,25 @@ function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
       lookVel.current.y *= f;
     }
     // Deslocamento na direção do olhar, com deriva (decai devagar — "nave").
+    // Velocidade ADAPTATIVA: escala com a distância ao corpo mais próximo —
+    // rasante anda em raios/s; no vazio interplanetário, em milhares.
     if (Math.abs(speed.current) > 0.005) {
+      const surf = nearestSurface();
+      const factor = THREE.MathUtils.clamp(surf * 0.6, 1, 90_000);
       const fwd = new THREE.Vector3();
       camera.getWorldDirection(fwd);
-      camera.position.addScaledVector(fwd, speed.current * delta);
+      camera.position.addScaledVector(fwd, speed.current * factor * delta);
       speed.current *= Math.exp(-1.1 * delta);
       const len = camera.position.length();
       if (len < 1.15) camera.position.setLength(1.15); // não entra na Terra
-      if (len > 260) camera.position.setLength(260);   // não foge do universo (Netuno fica a ~218)
+      if (len > 900_000) camera.position.setLength(900_000); // não foge do universo (Netuno ~7e5)
+    }
+    // Near dinâmico: precisão de profundidade acompanha a escala local
+    // (sem isso, anéis de Saturno z-fighting a 200 mil unidades da origem).
+    const wantNear = THREE.MathUtils.clamp(nearestSurface() * 0.04, 0.05, 50);
+    if (Math.abs(wantNear - camera.near) / camera.near > 0.4) {
+      camera.near = wantNear;
+      camera.updateProjectionMatrix();
     }
   });
 
@@ -1056,7 +1164,7 @@ function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, targets = [], warpRef }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1177,24 +1285,25 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
             enquanto a Terra roda dentro (1 volta/24h, tempo real). */}
         {!classic && (
           <>
-            {/* O Sol: corpo REAL do easter egg (superfície de plasma + coroa)
-                + halos aditivos + a luz principal, na direção subsolar */}
+            {/* O Sol EM ESCALA REAL: raio 109 raios terrestres a 1 UA — 0,53°
+                no céu, exatamente como o Sol de verdade. Corpo do easter egg
+                (plasma + coroa) + halos proporcionais + a luz principal. */}
             <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
               <directionalLight intensity={2.6} color="#fff3d6" />
-              <group scale={[3.2, 3.2, 3.2]}>
+              <group scale={[121, 121, 121]}>
                 <SunSurface />
                 <SunCorona />
               </group>
-              <sprite scale={[30, 30, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
+              <sprite scale={[2400, 2400, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
-              <sprite scale={[12, 12, 1]}>
+              <sprite scale={[900, 900, 1]}>
                 <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
             </group>
 
-            {/* Os planetas — nas direções reais de agora (Kepler) */}
-            <SolarSystem />
+            {/* Os planetas — direções e distâncias REAIS de agora (Kepler) */}
+            <SolarSystem targets={targets} />
             {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol.
                 Mais fraco que antes: a noite escura faz as luzes de cidade
                 brilharem de verdade. */}
@@ -1250,7 +1359,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
           onStart={() => { introDone.current = true; }}
         />
       ) : freeFly ? (
-        <FreeFly onUserStart={() => { introDone.current = true; }} />
+        <FreeFly onUserStart={() => { introDone.current = true; }} targets={targets} warpRef={warpRef} />
       ) : (
         <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={() => { introDone.current = true; }} />
       )}
@@ -2658,43 +2767,76 @@ function NetunoScene() {
   );
 }
 
-// ── Sistema solar no espaço imersivo ─────────────────────────────────────────
-// Reusa os corpos celestes dos easter eggs (superfícies procedurais) e os
-// posiciona nas DIREÇÕES REAIS de agora (planetPoint — Kepler geocêntrico, no
-// mesmo frame fixo do Sol/Lua). Distância comprimida em escala log (entre a
-// Lua/12 e o céu/42); tamanhos cinematográficos. Voe até eles no modo 🚀.
-const SOLAR_BODIES: { id: string; scale: number; tilt?: [number, number, number]; node: React.ReactNode }[] = [
-  { id: "mercurio", scale: 0.5, node: <MercurySurface /> },
-  { id: "venus", scale: 0.55, node: <><VenusSurface /><VenusAtmosphere /></> },
-  { id: "marte", scale: 0.6, node: <><MarsSurface /><MarsAtmosphere /></> },
-  { id: "jupiter", scale: 0.9, node: <JupiterSurface /> },
-  { id: "saturno", scale: 0.9, tilt: [0.4, 0, -0.1], node: <><SaturnBody /><SaturnRings /></> },
-  { id: "urano", scale: 0.6, tilt: [1.71, 0, 0.2], node: <><UranusBody /><UranusAtmosphere /><UranusRings /></> },
-  { id: "netuno", scale: 0.6, node: <><NeptuneSurface /><NeptuneAtmosphere /></> },
+// ── Sistema solar no espaço imersivo — ESCALA REAL ───────────────────────────
+// Corpos nas direções reais (Kepler), com raios e distâncias em proporção
+// verdadeira (1 unidade = raio da Terra). Rochosos com TEXTURA real (mapas
+// clássicos do threex.planets, cascata + fallback no shader procedural dos
+// easter eggs); gigantes gasosos seguem procedurais (ficam ótimos).
+function RockyBody({ radius, urls, fallback }: { radius: number; urls: string[]; fallback: React.ReactNode }) {
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let dead = false;
+    const loader = new THREE.TextureLoader();
+    const tryLoad = (i: number) => {
+      if (dead || i >= urls.length) return;
+      loader.load(urls[i], t => {
+        if (dead) { t.dispose(); return; }
+        t.anisotropy = 8;
+        setTex(t);
+      }, undefined, () => tryLoad(i + 1));
+    };
+    tryLoad(0);
+    return () => { dead = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => () => { tex?.dispose(); }, [tex]);
+
+  if (!tex) return <>{fallback}</>;
+  return (
+    <mesh>
+      <sphereGeometry args={[radius, 64, 64]} />
+      {/* Iluminado pelo Sol da cena — fases reais, como a Lua */}
+      <meshStandardMaterial map={tex} roughness={1} metalness={0} />
+    </mesh>
+  );
+}
+
+const THREEX = (f: string) => [
+  `https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/${f}`,
+  `https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/${f}`,
 ];
 
-function SolarSystem() {
-  // Direções geocêntricas calculadas na montagem (drift < 1°/dia — estático
-  // durante a sessão é fiel o bastante). Distância em escala √UA coerente com
-  // o Sol: da Terra os planetas são pontinhos (como no céu real) que crescem
-  // quando você voa até eles.
-  const items = useMemo(() => {
-    const now = new Date();
-    return SOLAR_BODIES.map(b => {
-      const { lat, refLng, rAU } = planetPoint(b.id, now);
-      return { ...b, pos: latLngToVec3(lat, refLng, distForAU(rAU)) };
-    });
-  }, []);
+// Visual de cada corpo (raio REAL entra por parâmetro; o fallback procedural
+// escala da geometria nativa para o raio real).
+const SOLAR_VISUALS: Record<string, { tilt?: [number, number, number]; node: (r: number) => React.ReactNode }> = {
+  mercurio: {
+    node: r => <RockyBody radius={r} urls={THREEX("mercurymap.jpg")} fallback={<group scale={[r / 0.6, r / 0.6, r / 0.6]}><MercurySurface /></group>} />,
+  },
+  venus: {
+    node: r => <RockyBody radius={r} urls={THREEX("venusmap.jpg")} fallback={<group scale={[r / 0.8, r / 0.8, r / 0.8]}><VenusSurface /><VenusAtmosphere /></group>} />,
+  },
+  marte: {
+    node: r => <RockyBody radius={r} urls={THREEX("marsmap1k.jpg")} fallback={<group scale={[r / 0.7, r / 0.7, r / 0.7]}><MarsSurface /><MarsAtmosphere /></group>} />,
+  },
+  jupiter: { node: r => <group scale={[r, r, r]}><JupiterSurface /></group> },
+  saturno: { tilt: [0.4, 0, -0.1], node: r => <group scale={[r / 0.7, r / 0.7, r / 0.7]}><SaturnBody /><SaturnRings /></group> },
+  urano: { tilt: [1.71, 0, 0.2], node: r => <group scale={[r / 0.8, r / 0.8, r / 0.8]}><UranusBody /><UranusAtmosphere /><UranusRings /></group> },
+  netuno: { node: r => <group scale={[r / 0.85, r / 0.85, r / 0.85]}><NeptuneSurface /><NeptuneAtmosphere /></group> },
+};
 
+function SolarSystem({ targets }: { targets: SolarTarget[] }) {
   return (
     <>
-      {items.map(p => (
-        <group key={p.id} position={p.pos}>
-          <group scale={[p.scale, p.scale, p.scale]} rotation={p.tilt ?? [0, 0, 0]}>
-            {p.node}
+      {targets.filter(t => SOLAR_VISUALS[t.id]).map(t => {
+        const v = SOLAR_VISUALS[t.id];
+        return (
+          <group key={t.id} position={t.local}>
+            <group rotation={v.tilt ?? [0, 0, 0]}>
+              {v.node(t.r)}
+            </group>
           </group>
-        </group>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -2761,6 +2903,10 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
   // Voo livre: câmera-nave (não persiste — voar é um momento, não preferência).
   const [freeFly, setFreeFly] = useState(false);
   useEffect(() => { if (mode === "off") setFreeFly(false); }, [mode]);
+  // Computador de bordo: alvos do sistema solar (posições reais, calculadas
+  // 1x por sessão) + ponte de warp para o FreeFly.
+  const solarTargets = useMemo(() => computeSolarTargets(new Date()), []);
+  const warpRef = useRef<((id: string) => void) | null>(null);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -2978,7 +3124,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           céu estrelado infinito com a Terra imersa nele; a UI vira HUD flutuante. */}
       <div style={{ position: "absolute", inset: 0 }}>
         <Canvas
-          camera={{ position: [0, 0, 7.45], fov: 40 }}
+          camera={{ position: [0, 0, 7.45], fov: 40, near: 0.1, far: 4_000_000 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           onCreated={({ gl }) => { gl.setClearColor(0x000000, 0); }}
           dpr={[1, 2]}
@@ -2994,7 +3140,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} targets={solarTargets} warpRef={warpRef} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3049,9 +3195,31 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
             </button>
           </div>
           {freeFly ? (
-            <span className="text-[9px] tracking-[0.14em] text-cyan-200/60 uppercase" aria-hidden>
-              arraste para olhar · role ou pinça para voar · 2 toques mira a Terra
-            </span>
+            <>
+              {/* Computador de bordo: warp para cada corpo do sistema (escala
+                  real — as distâncias são longas MESMO; o warp resolve). */}
+              <div
+                className="grid grid-cols-5 gap-1 rounded-xl px-2.5 py-2"
+                style={{ background: "rgba(6,10,16,0.72)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: 340 }}
+              >
+                {solarTargets.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => warpRef.current?.(t.id)}
+                    title={t.id === "terra" ? "Voltar à Terra" : `Warp até ${t.label} · ${fmtDist(t.km)}`}
+                    className="flex flex-col items-center rounded-lg px-1 py-1 transition-colors hover:bg-white/10"
+                    style={{ border: "1px solid transparent" }}
+                  >
+                    <span style={{ fontSize: 13, lineHeight: 1.1 }}>{t.emoji}</span>
+                    <span className="text-[8px] font-bold text-zinc-300 leading-tight">{t.label}</span>
+                    <span className="text-[7px] font-mono text-zinc-500 leading-tight">{t.id === "terra" ? "casa" : fmtDist(t.km)}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="text-[9px] tracking-[0.14em] text-cyan-200/60 uppercase" aria-hidden>
+                arraste para olhar · role ou pinça para voar · 2 toques mira a Terra
+              </span>
+            </>
           ) : (
             <span
               className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
