@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Cloud } from "lucide-react";
+import { Cloud, Rocket } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -839,6 +839,119 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
   return null;
 }
 
+// ── Voo livre — a câmera vira uma nave ───────────────────────────────────────
+// Desacopla da órbita: arrastar OLHA ao redor (a Terra pode sair do centro),
+// scroll/pinça AVANÇA/RECUA na direção do olhar, com deriva e inércia. Duplo
+// clique/toque mira a Terra de volta. Limites: não entra na Terra (1.15) nem
+// foge do universo (70). Ao SAIR do modo, a câmera volta ao regime de órbita
+// (distância clampada, norte endireitado, mirando a Terra).
+function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
+  const { camera, gl } = useThree();
+  const dragging = useRef(false);
+  const last = useRef({ x: 0, y: 0 });
+  const lookVel = useRef({ x: 0, y: 0 });
+  const speed = useRef(0); // unidades/s (+ frente, − ré)
+  const pinchDist = useRef<number | null>(null);
+
+  const lookBy = useCallback((dxPx: number, dyPx: number) => {
+    camera.rotateY(-dxPx * 0.0021);
+    camera.rotateX(-dyPx * 0.0021);
+  }, [camera]);
+
+  useEffect(() => {
+    const el = gl.domElement;
+    el.style.touchAction = "none";
+    const pts = new Map<number, { x: number; y: number }>();
+
+    const onDown = (e: PointerEvent) => {
+      onUserStart?.();
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) {
+        dragging.current = true;
+        last.current = { x: e.clientX, y: e.clientY };
+        lookVel.current = { x: 0, y: 0 };
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) {
+        // Pinça: abrir acelera pra frente, fechar dá ré.
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist.current != null) speed.current += (d - pinchDist.current) * 0.02;
+        pinchDist.current = d;
+        dragging.current = false;
+        return;
+      }
+      if (!dragging.current) return;
+      const dx = e.clientX - last.current.x;
+      const dy = e.clientY - last.current.y;
+      last.current = { x: e.clientX, y: e.clientY };
+      lookBy(dx, dy);
+      lookVel.current = { x: lookVel.current.x * 0.4 + dx * 0.6, y: lookVel.current.y * 0.4 + dy * 0.6 };
+    };
+    const onUp = (e: PointerEvent) => {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinchDist.current = null;
+      if (pts.size === 0) dragging.current = false;
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      onUserStart?.();
+      speed.current = THREE.MathUtils.clamp(speed.current - e.deltaY * 0.004, -18, 18);
+    };
+    const onDbl = () => {
+      // "Onde está a Terra?" — mira de volta.
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("dblclick", onDbl);
+    const cam = camera;
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("dblclick", onDbl);
+      // Reentrada na órbita: volta para o envelope do FreeOrbit.
+      const dist = THREE.MathUtils.clamp(cam.position.length(), 1.25, 7.5);
+      cam.position.setLength(dist);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(0, 0, 0);
+    };
+  }, [gl, camera, lookBy, onUserStart]);
+
+  useFrame((_, delta) => {
+    // Inércia do olhar.
+    if (!dragging.current && Math.abs(lookVel.current.x) + Math.abs(lookVel.current.y) > 0.02) {
+      lookBy(lookVel.current.x, lookVel.current.y);
+      const f = Math.exp(-3.0 * delta);
+      lookVel.current.x *= f;
+      lookVel.current.y *= f;
+    }
+    // Deslocamento na direção do olhar, com deriva (decai devagar — "nave").
+    if (Math.abs(speed.current) > 0.005) {
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd);
+      camera.position.addScaledVector(fwd, speed.current * delta);
+      speed.current *= Math.exp(-1.1 * delta);
+      const len = camera.position.length();
+      if (len < 1.15) camera.position.setLength(1.15); // não entra na Terra
+      if (len > 70) camera.position.setLength(70);     // não foge do universo
+    }
+  });
+
+  return null;
+}
+
 // ── Scene ────────────────────────────────────────────────────────────────────
 
 // Abertura cinematográfica em "pull-back": a Terra nasce mais perto e RECUA
@@ -847,7 +960,7 @@ function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -865,6 +978,11 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Ativar o voo livre no meio do intro assume o controle na hora.
+  useEffect(() => {
+    if (freeFly) introDone.current = true;
+  }, [freeFly]);
 
   const handleSelectMarket = useCallback((p: MarketPoint) => {
     setSelectedId(prev => {
@@ -1020,8 +1138,8 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
         </group>
       </group>
 
-      {/* Imersivo: controle LIVRE (arcball sem trava de polo, inércia, pinch).
-          Clássico: OrbitControls de sempre. Limites de zoom preservados. */}
+      {/* Imersivo: órbita livre (arcball) ou VOO LIVRE (nave), conforme o
+          toggle do HUD. Clássico: OrbitControls de sempre. */}
       {classic ? (
         <OrbitControls
           enableZoom
@@ -1034,6 +1152,8 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
           zoomSpeed={0.5}
           onStart={() => { introDone.current = true; }}
         />
+      ) : freeFly ? (
+        <FreeFly onUserStart={() => { introDone.current = true; }} />
       ) : (
         <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={() => { introDone.current = true; }} />
       )}
@@ -2500,6 +2620,9 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
       return next;
     });
   }, []);
+  // Voo livre: câmera-nave (não persiste — voar é um momento, não preferência).
+  const [freeFly, setFreeFly] = useState(false);
+  useEffect(() => { if (mode === "off") setFreeFly(false); }, [mode]);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -2733,7 +2856,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -2770,13 +2893,35 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               <Cloud size={10} strokeWidth={2.5} style={{ opacity: cloudsOn ? 1 : 0.45 }} />
               Nuvens
             </button>
+            <span className="text-[8px] text-zinc-700">|</span>
+            {/* Toggle do VOO LIVRE (câmera-nave) */}
+            <button
+              onClick={() => setFreeFly(v => !v)}
+              title={freeFly ? "Sair do voo livre (volta à órbita)" : "Voo livre: voar pelo espaço e escolher o ponto de vista"}
+              className="flex items-center gap-1 transition-colors"
+              style={{
+                pointerEvents: "auto",
+                fontSize: 9, fontWeight: 700, letterSpacing: ".04em",
+                color: freeFly ? "#67e8f9" : "#52525b",
+                background: "transparent", border: "none", cursor: "pointer", padding: 0,
+              }}
+            >
+              <Rocket size={10} strokeWidth={2.5} style={{ opacity: freeFly ? 1 : 0.45 }} />
+              Voo
+            </button>
           </div>
-          <span
-            className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
-            aria-hidden
-          >
-            arraste para girar · role para mergulhar
-          </span>
+          {freeFly ? (
+            <span className="text-[9px] tracking-[0.14em] text-cyan-200/60 uppercase" aria-hidden>
+              arraste para olhar · role ou pinça para voar · 2 toques mira a Terra
+            </span>
+          ) : (
+            <span
+              className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
+              aria-hidden
+            >
+              arraste para girar · role para mergulhar
+            </span>
+          )}
         </div>
       )}
 
