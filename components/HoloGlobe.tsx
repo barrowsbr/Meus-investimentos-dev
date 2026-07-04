@@ -727,6 +727,118 @@ function ConflictMarker({
   );
 }
 
+// ── Controle livre (imersivo) — arcball sem trava de polo ────────────────────
+// O OrbitControls prende a rotação nos polos e engessa o giro. Este controle
+// gira a câmera em QUALQUER direção (dá pra passar por cima dos polos; o roll
+// emerge naturalmente), com inércia ao soltar, pinch para zoom no touch,
+// velocidade adaptativa ao zoom e duplo-clique/toque para endireitar o norte.
+function FreeOrbit({ minDist, maxDist, onUserStart }: { minDist: number; maxDist: number; onUserStart?: () => void }) {
+  const { camera, gl } = useThree();
+  const dragging = useRef(false);
+  const last = useRef({ x: 0, y: 0 });
+  const vel = useRef({ x: 0, y: 0 });      // inércia angular (px suavizados)
+  const zoomVel = useRef(0);               // zoom suave (fração por frame)
+  const pinchDist = useRef<number | null>(null);
+
+  const rotateBy = useCallback((dxPx: number, dyPx: number) => {
+    // Ângulo por pixel adaptado ao zoom: rasante gira fino, longe gira rápido.
+    const dist = camera.position.length();
+    const speed = 0.0045 * THREE.MathUtils.clamp(dist / 4, 0.4, 1.5);
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+    const q = new THREE.Quaternion().setFromAxisAngle(up, -dxPx * speed)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(right, -dyPx * speed));
+    camera.position.applyQuaternion(q);
+    camera.up.applyQuaternion(q);
+    camera.lookAt(0, 0, 0);
+  }, [camera]);
+
+  useEffect(() => {
+    const el = gl.domElement;
+    el.style.touchAction = "none";
+    const pts = new Map<number, { x: number; y: number }>();
+
+    const onDown = (e: PointerEvent) => {
+      onUserStart?.();
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) {
+        dragging.current = true;
+        last.current = { x: e.clientX, y: e.clientY };
+        vel.current = { x: 0, y: 0 };
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) {
+        // Pinch → zoom
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist.current != null && d > 0) zoomVel.current += (pinchDist.current - d) * 0.0035;
+        pinchDist.current = d;
+        dragging.current = false;
+        return;
+      }
+      if (!dragging.current) return;
+      const dx = e.clientX - last.current.x;
+      const dy = e.clientY - last.current.y;
+      last.current = { x: e.clientX, y: e.clientY };
+      rotateBy(dx, dy);
+      // Última amostra (suavizada) vira a inércia do soltar.
+      vel.current = { x: vel.current.x * 0.4 + dx * 0.6, y: vel.current.y * 0.4 + dy * 0.6 };
+    };
+    const onUp = (e: PointerEvent) => {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinchDist.current = null;
+      if (pts.size === 0) dragging.current = false;
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      onUserStart?.();
+      zoomVel.current += e.deltaY * 0.0011;
+    };
+    const onDbl = () => {
+      // Endireita o norte (remove o roll acumulado do giro livre).
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("dblclick", onDbl);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("dblclick", onDbl);
+    };
+  }, [gl, camera, rotateBy, onUserStart]);
+
+  useFrame((_, delta) => {
+    // Inércia do giro — decai suavemente após soltar.
+    if (!dragging.current && Math.abs(vel.current.x) + Math.abs(vel.current.y) > 0.02) {
+      rotateBy(vel.current.x, vel.current.y);
+      const f = Math.exp(-3.0 * delta);
+      vel.current.x *= f;
+      vel.current.y *= f;
+    }
+    // Zoom suave com limites.
+    if (Math.abs(zoomVel.current) > 1e-4) {
+      const dist = camera.position.length();
+      const next = THREE.MathUtils.clamp(dist * (1 + zoomVel.current), minDist, maxDist);
+      camera.position.multiplyScalar(next / dist);
+      zoomVel.current *= Math.exp(-7 * delta);
+    }
+  });
+
+  return null;
+}
+
 // ── Scene ────────────────────────────────────────────────────────────────────
 
 // Abertura cinematográfica em "pull-back": a Terra nasce mais perto e RECUA
@@ -908,19 +1020,23 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
         </group>
       </group>
 
-      {/* Zoom: imersivo tem limites largos (1.25 = rasante na atmosfera; 7.5 =
-          a Terra vira um ponto entre as estrelas); clássico mantém os antigos. */}
-      <OrbitControls
-        enableZoom
-        enablePan={false}
-        minDistance={classic ? 1.5 : 1.25}
-        maxDistance={classic ? 3.5 : 7.5}
-        enableDamping
-        dampingFactor={0.06}
-        rotateSpeed={0.4}
-        zoomSpeed={classic ? 0.5 : 0.6}
-        onStart={() => { introDone.current = true; }}
-      />
+      {/* Imersivo: controle LIVRE (arcball sem trava de polo, inércia, pinch).
+          Clássico: OrbitControls de sempre. Limites de zoom preservados. */}
+      {classic ? (
+        <OrbitControls
+          enableZoom
+          enablePan={false}
+          minDistance={1.5}
+          maxDistance={3.5}
+          enableDamping
+          dampingFactor={0.06}
+          rotateSpeed={0.4}
+          zoomSpeed={0.5}
+          onStart={() => { introDone.current = true; }}
+        />
+      ) : (
+        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={() => { introDone.current = true; }} />
+      )}
     </>
   );
 }
