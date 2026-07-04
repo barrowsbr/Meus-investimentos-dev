@@ -1049,8 +1049,10 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
   const lookVel = useRef({ x: 0, y: 0 });
-  const speed = useRef(0);      // manete frente/ré; escala com a distância
-  const strafeVel = useRef(0);  // deslocamento lateral (botões ◀ ▶)
+  const speed = useRef(0);        // MANETE frente/ré (alvo)
+  const strafeVel = useRef(0);    // manete lateral (alvo)
+  const actualFwd = useRef(0);    // velocidade REAL — persegue o manete com
+  const actualStrafe = useRef(0); // inércia (~0,7s): peso de nave, sem tranco
   const pinchDist = useRef<number | null>(null);
   const warp = useRef<{ from: THREE.Vector3; to: THREE.Vector3; look: THREE.Vector3; t: number } | null>(null);
 
@@ -1088,6 +1090,9 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       }
       warp.current = { from: camera.position.clone(), to, look, t: 0 };
       speed.current = 0;
+      strafeVel.current = 0;
+      actualFwd.current = 0;
+      actualStrafe.current = 0;
       lookVel.current = { x: 0, y: 0 };
       camera.up.set(0, 1, 0);
     };
@@ -1189,6 +1194,8 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       if (flightCmd.current.stop) {
         speed.current = 0;
         strafeVel.current = 0;
+        actualFwd.current = 0;
+        actualStrafe.current = 0;
         flightCmd.current.stop = false;
       }
       if (flightCmd.current.thrust !== 0) {
@@ -1208,14 +1215,20 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
     // Deslocamento na direção do olhar, com deriva (decai devagar — "nave").
     // Velocidade ADAPTATIVA: escala com a distância ao corpo mais próximo —
     // rasante anda em raios/s; no vazio interplanetário, em milhares.
-    if (Math.abs(speed.current) > 0.005 || Math.abs(strafeVel.current) > 0.005) {
+    // PESO: a velocidade real persegue o manete com constante de tempo ~0,7s —
+    // o movimento COMEÇA devagar e ganha corpo (e desacelera com a mesma
+    // suavidade), em vez do arranque agressivo de antes.
+    const chase = 1 - Math.exp(-delta / 0.7);
+    actualFwd.current += (speed.current - actualFwd.current) * chase;
+    actualStrafe.current += (strafeVel.current - actualStrafe.current) * chase;
+    if (Math.abs(actualFwd.current) > 0.004 || Math.abs(actualStrafe.current) > 0.004) {
       const surf = nearestSurface();
       const factor = THREE.MathUtils.clamp(surf * 0.6, 1, 90_000);
       const fwd = new THREE.Vector3();
       camera.getWorldDirection(fwd);
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
-      camera.position.addScaledVector(fwd, speed.current * factor * delta);
-      camera.position.addScaledVector(right, strafeVel.current * factor * delta);
+      camera.position.addScaledVector(fwd, actualFwd.current * factor * delta);
+      camera.position.addScaledVector(right, actualStrafe.current * factor * delta);
       speed.current *= Math.exp(-1.1 * delta);
       strafeVel.current *= Math.exp(-1.6 * delta);
       const len = camera.position.length();
@@ -2856,7 +2869,7 @@ function NetunoScene() {
 // verdadeira (1 unidade = raio da Terra). Rochosos com TEXTURA real (mapas
 // clássicos do threex.planets, cascata + fallback no shader procedural dos
 // easter eggs); gigantes gasosos seguem procedurais (ficam ótimos).
-function RockyBody({ radius, urls, fallback }: { radius: number; urls: string[]; fallback: React.ReactNode }) {
+function TexturedBody({ radius, urls, fallback }: { radius: number; urls: string[]; fallback: React.ReactNode }) {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
   useEffect(() => {
     let dead = false;
@@ -2894,18 +2907,43 @@ const THREEX = (f: string) => [
 // escala da geometria nativa para o raio real).
 const SOLAR_VISUALS: Record<string, { tilt?: [number, number, number]; node: (r: number) => React.ReactNode }> = {
   mercurio: {
-    node: r => <RockyBody radius={r} urls={THREEX("mercurymap.jpg")} fallback={<group scale={[r / 0.6, r / 0.6, r / 0.6]}><MercurySurface /></group>} />,
+    node: r => <TexturedBody radius={r} urls={THREEX("mercurymap.jpg")} fallback={<group scale={[r / 0.6, r / 0.6, r / 0.6]}><MercurySurface /></group>} />,
   },
   venus: {
-    node: r => <RockyBody radius={r} urls={THREEX("venusmap.jpg")} fallback={<group scale={[r / 0.8, r / 0.8, r / 0.8]}><VenusSurface /><VenusAtmosphere /></group>} />,
+    node: r => <TexturedBody radius={r} urls={THREEX("venusmap.jpg")} fallback={<group scale={[r / 0.8, r / 0.8, r / 0.8]}><VenusSurface /><VenusAtmosphere /></group>} />,
   },
   marte: {
-    node: r => <RockyBody radius={r} urls={THREEX("marsmap1k.jpg")} fallback={<group scale={[r / 0.7, r / 0.7, r / 0.7]}><MarsSurface /><MarsAtmosphere /></group>} />,
+    node: r => <TexturedBody radius={r} urls={THREEX("marsmap1k.jpg")} fallback={<group scale={[r / 0.7, r / 0.7, r / 0.7]}><MarsSurface /><MarsAtmosphere /></group>} />,
   },
-  jupiter: { node: r => <group scale={[r, r, r]}><JupiterSurface /></group> },
-  saturno: { tilt: [0.4, 0, -0.1], node: r => <group scale={[r / 0.7, r / 0.7, r / 0.7]}><SaturnBody /><SaturnRings /></group> },
-  urano: { tilt: [1.71, 0, 0.2], node: r => <group scale={[r / 0.8, r / 0.8, r / 0.8]}><UranusBody /><UranusAtmosphere /><UranusRings /></group> },
-  netuno: { node: r => <group scale={[r / 0.85, r / 0.85, r / 0.85]}><NeptuneSurface /><NeptuneAtmosphere /></group> },
+  jupiter: {
+    node: r => <TexturedBody radius={r} urls={THREEX("jupitermap.jpg")} fallback={<group scale={[r, r, r]}><JupiterSurface /></group>} />,
+  },
+  saturno: {
+    tilt: [0.4, 0, -0.1],
+    node: r => (
+      <>
+        <TexturedBody radius={r} urls={THREEX("saturnmap.jpg")} fallback={<group scale={[r / 0.7, r / 0.7, r / 0.7]}><SaturnBody /></group>} />
+        <group scale={[r / 0.7, r / 0.7, r / 0.7]}><SaturnRings /></group>
+      </>
+    ),
+  },
+  urano: {
+    tilt: [1.71, 0, 0.2],
+    node: r => (
+      <>
+        <TexturedBody radius={r} urls={THREEX("uranusmap.jpg")} fallback={<group scale={[r / 0.8, r / 0.8, r / 0.8]}><UranusBody /></group>} />
+        <group scale={[r / 0.8, r / 0.8, r / 0.8]}><UranusAtmosphere /><UranusRings /></group>
+      </>
+    ),
+  },
+  netuno: {
+    node: r => (
+      <>
+        <TexturedBody radius={r} urls={THREEX("neptunemap.jpg")} fallback={<group scale={[r / 0.85, r / 0.85, r / 0.85]}><NeptuneSurface /></group>} />
+        <group scale={[r / 0.85, r / 0.85, r / 0.85]}><NeptuneAtmosphere /></group>
+      </>
+    ),
+  },
 };
 
 // Labels de navegação (modo Voo): nome flutuando sobre cada corpo, com tamanho
