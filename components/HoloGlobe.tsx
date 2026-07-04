@@ -3323,12 +3323,19 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
         </Canvas>
       </div>
 
-      {/* HUD inferior do globo: conflitos ao vivo + escala de calor, num pill
-          translúcido. */}
+      {/* HUD inferior do globo. Em órbita: centralizado. No VOO: alinhado à
+          ESQUERDA, com a faixa da direita reservada para a cruz direcional —
+          o painel nunca fica embaixo dos botões. */}
       {displayMode === "globe" && (
         <div
-          className="absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1.5"
-          style={{ bottom: "calc(env(safe-area-inset-bottom) + 64px)", pointerEvents: "none" }}
+          className={freeFly
+            ? "absolute left-2 z-10 flex flex-col items-start gap-1.5"
+            : "absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1.5"}
+          style={{
+            bottom: "calc(env(safe-area-inset-bottom) + 64px)",
+            pointerEvents: "none",
+            ...(freeFly ? { maxWidth: "calc(100vw - 156px)" } : {}),
+          }}
         >
           <div
             className="flex items-center gap-2.5 rounded-full px-3.5 py-1.5"
@@ -3409,7 +3416,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               {navOpen && (
               <div
                 className="grid grid-cols-5 gap-1 rounded-xl px-2.5 py-2"
-                style={{ background: "rgba(6,10,16,0.72)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: "min(340px, calc(100vw - 156px))" }}
+                style={{ background: "rgba(6,10,16,0.72)", border: "1px solid rgba(103,232,249,0.18)", backdropFilter: "blur(10px)", pointerEvents: "auto", maxWidth: 340 }}
               >
                 {solarTargets.map(t => (
                   <button
