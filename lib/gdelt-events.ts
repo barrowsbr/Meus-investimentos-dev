@@ -19,18 +19,29 @@ import { inflateRawSync } from "zlib";
 const LASTUPDATE_URL = "http://data.gdeltproject.org/gdeltv2/lastupdate.txt";
 
 // Colunas do CSV de eventos (GDELT 2.0, 61 colunas, TSV, sem cabeçalho).
-const COL_ROOTCODE = 28;   // EventRootCode ("14", "18", ...)
+const COL_EVENTCODE = 26;  // EventCode completo ("1831", "193", ...)
+const COL_ROOTCODE = 28;   // EventRootCode ("14", "19", ...)
 const COL_MENTIONS = 31;   // NumMentions
 const COL_GEO_NAME = 52;   // ActionGeo_FullName ("Cidade, Região, País")
 const COL_LAT = 56;        // ActionGeo_Lat
 const COL_LNG = 57;        // ActionGeo_Long
 const COL_SOURCE = 60;     // SOURCEURL (notícia que reportou o evento)
 
-// Códigos que interessam às camadas do globo (parse único, filtro por tema).
-const KEEP_CODES = new Set(["14", "18", "19", "20"]);
+// Só GUERRA de verdade (pedido do dono — o root 18 "assault" trazia crime
+// comum e incidentes aleatórios como se fossem conflito):
+//   19  = combate armado (batalhas, artilharia, bombardeio, ocupação)
+//   20  = violência em massa (massacres, limpeza étnica)
+//   183 = atentados a bomba (terror/insurgência — subcódigo do 18 que É conflito)
+//   14  = protestos (não usado na UI hoje; fica para filtros futuros)
+// A tag do evento é o código que o classificou (root, ou "183").
+function classify(root: string, full: string): string | null {
+  if (root === "19" || root === "20" || root === "14") return root;
+  if (root === "18" && full.startsWith("183")) return "183";
+  return null;
+}
 
 export interface GdeltEventPoint {
-  code: string;      // EventRootCode
+  code: string;      // tag de classificação ("19", "20", "183", "14")
   fullName: string;  // ActionGeo_FullName
   lat: number;
   lng: number;
@@ -89,8 +100,8 @@ function parseCsv(csv: string, out: GdeltEventPoint[]): void {
   for (const line of csv.split("\n")) {
     const c = line.split("\t");
     if (c.length < 61) continue;
-    const code = c[COL_ROOTCODE];
-    if (!KEEP_CODES.has(code)) continue;
+    const code = classify(c[COL_ROOTCODE], c[COL_EVENTCODE] ?? "");
+    if (!code) continue;
     const lat = parseFloat(c[COL_LAT]);
     const lng = parseFloat(c[COL_LNG]);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
