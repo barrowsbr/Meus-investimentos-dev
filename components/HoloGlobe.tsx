@@ -147,6 +147,13 @@ function moonPoint(now: Date): { lat: number; refLng: number } {
 // [a(UA), e, I°, L0°, L°/século, ϖ°, Ω°]. Posição heliocêntrica → geocêntrica
 // (menos a Terra) → equatorial → direção no MESMO frame fixo do Sol/Lua
 // (lat = declinação; refLng = αsol − αplaneta).
+// Escala de distâncias do sistema: 1 UA = 40 unidades no ponto do Sol, e as
+// distâncias geocêntricas seguem √UA (compressão clássica de planetário —
+// preserva ordem e proporção relativa; escala linear não cabe: Netuno a 30 UA
+// ficaria 1.200 unidades longe). dist = SUN_DIST · √(UA).
+const SUN_DIST = 40;
+const distForAU = (rAU: number) => SUN_DIST * Math.sqrt(rAU);
+
 const PLANET_ELEMENTS: Record<string, [number, number, number, number, number, number, number]> = {
   mercurio: [0.387098, 0.20563, 7.005, 252.251, 149472.674, 77.457, 48.331],
   venus: [0.723332, 0.006773, 3.395, 181.98, 58517.816, 131.602, 76.68],
@@ -442,7 +449,7 @@ const STAR_VERT = `
     vAlpha = aAlpha;
     vPhase = aPhase;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * (140.0 / -mv.z);
+    gl_PointSize = aSize * (450.0 / -mv.z);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -481,16 +488,16 @@ function buildStarGeometry(count: number, kind: StarKind): THREE.BufferGeometry 
       // Anel no plano XZ com espalhamento gaussiano — vira a Via Láctea quando
       // o grupo é inclinado.
       const ang = Math.random() * Math.PI * 2;
-      const r = 46 + Math.random() * 18;
-      x = Math.cos(ang) * r + gauss() * 2.2;
-      y = gauss() * 3.4;
-      z = Math.sin(ang) * r + gauss() * 2.2;
+      const r = 150 + Math.random() * 55;
+      x = Math.cos(ang) * r + gauss() * 7;
+      y = gauss() * 11;
+      z = Math.sin(ang) * r + gauss() * 7;
     } else {
       // Esfera uniforme: céu distante (42–75) ou casca de poeira próxima (2.5–9).
       const u = Math.random() * 2 - 1;
       const t = Math.random() * Math.PI * 2;
       const s = Math.sqrt(1 - u * u);
-      const r = kind === "dust" ? 2.5 + Math.random() * 6.5 : 42 + Math.random() * 33;
+      const r = kind === "dust" ? 2.5 + Math.random() * 6.5 : 135 + Math.random() * 105;
       x = s * Math.cos(t) * r;
       y = u * r;
       z = s * Math.sin(t) * r;
@@ -514,7 +521,7 @@ function buildStarGeometry(count: number, kind: StarKind): THREE.BufferGeometry 
       size[i] = 0.4 + Math.random() * 0.9;
       alpha[i] = 0.14 + Math.random() * 0.42;
     } else {
-      size[i] = 0.05 + Math.random() * 0.08;
+      size[i] = 0.016 + Math.random() * 0.027;
       alpha[i] = 0.1 + Math.random() * 0.16;
     }
     phase[i] = Math.random();
@@ -558,7 +565,7 @@ function SkySphere() {
   }, [tex]);
   return (
     <mesh scale={[-1, 1, 1]} renderOrder={-2}>
-      <sphereGeometry args={[90, 48, 48]} />
+      <sphereGeometry args={[320, 48, 48]} />
       <meshBasicMaterial map={tex} side={THREE.BackSide} depthWrite={false} />
     </mesh>
   );
@@ -1034,7 +1041,7 @@ function FreeFly({ onUserStart }: { onUserStart?: () => void }) {
       speed.current *= Math.exp(-1.1 * delta);
       const len = camera.position.length();
       if (len < 1.15) camera.position.setLength(1.15); // não entra na Terra
-      if (len > 70) camera.position.setLength(70);     // não foge do universo
+      if (len > 260) camera.position.setLength(260);   // não foge do universo (Netuno fica a ~218)
     }
   });
 
@@ -1099,7 +1106,6 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
   // encara o Sol, o terminador fica exato e a rotação real vem de graça
   // (a longitude subsolar anda 15°/h). A declinação sazonal vira a altura do
   // Sol (lat na longitude de referência).
-  const SUN_DIST = 40;
   const RAD = Math.PI / 180;
   const sunAnchorRef = useRef<THREE.Group>(null);
   const fillAnchorRef = useRef<THREE.Group>(null);
@@ -2669,13 +2675,14 @@ const SOLAR_BODIES: { id: string; scale: number; tilt?: [number, number, number]
 
 function SolarSystem() {
   // Direções geocêntricas calculadas na montagem (drift < 1°/dia — estático
-  // durante a sessão é fiel o bastante).
+  // durante a sessão é fiel o bastante). Distância em escala √UA coerente com
+  // o Sol: da Terra os planetas são pontinhos (como no céu real) que crescem
+  // quando você voa até eles.
   const items = useMemo(() => {
     const now = new Date();
     return SOLAR_BODIES.map(b => {
       const { lat, refLng, rAU } = planetPoint(b.id, now);
-      const dist = 16 + 5 * Math.log(1 + rAU);
-      return { ...b, pos: latLngToVec3(lat, refLng, dist) };
+      return { ...b, pos: latLngToVec3(lat, refLng, distForAU(rAU)) };
     });
   }, []);
 
