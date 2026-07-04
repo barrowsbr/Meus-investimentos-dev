@@ -1152,14 +1152,21 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     el.addEventListener("wheel", onWheel, { passive: false });
-    const cam = camera;
     return () => {
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       el.removeEventListener("wheel", onWheel);
-      // Reentrada na órbita: volta para o envelope do FreeOrbit.
+    };
+  }, [gl, camera, lookBy, onUserStart]);
+
+  // Reentrada na órbita SÓ no desmonte real (sair do Voo). Antes morava no
+  // cleanup do effect acima e QUALQUER re-render (ex.: toggle Rótulos)
+  // teleportava a câmera de volta pra Terra.
+  useEffect(() => {
+    const cam = camera;
+    return () => {
       const dist = THREE.MathUtils.clamp(cam.position.length(), 1.25, 7.5);
       cam.position.setLength(dist);
       cam.up.set(0, 1, 0);
@@ -1167,7 +1174,8 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       cam.near = 0.1;
       cam.updateProjectionMatrix();
     };
-  }, [gl, camera, lookBy, onUserStart]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useFrame((_, delta) => {
     // Warp em andamento tem prioridade.
@@ -1271,6 +1279,10 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
     if (freeFly) introDone.current = true;
   }, [freeFly]);
 
+  // Identidade estável: recriar este callback a cada render re-assinava os
+  // listeners dos controles sem necessidade.
+  const markUserTookOver = useCallback(() => { introDone.current = true; }, []);
+
   const handleSelectMarket = useCallback((p: MarketPoint) => {
     setSelectedId(prev => {
       const next = prev === p.symbol ? null : p.symbol;
@@ -1372,16 +1384,22 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
                 no céu, exatamente como o Sol de verdade. Corpo do easter egg
                 (plasma + coroa) + halos proporcionais + a luz principal. */}
             <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
-              <directionalLight intensity={2.6} color="#fff3d6" />
+              <directionalLight intensity={3.1} color="#fff3d6" />
               <group scale={[121, 121, 121]}>
                 <SunSurface />
                 <SunCorona />
               </group>
-              <sprite scale={[2400, 2400, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
+              {/* O Sol é LUZ, não um planeta: núcleo estourado de branco +
+                  halos generosos (~10° no céu visto da Terra) — a claridade
+                  das primeiras versões, agora em escala real. */}
+              <sprite scale={[4200, 4200, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
-              <sprite scale={[900, 900, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+              <sprite scale={[1600, 1600, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} />
+              </sprite>
+              <sprite scale={[520, 520, 1]}>
+                <spriteMaterial map={sunGlowTex} color="#fffbe8" transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
             </group>
 
@@ -1448,9 +1466,9 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
           onStart={() => { introDone.current = true; }}
         />
       ) : freeFly ? (
-        <FreeFly onUserStart={() => { introDone.current = true; }} targets={targets} warpRef={warpRef} flightCmd={flightCmd} />
+        <FreeFly onUserStart={markUserTookOver} targets={targets} warpRef={warpRef} flightCmd={flightCmd} />
       ) : (
-        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={() => { introDone.current = true; }} />
+        <FreeOrbit minDist={1.25} maxDist={7.5} onUserStart={markUserTookOver} />
       )}
     </>
   );

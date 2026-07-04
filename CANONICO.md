@@ -67,7 +67,9 @@ Não reimplemente.
 | **Câmbio de custo (P0)** | **pmDólar real das remessas** (`buildPmFxRates` → `fxCusto`), não a PTAX da data de compra | `position.pmFxAquisicao` |
 | **Conversão p/ BRL** | valor × `fxToBRL(moeda, fx)` (spot atual para valor; pmDólar para custo) | `lib/cotacoes.ts: fxToBRL` |
 | **Valorização %** | `lucroBRL / custoTotalBRL` — só preço/câmbio, **sem** proventos | `position.lucroPct` · `snapshot.lucroPct` |
-| **Retorno Total %** | `(não realizado + realizado + proventos líq.) / investido` | `position.retornoTotalPct` · `snapshot.retornoTotalRVPct` |
+| **Retorno Total %** (posição) | `(não realizado + proventos líq.) / custo FIFO atual` — **SEM realizado de ciclos anteriores**: vender no prejuízo e recomprar não contamina a posição atual (bug SIVR: realizado de outro ciclo sobre custo do ciclo novo dava −46% numa posição −4,7%) | `position.retornoTotalPct` |
+| **Resultado histórico** (ativo) | `(não realizado + realizado + proventos) / (custo atual + custo vendido)` — vida toda no ticker, numerador e denominador simétricos | `position.resultadoHistPct` · `resultadoHistBRL` |
+| **Retorno Total %** (carteira RV) | `(não realizado + realizado + proventos) / investido atual` — agregado mantém a convenção (o R$ reconcilia com o DRE) | `snapshot.retornoTotalRVPct` |
 | **Decomposição 2 fatores** | Ativo (`puro + cruzado`) vs Câmbio (`principal`) → soma = lucro | `ganhoAtivoBRL` / `ganhoCambioBRL` |
 | **Decomposição 3 fatores** | `puro + principal + cruzado = lucro` | `ganhoAtivoPuroBRL` / `ganhoFXPrincipalBRL` / `ganhoCruzadoBRL` |
 | **Proventos (líquidos)** | bruto − IR retido; em BRL ao câmbio atual | `snapshot.totalProventosBRL` · `proventosPorTicker` |

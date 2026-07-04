@@ -44,8 +44,13 @@ export interface Position {
   lucroBRL: number | null;
   lucroPct: number | null;            // Valorização % (preço + câmbio, SEM proventos)
   proventosBRL: number;               // proventos líquidos (bruto − IR) deste ticker, em BRL
-  retornoTotalBRL: number | null;     // lucroBRL + proventosBRL
-  retornoTotalPct: number | null;     // Retorno Total % = retornoTotalBRL / custoTotalBRL
+  retornoTotalBRL: number | null;     // POSIÇÃO ATUAL: não realizado + proventos (SEM realizado
+                                      // de ciclos anteriores — vender no prejuízo e recomprar
+                                      // não contamina a leitura da posição de agora)
+  retornoTotalPct: number | null;     // retornoTotalBRL / custoTotalBRL (denominador = mesmo ciclo)
+  custoVendidoBRL: number;            // custo FIFO dos lotes JÁ VENDIDOS, em BRL (capital que saiu)
+  resultadoHistBRL: number | null;    // VIDA TODA no ticker: não realizado + realizado + proventos
+  resultadoHistPct: number | null;    // resultadoHistBRL / (custoTotalBRL + custoVendidoBRL)
   ganhoAtivoBRL: number | null;
   ganhoCambioBRL: number | null;
   // ── Decomposição analítica multimoeda (3 fatores) ──────────────────────────
@@ -431,6 +436,9 @@ export function enriquecerPosicoes(
       proventosBRL: 0,            // preenchido em calcularSnapshot (precisa de prov.porTicker)
       retornoTotalBRL: lucroBRL,
       retornoTotalPct: lucroPct,
+      custoVendidoBRL: pos.custoVendido * fatorCusto,
+      resultadoHistBRL: null,     // preenchido em calcularSnapshot
+      resultadoHistPct: null,
       ganhoAtivoBRL,
       ganhoCambioBRL,
       ganhoAtivoPuroBRL,
@@ -581,6 +589,9 @@ export function construirPosicoesFechadas(
       proventosBRL,
       retornoTotalBRL,
       retornoTotalPct,
+      custoVendidoBRL: custoHistBRL,
+      resultadoHistBRL: retornoTotalBRL,
+      resultadoHistPct: retornoTotalPct,
       ganhoAtivoBRL: null,
       ganhoCambioBRL: null,
       ganhoAtivoPuroBRL: null,
@@ -633,15 +644,24 @@ export function calcularSnapshot(
   const prov = calcularProventosBRL(proventos, fxAtual);
   const rfFixaAberta = calcularRendaFixaBRL(fixaAberta, fxAtual);
 
-  // Anexa proventos líquidos por posição e o Retorno Total
-  // (= valorização não realizada + lucro realizado + proventos líquidos).
-  // lucroPct continua sendo a "Valorização %" (só preço/câmbio, não realizado).
+  // Anexa proventos e calcula as DUAS leituras de retorno por posição:
+  //  • retornoTotal (POSIÇÃO ATUAL) = não realizado + proventos ÷ custo atual.
+  //    SEM lucro realizado de ciclos anteriores — vender no prejuízo e
+  //    recomprar não pode contaminar a leitura da posição de agora (o bug
+  //    do SIVR: realizado de −R$1.3k sobre custo de outro ciclo dava −46%
+  //    numa posição que estava −4,7%).
+  //  • resultadoHist (VIDA TODA) = não realizado + realizado + proventos ÷
+  //    (custo atual + custo vendido) — numerador e denominador simétricos.
+  // lucroPct continua sendo a "Valorização %" (só preço/câmbio).
   const hojeMs = Date.now();
   for (const p of positions) {
     p.proventosBRL = prov.porTicker[tickerBase(p.ticker)] ?? 0;
     if (p.lucroBRL !== null) {
-      p.retornoTotalBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
+      p.retornoTotalBRL = p.lucroBRL + p.proventosBRL;
       p.retornoTotalPct = p.custoTotalBRL > 0 ? (p.retornoTotalBRL / p.custoTotalBRL) * 100 : null;
+      p.resultadoHistBRL = p.lucroBRL + p.lucroRealizadoBRL + p.proventosBRL;
+      const custoHist = p.custoTotalBRL + p.custoVendidoBRL;
+      p.resultadoHistPct = custoHist > 0 ? (p.resultadoHistBRL / custoHist) * 100 : null;
     }
     if (p.retornoTotalPct !== null && p.dataInicioPos) {
       const dias = (hojeMs - new Date(p.dataInicioPos).getTime()) / 86_400_000;

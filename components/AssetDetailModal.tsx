@@ -119,6 +119,16 @@ export default function AssetDetailModal({
     { label: "Proventos recebidos", value: brl(p.proventosBRL), className: cor(pos(p.proventosBRL)) },
     { label: "Lucro realizado (vendas)", value: brl(p.lucroRealizadoBRL), className: cor(pos(p.lucroRealizadoBRL)) },
     {
+      // VIDA TODA no ticker (não realizado + realizado + proventos, sobre o
+      // capital total que já passou por ele) — o "Retorno total %" acima é só
+      // da POSIÇÃO ATUAL (ciclos anteriores não a contaminam).
+      label: "Resultado histórico do ativo",
+      value: p.resultadoHistBRL !== null
+        ? `${brl(p.resultadoHistBRL)}${p.resultadoHistPct !== null ? ` (${pct(p.resultadoHistPct)})` : ""}`
+        : "—",
+      className: p.resultadoHistBRL !== null ? cor(pos(p.resultadoHistBRL)) : "",
+    },
+    {
       label: "Variação no dia %",
       value: p.dayChangePct !== null ? pct(p.dayChangePct) : "—",
       className: p.dayChangePct !== null ? cor(pos(p.dayChangePct)) : "",
