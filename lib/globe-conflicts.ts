@@ -172,8 +172,10 @@ export interface GlobeTheme {
 }
 export const GLOBE_THEMES: Record<string, GlobeTheme> = {
   conflitos: {
-    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 10, useWarLabels: true, prefix: "Conflito",
-    rootCodes: ["18", "19", "20"], // agressão / combate / violência em massa
+    id: "conflitos", label: "Conflitos", color: "#ff4444", minMentions: 20, useWarLabels: true, prefix: "Conflito",
+    // Só guerra de verdade: combate armado (19), violência em massa (20) e
+    // atentados a bomba (183). O root 18 (assault) saiu — trazia crime comum.
+    rootCodes: ["19", "20", "183"],
   },
   protestos: {
     id: "protestos", label: "Protestos", color: "#f59e0b", minMentions: 10, useWarLabels: false, prefix: "Protestos",
@@ -232,7 +234,7 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
   // Agrega por país; centroide ponderado pelo volume de menções. Guarda também
   // as cidades mais citadas e as melhores URLs (viram o conteúdo do card).
   interface Agg {
-    country: string; mentions: number; sumLat: number; sumLng: number; wsum: number;
+    country: string; mentions: number; evCount: number; sumLat: number; sumLng: number; wsum: number;
     cities: Map<string, number>;
     topUrls: { mentions: number; url: string }[];
   }
@@ -241,8 +243,9 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
     const country = extractCountry(p.fullName);
     if (!country || country.length < 3) continue;
     const w = p.mentions;
-    const a = byCountry.get(country) ?? { country, mentions: 0, sumLat: 0, sumLng: 0, wsum: 0, cities: new Map<string, number>(), topUrls: [] };
+    const a = byCountry.get(country) ?? { country, mentions: 0, evCount: 0, sumLat: 0, sumLng: 0, wsum: 0, cities: new Map<string, number>(), topUrls: [] };
     a.mentions += w;
+    a.evCount += 1;
     a.sumLat += p.lat * w;
     a.sumLng += p.lng * w;
     a.wsum += w;
@@ -261,8 +264,10 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
     byCountry.set(country, a);
   }
 
+  // ≥2 eventos distintos: um incidente isolado (por mais noticiado que seja)
+  // não vira "zona de conflito" — guerra é padrão sustentado, não pico.
   const ranked = [...byCountry.values()]
-    .filter(a => a.mentions >= theme.minMentions && a.wsum > 0)
+    .filter(a => a.mentions >= theme.minMentions && a.evCount >= 2 && a.wsum > 0)
     .sort((a, b) => b.mentions - a.mentions);
 
   if (diag) {
