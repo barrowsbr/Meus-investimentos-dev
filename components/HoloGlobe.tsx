@@ -241,11 +241,18 @@ function computeSolarTargets(now: Date): SolarTarget[] {
   const m = moonPoint(now);
   push("lua", "Lua", "🌙", 0.273, latLngToVec3(m.lat, m.refLng, MOON_DIST));
   const s = subsolarPoint(now);
-  push("sol", "Sol", "☀️", 109, latLngToVec3(s.lat, 0, SUN_DIST));
+  const sunLocal = latLngToVec3(s.lat, 0, SUN_DIST);
+  push("sol", "Sol", "☀️", 109, sunLocal);
   for (const [id, label, emoji] of PLANET_LABELS) {
     const pt = planetPoint(id, now);
     push(id, label, emoji, SOLAR_RADII[id], latLngToVec3(pt.lat, pt.refLng, distForAU(pt.rAU)));
   }
+  // "Vista de cima": ponto sobre o polo norte da ECLÍPTICA (dec 66,56°,
+  // RA 270° → refLng = αs − 270), acima do Sol — o sistema visto de cima,
+  // com os labels marcando onde cada planeta está.
+  const alphaS = sunAlphaDeg(now);
+  const poleDir = latLngToVec3(66.56, ((alphaS - 270) % 360 + 540) % 360 - 180, 1);
+  push("topo", "Vista de cima", "🔭", 0, sunLocal.clone().add(poleDir.multiplyScalar(820_000)));
   return list;
 }
 
@@ -489,6 +496,7 @@ const STAR_VERT = `
   attribute float aPhase;
   attribute float aAlpha;
   attribute vec3 aColor;
+  uniform float uFixed;
   varying vec3 vColor;
   varying float vAlpha;
   varying float vPhase;
@@ -497,7 +505,10 @@ const STAR_VERT = `
     vAlpha = aAlpha;
     vPhase = aPhase;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * (450.0 / -mv.z);
+    // uFixed=1 → tamanho CONSTANTE em pixels (estrelas de fundo: navegar não
+    // pode dar "zoom" nelas); uFixed=0 → atenuado por distância (poeira).
+    float att = mix(450.0 / -mv.z, 2.6, uFixed);
+    gl_PointSize = aSize * att;
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -619,39 +630,72 @@ function SkySphere() {
   );
 }
 
-function SpaceEnvironment() {
-  const starMat = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
+// Ascensão reta do Sol em graus (para orientar o panorama do céu no frame
+// equatorial da cena, onde refLng = αsol − α).
+function sunAlphaDeg(now: Date): number {
+  const RAD = Math.PI / 180;
+  const d = (now.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000;
+  const g = (357.528 + 0.9856003 * d) * RAD;
+  const L = 280.46 + 0.9856474 * d;
+  const lam = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * RAD;
+  const eps = 23.439 * RAD;
+  return Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) / RAD;
+}
+
+function makeStarMaterial(fixedSize: boolean): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uFixed: { value: fixedSize ? 1 : 0 } },
     vertexShader: STAR_VERT,
     fragmentShader: STAR_FRAG,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-  }), []);
+  });
+}
+
+function SpaceEnvironment() {
+  const { camera } = useThree();
+  const skyRig = useRef<THREE.Group>(null);
+  // Estrelas de fundo: tamanho FIXO em pixels; poeira próxima: atenuada.
+  const starMatSky = useMemo(() => makeStarMaterial(true), []);
+  const starMatDust = useMemo(() => makeStarMaterial(false), []);
   const skyGeo = useMemo(() => buildStarGeometry(1400, "sky"), []);
   const dustGeo = useMemo(() => buildStarGeometry(160, "dust"), []);
+  // Orientação REAL do panorama: assumindo o mapa equiretangular em coordenadas
+  // equatoriais (RA na horizontal), o giro de αsol alinha o céu ao frame da
+  // cena (refLng = αsol − α) — a Via Láctea cai na posição real.
+  const alphaS = useMemo(() => sunAlphaDeg(new Date()) * (Math.PI / 180), []);
 
   useEffect(() => () => {
-    skyGeo.dispose(); dustGeo.dispose(); starMat.dispose();
-  }, [skyGeo, dustGeo, starMat]);
+    skyGeo.dispose(); dustGeo.dispose(); starMatSky.dispose(); starMatDust.dispose();
+  }, [skyGeo, dustGeo, starMatSky, starMatDust]);
 
   useFrame(({ clock }) => {
-    // Só a cintilação anima; o CÉU FICA PARADO — no modelo físico (Sol fixo,
-    // Terra girando 1 volta/24h) as estrelas não orbitam a Terra.
-    starMat.uniforms.uTime.value = clock.getElapsedTime();
+    const t = clock.getElapsedTime();
+    starMatSky.uniforms.uTime.value = t;
+    starMatDust.uniforms.uTime.value = t;
+    // FUNDO DE VERDADE: o céu (panorama + estrelas) SEGUE a posição da câmera
+    // — só a rotação do olhar tem paralaxe; navegar nunca "dá zoom" no fundo.
+    if (skyRig.current) skyRig.current.position.copy(camera.position);
   });
 
   return (
-    <group>
-      {/* Se o panorama falhar, as estrelas procedurais seguram o fundo */}
-      <SafeVisual>
-        <React.Suspense fallback={null}>
-          <SkySphere />
-        </React.Suspense>
-      </SafeVisual>
-      <points geometry={skyGeo} material={starMat} />
-      <points geometry={dustGeo} material={starMat} />
-    </group>
+    <>
+      <group ref={skyRig}>
+        {/* Se o panorama falhar, as estrelas procedurais seguram o fundo */}
+        <group rotation={[0, 0, TILT_Z]}>
+          <group rotation={[0, alphaS, 0]}>
+            <SafeVisual>
+              <React.Suspense fallback={null}>
+                <SkySphere />
+              </React.Suspense>
+            </SafeVisual>
+          </group>
+        </group>
+        <points geometry={skyGeo} material={starMatSky} />
+      </group>
+      <points geometry={dustGeo} material={starMatDust} />
+    </>
   );
 }
 
@@ -1022,11 +1066,21 @@ function FreeFly({ onUserStart, targets, warpRef }: {
     warpRef.current = (id: string) => {
       const t = targets.find(x => x.id === id);
       if (!t) return;
-      const dir = camera.position.clone().sub(t.world);
-      if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
-      dir.normalize();
-      const to = t.world.clone().add(dir.multiplyScalar(t.r * 3.5 + 0.6));
-      warp.current = { from: camera.position.clone(), to, look: t.world.clone(), t: 0 };
+      let to: THREE.Vector3;
+      let look: THREE.Vector3;
+      if (t.id === "topo") {
+        // Vista de cima: pousa exatamente no ponto sobre o polo da eclíptica,
+        // mirando o Sol — o sistema inteiro abaixo, marcado pelos labels.
+        to = t.world.clone();
+        look = (targets.find(x => x.id === "sol")?.world ?? new THREE.Vector3()).clone();
+      } else {
+        const dir = camera.position.clone().sub(t.world);
+        if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+        dir.normalize();
+        to = t.world.clone().add(dir.multiplyScalar(t.r * 3.5 + 0.6));
+        look = t.world.clone();
+      }
+      warp.current = { from: camera.position.clone(), to, look, t: 0 };
       speed.current = 0;
       lookVel.current = { x: 0, y: 0 };
       camera.up.set(0, 1, 0);
@@ -1304,6 +1358,12 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
 
             {/* Os planetas — direções e distâncias REAIS de agora (Kepler) */}
             <SolarSystem targets={targets} />
+
+            {/* Labels de navegação (só no voo): tamanho constante na tela,
+                clicáveis = warp */}
+            {freeFly && (
+              <NavLabels targets={targets} onWarp={(id) => warpRef?.current?.(id)} />
+            )}
             {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol.
                 Mais fraco que antes: a noite escura faz as luzes de cidade
                 brilharem de verdade. */}
@@ -2824,6 +2884,60 @@ const SOLAR_VISUALS: Record<string, { tilt?: [number, number, number]; node: (r:
   netuno: { node: r => <group scale={[r / 0.85, r / 0.85, r / 0.85]}><NeptuneSurface /><NeptuneAtmosphere /></group> },
 };
 
+// Labels de navegação (modo Voo): nome flutuando sobre cada corpo, com tamanho
+// CONSTANTE na tela (escala ∝ distância à câmera) — mesmo um planeta sub-pixel
+// fica localizável, e a "vista de cima" mostra o mapa do sistema. Clicável =
+// warp direto.
+function makeLabelTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 96;
+  const x = c.getContext("2d")!;
+  x.font = "700 44px system-ui, -apple-system, sans-serif";
+  x.textAlign = "center";
+  x.textBaseline = "middle";
+  x.shadowColor = "rgba(0,0,0,0.95)";
+  x.shadowBlur = 10;
+  x.fillStyle = "#c8ecff";
+  x.fillText(text, 256, 48);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+
+const LABEL_V = new THREE.Vector3();
+
+function NavLabels({ targets, onWarp }: { targets: SolarTarget[]; onWarp: (id: string) => void }) {
+  const { camera } = useThree();
+  const sprites = useRef(new Map<string, THREE.Sprite>());
+  const items = useMemo(() => targets.filter(t => t.id !== "topo"), [targets]);
+  const texs = useMemo(() => new Map(items.map(t => [t.id, makeLabelTexture(`${t.emoji} ${t.label}`)])), [items]);
+  useEffect(() => () => { texs.forEach(t => t.dispose()); }, [texs]);
+
+  useFrame(() => {
+    sprites.current.forEach(spr => {
+      const d = spr.getWorldPosition(LABEL_V).distanceTo(camera.position);
+      const h = d * 0.045; // ~2,6° na tela, sempre
+      spr.scale.set(h * 5.33, h, 1);
+    });
+  });
+
+  return (
+    <>
+      {items.map(t => (
+        <sprite
+          key={t.id}
+          ref={el => { if (el) sprites.current.set(t.id, el); else sprites.current.delete(t.id); }}
+          position={[t.local.x, t.local.y + t.r * 2 + 0.3, t.local.z]}
+          renderOrder={10}
+          onClick={(e) => { e.stopPropagation(); onWarp(t.id); }}
+        >
+          <spriteMaterial map={texs.get(t.id)} transparent opacity={0.92} depthTest={false} depthWrite={false} />
+        </sprite>
+      ))}
+    </>
+  );
+}
+
 function SolarSystem({ targets }: { targets: SolarTarget[] }) {
   return (
     <>
@@ -2905,7 +3019,10 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
   useEffect(() => { if (mode === "off") setFreeFly(false); }, [mode]);
   // Computador de bordo: alvos do sistema solar (posições reais, calculadas
   // 1x por sessão) + ponte de warp para o FreeFly.
-  const solarTargets = useMemo(() => computeSolarTargets(new Date()), []);
+  const [solarTargets, setSolarTargets] = useState<SolarTarget[]>(() => computeSolarTargets(new Date()));
+  useEffect(() => {
+    if (mode === "globe") setSolarTargets(computeSolarTargets(new Date()));
+  }, [mode]);
   const warpRef = useRef<((id: string) => void) | null>(null);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
@@ -3212,7 +3329,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   >
                     <span style={{ fontSize: 13, lineHeight: 1.1 }}>{t.emoji}</span>
                     <span className="text-[8px] font-bold text-zinc-300 leading-tight">{t.label}</span>
-                    <span className="text-[7px] font-mono text-zinc-500 leading-tight">{t.id === "terra" ? "casa" : fmtDist(t.km)}</span>
+                    <span className="text-[7px] font-mono text-zinc-500 leading-tight">{t.id === "terra" ? "casa" : t.id === "topo" ? "sistema" : fmtDist(t.km)}</span>
                   </button>
                 ))}
               </div>
