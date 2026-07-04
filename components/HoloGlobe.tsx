@@ -548,17 +548,49 @@ function SpaceEnvironment() {
 // como quem ilumina é a MESMA luz direcional do Sol, a fase aparece correta
 // (cheia oposta ao Sol, nova alinhada). Escala cinematográfica: proporção real
 // de tamanho (0,27×Terra), distância comprimida para caber na cena.
-const MOON_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/lunar_surface.jpg";
+//
+// Textura em CASCATA (a 1ª aposta 404ou em produção e a Lua sumia): tenta cada
+// fonte em ordem; se TODAS falharem, a Lua aparece mesmo assim como esfera
+// cinza-lunar lisa — posição e fase continuam reais. Nunca mais "sem Lua".
+const MOON_TEXES = [
+  "https://unpkg.com/three-globe@2.41.12/example/img/lunar_surface.jpg",
+  "https://cdn.jsdelivr.net/npm/three-globe@2.41.12/example/img/lunar_surface.jpg",
+  "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/moon_1024.jpg",
+];
 const MOON_DIST = 12;
 
 function Moon({ anchorRef }: { anchorRef: React.RefObject<THREE.Group> }) {
-  const tex = useTexture(MOON_TEX);
-  useMemo(() => { tex.anisotropy = 8; }, [tex]);
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let dead = false;
+    const loader = new THREE.TextureLoader();
+    const tryLoad = (i: number) => {
+      if (dead || i >= MOON_TEXES.length) return;
+      loader.load(
+        MOON_TEXES[i],
+        t => {
+          if (dead) { t.dispose(); return; }
+          t.anisotropy = 8;
+          setTex(t);
+        },
+        undefined,
+        () => tryLoad(i + 1),
+      );
+    };
+    tryLoad(0);
+    return () => { dead = true; };
+  }, []);
+  useEffect(() => () => { tex?.dispose(); }, [tex]);
+
   return (
     <group ref={anchorRef} position={[MOON_DIST, 0, -4]}>
       <mesh>
         <sphereGeometry args={[0.27, 48, 48]} />
-        <meshStandardMaterial map={tex} roughness={1} metalness={0} />
+        {tex ? (
+          <meshStandardMaterial map={tex} roughness={1} metalness={0} />
+        ) : (
+          <meshStandardMaterial color="#9a968f" roughness={1} metalness={0} />
+        )}
       </mesh>
     </group>
   );
@@ -1102,12 +1134,9 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
               <directionalLight intensity={0.1} color="#7d95c9" />
             </group>
 
-            {/* A Lua — posição e fase reais (se a textura falhar, fica sem Lua) */}
-            <SafeVisual>
-              <React.Suspense fallback={null}>
-                <Moon anchorRef={moonAnchorRef} />
-              </React.Suspense>
-            </SafeVisual>
+            {/* A Lua — posição e fase reais. Carregamento próprio em cascata:
+                sem textura, vira esfera cinza-lunar — mas SEMPRE aparece. */}
+            <Moon anchorRef={moonAnchorRef} />
           </>
         )}
 
