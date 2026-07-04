@@ -4,6 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
+import { Cloud } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -174,7 +175,10 @@ const NIGHT_TEX = "https://unpkg.com/three-globe@2.41.12/example/img/earth-night
 // a imagem do GIBS já traz as nuvens reais do dia embutidas.
 const CLOUDS_TEX = "https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png";
 
-function EarthSphere({ radius, night = false }: { radius: number; night?: boolean }) {
+// `liveClouds`: camada de nuvens/satélite do dia LIGADA (padrão). Desligada →
+// blue marble limpo, sem casca de nuvens. As texturas seguem carregadas; o
+// toggle é instantâneo.
+function EarthSphere({ radius, night = false, liveClouds = true }: { radius: number; night?: boolean; liveClouds?: boolean }) {
   // `night` (imersivo): luzes de cidade como emissivo — brilham onde o Sol não
   // alcança. A lista de texturas muda com a variante, mas a variante nunca muda
   // com a cena montada (o Canvas remonta ao trocar de estilo).
@@ -214,7 +218,7 @@ function EarthSphere({ radius, night = false }: { radius: number; night?: boolea
       <mesh>
         <sphereGeometry args={[radius, 96, 96]} />
         <meshStandardMaterial
-          map={liveMap ?? color}
+          map={liveClouds && liveMap ? liveMap : color}
           bumpMap={bump}
           bumpScale={0.02}
           roughnessMap={water}
@@ -230,7 +234,7 @@ function EarthSphere({ radius, night = false }: { radius: number; night?: boolea
       {/* Nuvens estáticas — casca fina acima da superfície, iluminada pelo
           mesmo Sol (some no lado noturno). Ocultas quando o live está ativo
           (as nuvens reais já vêm na imagem do dia). */}
-      {night && clouds && !liveMap && (
+      {night && liveClouds && clouds && !liveMap && (
         <mesh scale={[1.012, 1.012, 1.012]}>
           <sphereGeometry args={[radius, 64, 64]} />
           <meshStandardMaterial
@@ -672,7 +676,7 @@ function ConflictMarker({
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -819,7 +823,7 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false }: { markets
         )}
 
         <group ref={groupRef}>
-          <EarthSphere radius={R} night={!classic} />
+          <EarthSphere radius={R} night={!classic} liveClouds={liveClouds} />
           <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} />
 
           {markets.filter(m => m.symbol !== "^VIX").map(m => (
@@ -2308,6 +2312,18 @@ function MarketHeatLegend() {
 
 export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps) {
   const classic = variant === "classico";
+  // Nuvens/satélite do dia: toggle discreto no HUD, preferência lembrada.
+  const [cloudsOn, setCloudsOn] = useState(true);
+  useEffect(() => {
+    setCloudsOn(window.localStorage.getItem("holoCloudsOn") !== "0");
+  }, []);
+  const toggleClouds = useCallback(() => {
+    setCloudsOn(v => {
+      const next = !v;
+      try { window.localStorage.setItem("holoCloudsOn", next ? "1" : "0"); } catch { /* sem storage */ }
+      return next;
+    });
+  }, []);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -2541,7 +2557,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -2562,6 +2578,22 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
             <ConflictLegend count={conflicts.length} />
             <span className="text-[8px] text-zinc-700">|</span>
             <MarketHeatLegend />
+            <span className="text-[8px] text-zinc-700">|</span>
+            {/* Toggle discreto da camada de nuvens/satélite do dia */}
+            <button
+              onClick={toggleClouds}
+              title={cloudsOn ? "Desligar nuvens (satélite do dia)" : "Ligar nuvens (satélite do dia)"}
+              className="flex items-center gap-1 transition-colors"
+              style={{
+                pointerEvents: "auto",
+                fontSize: 9, fontWeight: 700, letterSpacing: ".04em",
+                color: cloudsOn ? "#67e8f9" : "#52525b",
+                background: "transparent", border: "none", cursor: "pointer", padding: 0,
+              }}
+            >
+              <Cloud size={10} strokeWidth={2.5} style={{ opacity: cloudsOn ? 1 : 0.45 }} />
+              Nuvens
+            </button>
           </div>
           <span
             className="holo-hint text-[9px] tracking-[0.14em] text-cyan-200/50 uppercase"
