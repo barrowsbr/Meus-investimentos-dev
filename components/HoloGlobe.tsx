@@ -142,6 +142,63 @@ function moonPoint(now: Date): { lat: number; refLng: number } {
   return { lat, refLng };
 }
 
+// ── Planetas reais — efemérides de Kepler de baixa precisão (~0,5°) ──────────
+// Elementos orbitais médios J2000 (JPL "approximate positions"):
+// [a(UA), e, I°, L0°, L°/século, ϖ°, Ω°]. Posição heliocêntrica → geocêntrica
+// (menos a Terra) → equatorial → direção no MESMO frame fixo do Sol/Lua
+// (lat = declinação; refLng = αsol − αplaneta).
+const PLANET_ELEMENTS: Record<string, [number, number, number, number, number, number, number]> = {
+  mercurio: [0.387098, 0.20563, 7.005, 252.251, 149472.674, 77.457, 48.331],
+  venus: [0.723332, 0.006773, 3.395, 181.98, 58517.816, 131.602, 76.68],
+  terra: [1.000003, 0.016709, 0.0, 100.464, 35999.372, 102.937, 0.0],
+  marte: [1.523679, 0.093394, 1.85, 355.447, 19140.303, 336.06, 49.558],
+  jupiter: [5.202887, 0.048386, 1.304, 34.397, 3034.746, 14.728, 100.474],
+  saturno: [9.536676, 0.053862, 2.486, 49.954, 1222.494, 92.599, 113.663],
+  urano: [19.189165, 0.047257, 0.773, 313.238, 428.482, 170.954, 74.017],
+  netuno: [30.069923, 0.00859, 1.77, 304.88, 218.459, 44.965, 131.784],
+};
+
+function helioEcliptic(id: string, T: number): [number, number, number] {
+  const RAD = Math.PI / 180;
+  const [a, e, I0, L0, Ldot, wbar, Om] = PLANET_ELEMENTS[id];
+  const L = L0 + Ldot * T;
+  const M = ((L - wbar) % 360 + 540) % 360 - 180;
+  let E = M * RAD;
+  for (let i = 0; i < 6; i++) E = M * RAD + e * Math.sin(E);
+  const xp = a * (Math.cos(E) - e);
+  const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  const w = (wbar - Om) * RAD, o = Om * RAD, inc = I0 * RAD;
+  const cw = Math.cos(w), sw = Math.sin(w), co = Math.cos(o), so = Math.sin(o), ci = Math.cos(inc), si = Math.sin(inc);
+  return [
+    (cw * co - sw * so * ci) * xp + (-sw * co - cw * so * ci) * yp,
+    (cw * so + sw * co * ci) * xp + (-sw * so + cw * co * ci) * yp,
+    (sw * si) * xp + (cw * si) * yp,
+  ];
+}
+
+/** Direção geocêntrica do planeta no frame fixo do Sol + distância em UA. */
+function planetPoint(id: string, now: Date): { lat: number; refLng: number; rAU: number } {
+  const RAD = Math.PI / 180;
+  const d = (now.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000;
+  const T = d / 36_525;
+  const [px, py, pz] = helioEcliptic(id, T);
+  const [ex, ey, ez] = helioEcliptic("terra", T);
+  const gx = px - ex, gy = py - ey, gz = pz - ez;      // geocêntrico (eclíptica)
+  const rAU = Math.hypot(gx, gy, gz);
+  const eps = 23.439 * RAD;
+  const yeq = gy * Math.cos(eps) - gz * Math.sin(eps); // eclíptica → equatorial
+  const zeq = gy * Math.sin(eps) + gz * Math.cos(eps);
+  const alphaP = Math.atan2(yeq, gx) / RAD;
+  const lat = Math.asin(zeq / rAU) / RAD;
+  // α do Sol (mesma conta do subsolarPoint) para ancorar no frame da cena.
+  const gs = (357.528 + 0.9856003 * d) * RAD;
+  const Ls = 280.46 + 0.9856474 * d;
+  const lamS = (Ls + 1.915 * Math.sin(gs) + 0.02 * Math.sin(2 * gs)) * RAD;
+  const alphaS = Math.atan2(Math.cos(eps) * Math.sin(lamS), Math.cos(lamS)) / RAD;
+  const refLng = ((alphaS - alphaP) % 360 + 540) % 360 - 180;
+  return { lat, refLng, rAU };
+}
+
 function heatHex(pct: number): string {
   const t = Math.max(0, Math.min(1, (pct + 4) / 8));
   let r: number, g: number, b: number;
@@ -1114,19 +1171,24 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
             enquanto a Terra roda dentro (1 volta/24h, tempo real). */}
         {!classic && (
           <>
-            {/* O Sol: luz principal + disco/halos aditivos, na direção subsolar */}
+            {/* O Sol: corpo REAL do easter egg (superfície de plasma + coroa)
+                + halos aditivos + a luz principal, na direção subsolar */}
             <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
               <directionalLight intensity={2.6} color="#fff3d6" />
+              <group scale={[3.2, 3.2, 3.2]}>
+                <SunSurface />
+                <SunCorona />
+              </group>
               <sprite scale={[30, 30, 1]}>
                 <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
               <sprite scale={[12, 12, 1]}>
                 <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
               </sprite>
-              <sprite scale={[5, 5, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#fff9e8" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
-              </sprite>
             </group>
+
+            {/* Os planetas — nas direções reais de agora (Kepler) */}
+            <SolarSystem />
             {/* "Luar": preenchimento azulado fraquíssimo vindo do anti-sol.
                 Mais fraco que antes: a noite escura faz as luzes de cidade
                 brilharem de verdade. */}
@@ -2586,6 +2648,46 @@ function NetunoScene() {
         <NeptuneAtmosphere />
       </group>
       <OrbitControls enableZoom enablePan={false} minDistance={2.0} maxDistance={4.5} enableDamping dampingFactor={0.06} rotateSpeed={0.4} zoomSpeed={0.5} />
+    </>
+  );
+}
+
+// ── Sistema solar no espaço imersivo ─────────────────────────────────────────
+// Reusa os corpos celestes dos easter eggs (superfícies procedurais) e os
+// posiciona nas DIREÇÕES REAIS de agora (planetPoint — Kepler geocêntrico, no
+// mesmo frame fixo do Sol/Lua). Distância comprimida em escala log (entre a
+// Lua/12 e o céu/42); tamanhos cinematográficos. Voe até eles no modo 🚀.
+const SOLAR_BODIES: { id: string; scale: number; tilt?: [number, number, number]; node: React.ReactNode }[] = [
+  { id: "mercurio", scale: 0.5, node: <MercurySurface /> },
+  { id: "venus", scale: 0.55, node: <><VenusSurface /><VenusAtmosphere /></> },
+  { id: "marte", scale: 0.6, node: <><MarsSurface /><MarsAtmosphere /></> },
+  { id: "jupiter", scale: 0.9, node: <JupiterSurface /> },
+  { id: "saturno", scale: 0.9, tilt: [0.4, 0, -0.1], node: <><SaturnBody /><SaturnRings /></> },
+  { id: "urano", scale: 0.6, tilt: [1.71, 0, 0.2], node: <><UranusBody /><UranusAtmosphere /><UranusRings /></> },
+  { id: "netuno", scale: 0.6, node: <><NeptuneSurface /><NeptuneAtmosphere /></> },
+];
+
+function SolarSystem() {
+  // Direções geocêntricas calculadas na montagem (drift < 1°/dia — estático
+  // durante a sessão é fiel o bastante).
+  const items = useMemo(() => {
+    const now = new Date();
+    return SOLAR_BODIES.map(b => {
+      const { lat, refLng, rAU } = planetPoint(b.id, now);
+      const dist = 16 + 5 * Math.log(1 + rAU);
+      return { ...b, pos: latLngToVec3(lat, refLng, dist) };
+    });
+  }, []);
+
+  return (
+    <>
+      {items.map(p => (
+        <group key={p.id} position={p.pos}>
+          <group scale={[p.scale, p.scale, p.scale]} rotation={p.tilt ?? [0, 0, 0]}>
+            {p.node}
+          </group>
+        </group>
+      ))}
     </>
   );
 }
