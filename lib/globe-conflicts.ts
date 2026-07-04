@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { fetchGdeltEventPoints, type GdeltEventPoint } from "@/lib/gdelt-events";
+import { translateBatch } from "@/lib/translate";
 
 export interface ConflictZoneData {
   id: string;
@@ -193,7 +194,8 @@ function zoneName(country: string, theme: GlobeTheme): string {
 // Manchete "de graça": o slug da URL da notícia costuma ser o próprio título
 // ("/us/la-protests-immigration-raids" → "La protests immigration raids").
 // Devolve null quando o slug é lixo (ids, curto demais) — melhor nada que ruído.
-function headlineFromUrl(url: string): string | null {
+// Título e host separados: o título passa pelo tradutor; o host não.
+function headlineFromUrl(url: string): { title: string; host: string } | null {
   try {
     const u = new URL(url);
     let seg = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
@@ -204,7 +206,7 @@ function headlineFromUrl(url: string): string | null {
     if (text.length < 18) return null;
     const host = u.hostname.replace(/^www\./, "");
     const t = text.charAt(0).toUpperCase() + text.slice(1);
-    return `${t.length > 80 ? t.slice(0, 77) + "…" : t} (${host})`;
+    return { title: t.length > 80 ? t.slice(0, 77) + "…" : t, host };
   } catch {
     return null;
   }
@@ -268,14 +270,16 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
     diag.top = ranked.slice(0, 8).map(a => ({ country: a.country, mentions: a.mentions }));
   }
 
-  const zones = ranked.slice(0, MAX_ZONES).map(a => {
+  const rawHeads: { title: string; host: string }[][] = [];
+  const zones: ConflictZoneData[] = ranked.slice(0, MAX_ZONES).map(a => {
     const spots = [...a.cities.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([c]) => c);
-    const headlines: string[] = [];
+    const heads: { title: string; host: string }[] = [];
     for (const { url } of a.topUrls.sort((x, y) => y.mentions - x.mentions)) {
       const h = headlineFromUrl(url);
-      if (h && !headlines.some(e => e.slice(0, 30) === h.slice(0, 30))) headlines.push(h);
-      if (headlines.length >= 2) break;
+      if (h && !heads.some(e => e.title.slice(0, 30) === h.title.slice(0, 30))) heads.push(h);
+      if (heads.length >= 2) break;
     }
+    rawHeads.push(heads);
     return {
       id: `${theme.id}-${slug(a.country)}`,
       name: zoneName(a.country, theme),
@@ -287,9 +291,25 @@ export async function fetchGdeltEvents(themeId: string = DEFAULT_THEME, diag?: C
       source: "GDELT",
       country: a.country,
       spots: spots.length > 0 ? spots : undefined,
-      headlines: headlines.length > 0 ? headlines : undefined,
     };
   });
+
+  // Manchetes vêm em inglês (slug da notícia) — passa pelo tradutor do app
+  // (lote, cache em memória; falha → mantém o original, nunca quebra).
+  const flat = rawHeads.flat();
+  if (flat.length > 0) {
+    let titles = flat.map(h => h.title);
+    try {
+      const translated = await translateBatch(titles, "pt");
+      titles = titles.map((t, i) => (translated[i] && translated[i].length > 3 ? translated[i] : t));
+    } catch { /* mantém originais */ }
+    let k = 0;
+    zones.forEach((z, i) => {
+      const hs = rawHeads[i].map(h => `${titles[k++]} (${h.host})`);
+      if (hs.length > 0) z.headlines = hs;
+    });
+  }
+
   if (diag) diag.zonesReturned = zones.length;
   return zones;
 }
