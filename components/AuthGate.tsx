@@ -89,8 +89,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         const isDemo = !!data.demo;
         if (isDemo) sessionStorage.setItem(DEMO_KEY, "1");
         else sessionStorage.removeItem(DEMO_KEY);
+        // Conta ativa (multiusuário por planilha): trocar de conta exige reload
+        // para refazer todo fetch com o cookie novo — sem estado da conta antiga.
+        const prevConta = sessionStorage.getItem("mi_conta") ?? "";
+        const novaConta = isDemo ? "demo" : String(data.conta ?? "");
+        if (novaConta) sessionStorage.setItem("mi_conta", novaConta);
+        else sessionStorage.removeItem("mi_conta");
         sessionStorage.setItem(AUTH_KEY, "1");
-        if (wasDemo !== isDemo) {
+        if (wasDemo !== isDemo || prevConta !== novaConta) {
           window.location.reload();
           return;
         }

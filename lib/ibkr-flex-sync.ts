@@ -25,6 +25,7 @@ import {
 } from "./broker-import";
 import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
 import { canonicalizeTickersForSheet, persistAssetMeta } from "./asset-meta";
+import { activeUserKey } from "./user-sheet";
 
 // Maior data (ISO yyyy-mm-dd) já presente na aba — o "corte" do sync.
 // Comparação lexicográfica de yyyy-mm-dd == comparação cronológica.
@@ -53,6 +54,12 @@ export async function runFlexSync(
   const debug = opts.debug ?? false;
   const wantProv = ["proventos", "both"].includes(mode);
   const wantTrades = ["trades", "both"].includes(mode);
+
+  // O token Flex é da CONTA PRINCIPAL — rodar logado numa conta extra gravaria
+  // os trades do dono na planilha da outra pessoa.
+  if (activeUserKey()) {
+    throw new Error("O sync IBKR usa o token da conta principal — entre com a conta principal para sincronizar");
+  }
 
   const token = process.env.IBKR_FLEX_TOKEN;
   const queryId = process.env.IBKR_FLEX_QUERY_ID;

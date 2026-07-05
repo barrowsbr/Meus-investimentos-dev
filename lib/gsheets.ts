@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
 import { isDemoRequest, scaleRowsForTab } from "./demo";
+import { activeSpreadsheetId } from "./user-sheet";
 
 // Modo demonstração é somente leitura: bloqueia qualquer escrita em planilha
 // para que a conta `test`/`test` jamais altere os dados reais do dono.
@@ -8,7 +9,9 @@ function assertNotDemo(): void {
   if (isDemoRequest()) throw new Error("Modo demonstração: escrita em planilha desabilitada");
 }
 
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID!;
+// Planilha ativa POR REQUEST (multiusuário: conta extra logada → a planilha
+// dela; dono/cron → SPREADSHEET_ID do env). Ver lib/user-sheet.ts.
+const SPREADSHEET_ID = () => activeSpreadsheetId();
 const API_KEY = process.env.GOOGLE_API_KEY!;
 
 // ── Service account auth (required for writes) ────────────────────────────────
@@ -35,7 +38,7 @@ export async function appendRows(tabName: string, rows: string[][]): Promise<voi
   const sheets = google.sheets({ version: "v4", auth });
   const resolved = await resolveTabName(tabName);
   await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: resolved,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
@@ -59,11 +62,11 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
   const sheets = google.sheets({ version: "v4", auth });
   const resolved = await resolveTabName(tabName);
   await sheets.spreadsheets.values.clear({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: resolved,
   });
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: `${resolved}!A1`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [headers, ...rows] },
@@ -86,7 +89,7 @@ export async function updateCells(tabName: string, updates: { a1: string; value:
   const sheets = google.sheets({ version: "v4", auth });
   const resolved = await resolveTabName(tabName);
   await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     requestBody: {
       valueInputOption: "USER_ENTERED",
       data: updates.map((u) => ({ range: `${resolved}!${u.a1}`, values: [[u.value]] })),
@@ -105,7 +108,7 @@ export async function syncHeaders(tabName: string, headers: string[]): Promise<v
   const sheets = google.sheets({ version: "v4", auth });
   const resolved = await resolveTabName(tabName);
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: `${resolved}!1:1`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [headers] },
@@ -124,11 +127,11 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<boo
   if (!auth) throw new Error(`Aba "${tabName}" não existe e a criação requer GOOGLE_SERVICE_ACCOUNT_JSON`);
   const sheets = google.sheets({ version: "v4", auth });
   await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
   });
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: `${tabName}!A1`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [headers] },
@@ -146,21 +149,26 @@ function serialToDate(serial: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-let _sheetNamesCache: string[] | null = null;
+// Cache POR PLANILHA — multiusuário: as abas da planilha da conta extra não
+// podem vazar para a principal (e vice-versa).
+const _sheetNamesCache = new Map<string, string[]>();
 
 export function resetSheetNamesCache(): void {
-  _sheetNamesCache = null;
+  _sheetNamesCache.clear();
 }
 
 export async function listSheetNames(): Promise<string[]> {
-  if (_sheetNamesCache) return _sheetNamesCache;
+  const sid = SPREADSHEET_ID();
+  const hit = _sheetNamesCache.get(sid);
+  if (hit) return hit;
   const sheets = google.sheets({ version: "v4", auth: API_KEY });
   const meta = await sheets.spreadsheets.get({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: sid,
     fields: "sheets.properties.title",
   });
-  _sheetNamesCache = meta.data.sheets?.map((s) => s.properties?.title ?? "") ?? [];
-  return _sheetNamesCache;
+  const names = meta.data.sheets?.map((s) => s.properties?.title ?? "") ?? [];
+  _sheetNamesCache.set(sid, names);
+  return names;
 }
 
 async function resolveTabName(tabName: string): Promise<string> {
@@ -187,7 +195,7 @@ export async function fetchTab(
   const resolved = await resolveTabName(tabName);
 
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SPREADSHEET_ID(),
     range: resolved,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
