@@ -806,22 +806,36 @@ export default function HomePage() {
   }, []);
 
   // Fonte âncora do retorno do dia: API da IBKR (book internacional, sem erro).
+  // Uma tentativa extra após 2,5s: em cold start a geração do Flex pode estourar
+  // o tempo da 1ª chamada; a 2ª normalmente acerta o cache (memória ou CDN).
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/ibkr/overview")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setIbkrLoaded(true); });
+    const tryFetch = () => fetch("/api/ibkr/overview").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    (async () => {
+      let d = await tryFetch();
+      if (!cancelled && !(d && d.kpis)) {
+        await new Promise((r) => setTimeout(r, 2500));
+        if (!cancelled) d = await tryFetch();
+      }
+      if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData);
+      if (!cancelled) setIbkrLoaded(true);
+    })();
     return () => { cancelled = true; };
   }, []);
 
   // Patrimônio do dia (só para o quadro da Home) — endpoint dedicado.
+  // SÓ usa quando o IBKR entrou de verdade na conta (ibkr_ok): sem isso, uma
+  // falha do Flex devolvia um valor PARCIAL (só BR+cripto) que tomava o lugar
+  // do canônico no card.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/patrimonio-dia")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && typeof d?.patrimonio_dia_brl === "number" && d.patrimonio_dia_brl > 0) setPatrimonioDia(d.patrimonio_dia_brl); })
+      .then((d) => {
+        if (!cancelled && d?.ibkr_ok === true && typeof d?.patrimonio_dia_brl === "number" && d.patrimonio_dia_brl > 0) {
+          setPatrimonioDia(d.patrimonio_dia_brl);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
