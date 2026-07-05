@@ -42,6 +42,9 @@ export interface FlexParsed {
   cashBalances: { moeda: string; saldo: number }[];
   marginBalances: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[];
   proventosDupsRemoved: number;
+  /** Bolsa de listagem por ticker (atributo listingExchange do Flex) — pista
+   *  determinística para a grafia Yahoo (TSE→.TO, AEB→.AS, IBIS→.DE…). */
+  exchangeBySymbol: Record<string, string>;
 }
 
 // ── XML helpers (formato Flex é plano: elementos auto-fechados com atributos) ──
@@ -171,6 +174,12 @@ export function parseFlexXml(xml: string): FlexParsed {
   const positions: IbkrPosition[] = [];
   const cashBalances: { moeda: string; saldo: number }[] = [];
   const marginBalances: { moeda: string; saldo: number; jurosAcruados: number; initMargin: number; maintMargin: number }[] = [];
+  const exchangeBySymbol: Record<string, string> = {};
+  const noteExchange = (symbol: string, attrs: Record<string, string>) => {
+    const ex = (attrs.listingExchange ?? attrs.exchange ?? "").trim();
+    const tk = normalizeTicker(symbol);
+    if (ex && tk && !exchangeBySymbol[tk]) exchangeBySymbol[tk] = ex;
+  };
 
   for (const a of extractElements(xml, "Trade")) {
     const lod = (a.levelOfDetail ?? "").toUpperCase();
@@ -202,6 +211,7 @@ export function parseFlexXml(xml: string): FlexParsed {
     let valorBruto = Math.abs(parseValor(a.tradeMoney ?? "0"));
     if (valorBruto === 0 && absQty > 0 && preco > 0) valorBruto = Math.round(absQty * preco * 100) / 100;
 
+    noteExchange(symbol, a);
     trades.push(makeTradeRow({
       data: date,
       tipo: buySell === "BUY" ? "Compra" : "Venda",
@@ -228,6 +238,7 @@ export function parseFlexXml(xml: string): FlexParsed {
     const isDividend = type.includes("dividend") || type.includes("lieu");
     if (!isImposto && !isDividend) continue;
 
+    noteExchange(symbol, a);
     proventos.push(makeProvento(
       normalizeTicker(symbol),
       normalizeDate(a.reportDate ?? a.dateTime ?? a.settleDate ?? ""),
@@ -242,6 +253,7 @@ export function parseFlexXml(xml: string): FlexParsed {
   for (const a of extractElements(xml, "OpenPosition")) {
     const symbol = a.symbol ?? "";
     if (!symbol) continue;
+    noteExchange(symbol, a);
     positions.push({
       ticker: normalizeTicker(symbol),
       moeda: (a.currency ?? "USD").toUpperCase(),
@@ -322,5 +334,5 @@ export function parseFlexXml(xml: string): FlexParsed {
     proventosUnique.push(p);
   }
 
-  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved };
+  return { proventos: proventosUnique, trades, cambio, positions, cashBalances, marginBalances, proventosDupsRemoved, exchangeBySymbol };
 }

@@ -245,6 +245,88 @@ function guessCurrencyFromSuffix(symbol: string): string {
   return "USD";
 }
 
+// ── Grafia canônica da planilha (garantia Yahoo) ───────────────────────────────
+// Regra do dono: TUDO que entra em meus_ativos/meus_proventos precisa estar na
+// grafia que o Yahoo resolve (DPM.TO, VOW3.DE, ASML…). Exceção: B3 é gravada SEM
+// .SA — o motor de cotações acrescenta o sufixo na hora de precificar.
+
+// IBKR listingExchange → sufixo Yahoo (bolsas mais comuns; EUA = sem sufixo).
+const IBKR_EXCHANGE_SUFFIX: Record<string, string> = {
+  NYSE: "", NASDAQ: "", ISLAND: "", ARCA: "", AMEX: "", BATS: "", IEX: "", PINK: "",
+  TSE: ".TO", TSX: ".TO", VENTURE: ".V", TSXV: ".V",
+  AEB: ".AS",                                   // Euronext Amsterdam
+  IBIS: ".DE", IBIS2: ".DE", FWB: ".DE", FWB2: ".DE", XETRA: ".DE", SWB: ".DE",
+  LSE: ".L", LSEETF: ".L", LSEIOB1: ".L",
+  SBF: ".PA",                                   // Euronext Paris
+  BVME: ".MI", BVMEETF: ".MI",                  // Borsa Italiana
+  BM: ".MC",                                    // Bolsa de Madrid
+  EBS: ".SW", VIRTX: ".SW",                     // SIX Swiss
+  SFB: ".ST", CPH: ".CO", OSE: ".OL", HEX: ".HE",
+  ASX: ".AX", SEHK: ".HK", TSEJ: ".T", SGX: ".SI",
+  BOVESPA: ".SA", BVMF: ".SA",
+};
+
+/** Candidato Yahoo determinístico a partir da bolsa de listagem (IBKR Flex). */
+export function yahooCandidateFromExchange(ticker: string, listingExchange?: string): string | null {
+  if (!listingExchange) return null;
+  const suffix = IBKR_EXCHANGE_SUFFIX[listingExchange.toUpperCase().trim()];
+  if (suffix === undefined) return null;
+  const base = ticker.toUpperCase().trim();
+  if (!base || base.includes(".")) return base || null; // já tem sufixo → mantém
+  return suffix ? `${base}${suffix}` : base;
+}
+
+/** Grafia canônica gravada na PLANILHA: símbolo Yahoo, menos o .SA da B3. */
+export function sheetTickerFromMeta(meta: AssetMeta): string {
+  return meta.yahooSymbol.toUpperCase().replace(/\.SA$/i, "").trim();
+}
+
+/**
+ * Resolve a grafia Yahoo de cada ticker ANTES da escrita na planilha.
+ * Retorna só os que precisam mudar (renames) + os metadados p/ persistir em
+ * ativos_meta. Yahoo fora do ar NUNCA bloqueia o sync — o ticker original segue.
+ */
+export async function canonicalizeTickersForSheet(
+  items: { ticker: string; moeda?: string; corretora?: string; exchange?: string }[],
+): Promise<{ renames: Map<string, string>; metas: AssetMeta[] }> {
+  await loadAssetMetaCache();
+  const renames = new Map<string, string>();
+  const metas: AssetMeta[] = [];
+  const seen = new Set<string>();
+  const uniq = items.filter(i => {
+    const k = (i.ticker ?? "").toUpperCase().trim();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  const BATCH = 4;
+  for (let i = 0; i < uniq.length; i += BATCH) {
+    await Promise.all(uniq.slice(i, i + BATCH).map(async (it) => {
+      try {
+        // 1) Pista determinística: bolsa de listagem → candidato com sufixo,
+        //    validado direto no Yahoo (quote).
+        const candidate = yahooCandidateFromExchange(it.ticker, it.exchange);
+        let meta: AssetMeta | null = null;
+        if (candidate && candidate !== it.ticker.toUpperCase().trim()) {
+          meta = await resolveAssetMeta(candidate, { moeda: it.moeda, corretora: it.corretora });
+        }
+        // 2) Caminho normal: cache → quote direto → busca com hints.
+        if (!meta?.yahooSymbol) {
+          meta = await resolveAssetMeta(it.ticker, { moeda: it.moeda, corretora: it.corretora });
+        }
+        if (!meta?.yahooSymbol) return;
+        metas.push(meta);
+        const sheetTk = sheetTickerFromMeta(meta);
+        if (sheetTk && sheetTk !== it.ticker.toUpperCase().trim()) {
+          renames.set(it.ticker, sheetTk);
+        }
+      } catch { /* best-effort */ }
+    }));
+  }
+  return { renames, metas };
+}
+
 // ── Batch resolve (for import previews) ────────────────────────────────────────
 
 export async function resolveMultipleAssets(
