@@ -91,6 +91,26 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
   automático** da aba antes de sobrescrever (`lib/backup.ts`)
 - **Biblioteca**: `googleapis` (Node.js)
 
+## Multiusuário (planilha por conta — sem banco de dados)
+
+- Contas extras (ex.: esposa) têm a PRÓPRIA planilha Google. Config via env
+  **`EXTRA_USERS_JSON`**: `[{"user":"maria","password":"...","spreadsheetId":"1AbC..."}]`.
+- Login de conta extra seta cookie **HttpOnly `mi_user`**; `lib/user-sheet.ts`
+  (`activeSpreadsheetId`) roteia TODA leitura/escrita do gsheets para a planilha
+  da conta. Sem cookie (dono, cron, scripts) vale `SPREADSHEET_ID`. Login do dono
+  limpa o cookie.
+- A planilha extra precisa de: compartilhamento por link como **Leitor** (leitura
+  via API key) e o e-mail do service account como **Editor** (escrita/backup).
+- **CDN**: `middleware.ts` roda antes do cache da Vercel e reescreve `/api/*` com
+  `?__acct=<conta>` quando há cookie de conta extra ou demo — cada conta tem sua
+  entrada de cache (sem isso a resposta cacheada do dono vazaria para a outra
+  conta dentro do s-maxage).
+- Exceções que ficam na planilha principal: **db_cotacoes** (golden source de
+  preços — dado de mercado, compartilhado; `lib/db-cotacoes.ts` tem o próprio
+  SPREADSHEET_ID) e o **sync IBKR Flex** (token do dono; bloqueado para extras).
+- Caveat (igual ao demo): o Python (`api/index.py`) lê a planilha direto e NÃO
+  segue o cookie — agente IA/fluxos mostram os dados do dono.
+
 ## Modo demonstração (showcase)
 
 - Login **`test` / `test`** entra na MESMA conta do dono, porém com todos os
