@@ -13,6 +13,7 @@
 // + câmbio fecha exatamente com o total canônico (dayChangeTotalBRL).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { RefreshCw, Sparkles, TrendingUp, TrendingDown, Newspaper } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
@@ -150,8 +151,8 @@ function LedgerRow({
 // ── Card de grupo (Internacional / Brasil / Cripto) ───────────────────────────
 
 function GroupCard({
-  emoji, title, movers, chip, nativeCcy,
-}: { emoji: string; title: string; movers: Mover[]; chip: { text: string; color: string }; nativeCcy?: "USD" }) {
+  icon, title, movers, chip, nativeCcy,
+}: { icon: React.ReactNode; title: string; movers: Mover[]; chip: { text: string; color: string }; nativeCcy?: "USD" }) {
   const priceSum = movers.reduce((s, m) => s + m.priceBRL, 0);
   const valueSum = movers.reduce((s, m) => s + m.valorAtualBRL, 0);
   const nativeSum = movers.reduce((s, m) => s + m.nativeChange, 0);
@@ -165,7 +166,7 @@ function GroupCard({
   return (
     <section className="glass-card p-4">
       <div className="flex items-center justify-between gap-2 mb-1">
-        <h2 className="section-title">{emoji} {title}</h2>
+        <h2 className="section-title">{icon} {title}</h2>
         <Chip {...chip} />
       </div>
       <div className="flex items-baseline gap-3 mt-2 mb-3 flex-wrap">
@@ -507,14 +508,29 @@ export default function HojePage() {
 
       <div className="flex flex-col gap-3">
 
-        {/* ── 1. Internacional (IBKR) ── */}
-        <GroupCard emoji="🌎" title="Internacional · IBKR" movers={grupos.intl} chip={grupos.chipIntl} nativeCcy="USD" />
+        {/* ── 1. Internacional (IBKR) — logo real da corretora ── */}
+        <GroupCard
+          icon={
+            <Image
+              src="/midias/51q7eieUfKL.png"
+              alt="Interactive Brokers"
+              width={18}
+              height={18}
+              className="shrink-0 object-cover"
+              style={{ borderRadius: 4 }}
+            />
+          }
+          title="Internacional · IBKR"
+          movers={grupos.intl}
+          chip={grupos.chipIntl}
+          nativeCcy="USD"
+        />
 
         {/* ── 2. Brasil ── */}
-        <GroupCard emoji="🇧🇷" title="Brasil · B3" movers={grupos.brasil} chip={grupos.chipBr} />
+        <GroupCard icon="🇧🇷" title="Brasil · B3" movers={grupos.brasil} chip={grupos.chipBr} />
 
         {/* ── 3. Cripto ── */}
-        <GroupCard emoji="₿" title="Criptoativos" movers={grupos.cripto} chip={grupos.chipCr} />
+        <GroupCard icon="₿" title="Criptoativos" movers={grupos.cripto} chip={grupos.chipCr} />
 
         {/* ── 4. Câmbio do dia ── */}
         <section className="glass-card p-4">
