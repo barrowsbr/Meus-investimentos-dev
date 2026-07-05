@@ -29,22 +29,38 @@ export interface ExtraUser {
   spreadsheetId: string; // planilha própria da conta
 }
 
-export function extraUsers(): ExtraUser[] {
+// Parse TOLERANTE do env (erros comuns de colar JSON no painel da Vercel):
+// aspas curvas de editor de texto, objeto único sem colchetes, aspas simples,
+// e nomes de campo em PT (usuario/senha/planilha).
+export function parseExtraUsers(raw: string | undefined): { users: ExtraUser[]; error: string | null } {
+  if (!raw || !raw.trim()) return { users: [], error: "env vazio/ausente" };
+  let s = raw.trim()
+    .replace(/[“”„]/g, '"')   // aspas duplas curvas → retas
+    .replace(/[‘’]/g, "'");        // aspas simples curvas → retas
+  if (!s.startsWith("[")) s = `[${s}]`;       // objeto único sem colchetes
+  let arr: unknown;
   try {
-    const raw = process.env.EXTRA_USERS_JSON;
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((u) => ({
-        user: String(u?.user ?? "").trim().toUpperCase(),
-        password: String(u?.password ?? ""),
-        spreadsheetId: String(u?.spreadsheetId ?? u?.planilha ?? "").trim(),
-      }))
-      .filter((u) => u.user && u.password && u.spreadsheetId);
+    arr = JSON.parse(s);
   } catch {
-    return [];
+    // segunda chance: JSON escrito com aspas simples
+    if (s.includes("'") && !s.includes('"')) {
+      try { arr = JSON.parse(s.replace(/'/g, '"')); } catch { /* segue nulo */ }
+    }
   }
+  if (!Array.isArray(arr)) return { users: [], error: "JSON inválido — esperado um array de contas" };
+  const users = (arr as Record<string, unknown>[])
+    .map((u) => ({
+      user: String(u?.user ?? u?.usuario ?? u?.["usuário"] ?? u?.login ?? "").trim().toUpperCase(),
+      password: String(u?.password ?? u?.senha ?? u?.pass ?? ""),
+      spreadsheetId: String(u?.spreadsheetId ?? u?.planilha ?? u?.sheetId ?? u?.sheet ?? u?.id ?? "").trim(),
+    }))
+    .filter((u) => u.user && u.password && u.spreadsheetId);
+  if (users.length === 0) return { users: [], error: "JSON parseado, mas nenhuma conta com user + password + spreadsheetId" };
+  return { users, error: null };
+}
+
+export function extraUsers(): ExtraUser[] {
+  return parseExtraUsers(process.env.EXTRA_USERS_JSON).users;
 }
 
 /** Nome da conta extra ativa nesta request, ou null (dono / cron / cookie inválido). */
