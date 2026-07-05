@@ -24,6 +24,7 @@ import {
   pick,
 } from "./broker-import";
 import { fetchFlexStatement, parseFlexXml } from "./ibkr-flex";
+import { canonicalizeTickersForSheet, persistAssetMeta } from "./asset-meta";
 
 // Maior data (ISO yyyy-mm-dd) já presente na aba — o "corte" do sync.
 // Comparação lexicográfica de yyyy-mm-dd == comparação cronológica.
@@ -60,7 +61,27 @@ export async function runFlexSync(
   }
 
   const xml = await fetchFlexStatement(token, queryId);
-  const { proventos, trades, cambio, positions, proventosDupsRemoved } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, proventosDupsRemoved, exchangeBySymbol } = parseFlexXml(xml);
+
+  // ── Garantia de grafia Yahoo (regra do dono) ──────────────────────────────
+  // ANTES de qualquer escrita, cada ticker vira o símbolo que o Yahoo resolve
+  // (DPM→DPM.TO, VOW3→VOW3.DE; EUA sem sufixo; B3 sem .SA). Usa a bolsa de
+  // listagem do Flex como pista determinística e VALIDA no Yahoo. Se o Yahoo
+  // estiver fora do ar, o sync segue com o ticker original (nunca bloqueia).
+  const tickerAjustes: { de: string; para: string }[] = [];
+  try {
+    const itens = [
+      ...trades.map(t => ({ ticker: t.Símbolo, moeda: t.Moeda, corretora: t.Corretora, exchange: exchangeBySymbol[t.Símbolo] })),
+      ...proventos.map(p => ({ ticker: p.ticker, moeda: p.moeda, corretora: "IBKR", exchange: exchangeBySymbol[p.ticker] })),
+    ];
+    const { renames, metas } = await canonicalizeTickersForSheet(itens);
+    if (renames.size > 0) {
+      for (const t of trades) t.Símbolo = renames.get(t.Símbolo) ?? t.Símbolo;
+      for (const p of proventos) p.ticker = renames.get(p.ticker) ?? p.ticker;
+      for (const [de, para] of renames) tickerAjustes.push({ de, para });
+    }
+    if (!dryRun && metas.length > 0) await persistAssetMeta(metas).catch(() => {});
+  } catch { /* validação é best-effort — o sync nunca para por causa dela */ }
 
   const store = getDataStore();
   const result: Record<string, unknown> = {
@@ -73,6 +94,8 @@ export async function runFlexSync(
       positions: positions.length,
       proventos_duplicados_removidos: proventosDupsRemoved,
     },
+    // Grafias corrigidas para o padrão Yahoo antes da escrita (auditoria).
+    ticker_ajustes: tickerAjustes,
   };
 
   // ── Proventos → meus_proventos ──
