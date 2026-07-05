@@ -27,6 +27,7 @@ function normalizeDate(s: string): string {
   return s.slice(0, 10);
 }
 
+// Base SEM sufixo — usada só para dedup (grafias antigas sem .SA continuam casando).
 function normalizeTicker(t: string): string {
   // Extract ticker from "TICKER - FULL NAME" format
   const match = t.match(/^([A-Z0-9]+)/i);
@@ -133,7 +134,9 @@ function parseB3Csv(content: string): B3Provento[] {
     const d = new Date(data + "T12:00:00Z");
 
     result.push({
-      ticker,
+      // Grafia canônica da planilha = símbolo Yahoo completo: B3 leva .SA
+      // (CMIG4.SA, VALE3.SA). A dedup compara pela base, então nada duplica.
+      ticker: `${ticker}.SA`,
       data,
       decisao: "Dividendo",
       mes: formatMesAno(data),

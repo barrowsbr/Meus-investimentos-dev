@@ -82,10 +82,11 @@ export function normalizeDate(s: string): string {
 }
 
 export function normalizeTicker(t: string): string {
-  // Preserva sufixo de bolsa (ex.: VOW3.DE, DPM.TO) — só remove .SA (B3,
-  // adicionado automaticamente). O sufixo é o que o Yahoo precisa para precificar.
+  // Preserva o sufixo de bolsa INCLUSIVE .SA (regra do dono: a planilha guarda a
+  // grafia exata do Yahoo — CMIG4.SA, VOW3.DE, DPM.TO). A comparação/dedup usa
+  // dedupTk (sem sufixo), então grafias antigas sem .SA continuam casando.
   const match = t.match(/^([A-Z0-9]+(?:\.[A-Z]{1,2})?)/i);
-  return (match ? match[1] : t).replace(/\.SA$/i, "").trim().toUpperCase();
+  return (match ? match[1] : t).trim().toUpperCase();
 }
 
 /** Remove TODOS os sufixos de bolsa para COMPARAÇÃO — "DPM.TO" e "DPM",

@@ -182,11 +182,24 @@ export async function fetchHistoricalData(
     golden = await getMarketDataStore().read();
   } catch { /* fall through to Yahoo */ }
 
-  const goldenUpper = new Set(golden?.tickers.map(t => t.toUpperCase()) ?? []);
+  // Casamento com as colunas do golden por grafia exata OU pela base sem sufixo:
+  // a planilha migrou para a grafia Yahoo (CMIG4.SA, DPM.TO), mas as colunas
+  // antigas do db_cotacoes ("CMIG4", "DPM") continuam valendo — sem isso o
+  // histórico partiria em duas colunas e a Performance perderia o passado.
+  const baseTk = (t: string) => t.toUpperCase().replace(/\.[A-Z]{1,2}$/, "");
+  const goldenCol = new Map<string, string>();
+  for (const t of golden?.tickers ?? []) {
+    const up = t.toUpperCase();
+    goldenCol.set(up, up);
+    const b = baseTk(up);
+    if (!goldenCol.has(b)) goldenCol.set(b, up);
+  }
   const coveredByGolden = new Set<string>();
+  const goldenColByYt = new Map<string, string>();
   for (const yt of allYahoo) {
-    const orig = tickerMap.get(yt) ?? yt;
-    if (goldenUpper.has(orig.toUpperCase())) coveredByGolden.add(yt);
+    const orig = (tickerMap.get(yt) ?? yt).toUpperCase();
+    const col = goldenCol.get(orig) ?? goldenCol.get(baseTk(orig));
+    if (col) { coveredByGolden.add(yt); goldenColByYt.set(yt, col); }
   }
 
   const toFetch = allYahoo.filter(yt => !coveredByGolden.has(yt));
@@ -215,10 +228,10 @@ export async function fetchHistoricalData(
   // 1) Golden source data (keyed by Yahoo ticker for compatibility)
   if (golden) {
     for (const yt of coveredByGolden) {
-      const orig = (tickerMap.get(yt) ?? yt).toUpperCase();
+      const col = goldenColByYt.get(yt)!;
       for (const date of golden.dates) {
         if (date < startStr || date > endStr) continue;
-        const price = golden.prices[date]?.[orig];
+        const price = golden.prices[date]?.[col];
         if (price == null) continue;
         if (!rawByDate.has(date)) rawByDate.set(date, new Map());
         rawByDate.get(date)!.set(yt, price);

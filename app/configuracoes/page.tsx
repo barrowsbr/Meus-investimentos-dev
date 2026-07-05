@@ -1876,10 +1876,10 @@ function TickerAuditSection() {
     <div className="space-y-4">
       <p className="text-xs text-zinc-500 leading-relaxed">
         Confere se cada ticker de <strong className="text-zinc-400">meus_ativos</strong> e{" "}
-        <strong className="text-zinc-400">meus_proventos</strong> está na <strong className="text-zinc-400">grafia que o Yahoo
-        Finance resolve</strong> — internacionais com sufixo de bolsa (DPM.TO, VOW3.DE, ASML sem sufixo nos EUA) e B3 sem .SA.
-        Os sincronizadores (arquivo, API e cron) já validam antes de gravar; aqui você audita o histórico e corrige conflitos
-        com um clique (correção cirúrgica, com backup automático).
+        <strong className="text-zinc-400">meus_proventos</strong> está na <strong className="text-zinc-400">grafia exata que o
+        Yahoo Finance resolve</strong> — B3 com .SA (CMIG4.SA, VALE3.SA), internacionais com o sufixo da bolsa (DPM.TO, VOW3.DE)
+        e EUA sem sufixo (AAPL). Os sincronizadores (arquivo, API e cron) já validam antes de gravar; aqui você audita o
+        histórico e corrige conflitos com um clique (correção cirúrgica, com backup automático).
       </p>
 
       <button onClick={run} disabled={loading} className="btn-primary text-sm px-4 py-2 disabled:opacity-40">
