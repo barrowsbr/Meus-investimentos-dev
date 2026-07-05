@@ -288,8 +288,14 @@ export async function GET(req: Request) {
       const nativeNaoRealizado = p.valorAtual !== null ? p.valorAtual - p.custoTotal : 0;
       const nativeRealizado = p.lucroRealizado;
       const nativeProventos = nativeFx > 0 ? proventosAtivo / nativeFx : 0;
-      const retNaoRealizadoPct = p.custoTotal > 0 ? (nativeNaoRealizado / p.custoTotal) * 100 : 0;
-      const retRealizadoProventosPct = p.custoTotal > 0 ? ((nativeRealizado + nativeProventos) / p.custoTotal) * 100 : 0;
+      // Denominador simétrico (custo atual + custo vendido): realizado e proventos
+      // são da vida inteira do ativo, então a régua é o capital histórico — dividir
+      // pelo custo só do ciclo atual inflava o % após venda-com-prejuízo + recompra
+      // (caso SIVR). Sem vendas, custoVendido = 0 e nada muda. A soma das duas
+      // fatias = "Resultado histórico do ativo" (CANONICO.md).
+      const custoHist = p.custoTotal + (rawPortfolio.get(p.ticker)?.custoVendido ?? 0);
+      const retNaoRealizadoPct = custoHist > 0 ? (nativeNaoRealizado / custoHist) * 100 : 0;
+      const retRealizadoProventosPct = custoHist > 0 ? ((nativeRealizado + nativeProventos) / custoHist) * 100 : 0;
 
       const nativeValorAtual = p.valorAtual ?? 0;
       rentabilidade.push({
