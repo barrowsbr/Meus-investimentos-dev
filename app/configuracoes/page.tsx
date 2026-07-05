@@ -1834,10 +1834,10 @@ const THEME_OPTIONS: { key: Theme; label: string; desc: string; preview: { bg: s
     preview: { bg: "#050A05", accent: "#00FF41", text: "#B5E8B5", muted: "#5A8A5A", pos: "#00FF41", neg: "#FF3838" },
   },
   {
-    key: "jornal",
-    label: "Jornal",
-    desc: "Papel de jornal financeiro — claro, tipografia serifada",
-    preview: { bg: "#F2EBDD", accent: "#000000", text: "#000000", muted: "#555555", pos: "#0C6B2E", neg: "#7F1D1D" },
+    key: "creme",
+    label: "Creme",
+    desc: "Claro e quente — creme banhado de luz da manhã, tinta café e acento cobre",
+    preview: { bg: "#F6F0E2", accent: "#B4621B", text: "#2B2117", muted: "#8A7A64", pos: "#1E7A3C", neg: "#C03328" },
   },
   {
     key: "miami",
@@ -1870,7 +1870,7 @@ function ThemeSection() {
 
   useEffect(() => { setHolo(getHoloStyle()); }, []);
 
-  const hasAnimation = theme === "ambar" || theme === "jornal" || theme === "matrix" || theme === "miami" || theme === "blade" || theme === "starwars";
+  const hasAnimation = theme === "ambar" || theme === "creme" || theme === "matrix" || theme === "miami" || theme === "blade" || theme === "starwars";
 
   return (
     <div className="space-y-4">

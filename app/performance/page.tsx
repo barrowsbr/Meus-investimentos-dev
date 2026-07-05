@@ -433,7 +433,7 @@ const TAB_LABELS: Record<Tab, string> = {
 
 type CurrencyView = "BRL" | "USD";
 
-// ── Editorial helpers (jornal mode) ──────────────────────────────────────────
+// ── Helpers do layout claro (tema creme) ────────────────────────────────────
 
 function Kicker({ children }: { children: React.ReactNode }) {
   return (
@@ -476,12 +476,12 @@ function EditorialBar({ label, value, maxAbs }: { label: string; value: number; 
   );
 }
 
-function heatmapColors(isPos: boolean, intensity: number, jornal: boolean) {
-  if (jornal) {
+function heatmapColors(isPos: boolean, intensity: number, light: boolean) {
+  if (light) {
     const bg = isPos
-      ? `rgba(12,107,46,${0.06 + intensity * 0.22})`
-      : `rgba(127,29,29,${0.06 + intensity * 0.22})`;
-    const text = isPos ? "#0C6B2E" : "#7F1D1D";
+      ? `rgba(30,122,60,${0.06 + intensity * 0.22})`
+      : `rgba(192,51,40,${0.06 + intensity * 0.22})`;
+    const text = isPos ? "#1E7A3C" : "#C03328";
     return { bg, text };
   }
   const bg = isPos
@@ -491,11 +491,11 @@ function heatmapColors(isPos: boolean, intensity: number, jornal: boolean) {
   return { bg, text };
 }
 
-function heatmapBorder(isPos: boolean, jornal: boolean) {
-  if (jornal) return {
-    borderColor: isPos ? "rgba(12,107,46,0.25)" : "rgba(127,29,29,0.25)",
-    color: isPos ? "#0C6B2E" : "#7F1D1D",
-    background: isPos ? "rgba(12,107,46,0.06)" : "rgba(127,29,29,0.06)",
+function heatmapBorder(isPos: boolean, light: boolean) {
+  if (light) return {
+    borderColor: isPos ? "rgba(30,122,60,0.25)" : "rgba(192,51,40,0.25)",
+    color: isPos ? "#1E7A3C" : "#C03328",
+    background: isPos ? "rgba(30,122,60,0.06)" : "rgba(192,51,40,0.06)",
   };
   return {
     borderColor: isPos ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)",
@@ -562,7 +562,7 @@ function LegendGroupLabel({ children }: { children: React.ReactNode }) {
 
 export default function PerformancePage() {
   const { theme } = useTheme();
-  const isJornal = theme === "jornal";
+  const isLight = theme === "creme";
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -773,7 +773,7 @@ export default function PerformancePage() {
   const twrPct = s.twrTotal * 100;
   const mwrPct = s.mwr * 100;
   const isPositive = twrPct >= 0;
-  const trendColor = isJornal
+  const trendColor = isLight
     ? (isPositive ? "var(--pos)" : "var(--neg)")
     : (isPositive ? "#34d399" : "#f87171");
 
@@ -781,19 +781,19 @@ export default function PerformancePage() {
   // swatches da legenda-filtro, que concatenam alpha). Uma cor por série, sem
   // colisões entre as séries exibidas simultaneamente.
   const C = {
-    twr:   isJornal ? (isPositive ? "#0C6B2E" : "#7F1D1D") : (isPositive ? "#34d399" : "#f87171"),
-    mwr:   isJornal ? "#5B21B6" : "#a78bfa",
-    cdi:   isJornal ? "#1E40AF" : "#6366f1",
-    ibov:  isJornal ? "#9A3412" : "#f59e0b",
-    sp500: isJornal ? "#9D174D" : "#ec4899",
-    ativo: isJornal ? "#0369A1" : "#38bdf8",
-    fx:    isJornal ? "#92400E" : "#fbbf24",
+    twr:   isLight ? (isPositive ? "#1E7A3C" : "#C03328") : (isPositive ? "#34d399" : "#f87171"),
+    mwr:   isLight ? "#5B21B6" : "#a78bfa",
+    cdi:   isLight ? "#1E40AF" : "#6366f1",
+    ibov:  isLight ? "#9A3412" : "#f59e0b",
+    sp500: isLight ? "#9D174D" : "#ec4899",
+    ativo: isLight ? "#0369A1" : "#38bdf8",
+    fx:    isLight ? "#92400E" : "#fbbf24",
   };
 
   return (
     <>
-      {/* ── Header — editorial nameplate in jornal, standard in ambar ── */}
-      {isJornal ? (
+      {/* ── Header — hero centrado no tema claro, padrão nos escuros ── */}
+      {isLight ? (
         <header className="text-center pt-1 mb-6" style={{ maxWidth: 760, margin: "0 auto" }}>
           <div className="flex items-center gap-4">
             <div className="h-px flex-1" style={{ background: "var(--line-strong)" }} />
@@ -818,7 +818,7 @@ export default function PerformancePage() {
       )}
 
       {/* ── Currency View Toggle ── */}
-      {isJornal ? (
+      {isLight ? (
         <div className="flex items-center gap-3 mb-5">
           {(["BRL", "USD"] as CurrencyView[]).map(cv => (
             <button key={cv} onClick={() => setCurrencyView(cv)}
@@ -947,12 +947,12 @@ export default function PerformancePage() {
       <div className="flex items-center gap-1.5 mb-6 flex-wrap">
         {WINDOWS.map(w => (
           <button key={w.label} onClick={() => { setCustomMode(false); setLookback(w.days); }}
-            className={isJornal ? "font-mono" : `px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+            className={isLight ? "font-mono" : `px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
               !customMode && lookback === w.days
                 ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
                 : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
             }`}
-            style={isJornal ? {
+            style={isLight ? {
               padding: "6px 12px",
               fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase",
               borderBottom: (!customMode && lookback === w.days) ? "2px solid var(--text)" : "2px solid transparent",
@@ -962,12 +962,12 @@ export default function PerformancePage() {
           </button>
         ))}
         <button onClick={() => setCustomMode(v => !v)}
-          className={isJornal ? "font-mono inline-flex items-center gap-1.5" : `px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border inline-flex items-center gap-1.5 ${
+          className={isLight ? "font-mono inline-flex items-center gap-1.5" : `px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border inline-flex items-center gap-1.5 ${
             customMode
               ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
               : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
           }`}
-          style={isJornal ? {
+          style={isLight ? {
             padding: "6px 12px",
             fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase",
             borderBottom: customMode ? "2px solid var(--text)" : "2px solid transparent",
@@ -1034,8 +1034,8 @@ export default function PerformancePage() {
           ...(!isUsd && s.sp500BrlTotal != null ? [{ label: "S&P 500", value: s.sp500BrlTotal, alpha: s.vsSP500BRL ?? 0, color: "#ec4899" }] : []),
         ];
 
-        if (isJornal) {
-          /* ── JORNAL: Editorial flat layout ── */
+        if (isLight) {
+          /* ── CREME: layout claro plano (números grandes em tinta café) ── */
           const twrColor = twrPct >= 0 ? "var(--pos)" : "var(--neg)";
           const mwrColor = mwrTotal >= 0 ? "var(--pos)" : "var(--neg)";
           const geColor = ge >= 0 ? "var(--pos)" : "var(--neg)";
@@ -1308,12 +1308,12 @@ export default function PerformancePage() {
                       <stop offset="95%" stopColor={C.twr} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isJornal ? "rgba(0,0,0,0.06)" : "#18181b"} vertical={false} />
-                  <ReferenceLine y={0} stroke={isJornal ? "rgba(0,0,0,0.18)" : "#3f3f46"} strokeWidth={1} />
-                  <XAxis dataKey="date" tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={40} />
-                  <YAxis tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
+                  <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#18181b"} vertical={false} />
+                  <ReferenceLine y={0} stroke={isLight ? "rgba(0,0,0,0.18)" : "#3f3f46"} strokeWidth={1} />
+                  <XAxis dataKey="date" tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
                     tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
-                  <Tooltip contentStyle={isJornal ? { background: "#F2EBDD", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 0, color: "#000", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+                  <Tooltip contentStyle={isLight ? { background: "#FDFAF1", border: "1px solid rgba(96,72,40,0.2)", borderRadius: 10, color: "#2B2117", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
                       name === "portfolio" ? "Carteira (TWR)" : name === "mwr" ? "Carteira (MWR)" : name === "ativo" ? "Ativo (moeda local)" : name === "fx" ? "Efeito câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
@@ -1351,7 +1351,7 @@ export default function PerformancePage() {
                   )}
                   {/* TWR — linha herói, sólida e mais grossa, com preenchimento */}
                   {showTwr && (
-                    <Area type="monotone" dataKey="portfolio" name="portfolio" stroke={C.twr} fill={isJornal ? "none" : "url(#gradPortfolio)"}
+                    <Area type="monotone" dataKey="portfolio" name="portfolio" stroke={C.twr} fill={isLight ? "none" : "url(#gradPortfolio)"}
                       strokeWidth={2.6} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
                   )}
                 </AreaChart>
@@ -1374,11 +1374,11 @@ export default function PerformancePage() {
                         <stop offset="95%" stopColor="#E8A33D" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={isJornal ? "rgba(0,0,0,0.06)" : "#18181b"} />
-                    <XAxis dataKey="date" tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
-                    <Tooltip contentStyle={isJornal ? { background: "#F2EBDD", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 0, color: "#000", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
-                    <Area type="monotone" dataKey="nav" stroke={isJornal ? "#000" : "#E8A33D"} fill={isJornal ? "none" : "url(#gradNav)"} strokeWidth={2} dot={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#18181b"} />
+                    <XAxis dataKey="date" tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactCurr(v)} />
+                    <Tooltip contentStyle={isLight ? { background: "#FDFAF1", border: "1px solid rgba(96,72,40,0.2)", borderRadius: 10, color: "#2B2117", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [fmtCurr(v), `NAV ${currSymbol}`]} />
+                    <Area type="monotone" dataKey="nav" stroke={isLight ? "#000" : "#E8A33D"} fill={isLight ? "none" : "url(#gradNav)"} strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -1426,7 +1426,7 @@ export default function PerformancePage() {
                 ].map(row => (
                   <div key={row.label} className="flex justify-between items-center text-sm border-b border-border/20 pb-1.5 last:border-0 last:pb-0">
                     <span className="text-zinc-400">{row.label}</span>
-                    <span className="font-semibold" style={{ color: row.color ?? (isJornal ? "var(--text)" : "#f1f5f9") }}>{row.value}</span>
+                    <span className="font-semibold" style={{ color: row.color ?? (isLight ? "var(--text)" : "#f1f5f9") }}>{row.value}</span>
                   </div>
                 ))}
               </div>
@@ -1554,14 +1554,14 @@ export default function PerformancePage() {
                     <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={isJornal ? "rgba(0,0,0,0.06)" : "#1E2028"} />
-                <XAxis dataKey="date" tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#1E2028"} />
+                <XAxis dataKey="date" tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                   interval={Math.floor(drawdownData.length / 8)} />
-                <YAxis tick={{ fill: isJornal ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
+                <YAxis tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${v.toFixed(0)}%`} />
-                <Tooltip contentStyle={isJornal ? { background: "#F2EBDD", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 0, color: "#000", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
-                <ReferenceLine y={0} stroke={isJornal ? "rgba(0,0,0,0.12)" : "#3f3f46"} strokeWidth={1} />
-                <Area type="monotone" dataKey="drawdown" stroke={isJornal ? "#7F1D1D" : "#f87171"} fill={isJornal ? "none" : "url(#ddGrad)"} strokeWidth={1.5} />
+                <Tooltip contentStyle={isLight ? { background: "#FDFAF1", border: "1px solid rgba(96,72,40,0.2)", borderRadius: 10, color: "#2B2117", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [`${v.toFixed(2)}%`, "Drawdown"]} />
+                <ReferenceLine y={0} stroke={isLight ? "rgba(0,0,0,0.12)" : "#3f3f46"} strokeWidth={1} />
+                <Area type="monotone" dataKey="drawdown" stroke={isLight ? "#7F1D1D" : "#f87171"} fill={isLight ? "none" : "url(#ddGrad)"} strokeWidth={1.5} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1706,7 +1706,7 @@ export default function PerformancePage() {
                               }
                               const isPos = v >= 0;
                               const intensity = Math.min(Math.abs(v) / 5, 1);
-                              const hm = heatmapColors(isPos, intensity, isJornal);
+                              const hm = heatmapColors(isPos, intensity, isLight);
                               return (
                                 <td key={mo} className="py-1 px-0.5">
                                   <div
@@ -1723,7 +1723,7 @@ export default function PerformancePage() {
                               {yearTotal !== null && (
                                 <div
                                   className="rounded-md h-9 flex items-center justify-center font-bold text-[11px] border"
-                                  style={heatmapBorder(yearTotal >= 0, isJornal)}
+                                  style={heatmapBorder(yearTotal >= 0, isLight)}
                                 >
                                   {yearTotal >= 0 ? "+" : ""}{yearTotal.toFixed(1)}%
                                 </div>
@@ -1791,7 +1791,7 @@ export default function PerformancePage() {
                               const isPos = v >= 0;
                               const absK = Math.abs(v) / 1000;
                               const intensity = Math.min(absK / 5, 1);
-                              const hm = heatmapColors(isPos, intensity, isJornal);
+                              const hm = heatmapColors(isPos, intensity, isLight);
                               const label = absK >= 10
                                 ? `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(0)}k`
                                 : `${v >= 0 ? "+" : "-"}${(Math.abs(v) / 1000).toFixed(1)}k`;
@@ -1816,7 +1816,7 @@ export default function PerformancePage() {
                                 return (
                                   <div
                                     className="rounded-md h-11 flex flex-col items-center justify-center font-bold text-[10px] border"
-                                    style={{ ...heatmapBorder(yearGain >= 0, isJornal) }}
+                                    style={{ ...heatmapBorder(yearGain >= 0, isLight) }}
                                     title={`Patrimônio fim/${year}: ${fmtCurr(yearEndNav)}`}
                                   >
                                     <span>{yearGain >= 0 ? "+" : ""}{compactCurr(yearGain)}</span>

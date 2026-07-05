@@ -4,8 +4,8 @@
 
 /* ============================================================================
    BARROOTS TERMINAL — Design tokens (produção)
-   Dois temas via atributo no <html>: data-theme="ambar" (padrão) ou
-   data-theme="jornal" (claro, inspirado em papel de jornal financeiro).
+   Temas via atributo no <html>: data-theme="ambar" (padrão), "creme" (claro,
+   quente), "matrix", "miami", "blade", "starwars".
    Idioma visual: instrumento de mesa de operações —
    geometria reta, mono-first, grade hairline, acento contido.
    ============================================================================ */
@@ -46,33 +46,36 @@
   --cat-5:#f97316; --cat-6:#10b981; --cat-7:#3b82f6; --cat-8:#eab308;
 }
 
-[data-theme="jornal"] {
-  --bg:            #E6DFD0;
-  --panel:         #EDE7DA;
-  --rail:          #DDD7C8;
-  --input:         rgba(0,0,0,.04);
-  --sel:           rgba(30,58,95,.07);
-  --hover:         rgba(0,0,0,.04);
+[data-theme="creme"] {
+  /* Creme — claro e quente: papel creme banhado de luz da manhã, tinta
+     marrom-café (nunca preto puro) e acento cobre. Geometria ARREDONDADA
+     e sombras suaves — o oposto proposital do terminal reto escuro. */
+  --bg:            #F6F0E2;
+  --panel:         #FDFAF1;
+  --rail:          #F0E9D8;
+  --input:         rgba(120,86,40,.05);
+  --sel:           rgba(180,98,27,.10);
+  --hover:         rgba(120,86,40,.05);
 
-  --line:          rgba(0,0,0,.08);
-  --line-strong:   rgba(0,0,0,.22);
+  --line:          rgba(96,72,40,.12);
+  --line-strong:   rgba(96,72,40,.26);
 
-  --accent:        #1a1a1a;
-  --accent-wash:   rgba(0,0,0,.06);
+  --accent:        #B4621B;
+  --accent-wash:   rgba(180,98,27,.12);
 
-  --text:          #1a1a1a;
-  --text-2:        #2a2a2a;
-  --muted:         #555;
-  --faint:         #777;
+  --text:          #2B2117;
+  --text-2:        #524534;
+  --muted:         #8A7A64;
+  --faint:         #AD9E86;
 
-  --pos:           #0C6B2E;
-  --neg:           #7F1D1D;
-  --info:          #1E3A8A;
+  --pos:           #1E7A3C;
+  --neg:           #C03328;
+  --info:          #2563EB;
 
-  --bar-track:     rgba(0,0,0,.10);
+  --bar-track:     rgba(96,72,40,.12);
 
-  --cat-1:#8B6914; --cat-2:#5B21B6; --cat-3:#0E7490; --cat-4:#9D174D;
-  --cat-5:#9A3412; --cat-6:#065F46; --cat-7:#1E40AF; --cat-8:#854D0E;
+  --cat-1:#B4621B; --cat-2:#6D28D9; --cat-3:#0E7490; --cat-4:#BE185D;
+  --cat-5:#C2410C; --cat-6:#047857; --cat-7:#1D4ED8; --cat-8:#A16207;
 }
 
 [data-theme="matrix"] {
@@ -204,19 +207,17 @@
   --tracking-label: .13em;
   --tracking-brand: .16em;
 }
-/* Jornal override — precisa vir depois de :root para ter precedência. */
-[data-theme="jornal"] {
-  --font-sans: var(--font-playfair), "Playfair Display", "Georgia", "Times New Roman", serif;
-  --font-mono: var(--font-playfair), "Playfair Display", "Georgia", serif;
+/* Creme: geometria arredondada — precisa vir depois de :root p/ precedência. */
+[data-theme="creme"] {
+  --radius: 12px;
 }
 
 html {
   color-scheme: dark;
   background: var(--bg);
 }
-html[data-theme="jornal"] {
+html[data-theme="creme"] {
   color-scheme: light;
-  zoom: 1.15;
 }
 body {
   min-height: 100vh;
@@ -271,14 +272,12 @@ body {
   border: 1px solid var(--line);
   box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
 }
-[data-theme="jornal"] .bottom-nav {
-  background: rgba(225, 218, 200, 0.68) !important;
-  backdrop-filter: blur(24px) saturate(1.5) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(1.5) !important;
-  border: none !important;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.13) !important;
-  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
-  border-radius: 0 !important;
+[data-theme="creme"] .bottom-nav {
+  background: rgba(253, 250, 241, 0.72) !important;
+  backdrop-filter: blur(22px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.4) !important;
+  border: 1px solid rgba(96, 72, 40, 0.14) !important;
+  box-shadow: 0 10px 30px rgba(96, 72, 40, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
 }
 
 /* ============================================================================
@@ -341,326 +340,305 @@ body {
 }
 
 /* ============================================================================
-   JORNAL — editorial financeiro sobre papel envelhecido.
+   CREME — claro e quente, luz de manhã.
 
    Princípios:
-   1. Cards NÃO desaparecem — ganham fundo sutil (panel) e hairline editorial.
-   2. Fundo escurecido (#E6DFD0) dá profundidade sem virar dark mode.
-   3. Geometria reta (border-radius: 0) em tudo — identidade de jornal impresso.
-   4. Tipografia serifada (Playfair Display) com pesos bem definidos.
-   5. Cores sépia: fundos quentes, tinta preta, acentos sépia-escuro.
+   1. Cards são "porcelana": quase-branco creme, cantos arredondados e sombra
+      suave e quente (nada de hairline dura nem vidro escuro).
+   2. Fundo creme (#F6F0E2) com cena animada de luz (<CremeBackground/>).
+   3. Tinta marrom-café (#2B2117) — preto puro é frio demais sobre creme.
+   4. Tipografia padrão do app (Inter/JetBrains) — sem serifa.
+   5. Acento cobre (#B4621B) usado com parcimônia.
    ============================================================================ */
 
-/* ── Cards/painéis: fundo sutil de papel + hairline inferior editorial ── */
-[data-theme="jornal"] .t-panel,
-[data-theme="jornal"] .glass-card {
+/* ── Cards/painéis: porcelana arredondada com sombra quente ── */
+[data-theme="creme"] .t-panel,
+[data-theme="creme"] .glass-card {
   background: var(--panel) !important;
-  border: none !important;
-  border-bottom: 2px solid rgba(0,0,0,.10) !important;
-  box-shadow: none !important;
+  border: 1px solid rgba(96,72,40,.10) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(96,72,40,.05), 0 10px 28px rgba(96,72,40,.07) !important;
 }
-[data-theme="jornal"] .glass-card:hover {
-  background: #F2ECDF !important;
-  border-bottom-color: rgba(0,0,0,.18) !important;
+[data-theme="creme"] .glass-card:hover {
+  border-color: rgba(180,98,27,.28) !important;
+  box-shadow: 0 2px 4px rgba(96,72,40,.06), 0 14px 34px rgba(96,72,40,.10) !important;
 }
-[data-theme="jornal"] .skeleton {
-  background: rgba(0,0,0,.04) !important;
+[data-theme="creme"] .skeleton {
+  background: rgba(96,72,40,.06) !important;
   border: none !important;
+  border-radius: 10px;
 }
 
-/* Micro-rótulos — tinta pesada, tracking largo (manchete de jornal) */
-[data-theme="jornal"] .t-label,
-[data-theme="jornal"] .stat-label,
-[data-theme="jornal"] .section-title {
-  color: #1a1a1a !important;
-  font-weight: 800 !important;
+/* Micro-rótulos — café médio, peso firme */
+[data-theme="creme"] .t-label,
+[data-theme="creme"] .stat-label,
+[data-theme="creme"] .section-title {
+  color: #524534 !important;
+  font-weight: 700 !important;
 }
 
 /* Hover do rail */
-[data-theme="jornal"] .t-rail-item:hover:not([data-active="true"]) {
-  background: rgba(0,0,0,.06) !important;
+[data-theme="creme"] .t-rail-item:hover:not([data-active="true"]) {
+  background: rgba(120,86,40,.07) !important;
 }
 
-/* Tags: borda sutil */
-[data-theme="jornal"] .tag {
-  border: 1px solid rgba(0,0,0,.14);
+/* Tags: pastilha suave */
+[data-theme="creme"] .tag {
+  border: 1px solid rgba(96,72,40,.16);
+  border-radius: 999px;
 }
 
 /* Separadores de seção */
-[data-theme="jornal"] .section-divider {
-  background: rgba(0,0,0,.12);
+[data-theme="creme"] .section-divider {
+  background: rgba(96,72,40,.12);
 }
 
 /* Antialiasing e peso base */
-[data-theme="jornal"] body {
+[data-theme="creme"] body {
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
-  font-weight: 500;
 }
 
 /* ----------------------------------------------------------------------------
-   CONTRASTE — remapeia cinzas neutros do Tailwind para tinta sobre papel.
+   CONTRASTE — remapeia cinzas neutros do Tailwind para tinta café sobre creme.
    4 níveis de hierarquia. Cores semânticas NÃO são tocadas.
    ---------------------------------------------------------------------------- */
 
-/* Nível 1 — conteúdo principal → tinta quase preta */
-[data-theme="jornal"] .text-white,
-[data-theme="jornal"] .text-zinc-50,  [data-theme="jornal"] .text-zinc-100,
-[data-theme="jornal"] .text-zinc-200, [data-theme="jornal"] .text-zinc-300,
-[data-theme="jornal"] .text-gray-100, [data-theme="jornal"] .text-gray-200,
-[data-theme="jornal"] .text-gray-300, [data-theme="jornal"] .text-slate-100,
-[data-theme="jornal"] .text-slate-200,[data-theme="jornal"] .text-slate-300,
-[data-theme="jornal"] .text-neutral-100,[data-theme="jornal"] .text-neutral-200,
-[data-theme="jornal"] .text-neutral-300,
-[data-theme="jornal"] .text-zinc-800, [data-theme="jornal"] .text-zinc-900 {
-  color: #111;
+/* Nível 1 — conteúdo principal → café escuro */
+[data-theme="creme"] .text-white,
+[data-theme="creme"] .text-zinc-50,  [data-theme="creme"] .text-zinc-100,
+[data-theme="creme"] .text-zinc-200, [data-theme="creme"] .text-zinc-300,
+[data-theme="creme"] .text-gray-100, [data-theme="creme"] .text-gray-200,
+[data-theme="creme"] .text-gray-300, [data-theme="creme"] .text-slate-100,
+[data-theme="creme"] .text-slate-200,[data-theme="creme"] .text-slate-300,
+[data-theme="creme"] .text-neutral-100,[data-theme="creme"] .text-neutral-200,
+[data-theme="creme"] .text-neutral-300,
+[data-theme="creme"] .text-zinc-800, [data-theme="creme"] .text-zinc-900 {
+  color: #2B2117;
 }
 
-/* Nível 2 — texto secundário → cinza-chumbo */
-[data-theme="jornal"] .text-zinc-400, [data-theme="jornal"] .text-zinc-500,
-[data-theme="jornal"] .text-gray-400, [data-theme="jornal"] .text-gray-500,
-[data-theme="jornal"] .text-slate-400,[data-theme="jornal"] .text-slate-500,
-[data-theme="jornal"] .text-neutral-400,[data-theme="jornal"] .text-neutral-500 {
-  color: #333;
+/* Nível 2 — texto secundário → café médio */
+[data-theme="creme"] .text-zinc-400, [data-theme="creme"] .text-zinc-500,
+[data-theme="creme"] .text-gray-400, [data-theme="creme"] .text-gray-500,
+[data-theme="creme"] .text-slate-400,[data-theme="creme"] .text-slate-500,
+[data-theme="creme"] .text-neutral-400,[data-theme="creme"] .text-neutral-500 {
+  color: #524534;
 }
 
 /* Nível 3 — rótulos/legendas */
-[data-theme="jornal"] .text-zinc-600,
-[data-theme="jornal"] .text-gray-600,
-[data-theme="jornal"] .text-slate-600,
-[data-theme="jornal"] .text-neutral-600 {
-  color: #555;
+[data-theme="creme"] .text-zinc-600,
+[data-theme="creme"] .text-gray-600,
+[data-theme="creme"] .text-slate-600,
+[data-theme="creme"] .text-neutral-600 {
+  color: #75664F;
 }
 
 /* Nível 4 — o mais fraco, ainda legível */
-[data-theme="jornal"] .text-zinc-700,
-[data-theme="jornal"] .text-gray-700,
-[data-theme="jornal"] .text-slate-700,
-[data-theme="jornal"] .text-neutral-700 {
-  color: #666;
+[data-theme="creme"] .text-zinc-700,
+[data-theme="creme"] .text-gray-700,
+[data-theme="creme"] .text-slate-700,
+[data-theme="creme"] .text-neutral-700 {
+  color: #8A7A64;
 }
 
 /* ============================================================================
-   JORNAL — editorial overrides
-   Em vez de matar cards, transforma-os em blocos editoriais com hairline.
+   CREME — overrides de coesão
+   Converte a UI pensada para dark mode em porcelana clara, sem editar página
+   por página. Arredondamento do markup é PRESERVADO (creme é suave).
    ============================================================================ */
 
-/* ── Geometria reta em tudo (jornal impresso = sem arredondamento) ── */
-[data-theme="jornal"] [class*="rounded-"],
-[data-theme="jornal"] [style*="border-radius"] {
-  border-radius: 0 !important;
+/* ── Backgrounds brancos semi-transparentes → lavagem café sutil ── */
+[data-theme="creme"] [class*="bg-white"] {
+  background-color: rgba(120,86,40,.04) !important;
+}
+[data-theme="creme"] [class*="border-white"] {
+  border-color: rgba(96,72,40,.10) !important;
 }
 
-/* ── Backgrounds brancos semi-transparentes → painel sutil ── */
-[data-theme="jornal"] [class*="bg-white"] {
-  background-color: rgba(0,0,0,.02) !important;
-}
-[data-theme="jornal"] [class*="border-white"] {
-  border-color: rgba(0,0,0,.08) !important;
-}
-
-/* ── Backgrounds escuros (dark-mode cards) → painel editorial ── */
-[data-theme="jornal"] [class*="bg-zinc-9"],
-[data-theme="jornal"] [class*="bg-zinc-8"],
-[data-theme="jornal"] [class*="bg-gray-9"],
-[data-theme="jornal"] [class*="bg-gray-8"],
-[data-theme="jornal"] [class*="bg-slate-9"],
-[data-theme="jornal"] [class*="bg-slate-8"],
-[data-theme="jornal"] [class*="bg-neutral-9"],
-[data-theme="jornal"] [class*="bg-neutral-8"],
-[data-theme="jornal"] [class*="bg-black"] {
+/* ── Backgrounds escuros (dark-mode cards) → porcelana ── */
+[data-theme="creme"] [class*="bg-zinc-9"],
+[data-theme="creme"] [class*="bg-zinc-8"],
+[data-theme="creme"] [class*="bg-gray-9"],
+[data-theme="creme"] [class*="bg-gray-8"],
+[data-theme="creme"] [class*="bg-slate-9"],
+[data-theme="creme"] [class*="bg-slate-8"],
+[data-theme="creme"] [class*="bg-neutral-9"],
+[data-theme="creme"] [class*="bg-neutral-8"],
+[data-theme="creme"] [class*="bg-black"] {
   background-color: var(--panel) !important;
 }
-[data-theme="jornal"] [class*="bg-zinc-7"] {
-  background-color: rgba(0,0,0,.04) !important;
+[data-theme="creme"] [class*="bg-zinc-7"] {
+  background-color: rgba(120,86,40,.06) !important;
 }
 
-/* ── Bordas escuras → hairline editorial suave ── */
-[data-theme="jornal"] [class*="border-zinc-8"],
-[data-theme="jornal"] [class*="border-zinc-7"],
-[data-theme="jornal"] [class*="border-zinc-6"],
-[data-theme="jornal"] [class*="border-gray-8"],
-[data-theme="jornal"] [class*="border-gray-7"],
-[data-theme="jornal"] [class*="border-slate-8"],
-[data-theme="jornal"] [class*="border-slate-7"],
-[data-theme="jornal"] [class*="border-neutral-8"],
-[data-theme="jornal"] [class*="border-neutral-7"] {
-  border-color: rgba(0,0,0,.10) !important;
+/* ── Bordas escuras → hairline café suave ── */
+[data-theme="creme"] [class*="border-zinc-8"],
+[data-theme="creme"] [class*="border-zinc-7"],
+[data-theme="creme"] [class*="border-zinc-6"],
+[data-theme="creme"] [class*="border-gray-8"],
+[data-theme="creme"] [class*="border-gray-7"],
+[data-theme="creme"] [class*="border-slate-8"],
+[data-theme="creme"] [class*="border-slate-7"],
+[data-theme="creme"] [class*="border-neutral-8"],
+[data-theme="creme"] [class*="border-neutral-7"] {
+  border-color: rgba(96,72,40,.12) !important;
 }
 
-/* ── Sombras → sutil (impressão, não vidro) ── */
-[data-theme="jornal"] [class*="shadow"] {
-  box-shadow: 0 1px 0 rgba(0,0,0,.06) !important;
+/* ── Sombras → suaves e quentes (nunca pretas duras) ── */
+[data-theme="creme"] [class*="shadow"] {
+  box-shadow: 0 2px 10px rgba(96,72,40,.10) !important;
 }
 
-/* ── Hover states → tinta leve ── */
-[data-theme="jornal"] [class*="hover\:bg-white"]:hover,
-[data-theme="jornal"] [class*="hover\:bg-zinc"]:hover {
-  background-color: rgba(0,0,0,0.04) !important;
+/* ── Hover states → lavagem café leve ── */
+[data-theme="creme"] [class*="hover\:bg-white"]:hover,
+[data-theme="creme"] [class*="hover\:bg-zinc"]:hover {
+  background-color: rgba(120,86,40,.06) !important;
 }
 
-/* ── Dividers → hairline editorial ── */
-[data-theme="jornal"] [class*="divide-white"] > :not([hidden]) ~ :not([hidden]),
-[data-theme="jornal"] [class*="divide-zinc"] > :not([hidden]) ~ :not([hidden]),
-[data-theme="jornal"] [class*="divide-gray"] > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgba(0,0,0,0.10) !important;
+/* ── Dividers → hairline café ── */
+[data-theme="creme"] [class*="divide-white"] > :not([hidden]) ~ :not([hidden]),
+[data-theme="creme"] [class*="divide-zinc"] > :not([hidden]) ~ :not([hidden]),
+[data-theme="creme"] [class*="divide-gray"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(96,72,40,.12) !important;
 }
 
-/* ── Inline rgba(255,...) overlays → sutil em vez de invisível ── */
-[data-theme="jornal"] [style*="rgba(255"] {
-  background: rgba(0,0,0,.02) !important;
-  border-color: rgba(0,0,0,.06) !important;
+/* ── Inline rgba(255,...) overlays → lavagem sutil em vez de invisível ── */
+[data-theme="creme"] [style*="rgba(255"] {
+  background: rgba(120,86,40,.04) !important;
+  border-color: rgba(96,72,40,.08) !important;
   box-shadow: none !important;
 }
 
-/* ── Inline border-radius → square ── */
-[data-theme="jornal"] [style*="border-radius"] {
-  border-radius: 0 !important;
+/* ── Inline box-shadow → suave quente ── */
+[data-theme="creme"] [style*="box-shadow"] {
+  box-shadow: 0 2px 10px rgba(96,72,40,.10) !important;
 }
 
-/* ── Inline backdrop-filter (glassmorphism) → none ── */
-[data-theme="jornal"] [style*="backdrop-filter"] {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+/* ── Inline color overrides: texto branco/claro → tinta café ── */
+[data-theme="creme"] [style*="color: #fff"],
+[data-theme="creme"] [style*="color: #faf"],
+[data-theme="creme"] [style*="color: #e4e"],
+[data-theme="creme"] [style*="color: #dee"],
+[data-theme="creme"] [style*="color: #d4d"],
+[data-theme="creme"] [style*="color: #f4f"],
+[data-theme="creme"] [style*="color: rgb(255"],
+[data-theme="creme"] [style*="color: rgba(255"],
+[data-theme="creme"] [style*="color:#fff"],
+[data-theme="creme"] [style*="color:#faf"],
+[data-theme="creme"] [style*="color:#f4f"],
+[data-theme="creme"] [style*="color:#e4e"] {
+  color: #2B2117 !important;
+}
+[data-theme="creme"] [style*="color: #a1a"],
+[data-theme="creme"] [style*="color: #aeb"],
+[data-theme="creme"] [style*="color: #717"],
+[data-theme="creme"] [style*="color: #4c5"],
+[data-theme="creme"] [style*="color:#a1a"],
+[data-theme="creme"] [style*="color:#aeb"],
+[data-theme="creme"] [style*="color:#717"],
+[data-theme="creme"] [style*="color:#4c5"] {
+  color: #5A4C3A !important;
 }
 
-/* ── Inline box-shadow → sutil ── */
-[data-theme="jornal"] [style*="box-shadow"] {
-  box-shadow: 0 1px 0 rgba(0,0,0,.06) !important;
-}
-
-/* ── Recharts ── */
-[data-theme="jornal"] .recharts-wrapper {
-  border-radius: 0 !important;
-}
-
-/* ── Inline color overrides: white/light text → dark ink ── */
-[data-theme="jornal"] [style*="color: #fff"],
-[data-theme="jornal"] [style*="color: #faf"],
-[data-theme="jornal"] [style*="color: #e4e"],
-[data-theme="jornal"] [style*="color: #dee"],
-[data-theme="jornal"] [style*="color: #d4d"],
-[data-theme="jornal"] [style*="color: #f4f"],
-[data-theme="jornal"] [style*="color: rgb(255"],
-[data-theme="jornal"] [style*="color: rgba(255"],
-[data-theme="jornal"] [style*="color:#fff"],
-[data-theme="jornal"] [style*="color:#faf"],
-[data-theme="jornal"] [style*="color:#f4f"],
-[data-theme="jornal"] [style*="color:#e4e"] {
-  color: #111 !important;
-}
-[data-theme="jornal"] [style*="color: #a1a"],
-[data-theme="jornal"] [style*="color: #aeb"],
-[data-theme="jornal"] [style*="color: #717"],
-[data-theme="jornal"] [style*="color: #4c5"],
-[data-theme="jornal"] [style*="color:#a1a"],
-[data-theme="jornal"] [style*="color:#aeb"],
-[data-theme="jornal"] [style*="color:#717"],
-[data-theme="jornal"] [style*="color:#4c5"] {
-  color: #444 !important;
-}
-
-/* ── Recharts tooltips → papel editorial ── */
-[data-theme="jornal"] .recharts-default-tooltip,
-[data-theme="jornal"] .recharts-tooltip-wrapper div[style] {
+/* ── Recharts tooltips → porcelana ── */
+[data-theme="creme"] .recharts-default-tooltip,
+[data-theme="creme"] .recharts-tooltip-wrapper div[style] {
   background: var(--panel) !important;
-  border-color: rgba(0,0,0,0.15) !important;
-  color: #111 !important;
-  border-radius: 0 !important;
+  border-color: rgba(96,72,40,.18) !important;
+  color: #2B2117 !important;
+  border-radius: 10px !important;
 }
-[data-theme="jornal"] .recharts-tooltip-item {
-  color: #222 !important;
+[data-theme="creme"] .recharts-tooltip-item {
+  color: #3A3025 !important;
 }
-[data-theme="jornal"] .recharts-tooltip-label {
-  color: #111 !important;
+[data-theme="creme"] .recharts-tooltip-label {
+  color: #2B2117 !important;
 }
-[data-theme="jornal"] .recharts-cartesian-grid line {
-  stroke: rgba(0,0,0,0.08) !important;
+[data-theme="creme"] .recharts-cartesian-grid line {
+  stroke: rgba(96,72,40,.10) !important;
 }
-[data-theme="jornal"] .recharts-text {
-  fill: #444 !important;
+[data-theme="creme"] .recharts-text {
+  fill: #75664F !important;
 }
 
-/* ── Performance page: editorial jornal overrides ── */
-/* Hero card → flat editorial panel with double rule */
-[data-theme="jornal"] .perf-hero-card {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  border-top: 3px double rgba(0,0,0,.30) !important;
-  border-bottom: 1px solid rgba(0,0,0,.18) !important;
-  padding-top: 1rem;
+/* ── Performance page: overrides claros ── */
+/* Hero card → porcelana (mata gradientes/brilho pensados pro dark) */
+[data-theme="creme"] .perf-hero-card {
+  background: var(--panel) !important;
+  border: 1px solid rgba(96,72,40,.10) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 2px rgba(96,72,40,.05), 0 12px 32px rgba(96,72,40,.08) !important;
 }
-[data-theme="jornal"] .perf-hero-card [style*="background: linear-gradient"],
-[data-theme="jornal"] .perf-hero-card [style*="background: radial-gradient"] {
+[data-theme="creme"] .perf-hero-card [style*="background: linear-gradient"],
+[data-theme="creme"] .perf-hero-card [style*="background: radial-gradient"] {
   background: none !important;
 }
-/* Kill shimmer accent line */
-[data-theme="jornal"] .perf-accent {
-  background: rgba(0,0,0,.15) !important;
-  height: 1px !important;
+/* Linha de acento → cobre fina */
+[data-theme="creme"] .perf-accent {
+  background: rgba(180,98,27,.35) !important;
+  height: 2px !important;
 }
-/* Kill ambient radial glow */
-[data-theme="jornal"] .perf-glow {
+/* Sem glow ambiente no claro */
+[data-theme="creme"] .perf-glow {
   display: none !important;
 }
-/* Gradient text → solid ink */
-[data-theme="jornal"] .perf-hero-card [style*="-webkit-text-fill-color"],
-[data-theme="jornal"] .perf-hero-card [style*="WebkitTextFillColor"] {
+/* Texto com gradiente → tinta sólida */
+[data-theme="creme"] .perf-hero-card [style*="-webkit-text-fill-color"],
+[data-theme="creme"] .perf-hero-card [style*="WebkitTextFillColor"] {
   -webkit-text-fill-color: currentColor !important;
   background: none !important;
   filter: none !important;
 }
-/* Risk cells — subtle border instead of card */
-[data-theme="jornal"] .perf-risk-cell {
-  border: 1px solid rgba(0,0,0,.10) !important;
-  background: transparent !important;
+/* Risk cells — borda suave em vez de card escuro */
+[data-theme="creme"] .perf-risk-cell {
+  border: 1px solid rgba(96,72,40,.12) !important;
+  background: rgba(120,86,40,.03) !important;
 }
-/* Rating badges → ink-on-paper */
-[data-theme="jornal"] [class*="bg-red-500\\/15"],
-[data-theme="jornal"] [class*="bg-amber-500\\/15"],
-[data-theme="jornal"] [class*="bg-sky-500\\/15"],
-[data-theme="jornal"] [class*="bg-emerald-500\\/15"] {
-  background: rgba(0,0,0,.04) !important;
+/* Rating badges → lavagem café */
+[data-theme="creme"] [class*="bg-red-500\\/15"],
+[data-theme="creme"] [class*="bg-amber-500\\/15"],
+[data-theme="creme"] [class*="bg-sky-500\\/15"],
+[data-theme="creme"] [class*="bg-emerald-500\\/15"] {
+  background: rgba(120,86,40,.06) !important;
 }
-/* Benchmark pills → simple bordered labels */
-[data-theme="jornal"] .perf-hero-card [style*="box-shadow: 0 0 12px"] {
+/* Benchmark pills → rótulos com borda */
+[data-theme="creme"] .perf-hero-card [style*="box-shadow: 0 0 12px"] {
   box-shadow: none !important;
-  border: 1px solid rgba(0,0,0,.15) !important;
+  border: 1px solid rgba(96,72,40,.16) !important;
   background: transparent !important;
 }
-/* Heatmap cells — jornal-appropriate palette */
-[data-theme="jornal"] .perf-heatmap-pos {
-  background: rgba(12,107,46,.15) !important;
-  color: #0C6B2E !important;
+/* Heatmap cells — paleta legível sobre creme */
+[data-theme="creme"] .perf-heatmap-pos {
+  background: rgba(30,122,60,.14) !important;
+  color: #1E7A3C !important;
 }
-[data-theme="jornal"] .perf-heatmap-neg {
-  background: rgba(127,29,29,.12) !important;
-  color: #7F1D1D !important;
+[data-theme="creme"] .perf-heatmap-neg {
+  background: rgba(192,51,40,.12) !important;
+  color: #C03328 !important;
 }
-/* Chart grid lines — subtle on paper */
-[data-theme="jornal"] .recharts-cartesian-grid line {
-  stroke: rgba(0,0,0,.06) !important;
+/* Chart grid lines — sutis sobre creme */
+[data-theme="creme"] .recharts-cartesian-grid line {
+  stroke: rgba(96,72,40,.08) !important;
 }
 /* Chart reference lines */
-[data-theme="jornal"] .recharts-reference-line line {
-  stroke: rgba(0,0,0,.12) !important;
+[data-theme="creme"] .recharts-reference-line line {
+  stroke: rgba(96,72,40,.16) !important;
 }
-/* Area chart gradient fills — subtle on paper */
-[data-theme="jornal"] .recharts-area-area {
+/* Area chart gradient fills — suaves no claro */
+[data-theme="creme"] .recharts-area-area {
   opacity: 0.3;
 }
 /* Prediction empty state */
-[data-theme="jornal"] [class*="aspect-\\[16\\/7\\]"] {
+[data-theme="creme"] [class*="aspect-\\[16\\/7\\]"] {
   background: transparent !important;
-  border-color: rgba(0,0,0,.12) !important;
+  border-color: rgba(96,72,40,.14) !important;
 }
 
-/* ── Select/dropdown dark backgrounds → paper ── */
-[data-theme="jornal"] select,
-[data-theme="jornal"] option {
-  background: var(--bg) !important;
-  color: #0a0a0a !important;
+/* ── Select/dropdown escuros → porcelana ── */
+[data-theme="creme"] select,
+[data-theme="creme"] option {
+  background: var(--panel) !important;
+  color: #2B2117 !important;
 }
 
 /* ─── Animações utilitárias (mantidas; não-decorativas) ─── */
@@ -888,10 +866,10 @@ body {
   );
 }
 
-/* ── Jornal: ticker tape (canvas fixo atrás do conteúdo) ── */
-[data-theme="jornal"] .terminal-root { background: transparent !important; }
-[data-theme="jornal"] body { background: var(--bg); }
-.jornal-bg {
+/* ── Creme: luz de manhã (canvas fixo atrás do conteúdo) ── */
+[data-theme="creme"] .terminal-root { background: transparent !important; }
+[data-theme="creme"] body { background: var(--bg); }
+.creme-bg {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
   z-index: 0;
@@ -899,12 +877,12 @@ body {
   opacity: 1;
   display: block;
 }
-.jornal-grain {
+.creme-grain {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
   z-index: 60;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
 }
 
 /* ── Chuva digital (canvas fixo atrás do conteúdo) ──

@@ -3,9 +3,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 
 // ── Tema ─────────────────────────────────────────────────────────────────────
-export type Theme = "ambar" | "jornal" | "matrix" | "miami" | "blade" | "starwars";
+export type Theme = "ambar" | "creme" | "matrix" | "miami" | "blade" | "starwars";
 const THEME_KEY = "barroots_theme";
-const VALID_THEMES: Theme[] = ["ambar", "jornal", "matrix", "miami", "blade", "starwars"];
+const VALID_THEMES: Theme[] = ["ambar", "creme", "matrix", "miami", "blade", "starwars"];
 
 /**
  * Cores concretas por tema — para casos onde CSS var não resolve (atributos SVG
@@ -16,9 +16,9 @@ export const THEME_COLORS: Record<Theme, Record<string, string>> = {
     accent: "#E8A33D", pos: "#3FB950", neg: "#F0504A", info: "#5BA8FF",
     text: "#DEE1E8", muted: "#71757F", line: "#1E2027", panel: "#0D0E12",
   },
-  jornal: {
-    accent: "#000000", pos: "#0C6B2E", neg: "#7F1D1D", info: "#1E3A8A",
-    text: "#000000", muted: "#333333", line: "transparent", panel: "transparent",
+  creme: {
+    accent: "#B4621B", pos: "#1E7A3C", neg: "#C03328", info: "#2563EB",
+    text: "#2B2117", muted: "#8A7A64", line: "#E4DAC4", panel: "#FDFAF1",
   },
   matrix: {
     accent: "#00FF41", pos: "#00FF41", neg: "#FF3838", info: "#41FFFF",
@@ -92,8 +92,10 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
-      if (savedTheme && VALID_THEMES.includes(savedTheme)) setThemeState(savedTheme);
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      // Migração: o tema "jornal" foi substituído pelo "creme".
+      if (savedTheme === "jornal") setThemeState("creme");
+      else if (savedTheme && VALID_THEMES.includes(savedTheme as Theme)) setThemeState(savedTheme as Theme);
       const savedAnim = localStorage.getItem(BG_ANIM_KEY);
       if (savedAnim !== null) setBgAnimState(savedAnim !== "0");
       const savedFilters = localStorage.getItem(FILTERS_KEY);
@@ -103,17 +105,17 @@ export default function TerminalProvider({ children }: { children: ReactNode }) 
     }
   }, []);
 
-  // Aplicar tema ao <html> e persistir.
+  // Aplicar tema ao <html>. A persistência fica no setTheme (mesmo padrão do
+  // bgAnim): persistir aqui gravava o default "ambar" ANTES do effect de
+  // leitura aplicar o tema salvo (clobber — visível no StrictMode do dev).
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      /* ignore */
-    }
   }, [theme]);
 
-  const setTheme = useCallback((t: Theme) => setThemeState(t), []);
+  const setTheme = useCallback((t: Theme) => {
+    setThemeState(t);
+    try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ }
+  }, []);
 
   const setBgAnim = useCallback((v: boolean) => {
     setBgAnimState(v);

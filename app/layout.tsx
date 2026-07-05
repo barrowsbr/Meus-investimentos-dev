@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import AuthGate from "@/components/AuthGate";
 import CotacoesRefresh from "@/components/CotacoesRefresh";
 import TerminalProvider from "@/components/terminal/TerminalProvider";
@@ -8,7 +8,6 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
-const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair", display: "swap" });
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -39,7 +38,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" data-theme="ambar" className={`${inter.variable} ${jetbrains.variable} ${playfair.variable}`}>
+    <html lang="pt-BR" data-theme="ambar" className={`${inter.variable} ${jetbrains.variable}`}>
       <body>
         <TerminalProvider>
           <CotacoesRefresh />
