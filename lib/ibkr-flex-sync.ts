@@ -64,8 +64,8 @@ export async function runFlexSync(
   const { proventos, trades, cambio, positions, proventosDupsRemoved, exchangeBySymbol } = parseFlexXml(xml);
 
   // ── Garantia de grafia Yahoo (regra do dono) ──────────────────────────────
-  // ANTES de qualquer escrita, cada ticker vira o símbolo que o Yahoo resolve
-  // (DPM→DPM.TO, VOW3→VOW3.DE; EUA sem sufixo; B3 sem .SA). Usa a bolsa de
+  // ANTES de qualquer escrita, cada ticker vira o símbolo EXATO do Yahoo
+  // (DPM→DPM.TO, VOW3→VOW3.DE, CMIG4→CMIG4.SA; EUA sem sufixo). Usa a bolsa de
   // listagem do Flex como pista determinística e VALIDA no Yahoo. Se o Yahoo
   // estiver fora do ar, o sync segue com o ticker original (nunca bloqueia).
   const tickerAjustes: { de: string; para: string }[] = [];

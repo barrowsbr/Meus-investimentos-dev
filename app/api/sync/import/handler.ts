@@ -714,8 +714,8 @@ async function buildResponse(
         longName: meta.longName,
       };
 
-      // Enrich: use Yahoo-validated symbol as the canonical ticker
-      const cleanYahoo = meta.yahooSymbol.replace(/\.SA$/i, "");
+      // Enrich: grafia canônica = símbolo Yahoo COMPLETO (inclusive .SA na B3)
+      const cleanYahoo = meta.yahooSymbol.toUpperCase().trim();
       if (cleanYahoo !== item.ticker && item.status === "novo") {
         const oldTicker = item.ticker;
         item.ticker = cleanYahoo;

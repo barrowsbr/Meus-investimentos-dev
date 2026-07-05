@@ -174,13 +174,26 @@ export async function runCotacoesSync(
     existing.tickers.forEach((t) => tickerSet.add(t));
   }
 
+  // Reuso de coluna por BASE sem sufixo: a planilha migrou para a grafia Yahoo
+  // (CMIG4.SA, DPM.TO) mas as colunas antigas do golden ("CMIG4", "DPM") guardam
+  // o histórico — o ticker novo continua alimentando a MESMA coluna, sem partir
+  // a série em duas.
+  const baseTk = (t: string) => t.toUpperCase().replace(/\.[A-Z]{1,2}$/, "");
+  const existingByBase = new Map<string, string>();
+  for (const t of tickerSet) {
+    const b = baseTk(t);
+    if (!existingByBase.has(b)) existingByBase.set(b, t);
+  }
+
   let newPoints = 0;
   let weekendSkipped = 0;
   const tickerErrors: string[] = [];
   for (const res of fetchResults) {
     if (res.status !== "fulfilled") continue;
     const { orig, rows } = res.value;
-    tickerSet.add(orig);
+    const col = existingByBase.get(baseTk(orig)) ?? orig;
+    if (!existingByBase.has(baseTk(col))) existingByBase.set(baseTk(col), col);
+    tickerSet.add(col);
     if (rows.length === 0) {
       tickerErrors.push(orig);
       continue;
@@ -191,9 +204,9 @@ export async function runCotacoesSync(
       if (isWeekend(date) && !isCrypto) { weekendSkipped++; continue; }
       dateSet.add(date);
       if (!prices[date]) prices[date] = {};
-      if (prices[date][orig] == null) {
+      if (prices[date][col] == null) {
         newPoints++;
-        prices[date][orig] = price;
+        prices[date][col] = price;
       }
     }
   }

@@ -247,8 +247,8 @@ function guessCurrencyFromSuffix(symbol: string): string {
 
 // ── Grafia canônica da planilha (garantia Yahoo) ───────────────────────────────
 // Regra do dono: TUDO que entra em meus_ativos/meus_proventos precisa estar na
-// grafia que o Yahoo resolve (DPM.TO, VOW3.DE, ASML…). Exceção: B3 é gravada SEM
-// .SA — o motor de cotações acrescenta o sufixo na hora de precificar.
+// grafia EXATA que o Yahoo resolve — inclusive a B3 com .SA (CMIG4.SA, VALE3.SA),
+// internacionais com o sufixo da bolsa (DPM.TO, VOW3.DE) e EUA sem sufixo (AAPL).
 
 // IBKR listingExchange → sufixo Yahoo (bolsas mais comuns; EUA = sem sufixo).
 const IBKR_EXCHANGE_SUFFIX: Record<string, string> = {
@@ -276,9 +276,9 @@ export function yahooCandidateFromExchange(ticker: string, listingExchange?: str
   return suffix ? `${base}${suffix}` : base;
 }
 
-/** Grafia canônica gravada na PLANILHA: símbolo Yahoo, menos o .SA da B3. */
+/** Grafia canônica gravada na PLANILHA: o símbolo Yahoo completo (COM .SA). */
 export function sheetTickerFromMeta(meta: AssetMeta): string {
-  return meta.yahooSymbol.toUpperCase().replace(/\.SA$/i, "").trim();
+  return meta.yahooSymbol.toUpperCase().trim();
 }
 
 /**

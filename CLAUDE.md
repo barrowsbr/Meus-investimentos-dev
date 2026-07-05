@@ -117,7 +117,7 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
 |--------|-----------|
 | Data | Data da transação |
 | Tipo de transação | Compra / Venda (aceita também: buy, sell, aporte, resgate, bonif, subscri) |
-| Símbolo | Ticker do ativo (ex: PETR4, IVVB11, VOO) |
+| Símbolo | Ticker na **grafia exata do Yahoo** (regra do dono): B3 com .SA (CMIG4.SA, VALE3.SA), internacionais com sufixo de bolsa (DPM.TO, VOW3.DE), EUA sem sufixo (VOO). Sincronizadores validam no Yahoo antes de gravar (`canonicalizeTickersForSheet`); grafias antigas sem sufixo seguem lidas normalmente (dedup/joins por base) e podem ser unificadas em Configurações → "Tickers × Yahoo" |
 | Quantidade | Quantidade de cotas/ações |
 | Preço | Preço unitário |
 | Valor bruto | Valor total bruto da operação |
