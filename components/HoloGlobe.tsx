@@ -1043,7 +1043,7 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
   onUserStart?: () => void;
   targets: SolarTarget[];
   warpRef?: React.MutableRefObject<((id: string) => void) | null>;
-  flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; stop: boolean }>;
+  flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }>;
 }) {
   const { camera, gl } = useThree();
   const dragging = useRef(false);
@@ -1051,8 +1051,10 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
   const lookVel = useRef({ x: 0, y: 0 });
   const speed = useRef(0);        // MANETE frente/ré (alvo)
   const strafeVel = useRef(0);    // manete lateral (alvo)
+  const liftVel = useRef(0);      // manete vertical (alvo)
   const actualFwd = useRef(0);    // velocidade REAL — persegue o manete com
   const actualStrafe = useRef(0); // inércia (~0,7s): peso de nave, sem tranco
+  const actualLift = useRef(0);
   const pinchDist = useRef<number | null>(null);
   const warp = useRef<{ from: THREE.Vector3; to: THREE.Vector3; look: THREE.Vector3; t: number } | null>(null);
 
@@ -1091,8 +1093,10 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       warp.current = { from: camera.position.clone(), to, look, t: 0 };
       speed.current = 0;
       strafeVel.current = 0;
+      liftVel.current = 0;
       actualFwd.current = 0;
       actualStrafe.current = 0;
+      actualLift.current = 0;
       lookVel.current = { x: 0, y: 0 };
       camera.up.set(0, 1, 0);
     };
@@ -1194,8 +1198,10 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       if (flightCmd.current.stop) {
         speed.current = 0;
         strafeVel.current = 0;
+        liftVel.current = 0;
         actualFwd.current = 0;
         actualStrafe.current = 0;
+        actualLift.current = 0;
         flightCmd.current.stop = false;
       }
       if (flightCmd.current.thrust !== 0) {
@@ -1203,6 +1209,9 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
       }
       if (flightCmd.current.strafe !== 0) {
         strafeVel.current = THREE.MathUtils.clamp(strafeVel.current + flightCmd.current.strafe * 6 * delta, -9, 9);
+      }
+      if (flightCmd.current.lift !== 0) {
+        liftVel.current = THREE.MathUtils.clamp(liftVel.current + flightCmd.current.lift * 6 * delta, -9, 9);
       }
     }
     // Inércia do olhar.
@@ -1221,16 +1230,20 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
     const chase = 1 - Math.exp(-delta / 0.7);
     actualFwd.current += (speed.current - actualFwd.current) * chase;
     actualStrafe.current += (strafeVel.current - actualStrafe.current) * chase;
-    if (Math.abs(actualFwd.current) > 0.004 || Math.abs(actualStrafe.current) > 0.004) {
+    actualLift.current += (liftVel.current - actualLift.current) * chase;
+    if (Math.abs(actualFwd.current) > 0.004 || Math.abs(actualStrafe.current) > 0.004 || Math.abs(actualLift.current) > 0.004) {
       const surf = nearestSurface();
       const factor = THREE.MathUtils.clamp(surf * 0.6, 1, 90_000);
       const fwd = new THREE.Vector3();
       camera.getWorldDirection(fwd);
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
       camera.position.addScaledVector(fwd, actualFwd.current * factor * delta);
       camera.position.addScaledVector(right, actualStrafe.current * factor * delta);
+      camera.position.addScaledVector(up, actualLift.current * factor * delta);
       speed.current *= Math.exp(-1.1 * delta);
       strafeVel.current *= Math.exp(-1.6 * delta);
+      liftVel.current *= Math.exp(-1.6 * delta);
       const len = camera.position.length();
       if (len < 1.15) camera.position.setLength(1.15); // não entra na Terra
       if (len > 900_000) camera.position.setLength(900_000); // não foge do universo (Netuno ~7e5)
@@ -1255,7 +1268,7 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; stop: boolean }> }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -3098,7 +3111,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
   }, [mode]);
   const warpRef = useRef<((id: string) => void) | null>(null);
   // Botoeira de voo: empuxo contínuo enquanto o botão está pressionado.
-  const flightCmd = useRef<{ thrust: number; strafe: number; stop: boolean }>({ thrust: 0, strafe: 0, stop: false });
+  const flightCmd = useRef<{ thrust: number; strafe: number; lift: number; stop: boolean }>({ thrust: 0, strafe: 0, lift: 0, stop: false });
   const [navOpen, setNavOpen] = useState(true);
   const [labelsOn, setLabelsOn] = useState(true);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
@@ -3476,13 +3489,15 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
           <div className="grid grid-cols-3 gap-1" style={{ width: 132 }}>
             {([
               null,
-              { key: "fwd", icon: ChevronsUp, title: "Frente (segure)", down: () => { flightCmd.current.thrust = 1; }, up: () => { flightCmd.current.thrust = 0; } },
+              // ▲▼ = eixo VERTICAL (subir/descer). Frente/ré já existe na
+              // pinça e na rolagem — ter nos botões era duplicado.
+              { key: "up", icon: ChevronsUp, title: "Subir (segure)", down: () => { flightCmd.current.lift = 1; }, up: () => { flightCmd.current.lift = 0; } },
               null,
               { key: "left", icon: ChevronsLeft, title: "Esquerda (segure)", down: () => { flightCmd.current.strafe = -1; }, up: () => { flightCmd.current.strafe = 0; } },
               { key: "stop", icon: Square, title: "Parar", down: () => { flightCmd.current.stop = true; }, up: () => {} },
               { key: "right", icon: ChevronsRight, title: "Direita (segure)", down: () => { flightCmd.current.strafe = 1; }, up: () => { flightCmd.current.strafe = 0; } },
               null,
-              { key: "back", icon: ChevronsDown, title: "Ré (segure)", down: () => { flightCmd.current.thrust = -1; }, up: () => { flightCmd.current.thrust = 0; } },
+              { key: "down", icon: ChevronsDown, title: "Descer (segure)", down: () => { flightCmd.current.lift = -1; }, up: () => { flightCmd.current.lift = 0; } },
               null,
             ] as ({ key: string; icon: typeof ChevronsUp; title: string; down: () => void; up: () => void } | null)[]).map((b, i) => b ? (
               <button
