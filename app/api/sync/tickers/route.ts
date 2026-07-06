@@ -4,6 +4,7 @@ import { updateCells } from "@/lib/gsheets";
 import {
   loadAssetMetaCache,
   resolveAssetMeta,
+  resolveTickerValidado,
   persistAssetMeta,
   sheetTickerFromMeta,
   type AssetMeta,
@@ -91,7 +92,9 @@ export async function GET(): Promise<NextResponse> {
         if (isFreeName(ticker)) { ignorados.push(ticker); return; }
         try {
           const corretora = occ.moeda === "BRL" || occ.moeda === "" ? "B3" : "IBKR";
-          const meta = await resolveAssetMeta(ticker, { moeda: occ.moeda || undefined, corretora });
+          // Trava de moeda: pega inclusive ticker gravado na BOLSA errada
+          // (ex.: DPM.AX numa carteira CAD → sugere DPM.TO).
+          const meta = await resolveTickerValidado(ticker, { moeda: occ.moeda || undefined, corretora });
           if (!meta?.yahooSymbol) { desconhecidos.push({ ticker, ocorrencias: occ }); return; }
           const canonical = sheetTickerFromMeta(meta);
           if (canonical === ticker) ok.push({ ticker, nome: meta.longName });
@@ -125,8 +128,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Informe 'de' e 'para'" }, { status: 400 });
     }
 
-    // Valida a grafia nova no Yahoo antes de tocar na planilha.
-    const meta = await resolveAssetMeta(paraRaw);
+    // Valida a grafia nova no Yahoo antes de tocar na planilha (bypass do
+    // cache: um registro envenenado no ativos_meta não pode barrar a correção).
+    const meta = await resolveAssetMeta(paraRaw, undefined, { skipCache: true });
     if (!meta?.yahooSymbol) {
       return NextResponse.json({ error: `"${paraRaw}" não resolve no Yahoo Finance — nada foi alterado` }, { status: 422 });
     }
