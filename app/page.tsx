@@ -781,6 +781,168 @@ function IbkrDayStrip({ data }: { data: IbkrStripData | null }) {
   );
 }
 
+// ── BrDayStrip / BtcDayStrip — mesma identidade visual da faixa IBKR ─────────
+// Brasil (verde, bandeira) = variação do dia dos ativos em REAL (B3, sem RF e
+// sem cripto). Bitcoin (laranja, ₿) = variação do dia dos criptoativos.
+// Mesma regra da IBKR: sem dado → não renderiza nada.
+
+const BR_GREEN = "#009C3B";
+const BTC_ORANGE = "#F7931A";
+
+const signedBRLc = (v: number | null | undefined) => (v != null && v >= 0 ? "+" : "") + compactBRL(v ?? 0);
+
+function BrFlagIcon() {
+  return (
+    <svg width={40} height={40} viewBox="0 0 40 40" className="shrink-0" style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }} aria-label="Brasil">
+      <rect width="40" height="40" fill="#009C3B" />
+      <path d="M20 7 L35 20 L20 33 L5 20 Z" fill="#FFDF00" />
+      <circle cx="20" cy="20" r="6.5" fill="#002776" />
+      <path d="M14.2 18.6 C 18 17.4 23.5 18.6 25.6 21.6" stroke="#fff" strokeWidth="1.3" fill="none" />
+    </svg>
+  );
+}
+
+function BtcIcon() {
+  return (
+    <div
+      className="shrink-0 grid place-items-center"
+      style={{ width: 40, height: 40, borderRadius: 10, background: BTC_ORANGE, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }}
+      aria-label="Bitcoin"
+    >
+      <span style={{ color: "#fff", fontSize: 24, fontWeight: 800, lineHeight: 1, transform: "rotate(12deg)", fontFamily: "var(--font-sans)" }}>₿</span>
+    </div>
+  );
+}
+
+interface DayStripProps {
+  dayBRL: number;
+  dayPct: number | null;
+  patrimonioBRL: number;
+  count: number;
+}
+
+function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripProps & { sessao: { text: string; color: string } }) {
+  if (count === 0) return null;
+  const up = dayBRL >= 0;
+  const dayColor = up ? "var(--pos)" : "var(--neg)";
+  return (
+    <Link
+      href="/renda-variavel"
+      className="group block mt-3 animate-fade-in animate-delay-1"
+      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${BR_GREEN}`, background: "var(--panel)" }}
+    >
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(0,156,59,0.10) 0%, transparent 42%)` }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <BrFlagIcon />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Brasil</span>
+              <span
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                style={{ background: "rgba(0,156,59,0.14)", color: BR_GREEN, fontSize: 9, fontWeight: 700 }}
+              >
+                B3
+              </span>
+            </div>
+            <p className="font-mono mt-0.5 truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+              {count} ativo{count === 1 ? "" : "s"} em real · <span style={{ color: sessao.color }}>{sessao.text}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Retorno do dia
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
+              <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
+                {signedBRLc(dayBRL)}
+              </span>
+            </div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
+              {dayPct != null ? `${pct(dayPct)} no dia` : "—"}
+            </div>
+          </div>
+
+          <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(patrimonioBRL)}</div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>ações · FIIs · ETFs</div>
+          </div>
+
+          <ChevronRight size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" style={{ color: "var(--faint)" }} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProps & { btc: { priceUSD: number; dayPct: number | null } | null }) {
+  if (count === 0) return null;
+  const up = dayBRL >= 0;
+  const dayColor = up ? "var(--pos)" : "var(--neg)";
+  return (
+    <Link
+      href="/criptoativos"
+      className="group block mt-3 animate-fade-in animate-delay-2"
+      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${BTC_ORANGE}`, background: "var(--panel)" }}
+    >
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(247,147,26,0.10) 0%, transparent 42%)` }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <BtcIcon />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Bitcoin</span>
+              <span
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                style={{ background: "rgba(247,147,26,0.14)", color: BTC_ORANGE, fontSize: 9, fontWeight: 700 }}
+              >
+                24/7
+              </span>
+            </div>
+            <p className="font-mono mt-0.5 truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+              {btc ? `BTC ${compactUSD(btc.priceUSD)}${btc.dayPct != null ? ` · ${btc.dayPct >= 0 ? "+" : ""}${btc.dayPct.toFixed(1)}%` : ""}` : `${count} criptoativo${count === 1 ? "" : "s"}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Retorno do dia
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
+              <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
+                {signedBRLc(dayBRL)}
+              </span>
+            </div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
+              {dayPct != null ? `${pct(dayPct)} no dia` : "—"}
+            </div>
+          </div>
+
+          <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(patrimonioBRL)}</div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>preço + câmbio</div>
+          </div>
+
+          <ChevronRight size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" style={{ color: "var(--faint)" }} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 interface IndexQuote {
@@ -881,6 +1043,31 @@ export default function HomePage() {
     return data.positions
       .filter((p) => p.setor === "Cripto" && (p.quantidade ?? 0) > 0)
       .reduce((s, p) => s + (p.dayChangeBRL ?? 0), 0);
+  }, [data?.positions]);
+
+  // Stats das faixas Brasil e Bitcoin (mesma identidade visual da IBKR).
+  const brStats = useMemo(() => {
+    const vazio = { count: 0, valueBRL: 0, sessao: { text: "FECHADO", color: "var(--muted)" } };
+    if (!data?.positions) return vazio;
+    const ps = data.positions.filter((p) => (p.moeda ?? "BRL") === "BRL" && !isRendaFixa(p.setor ?? "") && p.setor !== "Cripto" && (p.quantidade ?? 0) > 0);
+    const states = new Set(ps.map((p) => p.marketState).filter(Boolean));
+    const sessao = states.has("REGULAR") ? { text: "AO VIVO", color: "var(--pos)" }
+      : states.has("PRE") || states.has("PREPRE") ? { text: "PRÉ-MERCADO", color: "var(--accent)" }
+      : states.has("POST") || states.has("POSTPOST") ? { text: "PÓS-MERCADO", color: "var(--accent)" }
+      : { text: "FECHADO", color: "var(--muted)" };
+    return { count: ps.length, valueBRL: ps.reduce((s, p) => s + (p.valorAtualBRL ?? 0), 0), sessao };
+  }, [data?.positions]);
+
+  const cryptoStats = useMemo(() => {
+    const vazio = { count: 0, valueBRL: 0, btc: null as { priceUSD: number; dayPct: number | null } | null };
+    if (!data?.positions) return vazio;
+    const ps = data.positions.filter((p) => p.setor === "Cripto" && (p.quantidade ?? 0) > 0);
+    const btcPos = ps.find((p) => (p.ticker ?? "").toUpperCase().startsWith("BTC"));
+    return {
+      count: ps.length,
+      valueBRL: ps.reduce((s, p) => s + (p.valorAtualBRL ?? 0), 0),
+      btc: btcPos && typeof btcPos.precoAtual === "number" ? { priceUSD: btcPos.precoAtual, dayPct: btcPos.dayChangePct ?? null } : null,
+    };
   }, [data?.positions]);
 
   const dayReturn = useMemo(() => {
@@ -1069,6 +1256,24 @@ export default function HomePage() {
         {/* ── IBKR · Retorno do dia em US$ (entre métricas e ticker) ── */}
         <ErrorBoundary fallback={null}>
           <IbkrDayStrip data={ibkrOverview} />
+        </ErrorBoundary>
+
+        {/* ── Brasil (B3) e Bitcoin · retorno do dia — mesma identidade da IBKR ── */}
+        <ErrorBoundary fallback={null}>
+          <BrDayStrip
+            dayBRL={brDayBRL}
+            dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
+            patrimonioBRL={brStats.valueBRL}
+            count={brStats.count}
+            sessao={brStats.sessao}
+          />
+          <BtcDayStrip
+            dayBRL={cryptoDayBRL}
+            dayPct={cryptoStats.valueBRL > 0 ? (cryptoDayBRL / cryptoStats.valueBRL) * 100 : null}
+            patrimonioBRL={cryptoStats.valueBRL}
+            count={cryptoStats.count}
+            btc={cryptoStats.btc}
+          />
         </ErrorBoundary>
 
         {/* ── Row 2: Ticker Tape ── */}
