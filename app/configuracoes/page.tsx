@@ -862,7 +862,13 @@ function FlexSyncSection() {
     setResult(null);
     try {
       const res = await fetch(`${API_URL}/api/sync/ibkr/flex?dry_run=${simular}`);
-      const data: FlexResult = await res.json();
+      // Erros de plataforma (timeout da Vercel etc.) vêm em TEXTO puro — parse
+      // tolerante para nunca explodir com "Unexpected token … is not valid JSON".
+      const raw = await res.text();
+      let data: FlexResult;
+      try { data = JSON.parse(raw); } catch {
+        data = { error: `O servidor respondeu ${res.status} sem JSON (provável timeout do Flex) — tente de novo em ~1 min: ${raw.slice(0, 90)}` };
+      }
       setResult(data);
       if (forceApply) setDryRun(false);
       // Escrita real → invalida o CDN cache dos endpoints de leitura.
@@ -882,7 +888,11 @@ function FlexSyncSection() {
     setRecon(null);
     try {
       const res = await fetch(`${API_URL}/api/sync/ibkr/reconcile?dry_run=${!apply}`);
-      const data: ReconResult = await res.json();
+      const rawRecon = await res.text();
+      let data: ReconResult;
+      try { data = JSON.parse(rawRecon); } catch {
+        data = { error: `O servidor respondeu ${res.status} sem JSON (provável timeout) — tente de novo: ${rawRecon.slice(0, 90)}`, divergencias: 0, detalhes: [] };
+      }
       setRecon(data);
       if (apply && res.ok && !data.error) bumpDataVersion();
     } catch (e) {

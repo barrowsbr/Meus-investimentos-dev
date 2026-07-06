@@ -285,11 +285,18 @@ export function sheetTickerFromMeta(meta: AssetMeta): string {
  * Resolve a grafia Yahoo de cada ticker ANTES da escrita na planilha.
  * Retorna só os que precisam mudar (renames) + os metadados p/ persistir em
  * ativos_meta. Yahoo fora do ar NUNCA bloqueia o sync — o ticker original segue.
+ *
+ * timeBudgetMs: teto de tempo para as consultas Yahoo (rotas serverless têm
+ * maxDuration — a 1ª rodada com ativos_meta vazio resolvia DEZENAS de tickers
+ * e estourava a função). Ao esgotar, os tickers restantes passam originais;
+ * a próxima rodada (cache já quente) e o verificador em Configurações cobrem.
  */
 export async function canonicalizeTickersForSheet(
   items: { ticker: string; moeda?: string; corretora?: string; exchange?: string }[],
-): Promise<{ renames: Map<string, string>; metas: AssetMeta[] }> {
+  opts: { timeBudgetMs?: number } = {},
+): Promise<{ renames: Map<string, string>; metas: AssetMeta[]; skipped: number }> {
   await loadAssetMetaCache();
+  const deadline = opts.timeBudgetMs ? Date.now() + opts.timeBudgetMs : null;
   const renames = new Map<string, string>();
   const metas: AssetMeta[] = [];
   const seen = new Set<string>();
@@ -299,10 +306,24 @@ export async function canonicalizeTickersForSheet(
     seen.add(k);
     return true;
   });
+  // Cache primeiro (instantâneo, não conta no orçamento); só o resto vai ao Yahoo.
+  const pending = uniq.filter(it => {
+    const cached = getAssetMeta(it.ticker);
+    if (!cached?.yahooSymbol) return true;
+    metas.push(cached);
+    const sheetTk = sheetTickerFromMeta(cached);
+    if (sheetTk && sheetTk !== it.ticker.toUpperCase().trim()) renames.set(it.ticker, sheetTk);
+    return false;
+  });
+  let skipped = 0;
 
   const BATCH = 4;
-  for (let i = 0; i < uniq.length; i += BATCH) {
-    await Promise.all(uniq.slice(i, i + BATCH).map(async (it) => {
+  for (let i = 0; i < pending.length; i += BATCH) {
+    if (deadline && Date.now() > deadline) {
+      skipped = pending.length - i;
+      break;
+    }
+    await Promise.all(pending.slice(i, i + BATCH).map(async (it) => {
       try {
         // 1) Pista determinística: bolsa de listagem → candidato com sufixo,
         //    validado direto no Yahoo (quote).
@@ -324,7 +345,7 @@ export async function canonicalizeTickersForSheet(
       } catch { /* best-effort */ }
     }));
   }
-  return { renames, metas };
+  return { renames, metas, skipped };
 }
 
 // ── Batch resolve (for import previews) ────────────────────────────────────────
