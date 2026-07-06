@@ -882,6 +882,115 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripPr
   );
 }
 
+const FX_BLUE = "#3B82F6";
+
+function FxIcon() {
+  return (
+    <div
+      className="shrink-0 grid place-items-center"
+      style={{ width: 40, height: 40, borderRadius: 10, background: FX_BLUE, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }}
+      aria-label="Câmbio"
+    >
+      <span style={{ color: "#fff", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>$</span>
+    </div>
+  );
+}
+
+// Câmbio — efeito da variação do dólar do dia sobre a exposição estrangeira
+// (principal em moeda forte, sem cripto — a faixa Bitcoin já embute o câmbio).
+function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
+  efeitoBRL: number;
+  usdPct: number | null;
+  exposicaoBRL: number;
+  usdbrl: number | null;
+}) {
+  if (exposicaoBRL <= 0) return null;
+  const up = efeitoBRL >= 0;
+  const dayColor = up ? "var(--pos)" : "var(--neg)";
+  return (
+    <Link
+      href="/cambio"
+      className="group block mt-3 animate-fade-in animate-delay-3"
+      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${FX_BLUE}`, background: "var(--panel)" }}
+    >
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(59,130,246,0.10) 0%, transparent 42%)` }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <FxIcon />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Câmbio</span>
+              <span
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
+                style={{ background: "rgba(59,130,246,0.14)", color: FX_BLUE, fontSize: 9, fontWeight: 700 }}
+              >
+                USD/BRL
+              </span>
+            </div>
+            <p className="font-mono mt-0.5 truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+              {usdbrl ? `Dólar R$ ${usdbrl.toFixed(3)}` : "Dólar"}
+              {usdPct != null ? (
+                <span style={{ color: usdPct >= 0 ? "var(--pos)" : "var(--neg)" }}>{` · ${usdPct >= 0 ? "+" : ""}${usdPct.toFixed(2)}% hoje`}</span>
+              ) : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Efeito do dia
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
+              <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
+                {signedBRLc(efeitoBRL)}
+              </span>
+            </div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
+              {exposicaoBRL > 0 ? `${pct((efeitoBRL / exposicaoBRL) * 100)} da exposição` : "—"}
+            </div>
+          </div>
+
+          <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Exposição</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(exposicaoBRL)}</div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>principal estrangeiro</div>
+          </div>
+
+          <ChevronRight size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" style={{ color: "var(--faint)" }} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// Somatório dos cards — o MESMO retorno do dia do quadro Patrimônio (IBKR +
+// Brasil + Bitcoin + câmbio), fechado embaixo como total de fatura.
+function DayStripsTotal({ brl, pctVal }: { brl: number | null; pctVal: number | null }) {
+  if (brl == null) return null;
+  const color = brl >= 0 ? "var(--pos)" : "var(--neg)";
+  return (
+    <div className="flex justify-end mt-2 animate-fade-in animate-delay-3">
+      <div className="text-right pl-6" style={{ borderTop: "3px double var(--line-strong)", paddingTop: 6, minWidth: 210 }}>
+        <div className="flex items-baseline justify-end gap-2.5">
+          <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+            Σ Retorno do dia
+          </span>
+          <span className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
+            {signedBRLc(brl)}
+          </span>
+          {pctVal != null && (
+            <span className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85 }}>{pct(pctVal)}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProps & { btc: { priceUSD: number; dayPct: number | null } | null }) {
   if (count === 0) return null;
   const up = dayBRL >= 0;
@@ -1070,18 +1179,38 @@ export default function HomePage() {
     };
   }, [data?.positions]);
 
+  // Efeito do dólar do dia sobre o principal estrangeiro (sem cripto — a faixa
+  // Bitcoin já embute o câmbio). Preferência: book IBKR (mesmo número que entra
+  // no somatório); fallback: campos canônicos do snapshot.
+  const fxDia = useMemo(() => {
+    const k = ibkrOverview?.kpis;
+    if (k && usdbrl) {
+      const fxFrac = (usdDayChangePct ?? 0) / 100;
+      const principalBRL = (k.patrimonioUSD ?? 0) * usdbrl;
+      const efeitoBRL = fxFrac !== 0 ? principalBRL * (fxFrac / (1 + fxFrac)) : 0;
+      return { efeitoBRL, principalBRL };
+    }
+    // Fallback canônico: fx do dia das posições não-cripto + exposição em moeda forte.
+    if (!data?.positions) return null;
+    const efeitoBRL = data.positions
+      .filter((p) => p.setor !== "Cripto" && (p.quantidade ?? 0) > 0)
+      .reduce((s, p) => s + (p.dayChangeFxBRL ?? 0), 0);
+    const principalBRL = Object.entries(data.exposicaoCambial ?? {})
+      .filter(([k2]) => k2 !== "BRL" && k2 !== "Cripto")
+      .reduce((s, [, v]) => s + (typeof v === "number" ? v : 0), 0);
+    return { efeitoBRL, principalBRL };
+  }, [ibkrOverview, usdbrl, usdDayChangePct, data]);
+
   const dayReturn = useMemo(() => {
     const k = ibkrOverview?.kpis;
     if (!k || !usdbrl) return null; // sem IBKR → usa o fallback do snapshot
     const intlAssetBRL = k.lucroDiaBRL ?? 0;                          // internacional (IBKR, só ativo)
-    const fxFrac = (usdDayChangePct ?? 0) / 100;                      // variação do dólar no dia
-    const principalBRL = (k.patrimonioUSD ?? 0) * usdbrl;            // principal estrangeiro em R$ (hoje)
-    const fxPrincipalBRL = fxFrac !== 0 ? principalBRL * (fxFrac / (1 + fxFrac)) : 0; // efeito do dólar do dia
+    const fxPrincipalBRL = fxDia?.efeitoBRL ?? 0;                     // efeito do dólar do dia
     const brl = intlAssetBRL + brDayBRL + cryptoDayBRL + fxPrincipalBRL;
     const base = totalBRL != null ? totalBRL - brl : null;          // patrimônio de ontem
     const pct = base && base > 0 ? (brl / base) * 100 : null;
     return { brl, pct };
-  }, [ibkrOverview, usdbrl, usdDayChangePct, brDayBRL, cryptoDayBRL, totalBRL]);
+  }, [ibkrOverview, usdbrl, fxDia, brDayBRL, cryptoDayBRL, totalBRL]);
 
   const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
   const dayPctFinal = dayReturn?.pct ?? dayChangePct;
@@ -1274,6 +1403,15 @@ export default function HomePage() {
             count={cryptoStats.count}
             btc={cryptoStats.btc}
           />
+          {fxDia && (
+            <FxDayStrip
+              efeitoBRL={fxDia.efeitoBRL}
+              usdPct={usdDayChangePct}
+              exposicaoBRL={fxDia.principalBRL}
+              usdbrl={usdbrl}
+            />
+          )}
+          <DayStripsTotal brl={dayBRLfinal} pctVal={dayPctFinal} />
         </ErrorBoundary>
 
         {/* ── Row 2: Ticker Tape ── */}
