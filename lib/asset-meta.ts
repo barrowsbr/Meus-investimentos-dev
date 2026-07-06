@@ -85,10 +85,16 @@ export async function loadAssetMetaCache(): Promise<void> {
 export async function resolveAssetMeta(
   rawTicker: string,
   hints?: { moeda?: string; corretora?: string },
+  opts?: { skipCache?: boolean },
 ): Promise<AssetMeta | null> {
   const key = cacheKey(rawTicker);
-  const cached = getAssetMeta(rawTicker);
-  if (cached) return cached;
+  // skipCache: força re-resolução quando o cache está ENVENENADO (ex.: "DPM"
+  // resolvido para DPM.AX — cacheKey ignora sufixo, então DPM.TO cairia no
+  // mesmo registro ruim). O resultado novo sobrescreve o cache no final.
+  if (!opts?.skipCache) {
+    const cached = getAssetMeta(rawTicker);
+    if (cached) return cached;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const YF: any = (await import("yahoo-finance2")).default;
@@ -210,10 +216,12 @@ function pickBestMatch(candidates: any[], rawTicker: string, hints?: { moeda?: s
     if (symClean === clean) score += 100;
     else if (symClean.startsWith(clean)) score += 50;
 
-    // Currency hint match
+    // Currency hint match — e PENALIDADE para moeda errada (foi o que deixou
+    // "DPM" CAD virar DPM.AX: o candidato australiano só somava pontos).
     if (hints?.moeda) {
       const suffixCcy = guessCurrencyFromSuffix(sym);
       if (suffixCcy === hints.moeda.toUpperCase()) score += 30;
+      else score -= 40;
     }
 
     // Corretora hint: B3 → prefer .SA, IBKR → prefer non-.SA
@@ -281,6 +289,75 @@ export function sheetTickerFromMeta(meta: AssetMeta): string {
   return meta.yahooSymbol.toUpperCase().trim();
 }
 
+// Sufixos Yahoo prováveis por MOEDA de negociação — quando não há pista de
+// bolsa, tentamos estes candidatos com quote DIRETO (determinístico), na ordem.
+const CCY_SUFFIX_CANDIDATES: Record<string, string[]> = {
+  CAD: [".TO", ".V"],
+  GBP: [".L"],
+  AUD: [".AX"],
+  JPY: [".T"],
+  CHF: [".SW"],
+  HKD: [".HK"],
+  SGD: [".SI"],
+  BRL: [".SA"],
+  EUR: [".DE", ".AS", ".PA", ".MI", ".MC"],
+};
+
+// Moeda do quote × moeda do trade (Londres cota em pence: GBp/GBX ≈ GBP).
+function sameCcy(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return true; // sem informação → não bloqueia
+  const norm = (c: string) => {
+    const u = c.toUpperCase().trim();
+    return u === "GBX" ? "GBP" : u;
+  };
+  return norm(a) === norm(b);
+}
+
+/**
+ * Resolução com TRAVA DE MOEDA: o símbolo Yahoo aceito precisa negociar na
+ * MESMA moeda do trade — um trade em CAD jamais vira DPM.AX (AUD). Ordem:
+ * cache coerente → pista de bolsa → sufixos prováveis da moeda (quote direto)
+ * → busca com hints. Se nada bater a moeda, devolve null: é MELHOR não
+ * renomear do que renomear para a bolsa errada.
+ */
+export async function resolveTickerValidado(
+  ticker: string,
+  hints: { moeda?: string; corretora?: string; exchange?: string },
+): Promise<AssetMeta | null> {
+  const base = ticker.toUpperCase().trim();
+  if (!base) return null;
+
+  // 1) Cache — só se coerente com a moeda (cache envenenado é re-resolvido).
+  const cached = getAssetMeta(base);
+  if (cached?.yahooSymbol && sameCcy(cached.currency, hints.moeda)) return cached;
+  const skipCache = !!cached; // registro ruim no caminho → bypass
+
+  // 2) Pista determinística da bolsa de listagem (IBKR Flex).
+  const candidate = yahooCandidateFromExchange(base, hints.exchange);
+  if (candidate && candidate !== base) {
+    const m = await resolveAssetMeta(candidate, hints, { skipCache });
+    if (m?.yahooSymbol && sameCcy(m.currency, hints.moeda)) return m;
+  }
+
+  // 3) Sufixos prováveis da moeda de negociação, validados por quote direto.
+  //    Usa a BASE sem sufixo — assim um ticker gravado na bolsa errada
+  //    (DPM.AX numa carteira CAD) encontra o certo (DPM.TO).
+  if (hints.moeda) {
+    const stem = base.replace(/\.[A-Z]{1,2}$/, "");
+    for (const suf of CCY_SUFFIX_CANDIDATES[hints.moeda.toUpperCase()] ?? []) {
+      const cand = `${stem}${suf}`;
+      if (cand === base) continue; // já testado/é o próprio
+      const m = await resolveAssetMeta(cand, hints, { skipCache: true });
+      if (m?.yahooSymbol && sameCcy(m.currency, hints.moeda)) return m;
+    }
+  }
+
+  // 4) Caminho genérico (quote direto p/ ticker com sufixo, senão busca).
+  const m = await resolveAssetMeta(base, hints, { skipCache });
+  if (m?.yahooSymbol && sameCcy(m.currency, hints.moeda)) return m;
+  return null;
+}
+
 /**
  * Resolve a grafia Yahoo de cada ticker ANTES da escrita na planilha.
  * Retorna só os que precisam mudar (renames) + os metadados p/ persistir em
@@ -306,10 +383,11 @@ export async function canonicalizeTickersForSheet(
     seen.add(k);
     return true;
   });
-  // Cache primeiro (instantâneo, não conta no orçamento); só o resto vai ao Yahoo.
+  // Cache primeiro (instantâneo, não conta no orçamento) — mas SÓ se a moeda
+  // do registro bate com a do trade; cache envenenado (DPM→DPM.AX) re-resolve.
   const pending = uniq.filter(it => {
     const cached = getAssetMeta(it.ticker);
-    if (!cached?.yahooSymbol) return true;
+    if (!cached?.yahooSymbol || !sameCcy(cached.currency, it.moeda)) return true;
     metas.push(cached);
     const sheetTk = sheetTickerFromMeta(cached);
     if (sheetTk && sheetTk !== it.ticker.toUpperCase().trim()) renames.set(it.ticker, sheetTk);
@@ -325,17 +403,10 @@ export async function canonicalizeTickersForSheet(
     }
     await Promise.all(pending.slice(i, i + BATCH).map(async (it) => {
       try {
-        // 1) Pista determinística: bolsa de listagem → candidato com sufixo,
-        //    validado direto no Yahoo (quote).
-        const candidate = yahooCandidateFromExchange(it.ticker, it.exchange);
-        let meta: AssetMeta | null = null;
-        if (candidate && candidate !== it.ticker.toUpperCase().trim()) {
-          meta = await resolveAssetMeta(candidate, { moeda: it.moeda, corretora: it.corretora });
-        }
-        // 2) Caminho normal: cache → quote direto → busca com hints.
-        if (!meta?.yahooSymbol) {
-          meta = await resolveAssetMeta(it.ticker, { moeda: it.moeda, corretora: it.corretora });
-        }
+        // Resolução com TRAVA DE MOEDA (bolsa → sufixos da moeda → busca).
+        // null = nada bateu a moeda do trade → ticker segue original (é melhor
+        // não renomear do que renomear para a bolsa errada).
+        const meta = await resolveTickerValidado(it.ticker, { moeda: it.moeda, corretora: it.corretora, exchange: it.exchange });
         if (!meta?.yahooSymbol) return;
         metas.push(meta);
         const sheetTk = sheetTickerFromMeta(meta);
