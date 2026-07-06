@@ -765,8 +765,8 @@ function IbkrDayStrip({ data }: { data: IbkrStripData | null }) {
   return (
     <Link
       href="/ibkr"
-      className="group block mt-4 animate-fade-in animate-delay-1"
-      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${IBKR_RED}`, background: "var(--panel)" }}
+      className="group block"
+      style={{ borderLeft: `3px solid ${IBKR_RED}`, borderBottom: "1px solid var(--line)" }}
     >
       <div
         className="flex items-center justify-between gap-3 px-4 py-3"
@@ -877,8 +877,8 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripPr
   return (
     <Link
       href="/renda-variavel"
-      className="group block mt-3 animate-fade-in animate-delay-1"
-      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${BR_GREEN}`, background: "var(--panel)" }}
+      className="group block"
+      style={{ borderLeft: `3px solid ${BR_GREEN}`, borderBottom: "1px solid var(--line)" }}
     >
       <div
         className="flex items-center justify-between gap-3 px-4 py-3"
@@ -959,8 +959,8 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
   return (
     <Link
       href="/cambio"
-      className="group block mt-3 animate-fade-in animate-delay-3"
-      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${FX_BLUE}`, background: "var(--panel)" }}
+      className="group block"
+      style={{ borderLeft: `3px solid ${FX_BLUE}`, borderBottom: "1px solid var(--line)" }}
     >
       <div
         className="flex items-center justify-between gap-3 px-4 py-3"
@@ -1016,26 +1016,22 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
   );
 }
 
-// Somatório dos cards — o MESMO retorno do dia do quadro Patrimônio (IBKR +
-// Brasil + Bitcoin + câmbio), fechado embaixo como total de fatura.
+// Somatório das linhas — o MESMO retorno do dia (IBKR + Brasil + Bitcoin +
+// câmbio), fechado como RODAPÉ do card, estilo total de fatura.
 function DayStripsTotal({ brl, pctVal }: { brl: number | null; pctVal: number | null }) {
   if (brl == null) return null;
   const color = brl >= 0 ? "var(--pos)" : "var(--neg)";
   return (
-    <div className="flex justify-end mt-2 animate-fade-in animate-delay-3">
-      <div className="text-right pl-6" style={{ borderTop: "3px double var(--line-strong)", paddingTop: 6, minWidth: 210 }}>
-        <div className="flex items-baseline justify-end gap-2.5">
-          <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-            Σ Retorno do dia
-          </span>
-          <span className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
-            {signedBRLc(brl)}
-          </span>
-          {pctVal != null && (
-            <span className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85 }}>{pct(pctVal)}</span>
-          )}
-        </div>
-      </div>
+    <div className="flex items-baseline justify-end gap-2.5 px-4 py-2.5" style={{ background: "var(--hover)" }}>
+      <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+        Σ Retorno do dia
+      </span>
+      <span className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
+        {signedBRLc(brl)}
+      </span>
+      {pctVal != null && (
+        <span className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85 }}>{pct(pctVal)}</span>
+      )}
     </div>
   );
 }
@@ -1047,8 +1043,8 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProp
   return (
     <Link
       href="/criptoativos"
-      className="group block mt-3 animate-fade-in animate-delay-2"
-      style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${BTC_ORANGE}`, background: "var(--panel)" }}
+      className="group block"
+      style={{ borderLeft: `3px solid ${BTC_ORANGE}`, borderBottom: "1px solid var(--line)" }}
     >
       <div
         className="flex items-center justify-between gap-3 px-4 py-3"
@@ -1328,45 +1324,49 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Skeleton das faixas enquanto o snapshot carrega ── */}
+        {/* ── Skeleton do painel do dia enquanto o snapshot carrega ── */}
         {loading && (
-          <div className="mt-4 flex flex-col gap-3 animate-pulse">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} style={{ height: 66, border: "1px solid var(--line)", background: "var(--panel)" }} />
-            ))}
-          </div>
+          <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)" }} />
         )}
 
-        {/* ── Row 3: faixas do retorno do dia (IBKR · Brasil · Bitcoin · Câmbio) ── */}
-        <ErrorBoundary fallback={null}>
-          <IbkrDayStrip data={ibkrOverview} />
-        </ErrorBoundary>
-
-        <ErrorBoundary fallback={null}>
-          <BrDayStrip
-            dayBRL={brDayBRL}
-            dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
-            patrimonioBRL={brStats.valueBRL}
-            count={brStats.count}
-            sessao={brStats.sessao}
-          />
-          <BtcDayStrip
-            dayBRL={cryptoDayBRL}
-            dayPct={cryptoStats.valueBRL > 0 ? (cryptoDayBRL / cryptoStats.valueBRL) * 100 : null}
-            patrimonioBRL={cryptoStats.valueBRL}
-            count={cryptoStats.count}
-            btc={cryptoStats.btc}
-          />
-          {fxDia && (
-            <FxDayStrip
-              efeitoBRL={fxDia.efeitoBRL}
-              usdPct={usdDayChangePct}
-              exposicaoBRL={fxDia.principalBRL}
-              usdbrl={usdbrl}
-            />
-          )}
-          <DayStripsTotal brl={dayBRLfinal} pctVal={dayPctFinal} />
-        </ErrorBoundary>
+        {/* ── Row 3: painel do dia — UM card com as linhas IBKR · Brasil ·
+               Bitcoin · Câmbio (divisórias internas) e o Σ como rodapé ── */}
+        {!loading && (
+          <ErrorBoundary fallback={null}>
+            <div className="mt-4 animate-fade-in overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
+              <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
+                <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
+                  Retorno do dia
+                </span>
+                <span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>por book · toque para abrir</span>
+              </div>
+              <IbkrDayStrip data={ibkrOverview} />
+              <BrDayStrip
+                dayBRL={brDayBRL}
+                dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
+                patrimonioBRL={brStats.valueBRL}
+                count={brStats.count}
+                sessao={brStats.sessao}
+              />
+              <BtcDayStrip
+                dayBRL={cryptoDayBRL}
+                dayPct={cryptoStats.valueBRL > 0 ? (cryptoDayBRL / cryptoStats.valueBRL) * 100 : null}
+                patrimonioBRL={cryptoStats.valueBRL}
+                count={cryptoStats.count}
+                btc={cryptoStats.btc}
+              />
+              {fxDia && (
+                <FxDayStrip
+                  efeitoBRL={fxDia.efeitoBRL}
+                  usdPct={usdDayChangePct}
+                  exposicaoBRL={fxDia.principalBRL}
+                  usdbrl={usdbrl}
+                />
+              )}
+              <DayStripsTotal brl={dayBRLfinal} pctVal={dayPctFinal} />
+            </div>
+          </ErrorBoundary>
+        )}
 
         {/* ── Row 4: Radar + Polymarket (two columns) ── */}
         {!loading && data && tickerItems.length > 0 && (
