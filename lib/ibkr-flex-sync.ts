@@ -76,17 +76,22 @@ export async function runFlexSync(
   // listagem do Flex como pista determinística e VALIDA no Yahoo. Se o Yahoo
   // estiver fora do ar, o sync segue com o ticker original (nunca bloqueia).
   const tickerAjustes: { de: string; para: string }[] = [];
+  let tickersPendentes = 0;
   try {
     const itens = [
       ...trades.map(t => ({ ticker: t.Símbolo, moeda: t.Moeda, corretora: t.Corretora, exchange: exchangeBySymbol[t.Símbolo] })),
       ...proventos.map(p => ({ ticker: p.ticker, moeda: p.moeda, corretora: "IBKR", exchange: exchangeBySymbol[p.ticker] })),
     ];
-    const { renames, metas } = await canonicalizeTickersForSheet(itens);
+    // Orçamento de 15s para o Yahoo: a rota tem maxDuration 60 e o Flex já
+    // consome até ~40s — sem teto, a 1ª rodada (ativos_meta vazio) estourava a
+    // função e a Vercel devolvia erro em texto puro.
+    const { renames, metas, skipped } = await canonicalizeTickersForSheet(itens, { timeBudgetMs: 15_000 });
     if (renames.size > 0) {
       for (const t of trades) t.Símbolo = renames.get(t.Símbolo) ?? t.Símbolo;
       for (const p of proventos) p.ticker = renames.get(p.ticker) ?? p.ticker;
       for (const [de, para] of renames) tickerAjustes.push({ de, para });
     }
+    tickersPendentes = skipped;
     if (!dryRun && metas.length > 0) await persistAssetMeta(metas).catch(() => {});
   } catch { /* validação é best-effort — o sync nunca para por causa dela */ }
 
@@ -103,6 +108,9 @@ export async function runFlexSync(
     },
     // Grafias corrigidas para o padrão Yahoo antes da escrita (auditoria).
     ticker_ajustes: tickerAjustes,
+    // Tickers que não couberam no orçamento Yahoo desta rodada (passaram com a
+    // grafia original — a próxima rodada/verificador cobre).
+    ticker_validacao_pendente: tickersPendentes,
   };
 
   // ── Proventos → meus_proventos ──
