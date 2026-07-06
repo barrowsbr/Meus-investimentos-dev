@@ -92,10 +92,9 @@ function sectorEconColor(name: string): string { return SETOR_ECONOMICO_COLORS[n
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = "alocacao" | "setores" | "custodia" | "posicoes";
+type Tab = "alocacao" | "custodia" | "posicoes";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "alocacao", label: "Alocação", icon: <PieIcon size={14} /> },
-  { id: "setores", label: "Setores", icon: <PieIcon size={14} /> },
   { id: "custodia", label: "Corretoras", icon: <Building2 size={14} /> },
   { id: "posicoes", label: "Posições", icon: <Briefcase size={14} /> },
 ];
@@ -178,8 +177,9 @@ export default function ResumoPage() {
       .catch(() => {});
   }, []);
 
+  // Setores agora vive DENTRO da aba Alocação (fusão) — carrega junto com ela.
   useEffect(() => {
-    if (activeTab === "setores" && !setoresData && !setoresLoading) {
+    if (activeTab === "alocacao" && !setoresData && !setoresLoading) {
       setSetoresLoading(true);
       fetch(`${API_URL}/api/portfolio/sectors`)
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -226,18 +226,8 @@ export default function ResumoPage() {
 
   const RF_SECTORS_SET = useMemo(() => new Set(["Renda Fixa", "Renda Fixa USD", "Caixa/Liquidez", "Caixa", "Tesouro Direto", "CDBs", "LCI/LCA", "Debêntures"]), []);
 
-  // Setores: bolsa (meus_ativos) + RF manual (Tesouro/CDB/caixa de fixa_aberta),
-  // que vivem só em rf_posicoes. Sem isso, a RF some e as % inflam.
-  const sectorData = useMemo(() => {
-    const map: Record<string, number> = { ...(data?.setorAlocacao ?? {}) };
-    for (const r of (composicao?.rf_posicoes ?? [])) {
-      map[r.setor] = (map[r.setor] ?? 0) + r.valor_brl;
-    }
-    const raw = Object.entries(map).map(([name, value]) => ({ name, value }));
-    if (activeFilter === "Renda Variável") return raw.filter(s => !RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
-    if (activeFilter === "Renda Fixa") return raw.filter(s => RF_SECTORS_SET.has(s.name)).sort((a, b) => b.value - a.value);
-    return raw.sort((a, b) => b.value - a.value);
-  }, [data, composicao, activeFilter, RF_SECTORS_SET]);
+  // (A pizza "Setores" da aba Alocação saiu na fusão — o treemap e o
+  //  Detalhamento por Setor, canônicos via /api/portfolio/sectors, a substituem.)
 
   // Exposição cambial pela MESMA base completa (bolsa por moeda + RF manual por
   // moeda), respeitando o filtro — assim bate com o Setores e com o patrimônio.
@@ -446,6 +436,17 @@ export default function ResumoPage() {
   }, [sunburstData, selectedClass, selectedSector]);
 
   const activeSetoresData = sectorConsolidated && setoresLtData ? setoresLtData : setoresData;
+
+  // Estatísticas setoriais (concentração, HHI) — compartilhadas pelos blocos da
+  // aba Alocação fundida.
+  const setoresStats = useMemo(() => {
+    if (!activeSetoresData) return null;
+    const sorted = [...activeSetoresData.sectors].sort((a, b) => b.pct - a.pct);
+    const top3 = sorted.slice(0, 3).reduce((s, x) => s + x.pct, 0);
+    const top5 = sorted.slice(0, 5).reduce((s, x) => s + x.pct, 0);
+    const hhi = sorted.reduce((s, x) => s + (x.pct / 100) ** 2, 0);
+    return { sorted, top3, top5, effN: hhi > 0 ? 1 / hhi : 0 };
+  }, [activeSetoresData]);
 
   const sectorTreemapData = useMemo(() => {
     if (!activeSetoresData) return [];
@@ -977,6 +978,83 @@ export default function ResumoPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "alocacao" && (
         <div className="space-y-5 animate-fade-in">
+          {/* ── Cabeçalho da alocação: lente Padrão × ETFs abertos + métricas ── */}
+          {(setoresLoading || (sectorConsolidated && setoresLtLoading)) && !activeSetoresData && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500 py-2">
+              <Loader2 size={14} className="animate-spin" /> Carregando visão setorial…
+            </div>
+          )}
+          {activeSetoresData && setoresStats && (() => {
+            const sd = activeSetoresData;
+            const rvP = sd.totalBRL > 0 ? (sd.rvBRL / sd.totalBRL) * 100 : 0;
+            const rfP = sd.totalBRL > 0 ? (sd.rfBRL / sd.totalBRL) * 100 : 0;
+            const ltMeta = setoresLtData?.lookthrough;
+            return (
+              <div className="glass-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>
+                    <button onClick={() => setSectorConsolidated(false)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors"
+                      style={{ background: !sectorConsolidated ? "var(--accent-wash)" : "transparent", color: !sectorConsolidated ? "var(--accent)" : "var(--muted)" }}>
+                      <Eye size={11} /> Padrão
+                    </button>
+                    <button onClick={() => setSectorConsolidated(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors"
+                      style={{ background: sectorConsolidated ? "rgba(139,92,246,0.12)" : "transparent", color: sectorConsolidated ? "#a78bfa" : "var(--muted)" }}>
+                      <Layers size={11} /> ETFs abertos
+                    </button>
+                  </div>
+                  {sectorConsolidated && setoresLtLoading && (
+                    <span className="flex items-center gap-1.5 text-[10px] text-zinc-500"><Loader2 size={11} className="animate-spin" /> decompondo ETFs…</span>
+                  )}
+                  {sectorConsolidated && !setoresLtLoading && ltMeta && (
+                    <span className="text-[10px] text-zinc-600">
+                      {ltMeta.supported.length} ETF{ltMeta.supported.length !== 1 ? "s" : ""} decompostos
+                      {ltMeta.unsupported.length > 0 && ` · ${ltMeta.unsupported.length} sem dados`}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Patrimônio</div>
+                    <div className="text-sm font-bold text-zinc-100">{compactBRL(sd.totalBRL)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Alocação</div>
+                    <div className="text-sm font-bold">
+                      <span className="text-blue-400">{rvP.toFixed(0)}% RV</span>
+                      <span className="text-zinc-600 mx-1">·</span>
+                      <span className="text-teal-400">{rfP.toFixed(0)}% RF</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Diversificação</div>
+                    <div className="text-sm font-bold text-zinc-200">{sd.sectors.length} setores · {sd.positions.length} ativos</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Concentração</div>
+                    <div className="text-sm font-bold text-zinc-200">
+                      Top 3 {setoresStats.top3.toFixed(0)}%
+                      <span className="text-[10px] text-zinc-600 ml-1">N eff {setoresStats.effN.toFixed(1)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {sectorConsolidated && ltMeta && (
+                  <div className="rounded-lg px-3 py-2 mt-3 flex items-start gap-2" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}>
+                    <Layers size={12} className="text-violet-400 mt-0.5 shrink-0" />
+                    <p className="text-[10px] text-zinc-500 leading-relaxed">
+                      ETFs decompostos nos ativos subjacentes.
+                      {ltMeta.supported.length > 0 && <> <b className="text-zinc-400">{ltMeta.supported.join(", ")}</b>.</>}
+                      {ltMeta.unsupported.length > 0 && <> Sem dados: <b className="text-zinc-400">{ltMeta.unsupported.join(", ")}</b>.</>}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Sunburst + Sidebar */}
           {sunburstData && sunburstData.level1.length > 0 && (
             <div className="glass-card p-5">
@@ -1099,6 +1177,92 @@ export default function ResumoPage() {
             </div>
           )}
 
+          {/* ── Mapa setorial (treemap) — respeita a lente ETFs abertos ── */}
+          {sectorTreemapData.length > 0 && (
+            <div className="glass-card p-4">
+              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                Mapa de Alocação Setorial{sectorConsolidated ? " · ETFs abertos" : ""}
+              </h3>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <Treemap data={sectorTreemapData} dataKey="value" nameKey="name" stroke="none" animationDuration={500}
+                    content={<SectorTreemapContent />}>
+                    <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
+                      formatter={(v: number) => compactBRL(v)} labelFormatter={(l: string) => l} />
+                  </Treemap>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* ── Detalhamento por setor (expande até o ativo) ── */}
+          {activeSetoresData && (() => {
+            const sd = activeSetoresData;
+            const toggleSector = (setor: string) => {
+              setExpandedSectors(prev => {
+                const next = new Set(prev);
+                if (next.has(setor)) next.delete(setor); else next.add(setor);
+                return next;
+              });
+            };
+            return (
+              <div className="glass-card p-4">
+                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                  Detalhamento por Setor ({sd.sectors.length})
+                </h3>
+                <div className="space-y-0.5">
+                  {sd.sectors.map(s => {
+                    const isExpanded = expandedSectors.has(s.setor);
+                    return (
+                      <div key={s.setor}>
+                        <button onClick={() => toggleSector(s.setor)}
+                          className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.03] transition-colors">
+                          {isExpanded ? <ChevronDown size={10} className="text-zinc-500 shrink-0" /> : <ChevronRight size={10} className="text-zinc-500 shrink-0" />}
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: sectorEconColor(s.setor) }} />
+                          <span className="text-xs font-semibold text-zinc-200 flex-1 text-left truncate">{s.setor}</span>
+                          <span className="text-[10px] text-zinc-600 font-mono shrink-0 w-6 text-right">{s.posicoes.length}</span>
+                          <span className="text-xs text-zinc-300 font-mono font-bold shrink-0 w-20 text-right">{compactBRL(s.valorBRL)}</span>
+                          <div className="w-14 shrink-0">
+                            <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(s.pct, 100)}%`, background: sectorEconColor(s.setor) }} />
+                            </div>
+                          </div>
+                          <span className="text-xs text-zinc-400 font-mono shrink-0 w-12 text-right">{s.pct.toFixed(1)}%</span>
+                        </button>
+                        {isExpanded && (
+                          <div className="ml-7 mr-1 mb-1.5">
+                            {s.posicoes.map(p => {
+                              const retTotal = p.retornoTotalPct ?? p.lucroPct;
+                              const pos = retTotal >= 0;
+                              return (
+                                <div key={p.ticker} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-white/[0.02] transition-colors">
+                                  <span className="text-[11px] font-bold text-zinc-300 w-16 truncate">{p.ticker}</span>
+                                  <span className="text-[10px] text-zinc-600 flex-1 truncate">{p.nome !== p.ticker ? p.nome : p.industry}</span>
+                                  <span className="text-[10px] text-zinc-500 font-mono w-14 text-right">{compactBRL(p.valorBRL)}</span>
+                                  <span className="text-[10px] text-zinc-600 font-mono w-10 text-right">
+                                    {sd.totalBRL > 0 ? ((p.valorBRL / sd.totalBRL) * 100).toFixed(1) : "0.0"}%
+                                  </span>
+                                  {p.tipo === "RV" ? (
+                                    <span className={`text-[10px] font-mono font-bold w-14 text-right flex items-center justify-end gap-0.5 ${pos ? "text-emerald-400" : "text-red-400"}`}>
+                                      {pos ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
+                                      {retTotal !== 0 ? `${pos ? "+" : ""}${retTotal.toFixed(1)}%` : "—"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-zinc-600 w-14 text-right">{p.moeda}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Currency + Custody row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Currency exposure */}
@@ -1143,67 +1307,79 @@ export default function ResumoPage() {
               ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
             </div>
 
-            {/* Sector pie */}
+            {/* Custódia (Brasil vs Exterior) */}
             <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><Globe size={15} />Setores</h2>
-              {sectorData.length > 0 ? (
-                <div className="flex items-start gap-6">
-                  <div className="flex-shrink-0 w-44">
-                    <ResponsiveContainer width="100%" height={160}>
-                      <PieChart>
-                        <Pie data={sectorData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} dataKey="value" stroke="none" paddingAngle={1}>
-                          {sectorData.map(entry => <Cell key={entry.name} fill={SECTOR_COLORS[entry.name] || "#71717a"} />)}
-                        </Pie>
-                        <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(v: number) => [compactBRL(v), "Valor"]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex-1 overflow-y-auto pt-2" style={{ maxHeight: 160 }}>
-                    <div className="space-y-1.5">
-                      {sectorData.map(s => {
-                        const total = sectorData.reduce((a, b) => a + b.value, 0);
-                        const p = total > 0 ? (s.value / total) * 100 : 0;
-                        return (
-                          <div key={s.name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLORS[s.name] || "#71717a" }} />
-                              <span className="text-[11px] text-zinc-500">{s.name}</span>
-                            </div>
-                            <span className="text-[11px] font-mono tabular-nums" style={{ color: SECTOR_COLORS[s.name] || "#71717a" }}>{p.toFixed(1)}%</span>
-                          </div>
-                        );
-                      })}
+              <h2 className="section-title mb-4"><Globe size={15} />Custódia</h2>
+              {composicao?.custodia ? (
+                <div className="grid grid-cols-2 gap-8">
+                  {[
+                    { label: "Brasil", value: composicao.custodia.brasil, pct: composicao.custodia.brasil_pct, color: "#3b82f6", icon: "🇧🇷" },
+                    { label: "Exterior", value: composicao.custodia.exterior, pct: composicao.custodia.exterior_pct, color: "#8b5cf6", icon: "🌐" },
+                  ].map(c => (
+                    <div key={c.label}>
+                      <div className="flex items-baseline justify-between mb-2">
+                        <span className="text-sm font-semibold text-zinc-300">{c.label}</span>
+                        <span className="text-xl font-bold" style={{ color: c.color }}>{c.pct.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-zinc-800/60 overflow-hidden mb-2">
+                        <div className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${c.pct}%`, backgroundColor: c.color, boxShadow: `0 0 12px ${c.color}40` }} />
+                      </div>
+                      <span className="text-sm text-zinc-400">{compactBRL(c.value)}</span>
                     </div>
-                  </div>
+                  ))}
                 </div>
               ) : <p className="text-zinc-600 text-sm">Sem dados.</p>}
             </div>
           </div>
 
-          {/* Custody (Brasil vs Exterior) */}
-          {composicao?.custodia && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><Globe size={15} />Custódia</h2>
-              <div className="grid grid-cols-2 gap-8">
-                {[
-                  { label: "Brasil", value: composicao.custodia.brasil, pct: composicao.custodia.brasil_pct, color: "#3b82f6", icon: "🇧🇷" },
-                  { label: "Exterior", value: composicao.custodia.exterior, pct: composicao.custodia.exterior_pct, color: "#8b5cf6", icon: "🌐" },
-                ].map(c => (
-                  <div key={c.label}>
-                    <div className="flex items-baseline justify-between mb-2">
-                      <span className="text-sm font-semibold text-zinc-300">{c.label}</span>
-                      <span className="text-xl font-bold" style={{ color: c.color }}>{c.pct.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2.5 rounded-full bg-zinc-800/60 overflow-hidden mb-2">
-                      <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${c.pct}%`, backgroundColor: c.color, boxShadow: `0 0 12px ${c.color}40` }} />
-                    </div>
-                    <span className="text-sm text-zinc-400">{compactBRL(c.value)}</span>
+          {/* ── Top posições + Top indústrias ── */}
+          {activeSetoresData && (() => {
+            const sd = activeSetoresData;
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="glass-card p-4">
+                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Top 15 Posições</h3>
+                  <div className="space-y-0.5">
+                    {sd.positions.slice(0, 15).map((p, i) => {
+                      const posPct = sd.totalBRL > 0 ? (p.valorBRL / sd.totalBRL) * 100 : 0;
+                      return (
+                        <div key={p.ticker} className="flex items-center gap-2 py-1">
+                          <span className="text-[10px] text-zinc-700 font-mono w-4 text-right">{i + 1}</span>
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sectorEconColor(p.setorEconomico) }} />
+                          <span className="text-[11px] font-bold text-zinc-200 w-16 truncate">{p.ticker}</span>
+                          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(posPct * 2.5, 100)}%`, background: sectorEconColor(p.setorEconomico), opacity: 0.6 }} />
+                          </div>
+                          <span className="text-[10px] text-zinc-400 font-mono w-10 text-right">{posPct.toFixed(1)}%</span>
+                          <span className="text-[10px] text-zinc-500 font-mono w-14 text-right">{compactBRL(p.valorBRL)}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+
+                {sectorIndustryBreakdown.length > 0 && (
+                  <div className="glass-card p-4">
+                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Top Indústrias</h3>
+                    <div className="space-y-0.5">
+                      {sectorIndustryBreakdown.slice(0, 15).map(ind => (
+                        <div key={`${ind.setor}|${ind.industry}`} className="flex items-center gap-2 py-1 px-1">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sectorEconColor(ind.setor) }} />
+                          <span className="text-[11px] text-zinc-300 flex-1 truncate">{ind.industry}</span>
+                          <span className="text-[9px] text-zinc-700 shrink-0">{ind.count}</span>
+                          <span className="text-[11px] text-zinc-300 font-mono font-bold shrink-0 w-16 text-right">{compactBRL(ind.valorBRL)}</span>
+                          <span className="text-[10px] text-zinc-500 font-mono shrink-0 w-10 text-right">
+                            {sd.totalBRL > 0 ? ((ind.valorBRL / sd.totalBRL) * 100).toFixed(1) : "0.0"}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Pareto */}
           {filteredPareto.length > 0 && (
@@ -1243,252 +1419,35 @@ export default function ResumoPage() {
                   do portfólio
                 </p>
               )}
+
+              {/* Concentração setorial (mesma lente do detalhamento) */}
+              {setoresStats && activeSetoresData && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4" style={{ borderTop: "1px solid var(--line)" }}>
+                  {[
+                    { label: "Top 1 setor", value: setoresStats.sorted[0]?.pct ?? 0 },
+                    { label: "Top 3 setores", value: setoresStats.top3 },
+                    { label: "Top 5 setores", value: setoresStats.top5 },
+                    { label: "# Efetivo (1/HHI)", value: setoresStats.effN, isCount: true },
+                  ].map(c => (
+                    <div key={c.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-zinc-500">{c.label}</span>
+                        <span className="text-xs text-zinc-300 font-mono font-bold">
+                          {c.isCount ? c.value.toFixed(1) : `${c.value.toFixed(1)}%`}
+                        </span>
+                      </div>
+                      <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div className="h-full rounded-full" style={{
+                          width: `${Math.min(c.isCount ? (c.value / activeSetoresData.sectors.length) * 100 : c.value, 100)}%`,
+                          background: (!c.isCount && c.value > 60) ? "#f59e0b" : "#3b82f6",
+                        }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-           TAB: SETORES
-         ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "setores" && (
-        <div className="space-y-4 animate-fade-in">
-          {(setoresLoading || (sectorConsolidated && setoresLtLoading)) && (
-            <div className="flex items-center gap-2 text-xs text-zinc-500 py-4">
-              <Loader2 size={14} className="animate-spin" /> Carregando dados setoriais…
-            </div>
-          )}
-
-          {activeSetoresData && (() => {
-            const sd = activeSetoresData;
-            const rvP = sd.totalBRL > 0 ? (sd.rvBRL / sd.totalBRL) * 100 : 0;
-            const rfP = sd.totalBRL > 0 ? (sd.rfBRL / sd.totalBRL) * 100 : 0;
-            const sorted = [...sd.sectors].sort((a, b) => b.pct - a.pct);
-            const top3 = sorted.slice(0, 3).reduce((s, x) => s + x.pct, 0);
-            const hhi = sorted.reduce((s, x) => s + (x.pct / 100) ** 2, 0);
-            const effN = hhi > 0 ? 1 / hhi : 0;
-            const ltMeta = setoresLtData?.lookthrough;
-
-            const toggleSector = (setor: string) => {
-              setExpandedSectors(prev => {
-                const next = new Set(prev);
-                if (next.has(setor)) next.delete(setor); else next.add(setor);
-                return next;
-              });
-            };
-
-            return (
-              <>
-                {/* View toggle + summary strip */}
-                <div className="glass-card p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                    <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>
-                      <button onClick={() => setSectorConsolidated(false)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors"
-                        style={{ background: !sectorConsolidated ? "var(--accent-wash)" : "transparent", color: !sectorConsolidated ? "var(--accent)" : "var(--muted)" }}>
-                        <Eye size={11} /> Padrão
-                      </button>
-                      <button onClick={() => setSectorConsolidated(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors"
-                        style={{ background: sectorConsolidated ? "rgba(139,92,246,0.12)" : "transparent", color: sectorConsolidated ? "#a78bfa" : "var(--muted)" }}>
-                        <Layers size={11} /> Consolidada
-                      </button>
-                    </div>
-                    {sectorConsolidated && ltMeta && (
-                      <span className="text-[10px] text-zinc-600">
-                        {ltMeta.supported.length} ETF{ltMeta.supported.length !== 1 ? "s" : ""} decompostos
-                        {ltMeta.unsupported.length > 0 && ` · ${ltMeta.unsupported.length} sem dados`}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Compact metrics strip */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Patrimônio</div>
-                      <div className="text-sm font-bold text-zinc-100">{compactBRL(sd.totalBRL)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Alocação</div>
-                      <div className="text-sm font-bold">
-                        <span className="text-blue-400">{rvP.toFixed(0)}% RV</span>
-                        <span className="text-zinc-600 mx-1">·</span>
-                        <span className="text-teal-400">{rfP.toFixed(0)}% RF</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Diversificação</div>
-                      <div className="text-sm font-bold text-zinc-200">{sd.sectors.length} setores · {sd.positions.length} ativos</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">Concentração</div>
-                      <div className="text-sm font-bold text-zinc-200">
-                        Top 3 {top3.toFixed(0)}%
-                        <span className="text-[10px] text-zinc-600 ml-1">N eff {effN.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {sectorConsolidated && ltMeta && (
-                  <div className="rounded-lg px-3 py-2.5 flex items-start gap-2" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}>
-                    <Layers size={12} className="text-violet-400 mt-0.5 shrink-0" />
-                    <p className="text-[10px] text-zinc-500 leading-relaxed">
-                      ETFs decompostos nos ativos subjacentes.
-                      {ltMeta.supported.length > 0 && <> <b className="text-zinc-400">{ltMeta.supported.join(", ")}</b>.</>}
-                      {ltMeta.unsupported.length > 0 && <> Sem dados: <b className="text-zinc-400">{ltMeta.unsupported.join(", ")}</b>.</>}
-                    </p>
-                  </div>
-                )}
-
-                {/* Treemap */}
-                {sectorTreemapData.length > 0 && (
-                  <div className="glass-card p-4">
-                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Mapa de Alocação Setorial</h3>
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <Treemap data={sectorTreemapData} dataKey="value" nameKey="name" stroke="none" animationDuration={500}
-                          content={<SectorTreemapContent />}>
-                          <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                            formatter={(v: number) => compactBRL(v)} labelFormatter={(l: string) => l} />
-                        </Treemap>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sector breakdown table */}
-                <div className="glass-card p-4">
-                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">
-                    Detalhamento por Setor ({sd.sectors.length})
-                  </h3>
-                  <div className="space-y-0.5">
-                    {sd.sectors.map(s => {
-                      const isExpanded = expandedSectors.has(s.setor);
-                      return (
-                        <div key={s.setor}>
-                          <button onClick={() => toggleSector(s.setor)}
-                            className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.03] transition-colors">
-                            {isExpanded ? <ChevronDown size={10} className="text-zinc-500 shrink-0" /> : <ChevronRight size={10} className="text-zinc-500 shrink-0" />}
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: sectorEconColor(s.setor) }} />
-                            <span className="text-xs font-semibold text-zinc-200 flex-1 text-left truncate">{s.setor}</span>
-                            <span className="text-[10px] text-zinc-600 font-mono shrink-0 w-6 text-right">{s.posicoes.length}</span>
-                            <span className="text-xs text-zinc-300 font-mono font-bold shrink-0 w-20 text-right">{compactBRL(s.valorBRL)}</span>
-                            <div className="w-14 shrink-0">
-                              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                <div className="h-full rounded-full" style={{ width: `${Math.min(s.pct, 100)}%`, background: sectorEconColor(s.setor) }} />
-                              </div>
-                            </div>
-                            <span className="text-xs text-zinc-400 font-mono shrink-0 w-12 text-right">{s.pct.toFixed(1)}%</span>
-                          </button>
-                          {isExpanded && (
-                            <div className="ml-7 mr-1 mb-1.5">
-                              {s.posicoes.map(p => {
-                                const retTotal = p.retornoTotalPct ?? p.lucroPct;
-                                const pos = retTotal >= 0;
-                                return (
-                                  <div key={p.ticker} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-white/[0.02] transition-colors">
-                                    <span className="text-[11px] font-bold text-zinc-300 w-16 truncate">{p.ticker}</span>
-                                    <span className="text-[10px] text-zinc-600 flex-1 truncate">{p.nome !== p.ticker ? p.nome : p.industry}</span>
-                                    <span className="text-[10px] text-zinc-500 font-mono w-14 text-right">{compactBRL(p.valorBRL)}</span>
-                                    <span className="text-[10px] text-zinc-600 font-mono w-10 text-right">
-                                      {sd.totalBRL > 0 ? ((p.valorBRL / sd.totalBRL) * 100).toFixed(1) : "0.0"}%
-                                    </span>
-                                    {p.tipo === "RV" && (
-                                      <span className={`text-[10px] font-mono font-bold w-14 text-right flex items-center justify-end gap-0.5 ${pos ? "text-emerald-400" : "text-red-400"}`}>
-                                        {pos ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
-                                        {retTotal !== 0 ? `${pos ? "+" : ""}${retTotal.toFixed(1)}%` : "—"}
-                                      </span>
-                                    )}
-                                    {p.tipo !== "RV" && (
-                                      <span className="text-[10px] text-zinc-600 w-14 text-right">{p.moeda}</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Bottom row: Top Positions + Industry */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Top 15 */}
-                  <div className="glass-card p-4">
-                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Top 15 Posições</h3>
-                    <div className="space-y-0.5">
-                      {sd.positions.slice(0, 15).map((p, i) => {
-                        const posPct = sd.totalBRL > 0 ? (p.valorBRL / sd.totalBRL) * 100 : 0;
-                        return (
-                          <div key={p.ticker} className="flex items-center gap-2 py-1">
-                            <span className="text-[10px] text-zinc-700 font-mono w-4 text-right">{i + 1}</span>
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sectorEconColor(p.setorEconomico) }} />
-                            <span className="text-[11px] font-bold text-zinc-200 w-16 truncate">{p.ticker}</span>
-                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-                              <div className="h-full rounded-full" style={{ width: `${Math.min(posPct * 2.5, 100)}%`, background: sectorEconColor(p.setorEconomico), opacity: 0.6 }} />
-                            </div>
-                            <span className="text-[10px] text-zinc-400 font-mono w-10 text-right">{posPct.toFixed(1)}%</span>
-                            <span className="text-[10px] text-zinc-500 font-mono w-14 text-right">{compactBRL(p.valorBRL)}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Industry breakdown */}
-                  {sectorIndustryBreakdown.length > 0 && (
-                    <div className="glass-card p-4">
-                      <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Top Indústrias</h3>
-                      <div className="space-y-0.5">
-                        {sectorIndustryBreakdown.slice(0, 15).map(ind => (
-                          <div key={`${ind.setor}|${ind.industry}`} className="flex items-center gap-2 py-1 px-1">
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sectorEconColor(ind.setor) }} />
-                            <span className="text-[11px] text-zinc-300 flex-1 truncate">{ind.industry}</span>
-                            <span className="text-[9px] text-zinc-700 shrink-0">{ind.count}</span>
-                            <span className="text-[11px] text-zinc-300 font-mono font-bold shrink-0 w-16 text-right">{compactBRL(ind.valorBRL)}</span>
-                            <span className="text-[10px] text-zinc-500 font-mono shrink-0 w-10 text-right">
-                              {sd.totalBRL > 0 ? ((ind.valorBRL / sd.totalBRL) * 100).toFixed(1) : "0.0"}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Concentration bar */}
-                <div className="glass-card p-4">
-                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Concentração</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[
-                      { label: "Top 1 setor", value: sorted[0]?.pct ?? 0 },
-                      { label: "Top 3 setores", value: top3 },
-                      { label: "Top 5 setores", value: sorted.slice(0, 5).reduce((s, x) => s + x.pct, 0) },
-                      { label: "# Efetivo (1/HHI)", value: effN, isCount: true },
-                    ].map(c => (
-                      <div key={c.label}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-zinc-500">{c.label}</span>
-                          <span className="text-xs text-zinc-300 font-mono font-bold">
-                            {c.isCount ? c.value.toFixed(1) : `${c.value.toFixed(1)}%`}
-                          </span>
-                        </div>
-                        <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                          <div className="h-full rounded-full" style={{
-                            width: `${Math.min(c.isCount ? (c.value / sd.sectors.length) * 100 : c.value, 100)}%`,
-                            background: (!c.isCount && c.value > 60) ? "#f59e0b" : "#3b82f6",
-                          }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            );
-          })()}
         </div>
       )}
 
