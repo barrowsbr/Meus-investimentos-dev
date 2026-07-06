@@ -223,6 +223,18 @@ const DIRECT_FEEDS: Feed[] = [
   { url: "https://valorinveste.globo.com/feed/rss/ultimas-noticias.ghtml", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "Valor Investe" },
   { url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", categoria: "Global", lang: "en", max: 4, kind: "direct", fonte: "CNBC" },
   { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "MarketWatch" },
+  // ── Ampliação de fontes (pedido do dono): veículos com imagem real no feed ──
+  { url: "https://braziljournal.com/feed/", categoria: "Mercado", lang: "pt", max: 4, kind: "direct", fonte: "Brazil Journal" },
+  { url: "https://neofeed.com.br/feed/", categoria: "Mercado", lang: "pt", max: 3, kind: "direct", fonte: "NeoFeed" },
+  { url: "https://investnews.com.br/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "InvestNews" },
+  { url: "https://einvestidor.estadao.com.br/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "E-Investidor" },
+  { url: "https://www.seudinheiro.com/feed/", categoria: "Mercado", lang: "pt", max: 3, kind: "direct", fonte: "Seu Dinheiro" },
+  { url: "https://www.cnnbrasil.com.br/economia/feed/", categoria: "Economia", lang: "pt", max: 3, kind: "direct", fonte: "CNN Brasil" },
+  { url: "https://www.suno.com.br/noticias/feed/", categoria: "Investimentos", lang: "pt", max: 3, kind: "direct", fonte: "Suno" },
+  { url: "https://cointelegraph.com.br/rss", categoria: "Cripto", lang: "pt", max: 3, kind: "direct", fonte: "Cointelegraph" },
+  { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", categoria: "Cripto", lang: "en", max: 3, kind: "direct", fonte: "CoinDesk" },
+  { url: "https://finance.yahoo.com/news/rssindex", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "Yahoo Finance" },
+  { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", categoria: "Global", lang: "en", max: 3, kind: "direct", fonte: "CNBC" },
 ];
 
 // Feeds do Google News — usados para AMPLITUDE/relevância de manchetes. A imagem
@@ -416,7 +428,7 @@ export async function GET() {
       return db - da;
     });
 
-    const pool = deduped.slice(0, 30);
+    const pool = deduped.slice(0, 36);
 
     // Traduzir manchetes em inglês.
     const english = pool.filter(t => t._lang === "en");
@@ -474,7 +486,7 @@ export async function GET() {
       return db - da;
     });
 
-    let top = pool.slice(0, 20);
+    let top = pool.slice(0, 24);
     const firstWithImg = top.findIndex(t => t.imagem);
     if (firstWithImg > 0) {
       const [hero] = top.splice(firstWithImg, 1);

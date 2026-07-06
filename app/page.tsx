@@ -471,6 +471,7 @@ function catGradient(cat: string): string {
     "Macro": ["#da3633", "#5e1513"],
     "Commodities": ["#bb8009", "#4d3206"],
     "Tech": ["#1f6feb", "#8957e5"],
+    "Cripto": ["#F7931A", "#7a4200"],
   };
   const c = map[cat] ?? ["#30363d", "#161b22"];
   return `linear-gradient(135deg, ${c[0]} 0%, ${c[1]} 100%)`;
@@ -552,7 +553,15 @@ function NoticiasDestaques() {
   if (articles.length === 0) return null;
 
   const featured = sorted[0];
-  const rest = sorted.slice(1);
+  // Sub-destaques: as 2 manchetes seguintes COM imagem ganham cards grandes;
+  // o restante cai na grade compacta.
+  const tail = sorted.slice(1);
+  const subs: DestaqueItem[] = [];
+  const rest: DestaqueItem[] = [];
+  for (const a of tail) {
+    if (subs.length < 2 && a.imagem) subs.push(a);
+    else rest.push(a);
+  }
 
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
@@ -618,6 +627,46 @@ function NoticiasDestaques() {
           </div>
         </div>
       </a>
+
+      {/* Sub-destaques — 2 manchetes com imagem grande */}
+      {subs.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ borderBottom: "1px solid var(--line)" }}>
+          {subs.map((article, i) => {
+            const sty = IMPACTO_STYLE[article.impacto];
+            return (
+              <a
+                key={i}
+                href={article.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block transition-colors hover:bg-white/[0.02]"
+                style={{ borderRight: i === 0 && subs.length > 1 ? "1px solid var(--line)" : undefined }}
+              >
+                <div className="relative h-[130px] overflow-hidden flex items-center justify-center" style={{ background: "var(--hover)" }}>
+                  <NewsThumb imagem={article.imagem} categoria={article.categoria} size="lg" />
+                  <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 55%)" }} />
+                  <span
+                    className="absolute left-2.5 bottom-2 inline-flex items-center gap-1 px-1.5 py-0.5 font-mono text-[8px] font-bold"
+                    style={{ background: "rgba(0,0,0,0.55)", border: `1px solid ${sty.border}`, color: sty.color === "var(--muted)" ? "#ddd" : sty.color, backdropFilter: "blur(4px)" }}
+                  >
+                    {article.impacto === "alto" && <AlertTriangle size={8} />}
+                    {sty.label} · {article.categoria.toUpperCase()}
+                  </span>
+                </div>
+                <div className="p-3">
+                  <p className="text-[14px] font-semibold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-2" style={{ color: "var(--text)" }}>
+                    {article.titulo}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5 font-mono text-[9px]" style={{ color: "var(--faint)" }}>
+                    <span className="font-semibold" style={{ color: "var(--muted)" }}>{article.fonte}</span>
+                    {article.data && (<><span>·</span><span>{timeAgo(article.data)}</span></>)}
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
 
       {/* Grid of remaining articles */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
