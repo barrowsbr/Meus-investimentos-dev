@@ -1054,27 +1054,10 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProp
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
-interface IndexQuote {
-  price: number;
-  changePct: number;
-}
-
 export default function HomePage() {
   const { data, loading } = usePortfolio();
-  const [nasdaq, setNasdaq] = useState<IndexQuote | null>(null);
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
-  const [ibkrLoaded, setIbkrLoaded] = useState(false);
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch("/api/bolsas")
-      .then((r) => r.json())
-      .then((d) => {
-        const ndx = (d?.indices ?? []).find((i: { symbol: string }) => i.symbol === "^NDX");
-        if (ndx) setNasdaq({ price: ndx.price, changePct: ndx.changePct });
-      })
-      .catch(() => {});
-  }, []);
 
   // Fonte âncora do retorno do dia: API da IBKR (book internacional, sem erro).
   // Uma tentativa extra após 2,5s: em cold start a geração do Flex pode estourar
@@ -1089,7 +1072,6 @@ export default function HomePage() {
         if (!cancelled) d = await tryFetch();
       }
       if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData);
-      if (!cancelled) setIbkrLoaded(true);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -1129,7 +1111,6 @@ export default function HomePage() {
   // um valor só-IBKR antes do BR/Cripto entrarem).
   const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL : null;
   const totalBRL = patrimonioDiaClient ?? patrimonioDia ?? totalBRLCanon;
-  const totalUSD = totalBRL !== null && usdbrl ? totalBRL / usdbrl : null;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
   const usdDayChangePct = typeof data?.fxDayChange?.USD?.changePct === "number" ? data.fxDayChange.USD.changePct : null;
@@ -1214,20 +1195,6 @@ export default function HomePage() {
 
   const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
   const dayPctFinal = dayReturn?.pct ?? dayChangePct;
-  const isDayUp = (dayBRLfinal ?? 0) >= 0;
-
-  const sessionTag = useMemo(() => {
-    if (!data?.positions) return null;
-    const states = new Set<string>();
-    for (const p of data.positions) {
-      if (!p?.ticker || (p.quantidade ?? 0) <= 0 || isRendaFixa(p.setor ?? "")) continue;
-      if (p.marketState) states.add(p.marketState);
-    }
-    if (states.has("REGULAR")) return null;
-    if (states.has("PRE") || states.has("PREPRE")) return "PRÉ";
-    if (states.has("POST") || states.has("POSTPOST")) return "PÓS";
-    return null;
-  }, [data?.positions]);
 
   const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase().replace(".", "");
   const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(".", "");
@@ -1262,9 +1229,9 @@ export default function HomePage() {
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
       <div className="w-full space-y-0">
 
-        {/* ── Row 1: Hero + Metrics ── */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-0 animate-fade-in">
-          {/* Left: Logo + greeting */}
+        {/* ── Row 1: Hero (logo + saudação) ── */}
+        <div className="animate-fade-in">
+          {/* Logo + greeting */}
           <div className="flex items-center gap-4">
             <Image
               src="/midias/carregamento.png"
@@ -1301,93 +1268,31 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right: Metrics strip — 2x2 on mobile, 4 inline on desktop */}
-          <div
-            className="grid grid-cols-2 md:grid-cols-4"
-            style={{ border: "1px solid var(--line)", background: "var(--panel)" }}
-          >
-            {/* Patrimônio */}
-            <Link href="/patrimonio" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Patrimônio</span>
-              {loading || totalBRL === null ? (
-                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
-              ) : (
-                <>
-                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>{compactBRL(totalBRL)}</span>
-                  {totalUSD !== null && (
-                    <span className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
-                      US$ {totalUSD >= 1000 ? `${(totalUSD / 1000).toFixed(0)}k` : Number(totalUSD).toFixed(0)}
-                    </span>
-                  )}
-                </>
-              )}
-            </Link>
-
-            {/* Retorno Dia */}
-            <Link href="/hoje" className="flex flex-col items-center justify-center px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors" style={{ borderBottom: "1px solid var(--line)" }}>
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>
-                Retorno Dia{sessionTag ? <span style={{ color: "var(--accent)", marginLeft: 4, fontSize: 8 }}>{sessionTag}</span> : null}
-              </span>
-              {loading || !ibkrLoaded || dayPctFinal === null ? (
-                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
-              ) : (
-                <>
-                  <span className="font-mono text-lg font-bold tnum" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)" }}>
-                    {pct(dayPctFinal)}
-                  </span>
-                  {dayBRLfinal !== null && (
-                    <span className="font-mono text-[9px] mt-0.5" style={{ color: isDayUp ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
-                      {isDayUp ? "+" : ""}{compactBRL(dayBRLfinal)}
-                    </span>
-                  )}
-                </>
-              )}
-            </Link>
-
-            {/* Dólar */}
-            <div className="flex flex-col items-center justify-center px-4 py-3" style={{ borderRight: "1px solid var(--line)" }}>
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Dólar</span>
-              {loading || usdbrl === null ? (
-                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
-              ) : (
-                <>
-                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>
-                    R$ {Number(usdbrl).toFixed(3)}
-                  </span>
-                  {usdDayChangePct !== null && (
-                    <span className="font-mono text-[9px] mt-0.5" style={{ color: (usdDayChangePct ?? 0) >= 0 ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
-                      {(usdDayChangePct ?? 0) >= 0 ? "+" : ""}{Number(usdDayChangePct).toFixed(2)}%
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Nasdaq 100 */}
-            <div className="flex flex-col items-center justify-center px-4 py-3">
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--faint)" }}>Nasdaq 100</span>
-              {!nasdaq ? (
-                <span className="font-mono text-lg font-bold animate-pulse" style={{ color: "var(--muted)" }}>—</span>
-              ) : (
-                <>
-                  <span className="font-mono text-lg font-bold tnum" style={{ color: "var(--text)" }}>
-                    {nasdaq.price >= 10000 ? `${(nasdaq.price / 1000).toFixed(1)}k` : nasdaq.price.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                  </span>
-                  <span className="font-mono text-[9px] mt-0.5" style={{ color: nasdaq.changePct >= 0 ? "var(--pos)" : "var(--neg)", opacity: 0.7 }}>
-                    {nasdaq.changePct >= 0 ? "+" : ""}{nasdaq.changePct.toFixed(2)}%
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
         </div>
 
-        {/* ── IBKR · Retorno do dia em US$ (entre métricas e ticker) ── */}
+        {/* ── Row 2: Cotações rolantes — primeira coisa depois da saudação ── */}
+        {!loading && tickerItems.length > 0 && (
+          <ErrorBoundary>
+            <div className="mt-3 animate-fade-in">
+              <TickerTape items={tickerItems} />
+            </div>
+          </ErrorBoundary>
+        )}
+
+        {/* ── Skeleton das faixas enquanto o snapshot carrega ── */}
+        {loading && (
+          <div className="mt-4 flex flex-col gap-3 animate-pulse">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} style={{ height: 66, border: "1px solid var(--line)", background: "var(--panel)" }} />
+            ))}
+          </div>
+        )}
+
+        {/* ── Row 3: faixas do retorno do dia (IBKR · Brasil · Bitcoin · Câmbio) ── */}
         <ErrorBoundary fallback={null}>
           <IbkrDayStrip data={ibkrOverview} />
         </ErrorBoundary>
 
-        {/* ── Brasil (B3) e Bitcoin · retorno do dia — mesma identidade da IBKR ── */}
         <ErrorBoundary fallback={null}>
           <BrDayStrip
             dayBRL={brDayBRL}
@@ -1414,16 +1319,7 @@ export default function HomePage() {
           <DayStripsTotal brl={dayBRLfinal} pctVal={dayPctFinal} />
         </ErrorBoundary>
 
-        {/* ── Row 2: Ticker Tape ── */}
-        {!loading && tickerItems.length > 0 && (
-          <ErrorBoundary>
-            <div className="mt-4 animate-fade-in animate-delay-1">
-              <TickerTape items={tickerItems} />
-            </div>
-          </ErrorBoundary>
-        )}
-
-        {/* ── Row 3: Radar + Polymarket (two columns) ── */}
+        {/* ── Row 4: Radar + Polymarket (two columns) ── */}
         {!loading && data && tickerItems.length > 0 && (
           <ErrorBoundary>
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 animate-fade-in animate-delay-2">
@@ -1433,7 +1329,7 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Row 4: Notícias Destaques ── */}
+        {/* ── Row 5: Notícias Destaques ── */}
         {!loading && (
           <ErrorBoundary>
             <div className="mt-4 animate-fade-in animate-delay-3">
