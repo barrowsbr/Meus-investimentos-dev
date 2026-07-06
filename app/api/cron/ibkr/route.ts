@@ -18,7 +18,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const report = await runFlexSync({ mode: "both", dryRun: false });
+    // Trava de volume: o cron insere sozinho até 40 linhas novas por aba; acima
+    // disso é anomalia (dedup falhou?) — bloqueia e pede revisão manual.
+    const report = await runFlexSync({ mode: "both", dryRun: false, maxNovos: 40 });
     return NextResponse.json({ ok: true, ranAt: new Date().toISOString(), ...report });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

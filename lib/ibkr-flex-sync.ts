@@ -38,16 +38,20 @@ function maxExistingISO(rows: Record<string, unknown>[], aliases: string[]): str
   return max;
 }
 
-// Filtro de segurança: só é "novo de verdade" se a data for ESTRITAMENTE
-// posterior ao último dado da aba. Garante que o histórico existente nunca é
-// reescrito/duplicado — só entra o que é genuinamente novo (data futura).
+// (2026-07) O corte por data deixou de BLOQUEAR: linha apagada da planilha
+// (caso VOW3.DE do dono) ou um 2º trade do MESMO dia de outro já gravado
+// ficavam irrecuperáveis para sempre — o dedup por assinatura (ticker base +
+// tipo + qtd + preço, com ordens fragmentadas e splits) é o guardião real
+// contra duplicatas. O corte segue no relatório como informação
+// (anteriores_ao_corte) e o CRON tem trava de volume (maxNovos) como cinto
+// de segurança caso a dedup enlouqueça.
 function afterCutoff(rawDate: string, cutoff: string): boolean {
   if (!cutoff) return true; // aba vazia → aceita tudo
   return normalizeDate(rawDate) > cutoff;
 }
 
 export async function runFlexSync(
-  opts: { mode?: string; dryRun?: boolean; debug?: boolean } = {},
+  opts: { mode?: string; dryRun?: boolean; debug?: boolean; maxNovos?: number } = {},
 ): Promise<Record<string, unknown>> {
   const mode = opts.mode ?? "both";
   const dryRun = opts.dryRun ?? false;
@@ -118,13 +122,12 @@ export async function runFlexSync(
     const existing = await store.fetchTab("meus_proventos");
     const st = dedupProventos(existing, proventos);
     const cutoff = maxExistingISO(existing, ["data", "date", "pagamento"]);
-    const novosDedup = proventos.filter((_, i) => st.get(i) === "novo");
-    const novos = novosDedup.filter((p) => afterCutoff(p.data, cutoff));
+    const novos = proventos.filter((_, i) => st.get(i) === "novo");
     result.proventos = {
       total: proventos.length,
       corte_data: cutoff,
       faltantes: novos.length,
-      bloqueados_por_data: novosDedup.length - novos.length,
+      anteriores_ao_corte: novos.filter((p) => !afterCutoff(p.data, cutoff)).length,
       preview: novos.slice(0, 300),
     };
 
@@ -164,7 +167,10 @@ export async function runFlexSync(
       };
     }
 
-    if (!dryRun && novos.length > 0) {
+    if (!dryRun && opts.maxNovos && novos.length > opts.maxNovos) {
+      (result.proventos as Record<string, unknown>).bloqueado_por_volume =
+        `${novos.length} novos > trava de ${opts.maxNovos} — rode manualmente em Configurações para revisar`;
+    } else if (!dryRun && novos.length > 0) {
       await backupTab("meus_proventos").catch(() => {});
       // Header-aware: grava cada campo na coluna certa pelo NOME (não por posição),
       // senão a data cai em "lançamento" e o Sheets a vira serial.
@@ -180,8 +186,7 @@ export async function runFlexSync(
     const existing = await store.fetchTab("meus_ativos");
     const st = dedupTrades(existing, trades);
     const cutoff = maxExistingISO(existing, ["data", "date"]);
-    const novosDedup = trades.filter((_, i) => st.get(i) === "novo");
-    const novos = novosDedup.filter((t) => afterCutoff(t.Data, cutoff));
+    const novos = trades.filter((_, i) => st.get(i) === "novo");
     const splits = trades.filter((_, i) => st.get(i) === "split");
     const preview = trades
       .map((t, i) => ({ ...t, status_match: st.get(i) }))
@@ -193,7 +198,7 @@ export async function runFlexSync(
       existing_count: existing.length,
       corte_data: cutoff,
       faltantes: novos.length,
-      bloqueados_por_data: novosDedup.length - novos.length,
+      anteriores_ao_corte: novos.filter((t) => !afterCutoff(t.Data, cutoff)).length,
       potential_splits: splits.length,
       preview,
     };
@@ -218,7 +223,10 @@ export async function runFlexSync(
       };
     }
 
-    if (!dryRun && novos.length > 0) {
+    if (!dryRun && opts.maxNovos && novos.length > opts.maxNovos) {
+      (result.trades as Record<string, unknown>).bloqueado_por_volume =
+        `${novos.length} novos > trava de ${opts.maxNovos} — rode manualmente em Configurações para revisar`;
+    } else if (!dryRun && novos.length > 0) {
       await backupTab("meus_ativos").catch(() => {});
       const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
       const rows = tradeRowsForSheet(headers, novos);
@@ -232,17 +240,19 @@ export async function runFlexSync(
     const existing = await store.fetchTab("cambio");
     const st = dedupCambio(existing, cambio);
     const cutoff = maxExistingISO(existing, ["data", "date"]);
-    const novosDedup = cambio.filter((_, i) => st.get(i) === "novo");
-    const novos = novosDedup.filter((c) => afterCutoff(c.data, cutoff));
+    const novos = cambio.filter((_, i) => st.get(i) === "novo");
     result.cambio = {
       total: cambio.length,
       corte_data: cutoff,
       faltantes: novos.length,
-      bloqueados_por_data: novosDedup.length - novos.length,
+      anteriores_ao_corte: novos.filter((c) => !afterCutoff(c.data, cutoff)).length,
       preview: novos.slice(0, 300),
     };
 
-    if (!dryRun && novos.length > 0) {
+    if (!dryRun && opts.maxNovos && novos.length > opts.maxNovos) {
+      (result.cambio as Record<string, unknown>).bloqueado_por_volume =
+        `${novos.length} novos > trava de ${opts.maxNovos} — rode manualmente em Configurações para revisar`;
+    } else if (!dryRun && novos.length > 0) {
       await backupTab("cambio").catch(() => {});
       const headers = existing.length > 0 ? Object.keys(existing[0]) : [];
       const rows = cambioRowsForSheet(headers, novos);
