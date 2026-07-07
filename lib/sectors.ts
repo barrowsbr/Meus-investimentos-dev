@@ -18,7 +18,17 @@ const RENDA_FIXA_USD = new Set<string>([]);
 
 const ETFS_USA = new Set(["SPY", "QQQ", "VWRA", "VOO", "VNQ", "SCHD", "VT", "FLJP", "SHV", "BIL", "VDST"]);
 
+// Termos de RF casam por PALAVRA INTEIRA (delimitada por não-alfanumérico),
+// nunca por substring — senão tickers de bolsa viram "Renda Fixa" por acidente:
+// VULC3 (contém LC), CASH3 (CASH), LCAM3 (LCA), TELB4? etc. O bug era invisível
+// com o cache de metadados do Yahoo quente (a meta corrige antes), mas em cold
+// start reclassificava o ativo e a Home movia o valor de "Brasil" para "RF".
 const RF_TERMS = ["TESOURO", "NTN", "NTB", "LFT", "LTN", "LCI", "LCA", "CDB", "LC", "DEBENTURE", "CASH", "CAIXA"];
+const RF_TERMS_RE = new RegExp(`(^|[^A-Z0-9])(${RF_TERMS.join("|")})([^A-Z0-9]|$)`);
+// Códigos de tesouro/instrumento com dígito colado (NTNB35, LFT2029, CDB110) —
+// o termo precisa começar o nome e vir seguido de dígito; tickers B3 de 4 letras
+// (LCAM3, CASH3) não casam porque a 4ª letra quebra o padrão.
+const RF_PREFIX_RE = /^(TESOURO|NTN[BF]?|NTB|LFT|LTN|LCI|LCA|CDB)\d/;
 
 const UNITS_ACOES = new Set([
   "KLBN11", "SAPR11", "TAEE11", "ALUP11", "SANB11", "BPAC11",
@@ -90,7 +100,7 @@ export function identificarSetor(ticker: string): string {
 
   if (RENDA_FIXA_USD.has(tClean)) return "Renda Fixa USD";
 
-  if (RF_TERMS.some((term) => tClean.includes(term))) return "Renda Fixa";
+  if (RF_TERMS_RE.test(tClean) || RF_PREFIX_RE.test(tClean)) return "Renda Fixa";
 
   const lastChar = tClean[tClean.length - 1];
   if (lastChar >= "0" && lastChar <= "9") {
