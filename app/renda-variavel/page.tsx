@@ -80,6 +80,7 @@ interface Transaction {
   valorBruto: number;
   moeda: string;
   corretora: string;
+  taxas?: number;
 }
 
 function parseTransactions(rows: Record<string, unknown>[]): Transaction[] {
@@ -90,9 +91,10 @@ function parseTransactions(rows: Record<string, unknown>[]): Transaction[] {
     const quantidade = Number(String(row["quantidade"] ?? row["Quantidade"] ?? "0").replace(",", ".")) || 0;
     const preco = Number(String(row["preço"] ?? row["preco"] ?? row["Preço"] ?? "0").replace(",", ".")) || 0;
     const valorBruto = Number(String(row["valor bruto"] ?? row["valor_bruto"] ?? row["Valor bruto"] ?? "0").replace(",", ".")) || 0;
+    const taxas = Number(String(row["taxa de corretagem"] ?? row["taxas"] ?? row["taxa"] ?? "0").replace(",", ".")) || 0;
     const moeda = String(row["moeda"] ?? row["Moeda"] ?? "BRL").toUpperCase().trim();
     const corretora = String(row["corretora"] ?? row["Corretora"] ?? "");
-    return { data: dataRaw, tipo, ticker, quantidade, preco, valorBruto: valorBruto || quantidade * preco, moeda, corretora };
+    return { data: dataRaw, tipo, ticker, quantidade, preco, valorBruto: valorBruto || quantidade * preco, moeda, corretora, taxas };
   }).filter(t => t.ticker && t.quantidade > 0);
 }
 

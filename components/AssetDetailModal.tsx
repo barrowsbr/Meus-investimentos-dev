@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, StickyNote, ExternalLink } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
+import { calcularLucroPorVenda } from "@/lib/portfolio";
 import { brl, currency, pct } from "@/lib/format";
 import { displayName } from "@/lib/asset-brands";
 import { yahooTicker } from "@/lib/yahoo-symbol";
@@ -21,6 +22,7 @@ export interface AssetTx {
   valorBruto: number;
   moeda: string;
   corretora: string;
+  taxas?: number;
 }
 
 const SECTOR_COLORS: Record<string, string> = {
@@ -158,6 +160,10 @@ export default function AssetDetailModal({
     .filter((tx) => tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy"))
     .map((tx) => ({ date: tx.data, price: tx.preco, quantidade: tx.quantidade, moeda: tx.moeda }));
 
+  // Lucro realizado FIFO por VENDA (motor canônico) — preenche "Lucro Lote"
+  // nas linhas de venda, que antes ficavam em "—".
+  const vendaLucros = useMemo(() => calcularLucroPorVenda(txs), [txs]);
+
   // Link para a página do ativo no Yahoo Finance — usa a MESMA conversão canônica
   // que busca as cotações (ticker interno → símbolo Yahoo, ex.: PETR4 → PETR4.SA,
   // BTC → BTC-USD), garantindo que o link aponte pro mesmo ativo do gráfico.
@@ -283,8 +289,16 @@ export default function AssetDetailModal({
                 <tbody>
                   {txs.map((tx, j) => {
                     const isCompra = tx.tipo.toLowerCase().includes("compra") || tx.tipo.toLowerCase().includes("buy");
-                    const lotProfit = isCompra && p.precoAtual !== null ? (p.precoAtual - tx.preco) * tx.quantidade : null;
-                    const lotPct = isCompra && p.precoAtual !== null && tx.preco > 0 ? (p.precoAtual - tx.preco) / tx.preco : null;
+                    const venda = vendaLucros.get(j);
+                    // Compra: lucro do lote a mercado. Venda: lucro REALIZADO
+                    // FIFO na moeda do ativo (motor canônico). % em pontos
+                    // percentuais (pct() espera 21.4, não 0.214).
+                    const lotProfit = isCompra
+                      ? (p.precoAtual !== null ? (p.precoAtual - tx.preco) * tx.quantidade : null)
+                      : (venda?.lucro ?? null);
+                    const lotPct = isCompra
+                      ? (p.precoAtual !== null && tx.preco > 0 ? ((p.precoAtual - tx.preco) / tx.preco) * 100 : null)
+                      : (venda?.lucroPct ?? null);
                     return (
                       <tr key={j} style={{ borderBottom: "1px solid var(--line)" }} className="hover:bg-white/[0.02]">
                         <td className="px-3 py-1.5 font-mono" style={{ color: "var(--muted)" }}>{formatTxDate(tx.data)}</td>
