@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, StickyNote, ExternalLink } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
-import { calcularLucroPorVenda } from "@/lib/portfolio";
+import { calcularLucroPorVenda } from "@/lib/lucro-venda";
 import { brl, currency, pct } from "@/lib/format";
 import { displayName } from "@/lib/asset-brands";
 import { yahooTicker } from "@/lib/yahoo-symbol";
