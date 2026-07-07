@@ -3375,7 +3375,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} sunOn={classic ? true : sunOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} sunOn={classic || freeFly ? true : sunOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3427,21 +3427,6 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                 >
                   <Tags size={10} strokeWidth={2.5} /> Rótulos
                 </button>
-                {/* Sol on/off — só no imersivo (o clássico não tem Sol real).
-                    Sem Sol, o globo inteiro fica iluminado (dia e noite). */}
-                {!classic && (
-                  <>
-                    <span className="text-[8px] text-zinc-700">|</span>
-                    <button
-                      onClick={toggleSun}
-                      title={sunOn ? "Desligar o Sol — iluminar o globo inteiro (dia e noite)" : "Ligar o Sol — dia/noite reais"}
-                      className="flex items-center gap-1 transition-colors"
-                      style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: sunOn ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-                    >
-                      <Sun size={10} strokeWidth={2.5} style={{ opacity: sunOn ? 1 : 0.45 }} /> Sol
-                    </button>
-                  </>
-                )}
               </>
             ) : (
               <>
@@ -3464,6 +3449,22 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
               <Cloud size={10} strokeWidth={2.5} style={{ opacity: cloudsOn ? 1 : 0.45 }} />
               Nuvens
             </button>
+            {/* Sol on/off — só no imersivo, com a Terra fixada (órbita). Vale só
+                aqui: no modo Voo o Sol fica sempre ligado (dia/noite reais). */}
+            {!classic && (
+              <>
+                <span className="text-[8px] text-zinc-700">|</span>
+                <button
+                  onClick={toggleSun}
+                  title={sunOn ? "Desligar o Sol — iluminar o globo inteiro (dia e noite)" : "Ligar o Sol — dia/noite reais"}
+                  className="flex items-center gap-1 transition-colors"
+                  style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: sunOn ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  <Sun size={10} strokeWidth={2.5} style={{ opacity: sunOn ? 1 : 0.45 }} />
+                  Sol
+                </button>
+              </>
+            )}
             <span className="text-[8px] text-zinc-700">|</span>
             {/* Toggle do VOO LIVRE (câmera-nave) */}
             <button
