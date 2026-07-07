@@ -4,7 +4,7 @@ import React, { useRef, useMemo, useState, useEffect, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X, Tags } from "lucide-react";
+import { Cloud, Rocket, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Square, Compass, X, Tags, Sun } from "lucide-react";
 
 interface MarketPoint {
   symbol: string;
@@ -299,11 +299,12 @@ const CLOUDS_TEX = "https://raw.githubusercontent.com/turban/webgl-earth/master/
 // textura inteira (buraco = mancha preta), o shader deixa TRANSPARENTE onde não
 // há dado (revela o blue marble) e esmaece no lado noturno (revela as luzes de
 // cidade). Iluminação lambertiana pela mesma direção do Sol da cena.
-function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Texture; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
+function LiveOverlay({ radius, map, sunDirRef, sunOn = true }: { radius: number; map: THREE.Texture; sunDirRef?: React.MutableRefObject<THREE.Vector3>; sunOn?: boolean }) {
   const mat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: map },
       uSunDir: { value: new THREE.Vector3(1, 0, 0) },
+      uSunOff: { value: 0 },   // 1 = sem Sol: satélite do dia visível no globo TODO
     },
     vertexShader: `
       varying vec2 vUv;
@@ -317,6 +318,7 @@ function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Te
     fragmentShader: `
       uniform sampler2D uMap;
       uniform vec3 uSunDir;
+      uniform float uSunOff;
       varying vec2 vUv;
       varying vec3 vWorldNormal;
       void main() {
@@ -327,6 +329,9 @@ function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Te
         // No lado noturno o satélite some (revela as luzes de cidade da base).
         float dayside = smoothstep(-0.05, 0.3, sun);
         float lambert = 0.12 + 1.05 * max(sun, 0.0);
+        // Sem Sol: dia inteiro, brilho uniforme (não escurece a metade "noturna").
+        dayside = mix(dayside, 1.0, uSunOff);
+        lambert = mix(lambert, 1.05, uSunOff);
         gl_FragColor = vec4(c * min(lambert, 1.15), data * dayside);
       }
     `,
@@ -336,6 +341,7 @@ function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Te
 
   useFrame(() => {
     if (sunDirRef) mat.uniforms.uSunDir.value.copy(sunDirRef.current);
+    mat.uniforms.uSunOff.value = sunOn ? 0 : 1;
   });
   useEffect(() => () => { mat.dispose(); }, [mat]);
 
@@ -350,7 +356,7 @@ function LiveOverlay({ radius, map, sunDirRef }: { radius: number; map: THREE.Te
 // `liveClouds`: camada de nuvens/satélite do dia LIGADA (padrão). Desligada →
 // blue marble limpo, sem casca de nuvens. As texturas seguem carregadas; o
 // toggle é instantâneo.
-function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef }: { radius: number; night?: boolean; liveClouds?: boolean; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
+function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef, sunOn = true }: { radius: number; night?: boolean; liveClouds?: boolean; sunDirRef?: React.MutableRefObject<THREE.Vector3>; sunOn?: boolean }) {
   // `night` (imersivo): luzes de cidade como emissivo — brilham onde o Sol não
   // alcança. A lista de texturas muda com a variante, mas a variante nunca muda
   // com a cena montada (o Canvas remonta ao trocar de estilo).
@@ -388,6 +394,8 @@ function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef }: { 
 
   return (
     <group>
+      {/* Luzes de cidade (emissivo) só quando há Sol — no lado noturno. Sem Sol,
+          o globo é dia por inteiro e o emissivo sairia como manchas sobre o dia. */}
       <mesh>
         <sphereGeometry args={[radius, 96, 96]} />
         <meshStandardMaterial
@@ -398,15 +406,15 @@ function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef }: { 
           roughness={0.85}
           metalness={0.08}
           envMapIntensity={0.6}
-          emissiveMap={night ? nightMap : undefined}
-          emissive={night ? "#ffffff" : "#000000"}
-          emissiveIntensity={night ? 0.95 : 0}
+          emissiveMap={night && sunOn ? nightMap : undefined}
+          emissive={night && sunOn ? "#ffffff" : "#000000"}
+          emissiveIntensity={night && sunOn ? 0.95 : 0}
         />
       </mesh>
 
       {/* Satélite do dia composto por cima (buracos ficam transparentes) */}
       {night && liveClouds && liveMap && (
-        <LiveOverlay radius={radius} map={liveMap} sunDirRef={sunDirRef} />
+        <LiveOverlay radius={radius} map={liveMap} sunDirRef={sunDirRef} sunOn={sunOn} />
       )}
 
       {/* Nuvens estáticas — casca fina acima da superfície, iluminada pelo
@@ -434,7 +442,7 @@ function EarthSphere({ radius, night = false, liveClouds = true, sunDirRef }: { 
 
 // Com Sol real (sunDirRef), a atmosfera clareia no lado iluminado e quase some
 // no lado noturno — um halo uniforme denunciaria que a luz é fake.
-function Atmosphere({ radius, sunDirRef }: { radius: number; sunDirRef?: React.MutableRefObject<THREE.Vector3> }) {
+function Atmosphere({ radius, sunDirRef, sunOn = true }: { radius: number; sunDirRef?: React.MutableRefObject<THREE.Vector3>; sunOn?: boolean }) {
   const mat = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -472,6 +480,8 @@ function Atmosphere({ radius, sunDirRef }: { radius: number; sunDirRef?: React.M
 
   useFrame(() => {
     if (sunDirRef) mat.uniforms.uSunDir.value.copy(sunDirRef.current);
+    // Sem Sol: halo uniforme (uReal=0), sem lado claro/escuro.
+    mat.uniforms.uReal.value = sunDirRef && sunOn ? 1 : 0;
   });
 
   return (
@@ -1268,7 +1278,7 @@ function FreeFly({ onUserStart, targets, warpRef, flightCmd }: {
 const INTRO_FROM = new THREE.Vector3(0.4, 0.6, 4.6);
 const INTRO_TO = new THREE.Vector3(0, 0, 7.45);
 
-function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }> }) {
+function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds = true, freeFly = false, showLabels = true, sunOn = true, targets = [], warpRef, flightCmd }: { markets: MarketPoint[]; conflicts: ConflictZone[]; onSelect: (item: SelectedItem | null) => void; classic?: boolean; liveClouds?: boolean; freeFly?: boolean; showLabels?: boolean; sunOn?: boolean; targets?: SolarTarget[]; warpRef?: React.MutableRefObject<((id: string) => void) | null>; flightCmd?: React.MutableRefObject<{ thrust: number; strafe: number; lift: number; stop: boolean }> }) {
   const R = 1;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1378,10 +1388,10 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
           <directionalLight position={[0, 5, 0]} intensity={0.3} color="#ffffff" />
         </>
       ) : (
-        // Imersivo: quem ilumina é o SOL (na âncora subsolar). Ambiente mínimo
-        // para o lado noturno não virar breu total — as luzes de cidade
-        // (emissiveMap) fazem o resto.
-        <ambientLight intensity={0.12} />
+        // Imersivo: com Sol, quem ilumina é o SOL (âncora subsolar) e o ambiente
+        // é mínimo (o lado noturno acende as luzes de cidade). SEM Sol, o ambiente
+        // sobe forte e ilumina o globo INTEIRO por igual, dia e noite.
+        <ambientLight intensity={sunOn ? 0.12 : 2.0} />
       )}
 
       {!classic && <SpaceEnvironment />}
@@ -1396,24 +1406,28 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
             {/* O Sol EM ESCALA REAL: raio 109 raios terrestres a 1 UA — 0,53°
                 no céu, exatamente como o Sol de verdade. Corpo do easter egg
                 (plasma + coroa) + halos proporcionais + a luz principal. */}
+            {/* âncora sempre existe (dá a direção do Sol p/ shaders); só a LUZ e
+                o CORPO visível somem quando o dono desliga o Sol no modo voo. */}
             <group ref={sunAnchorRef} position={[SUN_DIST, 0, 0]}>
-              <directionalLight intensity={3.1} color="#fff3d6" />
-              <group scale={[121, 121, 121]}>
-                <SunSurface />
-                <SunCorona />
+              <directionalLight intensity={sunOn ? 3.1 : 0} color="#fff3d6" />
+              <group visible={sunOn}>
+                <group scale={[121, 121, 121]}>
+                  <SunSurface />
+                  <SunCorona />
+                </group>
+                {/* O Sol é LUZ, não um planeta: núcleo estourado de branco +
+                    halos generosos (~10° no céu visto da Terra) — a claridade
+                    das primeiras versões, agora em escala real. */}
+                <sprite scale={[4200, 4200, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
+                <sprite scale={[1600, 1600, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
+                <sprite scale={[520, 520, 1]}>
+                  <spriteMaterial map={sunGlowTex} color="#fffbe8" transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </sprite>
               </group>
-              {/* O Sol é LUZ, não um planeta: núcleo estourado de branco +
-                  halos generosos (~10° no céu visto da Terra) — a claridade
-                  das primeiras versões, agora em escala real. */}
-              <sprite scale={[4200, 4200, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#ff9a3d" transparent opacity={0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
-              </sprite>
-              <sprite scale={[1600, 1600, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#ffca66" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} />
-              </sprite>
-              <sprite scale={[520, 520, 1]}>
-                <spriteMaterial map={sunGlowTex} color="#fffbe8" transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
-              </sprite>
             </group>
 
             {/* Os planetas — direções e distâncias REAIS de agora (Kepler) */}
@@ -1438,8 +1452,8 @@ function GlobeScene({ markets, conflicts, onSelect, classic = false, liveClouds 
         )}
 
         <group ref={groupRef}>
-          <EarthSphere radius={R} night={!classic} liveClouds={liveClouds} sunDirRef={classic ? undefined : sunDirWorld} />
-          <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} />
+          <EarthSphere radius={R} night={!classic} liveClouds={liveClouds} sunDirRef={classic ? undefined : sunDirWorld} sunOn={sunOn} />
+          <Atmosphere radius={R} sunDirRef={classic ? undefined : sunDirWorld} sunOn={sunOn} />
 
           {markets.filter(m => m.symbol !== "^VIX").map(m => (
             <MarkerPoint
@@ -3114,6 +3128,20 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
   const flightCmd = useRef<{ thrust: number; strafe: number; lift: number; stop: boolean }>({ thrust: 0, strafe: 0, lift: 0, stop: false });
   const [navOpen, setNavOpen] = useState(true);
   const [labelsOn, setLabelsOn] = useState(true);
+  // Sol no modo voo (imersivo): LIGADO = dia/noite real (como sempre);
+  // DESLIGADO = globo inteiro iluminado, independente de dia/noite. Preferência
+  // lembrada entre sessões.
+  const [sunOn, setSunOn] = useState(true);
+  useEffect(() => {
+    setSunOn(window.localStorage.getItem("holoSunOn") !== "0");
+  }, []);
+  const toggleSun = useCallback(() => {
+    setSunOn(v => {
+      const next = !v;
+      try { window.localStorage.setItem("holoSunOn", next ? "1" : "0"); } catch { /* sem storage */ }
+      return next;
+    });
+  }, []);
   const [markets, setMarkets] = useState<MarketPoint[]>([]);
   const [conflicts, setConflicts] = useState<ConflictZone[]>(FALLBACK_CONFLICT_ZONES);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3347,7 +3375,7 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                   <PlanetSceneContent planet={displayMode as PlanetMode} />
                 </>
               ) : (
-                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
+                <GlobeScene markets={markets} conflicts={conflicts} onSelect={setSelected} liveClouds={cloudsOn} freeFly={freeFly} showLabels={labelsOn} sunOn={classic ? true : sunOn} targets={solarTargets} warpRef={warpRef} flightCmd={flightCmd} />
               )}
             </React.Suspense>
           </SafeVisual>
@@ -3399,6 +3427,21 @@ export default function HoloGlobe({ mode, variant = "imersivo" }: HoloGlobeProps
                 >
                   <Tags size={10} strokeWidth={2.5} /> Rótulos
                 </button>
+                {/* Sol on/off — só no imersivo (o clássico não tem Sol real).
+                    Sem Sol, o globo inteiro fica iluminado (dia e noite). */}
+                {!classic && (
+                  <>
+                    <span className="text-[8px] text-zinc-700">|</span>
+                    <button
+                      onClick={toggleSun}
+                      title={sunOn ? "Desligar o Sol — iluminar o globo inteiro (dia e noite)" : "Ligar o Sol — dia/noite reais"}
+                      className="flex items-center gap-1 transition-colors"
+                      style={{ pointerEvents: "auto", fontSize: 9, fontWeight: 700, letterSpacing: ".04em", color: sunOn ? "#67e8f9" : "#52525b", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      <Sun size={10} strokeWidth={2.5} style={{ opacity: sunOn ? 1 : 0.45 }} /> Sol
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <>
