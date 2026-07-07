@@ -1025,48 +1025,87 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
 
 // Rodapé do card, estilo total de fatura: Patrimônio TOTAL ao vivo (IBKR real ×
 // dólar de agora + BR + cripto + RF + caixa — o mesmo totalBRL da Home) à
-// esquerda e o Σ retorno do dia (IBKR + Brasil + Bitcoin + câmbio) à direita.
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv }: {
+// esquerda, o Σ retorno do dia à direita e, embaixo, a decomposição por
+// modalidade — as MESMAS parcelas que formam o total, para auditar a soma.
+interface PatrimonioParte {
+  label: string;
+  color: string;
+  brl: number | null;
+}
+
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
+  partes: PatrimonioParte[] | null;
   priv: boolean;
 }) {
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
+  const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
   return (
-    <div
-      className="flex items-center justify-between gap-3 px-4 py-3"
-      style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}
-    >
-      {/* Patrimônio total — a carteira inteira, ao vivo */}
-      {patrimonioBRL != null && patrimonioBRL > 0 ? (
-        <div className="min-w-0">
-          <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-            Patrimônio total
+    <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        {/* Patrimônio total — a carteira inteira, ao vivo */}
+        {patrimonioBRL != null && patrimonioBRL > 0 ? (
+          <div className="min-w-0">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Patrimônio total
+            </div>
+            <div className="font-mono font-extrabold tnum truncate" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
+              {maskIf(priv, compactBRL(patrimonioBRL))}
+            </div>
+            <div className="font-mono mt-1 tnum truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+              {maskIf(priv, compactUSD(usdbrl && usdbrl > 0 ? patrimonioBRL / usdbrl : null))}
+              {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
+            </div>
           </div>
-          <div className="font-mono font-extrabold tnum truncate" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
-            {maskIf(priv, compactBRL(patrimonioBRL))}
-          </div>
-          <div className="font-mono mt-1 tnum truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
-            {usdbrl && usdbrl > 0 ? `${maskIf(priv, compactUSD(patrimonioBRL / usdbrl))} · ` : ""}IBKR + BR + BTC + RF + caixa
-          </div>
-        </div>
-      ) : <div />}
+        ) : <div />}
 
-      {/* Σ retorno do dia */}
-      {brl != null && (
-        <div className="text-right shrink-0">
-          <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-            Σ Retorno do dia
+        {/* Σ retorno do dia */}
+        {brl != null && (
+          <div className="text-right shrink-0">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Σ Retorno do dia
+            </div>
+            <div className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
+              {maskIf(priv, signedBRLc(brl))}
+            </div>
+            {pctVal != null && (
+              <div className="font-mono mt-1 tnum" style={{ color, fontSize: 10, opacity: 0.85 }}>{pct(pctVal)} no dia</div>
+            )}
           </div>
-          <div className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
-            {maskIf(priv, signedBRLc(brl))}
-          </div>
-          {pctVal != null && (
-            <div className="font-mono mt-1 tnum" style={{ color, fontSize: 10, opacity: 0.85 }}>{pct(pctVal)} no dia</div>
-          )}
+        )}
+      </div>
+
+      {/* Decomposição por modalidade — parcelas exatas do total (auditoria) */}
+      {partes && partes.length > 0 && (
+        <div
+          className="grid grid-cols-2 sm:grid-cols-4"
+          style={{ gap: 1, background: "var(--line)", borderTop: "1px solid var(--line)" }}
+        >
+          {partes.map((p) => {
+            const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
+            return (
+              <div key={p.label} className="px-4 py-2" style={{ background: "var(--panel)" }}>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: p.color, boxShadow: `0 0 6px ${p.color}66` }} />
+                  <span className="font-mono uppercase tracking-wider truncate" style={{ color: "var(--faint)", fontSize: 8.5, fontWeight: 700 }}>
+                    {p.label}
+                  </span>
+                </div>
+                <div className="font-mono tnum" style={{ fontSize: 12, lineHeight: 1.2 }}>
+                  <span className="font-bold" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)" }}>
+                    {p.brl != null ? maskIf(priv, compactBRL(p.brl)) : "—"}
+                  </span>
+                  {share != null && (
+                    <span style={{ color: "var(--muted)", fontSize: 9.5 }}> · {share.toFixed(1)}%</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1297,6 +1336,22 @@ export default function HomePage() {
   const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
   const dayPctFinal = dayReturn?.pct ?? dayChangePct;
 
+  // Decomposição do patrimônio total, com as MESMAS parcelas da fórmula
+  // (totalBRL = IBKR + expo.BRL + expo.Cripto), para a soma bater na auditoria:
+  //   Brasil = ações/FIIs/ETFs em BRL; RF + Caixa = o resto do expo.BRL
+  //   (RF manual + caixa da fixa_aberta + posições de RF em real).
+  const patrimonioPartes = useMemo<PatrimonioParte[] | null>(() => {
+    if (!data) return null;
+    const acoesBR = brStats.valueBRL;
+    const rfCaixa = Math.max(0, brBRL - acoesBR);
+    return [
+      { label: "IBKR", color: IBKR_RED, brl: ibkrTotalBRL },
+      { label: "Brasil", color: BR_GREEN, brl: acoesBR },
+      { label: "Cripto", color: BTC_ORANGE, brl: criptoBRL },
+      { label: "RF + Caixa", color: "var(--accent)", brl: rfCaixa },
+    ];
+  }, [data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL]);
+
   const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase().replace(".", "");
   const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(".", "");
 
@@ -1444,6 +1499,7 @@ export default function HomePage() {
                 pctVal={dayPctFinal}
                 patrimonioBRL={totalBRL}
                 usdbrl={usdbrl}
+                partes={patrimonioPartes}
                 priv={priv}
               />
             </div>
