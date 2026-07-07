@@ -14,6 +14,7 @@ import type { UnifiedPrediction } from "@/lib/polymarket";
 const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
 
 const CAT_META: Record<string, { color: string; icon: typeof BarChart2; desc: string }> = {
+  "💲 Preço dos Ativos": { color: "#4ade80", icon: TrendingUp, desc: "Apostas sobre o PREÇO dos ativos da sua carteira (busca direcionada)" },
   "📊 Correlatos ao Portfólio": { color: "#E8A33D", icon: Briefcase, desc: "Apostas ligadas aos seus ativos" },
   "🏦 Macro & Finanças": { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
   "🏦 Macro & Economia": { color: "#38bdf8", icon: TrendingUp, desc: "Fed, juros, câmbio, economia global" },
@@ -132,7 +133,8 @@ export default function MercadosPreditivosPage() {
     if (sourceFilter !== "all") items = items.filter(p => p.source === sourceFilter);
 
     const cats = new Map<string, UnifiedPrediction[]>();
-    const correlated = items.filter(p => p.portfolio_impact.length > 0);
+    // Quem já está em "Preço dos Ativos" não repete em "Correlatos".
+    const correlated = items.filter(p => p.portfolio_impact.length > 0 && p.category !== "💲 Preço dos Ativos");
     if (correlated.length > 0) cats.set("📊 Correlatos ao Portfólio", correlated);
 
     for (const p of items) {
@@ -145,7 +147,7 @@ export default function MercadosPreditivosPage() {
 
     for (const [, evs] of cats) evs.sort((a, b) => (b.volume ?? b.forecasters ?? 0) - (a.volume ?? a.forecasters ?? 0));
 
-    const ORDER = ["📊 Correlatos ao Portfólio", "🏦 Macro & Finanças", "🏦 Macro & Economia", "🌍 Geopolítica", "🤖 Tech & IA", "⭐ Em Destaque", "⭐ Outros"];
+    const ORDER = ["💲 Preço dos Ativos", "📊 Correlatos ao Portfólio", "🏦 Macro & Finanças", "🏦 Macro & Economia", "🌍 Geopolítica", "🤖 Tech & IA", "⭐ Em Destaque", "⭐ Outros"];
     return [...cats.entries()]
       .sort(([a], [b]) => { const ia = ORDER.indexOf(a); const ib = ORDER.indexOf(b); return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib); })
       .filter(([, evs]) => evs.length > 0);

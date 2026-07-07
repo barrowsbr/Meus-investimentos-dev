@@ -150,17 +150,7 @@ function normalizePrice(pv: number): number {
 
 // ── Fetch + parse (runs client-side in the browser) ──────────────────────────
 
-async function fetchEvents(): Promise<{ events: PolyEvent[]; totalFetched: number }> {
-  const url = `${GAMMA_API}?limit=200&active=true&closed=false&order=volume_24hr&ascending=false`;
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`Polymarket API ${res.status}`);
-  let data = await res.json();
-  if (!Array.isArray(data)) data = data?.data ?? data?.events ?? [];
-
-  const totalFetched = data.length;
+function parseEventList(data: Record<string, any>[]): PolyEvent[] {
   const processed: PolyEvent[] = [];
 
   for (const event of data) {
@@ -216,7 +206,57 @@ async function fetchEvents(): Promise<{ events: PolyEvent[]; totalFetched: numbe
   }
 
   processed.sort((a, b) => b.volume - a.volume);
-  return { events: processed, totalFetched };
+  return processed;
+}
+
+async function fetchEvents(): Promise<{ events: PolyEvent[]; totalFetched: number }> {
+  const url = `${GAMMA_API}?limit=200&active=true&closed=false&order=volume_24hr&ascending=false`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Polymarket API ${res.status}`);
+  let data = await res.json();
+  if (!Array.isArray(data)) data = data?.data ?? data?.events ?? [];
+
+  return { events: parseEventList(data), totalFetched: data.length };
+}
+
+// ── Preditivos de PREÇO dos ativos da carteira ───────────────────────────────
+// Os top-200 por volume geral quase nunca incluem mercados de preço de um
+// ativo específico ("MSFT above $500?"). Busca DIRECIONADA por ativo na API de
+// busca do Polymarket e filtra títulos que falam de preço/valuation.
+
+const PRICE_RE = /\$|price|hit\s|reach|above|below|close at|all[- ]time high|market cap|valuation|per share/i;
+
+function searchQueryForTicker(t: string): string | null {
+  const clean = t.replace(/\.(SA|L|DE|TO|AS|PA|MI|MC|LS)$/i, "").replace(/-USD$/i, "").toUpperCase();
+  const mapped = TICKER_KEYWORDS[clean]?.[0];
+  if (mapped) return mapped;
+  // B3 sem mapeamento (PETR4-like): Polymarket não cobre — não desperdiça busca.
+  if (/^[A-Z]{4}\d{1,2}$/.test(clean)) return null;
+  return clean.toLowerCase();
+}
+
+async function searchAssetPriceEvents(tickers: string[]): Promise<PolyEvent[]> {
+  const queries = [...new Set(tickers.map(searchQueryForTicker).filter((q): q is string => Boolean(q)))].slice(0, 10);
+  if (!queries.length) return [];
+
+  const results = await Promise.allSettled(queries.map(async (q) => {
+    const url = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(q)}&limit_per_type=10&events_status=active`;
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return [] as PolyEvent[];
+    const data = await res.json();
+    const list = Array.isArray(data?.events) ? data.events : [];
+    return parseEventList(list).filter((ev) => PRICE_RE.test(ev.title));
+  }));
+
+  const byId = new Map<string, PolyEvent>();
+  for (const r of results) {
+    if (r.status !== "fulfilled") continue;
+    for (const ev of r.value) if (!byId.has(ev.id)) byId.set(ev.id, ev);
+  }
+  return [...byId.values()].sort((a, b) => b.volume - a.volume);
 }
 
 function classify(events: PolyEvent[]): Record<string, PolyEvent[]> {
@@ -321,12 +361,28 @@ export function polyToUnified(ev: PolyEvent): UnifiedPrediction {
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
+export const PRECO_ATIVOS_CAT = "💲 Preço dos Ativos";
+
 export async function fetchPolymarket(portfolioTickers: string[] = []): Promise<PolyResponse> {
+  // Busca direcionada por ativo em paralelo com o feed geral; falha da busca
+  // não derruba o resto (cai só a categoria de preço).
+  const pricePromise = portfolioTickers.length
+    ? searchAssetPriceEvents(portfolioTickers).catch(() => [] as PolyEvent[])
+    : Promise.resolve([] as PolyEvent[]);
   const { events, totalFetched } = await fetchEvents();
-  const categories = classify(events);
+  const priceEvents = await pricePromise;
+
+  // Cada evento vive em UMA categoria (a página achata as categorias — id
+  // duplicado viraria card duplicado).
+  const priceIds = new Set(priceEvents.map((e) => e.id));
+  const rest = events.filter((e) => !priceIds.has(e.id));
+
+  const categories: Record<string, PolyEvent[]> = {};
+  if (priceEvents.length > 0) categories[PRECO_ATIVOS_CAT] = priceEvents.slice(0, 15);
+  Object.assign(categories, classify(rest));
 
   if (portfolioTickers.length > 0) {
-    const correlated = correlate(events, portfolioTickers);
+    const correlated = correlate(rest, portfolioTickers);
     if (correlated.length > 0) {
       categories["📊 Correlatos ao Portfólio"] = correlated;
     }
@@ -336,7 +392,7 @@ export async function fetchPolymarket(portfolioTickers: string[] = []): Promise<
     categories,
     cached_at: new Date().toISOString(),
     total_fetched: totalFetched,
-    total_parsed: events.length,
+    total_parsed: events.length + priceEvents.length,
   };
 }
 

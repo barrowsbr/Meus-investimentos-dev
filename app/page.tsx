@@ -351,14 +351,20 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
     if (!positionTickers) return;
     let cancelled = false;
     import("@/lib/polymarket")
-      .then(({ fetchPolymarket }) => fetchPolymarket(positionTickers.split(",")))
-      .then(resp => {
+      .then(({ fetchPolymarket, PRECO_ATIVOS_CAT }) => fetchPolymarket(positionTickers.split(",")).then(resp => ({ resp, PRECO_ATIVOS_CAT })))
+      .then(({ resp, PRECO_ATIVOS_CAT }) => {
         if (cancelled) return;
         const cats = resp?.categories;
         if (!cats || typeof cats !== "object") return;
-        const all = Object.values(cats).flat();
-        const filtered = all.filter(e => e && Array.isArray(e.odds) && e.odds.length > 0 && (e.volume ?? 0) >= 100);
-        setPolyEvents(filtered.sort(() => Math.random() - 0.5).slice(0, 12));
+        const ok = (e: PolyEvent) => e && Array.isArray(e.odds) && e.odds.length > 0;
+        // Preditivos de PREÇO dos ativos primeiro (sem piso de volume — são o
+        // ponto do card); o resto embaralhado atrás.
+        const preco = (cats[PRECO_ATIVOS_CAT] ?? []).filter(ok);
+        const outros = Object.entries(cats)
+          .filter(([k]) => k !== PRECO_ATIVOS_CAT)
+          .flatMap(([, v]) => v)
+          .filter(e => ok(e) && (e.volume ?? 0) >= 100);
+        setPolyEvents([...preco, ...outros.sort(() => Math.random() - 0.5)].slice(0, 12));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setPolyLoading(false); });
