@@ -26,6 +26,7 @@ import {
   Zap,
   Crosshair,
   Building2,
+  StickyNote,
 } from "lucide-react";
 
 interface NavItem {
@@ -84,6 +85,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/ibkr",          label: "IBKR",          icon: Building2 },
       { href: "/noticias",      label: "Inteligência",  icon: Newspaper },
+      { href: "/anotacoes",     label: "Anotações",     icon: StickyNote },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings, mobileShow: true },
     ],
