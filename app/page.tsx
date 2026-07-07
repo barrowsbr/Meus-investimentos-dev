@@ -235,6 +235,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
 
 function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
 
   const top3 = useMemo(() => {
     if (tickerItems.length === 0) return [];
@@ -245,12 +246,18 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
 
   const tickerStr = useMemo(() => top3.map(t => t.ticker).join(","), [top3]);
 
+  // scope=symbol = caminho LEVE (1 feed por ticker, 3 no total) — o modo geral
+  // buscava ~20 feeds de mercado/macro/setor só para achar 3 manchetes aqui.
   useEffect(() => {
     if (!tickerStr) return;
-    fetch(`/api/noticias?tickers=${tickerStr}`)
+    let cancelled = false;
+    setNewsLoading(true);
+    fetch(`/api/noticias?scope=symbol&tickers=${tickerStr}`)
       .then(r => r.json())
-      .then(d => setArticles(d.articles ?? []))
-      .catch(() => {});
+      .then(d => { if (!cancelled) setArticles(d.articles ?? []); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setNewsLoading(false); });
+    return () => { cancelled = true; };
   }, [tickerStr]);
 
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).toUpperCase().replace(".", "");
@@ -294,13 +301,25 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
               {isUp ? "▲" : "▼"} {item.label} {(item.changePct ?? 0) >= 0 ? "+" : ""}{(item.changePct ?? 0).toFixed(1)} %
             </span>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold leading-snug line-clamp-2" style={{ fontSize: 14, color: "var(--text)" }}>
-                {article?.titulo ?? `${item.label} ${isUp ? "em alta" : "em queda"} no pregão`}
-              </p>
-              {article && (
-                <p className="font-mono text-[10px] mt-1" style={{ color: "var(--faint)" }}>
-                  {article.fonte}{article.data ? ` · ${timeAgo(article.data)}` : ""}
-                </p>
+              {/* Skeleton enquanto as notícias carregam — o fallback textual só
+                  entra quando o fetch TERMINA sem artigo (antes ele piscava e
+                  era substituído pela manchete real). */}
+              {!article && newsLoading ? (
+                <div className="animate-pulse">
+                  <div className="rounded" style={{ height: 13, width: "92%", background: "var(--hover)" }} />
+                  <div className="rounded mt-1.5" style={{ height: 13, width: "60%", background: "var(--hover)" }} />
+                </div>
+              ) : (
+                <>
+                  <p className="font-semibold leading-snug line-clamp-2" style={{ fontSize: 14, color: "var(--text)" }}>
+                    {article?.titulo ?? `${item.label} ${isUp ? "em alta" : "em queda"} no pregão`}
+                  </p>
+                  {article && (
+                    <p className="font-mono text-[10px] mt-1" style={{ color: "var(--faint)" }}>
+                      {article.fonte}{article.data ? ` · ${timeAgo(article.data)}` : ""}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </a>

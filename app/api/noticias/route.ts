@@ -389,7 +389,12 @@ export async function GET(request: Request) {
     const articles = scope === "symbol" && tickers.length
       ? await fetchSymbolNews(tickers, name)
       : await fetchAllNews(tickers);
-    return NextResponse.json({ articles, count: articles.length });
+    // Cache CDN: notícias não mudam a cada segundo — sem isto, TODA visita à
+    // Home/Notícias refazia ~20 fetches de RSS + tradução (vários segundos).
+    return NextResponse.json(
+      { articles, count: articles.length },
+      { headers: { "Cache-Control": "s-maxage=600, stale-while-revalidate=1800" } },
+    );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: message, articles: [] }, { status: 500 });
