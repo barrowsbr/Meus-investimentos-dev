@@ -263,6 +263,14 @@ Registro de entradas, saídas e gastos com cartão.
 - **Sempre fazer as duas coisas**: quando o dono manda uma mensagem enquanto uma tarefa está em andamento, fazer AMBAS — a tarefa corrente e o que foi pedido na nova mensagem.
 - **"Investido"** = custo FIFO das posições atuais (não soma bruta de todas as compras).
 
+## Fila de tarefas via página Anotações (anotacoes.md)
+
+- O dono anota tarefas na página **Anotações** do app com etiqueta **`IA`**.
+  Quando ele disser **"anotações.md"** (ou equivalente), leia **`anotacoes.md`**
+  na raiz do repo e siga o protocolo à risca: 1 card = 1 tarefa com recurso
+  dedicado (TaskCreate + commit próprio por card, nunca bolo único), type-check
+  por card, e ao concluir marcar o ✓ via `PATCH /api/notas {id, feito:true}`.
+
 ## Como fazer auditorias e análises de gaps (regra dura)
 
 > Contexto: auditorias superficiais já causaram gaps fiscais reais (motor inteiro

@@ -8,13 +8,16 @@ export const maxDuration = 30;
 // Anotações/rascunhos vinculados a um ativo. Persistidas na aba `ativos_notas`.
 // Escrita herda assertNotDemo (via store) e backup automático (writeTab).
 const TAB = "ativos_notas";
-const HEADERS = ["id", "ticker", "data", "texto"];
+// `feito` = timestamp ISO de conclusão ("" = pendente). Usado pelo fluxo de
+// tarefas IA (ver anotacoes.md): o card ganha um ✓ quando a tarefa é executada.
+const HEADERS = ["id", "ticker", "data", "texto", "feito"];
 
 interface Nota {
   id: string;
   ticker: string;
   data: string;
   texto: string;
+  feito: string;
 }
 
 function rowToNota(r: Record<string, unknown>): Nota {
@@ -23,6 +26,7 @@ function rowToNota(r: Record<string, unknown>): Nota {
     ticker: String(r["ticker"] ?? "").toUpperCase(),
     data: String(r["data"] ?? ""),
     texto: String(r["texto"] ?? ""),
+    feito: String(r["feito"] ?? ""),
   };
 }
 
@@ -122,10 +126,11 @@ export async function POST(req: Request) {
       // timestamp ISO completo (data + hora) para ordenar e exibir
       data: new Date().toISOString(),
       texto,
+      feito: "",
     };
 
     try {
-      await store.appendRows(TAB, [[nota.id, nota.ticker, nota.data, nota.texto]]);
+      await store.appendRows(TAB, [[nota.id, nota.ticker, nota.data, nota.texto, nota.feito]]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const permissao = /permission|permiss|403|PERMISSION_DENIED/i.test(msg + ensureErr);
@@ -159,10 +164,36 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "nota não encontrada" }, { status: 404 });
     }
 
-    const dataRows = kept.map((n) => [n.id, n.ticker, n.data, n.texto]);
+    const dataRows = kept.map((n) => [n.id, n.ticker, n.data, n.texto, n.feito]);
     await store.writeTab(TAB, HEADERS, dataRows);
 
     return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
+  }
+}
+
+// ── PATCH — marca/desmarca conclusão { id, feito: boolean } ──────────────────
+// Usado pelo fluxo anotacoes.md (o modelo marca ✓ ao concluir a tarefa do card)
+// e pelo botão de check da página. Read + map + reescrita com backup.
+export async function PATCH(req: Request) {
+  try {
+    const store = getDataStore();
+    const body = await req.json().catch(() => ({}));
+    const id = String(body.id ?? "").trim();
+    const feito = Boolean(body.feito);
+    if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
+
+    const rows = await store.fetchTab(TAB).catch(() => []);
+    const all = rows.map(rowToNota).filter((n) => n.id);
+    const alvo = all.find((n) => n.id === id);
+    if (!alvo) return NextResponse.json({ error: "nota não encontrada" }, { status: 404 });
+
+    alvo.feito = feito ? new Date().toISOString() : "";
+    const dataRows = all.map((n) => [n.id, n.ticker, n.data, n.texto, n.feito]);
+    await store.writeTab(TAB, HEADERS, dataRows);
+
+    return NextResponse.json({ ok: true, nota: alvo });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
   }

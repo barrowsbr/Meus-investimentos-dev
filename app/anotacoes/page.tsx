@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { StickyNote, Loader2, Plus, Trash2, Search, Tag } from "lucide-react";
+import { StickyNote, Loader2, Plus, Trash2, Search, Tag, Check, Bot } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
 // Página de anotações gerais — reusa a API /api/notas (aba `ativos_notas`).
 // Notas sem ativo usam a etiqueta GERAL; notas criadas no modal de ativo
 // (NotesModal) aparecem aqui também, filtráveis pela etiqueta/ticker.
+// Etiqueta IA = fila de tarefas para o agente (ver anotacoes.md no repo):
+// o card ganha ✓ quando a tarefa é executada. Sem edição — só acrescentar.
 const TAG_GERAL = "GERAL";
+const TAG_IA = "IA";
 
 interface Nota {
   id: string;
   ticker: string;
   data: string;
   texto: string;
+  feito?: string;
 }
 
 function formatStamp(iso: string): string {
@@ -102,6 +106,27 @@ export default function AnotacoesPage() {
     }
   }
 
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  async function toggleFeito(n: Nota) {
+    if (togglingId) return;
+    setTogglingId(n.id);
+    setError(null);
+    try {
+      const res = await fetch("/api/notas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: n.id, feito: !n.feito }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao atualizar");
+      setNotas((prev) => prev.map((x) => (x.id === n.id ? { ...x, feito: json.nota?.feito ?? "" } : x)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao atualizar");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   async function removeNota(id: string) {
     setDeletingId(id);
     setError(null);
@@ -163,8 +188,20 @@ export default function AnotacoesPage() {
               style={{ color: "var(--text)" }}
             />
           </div>
+          <button
+            onClick={() => setTag(tag === TAG_IA ? "" : TAG_IA)}
+            title="Tarefa para o agente IA executar (fluxo anotacoes.md)"
+            className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-2 rounded-lg transition-colors"
+            style={{
+              background: tag === TAG_IA ? "var(--accent-wash, rgba(232,163,61,.12))" : "transparent",
+              border: `1px solid ${tag === TAG_IA ? "var(--accent)" : "var(--line)"}`,
+              color: tag === TAG_IA ? "var(--accent)" : "var(--muted)",
+            }}
+          >
+            <Bot size={12} /> {TAG_IA}
+          </button>
           <span className="text-[11px] flex-1" style={{ color: "var(--muted)" }}>
-            Etiqueta opcional (ex.: um ticker) — vazio salva como {TAG_GERAL}
+            Etiqueta opcional — vazio salva como {TAG_GERAL}; {TAG_IA} = tarefa p/ o agente
           </span>
           <button
             onClick={addNota}
@@ -238,42 +275,75 @@ export default function AnotacoesPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {visiveis.map((n) => (
-            <div
-              key={n.id}
-              className="rounded-xl px-4 py-3"
-              style={{ background: "var(--panel)", border: "1px solid var(--line)" }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded"
-                    style={{
-                      background: "var(--accent-wash, rgba(232,163,61,.12))",
-                      color: "var(--accent)",
-                    }}
-                  >
-                    {n.ticker || TAG_GERAL}
-                  </span>
-                  <span className="text-[10px] font-mono tracking-wide" style={{ color: "var(--muted)" }}>
-                    {formatStamp(n.data)}
-                  </span>
+          {visiveis.map((n) => {
+            const isIA = (n.ticker || "") === TAG_IA;
+            const feito = Boolean(n.feito);
+            return (
+              <div
+                key={n.id}
+                className="rounded-xl px-4 py-3"
+                style={{
+                  background: "var(--panel)",
+                  border: `1px solid ${feito ? "rgba(63,185,80,0.35)" : "var(--line)"}`,
+                  opacity: feito ? 0.75 : 1,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span
+                      className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded"
+                      style={{
+                        background: "var(--accent-wash, rgba(232,163,61,.12))",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      {isIA && <Bot size={10} />}
+                      {n.ticker || TAG_GERAL}
+                    </span>
+                    {feito && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: "rgba(63,185,80,0.14)", color: "var(--pos, #3FB950)" }}
+                        title={`Concluído em ${formatStamp(n.feito!)}`}
+                      >
+                        <Check size={10} /> FEITO
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono tracking-wide" style={{ color: "var(--muted)" }}>
+                      {formatStamp(n.data)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => toggleFeito(n)}
+                      disabled={togglingId === n.id}
+                      aria-label={feito ? "Desmarcar conclusão" : "Marcar como feito"}
+                      title={feito ? "Desmarcar conclusão" : "Marcar como feito"}
+                      className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 disabled:opacity-30"
+                      style={{ color: feito ? "var(--pos, #3FB950)" : "var(--muted)" }}
+                    >
+                      {togglingId === n.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    </button>
+                    <button
+                      onClick={() => removeNota(n.id)}
+                      disabled={deletingId === n.id}
+                      aria-label="Apagar anotação"
+                      className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 disabled:opacity-30"
+                      style={{ color: "#F0504A" }}
+                    >
+                      {deletingId === n.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => removeNota(n.id)}
-                  disabled={deletingId === n.id}
-                  aria-label="Apagar anotação"
-                  className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 disabled:opacity-30"
-                  style={{ color: "#F0504A" }}
+                <p
+                  className="text-sm mt-1.5 whitespace-pre-wrap break-words"
+                  style={{ color: "var(--text)", textDecoration: feito ? "line-through" : "none", textDecorationColor: "rgba(63,185,80,0.5)" }}
                 >
-                  {deletingId === n.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                </button>
+                  {n.texto}
+                </p>
               </div>
-              <p className="text-sm mt-1.5 whitespace-pre-wrap break-words" style={{ color: "var(--text)" }}>
-                {n.texto}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
