@@ -3,17 +3,12 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Cell, PieChart, Pie, ReferenceLine,
-} from "recharts";
-import {
   TrendingUp, TrendingDown, Briefcase, Target, ArrowLeftRight,
-  DollarSign, BarChart2, StickyNote,
+  BarChart2, StickyNote,
 } from "lucide-react";
 import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { brl, compactBRL, pct } from "@/lib/format";
-import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
-import { isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
+import { isRendaVariavel } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -36,26 +31,6 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "ticker", label: "Ticker (A–Z)" },
   { key: "setor", label: "Setor" },
 ];
-
-const TOOLTIP_STYLE = {
-  background: "rgba(13,14,20,0.95)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "10px",
-  fontSize: "12px",
-  color: "var(--text)",
-  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-} as const;
-
-const SECTOR_COLORS: Record<string, string> = {
-  "Ações Brasil": "#3b82f6",
-  "Ações Internacional": "#8b5cf6",
-  "ETF USA": "#06b6d4",
-  "ETF": "#10b981",
-  "FIIs": "#f59e0b",
-  "Cripto": "#f97316",
-  "Commodities": "#eab308",
-  "BDRs": "#ec4899",
-};
 
 type SortKey = "ticker" | "setor" | "valorAtualBRL" | "lucroBRL" | "lucroPct" | "retornoTotalPct" | "retornoAnualizadoPct" | "dayChangePct" | "dayChangeBRL" | "ganhoAtivoBRL" | "ganhoCambioBRL";
 type SortDir = "asc" | "desc";
@@ -106,10 +81,6 @@ function fmtMoeda(v: number | null | undefined, moeda: string): string {
   const dec = Math.abs(v) >= 1000 ? 0 : 2;
   return `${sym} ${v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
 }
-
-const MOEDA_COLORS: Record<string, string> = {
-  BRL: "#009C3B", USD: "#3B82F6", EUR: "#8b5cf6", CAD: "#ef4444", GBP: "#eab308", Cripto: "#F7931A",
-};
 
 // País do ativo — inferido pelo sufixo de bolsa (estilo Yahoo) e pela moeda.
 const PAIS_POR_SUFIXO: Record<string, string> = {
@@ -168,59 +139,15 @@ export default function RendaVariavelPage() {
     const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
     const ganhoCambio = fxPrincipal + fxCruzado;
 
-    // Sector breakdown
-    const bySector: Record<string, { value: number; invested: number; count: number }> = {};
-    for (const p of rv) {
-      if (!bySector[p.setor]) bySector[p.setor] = { value: 0, invested: 0, count: 0 };
-      bySector[p.setor].value += p.valorAtualBRL;
-      bySector[p.setor].invested += p.custoTotalBRL;
-      bySector[p.setor].count += 1;
-    }
-    const sectorData = Object.entries(bySector)
-      .sort(([, a], [, b]) => b.value - a.value)
-      .map(([name, d]) => ({
-        name,
-        value: d.value,
-        invested: d.invested,
-        retorno: d.invested > 0 ? ((d.value / d.invested - 1) * 100) : 0,
-        count: d.count,
-        pct: totalAtual > 0 ? (d.value / totalAtual) * 100 : 0,
-      }));
-
     // Daily P&L summary
     const posGanhadoras = rv.filter(p => (p.dayChangePct ?? 0) > 0).length;
     const posPerdedoras = rv.filter(p => (p.dayChangePct ?? 0) < 0).length;
 
     return {
       rv, totalInvestido, totalAtual, dayChangeBRL, ganhoAtivoPuro, ganhoCambio,
-      fxPrincipal, fxCruzado, sectorData, posGanhadoras, posPerdedoras,
+      fxPrincipal, fxCruzado, posGanhadoras, posPerdedoras,
     };
   }, [data]);
-
-  // Resultados por moeda — agrega os campos CANÔNICOS do snapshot por moeda de
-  // exposição (BRL/USD/EUR/CAD/Cripto — mesma régua da exposição cambial).
-  const byMoeda = useMemo(() => {
-    if (!metrics) return [];
-    const map: Record<string, { count: number; atual: number; investido: number; lucro: number; hoje: number }> = {};
-    for (const p of metrics.rv) {
-      const k = getMoedaExposicao(p.setor, p.moeda ?? "BRL");
-      if (!map[k]) map[k] = { count: 0, atual: 0, investido: 0, lucro: 0, hoje: 0 };
-      map[k].count += 1;
-      map[k].atual += p.valorAtualBRL ?? 0;
-      map[k].investido += p.custoTotalBRL ?? 0;
-      map[k].lucro += p.lucroBRL ?? 0;
-      map[k].hoje += p.dayChangeBRL ?? 0;
-    }
-    const totalAtual = Object.values(map).reduce((s, d) => s + d.atual, 0);
-    return Object.entries(map)
-      .map(([moeda, d]) => ({
-        moeda,
-        ...d,
-        resultPct: d.investido > 0 ? (d.lucro / d.investido) * 100 : null,
-        sharePct: totalAtual > 0 ? (d.atual / totalAtual) * 100 : 0,
-      }))
-      .sort((a, b) => b.atual - a.atual);
-  }, [metrics]);
 
   // Posições encerradas (vendidas) de RV — vêm separadas do snapshot p/ não
   // poluir patrimônio/métricas. Só aparecem na tabela nos filtros Todos/Vendidos.
@@ -393,48 +320,6 @@ export default function RendaVariavelPage() {
         </div>
       </div>
 
-      {/* ── Resultados por Moeda ── */}
-      {byMoeda.length > 0 && (
-        <div className="glass-card p-5 mb-6 animate-fade-in">
-          <h2 className="section-title mb-4">Resultados por Moeda</h2>
-          <div className="overflow-x-auto">
-            <div className="min-w-[560px]">
-              {/* Cabeçalho */}
-              <div className="grid grid-cols-[1.3fr_1fr_1fr_1.3fr_1fr] gap-2 pb-2 mb-1 text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--faint)", borderBottom: "1px solid var(--line)" }}>
-                <span>Moeda</span>
-                <span className="text-right">Valor atual</span>
-                <span className="text-right">Investido</span>
-                <span className="text-right">Resultado</span>
-                <span className="text-right">Hoje</span>
-              </div>
-              {byMoeda.map((m) => {
-                const cor = MOEDA_COLORS[m.moeda] ?? "#71717a";
-                return (
-                  <div key={m.moeda} className="grid grid-cols-[1.3fr_1fr_1fr_1.3fr_1fr] gap-2 items-baseline py-2" style={{ borderBottom: "1px solid var(--line)" }}>
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cor, boxShadow: `0 0 6px ${cor}66` }} />
-                      <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{m.moeda}</span>
-                      <span className="text-[10px] font-mono" style={{ color: "var(--faint)" }}>{m.count} · {m.sharePct.toFixed(1)}%</span>
-                    </span>
-                    <span className="text-right text-xs font-mono font-bold tabular-nums" style={{ color: "var(--text)" }}>{compactBRL(m.atual)}</span>
-                    <span className="text-right text-xs font-mono tabular-nums" style={{ color: "var(--muted)" }}>{compactBRL(m.investido)}</span>
-                    <span className={`text-right text-xs font-mono font-bold tabular-nums ${m.lucro >= 0 ? "text-positive" : "text-negative"}`}>
-                      {m.lucro >= 0 ? "+" : ""}{compactBRL(m.lucro)}{m.resultPct != null ? ` (${pct(m.resultPct)})` : ""}
-                    </span>
-                    <span className={`text-right text-xs font-mono tabular-nums ${m.hoje >= 0 ? "text-positive" : "text-negative"}`}>
-                      {m.hoje >= 0 ? "+" : ""}{compactBRL(m.hoje)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <p className="text-[10px] mt-2" style={{ color: "var(--faint)" }}>
-            Valores em R$ · moeda de exposição (cripto separada) · resultado = valorização preço + câmbio, sem proventos
-          </p>
-        </div>
-      )}
-
       {/* FX bar when has USD */}
       {hasUSD && data.cambio && (
         <div className="glass-card p-4 mb-6 animate-fade-in">
@@ -457,75 +342,6 @@ export default function RendaVariavelPage() {
               <span className="text-zinc-500">Fonte FX</span>
               <span className="text-zinc-300 font-medium ml-2">{data.fxSource}</span>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Sector Analysis ── */}
-      {metrics.sectorData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 animate-fade-in">
-          {/* Pie */}
-          <div className="glass-card p-5">
-            <h2 className="section-title mb-4">Alocação por Setor</h2>
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width={160} height={160}>
-                <PieChart>
-                  <Pie
-                    data={metrics.sectorData}
-                    cx="50%" cy="50%"
-                    innerRadius={50} outerRadius={75}
-                    strokeWidth={2} stroke="rgba(0,0,0,0.4)"
-                    dataKey="value"
-                  >
-                    {metrics.sectorData.map((s, i) => (
-                      <Cell key={i} fill={SECTOR_COLORS[s.name] || "#71717a"} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                    formatter={(v: number, _n: string, props: { payload?: { name: string; pct: number } }) => [
-                      `${compactBRL(v)} (${(props.payload?.pct ?? 0).toFixed(1)}%)`,
-                      props.payload?.name ?? "",
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                {metrics.sectorData.map(s => (
-                  <div key={s.name} className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: SECTOR_COLORS[s.name] || "#71717a" }} />
-                    <span className="text-[11px] text-zinc-400 flex-1 truncate">{s.name}</span>
-                    <span className="text-[11px] text-zinc-300 font-semibold tabular-nums">{s.pct.toFixed(1)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Sector returns bar */}
-          <div className="glass-card p-5">
-            <h2 className="section-title mb-4">Valorização por Setor (%)</h2>
-            <ResponsiveContainer width="100%" height={185}>
-              <BarChart data={metrics.sectorData} layout="vertical" barCategoryGap="22%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E2028" horizontal={false} />
-                <XAxis type="number" tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => `${v.toFixed(0)}%`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
-                  formatter={(v: number, _n: string, props: { payload?: { name: string; value: number; invested: number; count: number } }) => [
-                    `${v >= 0 ? "+" : ""}${v.toFixed(1)}% · ${compactBRL(props.payload?.value ?? 0)} · ${props.payload?.count} ativos`,
-                    props.payload?.name ?? "",
-                  ]}
-                />
-                <ReferenceLine x={0} stroke="#3f3f46" strokeWidth={1} />
-                <Bar dataKey="retorno" radius={[0, 4, 4, 0]} maxBarSize={14}>
-                  {metrics.sectorData.map((s, i) => (
-                    <Cell key={i} fill={s.retorno >= 0 ? "#34d399" : "#f87171"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
           </div>
         </div>
       )}
@@ -673,38 +489,6 @@ export default function RendaVariavelPage() {
           </div>
         )}
       </div>
-
-      {/* FX decomposition summary */}
-      {hasUSD && (
-        <div className="glass-card p-5 mt-4 animate-fade-in">
-          <h2 className="section-title mb-4"><DollarSign size={15} />Decomposição FX (3 fatores)</h2>
-          <p className="text-xs text-zinc-500 mb-4">
-            Quebra o lucro total nos três fatores: valorização do ativo (ao câmbio de custo), câmbio sobre o capital aportado e o efeito cruzado (câmbio sobre o lucro do ativo).
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            <div>
-              <span className="stat-label block mb-1">Lucro Total (BRL)</span>
-              <span className={`stat-value ${data.lucroBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.lucroBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">Resultado em reais</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Ativo (puro)</span>
-              <span className={`stat-value ${data.ganhoAtivoPuroTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoAtivoPuroTotalBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">(V₁−V₀)·P₀ — ao câmbio de custo</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Câmbio principal</span>
-              <span className={`stat-value ${data.ganhoFXPrincipalTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoFXPrincipalTotalBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">V₀·(P₁−P₀) — spot R$ {data.usdbrl.toFixed(2)} vs PM R$ {data.cambio?.pmDolar.toFixed(2)}</span>
-            </div>
-            <div>
-              <span className="stat-label block mb-1">Efeito cruzado</span>
-              <span className={`stat-value ${data.ganhoCruzadoTotalBRL >= 0 ? "text-positive" : "text-negative"}`}>{brl(data.ganhoCruzadoTotalBRL)}</span>
-              <span className="text-[10px] text-zinc-500 block mt-0.5">(V₁−V₀)·(P₁−P₀) — câmbio sobre o lucro</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {selected && (
         <AssetDetailModal
