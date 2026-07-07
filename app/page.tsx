@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
@@ -57,6 +57,12 @@ interface NewsArticle {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Modo privacidade (olho no topo da Home): esconde VALORES ABSOLUTOS (R$/US$)
+// do painel do dia — retornos por book, Σ do dia e patrimônio total. Percentuais
+// e cotações de mercado continuam visíveis (não revelam o tamanho da carteira).
+const MASK = "•••••";
+const maskIf = (priv: boolean, s: string) => (priv ? MASK : s);
 
 function cleanTicker(t: string | null | undefined): string {
   if (!t) return "—";
@@ -756,7 +762,7 @@ interface IbkrStripData {
 // com % e R$ de apoio + patrimônio de contexto. Lê /api/ibkr/overview de forma
 // assíncrona; enquanto não há dado (carregando, não configurado ou erro) NÃO
 // renderiza nada — nunca quebra a Home nem deixa espaço vazio.
-function IbkrDayStrip({ data }: { data: IbkrStripData | null }) {
+function IbkrDayStrip({ data, priv }: { data: IbkrStripData | null; priv: boolean }) {
   if (!data) return null;
   const k = data.kpis;
   const up = (k.lucroDiaUSD ?? k.lucroDiaBRL ?? 0) >= 0;
@@ -807,20 +813,20 @@ function IbkrDayStrip({ data }: { data: IbkrStripData | null }) {
             <div className="flex items-center justify-end gap-1">
               {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
               <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
-                {signedUSD(k.lucroDiaUSD)}
+                {maskIf(priv, signedUSD(k.lucroDiaUSD))}
               </span>
             </div>
             <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
               {k.lucroDiaPct != null ? `${pct(k.lucroDiaPct * 100)} · ` : ""}
-              {(k.lucroDiaBRL >= 0 ? "+" : "")}{compactBRL(k.lucroDiaBRL)}
+              {maskIf(priv, (k.lucroDiaBRL >= 0 ? "+" : "") + compactBRL(k.lucroDiaBRL))}
             </div>
           </div>
 
           {/* Patrimônio — contexto, oculto em telas pequenas */}
           <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
             <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
-            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactUSD(k.patrimonioUSD)}</div>
-            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{compactBRL(k.patrimonioBRL)}</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{maskIf(priv, compactUSD(k.patrimonioUSD))}</div>
+            <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{maskIf(priv, compactBRL(k.patrimonioBRL))}</div>
           </div>
 
           <ChevronRight size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" style={{ color: "var(--faint)" }} />
@@ -870,7 +876,7 @@ interface DayStripProps {
   count: number;
 }
 
-function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripProps & { sessao: { text: string; color: string } }) {
+function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao, priv }: DayStripProps & { sessao: { text: string; color: string }; priv: boolean }) {
   if (count === 0) return null;
   const up = dayBRL >= 0;
   const dayColor = up ? "var(--pos)" : "var(--neg)";
@@ -910,7 +916,7 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripPr
             <div className="flex items-center justify-end gap-1">
               {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
               <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
-                {signedBRLc(dayBRL)}
+                {maskIf(priv, signedBRLc(dayBRL))}
               </span>
             </div>
             <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
@@ -920,7 +926,7 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao }: DayStripPr
 
           <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
             <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
-            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(patrimonioBRL)}</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{maskIf(priv, compactBRL(patrimonioBRL))}</div>
             <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>ações · FIIs · ETFs</div>
           </div>
 
@@ -947,11 +953,12 @@ function FxIcon() {
 
 // Câmbio — efeito da variação do dólar do dia sobre a exposição estrangeira
 // (principal em moeda forte, sem cripto — a faixa Bitcoin já embute o câmbio).
-function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
+function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
   efeitoBRL: number;
   usdPct: number | null;
   exposicaoBRL: number;
   usdbrl: number | null;
+  priv: boolean;
 }) {
   if (exposicaoBRL <= 0) return null;
   const up = efeitoBRL >= 0;
@@ -995,7 +1002,7 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
             <div className="flex items-center justify-end gap-1">
               {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
               <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
-                {signedBRLc(efeitoBRL)}
+                {maskIf(priv, signedBRLc(efeitoBRL))}
               </span>
             </div>
             <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
@@ -1005,7 +1012,7 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
 
           <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
             <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Exposição</div>
-            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(exposicaoBRL)}</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{maskIf(priv, compactBRL(exposicaoBRL))}</div>
             <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>principal estrangeiro</div>
           </div>
 
@@ -1016,27 +1023,57 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl }: {
   );
 }
 
-// Somatório das linhas — o MESMO retorno do dia (IBKR + Brasil + Bitcoin +
-// câmbio), fechado como RODAPÉ do card, estilo total de fatura.
-function DayStripsTotal({ brl, pctVal }: { brl: number | null; pctVal: number | null }) {
-  if (brl == null) return null;
-  const color = brl >= 0 ? "var(--pos)" : "var(--neg)";
+// Rodapé do card, estilo total de fatura: Patrimônio TOTAL ao vivo (IBKR real ×
+// dólar de agora + BR + cripto + RF + caixa — o mesmo totalBRL da Home) à
+// esquerda e o Σ retorno do dia (IBKR + Brasil + Bitcoin + câmbio) à direita.
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv }: {
+  brl: number | null;
+  pctVal: number | null;
+  patrimonioBRL: number | null;
+  usdbrl: number | null;
+  priv: boolean;
+}) {
+  if (brl == null && patrimonioBRL == null) return null;
+  const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   return (
-    <div className="flex items-baseline justify-end gap-2.5 px-4 py-2.5" style={{ background: "var(--hover)" }}>
-      <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-        Σ Retorno do dia
-      </span>
-      <span className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
-        {signedBRLc(brl)}
-      </span>
-      {pctVal != null && (
-        <span className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85 }}>{pct(pctVal)}</span>
+    <div
+      className="flex items-center justify-between gap-3 px-4 py-3"
+      style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}
+    >
+      {/* Patrimônio total — a carteira inteira, ao vivo */}
+      {patrimonioBRL != null && patrimonioBRL > 0 ? (
+        <div className="min-w-0">
+          <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+            Patrimônio total
+          </div>
+          <div className="font-mono font-extrabold tnum truncate" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
+            {maskIf(priv, compactBRL(patrimonioBRL))}
+          </div>
+          <div className="font-mono mt-1 tnum truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
+            {usdbrl && usdbrl > 0 ? `${maskIf(priv, compactUSD(patrimonioBRL / usdbrl))} · ` : ""}IBKR + BR + BTC + RF + caixa
+          </div>
+        </div>
+      ) : <div />}
+
+      {/* Σ retorno do dia */}
+      {brl != null && (
+        <div className="text-right shrink-0">
+          <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+            Σ Retorno do dia
+          </div>
+          <div className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
+            {maskIf(priv, signedBRLc(brl))}
+          </div>
+          {pctVal != null && (
+            <div className="font-mono mt-1 tnum" style={{ color, fontSize: 10, opacity: 0.85 }}>{pct(pctVal)} no dia</div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProps & { btc: { priceUSD: number; dayPct: number | null } | null }) {
+function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc, priv }: DayStripProps & { btc: { priceUSD: number; dayPct: number | null } | null; priv: boolean }) {
   if (count === 0) return null;
   const up = dayBRL >= 0;
   const dayColor = up ? "var(--pos)" : "var(--neg)";
@@ -1076,7 +1113,7 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProp
             <div className="flex items-center justify-end gap-1">
               {up ? <ArrowUpRight size={16} style={{ color: dayColor }} /> : <ArrowDownRight size={16} style={{ color: dayColor }} />}
               <span className="font-mono font-extrabold tnum" style={{ color: dayColor, fontSize: 20, lineHeight: 1 }}>
-                {signedBRLc(dayBRL)}
+                {maskIf(priv, signedBRLc(dayBRL))}
               </span>
             </div>
             <div className="font-mono mt-0.5 tnum" style={{ color: dayColor, fontSize: 10, opacity: 0.85 }}>
@@ -1086,7 +1123,7 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc }: DayStripProp
 
           <div className="text-right hidden md:block pl-4" style={{ borderLeft: "1px solid var(--line)" }}>
             <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>Patrimônio</div>
-            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{compactBRL(patrimonioBRL)}</div>
+            <div className="font-mono font-bold tnum" style={{ color: "var(--text)", fontSize: 16, lineHeight: 1.1 }}>{maskIf(priv, compactBRL(patrimonioBRL))}</div>
             <div className="font-mono mt-0.5 tnum" style={{ color: "var(--muted)", fontSize: 10 }}>preço + câmbio</div>
           </div>
 
@@ -1103,6 +1140,18 @@ export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
+
+  // Modo privacidade — persiste entre visitas (localStorage). Olho aberto =
+  // valores visíveis; olho cortado = valores absolutos mascarados.
+  const [priv, setPriv] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem("home-privacy") === "1") setPriv(true); } catch { /* ignore */ }
+  }, []);
+  const togglePriv = () => setPriv((v) => {
+    const n = !v;
+    try { localStorage.setItem("home-privacy", n ? "1" : "0"); } catch { /* ignore */ }
+    return n;
+  });
 
   // Fonte âncora do retorno do dia: API da IBKR (book internacional, sem erro).
   // Uma tentativa extra após 2,5s: em cold start a geração do Flex pode estourar
@@ -1274,10 +1323,10 @@ export default function HomePage() {
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
       <div className="w-full space-y-0">
 
-        {/* ── Row 1: Hero (logo + saudação) ── */}
-        <div className="animate-fade-in">
+        {/* ── Row 1: Hero (logo + saudação + olho de privacidade) ── */}
+        <div className="animate-fade-in flex items-center justify-between gap-3">
           {/* Logo + greeting */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0">
             <Image
               src="/midias/carregamento.png"
               alt="Meus Investimentos"
@@ -1313,6 +1362,23 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* Olho de privacidade — esconde/mostra os valores do painel do dia */}
+          <button
+            onClick={togglePriv}
+            aria-label={priv ? "Mostrar valores" : "Esconder valores"}
+            title={priv ? "Mostrar valores" : "Esconder valores"}
+            className="shrink-0 grid place-items-center transition-colors hover:bg-white/[0.06]"
+            style={{
+              width: 38,
+              height: 38,
+              border: "1px solid var(--line)",
+              background: priv ? "rgba(232,163,61,0.10)" : "var(--panel)",
+              color: priv ? "var(--accent)" : "var(--muted)",
+              borderRadius: 10,
+            }}
+          >
+            {priv ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
         </div>
 
         {/* ── Row 2: Cotações rolantes — primeira coisa depois da saudação ── */}
@@ -1340,13 +1406,14 @@ export default function HomePage() {
                 </span>
                 <span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>por book · toque para abrir</span>
               </div>
-              <IbkrDayStrip data={ibkrOverview} />
+              <IbkrDayStrip data={ibkrOverview} priv={priv} />
               <BrDayStrip
                 dayBRL={brDayBRL}
                 dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
                 patrimonioBRL={brStats.valueBRL}
                 count={brStats.count}
                 sessao={brStats.sessao}
+                priv={priv}
               />
               <BtcDayStrip
                 dayBRL={cryptoDayBRL}
@@ -1354,6 +1421,7 @@ export default function HomePage() {
                 patrimonioBRL={cryptoStats.valueBRL}
                 count={cryptoStats.count}
                 btc={cryptoStats.btc}
+                priv={priv}
               />
               {fxDia && (
                 <FxDayStrip
@@ -1361,9 +1429,16 @@ export default function HomePage() {
                   usdPct={usdDayChangePct}
                   exposicaoBRL={fxDia.principalBRL}
                   usdbrl={usdbrl}
+                  priv={priv}
                 />
               )}
-              <DayStripsTotal brl={dayBRLfinal} pctVal={dayPctFinal} />
+              <DayStripsTotal
+                brl={dayBRLfinal}
+                pctVal={dayPctFinal}
+                patrimonioBRL={totalBRL}
+                usdbrl={usdbrl}
+                priv={priv}
+              />
             </div>
           </ErrorBoundary>
         )}
