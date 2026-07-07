@@ -13,7 +13,7 @@ import {
 import { usePortfolio, useSheetData } from "@/lib/hooks";
 import { brl, compactBRL, pct } from "@/lib/format";
 import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme";
-import { isRendaVariavel } from "@/lib/sectors";
+import { isRendaVariavel, getMoedaExposicao } from "@/lib/sectors";
 import MetricCard from "@/components/MetricCard";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -96,6 +96,19 @@ function parseTransactions(rows: Record<string, unknown>[]): Transaction[] {
   }).filter(t => t.ticker && t.quantidade > 0);
 }
 
+// Preço na moeda nativa do ativo (para "preço atual" e "preço médio" nos cards).
+const MOEDA_SYM: Record<string, string> = { BRL: "R$", USD: "US$", EUR: "€", CAD: "C$", GBP: "£" };
+function fmtMoeda(v: number | null | undefined, moeda: string): string {
+  if (v == null || !isFinite(v)) return "—";
+  const sym = MOEDA_SYM[moeda] ?? `${moeda} `;
+  const dec = Math.abs(v) >= 1000 ? 0 : 2;
+  return `${sym} ${v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+}
+
+const MOEDA_COLORS: Record<string, string> = {
+  BRL: "#009C3B", USD: "#3B82F6", EUR: "#8b5cf6", CAD: "#ef4444", GBP: "#eab308", Cripto: "#F7931A",
+};
+
 function parseDateSort(raw: string): number {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(raw).getTime();
@@ -167,6 +180,31 @@ export default function RendaVariavelPage() {
       fxPrincipal, fxCruzado, sectorData, posGanhadoras, posPerdedoras,
     };
   }, [data]);
+
+  // Resultados por moeda — agrega os campos CANÔNICOS do snapshot por moeda de
+  // exposição (BRL/USD/EUR/CAD/Cripto — mesma régua da exposição cambial).
+  const byMoeda = useMemo(() => {
+    if (!metrics) return [];
+    const map: Record<string, { count: number; atual: number; investido: number; lucro: number; hoje: number }> = {};
+    for (const p of metrics.rv) {
+      const k = getMoedaExposicao(p.setor, p.moeda ?? "BRL");
+      if (!map[k]) map[k] = { count: 0, atual: 0, investido: 0, lucro: 0, hoje: 0 };
+      map[k].count += 1;
+      map[k].atual += p.valorAtualBRL ?? 0;
+      map[k].investido += p.custoTotalBRL ?? 0;
+      map[k].lucro += p.lucroBRL ?? 0;
+      map[k].hoje += p.dayChangeBRL ?? 0;
+    }
+    const totalAtual = Object.values(map).reduce((s, d) => s + d.atual, 0);
+    return Object.entries(map)
+      .map(([moeda, d]) => ({
+        moeda,
+        ...d,
+        resultPct: d.investido > 0 ? (d.lucro / d.investido) * 100 : null,
+        sharePct: totalAtual > 0 ? (d.atual / totalAtual) * 100 : 0,
+      }))
+      .sort((a, b) => b.atual - a.atual);
+  }, [metrics]);
 
   // Posições encerradas (vendidas) de RV — vêm separadas do snapshot p/ não
   // poluir patrimônio/métricas. Só aparecem na tabela nos filtros Todos/Vendidos.
@@ -308,6 +346,48 @@ export default function RendaVariavelPage() {
           />
         </div>
       </div>
+
+      {/* ── Resultados por Moeda ── */}
+      {byMoeda.length > 0 && (
+        <div className="glass-card p-5 mb-6 animate-fade-in">
+          <h2 className="section-title mb-4">Resultados por Moeda</h2>
+          <div className="overflow-x-auto">
+            <div className="min-w-[560px]">
+              {/* Cabeçalho */}
+              <div className="grid grid-cols-[1.3fr_1fr_1fr_1.3fr_1fr] gap-2 pb-2 mb-1 text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--faint)", borderBottom: "1px solid var(--line)" }}>
+                <span>Moeda</span>
+                <span className="text-right">Valor atual</span>
+                <span className="text-right">Investido</span>
+                <span className="text-right">Resultado</span>
+                <span className="text-right">Hoje</span>
+              </div>
+              {byMoeda.map((m) => {
+                const cor = MOEDA_COLORS[m.moeda] ?? "#71717a";
+                return (
+                  <div key={m.moeda} className="grid grid-cols-[1.3fr_1fr_1fr_1.3fr_1fr] gap-2 items-baseline py-2" style={{ borderBottom: "1px solid var(--line)" }}>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cor, boxShadow: `0 0 6px ${cor}66` }} />
+                      <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{m.moeda}</span>
+                      <span className="text-[10px] font-mono" style={{ color: "var(--faint)" }}>{m.count} · {m.sharePct.toFixed(1)}%</span>
+                    </span>
+                    <span className="text-right text-xs font-mono font-bold tabular-nums" style={{ color: "var(--text)" }}>{compactBRL(m.atual)}</span>
+                    <span className="text-right text-xs font-mono tabular-nums" style={{ color: "var(--muted)" }}>{compactBRL(m.investido)}</span>
+                    <span className={`text-right text-xs font-mono font-bold tabular-nums ${m.lucro >= 0 ? "text-positive" : "text-negative"}`}>
+                      {m.lucro >= 0 ? "+" : ""}{compactBRL(m.lucro)}{m.resultPct != null ? ` (${pct(m.resultPct)})` : ""}
+                    </span>
+                    <span className={`text-right text-xs font-mono tabular-nums ${m.hoje >= 0 ? "text-positive" : "text-negative"}`}>
+                      {m.hoje >= 0 ? "+" : ""}{compactBRL(m.hoje)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[10px] mt-2" style={{ color: "var(--faint)" }}>
+            Valores em R$ · moeda de exposição (cripto separada) · resultado = valorização preço + câmbio, sem proventos
+          </p>
+        </div>
+      )}
 
       {/* FX bar when has USD */}
       {hasUSD && data.cambio && (
@@ -487,6 +567,13 @@ export default function RendaVariavelPage() {
                       </div>
                     </div>
                   </div>
+                  {/* Preço atual × preço médio, na moeda nativa do ativo */}
+                  {!vendido && (
+                    <div className="flex items-center justify-between w-full font-mono tabular-nums" style={{ fontSize: 10, color: "var(--muted)" }}>
+                      <span title="Preço atual">{fmtMoeda(p.precoAtual, p.quoteCurrency ?? p.moeda ?? "BRL")}</span>
+                      <span title="Preço médio de compra" style={{ color: "var(--faint)" }}>PM {fmtMoeda(p.custoMedio, p.moeda ?? "BRL")}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between w-full">
                     <span className="text-[11px]" style={{ color: "var(--muted)" }}>
                       {vendido ? "Resultado" : brl(p.valorAtualBRL)}
