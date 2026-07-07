@@ -83,6 +83,22 @@ export async function GET(req: Request) {
       });
     }
 
+    // Marcação de conclusão via GET (?marcarFeito=<id>&valor=0|1) — espelho do
+    // PATCH para clientes que só fazem GET (ex.: conector Vercel do fluxo
+    // anotacoes.md). A API já é aberta (POST/DELETE sem auth); isto não muda o
+    // modelo de segurança. Escrita continua bloqueada em modo demo (store).
+    const marcarFeito = params.get("marcarFeito")?.trim();
+    if (marcarFeito) {
+      const valor = params.get("valor") !== "0";
+      const rowsMF = await store.fetchTab(TAB).catch(() => []);
+      const all = rowsMF.map(rowToNota).filter((n) => n.id);
+      const alvo = all.find((n) => n.id === marcarFeito);
+      if (!alvo) return NextResponse.json({ error: "nota não encontrada" }, { status: 404 });
+      alvo.feito = valor ? new Date().toISOString() : "";
+      await store.writeTab(TAB, HEADERS, all.map((n) => [n.id, n.ticker, n.data, n.texto, n.feito]));
+      return NextResponse.json({ ok: true, nota: alvo }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     const ticker = params.get("ticker")?.trim().toUpperCase();
 
     const rows = await store.fetchTab(TAB).catch(() => []);

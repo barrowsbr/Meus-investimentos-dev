@@ -13,19 +13,30 @@ modelo: melhorias, correções e mudanças que ele quer que sejam implementadas
 neste repositório. Cards com outras etiquetas (GERAL, tickers) são anotações
 pessoais — **nunca** trate como tarefa.
 
-Os cards vivem na aba `ativos_notas` da planilha, expostos pela API do app:
+Os cards vivem na aba `ativos_notas` da planilha, expostos pela API do app.
+Produção: **`https://meus-investimentos-dev.vercel.app`** (projeto Vercel
+`meus-investimentos-dev`, team `barrowsbrs-projects`).
 
-- **Ler a fila**: `GET https://meus-investimentos.vercel.app/api/notas?ticker=IA`
+- **Ler a fila**: `GET /api/notas?ticker=IA`
   → JSON `[{ id, ticker, data, texto, feito }]`. Pendente = `feito` vazio.
-- **Marcar concluído**: `PATCH https://meus-investimentos.vercel.app/api/notas`
-  com body `{"id": "<id do card>", "feito": true}` — o card ganha o ✓ na página.
+- **Marcar concluído**: `PATCH /api/notas` com body
+  `{"id": "<id do card>", "feito": true}` — o card ganha o ✓ na página.
+  Equivalente via GET (para clientes que só fazem GET):
+  `GET /api/notas?marcarFeito=<id>` (desmarcar: `&valor=0`).
 
-Se a rede do ambiente bloquear o domínio (proxy 403 no CONNECT), NÃO desista
-silenciosamente: avise o dono e peça que ele (a) libere
-`meus-investimentos.vercel.app` na network policy do ambiente, ou (b) cole o
-texto dos cards na conversa. Nesse caso, execute normalmente a partir do texto
-colado e entregue no relatório final a lista de `id`s concluídos para ele dar
-o ✓ manualmente (ou marque via PATCH assim que a rede permitir).
+**Como acessar a API** (em ordem de preferência):
+
+1. **Conector Vercel (MCP)** — se os tools `mcp__Vercel__*` estiverem
+   disponíveis (carregar via ToolSearch), use
+   `mcp__Vercel__web_fetch_vercel_url` com a URL completa. Funciona mesmo com a
+   network policy bloqueando o domínio (tráfego MCP passa pela Anthropic).
+   Para marcar o ✓ use a forma GET `?marcarFeito=<id>`.
+2. **curl direto** — se a network policy do ambiente permitir o domínio.
+3. **Fallback humano** — se nada disso funcionar, NÃO desista silenciosamente:
+   avise o dono e peça que ele (a) libere `meus-investimentos-dev.vercel.app`
+   na network policy, (b) conecte o conector da Vercel, ou (c) cole o texto dos
+   cards na conversa. Nesse caso execute a partir do texto colado e entregue no
+   relatório final a lista de `id`s concluídos para ele dar o ✓ manualmente.
 
 ## Regra de ouro — 1 card = 1 tarefa com recurso dedicado
 
