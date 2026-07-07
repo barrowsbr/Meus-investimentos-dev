@@ -2026,11 +2026,31 @@ const HOLO_OPTIONS: { key: HoloStyle; label: string; desc: string }[] = [
   { key: "classico", label: "Clássico", desc: "Janela compacta com bordas, como era antes — o globo abre numa moldura central." },
 ];
 
+const PRIV_OPTIONS: { key: "fechado" | "aberto"; label: string; desc: string }[] = [
+  { key: "fechado", label: "Olho fechado", desc: "A Home abre com os valores ocultos (•••••) — retornos do dia, Σ e patrimônio total. Percentuais continuam visíveis." },
+  { key: "aberto", label: "Olho aberto", desc: "A Home abre com todos os valores visíveis, como sempre foi." },
+];
+
 function ThemeSection() {
   const { theme, setTheme, bgAnim, setBgAnim } = useTheme();
   const [holo, setHolo] = useState<HoloStyle>("imersivo");
 
-  useEffect(() => { setHolo(getHoloStyle()); }, []);
+  // Padrão do olho de privacidade da Home. O clique no olho lá vale só para a
+  // sessão (sessionStorage) — este padrão decide como a Home ABRE.
+  const [privDefault, setPrivDefault] = useState<"fechado" | "aberto">("fechado");
+
+  useEffect(() => {
+    setHolo(getHoloStyle());
+    try { if (localStorage.getItem("home-privacy-default") === "aberto") setPrivDefault("aberto"); } catch { /* ignore */ }
+  }, []);
+
+  const savePrivDefault = (v: "fechado" | "aberto") => {
+    setPrivDefault(v);
+    try {
+      localStorage.setItem("home-privacy-default", v);
+      sessionStorage.removeItem("home-privacy"); // o novo padrão vale já na próxima visita à Home
+    } catch { /* ignore */ }
+  };
 
   const hasAnimation = theme === "ambar" || theme === "creme" || theme === "matrix" || theme === "miami" || theme === "blade" || theme === "starwars";
 
@@ -2173,6 +2193,53 @@ function ThemeSection() {
                         boxShadow: "0 0 8px rgba(56,189,248,0.5)",
                       }}
                     />
+                  </span>
+                  <span className="font-mono text-sm font-bold text-zinc-200">{opt.label}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-zinc-500">{opt.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Privacidade — como o olho da Home abre por padrão */}
+      <div className="pt-3 border-t border-zinc-800/50 space-y-2">
+        <div className="flex items-center gap-2">
+          <EyeOff size={13} className="text-amber-400" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Privacidade — olho da Home</span>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Define como a Home abre por padrão. O clique no olho lá em cima muda na hora, mas vale só até fechar o navegador — na próxima visita volta ao padrão escolhido aqui.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+          {PRIV_OPTIONS.map((opt) => {
+            const active = privDefault === opt.key;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => savePrivDefault(opt.key)}
+                className="relative text-left transition-all hover:scale-[1.01] rounded-lg"
+                style={{
+                  background: "rgba(20,15,8,0.6)",
+                  border: active ? "2px solid rgba(232,163,61,0.6)" : "2px solid rgba(128,128,128,0.2)",
+                  boxShadow: active ? "0 0 16px rgba(232,163,61,0.15)" : "none",
+                  padding: 14,
+                }}
+              >
+                {active && (
+                  <div className="absolute top-2.5 right-2.5">
+                    <Check size={14} className="text-amber-400" />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span
+                    className="grid place-items-center"
+                    style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(232,163,61,0.10)", border: "1px solid rgba(232,163,61,0.25)" }}
+                  >
+                    {opt.key === "fechado"
+                      ? <EyeOff size={16} className="text-amber-400" />
+                      : <Eye size={16} className="text-amber-400" />}
                   </span>
                   <span className="font-mono text-sm font-bold text-zinc-200">{opt.label}</span>
                 </div>

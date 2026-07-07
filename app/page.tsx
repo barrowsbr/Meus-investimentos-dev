@@ -1141,15 +1141,22 @@ export default function HomePage() {
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
 
-  // Modo privacidade — persiste entre visitas (localStorage). Olho aberto =
-  // valores visíveis; olho cortado = valores absolutos mascarados.
-  const [priv, setPriv] = useState(false);
+  // Modo privacidade — FECHADO (valores ocultos) por padrão; o padrão é
+  // configurável em Configurações → Preferências ("home-privacy-default").
+  // O clique no olho vale só para a sessão do navegador (sessionStorage) —
+  // ao abrir de novo, volta ao padrão configurado.
+  const [priv, setPriv] = useState(true);
   useEffect(() => {
-    try { if (localStorage.getItem("home-privacy") === "1") setPriv(true); } catch { /* ignore */ }
+    try {
+      const sess = sessionStorage.getItem("home-privacy");
+      if (sess === "0") setPriv(false);
+      else if (sess === "1") setPriv(true);
+      else setPriv(localStorage.getItem("home-privacy-default") !== "aberto");
+    } catch { /* mantém fechado */ }
   }, []);
   const togglePriv = () => setPriv((v) => {
     const n = !v;
-    try { localStorage.setItem("home-privacy", n ? "1" : "0"); } catch { /* ignore */ }
+    try { sessionStorage.setItem("home-privacy", n ? "1" : "0"); } catch { /* ignore */ }
     return n;
   });
 

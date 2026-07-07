@@ -2,7 +2,7 @@ import {
   Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Sunrise, Layers,
-  Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2,
+  Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2, StickyNote,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -63,6 +63,7 @@ export const NAV: NavGroup[] = [
       { href: "/ibkr", label: "IBKR", icon: Building2, sub: "Visão gerencial da conta Interactive Brokers (via Flex)" },
       { href: "/polymarket", label: "Preditivos", icon: Gauge, sub: "Mercados preditivos relacionados à carteira" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
+      { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
     ],
   },
