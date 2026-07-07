@@ -316,6 +316,16 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   (`calcularSnapshot` + helpers) e `lib/cambio.ts`. As páginas consomem via
   `usePortfolio` → `/api/cotacoes`, ou rotas TS que reusam `calcularSnapshot`
   (`/api/composicao/resumo`, `/api/renda-fixa/posicoes`, `/api/portfolio/sectors`).
+- **Motor é SERVER-ONLY — client só importa `type` dele (regra dura de build).**
+  `lib/portfolio.ts`/`cotacoes.ts`/`market-history.ts` puxam `yahoo-finance2`
+  (→ `@deno/shim-deno` → `net`), que NÃO bundla no browser. Um `import` de VALOR
+  (não `import type`) dessas libs num componente `"use client"` quebra
+  `npm run build` — e o `tsc --noEmit` passa (tipos são apagados), então o erro
+  só aparece no deploy. Se um client precisa de uma função de cálculo, ela tem
+  que morar num módulo PURO sem deps server-only (ex.: `lib/lucro-venda.ts`).
+  **Sempre rode `npm run build` (não só `tsc`) quando a mudança cruzar a
+  fronteira client↔server** — client importando de `lib/`, rota de API nova,
+  `middleware.ts` ou webpack.
 - **Python (`api/index.py` / `backend/`) serve APENAS** preditivo/ML, agente/IA e
   endpoints sem equivalente TS (`/api/fluxos`, `/api/historico`). **NUNCA** recalcular
   portfólio/proventos/câmbio em Python — o `portfolio_service.py` está em quarentena

@@ -62,6 +62,20 @@ bolo único. É PROIBIDO agrupar cards numa "grande tarefa". Para cada card:
    `npx tsc --noEmit` limpo → commit PRÓPRIO (mensagem referenciando o card,
    ex.: `Anotações IA nota-xyz: <resumo>`) → push. Um commit por card; nunca
    commit coletivo.
+   - **`npm run build` obrigatório quando o card cruza a fronteira client↔server.**
+     `tsc --noEmit` NÃO pega erro de bundle: tipos são apagados, então um import
+     inválido no browser passa no type-check e só quebra o build de produção
+     (deploy falha depois do push). Rode `npm run build` (além do tsc) sempre que
+     o card: (a) adicionar um import de VALOR (não `import type`) de um motor/lib
+     pesada — `@/lib/portfolio`, `@/lib/cotacoes`, `@/lib/market-history`,
+     `@/lib/tax/*`, ou qualquer coisa que puxe `yahoo-finance2`/`googleapis` — em
+     um componente `"use client"`; (b) criar/editar componente client que importe
+     de `lib/`; (c) mexer em rota de API, `middleware.ts` ou config de webpack.
+     Regra prática: motor de cálculo é server-only — client só importa `type`
+     dele, ou uma função PURA num módulo sem deps server-only (ex.:
+     `lib/lucro-venda.ts`). Precedente: um `import { calcularLucroPorVenda } from
+     "@/lib/portfolio"` num client component arrastou `yahoo-finance2 →
+     @deno/shim-deno → 'net'` pro browser e quebrou o build (tsc passou).
 4. **Ambiguidade**: se um card tiver mais de uma interpretação razoável ou
    pedir algo arquiteturalmente pesado, pergunte ao dono (AskUserQuestion)
    ANTES de executar aquele card — e siga executando os outros enquanto isso.
