@@ -6,7 +6,6 @@ import { RefreshCw } from "lucide-react";
 import { bumpDataVersion } from "@/lib/data-version";
 import Rail from "./Rail";
 import CommandBar from "./CommandBar";
-import WalkerSprite from "./WalkerSprite";
 import BottomNav from "./BottomNav";
 import { navItemForPath } from "./nav";
 import { GlobeOverlayProvider } from "@/components/GlobeOverlayContext";
@@ -134,11 +133,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
         className={`flex flex-1 flex-col min-w-0 ${collapsed ? "min-[1100px]:ml-[60px]" : "min-[1100px]:ml-[206px]"}`}
         style={{ paddingTop: "env(safe-area-inset-top)", transition: "margin-left 200ms ease" }}
       >
-        {/* Barra superior + mascote que a atravessa a cada 1 min (WalkerSprite) */}
-        <div className="relative">
-          <CommandBar title={title} onMenu={() => setRailOpen((o) => !o)} />
-          <WalkerSprite />
-        </div>
+        <CommandBar title={title} onMenu={() => setRailOpen((o) => !o)} />
         <main
           ref={mainRef}
           key={pathname}

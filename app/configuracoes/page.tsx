@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
-import { isWalkerEnabled, WALKER_KEY, WALKER_EVENT } from "@/components/terminal/WalkerSprite";
 import { useTheme, type Theme } from "@/components/terminal";
 import { getHoloStyle, setHoloStyle, type HoloStyle } from "@/lib/holo-style";
 
@@ -2040,24 +2039,10 @@ function ThemeSection() {
   // sessão (sessionStorage) — este padrão decide como a Home ABRE.
   const [privDefault, setPrivDefault] = useState<"fechado" | "aberto">("fechado");
 
-  // Mascote Barroots andando na barra superior a cada 1 min (WalkerSprite).
-  const [walker, setWalker] = useState(true);
-
   useEffect(() => {
     setHolo(getHoloStyle());
     try { if (localStorage.getItem("home-privacy-default") === "aberto") setPrivDefault("aberto"); } catch { /* ignore */ }
-    setWalker(isWalkerEnabled());
   }, []);
-
-  const toggleWalker = () => {
-    setWalker((w) => {
-      try {
-        localStorage.setItem(WALKER_KEY, w ? "0" : "1");
-        window.dispatchEvent(new Event(WALKER_EVENT)); // aplica na hora, sem reload
-      } catch { /* ignore */ }
-      return !w;
-    });
-  };
 
   const savePrivDefault = (v: "fechado" | "aberto") => {
     setPrivDefault(v);
@@ -2215,30 +2200,6 @@ function ThemeSection() {
               </button>
             );
           })}
-        </div>
-      </div>
-
-      {/* Mascote — bonequinho Barroots andando na barra superior */}
-      <div className="pt-3 border-t border-zinc-800/50 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] leading-none">🌳</span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Mascote no topo</span>
-        </div>
-        <p className="text-xs text-zinc-500">
-          O bonequinho Barroots atravessa a barra superior a cada 1 minuto. A mudança vale na hora, sem recarregar.
-        </p>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <div
-              className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${walker ? "bg-emerald-500" : "bg-zinc-600"}`}
-              onClick={toggleWalker}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${walker ? "left-4" : "left-0.5"}`} />
-            </div>
-            <span className="text-xs text-zinc-400">
-              {walker ? "Mascote ativado" : "Mascote desativado"}
-            </span>
-          </label>
         </div>
       </div>
 
