@@ -111,6 +111,20 @@ const MOEDA_COLORS: Record<string, string> = {
   BRL: "#009C3B", USD: "#3B82F6", EUR: "#8b5cf6", CAD: "#ef4444", GBP: "#eab308", Cripto: "#F7931A",
 };
 
+// País do ativo — inferido pelo sufixo de bolsa (estilo Yahoo) e pela moeda.
+const PAIS_POR_SUFIXO: Record<string, string> = {
+  SA: "Brasil", TO: "Canadá", DE: "Alemanha", AS: "Holanda", PA: "França",
+  MI: "Itália", MC: "Espanha", LS: "Portugal", L: "Reino Unido",
+};
+function paisDoAtivo(ticker: string, setor: string, moeda: string): string {
+  if (setor === "Cripto") return "Global";
+  const t = ticker.toUpperCase().trim();
+  const suf = t.match(/\.([A-Z]{1,2})$/)?.[1] ?? "";
+  if (PAIS_POR_SUFIXO[suf]) return PAIS_POR_SUFIXO[suf];
+  if (moeda === "BRL" || /^[A-Z]{4}\d{1,2}$/.test(t)) return "Brasil";
+  return "EUA";
+}
+
 function parseDateSort(raw: string): number {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(raw).getTime();
@@ -215,12 +229,42 @@ export default function RendaVariavelPage() {
     [data]
   );
 
-  const tableRows = useMemo(() => {
+  // Filtros da grade: setor/segmento, moeda e país (inferido do ticker).
+  const [filtroSetor, setFiltroSetor] = useState("todos");
+  const [filtroMoeda, setFiltroMoeda] = useState("todos");
+  const [filtroPais, setFiltroPais] = useState("todos");
+
+  const viewRows = useMemo(() => {
     if (!metrics) return [];
-    if (view === "vendidos") return sortPositions(closedRV, sortKey, sortDir);
-    if (view === "todos") return sortPositions([...metrics.rv, ...closedRV], sortKey, sortDir);
-    return sortPositions(metrics.rv, sortKey, sortDir);
-  }, [metrics, closedRV, view, sortKey, sortDir]);
+    if (view === "vendidos") return closedRV;
+    if (view === "todos") return [...metrics.rv, ...closedRV];
+    return metrics.rv;
+  }, [metrics, closedRV, view]);
+
+  const filtroOpcoes = useMemo(() => {
+    const setores = new Map<string, number>();
+    const moedas = new Map<string, number>();
+    const paises = new Map<string, number>();
+    for (const p of viewRows) {
+      setores.set(p.setor, (setores.get(p.setor) ?? 0) + 1);
+      const m = p.moeda ?? "BRL";
+      moedas.set(m, (moedas.get(m) ?? 0) + 1);
+      const pais = paisDoAtivo(p.ticker, p.setor, m);
+      paises.set(pais, (paises.get(pais) ?? 0) + 1);
+    }
+    const sorted = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+    return { setores: sorted(setores), moedas: sorted(moedas), paises: sorted(paises) };
+  }, [viewRows]);
+
+  const tableRows = useMemo(() => {
+    const filtered = viewRows.filter((p) => {
+      if (filtroSetor !== "todos" && p.setor !== filtroSetor) return false;
+      if (filtroMoeda !== "todos" && (p.moeda ?? "BRL") !== filtroMoeda) return false;
+      if (filtroPais !== "todos" && paisDoAtivo(p.ticker, p.setor, p.moeda ?? "BRL") !== filtroPais) return false;
+      return true;
+    });
+    return sortPositions(filtered, sortKey, sortDir);
+  }, [viewRows, filtroSetor, filtroMoeda, filtroPais, sortKey, sortDir]);
 
   // Contagem de anotações por ticker (1 fetch) — para o badge no botão.
   useEffect(() => {
@@ -540,6 +584,41 @@ export default function RendaVariavelPage() {
               {sortDir === "asc" ? "↑" : "↓"}
             </button>
           </div>
+        </div>
+
+        {/* Filtros — segmento, moeda e país (contagem em cada opção) */}
+        <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+          {([
+            { label: "Segmento", value: filtroSetor, set: setFiltroSetor, opts: filtroOpcoes.setores },
+            { label: "Moeda", value: filtroMoeda, set: setFiltroMoeda, opts: filtroOpcoes.moedas },
+            { label: "País", value: filtroPais, set: setFiltroPais, opts: filtroOpcoes.paises },
+          ] as const).map((f) => (
+            <label key={f.label} className="inline-flex items-center gap-1.5">
+              <span style={{ color: "var(--muted)" }}>{f.label}</span>
+              <select
+                value={f.value}
+                onChange={(e) => f.set(e.target.value)}
+                className="rounded-md px-2 py-1 text-xs outline-none"
+                style={{
+                  background: "var(--input, rgba(255,255,255,0.04))",
+                  border: `1px solid ${f.value !== "todos" ? "var(--accent)" : "var(--line)"}`,
+                  color: f.value !== "todos" ? "var(--accent)" : "var(--text)",
+                }}
+              >
+                <option value="todos">Todos</option>
+                {f.opts.map(([nome, n]) => <option key={nome} value={nome}>{nome} ({n})</option>)}
+              </select>
+            </label>
+          ))}
+          {(filtroSetor !== "todos" || filtroMoeda !== "todos" || filtroPais !== "todos") && (
+            <button
+              onClick={() => { setFiltroSetor("todos"); setFiltroMoeda("todos"); setFiltroPais("todos"); }}
+              className="rounded-md px-2 py-1 text-xs font-semibold"
+              style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+            >
+              Limpar × <span className="font-mono">{tableRows.length} de {viewRows.length}</span>
+            </button>
+          )}
         </div>
 
         {/* Grade de cards — logo + nome. Clicar abre o modal com TODAS as infos. */}
