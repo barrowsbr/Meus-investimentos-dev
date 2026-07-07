@@ -1133,28 +1133,20 @@ function AuditPanel({ audit, priv }: { audit: AuditData | "loading" | "erro"; pr
   );
 }
 
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, detalhe, priv }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
   partes: PatrimonioParte[] | null;
+  detalhe: AuditData | "loading" | "erro";
   priv: boolean;
 }) {
-  const [audit, setAudit] = useState<AuditData | "loading" | "erro" | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
-
-  const toggleAudit = () => {
-    if (audit && audit !== "loading") { setAudit(null); return; }
-    if (audit === "loading") return;
-    setAudit("loading");
-    fetch("/api/patrimonio-dia/detalhe")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setAudit(d && d.partes ? (d as AuditData) : "erro"))
-      .catch(() => setAudit("erro"));
-  };
+  const toggleAudit = () => setAuditOpen((v) => !v);
   return (
     <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
       <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -1226,7 +1218,7 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
               );
             })}
           </div>
-          {audit && <AuditPanel audit={audit} priv={priv} />}
+          {auditOpen && <AuditPanel audit={detalhe} priv={priv} />}
         </>
       )}
     </div>
@@ -1336,6 +1328,22 @@ export default function HomePage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Fonte de verdade das PARCELAS do patrimônio (marcador = auditor, sempre):
+  // /api/patrimonio-dia/detalhe lê a planilha fresca (no-store) e decompõe as
+  // parcelas exatas. O cálculo client (snapshot do /api/cotacoes, cache CDN de
+  // 15 min) vira só fallback enquanto isto carrega — era ele que fazia o
+  // marcador divergir do auditor após uma atualização na planilha.
+  const [detalhe, setDetalhe] = useState<AuditData | "loading" | "erro">("loading");
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/patrimonio-dia/detalhe")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled) setDetalhe(d && d.partes ? (d as AuditData) : "erro"); })
+      .catch(() => { if (!cancelled) setDetalhe("erro"); });
+    return () => { cancelled = true; };
+  }, []);
+  const detalheData = typeof detalhe === "object" ? detalhe : null;
 
   // Patrimônio do dia (só para o quadro da Home) — endpoint dedicado.
   // SÓ usa quando o IBKR entrou de verdade na conta (ibkr_ok): sem isso, uma
@@ -1457,11 +1465,21 @@ export default function HomePage() {
   const dayBRLfinal = dayReturn?.brl ?? dayChangeBRL;
   const dayPctFinal = dayReturn?.pct ?? dayChangePct;
 
-  // Decomposição do patrimônio total, com as MESMAS parcelas da fórmula
-  // (totalBRL = IBKR + expo.BRL + expo.Cripto), para a soma bater na auditoria:
-  //   Brasil = ações/FIIs/ETFs em BRL; RF + Caixa = o resto do expo.BRL
-  //   (RF manual + caixa da fixa_aberta + posições de RF em real).
+  // Decomposição do patrimônio total. Fonte primária: /api/patrimonio-dia/
+  // detalhe (planilha fresca — o MESMO dado do painel de auditoria, então
+  // marcador e auditor nunca divergem). IBKR: prefere o detalhe; se o Flex
+  // falhou lá, usa o da faixa (client). Fallback total: parcelas do snapshot
+  // client (cache CDN) enquanto o detalhe carrega.
   const patrimonioPartes = useMemo<PatrimonioParte[] | null>(() => {
+    if (detalheData) {
+      const ibkr = detalheData.ibkr.ok ? detalheData.partes.ibkr_brl : ibkrTotalBRL;
+      return [
+        { label: "IBKR", color: IBKR_RED, brl: ibkr },
+        { label: "Brasil", color: BR_GREEN, brl: detalheData.partes.brasil_brl },
+        { label: "Cripto", color: BTC_ORANGE, brl: detalheData.partes.cripto_brl },
+        { label: "RF + Caixa", color: "var(--accent)", brl: detalheData.partes.rf_caixa_brl },
+      ];
+    }
     if (!data) return null;
     const acoesBR = brStats.valueBRL;
     const rfCaixa = Math.max(0, brBRL - acoesBR);
@@ -1471,7 +1489,15 @@ export default function HomePage() {
       { label: "Cripto", color: BTC_ORANGE, brl: criptoBRL },
       { label: "RF + Caixa", color: "var(--accent)", brl: rfCaixa },
     ];
-  }, [data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL]);
+  }, [detalheData, data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL]);
+
+  // Total exibido = soma dos marcadores quando o detalhe está disponível
+  // (Σ dos blocos bate com o número grande, centavo a centavo).
+  const totalPartes = useMemo(() => {
+    if (!patrimonioPartes || !detalheData) return null;
+    const soma = patrimonioPartes.reduce((s, p) => s + (p.brl ?? 0), 0);
+    return soma > 0 ? soma : null;
+  }, [patrimonioPartes, detalheData]);
 
   const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase().replace(".", "");
   const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(".", "");
@@ -1618,9 +1644,10 @@ export default function HomePage() {
               <DayStripsTotal
                 brl={dayBRLfinal}
                 pctVal={dayPctFinal}
-                patrimonioBRL={totalBRL}
+                patrimonioBRL={totalPartes ?? totalBRL}
                 usdbrl={usdbrl}
                 partes={patrimonioPartes}
+                detalhe={detalhe}
                 priv={priv}
               />
             </div>
