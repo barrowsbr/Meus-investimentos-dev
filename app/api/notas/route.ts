@@ -189,23 +189,34 @@ export async function DELETE(req: Request) {
   }
 }
 
-// ── PATCH — marca/desmarca conclusão { id, feito: boolean } ──────────────────
-// Usado pelo fluxo anotacoes.md (o modelo marca ✓ ao concluir a tarefa do card)
-// e pelo botão de check da página. Read + map + reescrita com backup.
+// ── PATCH — edita a nota { id, texto?, feito? } ──────────────────────────────
+// `feito` (boolean): marca/desmarca conclusão — usado pelo fluxo anotacoes.md
+// e pelo botão de check da página. `texto` (string): edita o conteúdo da nota.
+// Só os campos presentes no body são alterados. Read + map + reescrita c/ backup.
 export async function PATCH(req: Request) {
   try {
     const store = getDataStore();
     const body = await req.json().catch(() => ({}));
     const id = String(body.id ?? "").trim();
-    const feito = Boolean(body.feito);
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
+
+    const temTexto = typeof body.texto === "string";
+    const temFeito = body.feito !== undefined;
+    if (!temTexto && !temFeito) {
+      return NextResponse.json({ error: "nada para atualizar (texto ou feito)" }, { status: 400 });
+    }
+
+    const texto = temTexto ? String(body.texto).trim() : "";
+    if (temTexto && !texto) return NextResponse.json({ error: "texto não pode ficar vazio" }, { status: 400 });
+    if (temTexto && texto.length > 5000) return NextResponse.json({ error: "texto muito longo (máx 5000)" }, { status: 400 });
 
     const rows = await store.fetchTab(TAB).catch(() => []);
     const all = rows.map(rowToNota).filter((n) => n.id);
     const alvo = all.find((n) => n.id === id);
     if (!alvo) return NextResponse.json({ error: "nota não encontrada" }, { status: 404 });
 
-    alvo.feito = feito ? new Date().toISOString() : "";
+    if (temTexto) alvo.texto = texto;
+    if (temFeito) alvo.feito = body.feito ? new Date().toISOString() : "";
     const dataRows = all.map((n) => [n.id, n.ticker, n.data, n.texto, n.feito]);
     await store.writeTab(TAB, HEADERS, dataRows);
 

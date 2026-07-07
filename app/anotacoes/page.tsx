@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { StickyNote, Loader2, Plus, Trash2, Search, Tag, Check, Bot } from "lucide-react";
+import { StickyNote, Loader2, Plus, Trash2, Search, Tag, Check, Bot, Pencil, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
 // Página de anotações gerais — reusa a API /api/notas (aba `ativos_notas`).
@@ -124,6 +124,42 @@ export default function AnotacoesPage() {
       setError(e instanceof Error ? e.message : "Erro ao atualizar");
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  // Edição inline do texto de uma nota (só o conteúdo; etiqueta/data ficam).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  function startEdit(n: Nota) {
+    setEditingId(n.id);
+    setEditText(n.texto);
+    setError(null);
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setEditText("");
+  }
+  async function saveEdit(n: Nota) {
+    const t = editText.trim();
+    if (!t || savingEdit) return;
+    if (t === n.texto) { cancelEdit(); return; }
+    setSavingEdit(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/notas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: n.id, texto: t }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao salvar");
+      setNotas((prev) => prev.map((x) => (x.id === n.id ? { ...x, texto: json.nota?.texto ?? t } : x)));
+      cancelEdit();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao salvar edição");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -325,6 +361,15 @@ export default function AnotacoesPage() {
                       {togglingId === n.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                     </button>
                     <button
+                      onClick={() => (editingId === n.id ? cancelEdit() : startEdit(n))}
+                      aria-label={editingId === n.id ? "Cancelar edição" : "Editar anotação"}
+                      title={editingId === n.id ? "Cancelar edição" : "Editar anotação"}
+                      className="p-1 rounded-md transition-all opacity-60 hover:opacity-100"
+                      style={{ color: editingId === n.id ? "var(--accent)" : "var(--muted)" }}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
                       onClick={() => removeNota(n.id)}
                       disabled={deletingId === n.id}
                       aria-label="Apagar anotação"
@@ -335,12 +380,46 @@ export default function AnotacoesPage() {
                     </button>
                   </div>
                 </div>
-                <p
-                  className="text-sm mt-1.5 whitespace-pre-wrap break-words"
-                  style={{ color: "var(--text)", textDecoration: feito ? "line-through" : "none", textDecorationColor: "rgba(63,185,80,0.5)" }}
-                >
-                  {n.texto}
-                </p>
+                {editingId === n.id ? (
+                  <div className="mt-2">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveEdit(n); }
+                        if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                      }}
+                      rows={3}
+                      autoFocus
+                      className="w-full resize-y rounded-lg px-3 py-2.5 text-sm outline-none"
+                      style={{ background: "var(--input, rgba(255,255,255,0.03))", border: "1px solid var(--line)", color: "var(--text)", minHeight: 72 }}
+                    />
+                    <div className="flex items-center justify-end gap-2 mt-2">
+                      <button
+                        onClick={cancelEdit}
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
+                      >
+                        <X size={13} /> Cancelar
+                      </button>
+                      <button
+                        onClick={() => saveEdit(n)}
+                        disabled={!editText.trim() || savingEdit}
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ background: "var(--accent)", color: "#0a0a0a" }}
+                      >
+                        {savingEdit ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Salvar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p
+                    className="text-sm mt-1.5 whitespace-pre-wrap break-words"
+                    style={{ color: "var(--text)", textDecoration: feito ? "line-through" : "none", textDecorationColor: "rgba(63,185,80,0.5)" }}
+                  >
+                    {n.texto}
+                  </p>
+                )}
               </div>
             );
           })}
