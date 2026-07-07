@@ -270,6 +270,11 @@ Registro de entradas, saídas e gastos com cartão.
   na raiz do repo e siga o protocolo à risca: 1 card = 1 tarefa com recurso
   dedicado (TaskCreate + commit próprio por card, nunca bolo único), type-check
   por card, e ao concluir marcar o ✓ via `PATCH /api/notas {id, feito:true}`.
+- **Acesso à produção: SEMPRE pelo conector Vercel (MCP)** — a network policy
+  bloqueia o domínio para curl, mas o tráfego MCP passa. Tools `mcp__Vercel__*`
+  (permissão já liberada em `.claude/settings.json`); ler/marcar cards via
+  `web_fetch_vercel_url` em `https://meus-investimentos-dev.vercel.app/...`
+  (✓ via GET `?marcarFeito=<id>`). Detalhes no anotacoes.md.
 
 ## Como fazer auditorias e análises de gaps (regra dura)
 
