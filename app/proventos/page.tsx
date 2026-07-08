@@ -17,6 +17,7 @@ import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import DividendCalendarModal from "@/components/DividendCalendarModal";
 
 const TOOLTIP_STYLE = {
   background: "#09090b",
@@ -218,6 +219,7 @@ export default function ProventosPage() {
   const { data: portfolio, loading: portfolioLoading } = usePortfolio();
   const { data: rawData, loading: sheetLoading, error } = useSheetData("meus_proventos");
   const loading = portfolioLoading || sheetLoading;
+  const [calOpen, setCalOpen] = useState(false);
 
   const fx: FxRatesSimple = {
     usdbrl: portfolio?.usdbrl ?? 5.7,
@@ -541,7 +543,17 @@ export default function ProventosPage() {
           </h1>
           <p className="text-xs text-zinc-500 mt-0.5">Dividendos, JCP e rendimentos recebidos</p>
         </div>
+        <button
+          onClick={() => setCalOpen(true)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors hover:bg-white/[0.06]"
+          style={{ border: "1px solid var(--line)", color: "var(--text-2)" }}
+          title="Próximas datas-ex e pagamentos da carteira"
+        >
+          <Calendar size={14} /> Agenda de dividendos
+        </button>
       </div>
+
+      {calOpen && <DividendCalendarModal onClose={() => setCalOpen(false)} />}
 
       <FilterBar filters={filters} onChange={updateFilter} options={options} />
 
