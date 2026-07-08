@@ -164,7 +164,7 @@ function RadarMapInner({
                     setTip({
                       x: e.clientX, y: e.clientY,
                       title: `${m.flag} ${m.countryPT}`.trim(),
-                      sub: `${m.pct.toFixed(m.pct < 1 ? 2 : 1)}% · alocação direta`,
+                      sub: `${m.pct.toFixed(m.pct < 1 ? 2 : 1)}% · na bolsa local`,
                       value: m.valueText,
                       positive: true,
                     })

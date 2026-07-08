@@ -364,7 +364,7 @@ export function useExposure() {
     setLoading(true);
     fetch("/api/composicao/resumo")
       .then((r) => r.json())
-      .then((d: { country_allocation?: CountryAllocationDTO[]; look_through?: { supported?: string[] } }) => {
+      .then((d: { country_allocation?: CountryAllocationDTO[]; exchange_allocation?: { iso2: string; value_brl: number; tickers?: string[] }[]; look_through?: { supported?: string[] } }) => {
         if (cancelled) return;
         const alloc = d.country_allocation ?? [];
         const supported = d.look_through?.supported ?? [];
@@ -379,8 +379,22 @@ export function useExposure() {
           etfSources: c.etf_sources ?? [],
         }));
         const totalBRL = exposure.reduce((s, e) => s + e.totalBRL, 0);
+        // Alocação por BOLSA de listagem (camada "Minhas bolsas"): tudo é direto
+        // na praça (directBRL = valor), sem look-through nem reatribuição de ADR.
+        const exchAlloc = d.exchange_allocation ?? [];
+        const exchTotal = exchAlloc.reduce((s, e) => s + e.value_brl, 0);
+        const exchanges: ExposureEntry[] = exchAlloc.map((e) => ({
+          countryPT: ISO2_TO_RADAR_PT[e.iso2] ?? e.iso2,
+          iso2: e.iso2,
+          totalBRL: e.value_brl,
+          pct: exchTotal > 0 ? (e.value_brl / exchTotal) * 100 : 0,
+          tickers: e.tickers ?? [],
+          directBRL: e.value_brl,
+          etfBRL: 0,
+          etfSources: [],
+        }));
         const resp: ExposureResponse = {
-          exposure, totalBRL,
+          exposure, exchanges, totalBRL,
           etfDecomposed: supported.length > 0,
           etfSupported: supported,
         };

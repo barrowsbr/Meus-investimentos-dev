@@ -372,6 +372,22 @@ export function isADRTicker(ticker: string): boolean {
   return adrOriginCountry(ticker) !== null;
 }
 
+// País da BOLSA onde o papel é NEGOCIADO (praça de listagem), não a origem da
+// empresa. É o oposto do adrOriginCountry: um ADR (TSM) lista nos EUA → "US",
+// não Taiwan; um ETF UCITS (VWRA.L) lista em Londres → "GB". Determinístico pelo
+// sufixo Yahoo; sem sufixo = listado nos EUA (NYSE/NASDAQ). Alimenta a camada
+// "Minhas bolsas" do Radar. Retorna null para o que não é papel de bolsa
+// (cripto, RF manual sem sufixo reconhecível deve ser filtrado pelo chamador).
+export function listingCountryFromTicker(ticker: string): string | null {
+  const t = (ticker ?? "").toUpperCase().trim();
+  if (!t) return null;
+  for (const [suffix, code] of Object.entries(EXCHANGE_SUFFIX)) {
+    if (t.endsWith(suffix.toUpperCase())) return code;
+  }
+  if (t.includes(".")) return null; // sufixo desconhecido → praça indefinida
+  return "US"; // sem sufixo = bolsa dos EUA (inclui ADRs como TSM, BABA…)
+}
+
 // ── Main: compute country allocation ─────────────────────────────────────────
 
 export async function computeCountryAllocation(

@@ -14,7 +14,7 @@ const LAYERS: { key: RadarLayer; label: string; sub: string; icon: typeof BarCha
   { key: "mercados", label: "Mercados", sub: "Variação do índice local", icon: BarChart3 },
   { key: "cambio", label: "Câmbio", sub: "Força da moeda vs USD", icon: ArrowLeftRight },
   { key: "instabilidade", label: "Risco", sub: "Índice de instabilidade", icon: Shield },
-  { key: "exposicao", label: "Minhas bolsas", sub: "Onde tenho alocação", icon: Landmark },
+  { key: "exposicao", label: "Minhas bolsas", sub: "Praças onde negocio", icon: Landmark },
 ];
 
 interface Props {

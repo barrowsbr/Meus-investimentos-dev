@@ -405,7 +405,7 @@ export function buildExposureHeat(exposure: ExposureResponse | null): Map<string
     const adrNote = adrTickers.length > 0 ? ` · ADR ${adrTickers.join(", ")}` : "";
     map.set(isoNum, {
       intensity: FLOOR + (1 - FLOOR) * norm,
-      label: `${pctDirect.toFixed(pctDirect < 1 ? 2 : 1)}% · alocação direta`,
+      label: `${pctDirect.toFixed(pctDirect < 1 ? 2 : 1)}% · nesta bolsa`,
       valueText: `${fmtBRLk(entry.directBRL)}${adrNote}`,
       positive: true,
       region,
