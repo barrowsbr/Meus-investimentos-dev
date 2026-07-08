@@ -545,11 +545,13 @@ export default function ProventosPage() {
         </div>
         <button
           onClick={() => setCalOpen(true)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors hover:bg-white/[0.06]"
-          style={{ border: "1px solid var(--line)", color: "var(--text-2)" }}
+          className="ml-auto group shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-zinc-900 shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-emerald-500/40 hover:brightness-105 active:translate-y-0"
+          style={{ background: "linear-gradient(135deg, #34d399 0%, #0d9488 100%)" }}
           title="Próximas datas-ex e pagamentos da carteira"
         >
-          <Calendar size={14} /> Agenda de dividendos
+          <Calendar size={16} className="transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-6" />
+          <span className="hidden sm:inline">Agenda de dividendos</span>
+          <span className="sm:hidden">Agenda</span>
         </button>
       </div>
 
