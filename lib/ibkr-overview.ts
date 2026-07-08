@@ -7,6 +7,7 @@
 import { getFlexXmlCached, parseFlexXml, parseFlexMeta } from "./ibkr-flex";
 import { parseValor } from "./broker-import";
 import { fetchCotacoes, fxToBRL, type FxRates, type Quote } from "./cotacoes";
+import { loadAssetMetaCache } from "./asset-meta";
 
 export interface OverviewPosition {
   ticker: string;
@@ -61,10 +62,15 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   const meta = parseFlexMeta(xml);
 
   // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
+  // Carrega o cache ativos_meta ANTES: yahooTicker() usa esse cache para achar
+  // a grafia Yahoo (DPM→DPM.TO, etc.); sem ele, tickers internacionais podiam
+  // falhar a cotação ao vivo e cair no preço ESTÁTICO do extrato — o que
+  // desalinhava o patrimônio da IBKR (Home) do canônico (que já carrega o cache).
   let fx: FxRates | null = null;
   let fxSource = "indisponível";
   let quotes: Record<string, Quote> = {};
   try {
+    await loadAssetMetaCache().catch(() => {});
     const cot = await fetchCotacoes(positions.map((p) => ({ ticker: p.ticker, moeda: p.moeda, corretora: "IBKR" })));
     fx = cot.fx; fxSource = cot.fxSource; quotes = cot.quotes;
   } catch { /* sem FX/cotações → cai pro preço do extrato e totais nativos */ }
