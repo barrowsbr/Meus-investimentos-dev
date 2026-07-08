@@ -172,7 +172,7 @@ export default function RadarShell() {
 
   return (
     <div className="flex h-[calc(100dvh-10rem)] flex-col gap-2 overflow-hidden md:h-[calc(100dvh-5rem)]">
-      <RadarTopBar lastUpdate={markets?.lastUpdate} onPickCountry={selectByName} />
+      <RadarTopBar lastUpdate={markets?.lastUpdate} />
 
       {/* Controles compactos no mobile */}
       <div className="flex items-center gap-1.5 overflow-x-auto px-0.5 pb-1 md:hidden" style={{ overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}>

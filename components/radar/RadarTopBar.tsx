@@ -1,29 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Radar as RadarIcon, Search, Circle, Command, Globe } from "lucide-react";
-import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
-
-// Países pesquisáveis = os que o mapa sabe abrir (têm ISO numérico).
-const COUNTRIES = Object.keys(COUNTRY_TO_ISO_NUM)
-  .filter((c) => c !== "Europa")
-  .sort((a, b) => a.localeCompare(b, "pt"));
 
 interface Props {
   lastUpdate?: string;
-  onPickCountry: (name: string) => void;
 }
 
-export default function RadarTopBar({ lastUpdate, onPickCountry }: Props) {
-  const [q, setQ] = useState("");
-  const [focused, setFocused] = useState(false);
+// Abre o Command Palette (⌘K) — a busca única do Radar: países, ações e índices.
+function openPalette() {
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+}
 
-  const results = useMemo(() => {
-    if (!q.trim()) return [];
-    const s = q.toLowerCase();
-    return COUNTRIES.filter((c) => c.toLowerCase().includes(s)).slice(0, 8);
-  }, [q]);
-
+export default function RadarTopBar({ lastUpdate }: Props) {
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
@@ -54,36 +42,21 @@ export default function RadarTopBar({ lastUpdate, onPickCountry }: Props) {
           <Globe size={13} />
           <span className="hidden lg:inline">World Monitor</span>
         </a>
+
+        {/* Barra de busca ÚNICA — abre o Command Palette (⌘K), que busca países,
+            ações e índices. Antes eram duas coisas (barra só de países + botão
+            ⌘K); agora é só a barra e ela abre o popup. */}
         <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300 sm:flex"
+          onClick={openPalette}
+          title="Buscar país, ação ou índice (⌘K)"
+          className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 py-1.5 pl-3 pr-2 text-xs text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300 sm:pr-3"
         >
-          <Command size={11} />K
+          <Search size={14} className="shrink-0 text-zinc-600" />
+          <span className="hidden text-left sm:inline sm:w-40 md:w-48">Buscar país, ação, índice…</span>
+          <span className="hidden items-center gap-0.5 rounded border border-zinc-700/70 px-1 py-0.5 text-[9px] text-zinc-500 sm:flex">
+            <Command size={9} />K
+          </span>
         </button>
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
-            placeholder="Buscar país…"
-            className="w-28 rounded-lg border border-zinc-800 bg-zinc-900/60 py-1.5 pl-8 pr-2 text-xs text-zinc-200 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none sm:w-56 sm:pr-3"
-          />
-          {focused && results.length > 0 && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 shadow-xl backdrop-blur">
-              {results.map((c) => (
-                <button
-                  key={c}
-                  onMouseDown={() => { onPickCountry(c); setQ(""); }}
-                  className="block w-full px-3 py-2.5 text-left text-xs text-zinc-300 transition-colors hover:bg-white/5"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
