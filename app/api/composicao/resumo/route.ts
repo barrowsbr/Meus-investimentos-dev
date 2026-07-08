@@ -521,13 +521,17 @@ export async function GET(req: Request) {
     const ltStale = (ltAgeDays !== null && ltAgeDays > 30)
       || Object.values(ltResult.sources).some(s => s === "stored" || s.includes("embedded"));
 
-    const lookThroughCompositions: Record<string, { ticker: string; valor_brl: number; components: Array<{ ativo: string; name: string; peso: number }> }> = {};
+    const lookThroughCompositions: Record<string, { ticker: string; valor_brl: number; expense_ratio: number | null; custo_anual_brl: number | null; components: Array<{ ativo: string; name: string; peso: number }> }> = {};
     for (const [etfTicker, data] of Object.entries(ltResult.per_etf)) {
+      // Custo anual estimado em R$ = valor investido × taxa de administração.
+      const custoAnual = data.expense_ratio != null ? data.value_brl * (data.expense_ratio / 100) : null;
       if (data.status === "ok" && data.holdings) {
         const totalWeight = data.holdings.reduce((s, h) => s + h.weight_pct, 0);
         lookThroughCompositions[etfTicker] = {
           ticker: etfTicker,
           valor_brl: data.value_brl,
+          expense_ratio: data.expense_ratio,
+          custo_anual_brl: custoAnual,
           components: data.holdings.map(h => ({
             ativo: h.ticker,
             name: h.name,
@@ -538,6 +542,8 @@ export async function GET(req: Request) {
         lookThroughCompositions[etfTicker] = {
           ticker: etfTicker,
           valor_brl: data.value_brl,
+          expense_ratio: data.expense_ratio,
+          custo_anual_brl: custoAnual,
           components: [],
         };
       }

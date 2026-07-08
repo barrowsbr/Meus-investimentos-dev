@@ -32,6 +32,7 @@ export interface EtfHoldingsResult {
   covered_pct: number;
   status: "ok" | "empty" | "not_supported" | "none";
   source: string;
+  expense_ratio: number | null; // taxa de administração / TER anual em % a.a.
 }
 
 export type PerEtfResult = Record<string, EtfHoldingsResult>;
@@ -164,6 +165,33 @@ const ETF_TOP_COVERAGE: Record<string, number> = {
   // Single-country / setoriais amplos: top-25 ≈ 40-50%
   FLJP: 45, EWJ: 45, SCHD: 45, VNQ: 45,
 };
+
+// Taxa de administração / TER anual (% a.a.) — mapa CURADO dos ETFs da carteira.
+// Custo do ETF é público e muda raramente: um mapa determinístico é mais robusto
+// que buscar ao vivo. Só entram valores conferidos; ticker fora do mapa → null
+// (a UI mostra "—" em vez de um número errado). Conferir no site do gestor ao
+// revisar. Chaves espelham a normalização do arquivo (aliases .L quando útil).
+const ETF_EXPENSE_RATIO: Record<string, number> = {
+  // EUA (US-listed)
+  VOO: 0.03, IVV: 0.03, SPY: 0.09, QQQ: 0.20, VT: 0.06, VEU: 0.07,
+  VNQ: 0.13, SCHD: 0.06, ACWI: 0.32, URTH: 0.24, EWJ: 0.50,
+  FLJP: 0.09, SHV: 0.15, BIL: 0.14,
+  // UCITS (Irlanda/Londres)
+  VWRA: 0.22, "VWRA.L": 0.22, IWDA: 0.20, "IWDA.L": 0.20, EIMI: 0.18, CSPX: 0.07,
+  // B3 (Brasil)
+  IVVB11: 0.23, BOVA11: 0.10, SMAL11: 0.30, GOLD11: 0.30,
+};
+
+/** Taxa de administração (% a.a.) do ETF, ou null se não estiver no mapa curado. */
+export function getExpenseRatio(ticker: string): number | null {
+  const up = ticker.toUpperCase().trim();
+  if (up in ETF_EXPENSE_RATIO) return ETF_EXPENSE_RATIO[up];
+  const noSA = up.replace(/\.SA$/, "");
+  if (noSA in ETF_EXPENSE_RATIO) return ETF_EXPENSE_RATIO[noSA];
+  const base = up.replace(/\.[A-Z]{1,3}$/, "");
+  if (base in ETF_EXPENSE_RATIO) return ETF_EXPENSE_RATIO[base];
+  return null;
+}
 
 // Fontes que entregam holdings COMPLETOS (não só top-10) — confiáveis as-is.
 const TRUSTED_FULL_SOURCES = new Set(["fmp", "alphavantage", "live"]);
@@ -591,6 +619,7 @@ export async function computeLookThrough(
         covered_pct: assembled.coveredPct,
         status: "ok",
         source: assembled.source,
+        expense_ratio: getExpenseRatio(pos.ticker),
       };
     } else {
       unsupported.push(pos.ticker);
@@ -600,6 +629,7 @@ export async function computeLookThrough(
         covered_pct: 0,
         status: "not_supported",
         source: "none",
+        expense_ratio: getExpenseRatio(pos.ticker),
       };
     }
   }
@@ -741,6 +771,7 @@ export function computeFromStored(
         covered_pct: assembled.coveredPct,
         status: "ok",
         source: assembled.source,
+        expense_ratio: getExpenseRatio(pos.ticker),
       };
     } else {
       unsupported.push(pos.ticker);
@@ -750,6 +781,7 @@ export function computeFromStored(
         covered_pct: 0,
         status: "not_supported",
         source: "none",
+        expense_ratio: getExpenseRatio(pos.ticker),
       };
     }
   }
