@@ -98,6 +98,7 @@ export async function GET() {
     // ── fixa_aberta — RF manual + caixa (entra na expo por moeda) ────────────
     const fixaItens: Row[] = [];
     const foraDaSoma: Row[] = [];
+    const ibkrCaixaConciliado: Row[] = []; // caixa USD/EUR da IBKR: JÁ dentro do book IBKR
     let fixaBRL = 0;
     for (const row of fixaAberta) {
       const valor = toNumber(getVal(row, "atual", "valor_atual", "saldo", "valor atual")) ?? 0;
@@ -105,21 +106,19 @@ export async function GET() {
       const moeda = String(getVal(row, "moeda") ?? "BRL").toUpperCase().trim() || "BRL";
       const valorBRL = valor * fxToBRL(moeda, fxAtual);
       if (valorBRL < 1) continue;
-      const item: Row = {
-        ticker: String(getVal(row, "ticker", "ativo") ?? "?"),
-        tipo: String(getVal(row, "tipo") ?? ""),
-        moeda,
-        valor,
-        valorBRL: Math.round(valorBRL * 100) / 100,
-      };
+      const tk = String(getVal(row, "ticker", "ativo") ?? "?");
+      const corr = String(getVal(row, "corretora") ?? "").toUpperCase();
+      const item: Row = { ticker: tk, tipo: String(getVal(row, "tipo") ?? ""), moeda, valor, valorBRL: Math.round(valorBRL * 100) / 100 };
       if (moeda === "BRL") {
         fixaItens.push(item);
         fixaBRL += valorBRL;
+      } else if (corr.includes("IBKR") || tk.toUpperCase().includes("IBKR")) {
+        // Caixa em moeda forte da IBKR: NÃO soma aqui — já está dentro do book
+        // real da IBKR (kpis.caixaBRL). Listado como conciliado, não "faltando".
+        ibkrCaixaConciliado.push({ ...item, motivo: "caixa em moeda forte — já contabilizado dentro da IBKR" });
       } else {
-        // Não-BRL: entra na exposição da própria moeda — a fórmula da Home assume
-        // que moeda forte está na IBKR; se houver caixa USD FORA da IBKR, aparece
-        // aqui como possível dupla-contagem/omissão.
-        foraDaSoma.push({ ...item, motivo: `moeda ${moeda} — fora da parcela RF+Caixa (assumida dentro da IBKR)` });
+        // USD/EUR fora da IBKR: aí sim é ambíguo (pode faltar/dobrar) — conferir.
+        foraDaSoma.push({ ...item, motivo: `moeda ${moeda} — caixa fora da IBKR; confira se deveria entrar na soma` });
       }
     }
 
@@ -127,11 +126,22 @@ export async function GET() {
     const rfCaixaBRL = Math.max(0, expoBRLTotal - brasilBRL);
 
     // ── IBKR — mesma fonte da faixa (posições + caixa, US$ × dólar de agora) ─
+    // Mostra posições e caixa SEPARADOS: é aqui que o caixa em US$ da conta é
+    // contabilizado (o "Caixa USD (IBKR)" da planilha é o MESMO dinheiro, por
+    // isso não entra de novo na parcela RF+Caixa).
     let ibkr: Row = { ok: false };
     try {
       const ov = await buildIbkrOverview();
       const usd = ov.kpis.patrimonioTotalUSD ?? 0;
-      ibkr = { ok: usd > 0, patrimonioTotalUSD: usd, patrimonioTotalBRL: Math.round(usd * usdbrl * 100) / 100 };
+      const caixaBRL = ov.kpis.caixaBRL ?? 0;
+      const posBRL = (ov.kpis.patrimonioBRL ?? 0);
+      ibkr = {
+        ok: usd > 0,
+        patrimonioTotalUSD: usd,
+        patrimonioTotalBRL: Math.round(usd * usdbrl * 100) / 100,
+        posicoes_brl: Math.round(posBRL * 100) / 100,
+        caixa_brl: Math.round(caixaBRL * 100) / 100,
+      };
     } catch (e) {
       ibkr = { ok: false, erro: e instanceof Error ? e.message : String(e) };
     }
@@ -161,6 +171,8 @@ export async function GET() {
           ...rfCaixaPosicoes.map((i) => ({ origem: "meus_ativos", ...i })),
           ...fixaItens.map((i) => ({ origem: "fixa_aberta", ...i })),
         ],
+        // Caixa em moeda forte da IBKR — já dentro do book (ibkr.caixa_brl), não faltando.
+        ibkr_caixa_conciliado: ibkrCaixaConciliado,
         fora_da_soma: foraDaSoma,
       },
       { headers: { "Cache-Control": "no-store" } },
