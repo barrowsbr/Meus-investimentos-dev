@@ -192,32 +192,44 @@ async function fetchQuotesYF2(yahooTickers: string[]): Promise<Record<string, Qu
 async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quote>> {
   const results: Record<string, Quote> = {};
 
-  const promises = yahooTickers.map(async (ticker) => {
-    try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0" },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const meta = data.chart?.result?.[0]?.meta;
-      if (meta?.regularMarketPrice) {
-        const price = meta.regularMarketPrice;
-        const prevClose = meta.previousClose ?? meta.chartPreviousClose;
-        results[ticker] = {
-          price,
-          change: prevClose ? price - prevClose : 0,
-          changePercent: prevClose ? ((price / prevClose) - 1) * 100 : 0,
-          currency: meta.currency ?? "USD",
-          name: ticker,
-        };
-      }
-    } catch {
-      // skip
-    }
-  });
+  // User-Agent de browser real + fallback query1→query2: a mesma receita do
+  // fetch de histórico (que funciona). Um User-Agent minguado ("Mozilla/5.0")
+  // é rejeitado pelo Yahoo com mais frequência — por isso o fallback às vezes
+  // também vinha vazio e o ticker ficava sem preço à vista.
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-  await Promise.all(promises);
+  async function fetchOne(ticker: string): Promise<Quote | null> {
+    for (const host of ["query1", "query2"]) {
+      try {
+        const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
+        const res = await fetch(url, {
+          headers: { "User-Agent": UA, Accept: "application/json, */*", "Accept-Language": "en-US,en;q=0.9" },
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const meta = data.chart?.result?.[0]?.meta;
+        if (meta?.regularMarketPrice) {
+          const price = meta.regularMarketPrice;
+          const prevClose = meta.previousClose ?? meta.chartPreviousClose;
+          return {
+            price,
+            change: prevClose ? price - prevClose : 0,
+            changePercent: prevClose ? ((price / prevClose) - 1) * 100 : 0,
+            currency: meta.currency ?? "USD",
+            name: ticker,
+          };
+        }
+      } catch {
+        // tenta o próximo host
+      }
+    }
+    return null;
+  }
+
+  await Promise.all(yahooTickers.map(async (ticker) => {
+    const q = await fetchOne(ticker);
+    if (q) results[ticker] = q;
+  }));
   return results;
 }
 
@@ -226,23 +238,41 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
 export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Record<string, Quote>; source: string }> {
   if (yahooTickers.length === 0) return { quotes: {}, source: "empty" };
 
-  // Try yahoo-finance2 first
+  // Primária: yahoo-finance2 (endpoint `quote`).
+  let quotes: Record<string, Quote> = {};
   try {
-    const quotes = await fetchQuotesYF2(yahooTickers);
-    if (Object.keys(quotes).length > 0) return { quotes, source: "yahoo-finance2" };
+    quotes = await fetchQuotesYF2(yahooTickers);
   } catch {
-    // fall through
+    quotes = {};
   }
 
-  // Fallback: direct Yahoo v8 API
-  try {
-    const quotes = await fetchQuotesV8(yahooTickers);
-    if (Object.keys(quotes).length > 0) return { quotes, source: "yahoo-v8" };
-  } catch {
-    // fall through
+  // Fallback v8 (chart API) SÓ para os tickers que a primária NÃO trouxe —
+  // por-ticker, não tudo-ou-nada. Antes, se o YF2 trouxesse QUALQUER ticker, o
+  // fallback nunca rodava; um ativo que o `quote()` do Yahoo falha (ex.: ação
+  // B3 quando o "crumb" quebra — ITUB4) ficava sem preço à vista → o motor caía
+  // no custo (valor atual = investido, lucro "—"). O v8 nunca sobrescreve um
+  // preço que a primária já obteve (só preenche o que faltou).
+  const missing = yahooTickers.filter((t) => !quotes[t]);
+  const yf2Empty = missing.length === yahooTickers.length;
+  let usedV8 = false;
+  if (missing.length > 0) {
+    try {
+      const v8 = await fetchQuotesV8(missing);
+      if (Object.keys(v8).length > 0) {
+        quotes = { ...quotes, ...v8 };
+        usedV8 = true;
+      }
+    } catch {
+      // sem fallback — segue com o que tem
+    }
   }
 
-  return { quotes: {}, source: "none" };
+  const source = Object.keys(quotes).length === 0 ? "none"
+    : !usedV8 ? "yahoo-finance2"
+    : yf2Empty ? "yahoo-v8"
+    : "yahoo-finance2+v8";
+
+  return { quotes, source };
 }
 
 // --- Historical series via Yahoo v8 chart API (with query1/query2 fallback) ---
