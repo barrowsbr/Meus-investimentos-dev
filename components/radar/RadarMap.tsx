@@ -7,16 +7,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, ZoomableGroup, Marker } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { GEO_URL, intensityColor } from "@/lib/world-map";
-import { type HeatEntry } from "@/lib/radar/geo";
+import { type HeatEntry, type ExposureMarker } from "@/lib/radar/geo";
 import { resolveCountryMeta } from "@/lib/radar/countries";
 import type { RadarLayer } from "@/lib/radar/types";
 
 interface RadarMapProps {
   layer: RadarLayer;
   heat: Map<string, HeatEntry>;
+  markers?: ExposureMarker[];
   selectedIso: string | null;
   regionFilter: string | null;
   onSelectCountry: (iso: string, name: string) => void;
@@ -31,10 +32,11 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
   mercados: ["Queda", "Alta"],
   cambio: ["Moeda fraca", "Moeda forte"],
   instabilidade: ["Risco alto", "Risco baixo"],
+  exposicao: ["Menor alocação", "Maior alocação"],
 };
 
 function RadarMapInner({
-  layer, heat, selectedIso, regionFilter, onSelectCountry,
+  layer, heat, markers = [], selectedIso, regionFilter, onSelectCountry,
 }: RadarMapProps) {
   const [zoom, setZoom] = useState(1);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
@@ -149,6 +151,34 @@ function RadarMapInner({
               })
             }
           </Geographies>
+
+          {/* Marcadores das praças onde há alocação (camada "Minhas bolsas").
+              r/strokeWidth divididos pelo zoom → tamanho constante na tela. */}
+          {markers.map((m) => {
+            const scale = Math.sqrt(m.pct / 100); // 0..1 pela % de alocação
+            return (
+              <Marker key={m.iso2} coordinates={[m.lng, m.lat]}>
+                <g
+                  onClick={() => m.isoNum && onSelectCountry(m.isoNum, m.countryPT)}
+                  onMouseEnter={(e: React.MouseEvent) =>
+                    setTip({
+                      x: e.clientX, y: e.clientY,
+                      title: `${m.flag} ${m.countryPT}`.trim(),
+                      sub: `${m.pct.toFixed(m.pct < 1 ? 2 : 1)}% · alocação direta`,
+                      value: m.valueText,
+                      positive: true,
+                    })
+                  }
+                  onMouseMove={(e: React.MouseEvent) => setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))}
+                  onMouseLeave={() => setTip(null)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <circle r={(9 + 6 * scale) / zoom} fill="rgba(59,130,246,0.18)" />
+                  <circle r={(4 + 3 * scale) / zoom} fill="#3b82f6" stroke="#fff" strokeWidth={1.4 / zoom} />
+                </g>
+              </Marker>
+            );
+          })}
         </ZoomableGroup>
       </ComposableMap>
 
