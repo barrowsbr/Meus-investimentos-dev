@@ -9,9 +9,7 @@ import type { IndexData } from "@/lib/world-map";
 export type { IndexData };
 
 // Camadas ativáveis do mapa.
-export type RadarLayer = "mercados" | "cambio" | "instabilidade" | "etf";
-// Sub-modo da camada de Alocação: por país (alocação direta) ou por bolsa (pins).
-export type ExposureMode = "alocacao" | "bolsas";
+export type RadarLayer = "mercados" | "cambio" | "instabilidade";
 
 export interface BolsasResponse {
   indices: IndexData[];

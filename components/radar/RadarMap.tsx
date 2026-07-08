@@ -7,23 +7,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ComposableMap, Geographies, Geography, ZoomableGroup, Marker } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import { GEO_URL, intensityColor, etfIntensityColor } from "@/lib/world-map";
+import { GEO_URL, intensityColor } from "@/lib/world-map";
 import { type HeatEntry } from "@/lib/radar/geo";
 import { resolveCountryMeta } from "@/lib/radar/countries";
 import type { RadarLayer } from "@/lib/radar/types";
-
-export interface ExchangeMarker {
-  code: string;
-  name: string;
-  city: string;
-  coords: [number, number]; // [lng, lat]
-  brl: number;
-  pct: number;
-  count: number;     // nº de ativos nessa praça
-  multi: boolean;    // país tem +1 bolsa → realce visual
-}
 
 interface RadarMapProps {
   layer: RadarLayer;
@@ -31,13 +20,9 @@ interface RadarMapProps {
   selectedIso: string | null;
   regionFilter: string | null;
   onSelectCountry: (iso: string, name: string) => void;
-  markers?: ExchangeMarker[];
 }
 
 interface Tip { x: number; y: number; title: string; sub: string; value: string | null; positive: boolean }
-
-const fmtBRLk = (v: number) =>
-  `R$ ${v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(1) + "K" : v.toFixed(0)}`;
 
 const NEUTRAL = "#161a24";
 
@@ -46,13 +31,11 @@ const LEGEND: Record<RadarLayer, [string, string]> = {
   mercados: ["Queda", "Alta"],
   cambio: ["Moeda fraca", "Moeda forte"],
   instabilidade: ["Risco alto", "Risco baixo"],
-  etf: ["Menor", "Maior exposição"],
 };
 
 function RadarMapInner({
-  layer, heat, selectedIso, regionFilter, onSelectCountry, markers,
+  layer, heat, selectedIso, regionFilter, onSelectCountry,
 }: RadarMapProps) {
-  const maxMarkerBrl = markers && markers.length > 0 ? Math.max(...markers.map((m) => m.brl)) : 0;
   const [zoom, setZoom] = useState(1);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
   const [tip, setTip] = useState<Tip | null>(null);
@@ -124,9 +107,7 @@ function RadarMapInner({
                 // todos sejam clicáveis e tenham tooltip, mesmo sem dado de calor.
                 const meta = resolveCountryMeta(iso, (geo.properties as { name?: string })?.name);
                 const known = !!meta;
-                const fill = entry
-                  ? (layer === "etf" ? etfIntensityColor(entry.intensity) : intensityColor(entry.intensity))
-                  : NEUTRAL;
+                const fill = entry ? intensityColor(entry.intensity) : NEUTRAL;
                 const isSelected = selectedIso === iso;
                 // Filtro de região atua no PRÓPRIO país (não só nos marcadores):
                 // com filtro ativo, só a região escolhida fica acesa.
@@ -168,47 +149,6 @@ function RadarMapInner({
               })
             }
           </Geographies>
-
-          {/* Pins de bolsas (visão Bolsas). Tamanho ∝ √alocação; contra-escala
-              pelo zoom para o pin não inflar ao aproximar. Praça em país com +1
-              bolsa ganha anel branco para deixar o multi-bolsa claro. */}
-          {markers?.map((m) => {
-            const norm = maxMarkerBrl > 0 ? Math.sqrt(m.brl / maxMarkerBrl) : 0.5;
-            const r = (5 + 11 * norm) / zoom;
-            return (
-              <Marker key={m.code} coordinates={m.coords}>
-                {m.multi && (
-                  <circle r={r + 2.5 / zoom} fill="none" stroke="#fff" strokeWidth={1.4 / zoom} opacity={0.9} />
-                )}
-                <circle
-                  r={r}
-                  fill="#38bdf8"
-                  fillOpacity={0.85}
-                  stroke="#0a0a0a"
-                  strokeWidth={1 / zoom}
-                  style={{ cursor: "pointer" }}
-                  onMouseEnter={(e: React.MouseEvent) =>
-                    setTip({
-                      x: e.clientX, y: e.clientY,
-                      title: `${m.name} · ${m.city}`,
-                      sub: `${m.count} ativo${m.count === 1 ? "" : "s"}${m.multi ? " · país com +1 bolsa" : ""}`,
-                      value: `${fmtBRLk(m.brl)} · ${m.pct.toFixed(1)}%`,
-                      positive: true,
-                    })
-                  }
-                  onMouseMove={(e: React.MouseEvent) => setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))}
-                  onMouseLeave={() => setTip(null)}
-                />
-                <text
-                  textAnchor="middle"
-                  y={-r - 3 / zoom}
-                  style={{ fontSize: 9 / zoom, fontWeight: 700, fill: "#e0f2fe", pointerEvents: "none" }}
-                >
-                  {m.name}
-                </text>
-              </Marker>
-            );
-          })}
         </ZoomableGroup>
       </ComposableMap>
 
@@ -220,9 +160,7 @@ function RadarMapInner({
         <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][0]}</span>
         <span
           className="h-2 w-20 rounded-full"
-          style={{ background: layer === "etf"
-            ? "linear-gradient(90deg, #254e82 0%, #38bdf8 100%)"
-            : "linear-gradient(90deg, #ef4444 0%, #facc15 50%, #22c55e 100%)" }}
+          style={{ background: "linear-gradient(90deg, #ef4444 0%, #facc15 50%, #22c55e 100%)" }}
         />
         <span className="text-[9px] font-medium text-zinc-400">{LEGEND[layer][1]}</span>
       </div>
@@ -241,7 +179,7 @@ function RadarMapInner({
           <p className="font-semibold text-zinc-100">{tip.title}</p>
           <p className="text-[11px] text-zinc-400">{tip.sub}</p>
           {tip.value != null && (
-            <p className="font-mono text-[11px] font-bold" style={{ color: layer === "etf" ? "#38bdf8" : (tip.positive ? "#4ade80" : "#f87171") }}>
+            <p className="font-mono text-[11px] font-bold" style={{ color: tip.positive ? "#4ade80" : "#f87171" }}>
               {tip.value}
             </p>
           )}
