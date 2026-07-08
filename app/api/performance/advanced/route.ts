@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildCDIBenchmark, buildPriceBenchmark, buildRfTimeline, type TwrDayPoint } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates, buildRunningPmDolar } from "@/lib/cambio";
@@ -292,7 +293,7 @@ export async function GET(request: Request) {
       store.fetchTab("meus_proventos").catch(() => []),
       store.fetchTab("cambio").catch(() => []),
       store.fetchTab("renda_fixa").catch(() => []),
-      store.fetchTab("fixa_aberta").catch(() => []),
+      fetchFixaAbertaComIbkr(store).catch(() => []),
       store.fetchTab(MARGIN_TAB).catch(() => []),
     ]);
     if (transacoes.length === 0) {

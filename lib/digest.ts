@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchCotacoes, fetchQuotes } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
@@ -76,7 +77,7 @@ export async function buildDigest(): Promise<DigestData> {
   const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, headlines] = await Promise.all([
     store.fetchTab("meus_ativos"),
     store.fetchTab("meus_proventos"),
-    store.fetchTab("fixa_aberta"),
+    fetchFixaAbertaComIbkr(store),
     store.fetchTab("cambio").catch(() => []),
     store.fetchTab("p_tax").catch(() => []),
     fetchDigestHeadlines(5).catch(() => [] as DigestHeadline[]),

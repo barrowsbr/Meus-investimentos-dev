@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchFxRates } from "@/lib/cotacoes";
 import { calcularRendaFixaPosicoes } from "@/lib/renda-fixa";
 
@@ -14,7 +15,7 @@ export async function GET() {
     const store = getDataStore();
     const [rfTransacoes, fixaAberta, proventosRows, { fx }] = await Promise.all([
       store.fetchTab("renda_fixa"),
-      store.fetchTab("fixa_aberta"),
+      fetchFixaAbertaComIbkr(store),
       store.fetchTab("meus_proventos"),
       fetchFxRates(),
     ]);

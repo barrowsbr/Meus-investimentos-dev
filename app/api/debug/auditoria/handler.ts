@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildRfTimeline } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
       store.fetchTab("meus_proventos").catch(() => []),
       store.fetchTab("cambio").catch(() => []),
       store.fetchTab("renda_fixa").catch(() => []),
-      store.fetchTab("fixa_aberta").catch(() => []),
+      fetchFixaAbertaComIbkr(store).catch(() => []),
     ]);
     if (transacoes.length === 0) {
       return NextResponse.json({ error: "Sem transações" }, { status: 422 });
