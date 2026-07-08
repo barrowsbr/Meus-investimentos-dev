@@ -233,6 +233,82 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
   return results;
 }
 
+// --- Fallback 3: brapi.dev (SÓ ações B3, sufixo .SA) ---
+//
+// Fonte independente do Yahoo, gratuita, específica do mercado brasileiro. Só
+// entra para tickers `.SA` que nem o `quote()` nem o v8 do Yahoo trouxeram —
+// quando o Yahoo rate-limita a B3 inteira (crumb quebrado), o brapi ainda
+// responde. Usa símbolos base (ITUB4, não ITUB4.SA); remapeamos de volta para a
+// chave Yahoo. O tier grátis passou a exigir token — se `BRAPI_TOKEN` existir,
+// vai como bearer; sem ele, ainda tenta (algumas cotações seguem abertas).
+async function fetchQuotesBrapi(yahooTickers: string[]): Promise<Record<string, Quote>> {
+  const b3 = yahooTickers.filter((t) => t.endsWith(".SA"));
+  if (b3.length === 0) return {};
+
+  const results: Record<string, Quote> = {};
+  const token = process.env.BRAPI_TOKEN;
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+  // base symbol → chave Yahoo (ITUB4 → ITUB4.SA)
+  const baseToYahoo = new Map<string, string>();
+  for (const y of b3) baseToYahoo.set(y.slice(0, -3).toUpperCase(), y);
+
+  const bases = [...baseToYahoo.keys()];
+  const batchSize = 10;
+
+  for (let i = 0; i < bases.length; i += batchSize) {
+    const batch = bases.slice(i, i + batchSize);
+    try {
+      const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+      const url = `https://brapi.dev/api/quote/${batch.map(encodeURIComponent).join(",")}${qs}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": UA,
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const rows: unknown[] = Array.isArray(data?.results) ? data.results : [];
+      for (const row of rows) {
+        const r = row as {
+          symbol?: string;
+          regularMarketPrice?: number;
+          regularMarketChange?: number;
+          regularMarketChangePercent?: number;
+          regularMarketPreviousClose?: number;
+          currency?: string;
+          shortName?: string;
+          longName?: string;
+        };
+        const base = (r.symbol ?? "").toUpperCase();
+        const yahooKey = baseToYahoo.get(base);
+        if (!yahooKey || r.regularMarketPrice == null || !(r.regularMarketPrice > 0)) continue;
+        const price = r.regularMarketPrice;
+        const prevClose = r.regularMarketPreviousClose;
+        let change = r.regularMarketChange;
+        let changePct = r.regularMarketChangePercent;
+        if ((change == null || change === 0) && prevClose && prevClose > 0) {
+          change = price - prevClose;
+          changePct = ((price / prevClose) - 1) * 100;
+        }
+        results[yahooKey] = {
+          price,
+          change: change ?? 0,
+          changePercent: changePct ?? 0,
+          currency: r.currency ?? "BRL",
+          name: r.shortName ?? r.longName ?? base,
+        };
+      }
+    } catch {
+      // segue para o próximo lote
+    }
+  }
+
+  return results;
+}
+
 // --- Main fetch with fallbacks ---
 
 export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Record<string, Quote>; source: string }> {
@@ -267,10 +343,28 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
     }
   }
 
-  const source = Object.keys(quotes).length === 0 ? "none"
+  // Fallback 3: brapi.dev, SÓ para ações B3 (.SA) que ainda faltam depois do
+  // Yahoo. Fonte independente — quando o Yahoo rate-limita a B3 inteira, o brapi
+  // ainda responde. Nunca sobrescreve um preço já obtido.
+  const stillMissing = yahooTickers.filter((t) => !quotes[t]);
+  let usedBrapi = false;
+  if (stillMissing.some((t) => t.endsWith(".SA"))) {
+    try {
+      const br = await fetchQuotesBrapi(stillMissing);
+      if (Object.keys(br).length > 0) {
+        quotes = { ...quotes, ...br };
+        usedBrapi = true;
+      }
+    } catch {
+      // sem fallback — segue com o que tem
+    }
+  }
+
+  const yahooSource = Object.keys(quotes).length === 0 ? "none"
     : !usedV8 ? "yahoo-finance2"
     : yf2Empty ? "yahoo-v8"
     : "yahoo-finance2+v8";
+  const source = usedBrapi ? `${yahooSource}+brapi` : yahooSource;
 
   return { quotes, source };
 }
