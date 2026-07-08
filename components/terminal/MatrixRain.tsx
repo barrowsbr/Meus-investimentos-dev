@@ -32,8 +32,10 @@ export default function MatrixRain() {
       drops = new Array(newCols).fill(0).map((_, i) =>
         oldDrops[i] ?? Math.floor((Math.random() * -state.height) / FONT_SIZE)
       );
+      // Velocidade de queda por coluna, em linhas/frame. Reduzida (era
+      // 0.5–1.4) a pedido do dono: a chuva estava caindo rápido demais.
       speeds = new Array(newCols).fill(0).map((_, i) =>
-        speeds[i] ?? 0.5 + Math.random() * 0.9
+        speeds[i] ?? 0.3 + Math.random() * 0.55
       );
       cols = newCols;
       ctx!.fillStyle = "#050A05";
