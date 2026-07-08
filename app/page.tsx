@@ -1075,10 +1075,11 @@ interface AuditItem {
 interface AuditData {
   usdbrl: number;
   partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; total_brl: number };
-  ibkr: { ok: boolean; patrimonioTotalUSD?: number; erro?: string };
+  ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
   brasil_itens: AuditItem[];
   cripto_itens: AuditItem[];
   rf_caixa_itens: AuditItem[];
+  ibkr_caixa_conciliado?: AuditItem[];
   fora_da_soma: AuditItem[];
 }
 
@@ -1126,6 +1127,9 @@ function AuditPanel({ audit, priv }: { audit: AuditData | "loading" | "erro"; pr
         </span>
         <span className="font-mono tnum" style={{ fontSize: 9.5, color: "var(--muted)" }}>
           IBKR {maskIf(priv, compactBRL(audit.partes.ibkr_brl))}
+          {typeof audit.ibkr.caixa_brl === "number" && audit.ibkr.caixa_brl >= 1 && (
+            <span style={{ color: "var(--faint)" }}> · caixa {maskIf(priv, compactBRL(audit.ibkr.caixa_brl))}</span>
+          )}
           {!audit.ibkr.ok && <span style={{ color: "var(--neg)" }}> · indisponível</span>}
         </span>
       </div>
@@ -1146,6 +1150,15 @@ function AuditPanel({ audit, priv }: { audit: AuditData | "loading" | "erro"; pr
           )}
         </div>
       ))}
+      {(audit.ibkr_caixa_conciliado?.length ?? 0) > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 px-4 py-1.5 font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--pos, #3FB950)", borderTop: "1px solid var(--line)", background: "var(--hover)" }}>
+            <span className="rounded-full" style={{ width: 5, height: 5, background: "var(--pos, #3FB950)" }} />
+            Caixa na IBKR · já contabilizado acima
+          </div>
+          {audit.ibkr_caixa_conciliado!.map((item, i) => <AuditRow key={`conc-${item.ticker}-${i}`} item={item} priv={priv} />)}
+        </div>
+      )}
       {audit.fora_da_soma.length > 0 && (
         <div>
           <div className="px-4 py-1.5 font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--neg)", borderTop: "1px solid var(--line)", background: "var(--hover)" }}>
