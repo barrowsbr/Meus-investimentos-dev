@@ -42,6 +42,8 @@ export default function AnotacoesPage() {
 
   const [busca, setBusca] = useState("");
   const [filtroTag, setFiltroTag] = useState<string | null>(null);
+  // Mostra primeiro só o que ainda está pendente (não marcado como feito).
+  const [statusFiltro, setStatusFiltro] = useState<"pendentes" | "todas" | "feitas">("pendentes");
 
   useEffect(() => {
     let alive = true;
@@ -74,14 +76,18 @@ export default function AnotacoesPage() {
     });
   }, [notas]);
 
+  const pendentesCount = useMemo(() => notas.filter((n) => !n.feito).length, [notas]);
+
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return notas.filter((n) => {
+      if (statusFiltro === "pendentes" && n.feito) return false;
+      if (statusFiltro === "feitas" && !n.feito) return false;
       if (filtroTag && (n.ticker || TAG_GERAL) !== filtroTag) return false;
       if (q && !n.texto.toLowerCase().includes(q) && !n.ticker.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [notas, filtroTag, busca]);
+  }, [notas, filtroTag, busca, statusFiltro]);
 
   async function addNota() {
     const t = texto.trim();
@@ -259,6 +265,32 @@ export default function AnotacoesPage() {
       {/* Busca + filtro por etiqueta */}
       {notas.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-4">
+          {/* Status — pendentes por padrão (não mostra o que já está feito) */}
+          <div
+            className="inline-flex rounded-lg overflow-hidden"
+            style={{ border: "1px solid var(--line)" }}
+          >
+            {([
+              { id: "pendentes", label: "Pendentes", count: pendentesCount },
+              { id: "todas", label: "Todas", count: notas.length },
+              { id: "feitas", label: "Feitas", count: notas.length - pendentesCount },
+            ] as const).map((opt) => {
+              const on = statusFiltro === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setStatusFiltro(opt.id)}
+                  className="text-[11px] font-mono font-semibold px-2.5 py-2 transition-colors"
+                  style={{
+                    background: on ? "var(--accent-wash, rgba(232,163,61,.12))" : "transparent",
+                    color: on ? "var(--accent)" : "var(--muted)",
+                  }}
+                >
+                  {opt.label} <span style={{ opacity: 0.6 }}>{opt.count}</span>
+                </button>
+              );
+            })}
+          </div>
           <div
             className="flex items-center gap-2 rounded-lg px-3 py-2"
             style={{ background: "var(--input, rgba(255,255,255,0.03))", border: "1px solid var(--line)" }}
