@@ -17,7 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface LookThroughComp { ativo: string; name?: string; peso: number }
-interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[] }
+interface LookThroughETF { ticker: string; valor_brl: number; components: LookThroughComp[]; expense_ratio?: number | null; custo_anual_brl?: number | null }
 interface RfPosicao { ticker: string; setor: string; macro: string; valor_brl: number; moeda: string; corretora: string; pais: string; is_caixa: boolean }
 
 interface ComposicaoData {
@@ -282,6 +282,32 @@ export default function ETFPage() {
 
               {lookThroughTab === "por-etf" && (
                 <div className="space-y-3">
+                  {(() => {
+                    const withTer = Object.values(lt.compositions).filter(e => e.expense_ratio != null);
+                    if (withTer.length === 0) return null;
+                    const custoTotal = withTer.reduce((s, e) => s + (e.custo_anual_brl ?? 0), 0);
+                    const baseTotal = withTer.reduce((s, e) => s + e.valor_brl, 0);
+                    const terMedio = baseTotal > 0 ? (custoTotal / baseTotal) * 100 : 0;
+                    return (
+                      <div
+                        className="rounded-xl border border-zinc-800/80 px-3 py-2.5 flex items-center justify-between"
+                        style={{ background: "rgba(232,163,61,0.06)" }}
+                      >
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500">Custo anual dos ETFs</p>
+                          <p className="text-sm font-bold text-zinc-100">
+                            {compactBRL(custoTotal)}<span className="text-[11px] font-normal text-zinc-500"> /ano</span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500">TER médio ponderado</p>
+                          <p className="text-sm font-bold font-mono" style={{ color: "var(--accent, #E8A33D)" }}>
+                            {terMedio.toFixed(2).replace(".", ",")}%
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {Object.values(lt.compositions).map(etf => {
                     const maxPeso = etf.components.reduce((m, c) => Math.max(m, c.peso), 0.0001);
                     return (
@@ -291,7 +317,19 @@ export default function ETFPage() {
                             <span className="font-bold text-zinc-100 text-sm">{etf.ticker}</span>
                             <span className="text-[10px] text-zinc-600">{etf.components.length} ativos</span>
                           </div>
-                          <span className="text-zinc-400 text-xs font-mono">{compactBRL(etf.valor_brl)}</span>
+                          <div className="flex items-center gap-2.5">
+                            {etf.expense_ratio != null && (
+                              <span
+                                className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                                style={{ background: "rgba(232,163,61,0.12)", color: "var(--accent, #E8A33D)" }}
+                                title={etf.custo_anual_brl != null ? `Custo anual estimado: ${compactBRL(etf.custo_anual_brl)}` : "Taxa de administração"}
+                              >
+                                TER {etf.expense_ratio.toFixed(2).replace(".", ",")}%
+                                {etf.custo_anual_brl != null && <span className="hidden sm:inline"> · {compactBRL(etf.custo_anual_brl)}/ano</span>}
+                              </span>
+                            )}
+                            <span className="text-zinc-400 text-xs font-mono">{compactBRL(etf.valor_brl)}</span>
+                          </div>
                         </div>
                         <div className="divide-y divide-zinc-900/70">
                           {etf.components.map(c => {
