@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { toNumber } from "@/lib/format";
 import type { RawTx, CorpEvent } from "@/lib/tax/engine";
 import { bensDireitosRV, classificarRendimentos } from "@/lib/tax/dirpf";
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
       store.fetchTab("eventos_corp").catch(() => []),
       store.fetchTab("meus_proventos").catch(() => []),
       store.fetchTab("renda_fixa").catch(() => []),
-      store.fetchTab("fixa_aberta").catch(() => []),
+      fetchFixaAbertaComIbkr(store).catch(() => []),
     ]);
 
     const txs = parseTransacoes(ativos);

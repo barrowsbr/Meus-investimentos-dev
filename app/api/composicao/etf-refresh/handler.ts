@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { computeLookThrough, saveToGSheets } from "@/lib/etf-holdings";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { fetchCotacoes } from "@/lib/cotacoes";
 import { isRendaVariavel } from "@/lib/sectors";
@@ -16,7 +17,7 @@ export async function POST() {
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
       store.fetchTab("meus_ativos"),
       store.fetchTab("meus_proventos"),
-      store.fetchTab("fixa_aberta"),
+      fetchFixaAbertaComIbkr(store),
       store.fetchTab("cambio").catch(() => []),
       store.fetchTab("p_tax").catch(() => []),
     ]);

@@ -1,4 +1,5 @@
 import { getDataStore } from "./data-store";
+import { fetchFixaAbertaComIbkr } from "./ibkr-cash";
 import { fetchCotacoes, yahooTicker } from "./cotacoes";
 import { calcularSnapshot, type Position, type PortfolioSnapshot } from "./portfolio";
 import { calcularRendaFixaPosicoes, type RendaFixaResult } from "./renda-fixa";
@@ -277,7 +278,7 @@ export async function buildAgentContext(): Promise<string> {
   const store = getDataStore();
   const [transacoes, fixaAberta, rendaFixaHist, proventos, cambioRows, ptaxRows] = await Promise.all([
     store.fetchTab("meus_ativos").catch(() => []),
-    store.fetchTab("fixa_aberta").catch(() => []),
+    fetchFixaAbertaComIbkr(store).catch(() => []),
     store.fetchTab("renda_fixa").catch(() => []),
     store.fetchTab("meus_proventos").catch(() => []),
     store.fetchTab("cambio").catch(() => []),

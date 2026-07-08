@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
@@ -17,7 +18,7 @@ export async function GET() {
     const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, lbRows, marginRows] = await Promise.all([
       store.fetchTab("meus_ativos"),
       store.fetchTab("meus_proventos"),
-      store.fetchTab("fixa_aberta"),
+      fetchFixaAbertaComIbkr(store),
       store.fetchTab("cambio").catch(() => []),
       store.fetchTab("p_tax").catch(() => []),
       store.fetchTab("lb_historic").catch(() => []),

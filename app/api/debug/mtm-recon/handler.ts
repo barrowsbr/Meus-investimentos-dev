@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDataStore } from "@/lib/data-store";
+import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchHistoricalData } from "@/lib/market-history";
 import { calcularTWR, buildRfTimeline, parseRVTransactions } from "@/lib/twr-engine";
 import { calcularCambioMetrics, buildPmFxRates } from "@/lib/cambio";
@@ -49,7 +50,7 @@ export async function GET() {
       store.fetchTab("meus_proventos").catch(() => []),
       store.fetchTab("cambio").catch(() => []),
       store.fetchTab("renda_fixa").catch(() => []),
-      store.fetchTab("fixa_aberta").catch(() => []),
+      fetchFixaAbertaComIbkr(store).catch(() => []),
     ]);
 
     const tickerMeta = new Map<string, { moeda: string; corretora: string }>();
