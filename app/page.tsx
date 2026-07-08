@@ -1202,7 +1202,16 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, detalhe, p
               {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
             </div>
           </div>
-        ) : <div />}
+        ) : (
+          <div className="min-w-0">
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+              Patrimônio total
+            </div>
+            {/* Carregando o book real da IBKR — skeleton em vez de um número
+                parcial (evita mostrar o canônico baixo e "piscar"). */}
+            <div className="animate-pulse rounded" style={{ width: 96, height: 19, background: "var(--line)" }} />
+          </div>
+        )}
 
         {/* Σ retorno do dia */}
         {brl != null && (
@@ -1682,7 +1691,11 @@ export default function HomePage() {
               <DayStripsTotal
                 brl={dayBRLfinal}
                 pctVal={dayPctFinal}
-                patrimonioBRL={totalPartes ?? totalBRL}
+                // Só valores baseados no book REAL da IBKR (detalhe do servidor →
+                // client ao vivo → patrimonio-dia). NUNCA o canônico do snapshot,
+                // que subconta o internacional e fazia o número "piscar" baixo
+                // antes da IBKR chegar. null = ainda carregando → skeleton.
+                patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
                 usdbrl={usdbrl}
                 partes={patrimonioPartes}
                 detalhe={detalhe}
