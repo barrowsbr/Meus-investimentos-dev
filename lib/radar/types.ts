@@ -233,6 +233,9 @@ export interface ExposureEntry {
 
 export interface ExposureResponse {
   exposure: ExposureEntry[];
+  // Alocação por BOLSA de listagem (onde o papel é negociado, não a origem).
+  // Alimenta a camada "Minhas bolsas" do mapa.
+  exchanges?: ExposureEntry[];
   totalBRL?: number;
   etfDecomposed?: boolean;
   etfSupported?: string[];

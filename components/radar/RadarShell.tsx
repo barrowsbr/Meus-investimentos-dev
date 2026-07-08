@@ -22,7 +22,7 @@ import {
   useInstability, useBrief, useCountryNews, useSignals,
   useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
-import type { RadarLayer, SelectedCountry, SymbolTarget } from "@/lib/radar/types";
+import type { RadarLayer, SelectedCountry, SymbolTarget, ExposureResponse } from "@/lib/radar/types";
 import { RadarMap } from "./RadarMap";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
@@ -55,6 +55,14 @@ export default function RadarShell() {
   const { data: timeline, loading: timelineLoading } = useTimeline(selected?.name ?? null);
   const { data: exposure, loading: exposureLoading } = useExposure();
 
+  // Exposição por BOLSA de listagem (onde o papel é negociado) — base da camada
+  // "Minhas bolsas". Diferente de `exposure` (país de origem, que credita ADR à
+  // origem e decompõe ETFs); aqui TSM entra nos EUA (NYSE), VWRA.L em Londres.
+  const exchangeExposure = useMemo<ExposureResponse | null>(
+    () => (exposure ? { exposure: exposure.exchanges ?? [] } : null),
+    [exposure],
+  );
+
   // ── Camada ativa → calor ────────────────────────────────────────────────────
   const heat = useMemo<Map<string, HeatEntry>>(() => {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
@@ -62,14 +70,14 @@ export default function RadarShell() {
     if (layer === "instabilidade") {
       return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
-    if (layer === "exposicao") return buildExposureHeat(exposure);
+    if (layer === "exposicao") return buildExposureHeat(exchangeExposure);
     return new Map();
-  }, [layer, markets, moedas, exposure]);
+  }, [layer, markets, moedas, exchangeExposure]);
 
-  // Marcadores das praças (só na camada Exposição): pino no país onde há alocação.
+  // Marcadores das praças (só na camada Minhas bolsas): pino na bolsa de listagem.
   const markers = useMemo(
-    () => (layer === "exposicao" ? buildExposureMarkers(exposure) : []),
-    [layer, exposure],
+    () => (layer === "exposicao" ? buildExposureMarkers(exchangeExposure) : []),
+    [layer, exchangeExposure],
   );
 
   const regions = useMemo(() => {

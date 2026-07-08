@@ -6,7 +6,7 @@ import { calcularSnapshot, calcularCarteiraFIFO, tickerBase } from "@/lib/portfo
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, buildFxDateMap } from "@/lib/cambio";
 import { identificarSetor, isRendaFixa, isRendaVariavel, isRendaFixaManual } from "@/lib/sectors";
 import { computeLookThrough, loadFromGSheets, computeFromStored, fetchHoldings, hasHoldingsProxy } from "@/lib/etf-holdings";
-import { computeCountryAllocation } from "@/lib/ticker-country";
+import { computeCountryAllocation, listingCountryFromTicker } from "@/lib/ticker-country";
 import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances } from "@/lib/margin";
 import type { Position } from "@/lib/portfolio";
 import type { FxRates } from "@/lib/cotacoes";
@@ -603,6 +603,24 @@ export async function GET(req: Request) {
     }));
     const countryAllocation = await computeCountryAllocation(lookThroughCompositions, [...directForGeo, ...rfForGeo]);
 
+    // ── Alocação por BOLSA de listagem (camada "Minhas bolsas" do Radar) ──────
+    // DIFERENTE da country_allocation acima: aqui cada papel entra na PRAÇA onde
+    // é negociado (TSM = ADR na NYSE → EUA; VWRA.L → Londres/GB; PETR4.SA → B3),
+    // sem creditar ao país de origem nem decompor ETFs. positions vêm de
+    // meus_ativos = tudo exchange-traded; só cripto fica de fora.
+    const exchAccum: Record<string, { value_brl: number; tickers: Set<string> }> = {};
+    for (const p of positions) {
+      if ((p.quantidade ?? 0) <= 0 || p.valorAtualBRL <= 0 || p.setor === "Cripto") continue;
+      const iso2 = listingCountryFromTicker(p.ticker);
+      if (!iso2) continue;
+      if (!exchAccum[iso2]) exchAccum[iso2] = { value_brl: 0, tickers: new Set() };
+      exchAccum[iso2].value_brl += p.valorAtualBRL;
+      exchAccum[iso2].tickers.add(p.ticker.replace(/\.SA$/i, ""));
+    }
+    const exchangeAllocation = Object.entries(exchAccum)
+      .map(([iso2, d]) => ({ iso2, value_brl: d.value_brl, tickers: [...d.tickers].slice(0, 12) }))
+      .sort((a, b) => b.value_brl - a.value_brl);
+
     // Debug de diagnóstico (?debug=etf): revela por que um ETF (ex.: VWRA) não
     // entra no look-through — se está nas posições, setor, preço, valor, proxy.
     const debugParam = new URL(req.url).searchParams.get("debug");
@@ -667,6 +685,7 @@ export async function GET(req: Request) {
           stale: ltStale,
         },
         country_allocation: countryAllocation,
+        exchange_allocation: exchangeAllocation,
         rf_posicoes: rfPosicoes,
         errors,
       },
