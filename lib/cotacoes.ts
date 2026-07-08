@@ -4,48 +4,6 @@ import { yahooTicker } from "./yahoo-symbol";
 // client-safe). Mantém a FONTE ÚNICA e os imports existentes `from "@/lib/cotacoes"`.
 export { yahooTicker };
 
-// ── Fallback de preço: último fechamento da golden source (db_cotacoes) ───────
-// Quando a cotação AO VIVO do Yahoo falha para um ticker (rate-limit, símbolo
-// intermitente), o motor caía no CUSTO (valorAtualBRL = investido) — foi o que
-// derrubou Resumo/Performance "bem abaixo" e mostrou ITUB4 pelo investido. Aqui
-// preenchemos esses buracos com o ÚLTIMO PREÇO DE FECHAMENTO conhecido (dado de
-// mercado real, atualizado pelo cron diário) — muito melhor que o custo.
-// Cache de 10 min (a golden source muda 1×/dia).
-let _goldenLastCache: { at: number; prices: Map<string, number> } | null = null;
-
-async function goldenLastPrices(): Promise<Map<string, number>> {
-  if (_goldenLastCache && Date.now() - _goldenLastCache.at < 600_000) return _goldenLastCache.prices;
-  const out = new Map<string, number>();
-  try {
-    // Import DINÂMICO (igual ao yahoo-finance2 abaixo): mantém cotacoes.ts
-    // client-safe para o re-export de yahooTicker (db-cotacoes puxa googleapis).
-    const { readGoldenSource } = await import("./db-cotacoes");
-    const g = await readGoldenSource();
-    // Percorre datas do mais recente para o mais antigo; 1ª cotação = última conhecida.
-    for (let i = g.dates.length - 1; i >= 0; i--) {
-      const row = g.prices[g.dates[i]];
-      if (!row) continue;
-      for (const tk of g.tickers) {
-        if (!out.has(tk) && typeof row[tk] === "number" && row[tk] > 0) out.set(tk, row[tk]);
-      }
-      if (out.size === g.tickers.length) break;
-    }
-  } catch { /* golden indisponível → sem fallback, mantém comportamento antigo */ }
-  _goldenLastCache = { at: Date.now(), prices: out };
-  return out;
-}
-
-// Último fechamento de um ticker na golden source, casando por grafia exata OU
-// base sem sufixo de bolsa (a golden pode ter "ITUB4" e a posição "ITUB4.SA").
-function lastCloseFor(ticker: string, golden: Map<string, number>): number | null {
-  const up = ticker.toUpperCase().trim();
-  if (golden.has(up)) return golden.get(up)!;
-  const base = up.replace(/\.[A-Z]{1,3}$/, "");
-  if (golden.has(base)) return golden.get(base)!;
-  for (const [k, v] of golden) if (k.replace(/\.[A-Z]{1,3}$/, "") === base) return v;
-  return null;
-}
-
 export type MarketSession = "REGULAR" | "PRE" | "PREPRE" | "POST" | "POSTPOST" | "CLOSED";
 
 export interface Quote {
@@ -413,30 +371,6 @@ export async function fetchCotacoes(
       }
       quotes[originalTicker] = quote;
     }
-  }
-
-  // ── Fallback: sem cotação ao vivo → último fechamento da golden source ──────
-  // Evita que o motor caia no CUSTO (mostrar o investido em vez do atual, que
-  // derrubava Resumo/Performance). Último preço real de fechamento ≫ custo.
-  const missing = [...yahooMap.keys()].filter((t) => !quotes[t]);
-  if (missing.length > 0) {
-    const golden = await goldenLastPrices();
-    const moedaByTicker = new Map(tickers.map((t) => [t.ticker, t.moeda]));
-    let filled = 0;
-    for (const t of missing) {
-      const close = lastCloseFor(t, golden);
-      if (close == null || close <= 0) continue;
-      quotes[t] = {
-        price: close,
-        change: 0,
-        changePercent: 0,
-        currency: (moedaByTicker.get(t) || "BRL").toUpperCase(),
-        name: t,
-        marketState: "CLOSED",
-      };
-      filled++;
-    }
-    if (filled > 0) errors.push(`${filled} ticker(s) sem cotação ao vivo — usado último fechamento da base (db_cotacoes)`);
   }
 
   return {
