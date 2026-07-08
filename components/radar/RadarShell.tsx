@@ -8,12 +8,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Landmark } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
-  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, currencyForCountry, type HeatEntry,
+  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, buildExposureHeat,
+  buildExposureMarkers, currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
 import { ISO_NUM_TO_ISO2, resolveCountryMeta } from "@/lib/radar/countries";
 import {
@@ -61,10 +62,18 @@ export default function RadarShell() {
     if (layer === "instabilidade") {
       return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
+    if (layer === "exposicao") return buildExposureHeat(exposure);
     return new Map();
-  }, [layer, markets, moedas]);
+  }, [layer, markets, moedas, exposure]);
+
+  // Marcadores das praças (só na camada Exposição): pino no país onde há alocação.
+  const markers = useMemo(
+    () => (layer === "exposicao" ? buildExposureMarkers(exposure) : []),
+    [layer, exposure],
+  );
 
   const regions = useMemo(() => {
+    if (layer === "exposicao") return []; // filtro de região não se aplica à minha carteira
     if (layer === "instabilidade") return Object.keys(REGION_COLORS).sort();
     const src = layer === "mercados" ? markets?.indices : moedas?.currencies;
     if (!src) return [];
@@ -140,6 +149,7 @@ export default function RadarShell() {
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
           { key: "instabilidade" as const, label: "Risco", icon: Shield },
+          { key: "exposicao" as const, label: "Minhas bolsas", icon: Landmark },
         ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
@@ -195,6 +205,7 @@ export default function RadarShell() {
           <RadarMap
             layer={layer}
             heat={heat}
+            markers={markers}
             selectedIso={selected?.iso ?? null}
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}

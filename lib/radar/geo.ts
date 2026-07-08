@@ -14,6 +14,7 @@
 import { COUNTRY_TO_ISO_NUM, signedNorm } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2 } from "./countries";
 import { adrOriginCountry } from "@/lib/ticker-country";
+import { INDICES, type IndexMeta } from "./indices";
 import type { CurrencyData, ExposureResponse } from "./types";
 
 // ISO numérico → nome PT do país (inverso de COUNTRY_TO_ISO_NUM).
@@ -414,6 +415,60 @@ export function buildExposureHeat(exposure: ExposureResponse | null): Map<string
     });
   }
   return map;
+}
+
+// Marcador de PRAÇA (bolsa) para a camada Exposição: um ponto no país onde há
+// alocação direta, posicionado na cidade da bolsa principal (INDICES).
+export interface ExposureMarker {
+  iso2: string;
+  isoNum: string;
+  countryPT: string;
+  lat: number;
+  lng: number;
+  flag: string;
+  pct: number;        // % da alocação direta
+  valueText: string;  // R$ formatado
+  tickers: string[];
+}
+
+// Praça principal por país (nome PT): a 1ª entrada de INDICES daquele país
+// (^VIX não é praça). Dá o lat/lng do marcador.
+const PRIMARY_INDEX_BY_COUNTRY: Record<string, IndexMeta> = (() => {
+  const m: Record<string, IndexMeta> = {};
+  for (const idx of INDICES) {
+    if (idx.symbol === "^VIX") continue;
+    if (!m[idx.country]) m[idx.country] = idx;
+  }
+  return m;
+})();
+
+export function buildExposureMarkers(exposure: ExposureResponse | null): ExposureMarker[] {
+  if (!exposure || exposure.exposure.length === 0) return [];
+  const direct = exposure.exposure.filter((e) => (e.directBRL ?? 0) > 0);
+  if (direct.length === 0) return [];
+  const totalDirect = direct.reduce((s, e) => s + e.directBRL, 0);
+
+  const out: ExposureMarker[] = [];
+  for (const entry of direct) {
+    const countryPT = ISO2_TO_RADAR_PT[entry.iso2] ?? entry.countryPT;
+    const idx = PRIMARY_INDEX_BY_COUNTRY[countryPT];
+    if (!idx) continue; // sem praça conhecida → país ainda acende via heat, sem pino
+    const pctDirect = totalDirect > 0 ? (entry.directBRL / totalDirect) * 100 : 0;
+    out.push({
+      iso2: entry.iso2,
+      isoNum: ISO2_TO_ISO_NUM[entry.iso2] ?? "",
+      countryPT,
+      lat: idx.lat,
+      lng: idx.lng,
+      flag: idx.flag,
+      pct: pctDirect,
+      valueText: fmtBRLk(entry.directBRL),
+      tickers: entry.tickers ?? [],
+    });
+  }
+  // Maior alocação por cima (desenha por último) — mas ordenamos crescente para
+  // que o pino maior fique no topo da pilha de SVG.
+  return out.sort((a, b) => a.pct - b.pct);
 }
 
 // Movimento da moeda local vs USD (rate invertido). +X% = moeda local valorizou.
