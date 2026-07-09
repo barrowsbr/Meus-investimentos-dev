@@ -3,6 +3,7 @@
 import { ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import type { CountryMacro } from "@/lib/radar/types";
 import { formatMacro } from "./format-macro";
+import { openEmbed } from "@/lib/embed-link";
 
 export default function MacroTab({ macro, loading }: { macro: CountryMacro | null; loading: boolean }) {
   if (loading) {
@@ -21,7 +22,7 @@ export default function MacroTab({ macro, loading }: { macro: CountryMacro | nul
         </div>
         <p className="text-[10px] text-zinc-600">Dados providos pelo World Bank.</p>
         {macro?.teUrl && (
-          <a href={macro.teUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
+          <a href={macro.teUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(macro.teUrl!, "Trading Economics"); }} className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
             Ver no Trading Economics <ExternalLink size={11} />
           </a>
         )}
@@ -49,7 +50,7 @@ export default function MacroTab({ macro, loading }: { macro: CountryMacro | nul
       )}
 
       {macro.teUrl && (
-        <a href={macro.teUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
+        <a href={macro.teUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(macro.teUrl!, "Trading Economics"); }} className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
           Detalhes no Trading Economics <ExternalLink size={11} />
         </a>
       )}

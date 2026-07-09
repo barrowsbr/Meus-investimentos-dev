@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Radar as RadarIcon, Search, Circle, Command, Globe } from "lucide-react";
+import WorldMonitorModal from "@/components/WorldMonitorModal";
 
 interface Props {
   lastUpdate?: string;
@@ -12,6 +14,7 @@ function openPalette() {
 }
 
 export default function RadarTopBar({ lastUpdate }: Props) {
+  const [wmOpen, setWmOpen] = useState(false);
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
@@ -32,16 +35,16 @@ export default function RadarTopBar({ lastUpdate }: Props) {
             {new Date(lastUpdate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
-        <a
-          href="https://world-monitor.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="World Monitor — monitor global ao vivo"
+        <button
+          type="button"
+          onClick={() => setWmOpen(true)}
+          title="World Monitor — monitor global ao vivo (abre embutido no app)"
           className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/40 hover:text-cyan-300 sm:px-2.5"
         >
           <Globe size={13} />
           <span className="hidden lg:inline">World Monitor</span>
-        </a>
+        </button>
+        <WorldMonitorModal open={wmOpen} onClose={() => setWmOpen(false)} />
 
         {/* Barra de busca ÚNICA — abre o Command Palette (⌘K), que busca países,
             ações e índices. Antes eram duas coisas (barra só de países + botão

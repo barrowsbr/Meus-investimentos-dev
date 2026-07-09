@@ -3,6 +3,7 @@
 import { Newspaper, ExternalLink, Loader2, Radio, LinkIcon, AlertCircle, Languages } from "lucide-react";
 import type { CountryNewsResponse, SignalsResponse } from "@/lib/radar/types";
 import { findPortfolioImpact } from "@/lib/polymarket";
+import { openEmbed } from "@/lib/embed-link";
 
 const IMPACT_BADGE = {
   alto: { color: "#f87171", bg: "rgba(248,113,113,0.12)", label: "Alto" },
@@ -52,12 +53,11 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
             {signals.signals.map((s, i) => {
               const impactedTickers = findPortfolioImpact(s.title);
               return (
-                <a
+                <button
                   key={i}
-                  href={s.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+                  type="button"
+                  onClick={() => openEmbed(s.url, "Sinal preditivo", s.title)}
+                  className="block w-full text-left px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
                 >
                   <p className="text-xs font-medium leading-snug text-zinc-200">{s.title}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -86,7 +86,7 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                       </div>
                     </div>
                   )}
-                </a>
+                </button>
               );
             })}
           </div>
@@ -117,12 +117,11 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
             {news.articles.map((article, i) => {
               const badge = IMPACT_BADGE[article.impacto];
               return (
-                <a
+                <button
                   key={i}
-                  href={article.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group block px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+                  type="button"
+                  onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+                  className="group block w-full text-left px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p
@@ -161,7 +160,7 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                       </span>
                     )}
                   </div>
-                </a>
+                </button>
               );
             })}
           </div>

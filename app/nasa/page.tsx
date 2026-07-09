@@ -20,6 +20,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import { openEmbed } from "@/lib/embed-link";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -314,7 +315,7 @@ function AsteroidesView() {
               {data.objetos.slice(0, 20).map((o) => (
                 <tr key={o.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="px-3 py-2.5">
-                    <a href={o.jplUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-200 hover:text-indigo-300 inline-flex items-center gap-1">
+                    <a href={o.jplUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(o.jplUrl, `${o.nome} · JPL`); }} className="text-zinc-200 hover:text-indigo-300 inline-flex items-center gap-1">
                       {o.nome} <ExternalLink size={11} className="text-zinc-600" />
                     </a>
                   </td>
@@ -576,6 +577,7 @@ function SentinelaView() {
                 <tr key={o.des} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="px-3 py-2.5">
                     <a href={`https://cneos.jpl.nasa.gov/sentry/details.html#?des=${encodeURIComponent(o.des)}`} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => { e.preventDefault(); openEmbed(`https://cneos.jpl.nasa.gov/sentry/details.html#?des=${encodeURIComponent(o.des)}`, `${o.nome} · CNEOS Sentry`); }}
                       className="text-zinc-200 hover:text-indigo-300 inline-flex items-center gap-1">
                       {o.nome} <ExternalLink size={11} className="text-zinc-600" />
                     </a>
@@ -726,7 +728,7 @@ function ClimaView() {
               </div>
               <span className="text-xs font-mono font-semibold shrink-0" style={{ color: CLIMA_COR[ev.tipo] }}>{ev.intensidade}</span>
               {ev.link && (
-                <a href={ev.link} target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-300 shrink-0">
+                <a href={ev.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(ev.link, ev.rotulo); }} className="text-zinc-600 hover:text-zinc-300 shrink-0">
                   <ExternalLink size={13} />
                 </a>
               )}
