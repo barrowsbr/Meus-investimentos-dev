@@ -3,6 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Sunrise, Layers,
   Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2, StickyNote,
+  Rocket,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -64,6 +65,7 @@ export const NAV: NavGroup[] = [
       { href: "/polymarket", label: "Preditivos", icon: Gauge, sub: "Mercados preditivos relacionados à carteira" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
+      { href: "/nasa", label: "NASA", icon: Rocket, sub: "Observatório — APOD, asteroides, Terra (EPIC) e Marte" },
       { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
     ],
   },
