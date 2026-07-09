@@ -350,9 +350,13 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
   useEffect(() => {
     if (!positionTickers) return;
     let cancelled = false;
-    import("@/lib/polymarket")
-      .then(({ fetchPolymarket, PRECO_ATIVOS_CAT }) => fetchPolymarket(positionTickers.split(",")).then(resp => ({ resp, PRECO_ATIVOS_CAT })))
-      .then(({ resp, PRECO_ATIVOS_CAT }) => {
+    // Busca pelo SERVIDOR — o fetch direto ao gamma-api.polymarket.com no
+    // browser é bloqueado por CORS (era por isso que caía em "indisponível").
+    // A página /polymarket já usa essa mesma rota.
+    const PRECO_ATIVOS_CAT = "💲 Preço dos Ativos"; // = lib/polymarket.ts
+    fetch(`/api/preditivos/polymarket?tickers=${encodeURIComponent(positionTickers)}`)
+      .then(r => r.json())
+      .then((resp: { categories?: Record<string, PolyEvent[]> }) => {
         if (cancelled) return;
         const cats = resp?.categories;
         if (!cats || typeof cats !== "object") return;
@@ -362,7 +366,7 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
         const preco = (cats[PRECO_ATIVOS_CAT] ?? []).filter(ok);
         const outros = Object.entries(cats)
           .filter(([k]) => k !== PRECO_ATIVOS_CAT)
-          .flatMap(([, v]) => v)
+          .flatMap(([, v]) => v as PolyEvent[])
           .filter(e => ok(e) && (e.volume ?? 0) >= 100);
         setPolyEvents([...preco, ...outros.sort(() => Math.random() - 0.5)].slice(0, 12));
       })
@@ -376,6 +380,10 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
   }, [polyEvents.length]);
 
   const ev = polyEvents[polyIdx] ?? null;
+
+  // Sem eventos (falha/vazio) → some o card (espaço vazio limpo), em vez do
+  // fallback feio "Polymarket indisponível". Enquanto busca, mostra carregando.
+  if (!polyLoading && !ev) return null;
 
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
@@ -394,8 +402,8 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
           <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Carregando eventos...</span>
         </div>
       ) : !ev ? (
-        <div className="px-4 py-6 text-center">
-          <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>Polymarket indisponível</p>
+        <div className="px-4 py-8 text-center">
+          <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Carregando eventos...</span>
         </div>
       ) : (
         <div className="px-4 py-4">
