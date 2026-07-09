@@ -8,9 +8,9 @@
 // 2 datas: com 2, entra em modo comparação lado a lado.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, GitCompareArrows } from "lucide-react";
 import { brl, compactBRL } from "@/lib/format";
 
 interface Position {
@@ -52,6 +52,7 @@ interface Props {
   chartPoints: ChartPoint[];
   onClose: () => void;
   onRemoveDate: (d: string) => void;
+  onAddDate: (d: string) => void;
 }
 
 const SECTOR_COLORS: Record<string, string> = {
@@ -70,7 +71,7 @@ function pctStr(v: number | null | undefined, dec = 2): string {
 }
 
 export default function CarteiraNaDataDrawer({
-  datas, classe, setor, ticker, corretora, chartPoints, onClose, onRemoveDate,
+  datas, classe, setor, ticker, corretora, chartPoints, onClose, onRemoveDate, onAddDate,
 }: Props) {
   const [carteiras, setCarteiras] = useState<Carteira[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,9 +82,33 @@ export default function CarteiraNaDataDrawer({
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Arrastar-para-fechar (mobile): segue o dedo e fecha se puxar > 90px.
+  const [dragY, setDragY] = useState(0);
+  const [touched, setTouched] = useState(false);
+  const startY = useRef<number | null>(null);
+  const dragging = useRef(false);
+  const onTouchStart = (e: React.TouchEvent) => { startY.current = e.touches[0].clientY; dragging.current = true; setTouched(true); };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startY.current == null) return;
+    const dy = e.touches[0].clientY - startY.current;
+    setDragY(dy > 0 ? dy : 0);
+  };
+  const onTouchEnd = () => {
+    dragging.current = false;
+    if (dragY > 90) { onClose(); return; }
+    setDragY(0);
+    startY.current = null;
+  };
+
   const open = datas.length > 0;
   const compare = datas.length === 2;
   const key = datas.join(",");
+
+  // Faixa de datas do gráfico (para o seletor de "comparar com").
+  const dateRange = useMemo(() => {
+    const ds = chartPoints.map(p => p.fullDate).filter(Boolean).sort();
+    return ds.length ? { min: ds[0], max: ds[ds.length - 1] } : { min: "", max: "" };
+  }, [chartPoints]);
 
   useEffect(() => {
     if (!open) { setCarteiras([]); setError(null); return; }
@@ -118,28 +143,47 @@ export default function CarteiraNaDataDrawer({
 
   const drawer = (
     <>
+      <style>{`@keyframes cardSheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes cardDrawerIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
       {/* Backdrop SÓ no mobile (bottom-sheet modal). No desktop o painel é
-          "docked": sem escurecer, o gráfico segue visível e CLICÁVEL — dá pra
-          clicar outra data para comparar sem o backdrop comer o clique. */}
+          "docked": sem escurecer, o gráfico segue visível e CLICÁVEL. z alto
+          para nenhum botão flutuante da página vazar por cima. */}
       <div
-        className="fixed inset-0 z-[100] backdrop-blur-sm md:hidden"
-        style={{ background: "rgba(0,0,0,0.72)" }}
+        className="fixed inset-0 z-[200] backdrop-blur-sm md:hidden"
+        style={{ background: "rgba(0,0,0,0.82)" }}
         onClick={onClose}
       />
-      {/* Painel: lateral direita no desktop, bottom-sheet alto no mobile */}
+      {/* Painel: lateral direita no desktop, bottom-sheet no mobile */}
       <div
-        className="fixed z-[101] flex flex-col overflow-hidden shadow-2xl
-                   inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl
-                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:max-h-none md:rounded-none md:rounded-l-2xl"
+        className="fixed z-[201] flex flex-col overflow-hidden shadow-2xl
+                   inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl animate-[cardSheetUp_.28s_ease-out]
+                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:max-h-none md:rounded-none md:rounded-l-2xl md:animate-[cardDrawerIn_.28s_ease-out]"
         style={{
           background: "var(--surface, #0b0d14)",
           border: "1px solid rgba(255,255,255,0.1)",
           width: "100%",
           maxWidth: compare ? 760 : 460,
+          transform: touched ? `translateY(${dragY}px)` : undefined,
+          transition: dragging.current ? "none" : "transform .25s ease-out",
         }}
       >
+        {/* Puxador (grabber) + zona de arraste — só mobile */}
+        <div
+          className="shrink-0 cursor-grab touch-none pt-2 md:hidden"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="mx-auto h-1 w-10 rounded-full" style={{ background: "rgba(255,255,255,0.28)" }} />
+        </div>
+
         {/* Header do painel */}
-        <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+        <div
+          className="flex items-center justify-between border-b px-4 py-3 md:cursor-default"
+          style={{ borderColor: "rgba(255,255,255,0.08)" }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
           <div>
             <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
               {compare ? "Comparar carteiras" : "Carteira nesta data"}
@@ -180,10 +224,24 @@ export default function CarteiraNaDataDrawer({
               })}
             </div>
           )}
+          {/* Comparar: seletor de data (funciona no mobile sem depender do gráfico) */}
           {!loading && !error && !compare && (
-            <p className="mt-3 px-1 text-[11px]" style={{ color: "var(--faint)" }}>
-              Dica: clique em outra data do gráfico para comparar as duas.
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
+              <GitCompareArrows size={14} style={{ color: "var(--muted)" }} />
+              <span className="text-[11px]" style={{ color: "var(--faint)" }}>Comparar com:</span>
+              <input
+                type="date"
+                min={dateRange.min || undefined}
+                max={dateRange.max || undefined}
+                onChange={(e) => { if (e.target.value) onAddDate(e.target.value); }}
+                className="rounded-md px-2 py-1 text-xs"
+                style={{
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)",
+                  color: "var(--text)", colorScheme: "dark",
+                }}
+              />
+              <span className="hidden w-full text-[10.5px] md:inline md:w-auto" style={{ color: "var(--faint)" }}>ou clique em outra data do gráfico</span>
+            </div>
           )}
         </div>
       </div>

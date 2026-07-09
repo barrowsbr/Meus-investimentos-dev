@@ -2169,6 +2169,7 @@ export default function PerformancePage() {
         chartPoints={chartData}
         onClose={() => setCarteiraDatas([])}
         onRemoveDate={(d) => setCarteiraDatas(prev => prev.filter(x => x !== d))}
+        onAddDate={pickCarteiraDate}
       />
     </>
   );
