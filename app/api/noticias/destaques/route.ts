@@ -406,6 +406,14 @@ export async function GET() {
       if (r.status === "fulfilled") all.push(...r.value);
     }
 
+    // Rede de segurança: se TODAS as fontes falharam (IP de datacenter
+    // bloqueado, timeout…), busca um Google News amplo — sempre tem alguma
+    // notícia de mercado. Assim a seção NUNCA fica vazia por falha de feed.
+    if (all.length === 0) {
+      const fb: Feed = { url: newsUrl("mercado financeiro bolsa ações economia brasil"), categoria: "Mercado", lang: "pt", max: 15, kind: "google", fonte: "Google News" };
+      try { all.push(...parseFeed(await fetchFeed(fb.url), fb)); } catch { /* sem rede de segurança */ }
+    }
+
     // Dedup por título e por link.
     const seen = new Set<string>();
     const deduped: Parsed[] = [];
@@ -445,8 +453,11 @@ export async function GET() {
     // - Itens diretos: buscar og:image no próprio link do veículo.
     // - Itens do Google News: decodificar base64 OU seguir redirect até o
     //   artigo real (num único fetch que já extrai og:image).
-    await Promise.allSettled(
-      pool.map(async item => {
+    // Enriquece imagem só do TOPO (o resto usa ícone de jornal) e com DEADLINE:
+    // a resolução de og:image/redirect do Google é o passo lento; nunca deixar
+    // isso estourar o tempo da função e devolver ZERO notícia.
+    const enrich = Promise.allSettled(
+      pool.slice(0, 16).map(async item => {
         if (item.imagem) return;
 
         if (item._kind === "direct") {
@@ -473,6 +484,10 @@ export async function GET() {
         }
       })
     );
+    // Devolve o que tiver mesmo que nem todas as imagens tenham resolvido — as
+    // notícias importam mais que a foto; sem isso, um lote lento de og:image
+    // fazia a função estourar o tempo e a seção vinha VAZIA.
+    await Promise.race([enrich, new Promise(res => setTimeout(res, 9000))]);
 
     // Reordenar: dentro de cada tier de impacto, artigos COM imagem sobem.
     pool.sort((a, b) => {
