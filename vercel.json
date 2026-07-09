@@ -4,7 +4,8 @@
   "outputDirectory": ".next",
   "git": {
     "deploymentEnabled": {
-      "claude/add-repo-description-AanfH": false
+      "claude/add-repo-description-AanfH": false,
+      "claude/oi-44yimr": false
     }
   },
   "functions": {
