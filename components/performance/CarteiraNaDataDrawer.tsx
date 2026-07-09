@@ -118,9 +118,11 @@ export default function CarteiraNaDataDrawer({
 
   const drawer = (
     <>
-      {/* Backdrop — escurece e desfoca o gráfico atrás */}
+      {/* Backdrop SÓ no mobile (bottom-sheet modal). No desktop o painel é
+          "docked": sem escurecer, o gráfico segue visível e CLICÁVEL — dá pra
+          clicar outra data para comparar sem o backdrop comer o clique. */}
       <div
-        className="fixed inset-0 z-[100] backdrop-blur-sm"
+        className="fixed inset-0 z-[100] backdrop-blur-sm md:hidden"
         style={{ background: "rgba(0,0,0,0.72)" }}
         onClick={onClose}
       />
