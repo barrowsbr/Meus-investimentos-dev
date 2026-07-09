@@ -20,6 +20,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import NasaLogo from "@/components/NasaLogo";
 import { openEmbed } from "@/lib/embed-link";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -49,7 +50,9 @@ function hoje(): string {
 export default function NasaPage() {
   const [tab, setTab] = useState<Tab>("apod");
   return (
-    <>
+    <div className="flex items-start gap-3">
+      <NasaLogo size={46} className="mt-0.5 shrink-0 drop-shadow-[0_2px_10px_rgba(11,61,145,0.5)]" />
+      <div className="min-w-0 flex-1">
       <PageHeader
         title="NASA"
         description="Observatório — dados abertos da NASA em tempo quase real"
@@ -80,7 +83,8 @@ export default function NasaPage() {
       {tab === "marte" && <MarteView />}
       {tab === "clima" && <ClimaView />}
       {tab === "biblioteca" && <BibliotecaView />}
-    </>
+      </div>
+    </div>
   );
 }
 
