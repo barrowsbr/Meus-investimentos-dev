@@ -834,7 +834,7 @@ export default function PerformancePage() {
   };
 
   return (
-    <>
+    <div className={`transition-[padding] duration-300 ${carteiraDatas.length === 2 ? "xl:pr-[800px]" : carteiraDatas.length === 1 ? "xl:pr-[480px]" : ""}`}>
       {/* ── Header — hero centrado no tema claro, padrão nos escuros ── */}
       {isLight ? (
         <header className="text-center pt-1 mb-6" style={{ maxWidth: 760, margin: "0 auto" }}>
@@ -2171,6 +2171,6 @@ export default function PerformancePage() {
         onRemoveDate={(d) => setCarteiraDatas(prev => prev.filter(x => x !== d))}
         onAddDate={pickCarteiraDate}
       />
-    </>
+    </div>
   );
 }
