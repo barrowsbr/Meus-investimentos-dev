@@ -132,6 +132,19 @@ export function isRendaFixaManual(setor: string): boolean {
   return isRendaFixa(setor) && !isRendaFixaPrecificavel(setor);
 }
 
+// Linha de CAIXA/saldo em conta — capital parado, NÃO é ativo de renda com
+// retorno. Precisa ser excluída da timeline de RF (senão saldo em moeda
+// estrangeira acrua ganho de CÂMBIO como se fosse rendimento — inflava o TWR).
+// PREFIXO (não match exato): cobre nomes descritivos multimoeda como
+// "Caixa USD (IBKR)"/"Caixa EUR (IBKR)" gerados por mergeIbkrCashIntoFixaAberta,
+// além do "CAIXA" cru. Mesma semântica do CASH_TICKER_RE que sincroniza essas
+// linhas (lib/ibkr-cash.ts) — FONTE ÚNICA do que é "caixa". O \b evita casar
+// tickers de bolsa colados (CASH3, RESERVA… não aparecem, mas fica robusto).
+const CASH_TICKER_RE = /^(CAIXA|SALDO|CASH|RESERVA|DISPONIVEL)\b/;
+export function isCashTicker(raw: string): boolean {
+  return CASH_TICKER_RE.test(String(raw).trim().toUpperCase());
+}
+
 export function isRendaVariavel(setor: string): boolean {
   return !RF_SETORES.has(setor);
 }
