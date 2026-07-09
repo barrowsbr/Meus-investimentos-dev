@@ -550,7 +550,10 @@ function NoticiasDestaques() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/noticias/destaques", { cache: "no-store" })
+    // Sem no-store: deixa o CDN/browser reusar a resposta cacheada (s-maxage +
+    // stale-while-revalidate na rota) — a Home para de re-rodar o pipeline caro
+    // de notícias a cada carregamento.
+    fetch("/api/noticias/destaques")
       .then(r => r.json())
       .then(d => setArticles(d.articles ?? []))
       .catch(() => {})
