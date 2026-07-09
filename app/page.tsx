@@ -8,6 +8,7 @@ import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
+import { openEmbed } from "@/lib/embed-link";
 import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -625,11 +626,10 @@ function NoticiasDestaques() {
       </div>
 
       {/* Featured article */}
-      <a
-        href={featured.link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group block transition-colors hover:bg-white/[0.02]"
+      <button
+        type="button"
+        onClick={() => openEmbed(featured.link, featured.fonte || "Notícia", featured.titulo)}
+        className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
         style={{ borderBottom: "1px solid var(--line)" }}
       >
         <div className="flex flex-col md:flex-row">
@@ -668,7 +668,7 @@ function NoticiasDestaques() {
             </div>
           </div>
         </div>
-      </a>
+      </button>
 
       {/* Sub-destaques — 2 manchetes com imagem grande */}
       {subs.length > 0 && (
@@ -676,12 +676,11 @@ function NoticiasDestaques() {
           {subs.map((article, i) => {
             const sty = IMPACTO_STYLE[article.impacto];
             return (
-              <a
+              <button
                 key={i}
-                href={article.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block transition-colors hover:bg-white/[0.02]"
+                type="button"
+                onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+                className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
                 style={{ borderRight: i === 0 && subs.length > 1 ? "1px solid var(--line)" : undefined }}
               >
                 <div className="relative h-[130px] overflow-hidden flex items-center justify-center" style={{ background: "var(--hover)" }}>
@@ -704,7 +703,7 @@ function NoticiasDestaques() {
                     {article.data && (<><span>·</span><span>{timeAgo(article.data)}</span></>)}
                   </div>
                 </div>
-              </a>
+              </button>
             );
           })}
         </div>
@@ -717,12 +716,11 @@ function NoticiasDestaques() {
           const isLast = i === rest.length - 1;
           const isRightEdge = (i + 1) % 3 === 0;
           return (
-            <a
+            <button
               key={i}
-              href={article.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex gap-3 p-3 transition-colors hover:bg-white/[0.02]"
+              type="button"
+              onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+              className="group flex gap-3 p-3 text-left w-full transition-colors hover:bg-white/[0.02]"
               style={{
                 borderBottom: isLast ? undefined : "1px solid var(--line)",
                 borderRight: isRightEdge ? undefined : "1px solid var(--line)",
@@ -758,7 +756,7 @@ function NoticiasDestaques() {
                   )}
                 </div>
               </div>
-            </a>
+            </button>
           );
         })}
       </div>
@@ -1607,10 +1605,9 @@ export default function HomePage() {
                 <h1 className="text-2xl md:text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-.01em" }}>
                   Olá, Lucas
                 </h1>
-                <a
-                  href="https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openEmbed("https://meus-investimentos-eeplqkozbtfcs8vzjsweqs.streamlit.app", "Meus Investimentos · V1", "versão anterior (Streamlit)")}
                   className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 transition-opacity hover:opacity-80"
                   style={{
                     background: "rgba(63,185,80,0.10)",
@@ -1621,7 +1618,7 @@ export default function HomePage() {
                   }}
                 >
                   V1 <ExternalLink size={8} />
-                </a>
+                </button>
               </div>
               <p className="font-mono text-[11px] mt-1" style={{ color: "var(--muted)" }}>
                 {weekday} · {dateStr} · Gestão integrada de investimentos

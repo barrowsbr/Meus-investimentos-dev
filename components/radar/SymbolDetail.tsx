@@ -9,6 +9,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Newspaper, Info, ExternalLink, BarChart3, Link2 } from "lucide-react";
 import CandleChart from "@/components/CandleChart";
+import EmbedModal from "@/components/EmbedModal";
+import { openEmbed } from "@/lib/embed-link";
 import type { SymbolTarget, CountryNewsItem } from "@/lib/radar/types";
 
 interface OhlcInfo {
@@ -48,6 +50,7 @@ function fmtPrice(v: number, currency: string): string {
 export default function SymbolDetail({ target, onClose, dossierOpen = true }: { target: SymbolTarget; onClose: () => void; dossierOpen?: boolean }) {
   const [info, setInfo] = useState<OhlcInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(true);
+  const [yfOpen, setYfOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
 
@@ -120,16 +123,18 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
         >
           <ArrowLeft size={14} /> Mapa
         </button>
-        <a
-          href={`https://finance.yahoo.com/quote/${encodeURIComponent(target.symbol)}`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => setYfOpen(true)}
           className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/10"
           style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
-          title="Abrir no Yahoo Finance"
+          title="Abrir no Yahoo Finance (embutido)"
         >
           <Link2 size={14} /> Yahoo
-        </a>
+        </button>
+        <EmbedModal
+          item={yfOpen ? { url: `https://finance.yahoo.com/quote/${encodeURIComponent(target.symbol)}`, title: `${target.symbol} · Yahoo Finance`, sub: "cotações e gráficos" } : null}
+          onClose={() => setYfOpen(false)}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {target.flag && <span className="text-lg leading-none">{target.flag}</span>}
@@ -204,7 +209,7 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
               ) : (
                 <div className="space-y-1.5">
                   {news.map((n, i) => (
-                    <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-white/[0.03]" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(n.link, "Notícia"); }} className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-white/[0.03]" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: n.impacto === "alto" ? "#f87171" : n.impacto === "medio" ? "#facc15" : "#52525b" }} />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs leading-snug text-zinc-200">{n.titulo}</p>

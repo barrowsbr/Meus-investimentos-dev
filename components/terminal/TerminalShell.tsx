@@ -10,6 +10,7 @@ import BottomNav from "./BottomNav";
 import { navItemForPath } from "./nav";
 import { GlobeOverlayProvider } from "@/components/GlobeOverlayContext";
 import HoloOverlay from "@/components/HoloOverlay";
+import EmbedHost from "@/components/EmbedHost";
 import MatrixRain from "./MatrixRain";
 import MiamiBackground from "./MiamiBackground";
 import BladeRunnerRain from "./BladeRunnerRain";
@@ -173,6 +174,7 @@ export default function TerminalShell({ children }: { children: ReactNode }) {
         <BottomNav />
       </div>
       <HoloOverlay />
+      <EmbedHost />
     </div>
     </GlobeOverlayProvider>
   );

@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { polyToUnified } from "@/lib/polymarket";
 import type { UnifiedPrediction } from "@/lib/polymarket";
+import { openEmbed } from "@/lib/embed-link";
 
 const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
 
@@ -38,7 +39,7 @@ function UnifiedCard({ pred }: { pred: UnifiedPrediction }) {
     : null;
 
   return (
-    <a href={pred.url} target="_blank" rel="noopener noreferrer"
+    <a href={pred.url} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(pred.url, "Mercado preditivo"); }}
       className="group flex flex-col gap-3 p-4 rounded-2xl border border-white/[0.07] bg-zinc-950/60 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all duration-200 no-underline">
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${badge.color}`}>{badge.label}</span>
