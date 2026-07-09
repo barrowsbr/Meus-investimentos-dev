@@ -194,6 +194,43 @@ describe("custoPosicoesAtuais", () => {
   });
 });
 
+// ── Captura de composição (painel "carteira nesta data") ─────────────────────
+describe("capturePositions", () => {
+  it("captura posições por ticker com valor/peso corretos na data pedida", () => {
+    const dates = businessDays("2025-06-02", "2025-06-06");
+    const transacoes = [
+      compra("PETR4", 100, 30, "2025-06-02", "BRL"),   // 100 × 30 = 3000
+      compra("VOO", 10, 100, "2025-06-02", "USD"),      // 10 × 100 × 5 = 5000 BRL
+    ];
+    const prices = flatPrices(dates, { PETR4: 30, VOO: 100 });
+    const alvo = "2025-06-04";
+    const twr = calcularTWR({
+      transacoes, dates, prices, fxHistory: fxHist(dates, 5.0),
+      capturePositions: [alvo],
+    });
+    const snap = twr.positionSnapshots?.[alvo];
+    expect(snap).toBeTruthy();
+    expect(snap!.navTotal).toBeCloseTo(8000, 0);
+    const petr = snap!.positions.find(p => p.ticker === "PETR4")!;
+    const voo = snap!.positions.find(p => p.ticker === "VOO")!;
+    expect(petr.valorBRL).toBeCloseTo(3000, 0);
+    expect((petr.valorBRL / snap!.navTotal) * 100).toBeCloseTo(37.5, 1);
+    expect(voo.valorBRL).toBeCloseTo(5000, 0);
+    expect(voo.moeda).toBe("USD");
+    // Ordenado por valor desc (VOO antes de PETR4)
+    expect(snap!.positions[0].ticker).toBe("VOO");
+  });
+
+  it("sem capturePositions, positionSnapshots fica undefined (zero overhead)", () => {
+    const dates = businessDays("2025-06-02", "2025-06-06");
+    const twr = calcularTWR({
+      transacoes: [compra("PETR4", 100, 30, "2025-06-02", "BRL")],
+      dates, prices: flatPrices(dates, { PETR4: 30 }), fxHistory: fxHist(dates),
+    });
+    expect(twr.positionSnapshots).toBeUndefined();
+  });
+});
+
 // ── Taxas de transação: retorno líquido de custos (GIPS) ─────────────────────
 describe("taxas de transação nos flows", () => {
   it("corretagem da compra é drag no retorno e no ganho econômico", () => {

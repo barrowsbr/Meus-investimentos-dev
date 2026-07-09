@@ -625,6 +625,8 @@ export interface TwrResult {
     fxFallbackDays: number;
     stalePrices: Array<{ ticker: string; lastPriceDate: string }>;
   };
+  // Composição capturada por data (só quando input.capturePositions é passado).
+  positionSnapshots?: Record<string, PositionSnapshot>;
 }
 
 export interface TwrInput {
@@ -641,6 +643,31 @@ export interface TwrInput {
   // aberta sempre que os resgates históricos superavam as compras atuais.
   rfCostBasis?: number;
   pmFx?: FxRates;
+  // Datas (YYYY-MM-DD) para capturar a composição da carteira — usado pelo
+  // painel "carteira nesta data" da Performance. Captura read-only: NÃO altera
+  // nenhum cálculo; só observa custody/curVals/gains já produzidos.
+  capturePositions?: string[];
+}
+
+// Uma posição da carteira numa data capturada (RV por ticker; RF entra como
+// uma linha agregada — o motor combina RF via rfNavByDate, sem detalhe por título).
+export interface CapturedPosition {
+  ticker: string;
+  setor: string;
+  quantidade: number;   // 0 para a linha agregada de RF
+  preco: number;        // preço unitário na moeda do ativo (0 para RF)
+  moeda: string;
+  valorBRL: number;     // valor da posição em BRL na data
+  gainDiaBRL: number;   // ganho econômico do dia (Δvalor − flow + income)
+  aoCusto: boolean;     // preço veio do custo médio (sem cotação de mercado)
+}
+
+export interface PositionSnapshot {
+  date: string;
+  navRV: number;
+  navRF: number;
+  navTotal: number;
+  positions: CapturedPosition[];
 }
 
 // ─── MWR (Money-Weighted Return / XIRR) — matches Python mwr.py ─────────────
@@ -860,6 +887,10 @@ export function calcularTWR(input: TwrInput): TwrResult {
   const mwrFlows: { date: string; amount: number }[] = [];
   const firstDate = dates[0];
 
+  // Captura de composição (painel "carteira nesta data"): read-only.
+  const captureSet = input.capturePositions?.length ? new Set(input.capturePositions) : null;
+  const positionSnapshots: Record<string, PositionSnapshot> = {};
+
   // Pre-window transactions AND income establish the OPENING position only.
   // They must NOT be replayed as in-window cash flows/income. Otherwise a
   // windowed view (YTD/1M/…) dumps the entire historical portfolio as a
@@ -1006,6 +1037,34 @@ export function calcularTWR(input: TwrInput): TwrResult {
     }
     if (navRF > 0) dayNavs.set(RF_SECTOR, (dayNavs.get(RF_SECTOR) ?? 0) + navRF);
     sectorNavByDay.push(dayNavs);
+
+    // ── Captura da composição nesta data (read-only) ──
+    if (captureSet?.has(date)) {
+      const caps: CapturedPosition[] = [];
+      for (const [ticker, qty] of Object.entries(snap)) {
+        if (qty < 0.000001) continue;
+        const valorBRL = curVals.get(ticker) ?? 0;
+        if (valorBRL <= 0) continue;
+        const mktPrice = getPrice(ticker, i, prices);
+        const preco = mktPrice ?? tickerAvgCost.get(ticker) ?? 0;
+        const moeda = tickerMoeda.get(ticker) ?? getMoedaEfetiva(ticker, "BRL", identificarSetor(ticker));
+        const gainDiaBRL = (curVals.get(ticker) ?? 0) - (prevVals.get(ticker) ?? 0)
+          - (dayFlowByTicker.get(ticker) ?? 0) + (dayIncByTicker.get(ticker) ?? 0);
+        caps.push({
+          ticker, setor: setorOf(ticker), quantidade: qty, preco, moeda,
+          valorBRL, gainDiaBRL, aoCusto: mktPrice == null,
+        });
+      }
+      // RF entra como uma linha agregada (o motor combina RF via rfNavByDate).
+      if (navRF > 0) {
+        caps.push({
+          ticker: "Renda Fixa", setor: RF_SECTOR, quantidade: 0, preco: 0, moeda: "BRL",
+          valorBRL: navRF, gainDiaBRL: rfGain, aoCusto: false,
+        });
+      }
+      caps.sort((a, b) => b.valorBRL - a.valorBRL);
+      positionSnapshots[date] = { date, navRV, navRF, navTotal: nav, positions: caps };
+    }
 
     points.push({ date, nav, flow, income, ret, twr: cumTwr - 1, forceZero, navFx });
     prevVals = curVals;
@@ -1189,6 +1248,7 @@ export function calcularTWR(input: TwrInput): TwrResult {
       fxFallbackDays,
       stalePrices,
     },
+    positionSnapshots: captureSet ? positionSnapshots : undefined,
   };
 }
 
