@@ -598,6 +598,11 @@ export default function PerformancePage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
+  // "Settled" = a busca do ganho canônico (/api/composicao/resumo) já resolveu
+  // (com dado ou falha). Enquanto NÃO resolveu, o MTM sem filtro fica em estado
+  // de carregamento em vez de mostrar o número da golden source e depois PULAR
+  // para o canônico — era o "MTM às vezes muda / às vezes errado".
+  const [ganhoCanonicalSettled, setGanhoCanonicalSettled] = useState(false);
   // Patrimônio CANÔNICO — MESMA fonte do Resumo (usePortfolio → /api/cotacoes,
   // cotações ao vivo), para o número bater byte a byte entre as páginas. O
   // snapshot do /api/performance/advanced usa preços da golden source (último
@@ -674,7 +679,8 @@ export default function PerformancePage() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setGanhoCanonicalSettled(true));
   }, []);
 
   // Active summary/chart based on currency view
@@ -682,6 +688,28 @@ export default function PerformancePage() {
     if (!data) return null;
     return isUsd && data.usdView ? data.usdView.summary : data.summary;
   }, [data, isUsd]);
+
+  // ── Ganho econômico / MTM — FONTE ÚNICA, sem pulo ──────────────────────────
+  // O headline "MTM" tinha 3 fontes possíveis e trocava conforme qual fetch
+  // chegava (golden do /performance/advanced → canônico do /composicao/resumo),
+  // então o valor "às vezes aparecia certo, às vezes não, e às vezes mudava".
+  // Aqui centralizamos: sem filtro e em BRL, a fonte de verdade é o canônico
+  // (bate com o Resumo). Enquanto ele não resolve, `loading:true` (mostra "···"),
+  // NUNCA o número da golden que depois pularia. Com filtro/USD, usa o snapshot.
+  const geInfo = useMemo((): { value: number; loading: boolean } => {
+    const s = activeSummary;
+    if (!s) return { value: 0, loading: true };
+    const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0
+      && !tickerFilter && !corretoraFilter && !customMode;
+    if (isUnfiltered && !isUsd) {
+      if (ganhoCanonical != null) return { value: ganhoCanonical, loading: false };
+      if (!ganhoCanonicalSettled) return { value: 0, loading: true };
+      return { value: s.ganhoEconomico, loading: false }; // canônico falhou → golden
+    }
+    const isAllTime = lookback === 0 && !customMode;
+    const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
+    return { value: useSnapshot ? s.resultadoTotal! : s.ganhoEconomico, loading: false };
+  }, [activeSummary, lookback, classe, setores, tickerFilter, corretoraFilter, customMode, isUsd, ganhoCanonical, ganhoCanonicalSettled]);
 
   const activeChart = useMemo(() => {
     if (!data) return [];
@@ -1031,12 +1059,12 @@ export default function PerformancePage() {
         const patNet = patCanon ? patToCurr(patCanon.net) : (s.patrimonio?.net ?? navAtual);
         const patBruto = patCanon ? patToCurr(patCanon.total) : navAtual;
         const patAlavPct = patCanon ? patCanon.alavancagemPct : (s.patrimonio?.alavancagemPct ?? 0);
-        const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
         const isAllTime = lookback === 0 && !customMode;
         const useSnapshot = !!tickerFilter && isAllTime && s.resultadoTotal != null;
-        const ge = isUnfiltered && !isUsd && ganhoCanonical != null
-          ? ganhoCanonical
-          : useSnapshot ? s.resultadoTotal! : s.ganhoEconomico;
+        // FONTE ÚNICA (geInfo): sem pulo entre golden e canônico. Enquanto o
+        // canônico não resolve, geLoading é true e o MTM mostra "···".
+        const ge = geInfo.value;
+        const geLoading = geInfo.loading;
         const custoFIFO = (tickerFilter && isAllTime && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido;
         const pctBase = isAllTime ? custoFIFO : s.navInicial;
         const retornoTotalPct = useSnapshot && s.resultadoTotalPct != null
@@ -1079,10 +1107,10 @@ export default function PerformancePage() {
                   <div>
                     <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--muted)" }}>MTM</span>
                     <div className="font-mono tnum" style={{ fontSize: "clamp(1.4rem, 6vw, 2rem)", fontWeight: 800, lineHeight: 1.1, color: geColor }}>
-                      {ge >= 0 ? "+" : ""}{compactCurr(ge)}
+                      {geLoading ? "···" : `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`}
                     </div>
                     <span className="font-mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-                      {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(1)}% / {compactCurr(pctBase)}
+                      {geLoading ? " " : `${retornoTotalPct >= 0 ? "+" : ""}${retornoTotalPct.toFixed(1)}% / ${compactCurr(pctBase)}`}
                     </span>
                   </div>
                 </div>
@@ -1153,10 +1181,10 @@ export default function PerformancePage() {
                   <div className="flex-1 pl-4 sm:pl-6" title="MTM (mark-to-market): variação de preço + proventos">
                     <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold text-amber-400/60 mb-1">MTM</p>
                     <p className={`text-lg sm:text-2xl font-extrabold tracking-tight leading-none ${ge >= 0 ? "text-amber-300" : "text-red-400"}`}>
-                      {ge >= 0 ? "+" : ""}{compactCurr(ge)}
+                      {geLoading ? "···" : `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`}
                     </p>
                     <p className="text-[9px] text-zinc-600 mt-0.5">
-                      {retornoTotalPct >= 0 ? "+" : ""}{retornoTotalPct.toFixed(1)}% / {compactCurr(pctBase)}
+                      {geLoading ? " " : `${retornoTotalPct >= 0 ? "+" : ""}${retornoTotalPct.toFixed(1)}% / ${compactCurr(pctBase)}`}
                     </p>
                   </div>
                 </div>
@@ -1451,13 +1479,10 @@ export default function PerformancePage() {
                   { label: (lookback === 0 && !customMode) ? "Investido" : "NAV inicial", value: compactCurr((lookback === 0 && !customMode) ? ((tickerFilter && s.custoFIFOSnapshot) || s.custoPosicoesAtuais || s.totalInvestido) : s.navInicial) },
                   { label: "Patrimônio final", value: compactCurr(s.navFinal) },
                   ...(() => {
-                    const isUnfiltered = lookback === 0 && classe === "tudo" && setores.length === 0 && !tickerFilter && !corretoraFilter && !customMode;
-                    const isAllT = lookback === 0 && !customMode;
-                    const useSnap = !!tickerFilter && isAllT && s.resultadoTotal != null;
-                    const ge = isUnfiltered && !isUsd && ganhoCanonical != null
-                      ? ganhoCanonical
-                      : useSnap ? s.resultadoTotal! : s.ganhoEconomico;
-                    return [{ label: "Ganho econômico", value: `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
+                    // Mesma FONTE ÚNICA do headline (geInfo) — sem divergência entre
+                    // o card e a lista de detalhes.
+                    const ge = geInfo.value;
+                    return [{ label: "Ganho econômico", value: geInfo.loading ? "···" : `${ge >= 0 ? "+" : ""}${compactCurr(ge)}`, color: ge >= 0 ? "#34d399" : "#f87171" }];
                   })(),
                   { label: "Duração", value: formatDuracao(s.duracaoAnos) },
                   { label: "Primeiro aporte", value: formatDate(s.primeiraData) },
