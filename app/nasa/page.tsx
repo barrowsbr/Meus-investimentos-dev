@@ -379,14 +379,22 @@ function TerraView() {
 
 // ─── Marte (Rover Photos) ─────────────────────────────────────────────────────
 
-interface MarsFoto { id: number; url: string; camera: string; cameraSigla: string; dataTerra: string; sol: number; }
+interface MarsFoto { id: number | string; url: string; camera: string; cameraSigla: string; dataTerra: string; sol: number; }
 interface MarsResp {
   rover: string; roverNome: string; roverStatus: string;
-  dataTerra: string | null; sol: number | null; total: number; cameras: string[]; fotos: MarsFoto[];
+  dataTerra: string | null; sol: number | null; total: number;
+  cameras: string[]; camerasLabel?: Record<string, string>; fotos: MarsFoto[];
 }
 
+const ROVERS: { id: string; label: string }[] = [
+  { id: "curiosity", label: "Curiosity" },
+  { id: "perseverance", label: "Perseverance" },
+  { id: "opportunity", label: "Opportunity" },
+  { id: "spirit", label: "Spirit" },
+];
+
 function MarteView() {
-  const [rover, setRover] = useState<"perseverance" | "curiosity">("perseverance");
+  const [rover, setRover] = useState("curiosity");
   const { data, loading, error } = useNasa<MarsResp>(`/api/nasa/mars?rover=${rover}`);
   const [cam, setCam] = useState<string | null>(null);
 
@@ -396,17 +404,18 @@ function MarteView() {
     () => (data?.fotos ?? []).filter((f) => !cam || f.cameraSigla === cam),
     [data, cam],
   );
+  const camLabel = (sigla: string) => data?.camerasLabel?.[sigla] ?? sigla;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1.5">
-          {(["perseverance", "curiosity"] as const).map((r) => (
-            <button key={r} onClick={() => setRover(r)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${
-                rover === r ? "bg-orange-500/15 text-orange-300" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
+        <div className="flex flex-wrap gap-1.5">
+          {ROVERS.map((r) => (
+            <button key={r.id} onClick={() => setRover(r.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                rover === r.id ? "bg-orange-500/15 text-orange-300" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
               }`}>
-              {r}
+              {r.label}
             </button>
           ))}
         </div>
@@ -431,13 +440,13 @@ function MarteView() {
               {data.cameras.map((c) => (
                 <button key={c} onClick={() => setCam(c)}
                   className={`px-2.5 py-1 rounded-full text-[11px] transition-all ${cam === c ? "bg-orange-500/20 text-orange-300" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"}`}>
-                  {c}
+                  {camLabel(c)}
                 </button>
               ))}
             </div>
           )}
           {fotos.length === 0 ? (
-            <p className="text-sm text-zinc-500">Sem fotos para este filtro.</p>
+            <p className="text-sm text-zinc-500">Nenhuma foto recente disponível para este rover no momento.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
               {fotos.map((f) => (
@@ -447,7 +456,7 @@ function MarteView() {
                   <img src={f.url} alt={f.camera} className="w-full aspect-square object-cover group-hover:scale-[1.03] transition-transform" loading="lazy" />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                     <p className="text-[10px] text-zinc-300 font-medium truncate flex items-center gap-1">
-                      <Camera size={10} /> {f.cameraSigla}
+                      <Camera size={10} /> {f.camera}
                     </p>
                   </div>
                 </a>
