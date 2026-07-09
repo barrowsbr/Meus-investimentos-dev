@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { translateText } from "@/lib/translate";
 
 // APOD — Astronomy Picture of the Day. A chave fica SÓ no servidor (a resposta
 // é JSON puro, sem key embutida). ?date=YYYY-MM-DD opcional (default = hoje).
+// Título e explicação são traduzidos para PT-BR (fallback: texto original).
 export const dynamic = "force-dynamic";
-export const maxDuration = 20;
+export const maxDuration = 25;
 
 const KEY = process.env.NASA_API_KEY || "DEMO_KEY";
 
@@ -22,11 +24,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: `NASA APOD HTTP ${res.status}`, detalhe: txt.slice(0, 200) }, { status: res.status === 429 ? 429 : 502 });
     }
     const d = await res.json();
+    const [titlePt, explanationPt] = await Promise.all([
+      translateText(String(d.title ?? ""), "pt"),
+      translateText(String(d.explanation ?? ""), "pt"),
+    ]);
     return NextResponse.json(
       {
         date: d.date,
-        title: d.title,
-        explanation: d.explanation,
+        title: titlePt || d.title,
+        explanation: explanationPt || d.explanation,
+        tituloOriginal: d.title,
         mediaType: d.media_type,
         url: d.url,
         hdurl: d.hdurl ?? d.url,
