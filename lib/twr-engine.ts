@@ -1,5 +1,5 @@
 import { toNumber } from "./format";
-import { identificarSetor, getMoedaEfetiva, isRendaFixaManual } from "./sectors";
+import { identificarSetor, getMoedaEfetiva, isRendaFixaManual, isCashTicker } from "./sectors";
 import type { FxRates } from "./cotacoes";
 
 type Row = Record<string, unknown>;
@@ -140,7 +140,6 @@ const RF_BIZ_DAYS_YEAR = 252;
 // atualização do saldo manual absorve o erro de aproximação.
 const USD_RF_ANNUAL = 0.045;
 const USD_RF_DAILY = Math.pow(1 + USD_RF_ANNUAL, 1 / RF_BIZ_DAYS_YEAR) - 1;
-const CASH_TICKERS_RF = new Set(["CAIXA", "SALDO", "CASH", "RESERVA"]);
 
 interface RfParsedTx {
   date: string;
@@ -159,7 +158,7 @@ function parseRfTxs(rows: Row[]): RfParsedTx[] {
   const result: RfParsedTx[] = [];
   for (const row of rows) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? row["papel"] ?? ""));
-    if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
+    if (!ticker || isCashTicker(ticker)) continue;
     if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const tipoRaw = String(row["tipo"] ?? row["movimentacao"] ?? "").toLowerCase().trim();
     let tipo: "compra" | "venda" | null = null;
@@ -294,7 +293,7 @@ export function buildRfTimeline(
   const manualValues = new Map<string, { atual: number; moeda: string; dataAtualizacao: string }>();
   for (const row of fixaAberta) {
     const ticker = normalizeRfTicker(String(row["ticker"] ?? row["ativo"] ?? ""));
-    if (!ticker || CASH_TICKERS_RF.has(ticker)) continue;
+    if (!ticker || isCashTicker(ticker)) continue;
     if (!isRendaFixaManual(identificarSetor(ticker))) continue;
     const atual = toNumber(row["atual"] ?? row["valor_atual"] ?? row["saldo"] ?? row["valor atual"]) ?? 0;
     const moeda = String(row["moeda"] ?? "BRL").toUpperCase().trim() || "BRL";

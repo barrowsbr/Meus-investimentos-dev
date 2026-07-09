@@ -415,6 +415,31 @@ describe("buildRfTimeline (taxa implícita + congelamento)", () => {
     // Fim de semana não acrua (taxa é por dia útil)
     expect(navByDate["2025-03-09"]).toBeCloseTo(navByDate["2025-03-07"], 6); // sáb/dom = sexta
   });
+
+  // Regressão (TWR inflado 76%→96%): mergeIbkrCashIntoFixaAberta injeta o caixa
+  // ao vivo da IBKR como linha sintética "Caixa USD (IBKR)". O filtro de caixa
+  // era match EXATO ({CAIXA,SALDO,CASH,RESERVA}) → não pegava o nome descritivo,
+  // e identificarSetor("CAIXA USD (IBKR)")="Renda Fixa" → o saldo entrava como
+  // posição RF manual, injetado como aporte em dates[0] e revalorizado por
+  // câmbio TODO dia. Anos de alta do dólar viravam "rendimento" fantasma no TWR.
+  it("caixa IBKR (nome descritivo, sem compra) NÃO entra na timeline de RF", () => {
+    const dates = businessDays("2020-06-02", "2025-06-30"); // janela longa (5 anos)
+    const caixaIbkr = { ticker: "Caixa USD (IBKR)", atual: 50000, moeda: "USD", tipo: "Caixa" } as Record<string, unknown>;
+    const { navByDate, flowByDate, navFxByDate } = buildRfTimeline([], [caixaIbkr], dates, fxHist(dates, 5.0));
+    // Excluído por completo: sem NAV, sem fluxo, sem exposição cambial de RF.
+    for (const d of dates) {
+      expect(navByDate[d] ?? 0).toBe(0);
+      expect(flowByDate[d] ?? 0).toBe(0);
+      expect(navFxByDate[d] ?? 0).toBe(0);
+    }
+  });
+
+  it("caixa com true-up (CAIXA cru) segue excluído da timeline de RF", () => {
+    const dates = businessDays("2025-06-02", "2025-06-30");
+    const caixa = aberta("CAIXA", 30000, "2025-06-16", "BRL");
+    const { navByDate } = buildRfTimeline([], [caixa], dates, fxHist(dates));
+    for (const d of dates) expect(navByDate[d] ?? 0).toBe(0);
+  });
 });
 
 // ── Benchmark CDI com série real do BCB ──────────────────────────────────────
