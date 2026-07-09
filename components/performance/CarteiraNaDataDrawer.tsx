@@ -127,8 +127,8 @@ export default function CarteiraNaDataDrawer({
       {/* Painel: lateral direita no desktop, bottom-sheet alto no mobile */}
       <div
         className="fixed z-[101] flex flex-col overflow-hidden shadow-2xl
-                   inset-x-0 bottom-0 h-[90dvh] rounded-t-2xl
-                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:h-auto md:rounded-none md:rounded-l-2xl"
+                   inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl
+                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:max-h-none md:rounded-none md:rounded-l-2xl"
         style={{
           background: "var(--surface, #0b0d14)",
           border: "1px solid rgba(255,255,255,0.1)",
@@ -151,7 +151,7 @@ export default function CarteiraNaDataDrawer({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24 md:pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:pb-3">
           {loading && (
             <div className="flex h-40 items-center justify-center">
               <Loader2 className="animate-spin" size={22} style={{ color: "var(--muted)" }} />
