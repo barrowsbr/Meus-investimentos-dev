@@ -1,4 +1,5 @@
 import { yahooTicker } from "./yahoo-symbol";
+import { identificarSetor, getMoedaEfetiva } from "./sectors";
 
 // Re-exporta a conversão canônica ticker→Yahoo (movida para yahoo-symbol.ts,
 // client-safe). Mantém a FONTE ÚNICA e os imports existentes `from "@/lib/cotacoes"`.
@@ -448,6 +449,72 @@ export function fxToBRL(currency: string, fx: FxRates): number {
   return fx[key] ?? 1;
 }
 
+// ── Fallback de VALOR: último fechamento da golden source (db_cotacoes) ───────
+// Quando a cotação AO VIVO falha para um ticker (Yahoo intermitente, sem token
+// brapi…), o motor caía no CUSTO (valorAtualBRL = investido) — foi o que fazia
+// o patrimônio "piscar" entre o certo (a mercado) e o baixo (custo), e o ITUB4
+// aparecer sem valor atual. Aqui preenchemos o buraco com o ÚLTIMO FECHAMENTO
+// conhecido (preço de mercado real, do cron diário). change=0 (sem movimento do
+// dia conhecido) — NÃO inventa retorno.
+//
+// A tentativa anterior (#561) foi revertida por DOIS bugs que este código evita:
+//  1) match por base retornava preço de OUTRO ticker → aqui exato PRIMEIRO,
+//     base só como fallback (colisão só se 2 tickers do usuário tiverem a mesma
+//     base, o que não ocorre);
+//  2) moeda lida crua da transação → valor BRL rotulado USD ×5,7 → aqui a moeda
+//     vem de getMoedaEfetiva (mesma do motor), 100% consistente.
+export interface GoldenLastMaps { exact: Map<string, number>; byBase: Map<string, number> }
+
+const stripSuffix = (t: string) => t.toUpperCase().trim().replace(/\.[A-Z]{1,3}$/, "");
+
+let _goldenLastCache: { at: number; maps: GoldenLastMaps } | null = null;
+
+async function goldenLastCloseMaps(): Promise<GoldenLastMaps> {
+  if (_goldenLastCache && Date.now() - _goldenLastCache.at < 600_000) return _goldenLastCache.maps;
+  const exact = new Map<string, number>();
+  const byBase = new Map<string, number>();
+  try {
+    // Import DINÂMICO — db-cotacoes puxa googleapis; mantém cotacoes.ts client-safe.
+    const { readGoldenSource } = await import("./db-cotacoes");
+    const g = await readGoldenSource();
+    for (const col of g.tickers) {
+      let last: number | null = null;
+      for (let i = g.dates.length - 1; i >= 0; i--) {
+        const v = g.prices[g.dates[i]]?.[col];
+        if (typeof v === "number" && v > 0) { last = v; break; }
+      }
+      if (last == null) continue;
+      const up = col.toUpperCase().trim();
+      exact.set(up, last);
+      const base = stripSuffix(col);
+      if (!byBase.has(base)) byBase.set(base, last);
+    }
+  } catch { /* golden indisponível → sem fallback (motor cai no custo, como antes) */ }
+  _goldenLastCache = { at: Date.now(), maps: { exact, byBase } };
+  return _goldenLastCache.maps;
+}
+
+// PURA e testável: preenche em `quotes` (keyed por ticker original) os tickers
+// sem preço, usando a golden source. Moeda via getMoedaEfetiva (currency-safe).
+export function fillQuotesWithGolden(
+  quotes: Record<string, Quote>,
+  tickers: { ticker: string; moeda: string; corretora: string }[],
+  golden: GoldenLastMaps,
+): { quotes: Record<string, Quote>; filled: string[] } {
+  const out: Record<string, Quote> = { ...quotes };
+  const filled: string[] = [];
+  for (const t of tickers) {
+    if (out[t.ticker]?.price != null) continue;
+    const up = t.ticker.toUpperCase().trim();
+    const price = golden.exact.get(up) ?? golden.byBase.get(stripSuffix(t.ticker)) ?? null;
+    if (price == null || !(price > 0)) continue;
+    const currency = getMoedaEfetiva(t.ticker, t.moeda, identificarSetor(t.ticker));
+    out[t.ticker] = { price, change: 0, changePercent: 0, currency, name: t.ticker };
+    filled.push(t.ticker);
+  }
+  return { quotes: out, filled };
+}
+
 export async function fetchCotacoes(
   tickers: { ticker: string; moeda: string; corretora: string }[]
 ): Promise<CotacoesData> {
@@ -485,7 +552,7 @@ export async function fetchCotacoes(
     quoteResult = { quotes: {}, source: "error" };
   }
 
-  const quotes: Record<string, Quote> = {};
+  let quotes: Record<string, Quote> = {};
   for (const [originalTicker, yahooTck] of yahooMap) {
     if (quoteResult.quotes[yahooTck]) {
       const quote = quoteResult.quotes[yahooTck];
@@ -494,6 +561,23 @@ export async function fetchCotacoes(
         quote.currency = TICKER_CURRENCY_OVERRIDE[yahooTck];
       }
       quotes[originalTicker] = quote;
+    }
+  }
+
+  // Preenche os que ficaram SEM cotação ao vivo com o último fechamento da
+  // golden source (preço de mercado, NÃO custo) — mata o "piscar" entre o certo
+  // e o baixo (custo) e o ITUB4 sem valor. change=0 → sem retorno inventado.
+  const semCotacao = tickers.filter((t) => quotes[t.ticker]?.price == null);
+  if (semCotacao.length > 0) {
+    try {
+      const golden = await goldenLastCloseMaps();
+      const res = fillQuotesWithGolden(quotes, semCotacao, golden);
+      quotes = res.quotes;
+      if (res.filled.length > 0) {
+        errors.push(`Sem cotação ao vivo (valorados pelo último fechamento da base): ${res.filled.join(", ")}`);
+      }
+    } catch {
+      // golden indisponível → motor cai no custo, como antes
     }
   }
 
