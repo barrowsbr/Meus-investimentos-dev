@@ -15,6 +15,9 @@ export interface Quote {
   name: string;
   marketState?: MarketSession;
   regularPrice?: number;
+  // Origem do preço: "vivo" = cotação ao vivo (Yahoo/brapi); "fechamento" =
+  // último fechamento da golden source (fallback quando o ao vivo falhou).
+  fonte?: "vivo" | "fechamento";
 }
 
 export interface FxRates {
@@ -509,7 +512,7 @@ export function fillQuotesWithGolden(
     const price = golden.exact.get(up) ?? golden.byBase.get(stripSuffix(t.ticker)) ?? null;
     if (price == null || !(price > 0)) continue;
     const currency = getMoedaEfetiva(t.ticker, t.moeda, identificarSetor(t.ticker));
-    out[t.ticker] = { price, change: 0, changePercent: 0, currency, name: t.ticker };
+    out[t.ticker] = { price, change: 0, changePercent: 0, currency, name: t.ticker, fonte: "fechamento" };
     filled.push(t.ticker);
   }
   return { quotes: out, filled };
@@ -560,7 +563,7 @@ export async function fetchCotacoes(
       if (TICKER_CURRENCY_OVERRIDE[yahooTck]) {
         quote.currency = TICKER_CURRENCY_OVERRIDE[yahooTck];
       }
-      quotes[originalTicker] = quote;
+      quotes[originalTicker] = { ...quote, fonte: quote.fonte ?? "vivo" };
     }
   }
 

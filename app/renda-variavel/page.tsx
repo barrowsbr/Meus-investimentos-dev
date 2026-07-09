@@ -467,7 +467,19 @@ export default function RendaVariavelPage() {
                   {/* Preço atual × preço médio, na moeda nativa do ativo */}
                   {!vendido && (
                     <div className="flex items-center justify-between w-full font-mono tabular-nums" style={{ fontSize: 10, color: "var(--muted)" }}>
-                      <span title="Preço atual">{fmtMoeda(p.precoAtual, p.quoteCurrency ?? p.moeda ?? "BRL")}</span>
+                      <span className="inline-flex items-center gap-1" title="Preço atual">
+                        {p.precoFonte && (
+                          <span
+                            title={p.precoFonte === "vivo" ? "Cotação ao vivo" : "Último fechamento (cotação ao vivo indisponível)"}
+                            style={{
+                              width: 6, height: 6, borderRadius: 9999, flexShrink: 0,
+                              background: p.precoFonte === "vivo" ? "#22c55e" : "#f59e0b",
+                              boxShadow: p.precoFonte === "vivo" ? "0 0 4px #22c55e88" : "none",
+                            }}
+                          />
+                        )}
+                        {fmtMoeda(p.precoAtual, p.quoteCurrency ?? p.moeda ?? "BRL")}
+                      </span>
                       <span title="Preço médio de compra" style={{ color: "var(--faint)" }}>PM {fmtMoeda(p.custoMedio, p.moeda ?? "BRL")}</span>
                     </div>
                   )}

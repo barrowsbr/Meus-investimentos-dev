@@ -38,6 +38,9 @@ export interface Position {
   realizadoCambioBRL: number;         // realizado: parte do CÂMBIO, R$
   precoAtual: number | null;
   quoteCurrency: string | null;
+  // Origem do preço atual: "vivo" (cotação ao vivo) ou "fechamento" (último
+  // fechamento da golden source, fallback). null = sem preço (valorado ao custo).
+  precoFonte: "vivo" | "fechamento" | null;
   valorAtual: number | null;
   valorAtualBRL: number;
   custoTotalBRL: number;
@@ -434,6 +437,7 @@ export function enriquecerPosicoes(
         finalizeRealizado(pos, fatorAtual))(),
       precoAtual,
       quoteCurrency,
+      precoFonte: precoAtual !== null ? (quote?.fonte ?? "vivo") : null,
       valorAtual,
       valorAtualBRL,
       custoTotalBRL,
@@ -587,6 +591,7 @@ export function construirPosicoesFechadas(
       realizadoCambioBRL: real.realizadoCambioBRL,
       precoAtual: quote?.price ?? null,
       quoteCurrency: quote?.currency ?? null,
+      precoFonte: quote?.price != null ? (quote?.fonte ?? "vivo") : null,
       valorAtual: 0,
       valorAtualBRL: 0,
       custoTotalBRL: custoHistBRL,

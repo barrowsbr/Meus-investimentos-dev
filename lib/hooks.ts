@@ -146,6 +146,7 @@ function mapPosition(p: any): Position {
     realizadoCambioBRL: p.realizadoCambioBRL ?? p.realizado_cambio_brl ?? 0,
     precoAtual: p.precoAtual ?? p.preco_atual ?? null,
     quoteCurrency: p.quoteCurrency ?? p.quote_currency ?? null,
+    precoFonte: p.precoFonte ?? p.preco_fonte ?? null,
     valorAtual: p.valorAtual ?? p.valor_atual ?? null,
     valorAtualBRL: p.valorAtualBRL ?? p.valor_atual_brl ?? 0,
     custoTotalBRL: p.custoTotalBRL ?? p.custo_total_brl ?? 0,
