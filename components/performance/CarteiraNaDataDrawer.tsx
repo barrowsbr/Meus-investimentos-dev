@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2 } from "lucide-react";
 import { brl, compactBRL } from "@/lib/format";
 
@@ -49,7 +50,6 @@ interface Props {
   ticker: string;
   corretora: string;
   chartPoints: ChartPoint[];
-  currSymbol: string;
   onClose: () => void;
   onRemoveDate: (d: string) => void;
 }
@@ -70,11 +70,16 @@ function pctStr(v: number | null | undefined, dec = 2): string {
 }
 
 export default function CarteiraNaDataDrawer({
-  datas, classe, setor, ticker, corretora, chartPoints, currSymbol, onClose, onRemoveDate,
+  datas, classe, setor, ticker, corretora, chartPoints, onClose, onRemoveDate,
 }: Props) {
   const [carteiras, setCarteiras] = useState<Carteira[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Portal só depois de montar (evita mismatch no SSR) — e escapa de qualquer
+  // ancestral com transform/filter que "prende" o position:fixed no documento
+  // em vez da viewport (era por isso que o painel caía lá pro fim da página).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const open = datas.length > 0;
   const compare = datas.length === 2;
@@ -109,21 +114,21 @@ export default function CarteiraNaDataDrawer({
     return m;
   }, [chartPoints]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const drawer = (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — escurece e desfoca o gráfico atrás */}
       <div
-        className="fixed inset-0 z-40"
-        style={{ background: "rgba(0,0,0,0.5)" }}
+        className="fixed inset-0 z-[100] backdrop-blur-sm"
+        style={{ background: "rgba(0,0,0,0.72)" }}
         onClick={onClose}
       />
-      {/* Painel: lateral direita no desktop, bottom-sheet no mobile */}
+      {/* Painel: lateral direita no desktop, bottom-sheet alto no mobile */}
       <div
-        className="fixed z-50 flex flex-col overflow-hidden shadow-2xl
-                   inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl
-                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:max-h-none md:rounded-none md:rounded-l-2xl"
+        className="fixed z-[101] flex flex-col overflow-hidden shadow-2xl
+                   inset-x-0 bottom-0 h-[90dvh] rounded-t-2xl
+                   md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:h-auto md:rounded-none md:rounded-l-2xl"
         style={{
           background: "var(--surface, #0b0d14)",
           border: "1px solid rgba(255,255,255,0.1)",
@@ -146,7 +151,7 @@ export default function CarteiraNaDataDrawer({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24 md:pb-3">
           {loading && (
             <div className="flex h-40 items-center justify-center">
               <Loader2 className="animate-spin" size={22} style={{ color: "var(--muted)" }} />
@@ -166,7 +171,6 @@ export default function CarteiraNaDataDrawer({
                     accent={idx === 0 ? "#60a5fa" : "#f472b6"}
                     cart={cart}
                     point={pt}
-                    currSymbol={currSymbol}
                     removable={compare}
                     onRemove={() => onRemoveDate(d)}
                   />
@@ -183,15 +187,16 @@ export default function CarteiraNaDataDrawer({
       </div>
     </>
   );
+
+  return createPortal(drawer, document.body);
 }
 
 function CarteiraColumn({
-  cart, point, accent, currSymbol, removable, onRemove,
+  cart, point, accent, removable, onRemove,
 }: {
   cart: Carteira | undefined;
   point: ChartPoint | undefined;
   accent: string;
-  currSymbol: string;
   removable: boolean;
   onRemove: () => void;
 }) {
@@ -226,7 +231,7 @@ function CarteiraColumn({
 
       {/* Métricas do dia (vêm do mesmo ponto do gráfico) */}
       <div className="grid grid-cols-2 gap-2 px-3 py-3">
-        <Metric label="Patrimônio" value={`${currSymbol} ${compactBRL(nav)}`} />
+        <Metric label="Patrimônio" value={compactBRL(nav)} />
         <Metric label="Retorno do dia" value={pctStr(point?.ret)} color={colorForPct(point?.ret)} />
         <Metric label="TWR acumulado" value={pctStr(point?.portfolio)} color={colorForPct(point?.portfolio)} />
         <Metric
