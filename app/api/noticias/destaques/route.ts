@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { translateBatch } from "@/lib/translate";
+import { fetchMarketaux, marketauxEnabled } from "@/lib/news/providers/marketaux";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -412,6 +413,22 @@ export async function GET() {
     if (all.length === 0) {
       const fb: Feed = { url: newsUrl("mercado financeiro bolsa ações economia brasil"), categoria: "Mercado", lang: "pt", max: 15, kind: "google", fonte: "Google News" };
       try { all.push(...parseFeed(await fetchFeed(fb.url), fb)); } catch { /* sem rede de segurança */ }
+    }
+
+    // Motor único (Fase 1): Marketaux como fonte ADITIVA — regional + sentimento.
+    // No-op sem MARKETAUX_API_KEY; itens já vêm com imagem, então pulam o
+    // enrichment de og:image. Não altera o comportamento atual quando desligado.
+    if (marketauxEnabled()) {
+      try {
+        const mx = await fetchMarketaux({ countries: ["br", "us"], language: "pt,en", limit: 3 });
+        for (const n of mx) {
+          all.push({
+            titulo: n.titulo, link: n.link, data: n.data, fonte: n.fonte,
+            imagem: n.imagem, categoria: n.categoria, impacto: n.impacto,
+            _lang: n.idioma === "en" ? "en" : "pt", _kind: "direct", _gnLink: "",
+          });
+        }
+      } catch { /* Marketaux best-effort */ }
     }
 
     // Dedup por título e por link.
