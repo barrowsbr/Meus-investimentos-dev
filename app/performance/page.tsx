@@ -582,7 +582,9 @@ export default function PerformancePage() {
   const [showIbov, setShowIbov] = useState(true);
   const [showSp500, setShowSp500] = useState(false);
   const [showFxDecomp, setShowFxDecomp] = useState(false);
-  // Carteira nesta data: datas fixadas (0–2) para o drawer; a 2ª ativa comparação.
+  // Carteira nesta data: só arma o clique quando o modo está ativo (senão
+  // qualquer clique no gráfico abriria o painel).
+  const [carteiraMode, setCarteiraMode] = useState(false);
   const [carteiraDatas, setCarteiraDatas] = useState<string[]>([]);
   const pickCarteiraDate = (full: string) => {
     if (!full) return;
@@ -1310,18 +1312,32 @@ export default function PerformancePage() {
                 <span>{formatDuracao(s.duracaoAnos)}</span>
               </div>
             </div>
-            <p className="mb-1 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--faint)" }}>
-              <MousePointerClick size={12} />
-              Clique numa data do gráfico para ver a carteira daquele dia · fixe uma 2ª para comparar
-            </p>
+            <div className="mb-1 flex items-center gap-2">
+              <button
+                onClick={() => { setCarteiraMode(m => !m); if (carteiraMode) setCarteiraDatas([]); }}
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  background: carteiraMode ? "rgba(96,165,250,0.18)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${carteiraMode ? "rgba(96,165,250,0.5)" : "rgba(255,255,255,0.1)"}`,
+                  color: carteiraMode ? "#93c5fd" : "var(--muted)",
+                }}
+                title="Ativa o clique no gráfico para abrir a carteira de uma data"
+              >
+                <MousePointerClick size={12} />
+                {carteiraMode ? "Modo carteira ativo — clique numa data" : "Ver carteira por data"}
+              </button>
+              {carteiraMode && (
+                <span className="text-[10.5px]" style={{ color: "var(--faint)" }}>fixe uma 2ª data para comparar</span>
+              )}
+            </div>
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
-                  style={{ cursor: "pointer" }}
-                  onClick={(e: { activePayload?: Array<{ payload?: { fullDate?: string } }> }) => {
+                  style={carteiraMode ? { cursor: "pointer" } : undefined}
+                  onClick={carteiraMode ? (e: { activePayload?: Array<{ payload?: { fullDate?: string } }> }) => {
                     const full = e?.activePayload?.[0]?.payload?.fullDate;
                     if (full) pickCarteiraDate(full);
-                  }}>
+                  } : undefined}>
                   <defs>
                     {/* Só a carteira (TWR) recebe preenchimento — o herói.
                         As demais séries são linhas puras, p/ leitura limpa. */}
@@ -2126,7 +2142,6 @@ export default function PerformancePage() {
         ticker={tickerFilter}
         corretora={corretoraFilter}
         chartPoints={chartData}
-        currSymbol={currSymbol}
         onClose={() => setCarteiraDatas([])}
         onRemoveDate={(d) => setCarteiraDatas(prev => prev.filter(x => x !== d))}
       />
