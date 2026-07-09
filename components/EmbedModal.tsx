@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
-import { X, ExternalLink, Globe, Loader2, RotateCw } from "lucide-react";
+import { X, ExternalLink, Globe, Loader2, RotateCw, Languages } from "lucide-react";
 
 export interface EmbedTarget {
   url: string;
@@ -24,12 +24,32 @@ export interface EmbedTarget {
 const MAX_ATTEMPTS = 3;   // 1 inicial + 2 recargas automáticas
 const PER_ATTEMPT_MS = 5000;
 
+// Reescreve a URL para o proxy de tradução do Google (translate.goog), que
+// renderiza o site inteiro traduzido — inclusive conteúdo carregado por JS.
+// Não dá para traduzir o iframe direto (mesma-origem bloqueia ler/editar o DOM
+// de outro domínio); mandar pelo proxy é a forma que funciona de fato.
+// host: cada "-" vira "--" e cada "." vira "-", depois ".translate.goog".
+function toTranslateUrl(rawUrl: string, tl = "pt"): string {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname.replace(/-/g, "--").replace(/\./g, "-");
+    u.searchParams.set("_x_tr_sl", "auto");
+    u.searchParams.set("_x_tr_tl", tl);
+    u.searchParams.set("_x_tr_hl", tl);
+    const qs = u.searchParams.toString();
+    return `${u.protocol}//${host}.translate.goog${u.pathname}${qs ? "?" + qs : ""}${u.hash}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
 export default function EmbedModal({ item, onClose }: { item: EmbedTarget | null; onClose: () => void }) {
   const [status, setStatus] = useState<"loading" | "ok" | "blocked">("loading");
   const [attempt, setAttempt] = useState(0); // também é a key do iframe (remonta ao mudar)
+  const [translate, setTranslate] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset ao abrir/trocar de destino + Esc + trava de scroll.
+  // Reset ao abrir/trocar de destino ou ao alternar tradução + Esc + trava de scroll.
   useEffect(() => {
     if (!item) return;
     setStatus("loading");
@@ -42,7 +62,7 @@ export default function EmbedModal({ item, onClose }: { item: EmbedTarget | null
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [item, onClose]);
+  }, [item, translate, onClose]);
 
   // Timeout por tentativa → recarrega automaticamente; esgotado → bloqueado.
   useEffect(() => {
@@ -59,6 +79,7 @@ export default function EmbedModal({ item, onClose }: { item: EmbedTarget | null
 
   if (!item) return null;
 
+  const src = translate ? toTranslateUrl(item.url) : item.url;
   const retryManual = () => { setStatus("loading"); setAttempt((a) => a + 1); };
 
   return (
@@ -78,6 +99,15 @@ export default function EmbedModal({ item, onClose }: { item: EmbedTarget | null
           <span className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200/90">{item.title}</span>
           {item.sub && <span className="ml-2 hidden truncate text-[10px] text-cyan-400/40 sm:inline">{item.sub}</span>}
           <div className="ml-auto flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setTranslate((t) => !t)}
+              title={translate ? "Ver original" : "Traduzir para português (via Google)"}
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] transition-colors ${
+                translate ? "bg-cyan-400/15 text-cyan-200" : "text-cyan-300/70 hover:bg-cyan-400/10 hover:text-cyan-200"
+              }`}
+            >
+              <Languages size={13} /> <span className="hidden sm:inline">{translate ? "PT ✓" : "Traduzir"}</span>
+            </button>
             <button
               onClick={retryManual} title="Recarregar"
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] text-cyan-300/70 transition-colors hover:bg-cyan-400/10 hover:text-cyan-200"
@@ -135,8 +165,8 @@ export default function EmbedModal({ item, onClose }: { item: EmbedTarget | null
                 </div>
               )}
               <iframe
-                key={attempt}
-                src={item.url}
+                key={`${translate ? "t" : "o"}-${attempt}`}
+                src={src}
                 title={item.title}
                 className="absolute inset-0 h-full w-full"
                 style={{ border: "none" }}
