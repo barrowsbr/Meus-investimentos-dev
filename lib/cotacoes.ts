@@ -237,14 +237,15 @@ async function fetchQuotesV8(yahooTickers: string[]): Promise<Record<string, Quo
   return results;
 }
 
-// --- Fallback 3: brapi.dev (SÓ ações B3, sufixo .SA) ---
+// --- brapi.dev: fonte PRIMÁRIA das ações B3 (sufixo .SA) ---
 //
-// Fonte independente do Yahoo, gratuita, específica do mercado brasileiro. Só
-// entra para tickers `.SA` que nem o `quote()` nem o v8 do Yahoo trouxeram —
-// quando o Yahoo rate-limita a B3 inteira (crumb quebrado), o brapi ainda
-// responde. Usa símbolos base (ITUB4, não ITUB4.SA); remapeamos de volta para a
-// chave Yahoo. O tier grátis passou a exigir token — se `BRAPI_TOKEN` existir,
-// vai como bearer; sem ele, ainda tenta (algumas cotações seguem abertas).
+// Fonte independente do Yahoo, específica do mercado brasileiro. O Yahoo
+// estrangula IP de datacenter (Vercel) e as duas camadas dele caem JUNTAS
+// (mesmo servidor query1/2.finance.yahoo.com) — por isso a B3 vem pelo brapi
+// primeiro, e o Yahoo é só o fallback dela. Usa símbolos base (ITUB4, não
+// ITUB4.SA); remapeamos de volta para a chave Yahoo. Sem token, o brapi libera
+// 4 ações grátis (PETR4, MGLU3, VALE3, ITUB4) — o chamador manda só essas nesse
+// caso; com BRAPI_TOKEN, manda todas as .SA (FIIs etc.).
 async function fetchQuotesBrapi(yahooTickers: string[]): Promise<Record<string, Quote>> {
   const b3 = yahooTickers.filter((t) => t.endsWith(".SA"));
   if (b3.length === 0) return {};
@@ -315,60 +316,56 @@ async function fetchQuotesBrapi(yahooTickers: string[]): Promise<Record<string, 
 
 // --- Main fetch with fallbacks ---
 
+// Ações B3 que o brapi libera SEM token (tier grátis). Só essas vão pro brapi
+// quando não há BRAPI_TOKEN — com token, todas as .SA vão.
+const BRAPI_FREE_NO_TOKEN = new Set(["PETR4", "MGLU3", "VALE3", "ITUB4"]);
+
 export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Record<string, Quote>; source: string }> {
   if (yahooTickers.length === 0) return { quotes: {}, source: "empty" };
 
-  // Primária: yahoo-finance2 (endpoint `quote`).
   let quotes: Record<string, Quote> = {};
-  try {
-    quotes = await fetchQuotesYF2(yahooTickers);
-  } catch {
-    quotes = {};
-  }
 
-  // Fallback v8 (chart API) SÓ para os tickers que a primária NÃO trouxe —
-  // por-ticker, não tudo-ou-nada. Antes, se o YF2 trouxesse QUALQUER ticker, o
-  // fallback nunca rodava; um ativo que o `quote()` do Yahoo falha (ex.: ação
-  // B3 quando o "crumb" quebra — ITUB4) ficava sem preço à vista → o motor caía
-  // no custo (valor atual = investido, lucro "—"). O v8 nunca sobrescreve um
-  // preço que a primária já obteve (só preenche o que faltou).
-  const missing = yahooTickers.filter((t) => !quotes[t]);
-  const yf2Empty = missing.length === yahooTickers.length;
-  let usedV8 = false;
-  if (missing.length > 0) {
-    try {
-      const v8 = await fetchQuotesV8(missing);
-      if (Object.keys(v8).length > 0) {
-        quotes = { ...quotes, ...v8 };
-        usedV8 = true;
-      }
-    } catch {
-      // sem fallback — segue com o que tem
-    }
-  }
-
-  // Fallback 3: brapi.dev, SÓ para ações B3 (.SA) que ainda faltam depois do
-  // Yahoo. Fonte independente — quando o Yahoo rate-limita a B3 inteira, o brapi
-  // ainda responde. Nunca sobrescreve um preço já obtido.
-  const stillMissing = yahooTickers.filter((t) => !quotes[t]);
+  // ── 1) brapi PRIMEIRO para B3 (.SA) — fonte independente do Yahoo ──
+  // Sem token: só os 4 tickers grátis (evita 401 no lote inteiro); com token:
+  // todas as .SA. ITUB4/VALE3 passam a vir ao vivo sem depender do Yahoo.
+  const hasToken = !!process.env.BRAPI_TOKEN;
+  const b3 = yahooTickers.filter((t) => t.endsWith(".SA"));
+  const brapiTargets = hasToken
+    ? b3
+    : b3.filter((t) => BRAPI_FREE_NO_TOKEN.has(t.slice(0, -3).toUpperCase()));
   let usedBrapi = false;
-  if (stillMissing.some((t) => t.endsWith(".SA"))) {
+  if (brapiTargets.length > 0) {
     try {
-      const br = await fetchQuotesBrapi(stillMissing);
-      if (Object.keys(br).length > 0) {
-        quotes = { ...quotes, ...br };
-        usedBrapi = true;
-      }
-    } catch {
-      // sem fallback — segue com o que tem
-    }
+      const br = await fetchQuotesBrapi(brapiTargets);
+      if (Object.keys(br).length > 0) { quotes = { ...br }; usedBrapi = true; }
+    } catch { /* segue para o Yahoo */ }
   }
 
-  const yahooSource = Object.keys(quotes).length === 0 ? "none"
-    : !usedV8 ? "yahoo-finance2"
-    : yf2Empty ? "yahoo-v8"
-    : "yahoo-finance2+v8";
-  const source = usedBrapi ? `${yahooSource}+brapi` : yahooSource;
+  // ── 2) Yahoo yahoo-finance2 (quote) para o que faltou (não-B3 + B3 sem brapi) ──
+  const missing1 = yahooTickers.filter((t) => !quotes[t]);
+  let usedYF2 = false;
+  if (missing1.length > 0) {
+    try {
+      const yf2 = await fetchQuotesYF2(missing1);
+      if (Object.keys(yf2).length > 0) { quotes = { ...quotes, ...yf2 }; usedYF2 = true; }
+    } catch { /* segue para o v8 */ }
+  }
+
+  // ── 3) Yahoo v8 (chart) para o que AINDA faltou — não depende do "crumb" ──
+  const missing2 = yahooTickers.filter((t) => !quotes[t]);
+  let usedV8 = false;
+  if (missing2.length > 0) {
+    try {
+      const v8 = await fetchQuotesV8(missing2);
+      if (Object.keys(v8).length > 0) { quotes = { ...quotes, ...v8 }; usedV8 = true; }
+    } catch { /* sem fallback — segue com o que tem */ }
+  }
+
+  const parts: string[] = [];
+  if (usedBrapi) parts.push("brapi");
+  if (usedYF2) parts.push("yahoo-finance2");
+  if (usedV8) parts.push("yahoo-v8");
+  const source = Object.keys(quotes).length === 0 ? "none" : parts.join("+");
 
   return { quotes, source };
 }
