@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import CarteiraNaDataDrawer from "@/components/performance/CarteiraNaDataDrawer";
+import PerfModal from "@/components/performance/PerfModal";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -586,6 +587,8 @@ export default function PerformancePage() {
   // qualquer clique no gráfico abriria o painel).
   const [carteiraMode, setCarteiraMode] = useState(false);
   const [carteiraDatas, setCarteiraDatas] = useState<string[]>([]);
+  // Detalhes da Performance em popup (botões): Resumo, TWR vs MWR, Decomposição.
+  const [perfPopup, setPerfPopup] = useState<"resumo" | "twrmwr" | "moeda" | null>(null);
   const pickCarteiraDate = (full: string) => {
     if (!full) return;
     setCarteiraDatas(prev => {
@@ -1436,8 +1439,8 @@ export default function PerformancePage() {
             )}
           </div>
 
-          {/* NAV + Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* NAV (largura cheia) */}
+          <div className="space-y-4">
             <div className="glass-card p-5">
               <h2 className="section-title mb-4">Evolução do Patrimônio ({currSymbol})</h2>
               {chartData.length > 0 ? (
@@ -1461,8 +1464,8 @@ export default function PerformancePage() {
               )}
             </div>
 
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4">Resumo do Período ({currSymbol})</h2>
+            {perfPopup === "resumo" && (
+              <PerfModal title={`Resumo do Período (${currSymbol})`} onClose={() => setPerfPopup(null)}>
               <div className="space-y-2">
                 {[
                   { label: "TWR acumulado", value: pct(twrPct), color: trendColor },
@@ -1502,12 +1505,40 @@ export default function PerformancePage() {
                   </div>
                 ))}
               </div>
-            </div>
+              </PerfModal>
+            )}
           </div>
 
-          {/* TWR vs MWR + FX Decomposition */}
-          <div className="glass-card p-5">
-            <h2 className="section-title mb-4"><Activity size={15} />TWR vs MWR — Comparação ({currSymbol})</h2>
+          {/* Botões — abrem os detalhes em popup */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <button onClick={() => setPerfPopup("resumo")} className="glass-card flex items-center gap-3 p-4 text-left transition-colors hover:bg-white/[0.05]">
+              <BarChart3 size={18} className="shrink-0" style={{ color: "var(--accent)" }} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>Resumo do Período</p>
+                <p className="truncate text-[11px]" style={{ color: "var(--faint)" }}>TWR, MWR, benchmarks, ganho econômico…</p>
+              </div>
+            </button>
+            <button onClick={() => setPerfPopup("twrmwr")} className="glass-card flex items-center gap-3 p-4 text-left transition-colors hover:bg-white/[0.05]">
+              <Activity size={18} className="shrink-0" style={{ color: "#a78bfa" }} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>TWR vs MWR</p>
+                <p className="truncate text-[11px]" style={{ color: "var(--faint)" }}>Comparação + decomposição ativo × câmbio</p>
+              </div>
+            </button>
+            {!isUsd && decomp && decomp.buckets.length > 1 && (
+              <button onClick={() => setPerfPopup("moeda")} className="glass-card flex items-center gap-3 p-4 text-left transition-colors hover:bg-white/[0.05]">
+                <BarChart2 size={18} className="shrink-0" style={{ color: "#34d399" }} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>Decomposição por Moeda</p>
+                  <p className="truncate text-[11px]" style={{ color: "var(--faint)" }}>Retorno ativo × câmbio por moeda</p>
+                </div>
+              </button>
+            )}
+          </div>
+
+          {/* TWR vs MWR + FX Decomposition (popup) */}
+          {perfPopup === "twrmwr" && (
+            <PerfModal title={`TWR vs MWR — Comparação (${currSymbol})`} onClose={() => setPerfPopup(null)}>
             {(() => {
               const fxD = isUsd && data.usdView?.fxDecomposition
                 ? data.usdView.fxDecomposition
@@ -1552,12 +1583,12 @@ export default function PerformancePage() {
                 </div>
               );
             })()}
-          </div>
+            </PerfModal>
+          )}
 
-          {/* Currency decomposition (BRL only) */}
-          {!isUsd && decomp && decomp.buckets.length > 1 && (
-            <div className="glass-card p-5">
-              <h2 className="section-title mb-4"><BarChart2 size={15} />Decomposição por Moeda</h2>
+          {/* Currency decomposition (BRL only) — popup */}
+          {perfPopup === "moeda" && !isUsd && decomp && decomp.buckets.length > 1 && (
+            <PerfModal title="Decomposição por Moeda" onClose={() => setPerfPopup(null)}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1602,7 +1633,7 @@ export default function PerformancePage() {
               <p className="text-[10px] text-zinc-600 mt-2">
                 Ret. Ativo = retorno do ativo na moeda original · Ret. Câmbio = impacto do câmbio no BRL · Total = (1+Ativo)×(1+Câmbio)−1
               </p>
-            </div>
+            </PerfModal>
           )}
         </div>
       )}
