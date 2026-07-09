@@ -11,9 +11,10 @@ import {
   TrendingUp, BarChart2, Activity,
   Calendar, AlertTriangle, DollarSign, RefreshCw,
   Play, Loader2, Target, BarChart3,
-  PieChart as PieIcon,
+  PieChart as PieIcon, MousePointerClick,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import CarteiraNaDataDrawer from "@/components/performance/CarteiraNaDataDrawer";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -581,6 +582,17 @@ export default function PerformancePage() {
   const [showIbov, setShowIbov] = useState(true);
   const [showSp500, setShowSp500] = useState(false);
   const [showFxDecomp, setShowFxDecomp] = useState(false);
+  // Carteira nesta data: datas fixadas (0–2) para o drawer; a 2ª ativa comparação.
+  const [carteiraDatas, setCarteiraDatas] = useState<string[]>([]);
+  const pickCarteiraDate = (full: string) => {
+    if (!full) return;
+    setCarteiraDatas(prev => {
+      if (prev.includes(full)) return prev;        // já fixada → ignora
+      if (prev.length === 0) return [full];         // 1ª data
+      if (prev.length === 1) return [prev[0], full]; // 2ª data → comparar
+      return [prev[1], full];                        // já tem 2 → desliza a janela
+    });
+  };
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [decomp, setDecomp] = useState<DecomposicaoResponse | null>(null);
   const [ganhoCanonical, setGanhoCanonical] = useState<number | null>(null);
@@ -689,6 +701,7 @@ export default function PerformancePage() {
       ibov: p.ibov_twr != null ? +(p.ibov_twr * 100).toFixed(2) : null,
       sp500: p.sp500_twr != null ? +(p.sp500_twr * 100).toFixed(2) : null,
       nav: p.nav,
+      ret: p.ret != null ? +(p.ret * 100).toFixed(2) : null,
       fx: p.fx_twr != null ? +(p.fx_twr * 100).toFixed(2) : null,
       ativo: p.ativo_twr != null ? +(p.ativo_twr * 100).toFixed(2) : null,
     }));
@@ -1297,9 +1310,18 @@ export default function PerformancePage() {
                 <span>{formatDuracao(s.duracaoAnos)}</span>
               </div>
             </div>
+            <p className="mb-1 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--faint)" }}>
+              <MousePointerClick size={12} />
+              Clique numa data do gráfico para ver a carteira daquele dia · fixe uma 2ª para comparar
+            </p>
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e: { activePayload?: Array<{ payload?: { fullDate?: string } }> }) => {
+                    const full = e?.activePayload?.[0]?.payload?.fullDate;
+                    if (full) pickCarteiraDate(full);
+                  }}>
                   <defs>
                     {/* Só a carteira (TWR) recebe preenchimento — o herói.
                         As demais séries são linhas puras, p/ leitura limpa. */}
@@ -1310,6 +1332,15 @@ export default function PerformancePage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={isLight ? "rgba(0,0,0,0.06)" : "#18181b"} vertical={false} />
                   <ReferenceLine y={0} stroke={isLight ? "rgba(0,0,0,0.18)" : "#3f3f46"} strokeWidth={1} />
+                  {/* Marcadores das datas fixadas para o painel de carteira */}
+                  {carteiraDatas.map((fd, idx) => {
+                    const pt = chartData.find(p => p.fullDate === fd);
+                    if (!pt) return null;
+                    return (
+                      <ReferenceLine key={fd} x={pt.date} stroke={idx === 0 ? "#60a5fa" : "#f472b6"}
+                        strokeWidth={1.4} strokeDasharray="4 3" />
+                    );
+                  })}
                   <XAxis dataKey="date" tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis tick={{ fill: isLight ? "#555" : "#52525b", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
                     tickFormatter={v => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
@@ -2086,6 +2117,19 @@ export default function PerformancePage() {
           </ul>
         </div>
       )}
+
+      {/* ── Carteira nesta data (drawer) ── */}
+      <CarteiraNaDataDrawer
+        datas={carteiraDatas}
+        classe={classe}
+        setor={setorQuery}
+        ticker={tickerFilter}
+        corretora={corretoraFilter}
+        chartPoints={chartData}
+        currSymbol={currSymbol}
+        onClose={() => setCarteiraDatas([])}
+        onRemoveDate={(d) => setCarteiraDatas(prev => prev.filter(x => x !== d))}
+      />
     </>
   );
 }
