@@ -73,7 +73,7 @@ interface Summary {
   troughTwr?: number;
 }
 
-interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null }
+interface ChartPoint { date: string; nav: number; flow?: number; ret: number; twr: number; mwr_twr?: number | null; cdi_twr?: number | null; ibov_twr?: number | null; sp500_twr?: number | null; fx_twr?: number | null; ativo_twr?: number | null; ativo_mwr?: number | null }
 interface DrawdownPoint { date: string; drawdown: number; nav: number }
 interface RollingPoint { date: string; "1M": number; "3M": number; "6M": number; "1A": number }
 interface MonthlyReturn { month: string; return_pct: number }
@@ -737,6 +737,7 @@ export default function PerformancePage() {
       ret: p.ret != null ? +(p.ret * 100).toFixed(2) : null,
       fx: p.fx_twr != null ? +(p.fx_twr * 100).toFixed(2) : null,
       ativo: p.ativo_twr != null ? +(p.ativo_twr * 100).toFixed(2) : null,
+      ativoMwr: p.ativo_mwr != null ? +(p.ativo_mwr * 100).toFixed(2) : null,
     }));
   }, [activeChart]);
 
@@ -833,6 +834,7 @@ export default function PerformancePage() {
     ibov:  isLight ? "#9A3412" : "#f59e0b",
     sp500: isLight ? "#9D174D" : "#ec4899",
     ativo: isLight ? "#0369A1" : "#38bdf8",
+    ativoMwr: isLight ? "#7C3AED" : "#c4b5fd",
     fx:    isLight ? "#92400E" : "#fbbf24",
   };
 
@@ -1319,19 +1321,26 @@ export default function PerformancePage() {
                   <div
                     className="flex items-center gap-3 text-[10.5px] flex-wrap"
                     style={{ color: "var(--muted)" }}
-                    title="Decomposição multiplicativa do TWR: (1 + Ativo) × (1 + Câmbio) = 1 + TWR. Refere-se à linha do TWR — o MWR não é decomposto."
+                    title="Decomposição multiplicativa: (1 + Ativo) × (1 + Câmbio) = 1 + retorno. O efeito câmbio da carteira é comum ao TWR e ao MWR; cada um tem seu 'Ativo (moeda local)'."
                   >
-                    <span className="inline-flex items-center gap-1.5">
-                      <span style={{ width: 14, borderTop: `2px dashed ${C.ativo}`, display: "inline-block" }} />
-                      Ativo (moeda local)
-                    </span>
+                    {showTwr && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span style={{ width: 14, borderTop: `2px dashed ${C.ativo}`, display: "inline-block" }} />
+                        Ativo — TWR
+                      </span>
+                    )}
+                    {showMwr && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span style={{ width: 14, borderTop: `2px dotted ${C.ativoMwr}`, display: "inline-block" }} />
+                        Ativo — MWR
+                      </span>
+                    )}
                     <span className="inline-flex items-center gap-1.5">
                       <span style={{ width: 14, borderTop: `2px dashed ${C.fx}`, display: "inline-block" }} />
                       Efeito câmbio
                     </span>
                     <span style={{ color: "var(--faint)" }}>
-                      Ativo × Câmbio = <span style={{ color: C.twr }}>TWR</span>
-                      {showMwr && " · MWR não é decomposto"}
+                      Ativo × Câmbio = retorno
                     </span>
                   </div>
                 )}
@@ -1394,7 +1403,7 @@ export default function PerformancePage() {
                   <Tooltip contentStyle={isLight ? { background: "#FDFAF1", border: "1px solid rgba(96,72,40,0.2)", borderRadius: 10, color: "#2B2117", fontSize: 12 } : TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(v: number, name: string) => [
                       `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
-                      name === "portfolio" ? "Carteira (TWR)" : name === "mwr" ? "Carteira (MWR)" : name === "ativo" ? "Ativo (moeda local)" : name === "fx" ? "Efeito câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
+                      name === "portfolio" ? "Carteira (TWR)" : name === "mwr" ? "Carteira (MWR)" : name === "ativo" ? "Ativo — TWR (moeda local)" : name === "ativoMwr" ? "Ativo — MWR (moeda local)" : name === "fx" ? "Efeito câmbio" : name === "cdi" ? "CDI" : name === "ibov" ? "IBOV" : "S&P 500",
                     ]}
                     labelFormatter={label => `Data: ${label}`} />
                   {/* Benchmarks primeiro (camada de trás), carteira por cima. */}
@@ -1413,14 +1422,20 @@ export default function PerformancePage() {
                     <Area type="monotone" dataKey="sp500" name="sp500" stroke={C.sp500} fill="none"
                       strokeWidth={1.4} strokeDasharray="5 3" dot={false} isAnimationActive={false} />
                   )}
-                  {/* Decomposição câmbio: ativo + efeito cambial */}
+                  {/* Decomposição câmbio: ativo (do TWR) + efeito cambial (comum) */}
+                  {showFxDecomp && showTwr && (
+                    <Area type="monotone" dataKey="ativo" name="ativo" stroke={C.ativo} fill="none"
+                      strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
+                  )}
+                  {/* Decomposição câmbio do MWR: ativo (do MWR) */}
+                  {showFxDecomp && showMwr && (
+                    <Area type="monotone" dataKey="ativoMwr" name="ativoMwr" stroke={C.ativoMwr} fill="none"
+                      strokeWidth={1.6} strokeDasharray="2 3" dot={false} connectNulls isAnimationActive={false} />
+                  )}
+                  {/* Efeito câmbio (mesma série para TWR e MWR — efeito da carteira) */}
                   {showFxDecomp && (
-                    <>
-                      <Area type="monotone" dataKey="ativo" name="ativo" stroke={C.ativo} fill="none"
-                        strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
-                      <Area type="monotone" dataKey="fx" name="fx" stroke={C.fx} fill="none"
-                        strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
-                    </>
+                    <Area type="monotone" dataKey="fx" name="fx" stroke={C.fx} fill="none"
+                      strokeWidth={1.6} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
                   )}
                   {/* MWR — linha sólida da carteira (sem preenchimento) */}
                   {showMwr && (

@@ -935,19 +935,23 @@ export async function GET(request: Request) {
       const chart = usdTwrPoints.map(p => {
         let fx_twr: number | null = null;
         let ativo_twr: number | null = null;
+        let ativo_mwr: number | null = null;
+        const mwrVal = mwrDiarioUsd.get(p.date);
         const f = fxTwrUsdByDate.get(p.date);
         if (f != null) {
           fx_twr = f;
           ativo_twr = (1 + p.twr) / (1 + f) - 1;
+          if (mwrVal != null) ativo_mwr = (1 + mwrVal) / (1 + f) - 1;
         }
         return {
           date: p.date, nav: p.nav, twr: p.twr, ret: p.ret,
-          mwr_twr: mwrDiarioUsd.get(p.date) ?? null,
+          mwr_twr: mwrVal ?? null,
           sp500_twr: sp500Map.get(p.date) ?? null,
           cdi_twr: cdiUsdMap.get(p.date) ?? null,
           ibov_twr: ibovUsdMap.get(p.date) ?? null,
           fx_twr,
           ativo_twr,
+          ativo_mwr,
         };
       });
 
@@ -1159,21 +1163,26 @@ export async function GET(request: Request) {
           // (série fxTwrByDate — mesma da decomposição do summary).
           let fx_twr: number | null = null;
           let ativo_twr: number | null = null;
+          let ativo_mwr: number | null = null;
+          const mwrVal = mwrDiario.get(p.date);
           if (hasForexExposure) {
             const f = fxTwrByDate.get(p.date);
             if (f != null) {
               fx_twr = f;
               ativo_twr = (1 + p.twr) / (1 + f) - 1;
+              // MWR decomposto pelo MESMO efeito câmbio da carteira: ativo = (1+mwr)/(1+fx)−1.
+              if (mwrVal != null) ativo_mwr = (1 + mwrVal) / (1 + f) - 1;
             }
           }
           return {
             date: p.date, nav: p.nav, flow: p.flow, ret: p.ret, twr: p.twr,
-            mwr_twr: mwrDiario.get(p.date) ?? null,
+            mwr_twr: mwrVal ?? null,
             cdi_twr: cdiMap.get(p.date) ?? null,
             ibov_twr: ibovMap.get(p.date) ?? null,
             sp500_twr: sp500Map.get(p.date) ?? null,
             fx_twr,
             ativo_twr,
+            ativo_mwr,
           };
         });
         return thinSeries(merged);
