@@ -10,7 +10,6 @@ import { displayName } from "@/lib/asset-brands";
 import { yahooTicker } from "@/lib/yahoo-symbol";
 import AssetLogo from "@/components/AssetLogo";
 import CandleChart from "@/components/CandleChart";
-import EmbedModal from "@/components/EmbedModal";
 import AssetNews from "@/components/AssetNews";
 import AssetBuzz from "@/components/AssetBuzz";
 
@@ -169,12 +168,10 @@ export default function AssetDetailModal({
   // que busca as cotações (ticker interno → símbolo Yahoo, ex.: PETR4 → PETR4.SA,
   // BTC → BTC-USD), garantindo que o link aponte pro mesmo ativo do gráfico.
   const yfUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(yahooTicker(p.ticker, p.moeda, ""))}`;
-  const [yfOpen, setYfOpen] = useState(false);
 
   if (!mounted) return null;
 
   return createPortal(
-    <>
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       style={{ background: "rgba(0,0,0,0.62)", backdropFilter: "blur(4px)" }}
@@ -219,16 +216,17 @@ export default function AssetDetailModal({
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setYfOpen(true); }}
-                title={`Abrir ${p.ticker} no Yahoo Finance (embutido)`}
+              <a
+                href={yfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Abrir ${p.ticker} no Yahoo Finance`}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
                 style={{ border: "1px solid var(--line)", color: "var(--muted)" }}
               >
                 <ExternalLink size={13} />
                 Yahoo Finance
-              </button>
+              </a>
               <button
                 onClick={() => onOpenNotes(p.ticker)}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
@@ -332,12 +330,7 @@ export default function AssetDetailModal({
           <AssetNews ticker={p.ticker} nome={displayName(p.ticker)} moeda={p.moeda} />
         </div>
       </div>
-    </div>
-    <EmbedModal
-      item={yfOpen ? { url: yfUrl, title: `${p.ticker} · Yahoo Finance`, sub: "cotações e gráficos" } : null}
-      onClose={() => setYfOpen(false)}
-    />
-    </>,
+    </div>,
     document.body,
   );
 }

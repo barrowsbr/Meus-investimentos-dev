@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { X, Globe } from "lucide-react";
+import { X, Globe, Telescope } from "lucide-react";
 import { useGlobeOverlay } from "./GlobeOverlayContext";
 import { getHoloStyle, HOLO_STYLE_EVENT, type HoloStyle } from "@/lib/holo-style";
 import WorldMonitorModal from "./WorldMonitorModal";
+import { openEmbed } from "@/lib/embed-link";
 
 // Globo three.js já existente — só no cliente.
 const HoloGlobe = dynamic(() => import("@/components/HoloGlobe"), { ssr: false });
@@ -140,16 +141,29 @@ export default function HoloOverlay() {
         <span className="holo-sweep" aria-hidden />
       </div>
 
-      {/* World Monitor — abre EMBUTIDO no app (iframe), sem sair do ambiente */}
+      {/* Atalhos — abrem EMBUTIDO no app (iframe), sem sair do ambiente */}
       {open && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setWmOpen(true); }}
-          className="fixed left-1/2 z-[95] inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-cyan-400/30 px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-cyan-300/80 backdrop-blur transition-colors hover:border-cyan-300/60 hover:text-cyan-200"
-          style={{ bottom: "calc(env(safe-area-inset-bottom) + 22px)", background: "rgba(8,15,20,0.55)" }}
+        <div
+          className="fixed left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 22px)" }}
         >
-          <Globe size={12} /> World Monitor
-        </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setWmOpen(true); }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/30 px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-cyan-300/80 backdrop-blur transition-colors hover:border-cyan-300/60 hover:text-cyan-200"
+            style={{ background: "rgba(8,15,20,0.55)" }}
+          >
+            <Globe size={12} /> World Monitor
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openEmbed("https://eyes.nasa.gov/apps/exo/", "NASA Eyes — Exoplanetas 3D", "eyes.nasa.gov"); }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/30 px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-cyan-300/80 backdrop-blur transition-colors hover:border-cyan-300/60 hover:text-cyan-200"
+            style={{ background: "rgba(8,15,20,0.55)" }}
+          >
+            <Telescope size={12} /> Exoplanetas 3D
+          </button>
+        </div>
       )}
 
       <WorldMonitorModal open={wmOpen} onClose={() => setWmOpen(false)} />
