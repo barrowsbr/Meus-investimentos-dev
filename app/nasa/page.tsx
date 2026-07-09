@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import {
   Orbit, Camera, AlertTriangle, ExternalLink, ChevronLeft, ChevronRight, Sparkles,
-  ShieldAlert, Sun, Search, MapPin, Play, Pause, Loader2,
+  ShieldAlert, Sun, Search, MapPin, Play, Pause, Loader2, Telescope,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -57,9 +57,19 @@ export default function NasaPage() {
         activeTab={tab}
         onTab={(id) => setTab(id as Tab)}
         right={
-          <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <Sparkles size={13} className="text-indigo-400" /> api.nasa.gov
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openEmbed("https://eyes.nasa.gov/apps/exo/", "NASA Eyes — Exoplanetas 3D", "eyes.nasa.gov")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-200 transition-colors hover:bg-indigo-500/20"
+              title="Explorar exoplanetas em 3D (embutido no app)"
+            >
+              <Telescope size={13} /> Exoplanetas 3D
+            </button>
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
+              <Sparkles size={13} className="text-indigo-400" /> api.nasa.gov
+            </span>
+          </div>
         }
       />
       {tab === "apod" && <ApodView />}

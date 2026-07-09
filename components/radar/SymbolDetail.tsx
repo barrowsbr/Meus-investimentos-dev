@@ -9,7 +9,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Newspaper, Info, ExternalLink, BarChart3, Link2 } from "lucide-react";
 import CandleChart from "@/components/CandleChart";
-import EmbedModal from "@/components/EmbedModal";
 import { openEmbed } from "@/lib/embed-link";
 import type { SymbolTarget, CountryNewsItem } from "@/lib/radar/types";
 
@@ -50,7 +49,6 @@ function fmtPrice(v: number, currency: string): string {
 export default function SymbolDetail({ target, onClose, dossierOpen = true }: { target: SymbolTarget; onClose: () => void; dossierOpen?: boolean }) {
   const [info, setInfo] = useState<OhlcInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(true);
-  const [yfOpen, setYfOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
 
@@ -123,18 +121,16 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
         >
           <ArrowLeft size={14} /> Mapa
         </button>
-        <button
-          onClick={() => setYfOpen(true)}
+        <a
+          href={`https://finance.yahoo.com/quote/${encodeURIComponent(target.symbol)}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/10"
           style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
-          title="Abrir no Yahoo Finance (embutido)"
+          title="Abrir no Yahoo Finance"
         >
           <Link2 size={14} /> Yahoo
-        </button>
-        <EmbedModal
-          item={yfOpen ? { url: `https://finance.yahoo.com/quote/${encodeURIComponent(target.symbol)}`, title: `${target.symbol} · Yahoo Finance`, sub: "cotações e gráficos" } : null}
-          onClose={() => setYfOpen(false)}
-        />
+        </a>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {target.flag && <span className="text-lg leading-none">{target.flag}</span>}
