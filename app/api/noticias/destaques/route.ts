@@ -504,7 +504,7 @@ export async function GET() {
     // Devolve o que tiver mesmo que nem todas as imagens tenham resolvido — as
     // notícias importam mais que a foto; sem isso, um lote lento de og:image
     // fazia a função estourar o tempo e a seção vinha VAZIA.
-    await Promise.race([enrich, new Promise(res => setTimeout(res, 9000))]);
+    await Promise.race([enrich, new Promise(res => setTimeout(res, 5000))]);
 
     // Reordenar: dentro de cada tier de impacto, artigos COM imagem sobem.
     pool.sort((a, b) => {
@@ -527,9 +527,20 @@ export async function GET() {
 
     const articles: DestaqueItem[] = top.map(({ _lang: _l, _kind: _k, _gnLink: _g, ...rest }) => rest);
 
-    return NextResponse.json({ articles, count: articles.length });
+    // CACHE — o pipeline (feeds + tradução + og:image) é caro; sem cache ele
+    // rodava a CADA carregamento da Home, deixando o painel lento. Com resultado
+    // populado, cacheia por 10 min e serve instantâneo por até 1h enquanto
+    // revalida em segundo plano (stale-while-revalidate). Vazio → cache curto
+    // (30s) para tentar de novo logo, sem travar emptiness.
+    const headers = articles.length > 0
+      ? { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" }
+      : { "Cache-Control": "public, s-maxage=30" };
+    return NextResponse.json({ articles, count: articles.length }, { headers });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro";
-    return NextResponse.json({ articles: [], count: 0, error: msg }, { status: 500 });
+    return NextResponse.json({ articles: [], count: 0, error: msg }, {
+      status: 500,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 }
