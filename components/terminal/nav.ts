@@ -71,9 +71,10 @@ export const NAV: NavGroup[] = [
       { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
-      { href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true },
     ],
   },
+  // Configurações fica à parte (grupo sem rótulo), separado dos demais.
+  { items: [{ href: "/configuracoes", label: "Configurações", icon: Settings, sub: "Preferências, dados e sincronização", mobileShow: true }] },
 ];
 
 const ALL_ITEMS = NAV.flatMap((g) => g.items);
