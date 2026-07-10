@@ -381,7 +381,8 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   xAI/Grok (`XAI_API_KEY`/`GROK_API_KEY` opc.)
 - **Notícias**: Google News RSS (livre) · Marketaux (`MARKETAUX_API_KEY` opc.) ·
   Reddit (`REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` opc. → OAuth; sem elas, JSON público) ·
-  YouTube TV ao vivo (livre — embed 24/7 por canal, `TvAoVivoPanel`)
+  YouTube TV ao vivo (`YOUTUBE_API_KEY` opc. → resolve o live exato via Data API v3;
+  sem ela, embed keyless 24/7 por canal — `TvAoVivoPanel` + `/api/tv/live`)
 - **Predições**: Polymarket (livre) · Kalshi (livre) · Metaculus (livre)
 - **Observatório & Geo**: NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
   NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
