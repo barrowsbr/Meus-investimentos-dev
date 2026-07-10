@@ -6,7 +6,7 @@ import {
   FileText, RefreshCw, Shield, Info, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database, Palette,
   Eye, EyeOff, KeyRound, ShieldCheck, Loader2, Bell,
-  Globe as GlobeIcon, Activity, Play, History,
+  Globe as GlobeIcon, Activity, Play, History, ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
@@ -2327,6 +2327,15 @@ function HistoricoSection() {
           {reg?.loading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
           Registrar agora
         </button>
+        <a
+          href="https://github.com/barrowsbr/meus-investimentos-dev/actions/workflows/historico.yml"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abre o workflow no GitHub — clique em 'Run workflow' para testar"
+          className="inline-flex items-center gap-2 rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition-colors hover:bg-zinc-700/50"
+        >
+          <ExternalLink size={13} /> Testar workflow (GitHub)
+        </a>
         {reg && !reg.loading && (
           <span className={`text-xs ${reg.ok ? "text-emerald-400" : "text-amber-400"}`}>{reg.msg}</span>
         )}
@@ -2343,6 +2352,11 @@ function HistoricoSection() {
           Para o Action funcionar, no GitHub: <span className="text-zinc-400">Settings → Secrets and variables → Actions</span> →
           adicione o <b>secret</b> <code className="rounded bg-zinc-800/60 px-1 text-[10px] text-zinc-400">CRON_SECRET</code> (mesmo valor da Vercel).
           Opcional: a <b>var</b> <code className="rounded bg-zinc-800/60 px-1 text-[10px] text-zinc-400">APP_URL</code> se o domínio mudar.
+        </p>
+        <p className="mt-1.5">
+          <b>Registrar agora</b> grava um ponto na hora (não depende do GitHub). <b>Testar workflow</b> abre o
+          Action no GitHub — lá clique em <span className="text-zinc-400">“Run workflow”</span> para rodar a rotina
+          (precisa do secret acima configurado).
         </p>
       </div>
     </div>
