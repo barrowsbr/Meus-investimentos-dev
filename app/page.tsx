@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
+import PatrimonioModal from "@/components/PatrimonioModal";
 import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -1110,26 +1111,37 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
   partes: PatrimonioParte[] | null;
   priv: boolean;
 }) {
+  const [patrOpen, setPatrOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
   return (
     <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
+      <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
       <div className="flex items-center justify-between gap-3 px-4 py-3">
-        {/* Patrimônio total — a carteira inteira, ao vivo */}
+        {/* Patrimônio total — a carteira inteira, ao vivo. Clique abre o
+            histórico patrimonial num popup (mesmo estilo do deeplink). */}
         {patrimonioBRL != null && patrimonioBRL > 0 ? (
-          <div className="min-w-0">
-            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-              Patrimônio total
+          <button
+            type="button"
+            onClick={() => setPatrOpen(true)}
+            title="Ver histórico patrimonial"
+            className="group min-w-0 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.03]"
+          >
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+                Patrimônio total
+              </span>
+              <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
             </div>
-            <div className="font-mono font-extrabold tnum truncate" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
+            <div className="font-mono font-extrabold tnum truncate group-hover:underline decoration-1 underline-offset-2" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
               {maskIf(priv, compactBRL(patrimonioBRL))}
             </div>
             <div className="font-mono mt-1 tnum truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
               {maskIf(priv, compactUSD(usdbrl && usdbrl > 0 ? patrimonioBRL / usdbrl : null))}
               {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
             </div>
-          </div>
+          </button>
         ) : (
           <div className="min-w-0">
             <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
