@@ -1,0 +1,30 @@
+name: Histórico patrimonial (3x/dia)
+
+# Grava um ponto do patrimônio na aba `historico_patrimonio` (página Patrimônio).
+# 3x por dia em dias úteis. NÃO usa cron da Vercel (plano Hobby só permite 1x/dia).
+# O liga/desliga fica em Configurações → Histórico patrimonial.
+#
+# Secrets/vars necessários no repositório (Settings → Secrets and variables → Actions):
+#   - secret CRON_SECRET : mesmo valor da env var CRON_SECRET na Vercel
+#   - var    APP_URL     : (opcional) URL de produção; default abaixo se ausente
+
+on:
+  schedule:
+    # Horários em UTC → 10h, 14h e 18h de Brasília (BRT = UTC-3), seg–sex.
+    - cron: '0 13,17,21 * * 1-5'
+  workflow_dispatch: {}
+
+jobs:
+  registrar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Registrar patrimônio no histórico
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}
+        run: |
+          echo "Chamando $APP_URL/api/cron/historico"
+          curl -fsS --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/historico"
+          echo ""
