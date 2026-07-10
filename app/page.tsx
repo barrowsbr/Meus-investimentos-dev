@@ -10,6 +10,7 @@ import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
+import HojeModal from "@/components/HojeModal";
 import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -1112,12 +1113,14 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
   priv: boolean;
 }) {
   const [patrOpen, setPatrOpen] = useState(false);
+  const [hojeOpen, setHojeOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
   return (
     <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
       <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
+      <HojeModal open={hojeOpen} onClose={() => setHojeOpen(false)} />
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         {/* Patrimônio total — a carteira inteira, ao vivo. Clique abre o
             histórico patrimonial num popup (mesmo estilo do deeplink). */}
@@ -1153,19 +1156,27 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
           </div>
         )}
 
-        {/* Σ retorno do dia */}
+        {/* Σ retorno do dia — clique abre o "Hoje" (fechamento do dia) em popup. */}
         {brl != null && (
-          <div className="text-right shrink-0">
-            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-              Σ Retorno do dia
+          <button
+            type="button"
+            onClick={() => setHojeOpen(true)}
+            title="Ver o fechamento do dia (Hoje)"
+            className="group text-right shrink-0 rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.03]"
+          >
+            <div className="flex items-center justify-end gap-1 mb-0.5">
+              <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
+                Σ Retorno do dia
+              </span>
+              <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
             </div>
-            <div className="font-mono font-extrabold tnum" style={{ color, fontSize: 19, lineHeight: 1 }}>
+            <div className="font-mono font-extrabold tnum group-hover:underline decoration-1 underline-offset-2" style={{ color, fontSize: 19, lineHeight: 1 }}>
               {maskIf(priv, signedBRLc(brl))}
             </div>
             {pctVal != null && (
               <div className="font-mono mt-1 tnum" style={{ color, fontSize: 10, opacity: 0.85 }}>{pct(pctVal)} no dia</div>
             )}
-          </div>
+          </button>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 import {
   Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
-  Scale, Crosshair, Sunrise, Layers,
+  Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
   Rocket, Newspaper,
 } from "lucide-react";
@@ -39,7 +39,6 @@ export const NAV: NavGroup[] = [
     label: "Análise",
     items: [
       { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos seus investimentos", mobileShow: true },
-      { href: "/hoje", label: "Hoje", icon: Sunrise, sub: "O que está acontecendo hoje e de onde vem o resultado" },
       { href: "/performance", label: "Performance", icon: TrendingUp, sub: "Retorno (TWR), atribuição e risco", mobileShow: true },
       { href: "/evolucao", label: "Evolução", icon: Activity, sub: "Evolução patrimonial e aportes" },
       { href: "/cambio", label: "Câmbio", icon: ArrowLeftRight, sub: "Remessas, pares e PTAX" },
