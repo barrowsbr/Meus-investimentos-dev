@@ -37,6 +37,32 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// ── LazyMount ─────────────────────────────────────────────────────────────────
+// Só monta os filhos (e portanto só dispara os fetches deles) quando a seção
+// chega perto da viewport. Libera o cold start da Home: as seções abaixo da
+// dobra (Radar do dia, Mercado Preditivo, Notícias) deixam de brigar por
+// lambdas com o painel de patrimônio no primeiro paint. `minHeight` reserva o
+// espaço para não haver layout-shift quando o conteúdo entra.
+function LazyMount({ children, minHeight = 260 }: { children: React.ReactNode; minHeight?: number }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (show) return;
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setShow(true); return; }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) { setShow(true); io.disconnect(); }
+      },
+      { rootMargin: "400px 0px" }, // começa a carregar ~400px antes de aparecer
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [show]);
+  return <div ref={ref} style={show ? undefined : { minHeight }}>{show ? children : null}</div>;
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface TickerItem {
@@ -793,9 +819,9 @@ interface IbkrStripData {
 }
 
 // Faixa enxuta da Interactive Brokers: marca + retorno do dia em US$ (destaque),
-// com % e R$ de apoio + patrimônio de contexto. Lê /api/ibkr/overview de forma
-// assíncrona; enquanto não há dado (carregando, não configurado ou erro) NÃO
-// renderiza nada — nunca quebra a Home nem deixa espaço vazio.
+// com % e R$ de apoio + patrimônio de contexto. Recebe o overview via prop (do
+// /api/home consolidado); enquanto não há dado (carregando, não configurado ou
+// erro) NÃO renderiza nada — nunca quebra a Home nem deixa espaço vazio.
 function IbkrDayStrip({ data, priv }: { data: IbkrStripData | null; priv: boolean }) {
   if (!data) return null;
   const k = data.kpis;
@@ -1368,55 +1394,38 @@ export default function HomePage() {
     return n;
   });
 
-  // Fonte âncora do retorno do dia: API da IBKR (book internacional, sem erro).
+  // Painel do dia num ÚNICO endpoint consolidado (/api/home): faixa IBKR +
+  // patrimônio do dia + auditoria das parcelas. Antes eram 3 fetches paralelos
+  // (/api/ibkr/overview, /api/patrimonio-dia, /api/patrimonio-dia/detalhe), cada
+  // um subindo um lambda frio e REGERANDO o extrato Flex da IBKR (~até 38s) —
+  // 3-4 gerações concorrentes no cold start. Agora roda tudo UMA vez.
   // Uma tentativa extra após 2,5s: em cold start a geração do Flex pode estourar
   // o tempo da 1ª chamada; a 2ª normalmente acerta o cache (memória ou CDN).
-  useEffect(() => {
-    let cancelled = false;
-    const tryFetch = () => fetch("/api/ibkr/overview").then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    (async () => {
-      let d = await tryFetch();
-      if (!cancelled && !(d && d.kpis)) {
-        await new Promise((r) => setTimeout(r, 2500));
-        if (!cancelled) d = await tryFetch();
-      }
-      if (!cancelled && d && d.kpis) setIbkrOverview(d as IbkrStripData);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Fonte de verdade das PARCELAS do patrimônio (marcador = auditor, sempre):
-  // /api/patrimonio-dia/detalhe lê a planilha fresca (no-store) e decompõe as
-  // parcelas exatas. O cálculo client (snapshot do /api/cotacoes, cache CDN de
-  // 15 min) vira só fallback enquanto isto carrega — era ele que fazia o
-  // marcador divergir do auditor após uma atualização na planilha.
   const [detalhe, setDetalhe] = useState<AuditData | "loading" | "erro">("loading");
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/patrimonio-dia/detalhe")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled) setDetalhe(d && d.partes ? (d as AuditData) : "erro"); })
-      .catch(() => { if (!cancelled) setDetalhe("erro"); });
+    const tryFetch = () => fetch("/api/home").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    (async () => {
+      let d = await tryFetch();
+      if (!cancelled && !(d && d.overview && d.overview.kpis)) {
+        await new Promise((r) => setTimeout(r, 2500));
+        if (!cancelled) { const d2 = await tryFetch(); if (d2) d = d2; }
+      }
+      if (cancelled) return;
+      if (!d) { setDetalhe((s) => (s === "loading" ? "erro" : s)); return; }
+      if (d.overview && d.overview.kpis) setIbkrOverview(d.overview as IbkrStripData);
+      const pd = d.patrimonioDia;
+      if (pd?.ibkr_ok === true && typeof pd?.patrimonio_dia_brl === "number" && pd.patrimonio_dia_brl > 0) {
+        setPatrimonioDia(pd.patrimonio_dia_brl);
+      }
+      setDetalhe(d.detalhe && d.detalhe.partes ? (d.detalhe as AuditData) : "erro");
+    })();
     return () => { cancelled = true; };
   }, []);
   const detalheData = typeof detalhe === "object" ? detalhe : null;
 
-  // Patrimônio do dia (só para o quadro da Home) — endpoint dedicado.
-  // SÓ usa quando o IBKR entrou de verdade na conta (ibkr_ok): sem isso, uma
-  // falha do Flex devolvia um valor PARCIAL (só BR+cripto) que tomava o lugar
-  // do canônico no card.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/patrimonio-dia")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d?.ibkr_ok === true && typeof d?.patrimonio_dia_brl === "number" && d.patrimonio_dia_brl > 0) {
-          setPatrimonioDia(d.patrimonio_dia_brl);
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+  // (patrimonioDia agora vem do /api/home consolidado acima — SÓ é usado quando
+  // ibkr_ok, senão uma falha do Flex devolveria um valor parcial só-BR+cripto.)
 
   const totalBRLCanon = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
@@ -1713,22 +1722,26 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Row 4: Radar + Polymarket (two columns) ── */}
+        {/* ── Row 4: Radar + Polymarket (two columns) — lazy (abaixo da dobra) ── */}
         {!loading && data && tickerItems.length > 0 && (
           <ErrorBoundary>
-            <div className="mt-4 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 animate-fade-in animate-delay-2">
-              <RadarDoDia tickerItems={tickerItems} />
-              <MercadoPreditivo data={data} />
-            </div>
+            <LazyMount minHeight={320}>
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 animate-fade-in">
+                <RadarDoDia tickerItems={tickerItems} />
+                <MercadoPreditivo data={data} />
+              </div>
+            </LazyMount>
           </ErrorBoundary>
         )}
 
-        {/* ── Row 5: Notícias Destaques ── */}
+        {/* ── Row 5: Notícias Destaques — lazy (abaixo da dobra) ── */}
         {!loading && (
           <ErrorBoundary>
-            <div className="mt-4 animate-fade-in animate-delay-3">
-              <NoticiasDestaques />
-            </div>
+            <LazyMount minHeight={320}>
+              <div className="mt-4 animate-fade-in">
+                <NoticiasDestaques />
+              </div>
+            </LazyMount>
           </ErrorBoundary>
         )}
 
