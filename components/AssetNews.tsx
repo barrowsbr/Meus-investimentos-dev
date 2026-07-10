@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Newspaper, Clock } from "lucide-react";
-import { openEmbed } from "@/lib/embed-link";
+import { openArticle } from "@/lib/embed-link";
 
 interface AssetNewsItem {
   titulo: string;
@@ -90,7 +90,7 @@ export default function AssetNews({ ticker, nome, moeda }: { ticker: string; nom
             <button
               key={i}
               type="button"
-              onClick={() => openEmbed(a.link, a.fonte || "Notícia", a.titulo)}
+              onClick={() => openArticle(a.link)}
               className="group flex gap-3 p-3 w-full text-left transition-colors hover:bg-white/[0.03]"
               style={{ borderBottom: i < articles.length - 1 ? "1px solid var(--line)" : undefined }}
             >

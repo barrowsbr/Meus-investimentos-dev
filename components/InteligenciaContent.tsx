@@ -90,7 +90,7 @@ function timeAgo(d: string) {
 function NewsCard({ item }: { item: NewsItem }) {
   const borderColor = item.impacto === "alto" ? "border-l-red-500/60" : item.impacto === "medio" ? "border-l-amber-500/40" : "border-l-cyan-500/40";
   return (
-    <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(item.link, item.fonte || "Notícia"); }}
+    <a href={item.link} target="_blank" rel="noopener noreferrer"
       className={`group flex flex-col gap-2 p-4 rounded-2xl border border-white/[0.07] border-l-2 ${borderColor} bg-zinc-950/60 hover:border-white/[0.12] hover:bg-white/[0.03] transition-all duration-200 no-underline`}>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold text-zinc-500 truncate">{item.fonte}</span>
@@ -122,7 +122,7 @@ function RedditCard({ post }: { post: RedditPost }) {
   const c = subColors[post.subreddit.toLowerCase()] ?? "#71717a";
 
   return (
-    <a href={post.permalink} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(post.permalink, "Reddit"); }}
+    <a href={post.permalink} target="_blank" rel="noopener noreferrer"
       className="group flex flex-col gap-2 p-4 rounded-2xl border border-white/[0.07] bg-zinc-950/60 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all duration-200 no-underline">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${c}20`, color: c }}>r/{post.subreddit}</span>
