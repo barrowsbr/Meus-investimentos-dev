@@ -51,16 +51,8 @@ export interface MarsFoto {
   sol: number;
 }
 
-// ── Rovers clássicos: mars-photos latest_photos ──────────────────────────────
-async function fetchClassico(rover: string) {
-  const res = await fetch(
-    `https://api.nasa.gov/mars-photos/api/v1/rovers/${rover}/latest_photos?api_key=${KEY}`,
-    { headers: { Accept: "application/json" } },
-  );
-  if (!res.ok) throw new Error(`mars-photos HTTP ${res.status}`);
-  const d = await res.json();
-  const raw = (d.latest_photos ?? []) as Record<string, unknown>[];
-  const fotos: MarsFoto[] = raw.map((p) => {
+function mapFotos(raw: Record<string, unknown>[]): MarsFoto[] {
+  return raw.map((p) => {
     const cam = (p.camera as { full_name?: string; name?: string }) ?? {};
     const sigla = String(cam.name ?? "");
     return {
@@ -72,8 +64,47 @@ async function fetchClassico(rover: string) {
       sol: Number(p.sol ?? 0),
     };
   }).filter((f) => f.url);
-  const roverInfo = (raw[0]?.rover as { name?: string; status?: string }) ?? {};
-  return { fotos, roverNome: roverInfo.name ?? rover, roverStatus: roverInfo.status ?? "" };
+}
+
+// ── Rovers clássicos: mars-photos ────────────────────────────────────────────
+// latest_photos é instável na API hospedada da NASA (às vezes 404). Fallback
+// confiável: manifesto → max_sol → photos?sol=max_sol.
+async function fetchClassico(rover: string) {
+  // 1) latest_photos (rápido, quando funciona)
+  try {
+    const res = await fetch(
+      `https://api.nasa.gov/mars-photos/api/v1/rovers/${rover}/latest_photos?api_key=${KEY}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (res.ok) {
+      const d = await res.json();
+      const raw = (d.latest_photos ?? []) as Record<string, unknown>[];
+      const fotos = mapFotos(raw);
+      if (fotos.length > 0) {
+        const info = (raw[0]?.rover as { name?: string; status?: string }) ?? {};
+        return { fotos, roverNome: info.name ?? rover, roverStatus: info.status ?? "" };
+      }
+    }
+  } catch { /* cai no fallback do manifesto */ }
+
+  // 2) Fallback: manifesto → max_sol → photos?sol=
+  const man = await fetch(
+    `https://api.nasa.gov/mars-photos/api/v1/manifests/${rover}?api_key=${KEY}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!man.ok) throw new Error(`mars-photos HTTP ${man.status}`);
+  const mj = await man.json();
+  const pm = (mj.photo_manifest ?? {}) as { name?: string; status?: string; max_sol?: number };
+  const maxSol = pm.max_sol ?? 1000;
+
+  const res2 = await fetch(
+    `https://api.nasa.gov/mars-photos/api/v1/rovers/${rover}/photos?sol=${maxSol}&api_key=${KEY}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!res2.ok) throw new Error(`mars-photos HTTP ${res2.status}`);
+  const d2 = await res2.json();
+  const fotos = mapFotos((d2.photos ?? []) as Record<string, unknown>[]);
+  return { fotos, roverNome: pm.name ?? rover, roverStatus: pm.status ?? "" };
 }
 
 // ── Perseverance: feed oficial mars2020 (keyless) ────────────────────────────
