@@ -361,6 +361,16 @@ export const API_REGISTRY: ApiDef[] = [
       return n != null ? { ok: true, detail: "JSON público ok (sem OAuth)" } : { ok: false, detail: `HTTP ${status}` };
     },
   },
+  {
+    key: "youtube_tv", name: "YouTube (TV ao vivo)", category: "Notícias",
+    host: "youtube.com", purpose: "Transmissões 24/7 de canais de notícia (embed sem chave) — aba TV ao vivo",
+    envVars: [],
+    probe: async () => {
+      // Embed do canal DW News (24/7) — se o YouTube responde, os embeds funcionam.
+      const res = await httpGet("https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg");
+      return res.ok ? { ok: true, detail: "embed acessível" } : { ok: false, detail: `HTTP ${res.status}` };
+    },
+  },
 
   // ── Predições ──────────────────────────────────────────────────────────────
   {
