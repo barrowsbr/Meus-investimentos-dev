@@ -363,12 +363,19 @@ export const API_REGISTRY: ApiDef[] = [
   },
   {
     key: "youtube_tv", name: "YouTube (TV ao vivo)", category: "Notícias",
-    host: "youtube.com", purpose: "Transmissões 24/7 de canais de notícia (embed sem chave) — aba TV ao vivo",
-    envVars: [],
+    host: "youtube.com / googleapis.com", purpose: "Transmissões 24/7 de canais de notícia (aba TV ao vivo). Com YOUTUBE_API_KEY resolve o vídeo ao vivo exato; sem ela, embed keyless",
+    envVars: [{ name: "YOUTUBE_API_KEY", required: false }],
     probe: async () => {
-      // Embed do canal DW News (24/7) — se o YouTube responde, os embeds funcionam.
+      const key = env("YOUTUBE_API_KEY");
+      if (key) {
+        // Data API v3: resolve o live atual do DW News (valida a chave + cota).
+        const { status, json } = await getJson(`https://www.googleapis.com/youtube/v3/search?part=id&channelId=UCknLrEdhRCp1aegoMqRaCZg&eventType=live&type=video&maxResults=1&key=${key}`);
+        if (Array.isArray(json?.items)) return { ok: true, detail: `Data API v3 ok · ${json.items.length ? "ao vivo" : "sem live agora"}` };
+        return { ok: false, detail: json?.error?.message || `HTTP ${status}` };
+      }
+      // Sem chave: valida que o embed keyless responde.
       const res = await httpGet("https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg");
-      return res.ok ? { ok: true, detail: "embed acessível" } : { ok: false, detail: `HTTP ${res.status}` };
+      return res.ok ? { ok: true, detail: "embed keyless acessível (sem YOUTUBE_API_KEY)" } : { ok: false, detail: `HTTP ${res.status}` };
     },
   },
 

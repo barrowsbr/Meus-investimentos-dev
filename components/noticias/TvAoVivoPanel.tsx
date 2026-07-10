@@ -8,7 +8,7 @@
 //
 // Para adicionar/trocar um canal: basta o CHANNEL_ID (UC...) do canal no YouTube.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tv, ExternalLink, Radio } from "lucide-react";
 
 interface Canal {
@@ -39,6 +39,24 @@ const GRUPOS: Canal["grupo"][] = ["Negócios", "Mundo", "Brasil"];
 
 export default function TvAoVivoPanel() {
   const [ativo, setAtivo] = useState<Canal>(CANAIS[0]);
+  // Se houver YOUTUBE_API_KEY no servidor, /api/tv/live resolve o vídeo ao vivo
+  // exato do canal (mais confiável). Sem a chave, videoId=null e usamos o embed
+  // keyless `live_stream?channel=` (que já funciona pra streams 24/7).
+  const [videoId, setVideoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setVideoId(null); // volta ao keyless enquanto resolve o novo canal
+    fetch(`/api/tv/live?channel=${encodeURIComponent(ativo.channelId)}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && d?.videoId) setVideoId(d.videoId); })
+      .catch(() => { /* mantém keyless */ });
+    return () => { alive = false; };
+  }, [ativo.channelId]);
+
+  const src = videoId
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`
+    : `https://www.youtube.com/embed/live_stream?channel=${ativo.channelId}&autoplay=1&mute=1`;
 
   return (
     <div className="space-y-4">
@@ -63,8 +81,8 @@ export default function TvAoVivoPanel() {
         </div>
         <div className="relative w-full" style={{ aspectRatio: "16 / 9" }}>
           <iframe
-            key={ativo.channelId}
-            src={`https://www.youtube.com/embed/live_stream?channel=${ativo.channelId}&autoplay=1&mute=1`}
+            key={src}
+            src={src}
             title={`${ativo.nome} — ao vivo`}
             className="absolute inset-0 h-full w-full"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
