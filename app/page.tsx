@@ -1093,133 +1093,26 @@ interface PatrimonioParte {
   brl: number | null;
 }
 
-// Detalhe de auditoria — /api/patrimonio-dia/detalhe (verdade do servidor,
-// mesma fórmula das parcelas). Aberto ao tocar na faixa de decomposição.
-interface AuditItem {
-  origem?: string;
-  ticker: string;
-  setor?: string;
-  tipo?: string;
-  moeda?: string;
-  quantidade?: number;
-  valorAtualBRL?: number;
-  valorBRL?: number;
-  alerta?: string;
-  motivo?: string;
-}
+// Parcelas do patrimônio (servidor) — alimentam os 4 cartões de decomposição
+// (IBKR / Brasil / Cripto / RF + Caixa). Vêm do /api/home (campo `detalhe`),
+// mesma fórmula canônica das parcelas.
 interface AuditData {
   usdbrl: number;
   partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; total_brl: number };
   ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
-  brasil_itens: AuditItem[];
-  cripto_itens: AuditItem[];
-  rf_caixa_itens: AuditItem[];
-  ibkr_caixa_conciliado?: AuditItem[];
-  fora_da_soma: AuditItem[];
 }
 
-function AuditRow({ item, priv }: { item: AuditItem; priv: boolean }) {
-  const v = item.valorAtualBRL ?? item.valorBRL ?? 0;
-  const nota = item.alerta ?? item.motivo ?? (item.origem === "fixa_aberta" ? item.tipo : item.setor);
-  return (
-    <div className="flex items-baseline justify-between gap-2 px-4 py-1" style={{ borderTop: "1px solid var(--line)" }}>
-      <span className="font-mono truncate" style={{ fontSize: 10.5, color: item.alerta ? "var(--neg)" : "var(--text-2)" }}>
-        {cleanTicker(item.ticker)}
-        {nota && <span style={{ color: item.alerta ? "var(--neg)" : "var(--faint)", fontSize: 9 }}> · {nota}</span>}
-      </span>
-      <span className="font-mono font-bold tnum shrink-0" style={{ fontSize: 10.5, color: item.alerta ? "var(--neg)" : "var(--text)" }}>
-        {maskIf(priv, compactBRL(v))}
-      </span>
-    </div>
-  );
-}
-
-function AuditPanel({ audit, priv }: { audit: AuditData | "loading" | "erro"; priv: boolean }) {
-  if (audit === "loading") {
-    return (
-      <div className="px-4 py-3 text-center font-mono animate-pulse" style={{ fontSize: 10, color: "var(--muted)", borderTop: "1px solid var(--line)" }}>
-        Auditando parcelas no servidor…
-      </div>
-    );
-  }
-  if (audit === "erro") {
-    return (
-      <div className="px-4 py-3 text-center font-mono" style={{ fontSize: 10, color: "var(--neg)", borderTop: "1px solid var(--line)" }}>
-        Falha ao carregar o detalhe — tente de novo.
-      </div>
-    );
-  }
-  const grupos: { titulo: string; color: string; itens: AuditItem[]; soma: number }[] = [
-    { titulo: "Brasil", color: BR_GREEN, itens: audit.brasil_itens, soma: audit.partes.brasil_brl },
-    { titulo: "Cripto", color: BTC_ORANGE, itens: audit.cripto_itens, soma: audit.partes.cripto_brl },
-    { titulo: "RF + Caixa", color: "var(--accent)", itens: audit.rf_caixa_itens, soma: audit.partes.rf_caixa_brl },
-  ];
-  return (
-    <div style={{ borderTop: "1px solid var(--line-strong)", background: "var(--panel)" }}>
-      <div className="flex items-baseline justify-between px-4 pt-2.5 pb-1.5">
-        <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--faint)" }}>
-          Auditoria · item a item (servidor)
-        </span>
-        <span className="font-mono tnum" style={{ fontSize: 9.5, color: "var(--muted)" }}>
-          IBKR {maskIf(priv, compactBRL(audit.partes.ibkr_brl))}
-          {typeof audit.ibkr.caixa_brl === "number" && audit.ibkr.caixa_brl >= 1 && (
-            <span style={{ color: "var(--faint)" }}> · caixa {maskIf(priv, compactBRL(audit.ibkr.caixa_brl))}</span>
-          )}
-          {!audit.ibkr.ok && <span style={{ color: "var(--neg)" }}> · indisponível</span>}
-        </span>
-      </div>
-      {grupos.map((g) => (
-        <div key={g.titulo}>
-          <div className="flex items-baseline justify-between px-4 py-1.5" style={{ borderTop: "1px solid var(--line)", background: "var(--hover)" }}>
-            <span className="flex items-center gap-1.5 font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--muted)" }}>
-              <span className="rounded-full" style={{ width: 5, height: 5, background: g.color }} />
-              {g.titulo} · {g.itens.length} {g.itens.length === 1 ? "item" : "itens"}
-            </span>
-            <span className="font-mono font-bold tnum" style={{ fontSize: 10, color: "var(--text)" }}>
-              {maskIf(priv, compactBRL(g.soma))}
-            </span>
-          </div>
-          {g.itens.map((item, i) => <AuditRow key={`${item.ticker}-${i}`} item={item} priv={priv} />)}
-          {g.itens.length === 0 && (
-            <div className="px-4 py-1 font-mono" style={{ fontSize: 10, color: "var(--faint)", borderTop: "1px solid var(--line)" }}>—</div>
-          )}
-        </div>
-      ))}
-      {(audit.ibkr_caixa_conciliado?.length ?? 0) > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 px-4 py-1.5 font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--pos, #3FB950)", borderTop: "1px solid var(--line)", background: "var(--hover)" }}>
-            <span className="rounded-full" style={{ width: 5, height: 5, background: "var(--pos, #3FB950)" }} />
-            Caixa na IBKR · já contabilizado acima
-          </div>
-          {audit.ibkr_caixa_conciliado!.map((item, i) => <AuditRow key={`conc-${item.ticker}-${i}`} item={item} priv={priv} />)}
-        </div>
-      )}
-      {audit.fora_da_soma.length > 0 && (
-        <div>
-          <div className="px-4 py-1.5 font-mono uppercase tracking-wider" style={{ fontSize: 9, fontWeight: 700, color: "var(--neg)", borderTop: "1px solid var(--line)", background: "var(--hover)" }}>
-            Fora da soma (conferir)
-          </div>
-          {audit.fora_da_soma.map((item, i) => <AuditRow key={`${item.ticker}-${i}`} item={item} priv={priv} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, detalhe, priv }: {
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
   partes: PatrimonioParte[] | null;
-  detalhe: AuditData | "loading" | "erro";
   priv: boolean;
 }) {
-  const [auditOpen, setAuditOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
-  const toggleAudit = () => setAuditOpen((v) => !v);
   return (
     <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
       <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -1264,44 +1157,35 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, detalhe, p
         )}
       </div>
 
-      {/* Decomposição por modalidade — parcelas exatas do total. Toque para
-          abrir a auditoria item a item (verdade do servidor). */}
+      {/* Decomposição por modalidade — parcelas exatas do total (IBKR / Brasil /
+          Cripto / RF + Caixa), com o % de cada uma sobre o patrimônio. */}
       {partes && partes.length > 0 && (
-        <>
-          <div
-            className="grid grid-cols-2 sm:grid-cols-4"
-            style={{ gap: 1, background: "var(--line)", borderTop: "1px solid var(--line)" }}
-          >
-            {partes.map((p) => {
-              const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
-              return (
-                <button
-                  key={p.label}
-                  onClick={toggleAudit}
-                  className="px-4 py-2 text-left transition-colors hover:bg-white/[0.03]"
-                  style={{ background: "var(--panel)" }}
-                  aria-label={`Auditar ${p.label}`}
-                >
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: p.color, boxShadow: `0 0 6px ${p.color}66` }} />
-                    <span className="font-mono uppercase tracking-wider truncate" style={{ color: "var(--faint)", fontSize: 8.5, fontWeight: 700 }}>
-                      {p.label}
-                    </span>
-                  </div>
-                  <div className="font-mono tnum" style={{ fontSize: 12, lineHeight: 1.2 }}>
-                    <span className="font-bold" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)" }}>
-                      {p.brl != null ? maskIf(priv, compactBRL(p.brl)) : "—"}
-                    </span>
-                    {share != null && (
-                      <span style={{ color: "var(--muted)", fontSize: 9.5 }}> · {share.toFixed(1)}%</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {auditOpen && <AuditPanel audit={detalhe} priv={priv} />}
-        </>
+        <div
+          className="grid grid-cols-2 sm:grid-cols-4"
+          style={{ gap: 1, background: "var(--line)", borderTop: "1px solid var(--line)" }}
+        >
+          {partes.map((p) => {
+            const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
+            return (
+              <div key={p.label} className="px-4 py-2" style={{ background: "var(--panel)" }}>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: p.color, boxShadow: `0 0 6px ${p.color}66` }} />
+                  <span className="font-mono uppercase tracking-wider truncate" style={{ color: "var(--faint)", fontSize: 8.5, fontWeight: 700 }}>
+                    {p.label}
+                  </span>
+                </div>
+                <div className="font-mono tnum" style={{ fontSize: 12, lineHeight: 1.2 }}>
+                  <span className="font-bold" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)" }}>
+                    {p.brl != null ? maskIf(priv, compactBRL(p.brl)) : "—"}
+                  </span>
+                  {share != null && (
+                    <span style={{ color: "var(--muted)", fontSize: 9.5 }}> · {share.toFixed(1)}%</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -1715,7 +1599,6 @@ export default function HomePage() {
                 patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
                 usdbrl={usdbrl}
                 partes={patrimonioPartes}
-                detalhe={detalhe}
                 priv={priv}
               />
             </div>
