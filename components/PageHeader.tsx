@@ -16,17 +16,20 @@ interface Props {
   onTab?: (id: string) => void;
   /** Slot à direita do título (ações, badges). */
   right?: ReactNode;
+  /** Slot à esquerda do título (ícone/logo) — não indenta as abas. */
+  leading?: ReactNode;
 }
 
 /**
  * PageHead do terminal: título 21px/700 + subtítulo --muted + abas opcionais.
  * (Antigo gradiente de texto removido — ver handoff Barroots Terminal §5.)
  */
-export default function PageHeader({ title, description, tabs, activeTab, onTab, right }: Props) {
+export default function PageHeader({ title, description, tabs, activeTab, onTab, right, leading }: Props) {
   return (
     <div className="mb-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-3 min-w-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {leading}
           <h1 style={{ margin: 0, fontSize: 21, fontWeight: 700, letterSpacing: "-.01em", color: "var(--text)" }}>
             {title}
           </h1>

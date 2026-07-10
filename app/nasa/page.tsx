@@ -50,15 +50,14 @@ function hoje(): string {
 export default function NasaPage() {
   const [tab, setTab] = useState<Tab>("apod");
   return (
-    <div className="flex items-start gap-3">
-      <NasaLogo size={46} className="mt-0.5 shrink-0 drop-shadow-[0_2px_10px_rgba(11,61,145,0.5)]" />
-      <div className="min-w-0 flex-1">
+    <>
       <PageHeader
         title="NASA"
-        description="Observatório — dados abertos da NASA em tempo quase real"
+        description="Observatório — dados abertos da NASA"
         tabs={TABS}
         activeTab={tab}
         onTab={(id) => setTab(id as Tab)}
+        leading={<NasaLogo size={30} className="shrink-0 drop-shadow-[0_2px_10px_rgba(11,61,145,0.5)]" />}
         right={
           <div className="flex items-center gap-2">
             <button
@@ -83,8 +82,7 @@ export default function NasaPage() {
       {tab === "marte" && <MarteView />}
       {tab === "clima" && <ClimaView />}
       {tab === "biblioteca" && <BibliotecaView />}
-      </div>
-    </div>
+    </>
   );
 }
 
