@@ -350,6 +350,22 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - Atualização automática via Vercel Cron (`/api/cron/cotacoes`, dias úteis 23h UTC). Botão manual em Configurações.
 - Auditoria: `GET /api/debug/auditoria?lookback=DIAS` mede bloqueios anti-outlier e decompõe preço × dividendos.
 
+## Histórico patrimonial (série `historico_patrimonio`)
+
+- Alimenta a página **Patrimônio** — série longa (1 linha/snapshot): colunas
+  `timestamp, data, hora, patrimonio_total, rv, rf, variacao_dia_pct, n_ativos`.
+- O writer antigo (script Python externo) parou em jun/2026. O writer canônico
+  agora é **`lib/historico-store.ts`** (`recordHistorico`, via `calcularSnapshot`),
+  exposto em `/api/cron/historico` (Bearer `CRON_SECRET`).
+- **Roda por GitHub Action** (`.github/workflows/historico.yml`), **3×/dia** (10/14/18h
+  BRT, dias úteis) — **NÃO** é cron da Vercel (Hobby só permite 1×/dia; sub-diário
+  quebra o build de produção). Requer o secret `CRON_SECRET` no GitHub (mesmo valor
+  da Vercel) e, opcional, a var `APP_URL`.
+- **Liga/desliga em Configurações** (aba `historico_config`, chave/valor; default
+  ligado). Botão "Registrar agora" (`POST /api/config/historico {registrar:true}`).
+- Append preserva tipos via `appendRowsTyped` (RAW) — números entram como número.
+  Dedup por `data`+`hora` evita duplicar no mesmo horário.
+
 ## APIs & Integrações externas (regra dura)
 
 > **Fonte única: `lib/api-registry.ts`.** É o catálogo canônico de TODA API/serviço

@@ -46,6 +46,24 @@ export async function appendRows(tabName: string, rows: string[][]): Promise<voi
   });
 }
 
+// Append preservando TIPOS (valueInputOption RAW): números entram como número
+// (sem parse de locale/vírgula), strings como texto. Usado pelo histórico
+// patrimonial, onde `patrimonio_total`/`timestamp` precisam ser numéricos.
+export async function appendRowsTyped(tabName: string, rows: (string | number)[][]): Promise<void> {
+  assertNotDemo();
+  const auth = getServiceAccountAuth();
+  if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
+  const sheets = google.sheets({ version: "v4", auth });
+  const resolved = await resolveTabName(tabName);
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID(),
+    range: resolved,
+    valueInputOption: "RAW",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: rows },
+  });
+}
+
 // Write/overwrite a full sheet tab (requires service account write access)
 // Faz backup automático antes de sobrescrever.
 export async function writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void> {
