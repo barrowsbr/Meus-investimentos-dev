@@ -349,3 +349,46 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - **Preço bruto + proventos somados separadamente** (motor TWR) = retorno correto. Usar `adjClose` causaria double-count de dividendos (foi o que inflava a rentabilidade antes).
 - Atualização automática via Vercel Cron (`/api/cron/cotacoes`, dias úteis 23h UTC). Botão manual em Configurações.
 - Auditoria: `GET /api/debug/auditoria?lookback=DIAS` mede bloqueios anti-outlier e decompõe preço × dividendos.
+
+## APIs & Integrações externas (regra dura)
+
+> **Fonte única: `lib/api-registry.ts`.** É o catálogo canônico de TODA API/serviço
+> externo do projeto. **Toda API nova entra lá** (com um `probe()` de health-check
+> leve). Com isso ela: (1) aparece automaticamente no diagnóstico em **Configurações
+> → APIs & Integrações**, e (2) deve ser adicionada à lista abaixo. Nunca adicione um
+> serviço externo sem registrá-lo.
+
+- **Health-check**: `GET /api/diag/apis` lista os metadados + estado da chave (nunca o
+  valor). `GET /api/diag/apis?api=<key>` roda a probe leve daquela API e devolve
+  `{ok, ms, detail}`. O card de Configurações usa os dois (botão por API + "Testar
+  todas"). As probes rodam **no servidor** (Vercel) — a network policy do dev bloqueia
+  vários hosts, então o resultado real aparece em produção.
+- `/api/health` (via catch-all) é o health legado só do Google Sheets — não confundir
+  com `/api/diag/apis` (o painel completo).
+
+APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
+
+- **Mercado & Cotações**: Yahoo Finance (livre) · brapi.dev (`BRAPI_TOKEN` opc.) ·
+  CoinGecko (livre) · mempool.space (livre) · Financial Modeling Prep (`FMP_API_KEY` opc.) ·
+  Alpha Vantage (`ALPHAVANTAGE_API_KEY` opc.)
+- **Câmbio & Juros**: BCB PTAX/Olinda (livre) · BCB SGS (livre) · AwesomeAPI (livre) ·
+  Open Exchange Rates (livre) · NY Fed Markets (livre) · ECB Data/BCE (livre)
+- **Corretora**: IBKR Flex (`IBKR_FLEX_TOKEN` + `IBKR_FLEX_QUERY_ID` OBRIG.)
+- **Dados & Planilha**: Google Sheets leitura (`GOOGLE_API_KEY` + `SPREADSHEET_ID` OBRIG.) ·
+  Google Sheets escrita (`GOOGLE_SERVICE_ACCOUNT_JSON` OBRIG. p/ escrita)
+- **IA & LLM** (cascata em `lib/llm.ts`): Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`) ·
+  OpenAI (`OPENAI_API_KEY` opc.) · DeepSeek (`DEEPSEEK_API_KEY` opc.) · Groq (`GROQ_API_KEY` opc.) ·
+  xAI/Grok (`XAI_API_KEY`/`GROK_API_KEY` opc.)
+- **Notícias**: Google News RSS (livre) · Marketaux (`MARKETAUX_API_KEY` opc.) ·
+  Reddit (`REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` opc. → OAuth; sem elas, JSON público)
+- **Predições**: Polymarket (livre) · Kalshi (livre) · Metaculus (livre)
+- **Observatório & Geo**: NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
+  NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
+  GDELT Events 2.0 CSV (livre) · World Bank (livre)
+- **Alertas & Logos**: Telegram Bot (`TELEGRAM_BOT_TOKEN` — ou salvo em Configurações) ·
+  Logo.dev (`LOGO_DEV_TOKEN` opc.) · Clearbit Logo (livre)
+
+Fontes auxiliares NÃO no painel (assets/scraping, sem semântica de health-check):
+CSVs de emissores de ETF (SSGA/iShares/Invesco em `lib/etf-holdings.ts`), topojson do
+mundo (jsDelivr, `lib/world-map.ts`), Trading Economics (guest/scraping em
+`app/api/bolsas/country`). **Mortas — não reintroduzir**: GDELT GEO 2.0 (404) e ACLED.
