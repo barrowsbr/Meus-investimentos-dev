@@ -629,29 +629,38 @@ const LUGARES: { nome: string; lat: number; lon: number }[] = [
   { nome: "Deserto do Saara", lat: 23.42, lon: 25.66 },
 ];
 
+const ZOOMS: { label: string; span: number }[] = [
+  { label: "Cidade", span: 3 },
+  { label: "Região", span: 8 },
+  { label: "País", span: 20 },
+  { label: "Continente", span: 50 },
+];
+
 function LocalizarView() {
   const [lat, setLat] = useState("-23.55");
   const [lon, setLon] = useState("-46.63");
+  const [span, setSpan] = useState(8);
   const [src, setSrc] = useState<string | null>(null);
   const [imgState, setImgState] = useState<"idle" | "loading" | "ok" | "err">("idle");
 
-  const buscar = (la: string, lo: string) => {
+  const buscar = (la: string, lo: string, sp: number) => {
     const laN = Number(la), loN = Number(lo);
     if (!isFinite(laN) || !isFinite(loN)) return;
     setImgState("loading");
-    setSrc(`${API_URL}/api/nasa/earth?lat=${laN}&lon=${loN}&dim=0.12`);
+    // cache-buster leve por span para forçar recarregar ao trocar o zoom
+    setSrc(`${API_URL}/api/nasa/earth?lat=${laN}&lon=${loN}&span=${sp}`);
   };
 
   return (
     <div className="space-y-4 max-w-4xl">
       <p className="text-xs text-zinc-500">
-        Imagem de satélite (Landsat 8) de qualquer ponto da Terra. Informe latitude e longitude
-        ou escolha um lugar. A cobertura varia — nem todo ponto/data tem imagem.
+        Imagem de satélite real (NASA Worldview · MODIS Terra) de qualquer ponto da Terra —
+        cor natural, atualizada diariamente. Escolha um lugar ou informe as coordenadas.
       </p>
 
       <div className="flex flex-wrap gap-1.5">
         {LUGARES.map((l) => (
-          <button key={l.nome} onClick={() => { setLat(String(l.lat)); setLon(String(l.lon)); buscar(String(l.lat), String(l.lon)); }}
+          <button key={l.nome} onClick={() => { setLat(String(l.lat)); setLon(String(l.lon)); buscar(String(l.lat), String(l.lon), span); }}
             className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.08] transition-all inline-flex items-center gap-1">
             <MapPin size={11} /> {l.nome}
           </button>
@@ -669,26 +678,39 @@ function LocalizarView() {
           <input value={lon} onChange={(e) => setLon(e.target.value)} inputMode="decimal"
             className="block glass-card px-3 py-2 text-sm bg-transparent text-zinc-200 w-32 mt-1" />
         </label>
-        <button onClick={() => buscar(lat, lon)}
+        <button onClick={() => buscar(lat, lon, span)}
           className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-all inline-flex items-center gap-1.5">
           <Search size={14} /> Buscar
         </button>
       </div>
 
+      {/* Zoom */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-zinc-600 mr-1">Zoom:</span>
+        {ZOOMS.map((z) => (
+          <button key={z.label} onClick={() => { setSpan(z.span); if (src) buscar(lat, lon, z.span); }}
+            className={`px-2.5 py-1 rounded-full text-[11px] transition-all ${
+              span === z.span ? "bg-indigo-500/20 text-indigo-300" : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
+            }`}>
+            {z.label}
+          </button>
+        ))}
+      </div>
+
       {src && (
-        <div className="glass-card overflow-hidden bg-black max-w-md">
-          <div className="relative flex items-center justify-center" style={{ minHeight: 200 }}>
+        <div className="glass-card overflow-hidden bg-black max-w-lg">
+          <div className="relative flex items-center justify-center" style={{ minHeight: 240 }}>
             {imgState === "loading" && <Loader2 className="animate-spin text-zinc-600 absolute" size={28} />}
             {imgState === "err" ? (
-              <p className="text-sm text-zinc-500 p-8 text-center">Sem imagem Landsat disponível para este ponto. Tente outro local.</p>
+              <p className="text-sm text-zinc-500 p-8 text-center">Sem imagem de satélite para este ponto agora. Tente outro zoom ou local.</p>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={src} alt="Landsat" className="w-full h-auto"
+              <img src={src} alt="Satélite" className="w-full h-auto"
                 onLoad={() => setImgState("ok")} onError={() => setImgState("err")} />
             )}
           </div>
           {imgState === "ok" && (
-            <p className="text-[11px] text-zinc-500 p-2.5">Landsat 8 · {lat}, {lon}</p>
+            <p className="text-[11px] text-zinc-500 p-2.5">NASA Worldview · MODIS Terra · {lat}, {lon}</p>
           )}
         </div>
       )}
@@ -756,20 +778,32 @@ function ClimaView() {
 
 interface MidiaItem { id: string; titulo: string; descricao: string; data: string; centro: string; thumb: string; }
 interface BibliotecaResp { q: string; total: number; itens: MidiaItem[]; }
-const SUGESTOES = ["Nebulosa", "Saturno", "Apollo 11", "Buraco negro", "Aurora", "Marte", "Galáxia"];
+
+// Sugestões em INGLÊS (o acervo da NASA é catalogado em inglês → melhores
+// resultados), organizadas por tema.
+const SUGESTOES: { grupo: string; emoji: string; termos: string[] }[] = [
+  { grupo: "Planets & Moons", emoji: "🪐", termos: ["Saturn", "Jupiter", "Mars", "Neptune", "Venus", "Europa", "Titan", "Pluto"] },
+  { grupo: "Deep Space", emoji: "🌌", termos: ["Nebula", "Galaxy", "Black hole", "Supernova", "Pillars of Creation", "Star cluster", "Andromeda"] },
+  { grupo: "Missions & Telescopes", emoji: "🛰️", termos: ["Apollo 11", "Hubble", "James Webb", "Voyager", "Cassini", "Artemis", "Perseverance"] },
+  { grupo: "Earth", emoji: "🌍", termos: ["Aurora", "Hurricane", "Earth at night", "Blue Marble", "Wildfire", "Glacier"] },
+  { grupo: "The Sun", emoji: "☀️", termos: ["Solar flare", "Sunspot", "Solar eclipse", "Corona", "Solar prominence"] },
+  { grupo: "Humans in Space", emoji: "👨‍🚀", termos: ["Astronaut", "Spacewalk", "ISS", "Spacesuit", "Neil Armstrong"] },
+];
 
 function BibliotecaView() {
-  const [q, setQ] = useState("Nebulosa");
-  const [busca, setBusca] = useState("Nebulosa");
+  const [q, setQ] = useState("Nebula");
+  const [busca, setBusca] = useState("Nebula");
   const { data, loading, error } = useNasa<BibliotecaResp>(`/api/nasa/biblioteca?q=${encodeURIComponent(busca)}`);
   const [lightbox, setLightbox] = useState<MidiaItem | null>(null);
+
+  const pick = (t: string) => { setQ(t); setBusca(t); };
 
   return (
     <div className="space-y-4">
       <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) setBusca(q.trim()); }} className="flex gap-2">
         <div className="relative flex-1 max-w-md">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar no acervo da NASA…"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search NASA's archive… (English)"
             className="w-full glass-card pl-9 pr-3 py-2 text-sm bg-transparent text-zinc-200" />
         </div>
         <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-all">
@@ -777,12 +811,27 @@ function BibliotecaView() {
         </button>
       </form>
 
-      <div className="flex flex-wrap gap-1.5">
-        {SUGESTOES.map((s) => (
-          <button key={s} onClick={() => { setQ(s); setBusca(s); }}
-            className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.08] transition-all">
-            {s}
-          </button>
+      {/* Sugestões organizadas por tema (inglês) */}
+      <div className="glass-card p-3.5 space-y-3">
+        {SUGESTOES.map((cat) => (
+          <div key={cat.grupo}>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+              <span className="mr-1">{cat.emoji}</span>{cat.grupo}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {cat.termos.map((t) => {
+                const active = busca.toLowerCase() === t.toLowerCase();
+                return (
+                  <button key={t} onClick={() => pick(t)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] transition-all ${
+                      active ? "bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-400/40" : "bg-white/[0.04] text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.08]"
+                    }`}>
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </div>
 
