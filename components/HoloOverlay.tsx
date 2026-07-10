@@ -6,6 +6,7 @@ import { X, Globe, Telescope } from "lucide-react";
 import { useGlobeOverlay } from "./GlobeOverlayContext";
 import { getHoloStyle, HOLO_STYLE_EVENT, type HoloStyle } from "@/lib/holo-style";
 import WorldMonitorModal from "./WorldMonitorModal";
+import ErrorBoundary from "./ErrorBoundary";
 import { openEmbed } from "@/lib/embed-link";
 
 // Globo three.js já existente — só no cliente.
@@ -135,7 +136,9 @@ export default function HoloOverlay() {
               : { pointerEvents: open ? "auto" : "none", position: "absolute", inset: 0 }
           }
         >
-          <HoloGlobe mode={open ? "globe" : "off"} variant={holoStyle} />
+          <ErrorBoundary label="HoloGlobe">
+            <HoloGlobe mode={open ? "globe" : "off"} variant={holoStyle} />
+          </ErrorBoundary>
         </div>
 
         <span className="holo-sweep" aria-hidden />
