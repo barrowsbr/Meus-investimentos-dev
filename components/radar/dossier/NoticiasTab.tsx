@@ -3,7 +3,7 @@
 import { Newspaper, ExternalLink, Loader2, Radio, LinkIcon, AlertCircle, Languages } from "lucide-react";
 import type { CountryNewsResponse, SignalsResponse } from "@/lib/radar/types";
 import { findPortfolioImpact } from "@/lib/polymarket";
-import { openEmbed } from "@/lib/embed-link";
+import { openEmbed, openArticle } from "@/lib/embed-link";
 
 const IMPACT_BADGE = {
   alto: { color: "#f87171", bg: "rgba(248,113,113,0.12)", label: "Alto" },
@@ -120,7 +120,7 @@ export default function NoticiasTab({ news, newsLoading, signals, signalsLoading
                 <button
                   key={i}
                   type="button"
-                  onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+                  onClick={() => openArticle(article.link)}
                   className="group block w-full text-left px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
                 >
                   <div className="flex items-start justify-between gap-2">

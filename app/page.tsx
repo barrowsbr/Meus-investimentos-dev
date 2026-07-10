@@ -8,7 +8,7 @@ import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
-import { openEmbed } from "@/lib/embed-link";
+import { openEmbed, openArticle } from "@/lib/embed-link";
 import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -654,7 +654,7 @@ function NoticiasDestaques() {
       {/* Featured article */}
       <button
         type="button"
-        onClick={() => openEmbed(featured.link, featured.fonte || "Notícia", featured.titulo)}
+        onClick={() => openArticle(featured.link)}
         className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
         style={{ borderBottom: "1px solid var(--line)" }}
       >
@@ -705,7 +705,7 @@ function NoticiasDestaques() {
               <button
                 key={i}
                 type="button"
-                onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+                onClick={() => openArticle(article.link)}
                 className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
                 style={{ borderRight: i === 0 && subs.length > 1 ? "1px solid var(--line)" : undefined }}
               >
@@ -745,7 +745,7 @@ function NoticiasDestaques() {
             <button
               key={i}
               type="button"
-              onClick={() => openEmbed(article.link, article.fonte || "Notícia", article.titulo)}
+              onClick={() => openArticle(article.link)}
               className="group flex gap-3 p-3 text-left w-full transition-colors hover:bg-white/[0.02]"
               style={{
                 borderBottom: isLast ? undefined : "1px solid var(--line)",

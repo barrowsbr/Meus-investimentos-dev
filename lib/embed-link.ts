@@ -15,3 +15,11 @@ export function openEmbed(url: string, title: string, sub?: string): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<EmbedTarget>(EMBED_EVENT, { detail: { url, title, sub } }));
 }
+
+// Reportagens (Yahoo, jornais etc.) quase sempre bloqueiam iframe
+// (X-Frame-Options / CSP) → o EmbedModal fica em branco. Notícias devem abrir
+// SEMPRE em aba nova (link normal), nunca embutidas. Use isto para reportagem.
+export function openArticle(url: string): void {
+  if (typeof window === "undefined" || !url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}

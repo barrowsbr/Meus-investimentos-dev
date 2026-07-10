@@ -18,7 +18,6 @@ import { RefreshCw, Sparkles, TrendingUp, TrendingDown, Newspaper } from "lucide
 import { usePortfolio } from "@/lib/hooks";
 import { compactBRL } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
-import { openEmbed } from "@/lib/embed-link";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -256,7 +255,7 @@ function MoverNewsCard({
           </div>
           <div className="mt-3 space-y-2.5">
             {articles.slice(0, 2).map((a, i) => (
-              <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(a.link, a.fonte || "Notícia", a.titulo); }} className="flex gap-3 group">
+              <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="flex gap-3 group">
                 <NewsThumb imagem={a.imagem} />
                 <div className="min-w-0">
                   <p className="line-clamp-2 group-hover:underline" style={{ fontSize: 12.5, lineHeight: 1.35, color: "var(--text)", fontWeight: 600 }}>

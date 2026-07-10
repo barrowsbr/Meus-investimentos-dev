@@ -9,7 +9,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Newspaper, Info, ExternalLink, BarChart3, Link2 } from "lucide-react";
 import CandleChart from "@/components/CandleChart";
-import { openEmbed } from "@/lib/embed-link";
 import type { SymbolTarget, CountryNewsItem } from "@/lib/radar/types";
 
 interface OhlcInfo {
@@ -205,7 +204,7 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
               ) : (
                 <div className="space-y-1.5">
                   {news.map((n, i) => (
-                    <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); openEmbed(n.link, "Notícia"); }} className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-white/[0.03]" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-white/[0.03]" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: n.impacto === "alto" ? "#f87171" : n.impacto === "medio" ? "#facc15" : "#52525b" }} />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs leading-snug text-zinc-200">{n.titulo}</p>

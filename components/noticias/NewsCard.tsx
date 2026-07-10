@@ -9,7 +9,6 @@
 import { useState } from "react";
 import { Newspaper, Clock, ExternalLink, AlertTriangle, Languages, MapPin } from "lucide-react";
 import { type NewsArticle, timeAgo, proxyImg, catGradient, IMPACT_STYLE } from "@/lib/news/ui";
-import { openEmbed } from "@/lib/embed-link";
 
 function NewsThumb({ a, className, rounded = "rounded-lg" }: { a: NewsArticle; className?: string; rounded?: string }) {
   const [err, setErr] = useState(false);
@@ -51,7 +50,6 @@ export default function NewsCard({ a, variant = "grid" }: { a: NewsArticle; vari
   const Wrapper = ({ children, className }: { children: React.ReactNode; className?: string }) =>
     clickable
       ? <a href={a.link} target="_blank" rel="noopener noreferrer"
-          onClick={(e) => { e.preventDefault(); openEmbed(a.link, a.fonte || "Notícia", a.titulo); }}
           className={`${className} no-underline`}>{children}</a>
       : <div className={className}>{children}</div>;
 
