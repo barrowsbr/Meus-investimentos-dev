@@ -9,16 +9,23 @@ export const maxDuration = 25;
 
 const KEY = process.env.NASA_API_KEY || "DEMO_KEY";
 
+async function fetchApod(date: string): Promise<Response> {
+  const qs = new URLSearchParams({ api_key: KEY, thumbs: "true" });
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) qs.set("date", date);
+  return fetch(`https://api.nasa.gov/planetary/apod?${qs}`, { headers: { Accept: "application/json" } });
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date") ?? "";
-  const qs = new URLSearchParams({ api_key: KEY, thumbs: "true" });
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) qs.set("date", date);
 
   try {
-    const res = await fetch(`https://api.nasa.gov/planetary/apod?${qs}`, {
-      headers: { Accept: "application/json" },
-    });
+    let res = await fetchApod(date);
+    // 404 = data ainda não publicada (a APOD de "hoje" sai à meia-noite ET) ou
+    // data futura. Refaz sem data → a NASA devolve a imagem mais recente.
+    if (res.status === 404 && date) {
+      res = await fetchApod("");
+    }
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       return NextResponse.json({ error: `NASA APOD HTTP ${res.status}`, detalhe: txt.slice(0, 200) }, { status: res.status === 429 ? 429 : 502 });
