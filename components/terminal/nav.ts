@@ -2,8 +2,8 @@ import {
   Home, LayoutDashboard, TrendingUp, BarChart2, Landmark, Coins,
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Sunrise, Layers,
-  Radar, ArrowUpDown, ArrowDownUp, Gauge, FlaskConical, Building2, StickyNote,
-  Rocket,
+  Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
+  Rocket, Newspaper,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -62,7 +62,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
       { href: "/ibkr", label: "IBKR", icon: Building2, sub: "Visão gerencial da conta Interactive Brokers (via Flex)" },
-      { href: "/polymarket", label: "Preditivos", icon: Gauge, sub: "Mercados preditivos relacionados à carteira" },
+      { href: "/noticias", label: "Notícias & Previsões", icon: Newspaper, sub: "Jornal do mercado + mercados preditivos" },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/nasa", label: "NASA", icon: Rocket, sub: "Observatório — APOD, asteroides, Terra (EPIC) e Marte" },
