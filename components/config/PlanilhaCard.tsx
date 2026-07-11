@@ -26,7 +26,7 @@ function fmtDia(iso: string | null): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-function SaudeBackup({ tab, onAfterRollback }: { tab: string; onAfterRollback: () => void }) {
+function SaudeBackup({ tab, soLeitura, onAfterRollback }: { tab: string; soLeitura: boolean; onAfterRollback: () => void }) {
   const [bkp, setBkp] = useState<BkpStatus | null>(null);
   const [rel, setRel] = useState<Relatorio | null>(null);
   const [testando, setTestando] = useState(false);
@@ -113,8 +113,8 @@ function SaudeBackup({ tab, onAfterRollback }: { tab: string; onAfterRollback: (
           ) : (
             <button
               onClick={() => { setConfirmRb(true); window.setTimeout(() => setConfirmRb(false), 4000); }}
-              disabled={!tab}
-              title={dataTabAtual ? `Restaura "${tab}" para a fotografia de ${fmtDia(dataTabAtual)}` : "Sem fotografia diária ainda"}
+              disabled={!tab || soLeitura}
+              title={soLeitura ? "Aba de backup/consulta — selecione uma aba de dados para restaurar" : dataTabAtual ? `Restaura "${tab}" para a fotografia de ${fmtDia(dataTabAtual)}` : "Sem fotografia diária ainda"}
               className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-amber-500/60 hover:text-amber-300 transition-colors"
             >
               <History size={11} /> Rollback da aba
@@ -187,8 +187,10 @@ function cmpVal(a: string, b: string): number {
   return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 }
 
+interface TabInfo { name: string; ro: boolean }
+
 export default function PlanilhaCard() {
-  const [tabs, setTabs] = useState<string[]>([]);
+  const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [tab, setTab] = useState<string>("");
   const [grid, setGrid] = useState<Grid | null>(null);
   const [loading, setLoading] = useState(false);
@@ -209,9 +211,13 @@ export default function PlanilhaCard() {
     fetch("/api/config/planilha")
       .then((r) => r.json())
       .then((d) => {
-        const list: string[] = Array.isArray(d?.tabs) ? d.tabs : [];
+        const raw = Array.isArray(d?.tabs) ? d.tabs : [];
+        // Compat: aceita tanto [{name,ro}] quanto ["nome"] (resposta antiga em cache).
+        const list: TabInfo[] = raw.map((t: unknown) =>
+          typeof t === "string" ? { name: t, ro: false } : (t as TabInfo),
+        ).filter((t: TabInfo) => t?.name);
         setTabs(list);
-        if (list.length > 0) setTab(list.includes("meus_ativos") ? "meus_ativos" : list[0]);
+        if (list.length > 0) setTab(list.some((t) => t.name === "meus_ativos") ? "meus_ativos" : list[0].name);
         if (d?.error) setMsg({ ok: false, text: d.error });
       })
       .catch(() => setMsg({ ok: false, text: "Falha ao listar as abas" }));
@@ -233,6 +239,8 @@ export default function PlanilhaCard() {
   }, []);
 
   useEffect(() => { carregar(tab); }, [tab, carregar]);
+
+  const soLeitura = useMemo(() => tabs.find((t) => t.name === tab)?.ro ?? false, [tabs, tab]);
 
   // Linhas com o índice ORIGINAL preservado (o backend endereça por ele).
   const visiveis = useMemo(() => {
@@ -297,7 +305,7 @@ export default function PlanilhaCard() {
         (<span className="font-mono">bkp_&lt;aba&gt;</span>), e a gravação confere se a linha não mudou por baixo.
       </p>
 
-      <SaudeBackup tab={tab} onAfterRollback={() => carregar(tab)} />
+      <SaudeBackup tab={tab} soLeitura={soLeitura} onAfterRollback={() => carregar(tab)} />
 
       {/* Barra: aba + busca + ações */}
       <div className="flex flex-wrap items-center gap-2">
@@ -307,10 +315,23 @@ export default function PlanilhaCard() {
             onChange={(e) => setTab(e.target.value)}
             className="appearance-none bg-zinc-900 border border-zinc-700 rounded-lg pl-3 pr-8 py-1.5 text-xs font-mono text-zinc-200 focus:border-emerald-500 focus:outline-none"
           >
-            {tabs.map((t) => <option key={t} value={t}>{t}</option>)}
+            <optgroup label="Dados (editável)">
+              {tabs.filter((t) => !t.ro).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+            </optgroup>
+            {tabs.some((t) => t.ro) && (
+              <optgroup label="Backups & consulta (somente leitura)">
+                {tabs.filter((t) => t.ro).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </optgroup>
+            )}
           </select>
           <ChevronDown size={12} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
         </div>
+
+        {soLeitura && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-700/50 bg-amber-900/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+            somente leitura
+          </span>
+        )}
 
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -330,13 +351,15 @@ export default function PlanilhaCard() {
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Recarregar
         </button>
 
-        <button
-          onClick={() => { setAdding(true); setDraftNew(Array(grid?.headers.length ?? 0).fill("")); setEditIdx(null); }}
-          disabled={!grid || saving}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/60 bg-emerald-900/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/40 transition-colors"
-        >
-          <Plus size={12} /> Nova linha
-        </button>
+        {!soLeitura && (
+          <button
+            onClick={() => { setAdding(true); setDraftNew(Array(grid?.headers.length ?? 0).fill("")); setEditIdx(null); }}
+            disabled={!grid || saving}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/60 bg-emerald-900/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/40 transition-colors"
+          >
+            <Plus size={12} /> Nova linha
+          </button>
+        )}
       </div>
 
       {grid && (
@@ -421,7 +444,7 @@ export default function PlanilhaCard() {
                         <button onClick={() => apagar(idx)} disabled={saving} className="text-[10px] font-bold text-red-400 hover:text-red-300">
                           {saving ? <Loader2 size={13} className="animate-spin inline" /> : "Confirmar?"}
                         </button>
-                      ) : (
+                      ) : soLeitura ? null : (
                         <span className="opacity-30 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => { setEditIdx(idx); setDraft(Array.from({ length: grid.headers.length }, (_, i) => cells[i] ?? "")); setAdding(false); }}
