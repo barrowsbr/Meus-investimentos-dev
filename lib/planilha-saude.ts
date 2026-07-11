@@ -246,7 +246,10 @@ const CHECKERS: Record<string, Checker> = {
       if (pareceMoeda && moedaNumerica) {
         swap++; if (!exSwap) exSwap = `linha ${i + 2}`;
       } else {
-        bad++; if (bad <= 3) addCapped(erros, `Taxa não numérica na linha ${i + 2}: "${r[iTaxa]}"`);
+        bad++;
+        // Mostra a linha inteira: é o que revela ONDE a taxa foi parar
+        // (coluna deslocada/sem nome) em vez de só "não numérica".
+        if (bad <= 3) addCapped(erros, `Taxa não numérica na linha ${i + 2}: "${r[iTaxa]}" · linha completa: [${r.slice(0, 6).map((c) => c || "·").join(" | ")}]`);
       }
     });
     if (swap > 0) avisos.push(`${swap} linha(s) com colunas moeda/taxa INVERTIDAS (ex.: ${exSwap}) — a taxa está na coluna moeda; vale corrigir a ordem dessas linhas`);
