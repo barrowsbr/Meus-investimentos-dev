@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Menu } from "lucide-react";
 import { useGlobeOverlay } from "@/components/GlobeOverlayContext";
-import GlobeThumb from "./GlobeThumb";
 
 interface Props {
   title: string;
@@ -50,15 +50,15 @@ export default function CommandBar({ title, onMenu }: Props) {
 
       <div className="flex-1" />
 
-      {/* Globo (miniatura) — dispara o globo holográfico (overlay global) */}
+      {/* Logo redonda — dispara o globo holográfico (overlay global) */}
       <button
         ref={originRef}
         onClick={() => setGlobeOpen(true)}
         aria-label="Abrir globo de mercados"
         className="shrink-0 grid place-items-center transition-opacity hover:opacity-80"
-        style={{ width: 30, height: 30 }}
+        style={{ width: 32, height: 32 }}
       >
-        <GlobeThumb size={26} />
+        <Image src="/midias/logo-globo.png" alt="Globo de mercados" width={30} height={30} className="rounded-full" priority />
       </button>
 
       {/* Relógio AO VIVO */}
