@@ -265,28 +265,42 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
 
-  const top3 = useMemo(() => {
-    if (tickerItems.length === 0) return [];
+  // 2 melhores + 2 piores do dia (dedup — evita repetir quando há poucos ativos).
+  const destaques = useMemo(() => {
+    if (tickerItems.length === 0) return [] as TickerItem[];
     const best = tickerItems.slice(0, 2);
-    const worst = tickerItems.slice(-1);
-    return [...best, ...worst].slice(0, 3);
+    const worst = tickerItems.slice(-2);
+    const seen = new Set<string>();
+    const out: TickerItem[] = [];
+    for (const t of [...best, ...worst]) {
+      if (t && !seen.has(t.ticker)) { seen.add(t.ticker); out.push(t); }
+    }
+    return out.slice(0, 4);
   }, [tickerItems]);
 
-  const tickerStr = useMemo(() => top3.map(t => t.ticker).join(","), [top3]);
+  const tickerStr = useMemo(() => destaques.map(t => t.ticker).join(","), [destaques]);
 
-  // scope=symbol = caminho LEVE (1 feed por ticker, 3 no total) — o modo geral
-  // buscava ~20 feeds de mercado/macro/setor só para achar 3 manchetes aqui.
+  // Busca fresca: 1 feed de notícias por ativo (scope=symbol) dos 4 destaques.
   useEffect(() => {
     if (!tickerStr) return;
     let cancelled = false;
     setNewsLoading(true);
-    fetch(`/api/noticias?scope=symbol&tickers=${tickerStr}`)
+    fetch(`/api/noticias?scope=symbol&tickers=${encodeURIComponent(tickerStr)}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) setArticles(d.articles ?? []); })
-      .catch(() => {})
+      .then(d => { if (!cancelled) setArticles(Array.isArray(d?.articles) ? d.articles : []); })
+      .catch(() => { if (!cancelled) setArticles([]); })
       .finally(() => { if (!cancelled) setNewsLoading(false); });
     return () => { cancelled = true; };
   }, [tickerStr]);
+
+  // Match robusto: o endpoint marca o ticker SEM sufixo (PETR4, VOO…), então
+  // comparamos por base; fallback = manchete que contém o código do ativo.
+  const base = (t: string | null | undefined) => String(t ?? "").toUpperCase().replace(/\.\w+$/, "").replace(/-USD$/, "").replace(/=X$/, "");
+  const articleFor = (item: TickerItem) => {
+    const keys = [base(item.ticker), base(item.label)].filter(Boolean);
+    return articles.find(a => keys.includes(base(a.ticker)))
+      ?? articles.find(a => keys.some(k => base(a.titulo).includes(k)));
+  };
 
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).toUpperCase().replace(".", "");
 
@@ -301,8 +315,8 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
         <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{today}</span>
       </div>
 
-      {top3.map((item, idx) => {
-        const article = articles.find(a => a.ticker === item.ticker || a.ticker === item.label);
+      {destaques.map((item, idx) => {
+        const article = articleFor(item);
         const isUp = (item.changePct ?? 0) >= 0;
         return (
           <a
@@ -313,7 +327,7 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
             onClick={article?.link ? undefined : (e) => e.preventDefault()}
             className="flex items-start gap-3 px-4 py-3 transition-colors"
             style={{
-              borderBottom: idx < top3.length - 1 ? "1px solid var(--line)" : undefined,
+              borderBottom: idx < destaques.length - 1 ? "1px solid var(--line)" : undefined,
               cursor: article?.link ? "pointer" : "default",
             }}
           >
