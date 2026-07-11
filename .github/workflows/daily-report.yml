@@ -14,19 +14,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Liga/desliga em Configurações → Automações do app (chave gh_daily_report).
+      # Se o app estiver fora do ar, segue rodando (fail-open).
+      - name: Checar liga/desliga no app
+        id: gate
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}"
+          ATIVO=$(curl -sf --max-time 15 "$APP_URL/api/config/automacoes?chave=gh_daily_report" | grep -o '"ativo":[a-z]*' | cut -d: -f2 || echo "true")
+          echo "ativo=$ATIVO" >> "$GITHUB_OUTPUT"
+          echo "gh_daily_report ativo=$ATIVO"
+
       - name: Checkout repository
+        if: steps.gate.outputs.ativo != 'false'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.gate.outputs.ativo != 'false'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
+        if: steps.gate.outputs.ativo != 'false'
         run: |
           pip install yfinance pandas
 
       - name: Send daily report
+        if: steps.gate.outputs.ativo != 'false'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

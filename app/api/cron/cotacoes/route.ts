@@ -17,6 +17,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // Liga/desliga em Configurações → Automações (o cron continua disparando;
+  // o endpoint é quem pula quando desligado).
+  const { isAutomacaoAtiva } = await import("@/lib/automacoes");
+  if (!(await isAutomacaoAtiva("cron_cotacoes"))) {
+    return NextResponse.json({ ok: true, skipped: "desligado em Configurações → Automações" });
+  }
+
   try {
     const report = await runCotacoesSync("update");
     return NextResponse.json({

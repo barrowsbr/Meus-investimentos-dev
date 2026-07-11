@@ -17,6 +17,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // Liga/desliga em Configurações → Automações (o cron continua disparando;
+  // o endpoint é quem pula quando desligado).
+  const { isAutomacaoAtiva } = await import("@/lib/automacoes");
+  if (!(await isAutomacaoAtiva("cron_ibkr"))) {
+    return NextResponse.json({ ok: true, skipped: "desligado em Configurações → Automações" });
+  }
+
   try {
     // Trava de volume: o cron insere sozinho até 40 linhas novas por aba; acima
     // disso é anomalia (dedup falhou?) — bloqueia e pede revisão manual.
