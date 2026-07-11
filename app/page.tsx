@@ -994,20 +994,6 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao, priv }: DayS
   );
 }
 
-const FX_BLUE = "#3B82F6";
-
-function FxIcon() {
-  return (
-    <div
-      className="shrink-0 grid place-items-center"
-      style={{ width: 40, height: 40, borderRadius: 10, background: FX_BLUE, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }}
-      aria-label="Câmbio"
-    >
-      <span style={{ color: "#fff", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>$</span>
-    </div>
-  );
-}
-
 // Câmbio — efeito da variação do dólar do dia sobre a exposição estrangeira
 // (principal em moeda forte, sem cripto — a faixa Bitcoin já embute o câmbio).
 function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
@@ -1028,7 +1014,7 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          <FxIcon />
+          <Image src="/midias/cambio.jpg" alt="Câmbio" width={40} height={40} className="shrink-0 object-cover" style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Câmbio</span>
