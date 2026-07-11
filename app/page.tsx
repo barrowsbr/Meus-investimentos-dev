@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
-import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
-import HojeModal from "@/components/HojeModal";
+import RetornoDiaModal from "@/components/RetornoDiaModal";
 import PatrimonioSparkline from "@/components/PatrimonioSparkline";
-import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -355,149 +353,6 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
           </a>
         );
       })}
-    </div>
-  );
-}
-
-// ── MercadoPreditivo (right column) ─────────────────────────────────────────
-
-function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
-  const [polyEvents, setPolyEvents] = useState<PolyEvent[]>([]);
-  const [polyIdx, setPolyIdx] = useState(0);
-  const [polyLoading, setPolyLoading] = useState(true);
-
-  const positionCount = data?.positions?.length ?? 0;
-  const positionTickers = useMemo(
-    () => {
-      try {
-        return (data?.positions ?? []).map(p => p?.ticker ?? "").filter(Boolean).join(",");
-      } catch { return ""; }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [positionCount]
-  );
-
-  useEffect(() => {
-    if (!positionTickers) return;
-    let cancelled = false;
-    // Busca pelo SERVIDOR — o fetch direto ao gamma-api.polymarket.com no
-    // browser é bloqueado por CORS (era por isso que caía em "indisponível").
-    // A página /polymarket já usa essa mesma rota.
-    const PRECO_ATIVOS_CAT = "💲 Preço dos Ativos"; // = lib/polymarket.ts
-    fetch(`/api/preditivos/polymarket?tickers=${encodeURIComponent(positionTickers)}`)
-      .then(r => r.json())
-      .then((resp: { categories?: Record<string, PolyEvent[]> }) => {
-        if (cancelled) return;
-        const cats = resp?.categories;
-        if (!cats || typeof cats !== "object") return;
-        const ok = (e: PolyEvent) => e && Array.isArray(e.odds) && e.odds.length > 0;
-        // Preditivos de PREÇO dos ativos primeiro (sem piso de volume — são o
-        // ponto do card); o resto embaralhado atrás.
-        const preco = (cats[PRECO_ATIVOS_CAT] ?? []).filter(ok);
-        const outros = Object.entries(cats)
-          .filter(([k]) => k !== PRECO_ATIVOS_CAT)
-          .flatMap(([, v]) => v as PolyEvent[])
-          .filter(e => ok(e) && (e.volume ?? 0) >= 100);
-        setPolyEvents([...preco, ...outros.sort(() => Math.random() - 0.5)].slice(0, 12));
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setPolyLoading(false); });
-    return () => { cancelled = true; };
-  }, [positionTickers]);
-
-  const nextPoly = useCallback(() => {
-    setPolyIdx(i => polyEvents.length > 0 ? (i + 1) % polyEvents.length : 0);
-  }, [polyEvents.length]);
-
-  const ev = polyEvents[polyIdx] ?? null;
-
-  // Sem eventos (falha/vazio) → some o card (espaço vazio limpo), em vez do
-  // fallback feio "Polymarket indisponível". Enquanto busca, mostra carregando.
-  if (!polyLoading && !ev) return null;
-
-  return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-        <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
-          Mercado Preditivo
-        </span>
-        <span className="font-mono text-[10px] font-bold tracking-wider uppercase" style={{ color: "var(--accent)" }}>
-          POLYMARKET
-        </span>
-      </div>
-
-      {polyLoading ? (
-        <div className="px-4 py-8 text-center">
-          <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Carregando eventos...</span>
-        </div>
-      ) : !ev ? (
-        <div className="px-4 py-8 text-center">
-          <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Carregando eventos...</span>
-        </div>
-      ) : (
-        <div className="px-4 py-4">
-          <p className="font-semibold leading-snug mb-3" style={{ fontSize: 15, color: "var(--text)" }}>
-            {ev.title}
-          </p>
-          <div className="flex flex-col gap-[6px] mb-3">
-            {(Array.isArray(ev.odds) ? ev.odds : []).slice(0, 3).map((o, j) => {
-              if (!o) return null;
-              const barColors = [
-                { bg: "rgba(232,163,61,0.14)", border: "rgba(232,163,61,0.4)", text: "var(--accent)" },
-                { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)", text: "#818cf8" },
-                { bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.3)", text: "#a78bfa" },
-              ];
-              const c = barColors[j] ?? barColors[2];
-              const p = typeof o.percent === "number" ? o.percent : 0;
-              return (
-                <div key={j} className="relative flex items-center gap-2 py-[6px] px-3 font-mono" style={{ background: "var(--hover)", fontSize: 12 }}>
-                  <div className="absolute left-0 top-0 bottom-0" style={{
-                    width: `${p}%`,
-                    background: c.bg,
-                    borderRight: `2px solid ${c.border}`,
-                  }} />
-                  <span className={`relative z-[1] flex-1 truncate ${j === 0 ? "font-bold" : ""}`} style={{ color: "var(--text)" }}>
-                    {String(o.outcome ?? "").slice(0, 35)}
-                  </span>
-                  <span className="relative z-[1] font-bold shrink-0" style={{ color: c.text }}>
-                    {p.toFixed(0)}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center justify-between font-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
-            <span>
-              Vol <b style={{ color: "var(--text-2)" }}>
-                {(ev.volume ?? 0) >= 1_000_000 ? `$${((ev.volume ?? 0) / 1_000_000).toFixed(1)}M`
-                  : (ev.volume ?? 0) >= 1_000 ? `$${((ev.volume ?? 0) / 1_000).toFixed(0)}k`
-                  : `$${ev.volume ?? 0}`}
-              </b>
-              {ev.days_left != null && (
-                ev.days_left === 0 ? " · resolve hoje"
-                  : ev.days_left <= 7 ? ` · ${ev.days_left}d restantes`
-                  : ` · resolve ${ev.days_left}d`
-              )}
-            </span>
-            <span className="font-semibold" style={{ color: "var(--accent)" }}>Ver no Polymarket →</span>
-          </div>
-        </div>
-      )}
-
-      {polyEvents.length > 1 && (
-        <div className="flex items-center justify-between px-4 py-2" style={{ borderTop: "1px solid var(--line)" }}>
-          <span className="font-mono text-[10px]" style={{ color: "var(--faint)" }}>{polyIdx + 1} / {polyEvents.length}</span>
-          <button
-            onClick={nextPoly}
-            className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold px-2 py-1 transition-colors"
-            style={{ color: "var(--accent)", border: "1px solid var(--line)" }}
-          >
-            <ChevronRight size={10} />
-            Próximo
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1082,21 +937,20 @@ interface AuditData {
   ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
 }
 
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv }: {
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, onOpenRetorno }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
   priv: boolean;
+  onOpenRetorno: () => void;
 }) {
   const [patrOpen, setPatrOpen] = useState(false);
-  const [hojeOpen, setHojeOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   return (
     <div className="overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
       <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
-      <HojeModal open={hojeOpen} onClose={() => setHojeOpen(false)} />
 
       {/* HERO — Patrimônio total (com mini-histórico) + Σ retorno do dia */}
       <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr]" style={{ gap: 1, background: "var(--line)" }}>
@@ -1129,7 +983,7 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv }: {
 
         {/* Σ retorno do dia */}
         {brl != null ? (
-          <button type="button" onClick={() => setHojeOpen(true)} title="Ver o fechamento do dia (Hoje)" className="group flex flex-col justify-center text-left px-5 py-4" style={{ background: "var(--panel)" }}>
+          <button type="button" onClick={onOpenRetorno} title="Ver o retorno do dia por book" className="group flex flex-col justify-center text-left px-5 py-4" style={{ background: "var(--panel)" }}>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Σ Retorno do dia</span>
               <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
@@ -1213,6 +1067,7 @@ export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
   const [ibkrLoaded, setIbkrLoaded] = useState(false); // /api/home resolveu (com ou sem book)
+  const [retornoOpen, setRetornoOpen] = useState(false); // popup "Retorno do dia · por book"
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
 
   // Modo privacidade — FECHADO (valores ocultos) por padrão; o padrão é
@@ -1516,6 +1371,7 @@ export default function HomePage() {
                 patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
                 usdbrl={usdbrl}
                 priv={priv}
+                onOpenRetorno={() => setRetornoOpen(true)}
               />
             </div>
           </ErrorBoundary>
@@ -1526,54 +1382,42 @@ export default function HomePage() {
           <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }} />
         )}
 
-        {/* ── Row 3: retorno do dia por book — cards IBKR · Brasil · Bitcoin ·
-               Câmbio (divisórias internas) ── */}
-        {!loading && (
-          <ErrorBoundary fallback={null}>
-            <div className="mt-4 animate-fade-in overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
-              <div className="flex items-center gap-2 px-5 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-                <span className="font-mono uppercase" style={{ color: "var(--text-2)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>
-                  Retorno do dia
-                </span>
-                <span className="font-mono text-[9px]" style={{ color: "var(--faint)", letterSpacing: ".04em" }}>por book · toque para abrir</span>
-              </div>
-              {ibkrOverview ? <IbkrDayStrip data={ibkrOverview} priv={priv} /> : <IbkrStripPlaceholder loaded={ibkrLoaded} />}
-              <BrDayStrip
-                dayBRL={brDayBRL}
-                dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
-                patrimonioBRL={brStats.valueBRL}
-                count={brStats.count}
-                sessao={brStats.sessao}
-                priv={priv}
-              />
-              <BtcDayStrip
-                dayBRL={cryptoDayBRL}
-                dayPct={cryptoStats.valueBRL > 0 ? (cryptoDayBRL / cryptoStats.valueBRL) * 100 : null}
-                patrimonioBRL={cryptoStats.valueBRL}
-                count={cryptoStats.count}
-                btc={cryptoStats.btc}
-                priv={priv}
-              />
-              {fxDia && (
-                <FxDayStrip
-                  efeitoBRL={fxDia.efeitoBRL}
-                  usdPct={usdDayChangePct}
-                  exposicaoBRL={fxDia.principalBRL}
-                  usdbrl={usdbrl}
-                  priv={priv}
-                />
-              )}
-            </div>
-          </ErrorBoundary>
-        )}
+        {/* ── Retorno do dia · por book — agora só no popup (aberto pelo Σ) ── */}
+        <RetornoDiaModal open={retornoOpen} onClose={() => setRetornoOpen(false)}>
+          {ibkrOverview ? <IbkrDayStrip data={ibkrOverview} priv={priv} /> : <IbkrStripPlaceholder loaded={ibkrLoaded} />}
+          <BrDayStrip
+            dayBRL={brDayBRL}
+            dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
+            patrimonioBRL={brStats.valueBRL}
+            count={brStats.count}
+            sessao={brStats.sessao}
+            priv={priv}
+          />
+          <BtcDayStrip
+            dayBRL={cryptoDayBRL}
+            dayPct={cryptoStats.valueBRL > 0 ? (cryptoDayBRL / cryptoStats.valueBRL) * 100 : null}
+            patrimonioBRL={cryptoStats.valueBRL}
+            count={cryptoStats.count}
+            btc={cryptoStats.btc}
+            priv={priv}
+          />
+          {fxDia && (
+            <FxDayStrip
+              efeitoBRL={fxDia.efeitoBRL}
+              usdPct={usdDayChangePct}
+              exposicaoBRL={fxDia.principalBRL}
+              usdbrl={usdbrl}
+              priv={priv}
+            />
+          )}
+        </RetornoDiaModal>
 
-        {/* ── Row 4: Radar + Polymarket (two columns) — lazy (abaixo da dobra) ── */}
+        {/* ── Row 4: Radar do dia — largura cheia (Mercado Preditivo removido) ── */}
         {!loading && data && tickerItems.length > 0 && (
           <ErrorBoundary>
             <LazyMount minHeight={320}>
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 animate-fade-in">
+              <div className="mt-4 animate-fade-in">
                 <RadarDoDia tickerItems={tickerItems} />
-                <MercadoPreditivo data={data} />
               </div>
             </LazyMount>
           </ErrorBoundary>
