@@ -73,6 +73,18 @@ function SaudeBackup({ tab, onAfterRollback }: { tab: string; onAfterRollback: (
     finally { setRestaurando(false); setConfirmRb(false); }
   };
 
+  const [compactando, setCompactando] = useState(false);
+  const compactarTwr = async () => {
+    setCompactando(true); setMsg(null);
+    try {
+      const r = await fetch("/api/config/planilha/saude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "compactar-twr" }) });
+      const d = await r.json();
+      if (d?.error) setMsg({ ok: false, text: d.error });
+      else { setMsg({ ok: true, text: `twr_mensal compactada: ${d.antes} → ${d.depois} linhas (${d.removidas} removidas, com backup) ✓` }); testar(); }
+    } catch { setMsg({ ok: false, text: "Falha na compactação" }); }
+    finally { setCompactando(false); }
+  };
+
   const dataTabAtual = bkp?.tabs.find((t) => t.tab.trim().toLowerCase() === tab.trim().toLowerCase())?.data ?? null;
   const comProblema = rel?.abas.filter((a) => a.erros.length > 0 || a.avisos.length > 0) ?? [];
   const saudaveis = rel ? rel.abas.length - comProblema.length : 0;
@@ -139,6 +151,15 @@ function SaudeBackup({ tab, onAfterRollback }: { tab: string; onAfterRollback: (
                 {a.erros.map((e, i) => <li key={`e${i}`} className="text-[10px] text-red-400/90 font-mono">• {e}</li>)}
                 {a.avisos.map((w, i) => <li key={`w${i}`} className="text-[10px] text-amber-400/80 font-mono">• {w}</li>)}
               </ul>
+              {a.tab.trim().toLowerCase() === "twr_mensal" && (
+                <button
+                  onClick={compactarTwr}
+                  disabled={compactando}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-amber-900/40 transition-colors"
+                >
+                  {compactando ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} Compactar twr_mensal (remove corrompidas/duplicadas, com backup)
+                </button>
+              )}
             </div>
           ))}
         </div>

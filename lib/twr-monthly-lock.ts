@@ -107,6 +107,45 @@ export async function lockNewMonths(
   return toLock.length;
 }
 
+// ── Compactação da aba ───────────────────────────────────────────────────────
+// Reescreve a twr_mensal só com as linhas VÁLIDAS (mesmos critérios da
+// leitura): v2, month normalizável, pct sã (±500%), 1 linha por mês (a
+// primeira fotografia). Remove as duplicatas do bug do re-append e as linhas
+// corrompidas por locale ("0.755853" → 755853). Escrita RAW via writeTab
+// (backup automático antes). Meses que só tinham linha corrompida voltam a
+// travar frescos na próxima carga da Performance.
+export async function compactLockTab(): Promise<{ antes: number; depois: number; removidas: number }> {
+  const store = getDataStore();
+  const rows = await store.fetchTab(TAB);
+  const antes = rows.length;
+
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  for (const r of rows) {
+    if (Number(r["version"] ?? 1) !== CURRENT_VERSION) continue;
+    const month = normalizeMonth(r["month"]);
+    if (!month || seen.has(month)) continue;
+    const pct = Number(r["return_pct"]);
+    if (!Number.isFinite(pct) || Math.abs(pct) > 500) continue;
+    const usdRaw = r["return_pct_usd"];
+    const usd = usdRaw != null && usdRaw !== "" ? Number(usdRaw) : null;
+    seen.add(month);
+    out.push([
+      month,
+      String(Math.round(pct * 1e6) / 1e6),
+      usd != null && Number.isFinite(usd) && Math.abs(usd) <= 500 ? String(Math.round(usd * 1e6) / 1e6) : "",
+      String(r["locked_at"] ?? ""),
+      String(CURRENT_VERSION),
+    ]);
+  }
+  out.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+
+  const { writeTab } = await import("./gsheets");
+  await writeTab(TAB, HEADERS, out, { raw: true }); // backup automático antes
+  _cache = null;
+  return { antes, depois: out.length, removidas: antes - out.length };
+}
+
 export function mergeWithLocked(
   locked: LockedMonth[],
   computed: Array<{ month: string; return_pct: number }>,
