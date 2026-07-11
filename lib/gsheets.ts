@@ -65,8 +65,9 @@ export async function appendRowsTyped(tabName: string, rows: (string | number)[]
 }
 
 // Write/overwrite a full sheet tab (requires service account write access)
-// Faz backup automático antes de sobrescrever.
-export async function writeTab(tabName: string, headers: string[], rows: string[][]): Promise<void> {
+// Faz backup automático antes de sobrescrever. opts.raw grava com RAW (texto
+// literal — nada é reinterpretado como data/número pelo locale da planilha).
+export async function writeTab(tabName: string, headers: string[], rows: string[][], opts: { raw?: boolean } = {}): Promise<void> {
   assertNotDemo();
   const auth = getServiceAccountAuth();
   if (!auth) throw new Error("Escrita requer GOOGLE_SERVICE_ACCOUNT_JSON nas variáveis de ambiente");
@@ -86,7 +87,7 @@ export async function writeTab(tabName: string, headers: string[], rows: string[
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID(),
     range: `${resolved}!A1`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: opts.raw ? "RAW" : "USER_ENTERED",
     requestBody: { values: [headers, ...rows] },
   });
 }
