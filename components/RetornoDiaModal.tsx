@@ -1,16 +1,15 @@
 "use client";
 
-// Popup do "Hoje" (fechamento do dia) — mesmo estilo do modal de deeplink
-// (EmbedModal). Aberto ao clicar em "Σ Retorno do dia" na Home. É o acesso
-// principal ao Hoje (o item saiu da sidebar).
+// Popup do "Retorno do dia · por book" — mesmo estilo do modal de deeplink.
+// Aberto ao clicar em "Σ Retorno do dia" na Home; recebe os cards (IBKR/Brasil/
+// Bitcoin/Câmbio) como children. O botão "Expandir" leva à página Hoje.
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Sunrise, X, Maximize2 } from "lucide-react";
-import HojeContent from "@/components/HojeContent";
+import { TrendingUp, X, Maximize2 } from "lucide-react";
 
-export default function HojeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function RetornoDiaModal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -29,22 +28,21 @@ export default function HojeModal({ open, onClose }: { open: boolean; onClose: (
       onClick={onClose}
     >
       <div
-        className="flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl"
-        style={{ height: "min(90vh, 900px)", border: "1px solid rgba(251,191,36,0.32)", background: "rgba(8,15,20,0.97)", boxShadow: "0 0 80px -20px rgba(251,191,36,0.3)" }}
+        className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
+        style={{ maxHeight: "min(90vh, 820px)", border: "1px solid rgba(251,191,36,0.32)", background: "rgba(8,15,20,0.97)", boxShadow: "0 0 80px -20px rgba(251,191,36,0.3)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Barra superior */}
         <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: "1px solid rgba(251,191,36,0.18)" }}>
-          <Sunrise size={15} className="text-amber-300 shrink-0" />
-          <span className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-amber-200/90">Hoje · Fechamento do dia</span>
+          <TrendingUp size={15} className="text-amber-300 shrink-0" />
+          <span className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-amber-200/90">Retorno do dia · por book</span>
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <Link
               href="/hoje"
               onClick={onClose}
-              title="Abrir página cheia"
+              title="Expandir para a página Hoje"
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] text-amber-300/70 transition-colors hover:bg-amber-400/10 hover:text-amber-200"
             >
-              <Maximize2 size={13} /> <span className="hidden sm:inline">Página</span>
+              <Maximize2 size={13} /> <span className="hidden sm:inline">Expandir</span>
             </Link>
             <button
               onClick={onClose}
@@ -55,11 +53,7 @@ export default function HojeModal({ open, onClose }: { open: boolean; onClose: (
             </button>
           </div>
         </div>
-
-        {/* Conteúdo (rola) */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-          <HojeContent />
-        </div>
+        <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>,
     document.body,
