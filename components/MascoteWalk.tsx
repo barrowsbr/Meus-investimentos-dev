@@ -2,8 +2,13 @@
 
 // Easter-egg: ao clicar na logo Barroots no topo da Home, o mascote (boneco-árvore)
 // atravessa a tela caminhando, no formato retrato/móbile. O vídeo tem fundo preto
-// puro (fundo "removido" no encode) e usa `mix-blend-mode: screen` — o preto some
-// sobre a UI escura, deixando só o personagem. Toca uma vez e se auto-remove.
+// puro (fundo "removido" no encode) e o FUNDO some via `mix-blend-mode: screen`.
+//
+// IMPORTANTE: o blend fica no OVERLAY fixo (não no <video>). O overlay é filho
+// direto do <body>, então ele mescla com a página atrás (screen de preto = a
+// própria página, invisível; o personagem, claro, aparece realçado). Se o blend
+// ficasse no vídeo, o `transform` da animação isolaria o grupo e o preto voltaria
+// a aparecer como retângulo. Toca uma vez e se auto-remove.
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -28,6 +33,7 @@ export default function MascoteWalk({ show, onDone }: { show: boolean; onDone: (
   return createPortal(
     <div
       className="pointer-events-none fixed inset-0 z-[300] overflow-hidden"
+      style={{ mixBlendMode: "screen" }}
       aria-hidden
     >
       <div className="mascote-walk absolute bottom-[2vh]">
@@ -39,7 +45,6 @@ export default function MascoteWalk({ show, onDone }: { show: boolean; onDone: (
           autoPlay
           onEnded={onDone}
           className="block h-[52vh] max-h-[440px] w-auto"
-          style={{ mixBlendMode: "screen" }}
         />
       </div>
 
@@ -51,10 +56,10 @@ export default function MascoteWalk({ show, onDone }: { show: boolean; onDone: (
         }
         @keyframes mascote-walk {
           0% {
-            transform: translateX(-60vw) scaleX(1);
+            transform: translateX(-60vw);
           }
           100% {
-            transform: translateX(105vw) scaleX(1);
+            transform: translateX(105vw);
           }
         }
       `}</style>
