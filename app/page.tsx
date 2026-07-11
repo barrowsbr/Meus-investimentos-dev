@@ -929,17 +929,6 @@ const BTC_ORANGE = "#F7931A";
 
 const signedBRLc = (v: number | null | undefined) => (v != null && v >= 0 ? "+" : "") + compactBRL(v ?? 0);
 
-function BrFlagIcon() {
-  return (
-    <svg width={40} height={40} viewBox="0 0 40 40" className="shrink-0" style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }} aria-label="Brasil">
-      <rect width="40" height="40" fill="#009C3B" />
-      <path d="M20 7 L35 20 L20 33 L5 20 Z" fill="#FFDF00" />
-      <circle cx="20" cy="20" r="6.5" fill="#002776" />
-      <path d="M14.2 18.6 C 18 17.4 23.5 18.6 25.6 21.6" stroke="#fff" strokeWidth="1.3" fill="none" />
-    </svg>
-  );
-}
-
 function BtcIcon() {
   return (
     <div
@@ -971,7 +960,7 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao, priv }: DayS
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          <BrFlagIcon />
+          <Image src="/midias/b3.jpg" alt="B3" width={40} height={40} className="shrink-0 object-cover" style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Brasil</span>
