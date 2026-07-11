@@ -89,6 +89,12 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
 - **Escrita**: service account (`GOOGLE_SERVICE_ACCOUNT_JSON`), com a planilha compartilhada
   com o e-mail do service account como **Editor**. Toda escrita (`writeTab`) faz **backup
   automático** da aba antes de sobrescrever (`lib/backup.ts`)
+- **Backup diário + saúde + editor**: Configurações → card "Planilha (gdados)". Fotografia
+  diária de cada aba em `bkp_diario_<aba>` (sobrescrita 1×/dia no primeiro acesso ao app —
+  ping do shell no `CommandBar` → `/api/config/planilha/backup`; `lib/backup-diario.ts`),
+  **rollback** por aba (reversível — o estado atual vira snapshot pré-escrita) e **teste de
+  saúde** (`lib/planilha-saude.ts`: datas/números inválidos, células `#REF!`, headers
+  duplicados, moedas estranhas, lock mensal corrompido)
 - **Biblioteca**: `googleapis` (Node.js)
 
 ## Multiusuário (planilha por conta — sem banco de dados)

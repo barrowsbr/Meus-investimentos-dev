@@ -7,12 +7,147 @@
 // (bkp_<aba>) antes de qualquer sobrescrita.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, HeartPulse, History, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
 
 interface Grid { headers: string[]; rows: string[][] }
 type Msg = { ok: boolean; text: string } | null;
 
 const PAGE = 100;
+
+// ── Saúde & Backup diário ─────────────────────────────────────────────────────
+
+interface AbaSaude { tab: string; linhas: number; colunas: number; erros: string[]; avisos: string[] }
+interface Relatorio { geradoEm: string; totalErros: number; totalAvisos: number; abas: AbaSaude[] }
+interface BkpStatus { ultimaData: string | null; tabs: { tab: string; data: string; linhas: number }[] }
+
+function fmtDia(iso: string | null): string {
+  if (!iso) return "nunca";
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
+
+function SaudeBackup({ tab, onAfterRollback }: { tab: string; onAfterRollback: () => void }) {
+  const [bkp, setBkp] = useState<BkpStatus | null>(null);
+  const [rel, setRel] = useState<Relatorio | null>(null);
+  const [testando, setTestando] = useState(false);
+  const [rodando, setRodando] = useState(false);
+  const [restaurando, setRestaurando] = useState(false);
+  const [confirmRb, setConfirmRb] = useState(false);
+  const [msg, setMsg] = useState<Msg>(null);
+
+  const carregarStatus = useCallback(() => {
+    fetch("/api/config/planilha/backup").then((r) => r.json()).then((d) => { if (!d?.error) setBkp(d); }).catch(() => {});
+  }, []);
+  useEffect(() => { carregarStatus(); }, [carregarStatus]);
+
+  const testar = async () => {
+    setTestando(true); setMsg(null); setRel(null);
+    try {
+      const r = await fetch("/api/config/planilha/saude");
+      const d = await r.json();
+      if (d?.error) setMsg({ ok: false, text: d.error });
+      else setRel(d);
+    } catch { setMsg({ ok: false, text: "Falha ao rodar o teste" }); }
+    finally { setTestando(false); }
+  };
+
+  const backupAgora = async () => {
+    setRodando(true); setMsg(null);
+    try {
+      const r = await fetch("/api/config/planilha/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run" }) });
+      const d = await r.json();
+      if (d?.error) setMsg({ ok: false, text: d.error });
+      else { setMsg({ ok: true, text: `Backup concluído — ${d.tabs} abas fotografadas ✓` }); carregarStatus(); }
+    } catch { setMsg({ ok: false, text: "Falha no backup" }); }
+    finally { setRodando(false); }
+  };
+
+  const rollback = async () => {
+    setRestaurando(true); setMsg(null);
+    try {
+      const r = await fetch("/api/config/planilha/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rollback", tab }) });
+      const d = await r.json();
+      if (d?.error) setMsg({ ok: false, text: d.error });
+      else { setMsg({ ok: true, text: `"${tab}" restaurada da fotografia de ${fmtDia(d.dataBackup)} (${d.linhas} linhas) ✓` }); onAfterRollback(); }
+    } catch { setMsg({ ok: false, text: "Falha no rollback" }); }
+    finally { setRestaurando(false); setConfirmRb(false); }
+  };
+
+  const dataTabAtual = bkp?.tabs.find((t) => t.tab.trim().toLowerCase() === tab.trim().toLowerCase())?.data ?? null;
+  const comProblema = rel?.abas.filter((a) => a.erros.length > 0 || a.avisos.length > 0) ?? [];
+  const saudaveis = rel ? rel.abas.length - comProblema.length : 0;
+
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+          <HeartPulse size={13} className="text-emerald-400" /> Saúde &amp; Backup diário
+        </span>
+        <span className="text-[10px] font-mono text-zinc-600">
+          último backup: <span className={bkp?.ultimaData ? "text-zinc-400" : "text-amber-400/80"}>{fmtDia(bkp?.ultimaData ?? null)}</span>
+          {bkp && bkp.tabs.length > 0 && <> · {bkp.tabs.length} abas</>}
+        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <button onClick={testar} disabled={testando} className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-emerald-500/60 hover:text-emerald-300 transition-colors">
+            {testando ? <Loader2 size={11} className="animate-spin" /> : <ShieldCheck size={11} />} Testar saúde
+          </button>
+          <button onClick={backupAgora} disabled={rodando} className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-emerald-500/60 hover:text-emerald-300 transition-colors">
+            {rodando ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Backup agora
+          </button>
+          {confirmRb ? (
+            <button onClick={rollback} disabled={restaurando} className="inline-flex items-center gap-1 rounded-lg border border-red-700/60 bg-red-900/30 px-2 py-1 text-[11px] font-bold text-red-300">
+              {restaurando ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />} Confirmar restauração?
+            </button>
+          ) : (
+            <button
+              onClick={() => { setConfirmRb(true); window.setTimeout(() => setConfirmRb(false), 4000); }}
+              disabled={!tab}
+              title={dataTabAtual ? `Restaura "${tab}" para a fotografia de ${fmtDia(dataTabAtual)}` : "Sem fotografia diária ainda"}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-amber-500/60 hover:text-amber-300 transition-colors"
+            >
+              <History size={11} /> Rollback da aba
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-[10px] text-zinc-600 leading-relaxed">
+        O backup fotografa cada aba em <span className="font-mono">bkp_diario_&lt;aba&gt;</span> uma vez por dia, na primeira abertura do app
+        (sobrescreve a foto do dia anterior). O rollback restaura a aba selecionada acima a partir dessa fotografia — e é reversível
+        (o estado atual vira snapshot pré-escrita antes).
+      </p>
+
+      {rel && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-mono">
+            {rel.totalErros === 0 && rel.totalAvisos === 0
+              ? <span className="text-emerald-400 font-bold">✓ Planilha saudável — {rel.abas.length} abas verificadas, nenhum problema</span>
+              : <>
+                  <span className={rel.totalErros > 0 ? "text-red-400 font-bold" : "text-zinc-500"}>{rel.totalErros} erro(s)</span>
+                  {" · "}
+                  <span className={rel.totalAvisos > 0 ? "text-amber-400 font-bold" : "text-zinc-500"}>{rel.totalAvisos} aviso(s)</span>
+                  {" · "}
+                  <span className="text-emerald-400">{saudaveis} aba(s) ok</span>
+                </>}
+          </p>
+          {comProblema.map((a) => (
+            <div key={a.tab} className="rounded border border-zinc-800 bg-black/20 px-2.5 py-1.5">
+              <p className="text-[11px] font-mono font-bold text-zinc-300">
+                {a.erros.length > 0 ? "✖" : "⚠"} {a.tab} <span className="text-zinc-600 font-normal">({a.linhas} linhas)</span>
+              </p>
+              <ul className="mt-0.5 space-y-0.5">
+                {a.erros.map((e, i) => <li key={`e${i}`} className="text-[10px] text-red-400/90 font-mono">• {e}</li>)}
+                {a.avisos.map((w, i) => <li key={`w${i}`} className="text-[10px] text-amber-400/80 font-mono">• {w}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {msg && <p className={`text-[11px] font-medium ${msg.ok ? "text-emerald-400" : "text-red-400"}`}>{msg.text}</p>}
+    </div>
+  );
+}
 
 // Comparação ciente de números pt-BR ("1.234,56") e datas dd/mm/yyyy.
 function cmpVal(a: string, b: string): number {
@@ -140,6 +275,8 @@ export default function PlanilhaCard() {
         edite (✎), apague e adicione linhas. Antes de qualquer alteração é feito <span className="text-zinc-400">backup automático</span> da aba
         (<span className="font-mono">bkp_&lt;aba&gt;</span>), e a gravação confere se a linha não mudou por baixo.
       </p>
+
+      <SaudeBackup tab={tab} onAfterRollback={() => carregar(tab)} />
 
       {/* Barra: aba + busca + ações */}
       <div className="flex flex-wrap items-center gap-2">
