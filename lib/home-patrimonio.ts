@@ -14,7 +14,7 @@
 
 import { getDataStore } from "./data-store";
 import { fetchFixaAbertaComIbkr } from "./ibkr-cash";
-import { calcularSnapshot } from "./portfolio";
+import { calcularSnapshot, type PortfolioSnapshot } from "./portfolio";
 import { fetchCotacoes, fxToBRL } from "./cotacoes";
 import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "./cambio";
 import { buildIbkrOverview, type IbkrOverview } from "./ibkr-overview";
@@ -55,6 +55,7 @@ export interface HomePatrimonio {
   overviewErro: string | null;
   patrimonioDia: PatrimonioDiaPayload;
   detalhe: DetalhePayload;
+  snapshot: PortfolioSnapshot;
 }
 
 export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): Promise<HomePatrimonio> {
@@ -226,5 +227,5 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
     fora_da_soma: foraDaSoma,
   };
 
-  return { overview, overviewErro, patrimonioDia, detalhe };
+  return { overview, overviewErro, patrimonioDia, detalhe, snapshot };
 }

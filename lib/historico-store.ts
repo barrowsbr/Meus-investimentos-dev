@@ -9,10 +9,7 @@
 
 import { getDataStore } from "@/lib/data-store";
 import { ensureTab, writeTab, appendRowsTyped } from "@/lib/gsheets";
-import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
-import { calcularSnapshot } from "@/lib/portfolio";
-import { fetchCotacoes } from "@/lib/cotacoes";
-import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "@/lib/cambio";
+import { computeHomePatrimonio } from "@/lib/home-patrimonio";
 
 export const HISTORICO_TAB = "historico_patrimonio";
 export const HISTORICO_CONFIG_TAB = "historico_config";
@@ -68,40 +65,24 @@ export async function recordHistorico(opts: { force?: boolean } = {}): Promise<R
     if (!cfg.ativo) return { written: false, skipped: "desligado em Configurações" };
   }
 
-  const store = getDataStore();
-  const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
-    store.fetchTab("meus_ativos"),
-    store.fetchTab("meus_proventos"),
-    fetchFixaAbertaComIbkr(store),
-    store.fetchTab("cambio").catch(() => []),
-    store.fetchTab("p_tax").catch(() => []),
-  ]);
+  // Grava o MESMO valor do card "Patrimônio total" da Home: IBKR Flex (posições
+  // + caixa, US$ × dólar de agora) + BR + Cripto — NÃO o total canônico do
+  // snapshot. Fonte única: computeHomePatrimonio (a mesma do /api/home).
+  const { patrimonioDia, detalhe, snapshot } = await computeHomePatrimonio();
 
-  const tickerSet = new Map<string, { moeda: string; corretora: string }>();
-  for (const row of transacoes) {
-    const ticker = String(row["símbolo"] ?? row["simbolo"] ?? row["ticker"] ?? "").toUpperCase().trim();
-    if (!ticker || tickerSet.has(ticker)) continue;
-    tickerSet.set(ticker, {
-      moeda: String(row["moeda"] ?? "BRL").toUpperCase().trim(),
-      corretora: String(row["corretora"] ?? "").trim(),
-    });
+  // Só grava quando o book real da IBKR entrou — senão o total ficaria parcial
+  // (só BR + cripto) e não bateria com o card. 3×/dia dá redundância.
+  if (!patrimonioDia.ibkr_ok) {
+    return { written: false, skipped: "IBKR Flex indisponível — não grava valor parcial" };
   }
-  const tickers = [...tickerSet.entries()].map(([ticker, i]) => ({ ticker, moeda: i.moeda, corretora: i.corretora }));
-
-  const cotacoes = await fetchCotacoes(tickers);
-  const fxAtual = cotacoes.fx;
-  const cambio = calcularCambioMetrics(cambioRows, fxAtual);
-  const fxCusto = buildPmFxRates(cambio);
-  const fxByDate = buildFxDateMap(ptaxRows, cambio.historico);
-  const snap = calcularSnapshot(transacoes, proventos, fixaAberta, cotacoes.quotes, fxAtual, fxCusto, fxByDate);
-
-  const total = snap.totalPatrimonioBRL;
-  if (!(total > 0)) return { written: false, skipped: "patrimônio total = 0 (cotações indisponíveis?)" };
+  const total = patrimonioDia.patrimonio_dia_brl;
+  if (!(total > 0)) return { written: false, skipped: "patrimônio total = 0" };
 
   const { data, hora, serial } = brtParts();
 
   // Dedup: se a última linha já é desta data + hora, não duplica (o GH Action
   // pode disparar junto de uma execução manual).
+  const store = getDataStore();
   try {
     const hist = await store.fetchTab(HISTORICO_TAB);
     const last = hist[hist.length - 1];
@@ -112,10 +93,12 @@ export async function recordHistorico(opts: { force?: boolean } = {}): Promise<R
 
   await ensureTab(HISTORICO_TAB, COLUNAS as unknown as string[]);
 
-  const rv = round2(snap.rvPatrimonioBRL);
-  const rf = round2(snap.rfPatrimonioBRL);
-  const varPct = Number.isFinite(snap.dayChangeTotalPct) ? round2(snap.dayChangeTotalPct) : 0;
-  const nAtivos = snap.positions.filter((p) => (p.quantidade ?? 0) > 0).length;
+  // rf = renda fixa + caixa (parcela do detalhe); rv = total − rf (mantém a
+  // identidade rv + rf = total, coerente com o total IBKR-âncora).
+  const rf = round2(detalhe.partes.rf_caixa_brl);
+  const rv = round2(total - detalhe.partes.rf_caixa_brl);
+  const varPct = Number.isFinite(snapshot.dayChangeTotalPct) ? round2(snapshot.dayChangeTotalPct) : 0;
+  const nAtivos = snapshot.positions.filter((p) => (p.quantidade ?? 0) > 0).length;
 
   // Ordem: timestamp, data, hora, patrimonio_total, rv, rf, variacao_dia_pct, n_ativos
   const linha: (string | number)[] = [serial, data, hora, round2(total), rv, rf, varPct, nAtivos];
