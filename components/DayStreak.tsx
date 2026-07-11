@@ -4,11 +4,13 @@
 // foi cada dia (variação de fechamento a fechamento do patrimônio total).
 // Fica logo abaixo do "Σ Retorno do dia" na Home. Dados: a própria série
 // `historico_patrimonio` (via lib/historico-daily). Discreto, sem valores.
+//
+// Quantidade de pregões configurável em Configurações → Preferências
+// (lib/home-prefs, localStorage) — a Home reage na hora via evento.
 
 import { useEffect, useState } from "react";
 import { toDailySeries, ultimosResultados, type DiaResultado } from "@/lib/historico-daily";
-
-const N = 7;
+import { getStreakDays, STREAK_DAYS_EVENT, STREAK_DAYS_MAX } from "@/lib/home-prefs";
 
 function fmtData(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -17,7 +19,16 @@ function fmtData(iso: string): string {
 }
 
 export default function DayStreak({ className = "" }: { className?: string }) {
-  const [dias, setDias] = useState<DiaResultado[] | null>(null);
+  const [todos, setTodos] = useState<DiaResultado[] | null>(null);
+  const [n, setN] = useState(30);
+
+  useEffect(() => {
+    setN(getStreakDays());
+    const onChange = () => setN(getStreakDays());
+    window.addEventListener(STREAK_DAYS_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => { window.removeEventListener(STREAK_DAYS_EVENT, onChange); window.removeEventListener("storage", onChange); };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -25,12 +36,13 @@ export default function DayStreak({ className = "" }: { className?: string }) {
       .then((r) => r.json())
       .then((x) => {
         if (!alive) return;
-        setDias(ultimosResultados(toDailySeries(x), N));
+        setTodos(ultimosResultados(toDailySeries(x), STREAK_DAYS_MAX));
       })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
 
+  const dias = todos ? todos.slice(-n) : null;
   if (!dias || dias.length < 2) return null;
 
   // Altura da barra proporcional à magnitude (clampada), com piso p/ ficar visível.
@@ -39,7 +51,7 @@ export default function DayStreak({ className = "" }: { className?: string }) {
 
   return (
     <div className={className}>
-      <div className="flex items-center gap-1.5" style={{ height: 22 }}>
+      <div className="flex items-end" style={{ height: 22, gap: dias.length > 14 ? 2 : 5 }}>
         {dias.map((d, i) => {
           const up = d.pct >= 0;
           const h = 6 + Math.round((Math.min(Math.abs(d.pct), maxAbs) / maxAbs) * 14); // 6..20px
@@ -49,7 +61,9 @@ export default function DayStreak({ className = "" }: { className?: string }) {
               title={`${fmtData(d.date)} · ${d.pct >= 0 ? "+" : ""}${d.pct.toFixed(2)}%`}
               className="rounded-[2px]"
               style={{
-                width: 6,
+                flex: "1 1 0",
+                minWidth: 2,
+                maxWidth: 7,
                 height: h,
                 background: up ? "var(--pos)" : "var(--neg)",
                 opacity: 0.55 + 0.45 * (Math.min(Math.abs(d.pct), maxAbs) / maxAbs),
