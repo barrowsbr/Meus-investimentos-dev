@@ -11,7 +11,8 @@
       "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MacroTab.tsx components/radar/dossier/MacroTab.tsx)",
       "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MercadosTab.tsx components/radar/dossier/MercadosTab.tsx)",
       "Read(//root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/**)",
-      "Bash(cp /root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/153d377e-IMG_4127.jpeg public/midias/b3.jpg)"
+      "Bash(cp /root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/153d377e-IMG_4127.jpeg public/midias/b3.jpg)",
+      "Bash(cd /home/user/Meus-investimentos-dev; cp /root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/2e1ea8f1-IMG_4128.jpeg public/midias/bitcoin.jpg && ls -la public/midias/bitcoin.jpg; echo \"=== usos de BtcIcon ===\"; grep -rn \"BtcIcon\" app components lib 2>/dev/null)"
     ]
   }
 }
