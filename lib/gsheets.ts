@@ -206,6 +206,25 @@ async function resolveTabName(tabName: string): Promise<string> {
   return tabName;
 }
 
+// Grade CRUA da aba (headers + linhas como matriz de strings), com os valores
+// FORMATADOS — exatamente o que o dono vê no Google. Usada pelo editor de
+// planilha em Configurações: o round-trip (ler formatado → gravar USER_ENTERED)
+// preserva datas/números no locale da planilha, igual a editar no próprio Google.
+export async function readTabRaw(tabName: string): Promise<{ headers: string[]; rows: string[][] }> {
+  const sheets = google.sheets({ version: "v4", auth: API_KEY });
+  const resolved = await resolveTabName(tabName);
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID(),
+    range: resolved,
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+  const grid = (res.data.values ?? []) as unknown[][];
+  if (grid.length === 0) return { headers: [], rows: [] };
+  const width = Math.max(...grid.map((r) => r.length));
+  const norm = (r: unknown[]) => Array.from({ length: width }, (_, i) => (r[i] == null ? "" : String(r[i])));
+  return { headers: norm(grid[0]), rows: grid.slice(1).map(norm) };
+}
+
 export async function fetchTab(
   tabName: string
 ): Promise<Record<string, unknown>[]> {

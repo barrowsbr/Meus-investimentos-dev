@@ -13,6 +13,7 @@ import { bumpDataVersion } from "@/lib/data-version";
 import { useTheme, type Theme } from "@/components/terminal";
 import { getHoloStyle, setHoloStyle, type HoloStyle } from "@/lib/holo-style";
 import { getStreakDays, setStreakDays, STREAK_DAYS_DEFAULT, STREAK_DAYS_MIN, STREAK_DAYS_MAX } from "@/lib/home-prefs";
+import PlanilhaCard from "@/components/config/PlanilhaCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -2605,6 +2606,10 @@ export default function ConfiguracoesPage() {
 
         <SectionCard title="Preferências do Sistema" icon={<Palette size={16} />}>
           <ThemeSection />
+        </SectionCard>
+
+        <SectionCard title="Planilha (gdados) — Editor" icon={<FileText size={16} />}>
+          <PlanilhaCard />
         </SectionCard>
 
         <SectionCard title="Base de Cotações (Golden Source)" icon={<Database size={16} />}>
