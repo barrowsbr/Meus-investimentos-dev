@@ -796,6 +796,9 @@ export async function GET(request: Request) {
       && lookback === 0 && !fromParam && !toParam;
     const lockedMonths = isAllTimeUnfiltered ? await readLockedMonthly() : [];
     const monthlyReturns = mergeWithLocked(lockedMonths, computedMonthly, "brl");
+    // Meses cujo valor exibido veio do lock (🔒 no heatmap) — na vista completa.
+    const lockedSetBrl = new Set(lockedMonths.map(l => l.month));
+    const monthlyLocked = computedMonthly.filter(m => lockedSetBrl.has(m.month)).map(m => m.month);
 
     // Monthly MTM snapshots — R$ gain per month using period-end prices/FX
     // Em janelas (YTD/1A/…), o dia-âncora (prevNav) estabelece o NAV de
@@ -983,6 +986,8 @@ export async function GET(request: Request) {
       });
       rawUsdMonthly = computedUsdMonthly;
       const usdMonthly = mergeWithLocked(lockedMonths, computedUsdMonthly, "usd");
+      const lockedSetUsd = new Set(lockedMonths.filter(l => l.return_pct_usd != null).map(l => l.month));
+      const usdMonthlyLocked = computedUsdMonthly.filter(m => lockedSetUsd.has(m.month)).map(m => m.month);
 
       const usdMTM: Array<{ month: string; gain: number; gainPct: number; navEnd: number }> = (() => {
         const buckets = new Map<string, { navEnd: number; flows: number; income: number }>();
@@ -1083,6 +1088,7 @@ export async function GET(request: Request) {
         },
         chart: thinSeries(chart),
         monthlyReturns: usdMonthly,
+        monthlyLocked: usdMonthlyLocked,
         monthlyMTM: usdMTM,
         fxDecomposition: usdFxDecomp,
       };
@@ -1205,6 +1211,7 @@ export async function GET(request: Request) {
       drawdownData: drawdownSeries.filter((_, i) => i % Math.max(1, Math.floor(drawdownSeries.length / 400)) === 0),
       rolling: rollingReturns.filter((_, i) => i % Math.max(1, Math.floor(rollingReturns.length / 400)) === 0),
       monthlyReturns,
+      monthlyLocked,
       monthlyMTM,
       flowLedger,
       attribution,
