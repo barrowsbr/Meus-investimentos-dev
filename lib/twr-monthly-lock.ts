@@ -12,21 +12,54 @@ interface LockedMonth {
 
 let _cache: LockedMonth[] | null = null;
 
+// ── Normalização do campo `month` ────────────────────────────────────────────
+// Bug histórico: as linhas eram gravadas com USER_ENTERED e o Google parseava
+// "2025-01" como DATA → a leitura (UNFORMATTED_VALUE) devolvia o serial do
+// Excel (ex.: 45658) e o regex descartava TODAS as linhas: nenhum mês era
+// travado e o lock re-anexava os mesmos meses a cada carga (aba duplicando).
+// Agora: leitura tolerante (serial/ISO/Date → "YYYY-MM") + escrita RAW.
+function normalizeMonth(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "number" && v > 20000 && v < 80000) {
+    const d = new Date(Math.floor(v - 25569) * 86400 * 1000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})\/(?:\d{1,2}\/)?(\d{4})/); // "01/2025" ou "01/01/2025"
+  if (m) return `${m[2]}-${m[1].padStart(2, "0")}`;
+  return null;
+}
+
 export async function readLockedMonthly(): Promise<LockedMonth[]> {
   if (_cache) return _cache;
   try {
     const store = getDataStore();
     const rows = await store.fetchTab(TAB);
-    _cache = rows
-      .filter(r => Number(r["version"] ?? 1) === CURRENT_VERSION)
-      .map(r => ({
-        month: String(r["month"] ?? ""),
-        return_pct: Number(r["return_pct"] ?? 0),
-        return_pct_usd: r["return_pct_usd"] != null && r["return_pct_usd"] !== "" ? Number(r["return_pct_usd"]) : null,
-      }))
-      .filter(r => r.month.match(/^\d{4}-\d{2}$/));
-    console.log(`[twr-lock] read ${_cache.length} locked months from ${TAB}`);
-    return _cache;
+    const out: LockedMonth[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      if (Number(r["version"] ?? 1) !== CURRENT_VERSION) continue;
+      const month = normalizeMonth(r["month"]);
+      if (!month) continue;
+      if (seen.has(month)) continue; // dedup: vale a PRIMEIRA fotografia do mês
+      const pct = Number(r["return_pct"]);
+      // Sanidade: um mês além de ±500% só pode ser linha corrompida (parse de
+      // locale) — melhor recomputar do que exibir lixo travado.
+      if (!Number.isFinite(pct) || Math.abs(pct) > 500) continue;
+      const usdRaw = r["return_pct_usd"];
+      const usd = usdRaw != null && usdRaw !== "" ? Number(usdRaw) : null;
+      seen.add(month);
+      out.push({
+        month,
+        return_pct: pct,
+        return_pct_usd: usd != null && Number.isFinite(usd) && Math.abs(usd) <= 500 ? usd : null,
+      });
+    }
+    _cache = out;
+    console.log(`[twr-lock] read ${out.length} locked months from ${TAB} (${rows.length} rows)`);
+    return out;
   } catch (e) {
     console.warn(`[twr-lock] failed to read ${TAB}:`, e instanceof Error ? e.message : e);
     return [];
@@ -58,15 +91,17 @@ export async function lockNewMonths(
   // lock re-anexaria os mesmos meses para sempre.
   if (!created) await store.syncHeaders(TAB, HEADERS);
 
-  const rows = toLock.map(m => [
+  // RAW (appendRowsTyped): month fica TEXTO ("2025-01" nunca vira data) e os
+  // percentuais entram como número — imune ao locale da planilha.
+  const rows: (string | number)[][] = toLock.map(m => [
     m.month,
-    m.return_pct.toFixed(6),
-    usdMap.has(m.month) ? usdMap.get(m.month)!.toFixed(6) : "",
+    Math.round(m.return_pct * 1e6) / 1e6,
+    usdMap.has(m.month) ? Math.round(usdMap.get(m.month)! * 1e6) / 1e6 : "",
     now.toISOString(),
-    String(CURRENT_VERSION),
+    CURRENT_VERSION,
   ]);
 
-  await store.appendRows(TAB, rows);
+  await store.appendRowsTyped(TAB, rows);
   console.log(`[twr-lock] locked ${toLock.length} new months: ${toLock.map(m => m.month).join(", ")}`);
   _cache = null;
   return toLock.length;
