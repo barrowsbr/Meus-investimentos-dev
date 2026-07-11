@@ -1128,22 +1128,19 @@ interface AuditData {
   ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
 }
 
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
-  partes: PatrimonioParte[] | null;
   priv: boolean;
 }) {
   const [patrOpen, setPatrOpen] = useState(false);
   const [hojeOpen, setHojeOpen] = useState(false);
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
-  const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
-  const partesNaoZero = (partes ?? []).filter((p) => (p.brl ?? 0) > 0);
   return (
-    <div style={{ background: "var(--panel)", borderTop: "1px solid var(--line-strong)" }}>
+    <div className="overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
       <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
       <HojeModal open={hojeOpen} onClose={() => setHojeOpen(false)} />
 
@@ -1194,39 +1191,6 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
           <div style={{ background: "var(--panel)" }} />
         )}
       </div>
-
-      {/* Composição por classe — barra única empilhada + legenda */}
-      {partesNaoZero.length > 0 && somaPartes > 0 && (
-        <div className="px-5 py-4" style={{ borderTop: "1px solid var(--line)" }}>
-          <div className="flex items-baseline justify-between mb-2.5">
-            <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Composição · por classe</span>
-            <span className="font-mono tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{partesNaoZero.length} baldes</span>
-          </div>
-          <div className="flex overflow-hidden" style={{ height: 12, borderRadius: 6, gap: 2, background: "var(--bg)" }}>
-            {partesNaoZero.map((p) => (
-              <div key={p.label} title={`${p.label} · ${(((p.brl ?? 0) / somaPartes) * 100).toFixed(1)}%`}
-                style={{ flexGrow: p.brl ?? 0, flexBasis: 0, background: p.color, borderRadius: 3, minWidth: 3 }} />
-            ))}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 mt-3.5" style={{ gap: 12 }}>
-            {(partes ?? []).map((p) => {
-              const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
-              return (
-                <div key={p.label} className="flex flex-col" style={{ gap: 3 }}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
-                    <span className="font-mono uppercase truncate" style={{ color: "var(--muted)", fontSize: 8.5, fontWeight: 700, letterSpacing: ".1em" }}>{p.label}</span>
-                  </div>
-                  <div className="font-mono font-bold tnum" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)", fontSize: 13 }}>
-                    {p.brl != null ? maskIf(priv, compactBRL(p.brl)) : "—"}
-                  </div>
-                  {share != null && <div className="font-mono tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{share.toFixed(1)}%</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1589,13 +1553,30 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
+        {/* ── Patrimônio total + gráfico — logo abaixo do painel rolante ── */}
+        {!loading && (
+          <ErrorBoundary fallback={null}>
+            <div className="mt-4 animate-fade-in">
+              <DayStripsTotal
+                brl={dayBRLfinal}
+                pctVal={dayPctFinal}
+                // Só valores baseados no book REAL da IBKR (detalhe do servidor →
+                // client ao vivo → patrimonio-dia). null = ainda carregando → skeleton.
+                patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
+                usdbrl={usdbrl}
+                priv={priv}
+              />
+            </div>
+          </ErrorBoundary>
+        )}
+
         {/* ── Skeleton do painel do dia enquanto o snapshot carrega ── */}
         {loading && (
           <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }} />
         )}
 
-        {/* ── Row 3: painel do dia — UM card com as linhas IBKR · Brasil ·
-               Bitcoin · Câmbio (divisórias internas) e o Σ como rodapé ── */}
+        {/* ── Row 3: retorno do dia por book — cards IBKR · Brasil · Bitcoin ·
+               Câmbio (divisórias internas) ── */}
         {!loading && (
           <ErrorBoundary fallback={null}>
             <div className="mt-4 animate-fade-in overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
@@ -1631,18 +1612,6 @@ export default function HomePage() {
                   priv={priv}
                 />
               )}
-              <DayStripsTotal
-                brl={dayBRLfinal}
-                pctVal={dayPctFinal}
-                // Só valores baseados no book REAL da IBKR (detalhe do servidor →
-                // client ao vivo → patrimonio-dia). NUNCA o canônico do snapshot,
-                // que subconta o internacional e fazia o número "piscar" baixo
-                // antes da IBKR chegar. null = ainda carregando → skeleton.
-                patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
-                usdbrl={usdbrl}
-                partes={patrimonioPartes}
-                priv={priv}
-              />
             </div>
           </ErrorBoundary>
         )}
