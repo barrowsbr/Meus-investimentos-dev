@@ -23,12 +23,19 @@ export async function GET(req: Request) {
   const tab = searchParams.get("tab");
   try {
     if (!tab) {
-      const tabs = (await listSheetNames()).filter(isEditable);
+      // TODAS as abas: as de dados são editáveis; backups (bkp_*) e o golden
+      // source (db_cotacoes) entram como SOMENTE LEITURA — dá para conferir a
+      // fotografia diária sem risco de editá-la.
+      const nomes = (await listSheetNames()).filter((n) => n.trim() !== "");
+      const tabs = [
+        ...nomes.filter(isEditable).map((name) => ({ name, ro: false })),
+        ...nomes.filter((n) => !isEditable(n)).map((name) => ({ name, ro: true })),
+      ];
       return NextResponse.json({ tabs });
     }
-    if (!isEditable(tab)) return NextResponse.json({ error: "Aba não editável" }, { status: 400 });
+    // Leitura liberada para qualquer aba existente (edição segue restrita no POST).
     const grid = await readTabRaw(tab);
-    return NextResponse.json({ tab, ...grid });
+    return NextResponse.json({ tab, readonly: !isEditable(tab), ...grid });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao ler planilha" }, { status: 500 });
   }
