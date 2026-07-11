@@ -835,12 +835,9 @@ function IbkrDayStrip({ data, priv }: { data: IbkrStripData | null; priv: boolea
     <Link
       href="/ibkr"
       className="group block"
-      style={{ borderLeft: `3px solid ${IBKR_RED}`, borderBottom: "1px solid var(--line)" }}
+      style={{ borderLeft: "3px solid var(--line-strong)", borderBottom: "1px solid var(--line)" }}
     >
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-3"
-        style={{ backgroundImage: `linear-gradient(90deg, rgba(214,0,28,0.10) 0%, transparent 42%)` }}
-      >
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         {/* Marca IBKR */}
         <div className="flex items-center gap-3 min-w-0">
           <Image
@@ -856,7 +853,7 @@ function IbkrDayStrip({ data, priv }: { data: IbkrStripData | null; priv: boolea
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Interactive Brokers</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
-                style={{ background: "rgba(214,0,28,0.12)", color: IBKR_RED, fontSize: 9, fontWeight: 700 }}
+                style={{ background: "var(--hover)", border: "1px solid var(--line-strong)", color: "var(--muted)", fontSize: 9, fontWeight: 700 }}
               >
                 <Wifi size={9} /> Flex
               </span>
@@ -906,7 +903,7 @@ function IbkrStripPlaceholder({ loaded }: { loaded: boolean }) {
   return (
     <div
       className="flex items-center gap-3 px-4 py-3"
-      style={{ borderLeft: `3px solid ${IBKR_RED}`, borderBottom: "1px solid var(--line)", backgroundImage: "linear-gradient(90deg, rgba(214,0,28,0.06) 0%, transparent 42%)" }}
+      style={{ borderLeft: "3px solid var(--line-strong)", borderBottom: "1px solid var(--line)" }}
     >
       <Image src="/midias/51q7eieUfKL.png" alt="Interactive Brokers" width={40} height={40} className="shrink-0 object-cover" style={{ borderRadius: 10, opacity: 0.55 }} />
       <div className="min-w-0">
@@ -970,12 +967,9 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao, priv }: DayS
     <Link
       href="/renda-variavel"
       className="group block"
-      style={{ borderLeft: `3px solid ${BR_GREEN}`, borderBottom: "1px solid var(--line)" }}
+      style={{ borderLeft: "3px solid var(--line-strong)", borderBottom: "1px solid var(--line)" }}
     >
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-3"
-        style={{ backgroundImage: `linear-gradient(90deg, rgba(0,156,59,0.10) 0%, transparent 42%)` }}
-      >
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <BrFlagIcon />
           <div className="min-w-0">
@@ -983,7 +977,7 @@ function BrDayStrip({ dayBRL, dayPct, patrimonioBRL, count, sessao, priv }: DayS
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Brasil</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
-                style={{ background: "rgba(0,156,59,0.14)", color: BR_GREEN, fontSize: 9, fontWeight: 700 }}
+                style={{ background: "var(--hover)", border: "1px solid var(--line-strong)", color: "var(--muted)", fontSize: 9, fontWeight: 700 }}
               >
                 B3
               </span>
@@ -1053,12 +1047,9 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
     <Link
       href="/cambio"
       className="group block"
-      style={{ borderLeft: `3px solid ${FX_BLUE}`, borderBottom: "1px solid var(--line)" }}
+      style={{ borderLeft: "3px solid var(--line-strong)", borderBottom: "1px solid var(--line)" }}
     >
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-3"
-        style={{ backgroundImage: `linear-gradient(90deg, rgba(59,130,246,0.10) 0%, transparent 42%)` }}
-      >
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <FxIcon />
           <div className="min-w-0">
@@ -1066,7 +1057,7 @@ function FxDayStrip({ efeitoBRL, usdPct, exposicaoBRL, usdbrl, priv }: {
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Câmbio</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
-                style={{ background: "rgba(59,130,246,0.14)", color: FX_BLUE, fontSize: 9, fontWeight: 700 }}
+                style={{ background: "var(--hover)", border: "1px solid var(--line-strong)", color: "var(--muted)", fontSize: 9, fontWeight: 700 }}
               >
                 USD/BRL
               </span>
@@ -1203,12 +1194,9 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc, priv }: DayStr
     <Link
       href="/criptoativos"
       className="group block"
-      style={{ borderLeft: `3px solid ${BTC_ORANGE}`, borderBottom: "1px solid var(--line)" }}
+      style={{ borderLeft: "3px solid var(--line-strong)", borderBottom: "1px solid var(--line)" }}
     >
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-3"
-        style={{ backgroundImage: `linear-gradient(90deg, rgba(247,147,26,0.10) 0%, transparent 42%)` }}
-      >
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <BtcIcon />
           <div className="min-w-0">
@@ -1216,7 +1204,7 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc, priv }: DayStr
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Bitcoin</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono shrink-0"
-                style={{ background: "rgba(247,147,26,0.14)", color: BTC_ORANGE, fontSize: 9, fontWeight: 700 }}
+                style={{ background: "var(--hover)", border: "1px solid var(--line-strong)", color: "var(--muted)", fontSize: 9, fontWeight: 700 }}
               >
                 24/7
               </span>
