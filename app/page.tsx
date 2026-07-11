@@ -11,6 +11,7 @@ import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
 import RetornoDiaModal from "@/components/RetornoDiaModal";
 import PatrimonioSparkline from "@/components/PatrimonioSparkline";
+import DayStreak from "@/components/DayStreak";
 import MascoteWalk from "@/components/MascoteWalk";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -992,24 +993,27 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, onOpenRetorn
             </>
           )}
           {!priv && patrimonioBRL != null && patrimonioBRL > 0 && (
-            <div className="mt-3"><PatrimonioSparkline height={44} /></div>
+            <div className="mt-3"><PatrimonioSparkline height={52} /></div>
           )}
         </div>
 
-        {/* Σ retorno do dia */}
+        {/* Σ retorno do dia + marcadores dos últimos pregões */}
         {brl != null ? (
-          <button type="button" onClick={onOpenRetorno} title="Ver o retorno do dia por book" className="group flex flex-col justify-center text-left px-5 py-4" style={{ background: "var(--panel)" }}>
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Σ Retorno do dia</span>
-              <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
-            </div>
-            <div className="font-mono font-extrabold tnum group-hover:underline decoration-1 underline-offset-4" style={{ color, fontSize: "clamp(22px,4.4vw,30px)", lineHeight: 1, letterSpacing: "-.02em" }}>
-              {maskIf(priv, signedBRLc(brl))}
-            </div>
-            {pctVal != null && (
-              <div className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85, marginTop: 6 }}>{pct(pctVal)} no dia</div>
-            )}
-          </button>
+          <div className="flex flex-col justify-center px-5 py-4" style={{ background: "var(--panel)" }}>
+            <button type="button" onClick={onOpenRetorno} title="Ver o retorno do dia por book" className="group text-left">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Σ Retorno do dia</span>
+                <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
+              </div>
+              <div className="font-mono font-extrabold tnum group-hover:underline decoration-1 underline-offset-4" style={{ color, fontSize: "clamp(22px,4.4vw,30px)", lineHeight: 1, letterSpacing: "-.02em" }}>
+                {maskIf(priv, signedBRLc(brl))}
+              </div>
+              {pctVal != null && (
+                <div className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85, marginTop: 6 }}>{pct(pctVal)} no dia</div>
+              )}
+            </button>
+            <DayStreak className="mt-3" />
+          </div>
         ) : (
           <div style={{ background: "var(--panel)" }} />
         )}
