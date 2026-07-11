@@ -355,8 +355,11 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - Alimenta a página **Patrimônio** — série longa (1 linha/snapshot): colunas
   `timestamp, data, hora, patrimonio_total, rv, rf, variacao_dia_pct, n_ativos`.
 - O writer antigo (script Python externo) parou em jun/2026. O writer canônico
-  agora é **`lib/historico-store.ts`** (`recordHistorico`, via `calcularSnapshot`),
-  exposto em `/api/cron/historico` (Bearer `CRON_SECRET`).
+  agora é **`lib/historico-store.ts`** (`recordHistorico`), exposto em
+  `/api/cron/historico` (Bearer `CRON_SECRET`). **`patrimonio_total` = o MESMO
+  valor do card "Patrimônio total" da Home** (IBKR Flex + BR + Cripto, via
+  `computeHomePatrimonio`), NÃO o total canônico do snapshot. Só grava quando o
+  book da IBKR entrou (`ibkr_ok`); senão pula (3×/dia dá redundância).
 - **Roda por GitHub Action** (`.github/workflows/historico.yml`), **3×/dia** (10/14/18h
   BRT, dias úteis) — **NÃO** é cron da Vercel (Hobby só permite 1×/dia; sub-diário
   quebra o build de produção). Requer o secret `CRON_SECRET` no GitHub (mesmo valor
