@@ -85,6 +85,7 @@ interface UsdView {
   summary: Summary;
   chart: ChartPoint[];
   monthlyReturns: MonthlyReturn[];
+  monthlyLocked?: string[];
   monthlyMTM?: MonthlyMTM[];
   fxDecomposition?: { r_total: number; r_ativo: number; r_fx: number; r_combinado: number };
 }
@@ -96,6 +97,7 @@ interface PerformanceResponse {
   drawdownData: DrawdownPoint[];
   rolling: RollingPoint[];
   monthlyReturns: MonthlyReturn[];
+  monthlyLocked?: string[];
   monthlyMTM?: MonthlyMTM[];
   flowLedger: FlowEntry[];
   attribution: AttributionEntry[];
@@ -722,6 +724,12 @@ export default function PerformancePage() {
   const activeMonthly = useMemo(() => {
     if (!data) return [];
     return isUsd && data.usdView ? data.usdView.monthlyReturns : data.monthlyReturns;
+  }, [data, isUsd]);
+
+  // Meses com valor TRAVADO (aba twr_mensal) — imutáveis no heatmap all-time.
+  const lockedMonthsSet = useMemo(() => {
+    const list = isUsd && data?.usdView ? data.usdView.monthlyLocked : data?.monthlyLocked;
+    return new Set(list ?? []);
   }, [data, isUsd]);
 
   const chartData = useMemo(() => {
@@ -1825,14 +1833,23 @@ export default function PerformancePage() {
                               const isPos = v >= 0;
                               const intensity = Math.min(Math.abs(v) / 5, 1);
                               const hm = heatmapColors(isPos, intensity, isLight);
+                              const mesKey = `${year}-${String(mo).padStart(2, "0")}`;
+                              const locked = lockedMonthsSet.has(mesKey);
                               return (
                                 <td key={mo} className="py-1 px-0.5">
                                   <div
-                                    className="rounded-md h-9 flex items-center justify-center font-semibold cursor-default transition-transform hover:scale-105"
+                                    className="relative rounded-md h-9 flex items-center justify-center font-semibold cursor-default transition-transform hover:scale-105"
                                     style={{ background: hm.bg, color: hm.text }}
-                                    title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
+                                    title={`${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][mo-1]}/${year}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%${locked ? " · 🔒 travado (imutável)" : " · dinâmico — ainda pode mudar"}`}
                                   >
                                     {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                                    {!locked && (
+                                      <span
+                                        className="absolute rounded-full"
+                                        style={{ top: 3, right: 3, width: 4, height: 4, background: "currentColor", opacity: 0.55 }}
+                                        aria-hidden
+                                      />
+                                    )}
                                   </div>
                                 </td>
                               );
@@ -1862,13 +1879,25 @@ export default function PerformancePage() {
                 const pos = all.filter(v => v >= 0).length;
                 const neg = all.filter(v => v < 0).length;
                 const avg = all.length > 0 ? all.reduce((s, v) => s + v, 0) / all.length : 0;
+                const lockedCount = lockedMonthsSet.size;
+                const dynCount = Math.max(0, all.length - lockedCount);
                 return (
-                  <p className="text-xs text-zinc-600 mt-4">
-                    Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{avg.toFixed(2)}%</span>
-                    {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
-                    {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
-                    {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
-                  </p>
+                  <>
+                    <p className="text-xs text-zinc-600 mt-4">
+                      Média mensal: <span className="text-zinc-400 font-semibold">{avg >= 0 ? "+" : ""}{avg.toFixed(2)}%</span>
+                      {" · "}Positivos: <span className="text-emerald-400 font-semibold">{pos}</span>
+                      {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
+                      {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
+                    </p>
+                    <p className="text-[11px] text-zinc-600 mt-2">
+                      {lockedCount > 0 ? (
+                        <>🔒 <span className="text-zinc-400 font-semibold">{lockedCount}</span> {lockedCount === 1 ? "mês travado" : "meses travados"} (fotografados na virada do mês — imutáveis)
+                        {dynCount > 0 && <> · <span className="text-amber-400/80 font-semibold">{dynCount}</span> com ponto no canto = dinâmico (mês corrente, ainda muda)</>}</>
+                      ) : (
+                        <>Nenhum mês travado nesta vista — janelas de tempo e filtros recalculam tudo dinamicamente; o lock (🔒) só vale na vista completa &ldquo;Tudo&rdquo; sem filtros.</>
+                      )}
+                    </p>
+                  </>
                 );
               })()}
             </>
