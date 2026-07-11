@@ -929,18 +929,6 @@ const BTC_ORANGE = "#F7931A";
 
 const signedBRLc = (v: number | null | undefined) => (v != null && v >= 0 ? "+" : "") + compactBRL(v ?? 0);
 
-function BtcIcon() {
-  return (
-    <div
-      className="shrink-0 grid place-items-center"
-      style={{ width: 40, height: 40, borderRadius: 10, background: BTC_ORANGE, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }}
-      aria-label="Bitcoin"
-    >
-      <span style={{ color: "#fff", fontSize: 24, fontWeight: 800, lineHeight: 1, transform: "rotate(12deg)", fontFamily: "var(--font-sans)" }}>₿</span>
-    </div>
-  );
-}
-
 interface DayStripProps {
   dayBRL: number;
   dayPct: number | null;
@@ -1187,7 +1175,7 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc, priv }: DayStr
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          <BtcIcon />
+          <Image src="/midias/bitcoin.jpg" alt="Bitcoin" width={40} height={40} className="shrink-0 object-cover" style={{ borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,.3)" }} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-bold truncate" style={{ color: "var(--text)", fontSize: 14 }}>Bitcoin</span>
