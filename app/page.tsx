@@ -11,6 +11,7 @@ import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
 import HojeModal from "@/components/HojeModal";
+import PatrimonioSparkline from "@/components/PatrimonioSparkline";
 import type { PolyEvent } from "@/lib/polymarket";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -185,7 +186,7 @@ function TickerTape({ items }: { items: TickerItem[] }) {
   const worst5 = [...items].reverse().slice(0, 5);
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
       <div className="flex items-stretch" style={{ height: 38 }}>
         <div
           ref={scrollRef}
@@ -292,7 +293,7 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).toUpperCase().replace(".", "");
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
@@ -415,7 +416,7 @@ function MercadoPreditivo({ data }: { data: PortfolioResponse }) {
   if (!polyLoading && !ev) return null;
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
         <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
@@ -605,7 +606,7 @@ function NoticiasDestaques() {
 
   if (loading) {
     return (
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
           <div className="flex items-center gap-2">
             <Newspaper size={13} style={{ color: "var(--accent)" }} />
@@ -635,7 +636,7 @@ function NoticiasDestaques() {
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
         <div className="flex items-center gap-2">
@@ -1117,97 +1118,90 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, partes, priv }: {
   if (brl == null && patrimonioBRL == null) return null;
   const color = (brl ?? 0) >= 0 ? "var(--pos)" : "var(--neg)";
   const somaPartes = (partes ?? []).reduce((s, p) => s + (p.brl ?? 0), 0);
+  const partesNaoZero = (partes ?? []).filter((p) => (p.brl ?? 0) > 0);
   return (
-    <div style={{ background: "var(--hover)", borderTop: "1px solid var(--line-strong)" }}>
+    <div style={{ background: "var(--panel)", borderTop: "1px solid var(--line-strong)" }}>
       <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
       <HojeModal open={hojeOpen} onClose={() => setHojeOpen(false)} />
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        {/* Patrimônio total — a carteira inteira, ao vivo. Clique abre o
-            histórico patrimonial num popup (mesmo estilo do deeplink). */}
-        {patrimonioBRL != null && patrimonioBRL > 0 ? (
-          <button
-            type="button"
-            onClick={() => setPatrOpen(true)}
-            title="Ver histórico patrimonial"
-            className="group min-w-0 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.03]"
-          >
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-                Patrimônio total
-              </span>
-              <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
-            </div>
-            <div className="font-mono font-extrabold tnum truncate group-hover:underline decoration-1 underline-offset-2" style={{ color: "var(--text)", fontSize: 19, lineHeight: 1 }}>
-              {maskIf(priv, compactBRL(patrimonioBRL))}
-            </div>
-            <div className="font-mono mt-1 tnum truncate" style={{ color: "var(--muted)", fontSize: 10 }}>
-              {maskIf(priv, compactUSD(usdbrl && usdbrl > 0 ? patrimonioBRL / usdbrl : null))}
-              {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
-            </div>
-          </button>
-        ) : (
-          <div className="min-w-0">
-            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-              Patrimônio total
-            </div>
-            {/* Carregando o book real da IBKR — skeleton em vez de um número
-                parcial (evita mostrar o canônico baixo e "piscar"). */}
-            <div className="animate-pulse rounded" style={{ width: 96, height: 19, background: "var(--line)" }} />
-          </div>
-        )}
 
-        {/* Σ retorno do dia — clique abre o "Hoje" (fechamento do dia) em popup. */}
-        {brl != null && (
-          <button
-            type="button"
-            onClick={() => setHojeOpen(true)}
-            title="Ver o fechamento do dia (Hoje)"
-            className="group text-right shrink-0 rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.03]"
-          >
-            <div className="flex items-center justify-end gap-1 mb-0.5">
-              <span className="font-mono uppercase tracking-wider" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700 }}>
-                Σ Retorno do dia
-              </span>
+      {/* HERO — Patrimônio total (com mini-histórico) + Σ retorno do dia */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr]" style={{ gap: 1, background: "var(--line)" }}>
+        {/* Patrimônio total */}
+        <div className="px-5 py-4" style={{ background: "var(--panel)" }}>
+          {patrimonioBRL != null && patrimonioBRL > 0 ? (
+            <button type="button" onClick={() => setPatrOpen(true)} title="Ver histórico patrimonial" className="group block w-full text-left">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Patrimônio total</span>
+                <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
+              </div>
+              <div className="font-mono font-extrabold tnum truncate group-hover:underline decoration-1 underline-offset-4" style={{ color: "var(--text)", fontSize: "clamp(26px,5.4vw,38px)", lineHeight: 0.98, letterSpacing: "-.02em" }}>
+                {maskIf(priv, compactBRL(patrimonioBRL))}
+              </div>
+              <div className="font-mono tnum truncate" style={{ color: "var(--muted)", fontSize: 10.5, marginTop: 8 }}>
+                {maskIf(priv, compactUSD(usdbrl && usdbrl > 0 ? patrimonioBRL / usdbrl : null))}
+                {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
+              </div>
+            </button>
+          ) : (
+            <>
+              <div className="font-mono uppercase mb-2" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Patrimônio total</div>
+              <div className="animate-pulse rounded" style={{ width: 150, height: 34, background: "var(--line)" }} />
+            </>
+          )}
+          {!priv && patrimonioBRL != null && patrimonioBRL > 0 && (
+            <div className="mt-3"><PatrimonioSparkline height={44} /></div>
+          )}
+        </div>
+
+        {/* Σ retorno do dia */}
+        {brl != null ? (
+          <button type="button" onClick={() => setHojeOpen(true)} title="Ver o fechamento do dia (Hoje)" className="group flex flex-col justify-center text-left px-5 py-4" style={{ background: "var(--panel)" }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Σ Retorno do dia</span>
               <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
             </div>
-            <div className="font-mono font-extrabold tnum group-hover:underline decoration-1 underline-offset-2" style={{ color, fontSize: 19, lineHeight: 1 }}>
+            <div className="font-mono font-extrabold tnum group-hover:underline decoration-1 underline-offset-4" style={{ color, fontSize: "clamp(22px,4.4vw,30px)", lineHeight: 1, letterSpacing: "-.02em" }}>
               {maskIf(priv, signedBRLc(brl))}
             </div>
             {pctVal != null && (
-              <div className="font-mono mt-1 tnum" style={{ color, fontSize: 10, opacity: 0.85 }}>{pct(pctVal)} no dia</div>
+              <div className="font-mono tnum" style={{ color, fontSize: 11, opacity: 0.85, marginTop: 6 }}>{pct(pctVal)} no dia</div>
             )}
           </button>
+        ) : (
+          <div style={{ background: "var(--panel)" }} />
         )}
       </div>
 
-      {/* Decomposição por modalidade — parcelas exatas do total (IBKR / Brasil /
-          Cripto / RF + Caixa), com o % de cada uma sobre o patrimônio. */}
-      {partes && partes.length > 0 && (
-        <div
-          className="grid grid-cols-2 sm:grid-cols-4"
-          style={{ gap: 1, background: "var(--line)", borderTop: "1px solid var(--line)" }}
-        >
-          {partes.map((p) => {
-            const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
-            return (
-              <div key={p.label} className="px-4 py-2" style={{ background: "var(--panel)" }}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, background: p.color, boxShadow: `0 0 6px ${p.color}66` }} />
-                  <span className="font-mono uppercase tracking-wider truncate" style={{ color: "var(--faint)", fontSize: 8.5, fontWeight: 700 }}>
-                    {p.label}
-                  </span>
-                </div>
-                <div className="font-mono tnum" style={{ fontSize: 12, lineHeight: 1.2 }}>
-                  <span className="font-bold" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)" }}>
+      {/* Composição por classe — barra única empilhada + legenda */}
+      {partesNaoZero.length > 0 && somaPartes > 0 && (
+        <div className="px-5 py-4" style={{ borderTop: "1px solid var(--line)" }}>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Composição · por classe</span>
+            <span className="font-mono tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{partesNaoZero.length} baldes</span>
+          </div>
+          <div className="flex overflow-hidden" style={{ height: 12, borderRadius: 6, gap: 2, background: "var(--bg)" }}>
+            {partesNaoZero.map((p) => (
+              <div key={p.label} title={`${p.label} · ${(((p.brl ?? 0) / somaPartes) * 100).toFixed(1)}%`}
+                style={{ flexGrow: p.brl ?? 0, flexBasis: 0, background: p.color, borderRadius: 3, minWidth: 3 }} />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 mt-3.5" style={{ gap: 12 }}>
+            {(partes ?? []).map((p) => {
+              const share = p.brl != null && somaPartes > 0 ? (p.brl / somaPartes) * 100 : null;
+              return (
+                <div key={p.label} className="flex flex-col" style={{ gap: 3 }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
+                    <span className="font-mono uppercase truncate" style={{ color: "var(--muted)", fontSize: 8.5, fontWeight: 700, letterSpacing: ".1em" }}>{p.label}</span>
+                  </div>
+                  <div className="font-mono font-bold tnum" style={{ color: p.brl != null ? "var(--text)" : "var(--faint)", fontSize: 13 }}>
                     {p.brl != null ? maskIf(priv, compactBRL(p.brl)) : "—"}
-                  </span>
-                  {share != null && (
-                    <span style={{ color: "var(--muted)", fontSize: 9.5 }}> · {share.toFixed(1)}%</span>
-                  )}
+                  </div>
+                  {share != null && <div className="font-mono tnum" style={{ color: "var(--muted)", fontSize: 10 }}>{share.toFixed(1)}%</div>}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -1572,19 +1566,19 @@ export default function HomePage() {
 
         {/* ── Skeleton do painel do dia enquanto o snapshot carrega ── */}
         {loading && (
-          <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)" }} />
+          <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }} />
         )}
 
         {/* ── Row 3: painel do dia — UM card com as linhas IBKR · Brasil ·
                Bitcoin · Câmbio (divisórias internas) e o Σ como rodapé ── */}
         {!loading && (
           <ErrorBoundary fallback={null}>
-            <div className="mt-4 animate-fade-in overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
-              <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-                <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
+            <div className="mt-4 animate-fade-in overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
+              <div className="flex items-center gap-2 px-5 py-2.5" style={{ borderBottom: "1px solid var(--line-strong)" }}>
+                <span className="font-mono uppercase" style={{ color: "var(--text-2)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>
                   Retorno do dia
                 </span>
-                <span className="font-mono text-[9px]" style={{ color: "var(--faint)" }}>por book · toque para abrir</span>
+                <span className="font-mono text-[9px]" style={{ color: "var(--faint)", letterSpacing: ".04em" }}>por book · toque para abrir</span>
               </div>
               <IbkrDayStrip data={ibkrOverview} priv={priv} />
               <BrDayStrip
