@@ -11,6 +11,7 @@ import { openEmbed, openArticle } from "@/lib/embed-link";
 import PatrimonioModal from "@/components/PatrimonioModal";
 import RetornoDiaModal from "@/components/RetornoDiaModal";
 import PatrimonioSparkline from "@/components/PatrimonioSparkline";
+import MascoteWalk from "@/components/MascoteWalk";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -1083,6 +1084,7 @@ export default function HomePage() {
   const [ibkrLoaded, setIbkrLoaded] = useState(false); // /api/home resolveu (com ou sem book)
   const [retornoOpen, setRetornoOpen] = useState(false); // popup "Retorno do dia · por book"
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
+  const [mascoteOn, setMascoteOn] = useState(false); // easter-egg: mascote andando (clique na logo)
 
   // Modo privacidade — FECHADO (valores ocultos) por padrão; o padrão é
   // configurável em Configurações → Preferências ("home-privacy-default").
@@ -1311,14 +1313,22 @@ export default function HomePage() {
         <div className="animate-fade-in flex items-center justify-between gap-3">
           {/* Logo + greeting */}
           <div className="flex items-center gap-4 min-w-0">
-            <Image
-              src="/midias/carregamento.png"
-              alt="Meus Investimentos"
-              width={72}
-              height={72}
-              className="shrink-0 object-contain"
-              priority
-            />
+            <button
+              type="button"
+              onClick={() => setMascoteOn(true)}
+              aria-label="Barroots"
+              title="Barroots"
+              className="shrink-0 transition-transform hover:scale-105 active:scale-95"
+            >
+              <Image
+                src="/midias/carregamento.png"
+                alt="Meus Investimentos"
+                width={72}
+                height={72}
+                className="object-contain"
+                priority
+              />
+            </button>
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-2xl md:text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-.01em" }}>
@@ -1449,6 +1459,9 @@ export default function HomePage() {
         )}
 
       </div>
+
+      {/* Easter-egg: mascote Barroots caminhando (clique na logo do topo) */}
+      <MascoteWalk show={mascoteOn} onDone={() => setMascoteOn(false)} />
     </div>
     </ErrorBoundary>
   );
