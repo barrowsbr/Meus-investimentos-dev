@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2 } from "lucide-react";
+import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import type { PortfolioResponse } from "@/lib/hooks";
 import { compactBRL, pct } from "@/lib/format";
@@ -899,6 +899,29 @@ function IbkrDayStrip({ data, priv }: { data: IbkrStripData | null; priv: boolea
   );
 }
 
+// Placeholder da faixa IBKR — enquanto o book Flex não chega (cold start ~até
+// 38s) mostra "carregando"; se o /api/home resolveu sem o book, mostra
+// "indisponível". Evita a faixa simplesmente sumir (parecia removida).
+function IbkrStripPlaceholder({ loaded }: { loaded: boolean }) {
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3"
+      style={{ borderLeft: `3px solid ${IBKR_RED}`, borderBottom: "1px solid var(--line)", backgroundImage: "linear-gradient(90deg, rgba(214,0,28,0.06) 0%, transparent 42%)" }}
+    >
+      <Image src="/midias/51q7eieUfKL.png" alt="Interactive Brokers" width={40} height={40} className="shrink-0 object-cover" style={{ borderRadius: 10, opacity: 0.55 }} />
+      <div className="min-w-0">
+        <span className="font-bold" style={{ color: "var(--text-2)", fontSize: 14 }}>Interactive Brokers</span>
+        <p className="font-mono mt-0.5 flex items-center gap-1.5" style={{ color: "var(--muted)", fontSize: 10 }}>
+          {loaded
+            ? "book indisponível no momento — recarregue a página"
+            : <><Loader2 size={11} className="animate-spin" /> carregando book da IBKR…</>}
+        </p>
+      </div>
+      {!loaded && <div className="ml-auto animate-pulse rounded" style={{ width: 88, height: 22, background: "var(--line)" }} />}
+    </div>
+  );
+}
+
 // ── BrDayStrip / BtcDayStrip — mesma identidade visual da faixa IBKR ─────────
 // Brasil (verde, bandeira) = variação do dia dos ativos em REAL (B3, sem RF e
 // sem cripto). Bitcoin (laranja, ₿) = variação do dia dos criptoativos.
@@ -1274,6 +1297,7 @@ function BtcDayStrip({ dayBRL, dayPct, patrimonioBRL, count, btc, priv }: DayStr
 export default function HomePage() {
   const { data, loading } = usePortfolio();
   const [ibkrOverview, setIbkrOverview] = useState<IbkrStripData | null>(null);
+  const [ibkrLoaded, setIbkrLoaded] = useState(false); // /api/home resolveu (com ou sem book)
   const [patrimonioDia, setPatrimonioDia] = useState<number | null>(null);
 
   // Modo privacidade — FECHADO (valores ocultos) por padrão; o padrão é
@@ -1313,6 +1337,7 @@ export default function HomePage() {
         if (!cancelled) { const d2 = await tryFetch(); if (d2) d = d2; }
       }
       if (cancelled) return;
+      setIbkrLoaded(true);
       if (!d) { setDetalhe((s) => (s === "loading" ? "erro" : s)); return; }
       if (d.overview && d.overview.kpis) setIbkrOverview(d.overview as IbkrStripData);
       const pd = d.patrimonioDia;
@@ -1580,7 +1605,7 @@ export default function HomePage() {
                 </span>
                 <span className="font-mono text-[9px]" style={{ color: "var(--faint)", letterSpacing: ".04em" }}>por book · toque para abrir</span>
               </div>
-              <IbkrDayStrip data={ibkrOverview} priv={priv} />
+              {ibkrOverview ? <IbkrDayStrip data={ibkrOverview} priv={priv} /> : <IbkrStripPlaceholder loaded={ibkrLoaded} />}
               <BrDayStrip
                 dayBRL={brDayBRL}
                 dayPct={brStats.valueBRL > 0 ? (brDayBRL / brStats.valueBRL) * 100 : null}
