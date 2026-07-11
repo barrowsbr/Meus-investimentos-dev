@@ -9,7 +9,9 @@
       "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/NoticiasTab.tsx components/radar/dossier/NoticiasTab.tsx)",
       "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/PortfolioTab.tsx components/radar/dossier/PortfolioTab.tsx)",
       "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MacroTab.tsx components/radar/dossier/MacroTab.tsx)",
-      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MercadosTab.tsx components/radar/dossier/MercadosTab.tsx)"
+      "Bash(cp .claude/worktrees/agent-aec5717cdf93c4b0c/components/radar/dossier/MercadosTab.tsx components/radar/dossier/MercadosTab.tsx)",
+      "Read(//root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/**)",
+      "Bash(cp /root/.claude/uploads/90fadda2-3d75-56cd-bc13-fc2ab56e071d/153d377e-IMG_4127.jpeg public/midias/b3.jpg)"
     ]
   }
 }
