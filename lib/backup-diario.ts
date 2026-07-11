@@ -50,6 +50,9 @@ export async function runDailyBackup(opts: { force?: boolean } = {}): Promise<{ 
   _emAndamento = (async () => {
     try {
       if (!opts.force) {
+        // Liga/desliga em Configurações → Automações ("Backup agora" ignora).
+        const { isAutomacaoAtiva } = await import("./automacoes");
+        if (!(await isAutomacaoAtiva("app_backup_diario"))) return { ran: false, tabs: 0 };
         const st = await backupStatus();
         if (st.ultimaData === hoje()) return { ran: false, tabs: st.tabs.length };
       }
