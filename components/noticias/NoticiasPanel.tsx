@@ -4,11 +4,13 @@
 // Busca. Cada uma puxa de um endpoint diferente (o motor certo pra cada foco) e
 // renderiza com NewsCard. Cache por aba (troca de aba não refaz fetch).
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2, Search, Sparkles, Newspaper, Globe2, Bitcoin, Landmark } from "lucide-react";
-import { usePortfolio } from "@/lib/hooks";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, Search, Sparkles, Newspaper, Globe2, Bitcoin, Landmark, SlidersHorizontal } from "lucide-react";
+import Link from "next/link";
 import NewsCard from "./NewsCard";
 import type { NewsArticle } from "@/lib/news/ui";
+import { getPerfilNoticias, perfilQuery, PERFIL_EVENT } from "@/lib/news/perfil";
+import { TEMAS_PERFIL } from "@/lib/news/temas";
 
 type Sub = "foryou" | "mercado" | "mundo" | "cripto" | "busca";
 
@@ -64,13 +66,6 @@ function Jornal({ articles }: { articles: NewsArticle[] }) {
 }
 
 export default function NoticiasPanel() {
-  const { data: portfolio } = usePortfolio();
-  const tickers = useMemo(() => {
-    if (!portfolio?.positions) return [] as string[];
-    return (portfolio.positions as Array<{ ticker: string; quantidade: number }>)
-      .filter(p => p.quantidade > 0).map(p => p.ticker);
-  }, [portfolio]);
-
   const [sub, setSub] = useState<Sub>("mercado");
   const [loading, setLoading] = useState(false);
 
@@ -84,7 +79,12 @@ export default function NoticiasPanel() {
   const [buscaQ, setBuscaQ] = useState("");
   const [buscaRes, setBuscaRes] = useState<NewsArticle[] | null>(null);
 
-  const tickersKey = tickers.join(",");
+  // Perfil mudou (card em Configurações) → refaz o "Para você" na próxima visita.
+  useEffect(() => {
+    const onPerfil = () => setForyou(null);
+    window.addEventListener(PERFIL_EVENT, onPerfil);
+    return () => window.removeEventListener(PERFIL_EVENT, onPerfil);
+  }, []);
 
   // Carrega o dado da aba ativa (lazy + cache).
   useEffect(() => {
@@ -96,7 +96,9 @@ export default function NoticiasPanel() {
         if (alive) { setMercado(a); setLoading(false); }
       } else if (sub === "foryou" && foryou === null) {
         setLoading(true);
-        const a = tickersKey ? await getArticles(`/api/noticias?tickers=${encodeURIComponent(tickersKey)}`) : [];
+        // Feed personalizado: o perfil de interesses (localStorage) vai por
+        // query e o MOTOR ranqueia no servidor (interesse+impacto+recência+foto).
+        const a = await getArticles(`/api/noticias?${perfilQuery(getPerfilNoticias())}`);
         if (alive) { setForyou(a); setLoading(false); }
       } else if (sub === "cripto" && cripto === null) {
         setLoading(true);
@@ -111,7 +113,7 @@ export default function NoticiasPanel() {
     run();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sub, pais, tickersKey]);
+  }, [sub, pais]);
 
   const doSearch = useCallback(async (q: string) => {
     const t = q.trim();
@@ -178,8 +180,26 @@ export default function NoticiasPanel() {
           {sub === "mundo" && <Jornal articles={mundo[pais] ?? []} />}
           {sub === "foryou" && (
             (foryou && foryou.length > 0)
-              ? <div className="space-y-0.5">{foryou.map((a, i) => <NewsCard key={a.link || i} a={a} variant="row" />)}</div>
-              : <Empty msg={tickersKey ? "Sem notícias dos seus ativos agora." : "Carregando sua carteira…"} />
+              ? (
+                <div>
+                  {/* Perfil aplicado + atalho para personalizar */}
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    {getPerfilNoticias().interesses.map(t => {
+                      const def = TEMAS_PERFIL.find(x => x.id === t);
+                      return def ? (
+                        <span key={t} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(96,165,250,0.10)", border: "1px solid rgba(96,165,250,0.25)", color: "#93c5fd" }}>
+                          {def.label}
+                        </span>
+                      ) : null;
+                    })}
+                    <Link href="/configuracoes#aparencia" className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors hover:bg-white/5" style={{ border: "1px solid var(--line-strong)", color: "var(--muted)" }}>
+                      <SlidersHorizontal size={10} /> Personalizar
+                    </Link>
+                  </div>
+                  <Jornal articles={foryou} />
+                </div>
+              )
+              : <Empty msg="Montando seu feed personalizado…" />
           )}
           {sub === "busca" && (
             buscaRes === null

@@ -6,7 +6,7 @@ import {
   FileText, RefreshCw, Shield, Info, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database, Palette,
   Eye, EyeOff, KeyRound, ShieldCheck, Loader2, Bell,
-  Globe as GlobeIcon, Activity, Play, History, ExternalLink, Zap, Search,
+  Globe as GlobeIcon, Activity, Play, History, ExternalLink, Zap, Search, Newspaper,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
@@ -14,6 +14,7 @@ import { useTheme, type Theme } from "@/components/terminal";
 import { getHoloStyle, setHoloStyle, type HoloStyle } from "@/lib/holo-style";
 import { getStreakDays, setStreakDays, STREAK_DAYS_DEFAULT, STREAK_DAYS_MIN, STREAK_DAYS_MAX } from "@/lib/home-prefs";
 import PlanilhaCard from "@/components/config/PlanilhaCard";
+import NoticiasPerfilCard from "@/components/config/NoticiasPerfilCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -2957,6 +2958,7 @@ export default function ConfiguracoesPage() {
 
   const cards: CardDef[] = [
     { id: "preferencias", grupo: "aparencia", title: "Preferências do Sistema", desc: "Tema visual, HoloGlobo, privacidade da Home e termômetro de pregões", icon: <Palette size={16} />, keywords: "tema dark light matrix cores hologlobo globo privacidade olho pregoes termometro home fonte", el: <ThemeSection /> },
+    { id: "noticias", grupo: "aparencia", title: "Notícias — Perfil de interesses", desc: "Temas que o feed \"Para você\" prioriza e filtro de briga política", icon: <Newspaper size={16} />, keywords: "noticias interesses macro geopolitica tecnologia ciencia cripto briga politica feed personalizado", el: <NoticiasPerfilCard /> },
     { id: "planilha", grupo: "dados", title: "Planilha (gdados) — Editor", desc: "Editar abas sem abrir o Google · saúde dos dados · backup CSV e restauração", icon: <FileText size={16} />, keywords: "editor abas linhas editar apagar buscar csv backup restaurar saude teste compactar twr", el: <PlanilhaCard /> },
     { id: "cotacoes", grupo: "dados", title: "Base de Cotações (Golden Source)", desc: "db_cotacoes — preços de fechamento que alimentam a Performance/TWR", icon: <Database size={16} />, keywords: "db_cotacoes precos golden source yahoo atualizar fechamento auditoria", el: <GoldenSourceSection /> },
     { id: "historico", grupo: "dados", title: "Histórico patrimonial (GitHub Action)", desc: "Série da página Patrimônio — gravada 3×/dia em dias úteis", icon: <History size={16} />, keywords: "patrimonio evolucao serie 3x dia registrar workflow", el: <HistoricoSection /> },
