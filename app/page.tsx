@@ -13,6 +13,8 @@ import RetornoDiaModal from "@/components/RetornoDiaModal";
 import PatrimonioSparkline from "@/components/PatrimonioSparkline";
 import DayStreak from "@/components/DayStreak";
 import MascoteWalk from "@/components/MascoteWalk";
+import NewsCard from "@/components/noticias/NewsCard";
+import type { NewsArticle as HomeNewsArticle } from "@/lib/news/ui";
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -385,23 +387,10 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
   );
 }
 
-// ── NoticiasDestaques (news panel with images) ─────────────────────────────
-
-interface DestaqueItem {
-  titulo: string;
-  link: string;
-  data: string;
-  fonte: string;
-  imagem: string | null;
-  categoria: string;
-  impacto: "alto" | "medio" | "baixo";
-}
-
-const IMPACTO_STYLE = {
-  alto: { bg: "rgba(240,80,74,0.10)", border: "rgba(240,80,74,0.3)", color: "var(--neg)", label: "ALTO" },
-  medio: { bg: "rgba(232,163,61,0.10)", border: "rgba(232,163,61,0.3)", color: "var(--accent)", label: "MÉDIO" },
-  baixo: { bg: "var(--hover)", border: "var(--line)", color: "var(--muted)", label: "BAIXO" },
-};
+// ── Notícias na Home — REGRA: só notícia COM imagem ─────────────────────────
+// Reescrita sobre o motor personalizado (o mesmo do "Para você" em /noticias):
+// perfil de interesses + anti-briga + curadoria IA + ranking com bônus de foto.
+// Sem imagem real, a notícia NÃO entra na Home — nada de placeholder aqui.
 
 function proxyImg(url: string | null): string | null {
   if (!url) return null;
@@ -412,265 +401,72 @@ function proxyImg(url: string | null): string | null {
   return `/api/img-proxy?url=${encodeURIComponent(url)}`;
 }
 
-// Gradiente por categoria — placeholder editorial quando não há imagem real.
-function catGradient(cat: string): string {
-  const map: Record<string, [string, string]> = {
-    "Mercado": ["#1f6feb", "#0d2f6b"],
-    "Economia": ["#238636", "#13491f"],
-    "Global": ["#8957e5", "#3a2065"],
-    "Câmbio": ["#bf8700", "#5c4100"],
-    "Investimentos": ["#1f6feb", "#3a2065"],
-    "Macro": ["#da3633", "#5e1513"],
-    "Commodities": ["#bb8009", "#4d3206"],
-    "Tech": ["#1f6feb", "#8957e5"],
-    "Cripto": ["#F7931A", "#7a4200"],
-  };
-  const c = map[cat] ?? ["#30363d", "#161b22"];
-  return `linear-gradient(135deg, ${c[0]} 0%, ${c[1]} 100%)`;
-}
-
-// Thumbnail de notícia: imagem real (não-Google) com fallback para um bloco
-// com gradiente da categoria. NUNCA renderiza logo remoto — se a imagem falhar
-// ou for de host Google, cai no placeholder colorido.
-function NewsThumb({ imagem, categoria, size }: { imagem: string | null; categoria: string; size: "lg" | "sm" }) {
-  const [err, setErr] = useState(false);
-  const src = proxyImg(imagem);
-  if (src && !err) {
-    return (
-      <img
-        src={src}
-        alt=""
-        loading="lazy"
-        className={`h-full w-full object-cover transition-transform group-hover:scale-105 ${size === "lg" ? "duration-500" : "duration-300"}`}
-        onError={() => setErr(true)}
-      />
-    );
-  }
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center gap-1.5" style={{ background: catGradient(categoria) }}>
-      <Newspaper size={size === "lg" ? 30 : 16} style={{ color: "rgba(255,255,255,0.88)" }} />
-      {size === "lg" && (
-        <span className="font-mono font-bold uppercase" style={{ fontSize: 9, letterSpacing: "2px", color: "rgba(255,255,255,0.88)" }}>
-          {categoria}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function NoticiasDestaques() {
-  const [articles, setArticles] = useState<DestaqueItem[]>([]);
+  const [articles, setArticles] = useState<HomeNewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Sem no-store: deixa o CDN/browser reusar a resposta cacheada (s-maxage +
-    // stale-while-revalidate na rota) — a Home para de re-rodar o pipeline caro
-    // de notícias a cada carregamento.
-    fetch("/api/noticias/destaques")
-      .then(r => r.json())
-      .then(d => setArticles(d.articles ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let alive = true;
+    (async () => {
+      try {
+        // Perfil do dono (localStorage) — mesmo feed do "Para você".
+        const { getPerfilNoticias, perfilQuery } = await import("@/lib/news/perfil");
+        const r = await fetch(`/api/noticias?${perfilQuery(getPerfilNoticias())}`);
+        const d = await r.json();
+        const comFoto = ((d.articles ?? []) as HomeNewsArticle[]).filter(a => !!a.imagem && proxyImg(a.imagem));
+        if (alive) setArticles(comFoto.slice(0, 9));
+      } catch { /* sem notícias → a seção não aparece */ }
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
   }, []);
-
-  const sorted = useMemo(() => {
-    const copy = [...articles];
-    if (copy.length > 1) {
-      const [first, ...tail] = copy;
-      tail.sort((a, b) => {
-        const ai = a.imagem ? 0 : 1;
-        const bi = b.imagem ? 0 : 1;
-        return ai - bi;
-      });
-      return [first, ...tail];
-    }
-    return copy;
-  }, [articles]);
 
   if (loading) {
     return (
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-          <div className="flex items-center gap-2">
-            <Newspaper size={13} style={{ color: "var(--accent)" }} />
-            <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
-              Notícias · Destaques
-            </span>
-          </div>
+      <div className="overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14 }}>
+        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--line)" }}>
+          <Newspaper size={14} style={{ color: "var(--accent)" }} />
+          <span className="font-mono uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".18em", color: "var(--muted)" }}>Notícias · Para você</span>
         </div>
-        <div className="px-4 py-10 text-center">
-          <span className="text-xs font-mono animate-pulse" style={{ color: "var(--muted)" }}>Buscando notícias...</span>
+        <div className="p-4 animate-pulse space-y-3">
+          <div className="rounded-xl" style={{ height: 180, background: "var(--hover)" }} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl" style={{ height: 90, background: "var(--hover)" }} />
+            <div className="rounded-xl" style={{ height: 90, background: "var(--hover)" }} />
+          </div>
         </div>
       </div>
     );
   }
 
-  if (articles.length === 0) return null;
+  if (articles.length === 0) return null; // regra: sem foto, sem seção
 
-  const featured = sorted[0];
-  // Sub-destaques: as 2 manchetes seguintes COM imagem ganham cards grandes;
-  // o restante cai na grade compacta.
-  const tail = sorted.slice(1);
-  const subs: DestaqueItem[] = [];
-  const rest: DestaqueItem[] = [];
-  for (const a of tail) {
-    if (subs.length < 2 && a.imagem) subs.push(a);
-    else rest.push(a);
-  }
+  const hero = articles[0];
+  const subs = articles.slice(1, 3);
+  const grid = articles.slice(3, 9);
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--line-strong)" }}>
-        <div className="flex items-center gap-2">
-          <Newspaper size={13} style={{ color: "var(--accent)" }} />
-          <span className="font-mono text-[10px] font-bold tracking-[1.5px] uppercase" style={{ color: "var(--text-2)" }}>
-            Notícias · Destaques
-          </span>
-        </div>
-        <Link
-          href="/noticias"
-          className="font-mono text-[10px] font-semibold transition-opacity hover:opacity-80"
-          style={{ color: "var(--accent)" }}
-        >
-          Ver tudo →
+    <div className="overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
+      <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--line)" }}>
+        <Newspaper size={14} style={{ color: "var(--accent)" }} />
+        <span className="font-mono uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".18em", color: "var(--muted)" }}>Notícias · Para você</span>
+        <Link href="/noticias" className="ml-auto inline-flex items-center gap-1 font-mono transition-opacity hover:opacity-80" style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>
+          Ver tudo <ChevronRight size={12} />
         </Link>
       </div>
 
-      {/* Featured article */}
-      <button
-        type="button"
-        onClick={() => openArticle(featured.link)}
-        className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
-        style={{ borderBottom: "1px solid var(--line)" }}
-      >
-        <div className="flex flex-col md:flex-row">
-          <div
-            className="relative h-[180px] md:h-auto md:w-[280px] shrink-0 overflow-hidden flex items-center justify-center"
-            style={{ background: "var(--hover)" }}
-          >
-            <NewsThumb imagem={featured.imagem} categoria={featured.categoria} size="lg" />
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 50%)" }} />
+      <div className="p-4 space-y-3">
+        <NewsCard a={hero} variant="hero" />
+        {subs.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {subs.map((a, i) => <NewsCard key={a.link || i} a={a} variant="sub" />)}
           </div>
-          <div className="flex flex-1 flex-col justify-between p-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                {(() => { const s = IMPACTO_STYLE[featured.impacto]; return (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 font-mono text-[9px] font-bold" style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
-                    {featured.impacto === "alto" && <AlertTriangle size={8} />}
-                    {s.label}
-                  </span>
-                ); })()}
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-                  {featured.categoria}
-                </span>
-              </div>
-              <h3 className="font-semibold leading-snug line-clamp-3 group-hover:underline decoration-1 underline-offset-2" style={{ fontSize: 18, color: "var(--text)" }}>
-                {featured.titulo}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2 mt-3 font-mono text-[10px]" style={{ color: "var(--faint)" }}>
-              <span className="font-semibold" style={{ color: "var(--muted)" }}>{featured.fonte}</span>
-              {featured.data && (
-                <>
-                  <span>·</span>
-                  <span className="flex items-center gap-1"><Clock size={9} /> {timeAgo(featured.data)}</span>
-                </>
-              )}
-            </div>
+        )}
+        {grid.length > 0 && (
+          <div className="grid grid-cols-1 gap-1 md:grid-cols-2 xl:grid-cols-3">
+            {grid.map((a, i) => <NewsCard key={a.link || i} a={a} variant="grid" />)}
           </div>
-        </div>
-      </button>
-
-      {/* Sub-destaques — 2 manchetes com imagem grande */}
-      {subs.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ borderBottom: "1px solid var(--line)" }}>
-          {subs.map((article, i) => {
-            const sty = IMPACTO_STYLE[article.impacto];
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => openArticle(article.link)}
-                className="group block w-full text-left transition-colors hover:bg-white/[0.02]"
-                style={{ borderRight: i === 0 && subs.length > 1 ? "1px solid var(--line)" : undefined }}
-              >
-                <div className="relative h-[130px] overflow-hidden flex items-center justify-center" style={{ background: "var(--hover)" }}>
-                  <NewsThumb imagem={article.imagem} categoria={article.categoria} size="lg" />
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 55%)" }} />
-                  <span
-                    className="absolute left-2.5 bottom-2 inline-flex items-center gap-1 px-1.5 py-0.5 font-mono text-[8px] font-bold"
-                    style={{ background: "rgba(0,0,0,0.55)", border: `1px solid ${sty.border}`, color: sty.color === "var(--muted)" ? "#ddd" : sty.color, backdropFilter: "blur(4px)" }}
-                  >
-                    {article.impacto === "alto" && <AlertTriangle size={8} />}
-                    {sty.label} · {article.categoria.toUpperCase()}
-                  </span>
-                </div>
-                <div className="p-3">
-                  <p className="text-[14px] font-semibold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-2" style={{ color: "var(--text)" }}>
-                    {article.titulo}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1.5 font-mono text-[9px]" style={{ color: "var(--faint)" }}>
-                    <span className="font-semibold" style={{ color: "var(--muted)" }}>{article.fonte}</span>
-                    {article.data && (<><span>·</span><span>{timeAgo(article.data)}</span></>)}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Grid of remaining articles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {rest.map((article, i) => {
-          const sty = IMPACTO_STYLE[article.impacto];
-          const isLast = i === rest.length - 1;
-          const isRightEdge = (i + 1) % 3 === 0;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => openArticle(article.link)}
-              className="group flex gap-3 p-3 text-left w-full transition-colors hover:bg-white/[0.02]"
-              style={{
-                borderBottom: isLast ? undefined : "1px solid var(--line)",
-                borderRight: isRightEdge ? undefined : "1px solid var(--line)",
-              }}
-            >
-              <div
-                className="relative h-[64px] w-[88px] shrink-0 overflow-hidden rounded-sm flex items-center justify-center"
-                style={{ background: "var(--hover)" }}
-              >
-                <NewsThumb imagem={article.imagem} categoria={article.categoria} size="sm" />
-              </div>
-              <div className="flex flex-1 flex-col justify-between min-w-0">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="font-mono text-[8px] font-bold px-1 py-0.5" style={{ background: sty.bg, border: `1px solid ${sty.border}`, color: sty.color }}>
-                      {sty.label}
-                    </span>
-                    <span className="font-mono text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--faint)" }}>
-                      {article.categoria}
-                    </span>
-                  </div>
-                  <p className="text-[13px] font-semibold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-2" style={{ color: "var(--text)" }}>
-                    {article.titulo}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 mt-1.5 font-mono text-[9px]" style={{ color: "var(--faint)" }}>
-                  <span>{article.fonte}</span>
-                  {article.data && (
-                    <>
-                      <span>·</span>
-                      <span>{timeAgo(article.data)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </button>
-          );
-        })}
+        )}
       </div>
     </div>
   );
