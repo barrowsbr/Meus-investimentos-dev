@@ -146,6 +146,45 @@ export async function compactLockTab(): Promise<{ antes: number; depois: number;
   return { antes, depois: out.length, removidas: antes - out.length };
 }
 
+// Corrige a fotografia de UM mês (divergência lock × recalculado apontada no
+// heatmap): reescreve a aba compactada com o valor novo — writeTab faz backup
+// automático antes. USD do mês é preservado se existir.
+export async function corrigirMesLock(month: string, pct: number): Promise<{ ok: boolean }> {
+  if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(pct) || Math.abs(pct) > 500) {
+    throw new Error("mês/percentual inválido");
+  }
+  const store = getDataStore();
+  const rows = await store.fetchTab(TAB);
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  let achou = false;
+  for (const r of rows) {
+    if (Number(r["version"] ?? 1) !== CURRENT_VERSION) continue;
+    const m = normalizeMonth(r["month"]);
+    if (!m || seen.has(m)) continue;
+    const pctRow = Number(r["return_pct"]);
+    if (m !== month && (!Number.isFinite(pctRow) || Math.abs(pctRow) > 500)) continue;
+    seen.add(m);
+    const usdRaw = r["return_pct_usd"];
+    const usd = usdRaw != null && usdRaw !== "" ? Number(usdRaw) : null;
+    const valor = m === month ? pct : pctRow;
+    if (m === month) achou = true;
+    out.push([
+      m,
+      String(Math.round(valor * 1e6) / 1e6),
+      usd != null && Number.isFinite(usd) && Math.abs(usd) <= 500 ? String(Math.round(usd * 1e6) / 1e6) : "",
+      m === month ? new Date().toISOString() : String(r["locked_at"] ?? ""),
+      String(CURRENT_VERSION),
+    ]);
+  }
+  if (!achou) out.push([month, String(Math.round(pct * 1e6) / 1e6), "", new Date().toISOString(), String(CURRENT_VERSION)]);
+  out.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  const { writeTab } = await import("./gsheets");
+  await writeTab(TAB, HEADERS, out, { raw: true });
+  _cache = null;
+  return { ok: true };
+}
+
 export function mergeWithLocked(
   locked: LockedMonth[],
   computed: Array<{ month: string; return_pct: number }>,
