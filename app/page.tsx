@@ -82,6 +82,7 @@ interface NewsArticle {
   link: string;
   data: string;
   fonte: string;
+  imagem?: string | null;
   ticker: string;
   categoria: string;
 }
@@ -366,6 +367,17 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
                 </>
               )}
             </div>
+            {article?.imagem && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={proxyImg(article.imagem) ?? undefined}
+                alt=""
+                loading="lazy"
+                className="shrink-0 object-cover"
+                style={{ width: 56, height: 56, borderRadius: 10, border: "1px solid var(--line)" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
           </a>
         );
       })}

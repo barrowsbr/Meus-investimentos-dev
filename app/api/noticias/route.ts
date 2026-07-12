@@ -12,6 +12,7 @@ export interface NewsItem {
   link: string;
   data: string;
   fonte: string;
+  imagem?: string | null;
   ticker: string;
   categoria: "mercado" | "portfolio" | "economia" | "macro" | "setor";
   impacto: "alto" | "medio" | "baixo";
@@ -263,6 +264,27 @@ async function fetchSymbolNews(tickers: string[], name: string): Promise<NewsIte
     const db = b.data ? new Date(b.data).getTime() : 0;
     return db - da;
   });
+
+  // Imagem para a PRIMEIRA notícia de cada ticker (é a que o Radar do Dia
+  // exibe): raspa o og:image da página real (resolveAndImage decodifica o
+  // redirect do Google News). Deadline global — sem foto, fica o layout atual.
+  try {
+    const { resolveAndImage } = await import("@/lib/news-images");
+    const vistos = new Set<string>();
+    const alvo: ParsedItem[] = [];
+    for (const it of deduped) {
+      if (vistos.has(it.ticker)) continue;
+      vistos.add(it.ticker);
+      alvo.push(it);
+    }
+    await Promise.race([
+      Promise.allSettled(alvo.map(async it => {
+        const r = await resolveAndImage(it.link);
+        if (r?.img) { it.imagem = r.img; if (r.realUrl) it.link = r.realUrl; }
+      })),
+      new Promise(res => setTimeout(res, 5000)),
+    ]);
+  } catch { /* segue sem imagem */ }
 
   return deduped;
 }
