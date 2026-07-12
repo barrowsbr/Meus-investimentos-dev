@@ -7,38 +7,28 @@
 // (bkp_<aba>) antes de qualquer sobrescrita.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, HeartPulse, History, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Download, HeartPulse, History, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
 
 interface Grid { headers: string[]; rows: string[][] }
 type Msg = { ok: boolean; text: string } | null;
 
 const PAGE = 100;
 
-// ── Saúde & Backup diário ─────────────────────────────────────────────────────
+// ── Saúde & Backup (CSVs fora da planilha) ────────────────────────────────────
 
 interface AbaSaude { tab: string; linhas: number; colunas: number; erros: string[]; avisos: string[] }
 interface Relatorio { geradoEm: string; totalErros: number; totalAvisos: number; abas: AbaSaude[] }
-interface BkpStatus { ultimaData: string | null; tabs: { tab: string; data: string; linhas: number }[] }
 
-function fmtDia(iso: string | null): string {
-  if (!iso) return "nunca";
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
+const BACKUPS_BRANCH_URL = "https://github.com/barrowsbr/meus-investimentos-dev/tree/backups";
+const BACKUP_WORKFLOW_URL = "https://github.com/barrowsbr/meus-investimentos-dev/actions/workflows/backup.yml";
 
 function SaudeBackup({ tab, soLeitura, onAfterRollback }: { tab: string; soLeitura: boolean; onAfterRollback: () => void }) {
-  const [bkp, setBkp] = useState<BkpStatus | null>(null);
   const [rel, setRel] = useState<Relatorio | null>(null);
   const [testando, setTestando] = useState(false);
-  const [rodando, setRodando] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
-  const [confirmRb, setConfirmRb] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
-
-  const carregarStatus = useCallback(() => {
-    fetch("/api/config/planilha/backup").then((r) => r.json()).then((d) => { if (!d?.error) setBkp(d); }).catch(() => {});
-  }, []);
-  useEffect(() => { carregarStatus(); }, [carregarStatus]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [csvPendente, setCsvPendente] = useState<{ nome: string; texto: string; linhas: number } | null>(null);
 
   const testar = async () => {
     setTestando(true); setMsg(null); setRel(null);
@@ -51,26 +41,30 @@ function SaudeBackup({ tab, soLeitura, onAfterRollback }: { tab: string; soLeitu
     finally { setTestando(false); }
   };
 
-  const backupAgora = async () => {
-    setRodando(true); setMsg(null);
-    try {
-      const r = await fetch("/api/config/planilha/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run" }) });
-      const d = await r.json();
-      if (d?.error) setMsg({ ok: false, text: d.error });
-      else { setMsg({ ok: true, text: `Backup concluído — ${d.tabs} abas fotografadas ✓` }); carregarStatus(); }
-    } catch { setMsg({ ok: false, text: "Falha no backup" }); }
-    finally { setRodando(false); }
+  const escolherCsv = async (f: File | null) => {
+    if (!f) return;
+    const texto = await f.text();
+    const linhas = Math.max(0, texto.split(/\r?\n/).filter((l) => l.trim() !== "").length - 1);
+    setCsvPendente({ nome: f.name, texto, linhas });
+    setMsg(null);
   };
 
-  const rollback = async () => {
+  const restaurarCsv = async () => {
+    if (!csvPendente) return;
     setRestaurando(true); setMsg(null);
     try {
-      const r = await fetch("/api/config/planilha/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rollback", tab }) });
+      // Cópia de segurança local do estado ATUAL antes de sobrescrever.
+      window.open(`/api/config/planilha/backup?csv=${encodeURIComponent(tab)}`, "_blank");
+      const r = await fetch("/api/config/planilha/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore-csv", tab, csv: csvPendente.texto }),
+      });
       const d = await r.json();
-      if (d?.error) setMsg({ ok: false, text: d.error });
-      else { setMsg({ ok: true, text: `"${tab}" restaurada da fotografia de ${fmtDia(d.dataBackup)} (${d.linhas} linhas) ✓` }); onAfterRollback(); }
-    } catch { setMsg({ ok: false, text: "Falha no rollback" }); }
-    finally { setRestaurando(false); setConfirmRb(false); }
+      if (!r.ok || d?.error) setMsg({ ok: false, text: d?.error ?? `Erro ${r.status}` });
+      else { setMsg({ ok: true, text: `"${tab}" restaurada de ${csvPendente.nome} (${d.linhas} linhas) ✓ — o estado anterior foi baixado como CSV` }); onAfterRollback(); }
+    } catch { setMsg({ ok: false, text: "Falha na restauração" }); }
+    finally { setRestaurando(false); setCsvPendente(null); }
   };
 
   const [compactando, setCompactando] = useState(false);
@@ -85,7 +79,6 @@ function SaudeBackup({ tab, soLeitura, onAfterRollback }: { tab: string; soLeitu
     finally { setCompactando(false); }
   };
 
-  const dataTabAtual = bkp?.tabs.find((t) => t.tab.trim().toLowerCase() === tab.trim().toLowerCase())?.data ?? null;
   const comProblema = rel?.abas.filter((a) => a.erros.length > 0 || a.avisos.length > 0) ?? [];
   const saudaveis = rel ? rel.abas.length - comProblema.length : 0;
 
@@ -93,40 +86,51 @@ function SaudeBackup({ tab, soLeitura, onAfterRollback }: { tab: string; soLeitu
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-          <HeartPulse size={13} className="text-emerald-400" /> Saúde &amp; Backup diário
+          <HeartPulse size={13} className="text-emerald-400" /> Saúde &amp; Backup (CSV)
         </span>
-        <span className="text-[10px] font-mono text-zinc-600">
-          último backup: <span className={bkp?.ultimaData ? "text-zinc-400" : "text-amber-400/80"}>{fmtDia(bkp?.ultimaData ?? null)}</span>
-          {bkp && bkp.tabs.length > 0 && <> · {bkp.tabs.length} abas</>}
-        </span>
+        <a href={BACKUPS_BRANCH_URL} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-cyan-400/80 hover:text-cyan-300">
+          ver CSVs no GitHub ↗
+        </a>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <button onClick={testar} disabled={testando} className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-emerald-500/60 hover:text-emerald-300 transition-colors">
             {testando ? <Loader2 size={11} className="animate-spin" /> : <ShieldCheck size={11} />} Testar saúde
           </button>
-          <button onClick={backupAgora} disabled={rodando} className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-emerald-500/60 hover:text-emerald-300 transition-colors">
-            {rodando ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Backup agora
-          </button>
-          {confirmRb ? (
-            <button onClick={rollback} disabled={restaurando} className="inline-flex items-center gap-1 rounded-lg border border-red-700/60 bg-red-900/30 px-2 py-1 text-[11px] font-bold text-red-300">
-              {restaurando ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />} Confirmar restauração?
+          <a
+            href={`/api/config/planilha/backup?csv=${encodeURIComponent(tab)}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-emerald-500/60 hover:text-emerald-300 transition-colors"
+            title={`Baixa a aba "${tab}" como CSV`}
+          >
+            <Download size={11} /> Baixar CSV da aba
+          </a>
+          {csvPendente ? (
+            <button onClick={restaurarCsv} disabled={restaurando} className="inline-flex items-center gap-1 rounded-lg border border-red-700/60 bg-red-900/30 px-2 py-1 text-[11px] font-bold text-red-300">
+              {restaurando ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />} Sobrescrever &ldquo;{tab}&rdquo; com {csvPendente.nome} ({csvPendente.linhas} linhas)?
             </button>
           ) : (
             <button
-              onClick={() => { setConfirmRb(true); window.setTimeout(() => setConfirmRb(false), 4000); }}
+              onClick={() => fileRef.current?.click()}
               disabled={!tab || soLeitura}
-              title={soLeitura ? "Aba de backup/consulta — selecione uma aba de dados para restaurar" : dataTabAtual ? `Restaura "${tab}" para a fotografia de ${fmtDia(dataTabAtual)}` : "Sem fotografia diária ainda"}
+              title={soLeitura ? "Selecione uma aba de dados para restaurar" : `Restaura "${tab}" a partir de um arquivo CSV (do GitHub ou baixado antes)`}
               className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:border-amber-500/60 hover:text-amber-300 transition-colors"
             >
-              <History size={11} /> Rollback da aba
+              <History size={11} /> Restaurar CSV…
             </button>
           )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => { escolherCsv(e.target.files?.[0] ?? null); e.target.value = ""; }}
+          />
         </div>
       </div>
 
       <p className="text-[10px] text-zinc-600 leading-relaxed">
-        O backup fotografa cada aba em <span className="font-mono">bkp_diario_&lt;aba&gt;</span> uma vez por dia, na primeira abertura do app
-        (sobrescreve a foto do dia anterior). O rollback restaura a aba selecionada acima a partir dessa fotografia — e é reversível
-        (o estado atual vira snapshot pré-escrita antes).
+        Backup DIÁRIO fora da planilha: uma <a href={BACKUP_WORKFLOW_URL} target="_blank" rel="noreferrer" className="text-cyan-400/80 hover:text-cyan-300">GitHub Action</a> exporta
+        todas as abas como CSV e sobrescreve os arquivos na branch <span className="font-mono">backups</span> do repositório (versões antigas ficam no
+        histórico de commits). Para restaurar: baixe o CSV lá (ou use um baixado aqui) e clique em &ldquo;Restaurar CSV…&rdquo; com a aba selecionada —
+        antes de sobrescrever, o estado atual é baixado como CSV automaticamente.
       </p>
 
       {rel && (

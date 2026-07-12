@@ -26,20 +26,6 @@ export default function CommandBar({ title, onMenu }: Props) {
     return () => clearInterval(id);
   }, []);
 
-  // Backup diário da planilha: 1 ping por sessão do navegador ao abrir o app;
-  // o servidor decide (pula se já rodou hoje / modo demo). Fire-and-forget.
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem("bkp-daily-ping")) return;
-      sessionStorage.setItem("bkp-daily-ping", "1");
-    } catch { /* sessionStorage indisponível — pinga mesmo assim */ }
-    fetch("/api/config/planilha/backup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "daily" }),
-    }).catch(() => {});
-  }, []);
-
   return (
     <div
       className="flex items-center gap-3 md:gap-4 px-3 md:px-[18px] shrink-0"

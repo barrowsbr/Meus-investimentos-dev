@@ -89,12 +89,15 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
 - **Escrita**: service account (`GOOGLE_SERVICE_ACCOUNT_JSON`), com a planilha compartilhada
   com o e-mail do service account como **Editor**. Toda escrita (`writeTab`) faz **backup
   automático** da aba antes de sobrescrever (`lib/backup.ts`)
-- **Backup diário + saúde + editor**: Configurações → card "Planilha (gdados)". Fotografia
-  diária de cada aba em `bkp_diario_<aba>` (sobrescrita 1×/dia no primeiro acesso ao app —
-  ping do shell no `CommandBar` → `/api/config/planilha/backup`; `lib/backup-diario.ts`),
-  **rollback** por aba (reversível — o estado atual vira snapshot pré-escrita) e **teste de
-  saúde** (`lib/planilha-saude.ts`: datas/números inválidos, células `#REF!`, headers
-  duplicados, moedas estranhas, lock mensal corrompido)
+- **Backup diário (CSVs FORA da planilha) + saúde + editor**: Configurações → card
+  "Planilha (gdados)". O workflow `.github/workflows/backup.yml` (diário, 6h30 BRT) chama
+  `GET /api/config/planilha/backup?export=all` (Bearer `CRON_SECRET`) e **sobrescreve os
+  CSVs de todas as abas na branch `backups`** do repositório (versões antigas ficam no
+  histórico de commits; deploy da branch desativado no `vercel.json`). Backup dentro da
+  própria planilha NÃO vale como backup (decisão do dono). No card: download de CSV por
+  aba, **Restaurar CSV** (upload → sobrescreve a aba, baixando antes o estado atual) e
+  **teste de saúde** (`lib/planilha-saude.ts`: datas/números inválidos, células `#REF!`,
+  headers duplicados, moedas estranhas, lock mensal corrompido)
 - **Biblioteca**: `googleapis` (Node.js)
 
 ## Multiusuário (planilha por conta — sem banco de dados)
