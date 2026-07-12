@@ -36,7 +36,9 @@ export async function curarLote(items: NewsItem[], interesses: Tema[]): Promise<
     "Você é o editor-chefe de um feed de notícias pessoal. O leitor se interessa por: " +
     perfilTexto(interesses) +
     ". Ele NÃO quer política de bastidor/picuinha (fulano rebate sicrano, farpas, bate-boca, articulação partidária do dia a dia) — " +
-    "mas geopolítica REAL (guerras, sanções, decisões que movem o mundo/mercados) interessa muito.";
+    "mas geopolítica REAL (guerras, sanções, decisões que movem o mundo/mercados) interessa muito. " +
+    "Dê REL 0-2 para conteúdo de consumo/entretenimento: listicles ('5 melhores notebooks'), guias de compra, reviews de produto, " +
+    "ofertas/cupons, tutoriais, fofoca de celebridade, horóscopo e clickbait — isso NÃO é notícia para este feed.";
   const prompt =
     `Para cada manchete abaixo, responda UMA linha no formato "NÚMERO|REL|BRIGA" onde REL é a relevância 0-10 ` +
     `para o perfil do leitor e BRIGA é 1 se for picuinha/briga política de bastidor, senão 0.\n` +
