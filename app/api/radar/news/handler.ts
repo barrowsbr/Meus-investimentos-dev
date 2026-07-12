@@ -18,6 +18,7 @@ interface NewsItem {
   data: string;
   fonte: string;
   impacto: "alto" | "medio" | "baixo";
+  imagem?: string | null;
   original?: string;
   idioma?: string;
   local?: boolean;   // veio de um veículo local (não de agência internacional)
@@ -280,6 +281,20 @@ export async function GET(request: Request) {
 
   try {
     const articles = await fetchCountryNews(country);
+    // Imagem: Google News não fornece foto real — raspa o og:image da página
+    // dos primeiros artigos (resolveAndImage decodifica o redirect). Deadline
+    // global; o que não chegar a tempo fica sem foto (fallback de gradiente).
+    try {
+      const { resolveAndImage } = await import("@/lib/news-images");
+      const topo = articles.slice(0, 10).filter(a => !a.imagem);
+      await Promise.race([
+        Promise.allSettled(topo.map(async a => {
+          const r = await resolveAndImage(a.link);
+          if (r?.img) { a.imagem = r.img; if (r.realUrl) a.link = r.realUrl; }
+        })),
+        new Promise(res => setTimeout(res, 6000)),
+      ]);
+    } catch { /* segue sem imagem */ }
     return NextResponse.json({ country, articles, count: articles.length });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

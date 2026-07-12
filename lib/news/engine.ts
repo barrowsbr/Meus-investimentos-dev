@@ -38,6 +38,25 @@ export interface FiltroGerais {
   limit?: number;        // default 80
 }
 
+// Enriquecimento de imagem: nem todo feed direto embute a foto no RSS (G1,
+// BBC, Al Jazeera…). Para o TOPO do feed, busca o og:image na página do
+// artigo — link canônico (sem redirect do Google), raspagem direta. Deadline
+// global: imagem que não chegou a tempo fica pro próximo ciclo de cache.
+async function enriquecerImagens(items: NewsItem[], topN = 24, deadlineMs = 6000): Promise<void> {
+  const alvo = items
+    .slice(0, topN)
+    .filter((it) => !it.imagem && /^https?:\/\//.test(it.link) && !/news\.google/.test(it.link));
+  if (alvo.length === 0) return;
+  const { fetchArticleImage } = await import("@/lib/news-images");
+  await Promise.race([
+    Promise.allSettled(alvo.map(async (it) => {
+      const img = await fetchArticleImage(it.link);
+      if (img) it.imagem = img;
+    })),
+    new Promise((resolve) => setTimeout(resolve, deadlineMs)),
+  ]);
+}
+
 async function traduzirEN(items: NewsItem[]): Promise<void> {
   const en = items.filter((i) => i.idioma === "en");
   if (en.length === 0) return;
@@ -82,6 +101,7 @@ export async function fetchNoticiasGerais(filtro: FiltroGerais = {}): Promise<Ne
   const topo = all.slice(0, Math.min(limit, all.length));
 
   await traduzirEN(topo);
+  await enriquecerImagens(topo); // og:image para o topo sem foto embutida
 
   // Curadoria LLM do topo (cache por link; best-effort).
   if (filtro.curar !== false) {

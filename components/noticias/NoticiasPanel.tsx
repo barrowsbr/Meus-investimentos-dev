@@ -102,7 +102,9 @@ export default function NoticiasPanel() {
         if (alive) { setForyou(a); setLoading(false); }
       } else if (sub === "cripto" && cripto === null) {
         setLoading(true);
-        const a = await getArticles(`/api/noticias/busca?q=${encodeURIComponent("bitcoin ethereum criptomoedas mercado cripto")}`);
+        // Motor com tema cripto: Cointelegraph/CoinDesk têm foto NATIVA no RSS
+        // (a busca por Google News não tinha imagem embutida).
+        const a = await getArticles(`/api/noticias?interesses=cripto&semBriga=1`);
         if (alive) { setCripto(a.map(x => ({ ...x, categoria: x.categoria ?? "Cripto" }))); setLoading(false); }
       } else if (sub === "mundo" && !mundo[pais]) {
         setLoading(true);

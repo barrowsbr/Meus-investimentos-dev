@@ -474,7 +474,7 @@ export async function GET() {
     // a resolução de og:image/redirect do Google é o passo lento; nunca deixar
     // isso estourar o tempo da função e devolver ZERO notícia.
     const enrich = Promise.allSettled(
-      pool.slice(0, 16).map(async item => {
+      pool.slice(0, 28).map(async item => {
         if (item.imagem) return;
 
         if (item._kind === "direct") {
@@ -504,7 +504,7 @@ export async function GET() {
     // Devolve o que tiver mesmo que nem todas as imagens tenham resolvido — as
     // notícias importam mais que a foto; sem isso, um lote lento de og:image
     // fazia a função estourar o tempo e a seção vinha VAZIA.
-    await Promise.race([enrich, new Promise(res => setTimeout(res, 5000))]);
+    await Promise.race([enrich, new Promise(res => setTimeout(res, 6500))]);
 
     // Reordenar: dentro de cada tier de impacto, artigos COM imagem sobem.
     pool.sort((a, b) => {

@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
     // Enriquecimento de imagem (top 12) com DEADLINE de 8s — resolve o redirect
     // do Google News e extrai og:image. Nunca deixa estourar o tempo.
-    const enrich = Promise.allSettled(items.slice(0, 12).map(async it => {
+    const enrich = Promise.allSettled(items.slice(0, 20).map(async it => {
       const decoded = decodeGoogleNewsUrl(it._gn);
       const target = decoded ?? it._gn;
       const r = await resolveAndImage(target);
