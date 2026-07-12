@@ -361,10 +361,24 @@ export async function fetchQuotes(yahooTickers: string[]): Promise<{ quotes: Rec
     } catch { /* sem fallback — segue com o que tem */ }
   }
 
+  // ── 3.5) Alpha Vantage — rede de segurança CIRÚRGICA por ticker ──
+  // Só para o que TODAS as fontes acima perderam; com teto de uso e cache
+  // (free tier = 25 req/dia — jamais primário). Ver lib/alphavantage-quote.ts.
+  const missing3 = yahooTickers.filter((t) => !quotes[t]);
+  let usedAV = false;
+  if (missing3.length > 0) {
+    try {
+      const { fetchQuotesAlphaVantage } = await import("./alphavantage-quote");
+      const av = await fetchQuotesAlphaVantage(missing3);
+      if (Object.keys(av).length > 0) { quotes = { ...quotes, ...av }; usedAV = true; }
+    } catch { /* segue com o que tem */ }
+  }
+
   const parts: string[] = [];
   if (usedBrapi) parts.push("brapi");
   if (usedYF2) parts.push("yahoo-finance2");
   if (usedV8) parts.push("yahoo-v8");
+  if (usedAV) parts.push("alphavantage");
   const source = Object.keys(quotes).length === 0 ? "none" : parts.join("+");
 
   return { quotes, source };
