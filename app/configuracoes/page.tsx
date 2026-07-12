@@ -48,26 +48,80 @@ interface ImportResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function SectionCard({ title, icon, children, defaultOpen = false }: {
+// Chip de status no cabeçalho do card — mostra o estado SEM precisar abrir.
+export type CardChip = { label: string; tone: "ok" | "warn" | "off" | "muted" };
+
+const CHIP_TONE: Record<CardChip["tone"], React.CSSProperties> = {
+  ok:    { background: "rgba(63,185,80,0.10)",  border: "1px solid rgba(63,185,80,0.35)",  color: "#3FB950" },
+  warn:  { background: "rgba(232,163,61,0.10)", border: "1px solid rgba(232,163,61,0.35)", color: "#E8A33D" },
+  off:   { background: "rgba(240,80,74,0.08)",  border: "1px solid rgba(240,80,74,0.30)",  color: "#F0504A" },
+  muted: { background: "rgba(128,128,128,0.08)", border: "1px solid var(--line-strong)",   color: "var(--muted)" },
+};
+
+// Cards abertos persistem na sessão do navegador — voltar pra página mantém o contexto.
+const OPEN_KEY = "cfg-open-cards";
+function readOpenSet(): Set<string> {
+  try { return new Set(JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? "[]")); } catch { return new Set(); }
+}
+
+function SectionCard({ id, title, desc, icon, chips, children, defaultOpen = false }: {
+  id?: string;
   title: string;
+  desc?: string;
   icon: React.ReactNode;
+  chips?: CardChip[];
   children: React.ReactNode;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (id && readOpenSet().has(id)) setOpen(true);
+  }, [id]);
+
+  const toggle = () => setOpen((o) => {
+    const n = !o;
+    if (id) {
+      try {
+        const set = readOpenSet();
+        if (n) set.add(id); else set.delete(id);
+        sessionStorage.setItem(OPEN_KEY, JSON.stringify([...set]));
+      } catch { /* ignore */ }
+    }
+    return n;
+  });
+
   return (
-    <div className="glass-card overflow-hidden mb-4">
-      <button
-        className="w-full flex items-center justify-between p-5 text-left hover:bg-white/[0.02] transition-colors"
-        onClick={() => setOpen(o => !o)}
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-zinc-400">{icon}</span>
-          <span className="font-semibold text-zinc-200 text-sm">{title}</span>
-        </div>
-        {open ? <ChevronUp size={15} className="text-zinc-500" /> : <ChevronDown size={15} className="text-zinc-500" />}
+    <div className="glass-card overflow-hidden mb-3 transition-colors hover:border-zinc-700/70">
+      <button className="w-full flex items-center gap-3 p-4 sm:px-5 text-left hover:bg-white/[0.02] transition-colors" onClick={toggle}>
+        <span className="text-zinc-400 shrink-0">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-zinc-200 text-sm truncate">{title}</span>
+          {desc && <span className="block text-[11px] text-zinc-600 truncate mt-0.5">{desc}</span>}
+        </span>
+        {chips && chips.length > 0 && (
+          <span className="hidden sm:flex items-center gap-1.5 shrink-0">
+            {chips.map((c, i) => (
+              <span key={i} className="rounded-full px-2 py-0.5 text-[10px] font-mono font-bold whitespace-nowrap" style={CHIP_TONE[c.tone]}>
+                {c.label}
+              </span>
+            ))}
+          </span>
+        )}
+        <ChevronDown size={15} className="text-zinc-500 shrink-0 transition-transform duration-200" style={{ transform: open ? "rotate(180deg)" : "none" }} />
       </button>
-      {open && <div className="px-5 pb-5 border-t border-zinc-800/50 pt-4">{children}</div>}
+      {open && (
+        <div className="px-4 sm:px-5 pb-5 border-t border-zinc-800/50 pt-4">
+          {/* Chips visíveis no mobile quando aberto (no fechado economizam espaço) */}
+          {chips && chips.length > 0 && (
+            <div className="sm:hidden flex flex-wrap gap-1.5 mb-3">
+              {chips.map((c, i) => (
+                <span key={i} className="rounded-full px-2 py-0.5 text-[10px] font-mono font-bold" style={CHIP_TONE[c.tone]}>{c.label}</span>
+              ))}
+            </div>
+          )}
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -2816,7 +2870,17 @@ function SobreSection() {
 // organizados em 5 grupos com cabeçalho, pills de navegação fixas no topo e
 // busca por título/palavra-chave (estilo Settings de iOS/Android).
 
-interface CardDef { id: string; grupo: string; title: string; icon: React.ReactNode; keywords: string; el: React.ReactNode }
+interface CardDef { id: string; grupo: string; title: string; desc: string; icon: React.ReactNode; keywords: string; el: React.ReactNode }
+
+// Estado agregado dos cards (1 chamada — /api/config/resumo) → chips no cabeçalho.
+interface ResumoConfig {
+  alertas: { ativo: boolean; chatOk: boolean; resumoAtivo: boolean } | null;
+  automacoes: { ativas: number; total: number; porChave: Record<string, boolean> } | null;
+  historico: { ativo: boolean } | null;
+  planilha: { abas: number } | null;
+  senha: { senhaSet: boolean; loginEnabled: boolean } | null;
+  apis: { total: number } | null;
+}
 interface GrupoDef { id: string; label: string; desc: string; icon: React.ReactNode; cor: string }
 
 const GRUPOS: GrupoDef[] = [
@@ -2832,6 +2896,8 @@ const normaliza = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-�
 export default function ConfiguracoesPage() {
   const [grupo, setGrupo] = useState<string>("todos");
   const [busca, setBusca] = useState("");
+  const [resumo, setResumo] = useState<ResumoConfig | null>(null);
+  const { theme } = useTheme();
 
   // Deep-link: /configuracoes#dados abre direto no grupo.
   useEffect(() => {
@@ -2843,19 +2909,65 @@ export default function ConfiguracoesPage() {
     try { history.replaceState(null, "", id === "todos" ? "#" : `#${id}`); } catch { /* ignore */ }
   };
 
+  // Estado dos cards em 1 chamada (best-effort — sem chips enquanto carrega).
+  useEffect(() => {
+    fetch("/api/config/resumo").then((r) => r.json()).then(setResumo).catch(() => {});
+  }, []);
+
+  const chips = (id: string): CardChip[] => {
+    if (!resumo) return [];
+    switch (id) {
+      case "preferencias":
+        return [{ label: `tema ${theme}`, tone: "muted" }];
+      case "senha": {
+        const s = resumo.senha; if (!s) return [];
+        if (!s.loginEnabled) return [{ label: "login OFF", tone: "off" }];
+        return s.senhaSet ? [{ label: "protegido", tone: "ok" }] : [{ label: "sem senha", tone: "warn" }];
+      }
+      case "alertas": {
+        const a = resumo.alertas; if (!a) return [];
+        const out: CardChip[] = [a.ativo ? { label: "ON", tone: "ok" } : { label: "OFF", tone: "off" }];
+        if (a.ativo && !a.chatOk) out.push({ label: "sem chat_id", tone: "warn" });
+        return out;
+      }
+      case "automacoes": {
+        const a = resumo.automacoes; if (!a) return [];
+        return [{ label: `${a.ativas}/${a.total} ativas`, tone: a.ativas === a.total ? "ok" : "warn" }];
+      }
+      case "historico": {
+        const h = resumo.historico; if (!h) return [];
+        return h.ativo ? [{ label: "gravando 3×/dia", tone: "ok" }] : [{ label: "desligado", tone: "off" }];
+      }
+      case "cotacoes": {
+        const on = resumo.automacoes?.porChave?.["cron_cotacoes"];
+        return on == null ? [] : on ? [{ label: "cron 20h ON", tone: "ok" }] : [{ label: "cron OFF", tone: "off" }];
+      }
+      case "flexsync": {
+        const on = resumo.automacoes?.porChave?.["cron_ibkr"];
+        return on == null ? [] : on ? [{ label: "sync 6h ON", tone: "ok" }] : [{ label: "sync OFF", tone: "off" }];
+      }
+      case "planilha":
+        return resumo.planilha ? [{ label: `${resumo.planilha.abas} abas`, tone: "muted" }] : [];
+      case "apis":
+        return resumo.apis ? [{ label: `${resumo.apis.total} registradas`, tone: "muted" }] : [];
+      default:
+        return [];
+    }
+  };
+
   const cards: CardDef[] = [
-    { id: "preferencias", grupo: "aparencia", title: "Preferências do Sistema", icon: <Palette size={16} />, keywords: "tema dark light matrix cores hologlobo globo privacidade olho pregoes termometro home fonte", el: <ThemeSection /> },
-    { id: "planilha", grupo: "dados", title: "Planilha (gdados) — Editor", icon: <FileText size={16} />, keywords: "editor abas linhas editar apagar buscar csv backup restaurar saude teste compactar twr", el: <PlanilhaCard /> },
-    { id: "cotacoes", grupo: "dados", title: "Base de Cotações (Golden Source)", icon: <Database size={16} />, keywords: "db_cotacoes precos golden source yahoo atualizar fechamento auditoria", el: <GoldenSourceSection /> },
-    { id: "historico", grupo: "dados", title: "Histórico patrimonial (GitHub Action)", icon: <History size={16} />, keywords: "patrimonio evolucao serie 3x dia registrar workflow", el: <HistoricoSection /> },
-    { id: "importar", grupo: "sync", title: "Importar Dados (IBKR / B3)", icon: <Upload size={16} />, keywords: "importar csv arquivo corretora b3 ibkr trades proventos upload", el: <ImportSection /> },
-    { id: "flexsync", grupo: "sync", title: "Sincronizar IBKR (API · sem arquivo)", icon: <RefreshCw size={16} />, keywords: "flex web service token sync trades proventos automatico", el: <FlexSyncSection /> },
-    { id: "tickers", grupo: "sync", title: "Tickers × Yahoo (Verificador)", icon: <ShieldCheck size={16} />, keywords: "ticker grafia sufixo .sa validar unificar simbolo", el: <TickerAuditSection /> },
-    { id: "automacoes", grupo: "automacoes", title: "Automações (Cron & GitHub Actions)", icon: <Zap size={16} />, keywords: "cron vercel github actions ligar desligar backup cotacoes ibkr relatorio", el: <AutomacoesSection /> },
-    { id: "alertas", grupo: "automacoes", title: "Alertas (Telegram)", icon: <Bell size={16} />, keywords: "telegram bot darf dirpf alavancagem resumo do dia chat_id notificacao", el: <AlertasSection /> },
-    { id: "senha", grupo: "sistema", title: "Segurança — Senha de Acesso", icon: <Lock size={16} />, keywords: "senha password login protecao paginas bloquear", el: <PasswordSection /> },
-    { id: "apis", grupo: "sistema", title: "APIs & Integrações (Diagnóstico)", icon: <Activity size={16} />, keywords: "api health teste probe chave env yahoo bcb gemini telegram diagnostico", el: <ApiHealthSection /> },
-    { id: "sobre", grupo: "sistema", title: "Sobre o Sistema", icon: <Info size={16} />, keywords: "stack versao motores modulos integracoes seguranca", el: <SobreSection /> },
+    { id: "preferencias", grupo: "aparencia", title: "Preferências do Sistema", desc: "Tema visual, HoloGlobo, privacidade da Home e termômetro de pregões", icon: <Palette size={16} />, keywords: "tema dark light matrix cores hologlobo globo privacidade olho pregoes termometro home fonte", el: <ThemeSection /> },
+    { id: "planilha", grupo: "dados", title: "Planilha (gdados) — Editor", desc: "Editar abas sem abrir o Google · saúde dos dados · backup CSV e restauração", icon: <FileText size={16} />, keywords: "editor abas linhas editar apagar buscar csv backup restaurar saude teste compactar twr", el: <PlanilhaCard /> },
+    { id: "cotacoes", grupo: "dados", title: "Base de Cotações (Golden Source)", desc: "db_cotacoes — preços de fechamento que alimentam a Performance/TWR", icon: <Database size={16} />, keywords: "db_cotacoes precos golden source yahoo atualizar fechamento auditoria", el: <GoldenSourceSection /> },
+    { id: "historico", grupo: "dados", title: "Histórico patrimonial (GitHub Action)", desc: "Série da página Patrimônio — gravada 3×/dia em dias úteis", icon: <History size={16} />, keywords: "patrimonio evolucao serie 3x dia registrar workflow", el: <HistoricoSection /> },
+    { id: "importar", grupo: "sync", title: "Importar Dados (IBKR / B3)", desc: "Upload de CSV das corretoras — importação idempotente, sem duplicatas", icon: <Upload size={16} />, keywords: "importar csv arquivo corretora b3 ibkr trades proventos upload", el: <ImportSection /> },
+    { id: "flexsync", grupo: "sync", title: "Sincronizar IBKR (API · sem arquivo)", desc: "Flex Web Service — trades, proventos e câmbio direto da IBKR", icon: <RefreshCw size={16} />, keywords: "flex web service token sync trades proventos automatico", el: <FlexSyncSection /> },
+    { id: "tickers", grupo: "sync", title: "Tickers × Yahoo (Verificador)", desc: "Valida a grafia dos símbolos contra o Yahoo e unifica variações", icon: <ShieldCheck size={16} />, keywords: "ticker grafia sufixo .sa validar unificar simbolo", el: <TickerAuditSection /> },
+    { id: "automacoes", grupo: "automacoes", title: "Automações (Cron & GitHub Actions)", desc: "Tudo que roda sozinho — com liga/desliga individual", icon: <Zap size={16} />, keywords: "cron vercel github actions ligar desligar backup cotacoes ibkr relatorio", el: <AutomacoesSection /> },
+    { id: "alertas", grupo: "automacoes", title: "Alertas (Telegram)", desc: "DARF, DIRPF, alavancagem e o resumo do dia em imagem", icon: <Bell size={16} />, keywords: "telegram bot darf dirpf alavancagem resumo do dia chat_id notificacao", el: <AlertasSection /> },
+    { id: "senha", grupo: "sistema", title: "Segurança — Senha de Acesso", desc: "Senha do app e quais páginas exigem login", icon: <Lock size={16} />, keywords: "senha password login protecao paginas bloquear", el: <PasswordSection /> },
+    { id: "apis", grupo: "sistema", title: "APIs & Integrações (Diagnóstico)", desc: "Catálogo de todas as APIs externas, com teste de saúde por serviço", icon: <Activity size={16} />, keywords: "api health teste probe chave env yahoo bcb gemini telegram diagnostico", el: <ApiHealthSection /> },
+    { id: "sobre", grupo: "sistema", title: "Sobre o Sistema", desc: "Stack, motores de cálculo, módulos e integrações", icon: <Info size={16} />, keywords: "stack versao motores modulos integracoes seguranca", el: <SobreSection /> },
   ];
 
   const q = normaliza(busca.trim());
@@ -2940,7 +3052,7 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
             {filtrados.filter((c) => c.grupo === g.id).map((c) => (
-              <SectionCard key={c.id} title={c.title} icon={c.icon}>
+              <SectionCard key={c.id} id={c.id} title={c.title} desc={c.desc} icon={c.icon} chips={chips(c.id)}>
                 {c.el}
               </SectionCard>
             ))}
