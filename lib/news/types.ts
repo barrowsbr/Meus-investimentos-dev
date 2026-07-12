@@ -17,6 +17,7 @@ export interface NewsItem {
   imagem: string | null;
   categoria: string;
   impacto: NewsImpacto;
+  tema?: string;           // tema classificado (lib/news/temas) — ranking por interesse
   pais?: string;           // ISO2 / país (notícia regional)
   entidades?: string[];    // tickers/símbolos citados (Marketaux)
   sentimento?: number;     // -1..1 (Marketaux)

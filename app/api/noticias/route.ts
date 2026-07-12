@@ -138,69 +138,12 @@ function parseRSS(
   return items;
 }
 
-// ─── Feed definitions ─────────────────────────────────────────────────────────
-
 interface FeedDef {
   url: string;
   ticker: string;
   categoria: NewsItem["categoria"];
   max: number;
   lang: "pt" | "en";
-}
-
-function buildFeeds(tickers: string[]): FeedDef[] {
-  const feeds: FeedDef[] = [];
-
-  // General market
-  feeds.push(
-    { url: newsUrl("bolsa brasil ibovespa mercado financeiro"), ticker: "Mercado", categoria: "mercado", max: 8, lang: "pt" },
-    { url: newsUrl("ações dividendos investimentos brasil"), ticker: "Investimentos", categoria: "mercado", max: 5, lang: "pt" },
-    { url: newsUrl("S&P 500 Nasdaq Dow Jones stock market"), ticker: "Wall Street", categoria: "mercado", max: 5, lang: "pt" },
-  );
-
-  // Economy
-  feeds.push(
-    { url: newsUrl("economia brasil banco central selic"), ticker: "Economia", categoria: "economia", max: 5, lang: "pt" },
-    { url: newsUrl("dólar câmbio moeda taxa real"), ticker: "Câmbio", categoria: "economia", max: 4, lang: "pt" },
-    { url: newsUrl("renda fixa tesouro direto CDB debêntures"), ticker: "Renda Fixa", categoria: "economia", max: 3, lang: "pt" },
-  );
-
-  // Macro calendar
-  feeds.push(
-    { url: newsUrl("COPOM selic decisão taxa juros reunião"), ticker: "COPOM", categoria: "macro", max: 5, lang: "pt" },
-    { url: newsUrl("FOMC federal reserve interest rate decision meeting", "en"), ticker: "FOMC", categoria: "macro", max: 5, lang: "en" },
-    { url: newsUrl("inflação IPCA índice preços consumidor"), ticker: "IPCA", categoria: "macro", max: 4, lang: "pt" },
-    { url: newsUrl("payroll employment jobs report labor market", "en"), ticker: "Payroll", categoria: "macro", max: 3, lang: "en" },
-    { url: newsUrl("CPI inflation consumer prices report", "en"), ticker: "CPI", categoria: "macro", max: 3, lang: "en" },
-    { url: newsUrl("PIB produto interno bruto crescimento economia"), ticker: "PIB", categoria: "macro", max: 3, lang: "pt" },
-  );
-
-  // Sectors
-  feeds.push(
-    { url: newsUrl("petróleo energia petrobras eletrobras"), ticker: "Energia", categoria: "setor", max: 4, lang: "pt" },
-    { url: newsUrl("bancos itaú bradesco banco brasil financeiro"), ticker: "Financeiro", categoria: "setor", max: 4, lang: "pt" },
-    { url: newsUrl("varejo consumo mercado livre magazine luiza"), ticker: "Varejo", categoria: "setor", max: 3, lang: "pt" },
-    { url: newsUrl("mineração vale minério ferro siderurgia"), ticker: "Mineração", categoria: "setor", max: 3, lang: "pt" },
-    { url: newsUrl("nvidia apple microsoft google big tech AI", "en"), ticker: "Tech", categoria: "setor", max: 4, lang: "en" },
-    { url: newsUrl("saúde hapvida rede d'or farmacêutica SUS"), ticker: "Saúde", categoria: "setor", max: 3, lang: "pt" },
-  );
-
-  // Portfolio tickers — ALL of them
-  for (const t of tickers) {
-    const clean = t.replace(".SA", "");
-    const isIntl = !t.endsWith(".SA") && !t.match(/^\d/);
-    const query = isIntl ? `${clean} stock market news` : `${clean} ações bolsa`;
-    const lang: "pt" | "en" = isIntl ? "en" : "pt";
-    feeds.push({
-      url: newsUrl(query, lang),
-      ticker: clean,
-      categoria: "portfolio",
-      max: 3,
-      lang,
-    });
-  }
-
-  return feeds;
 }
 
 // ─── Symbol-scoped feeds (drill-down de UMA ação) ─────────────────────────────
@@ -281,55 +224,6 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
   }
 }
 
-// ─── Fetch all feeds concurrently ─────────────────────────────────────────────
-
-async function fetchAllNews(tickers: string[]): Promise<NewsItem[]> {
-  const feeds = buildFeeds(tickers);
-  const BATCH = 12;
-  const all: ParsedItem[] = [];
-
-  for (let i = 0; i < feeds.length; i += BATCH) {
-    const batch = feeds.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
-      batch.map(async f => {
-        const xml = await fetchFeed(f.url);
-        return parseRSS(xml, f.ticker, f.categoria, f.lang, f.max);
-      })
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled") all.push(...r.value);
-    }
-  }
-
-  // Deduplicate by link + title
-  const seen = new Set<string>();
-  const deduped: ParsedItem[] = [];
-  for (const item of all) {
-    const linkKey = item.link.slice(0, 80);
-    const titleKey = item.titulo.toLowerCase().slice(0, 60);
-    if (!seen.has(linkKey) && !seen.has(titleKey)) {
-      seen.add(linkKey);
-      seen.add(titleKey);
-      deduped.push(item);
-    }
-  }
-
-  // Translate English headlines to Portuguese
-  await translateHeadlines(deduped);
-
-  // Sort: high impact first, then by date
-  const impactOrder = { alto: 0, medio: 1, baixo: 2 };
-  deduped.sort((a, b) => {
-    const ia = impactOrder[a.impacto] - impactOrder[b.impacto];
-    if (ia !== 0) return ia;
-    const da = a.data ? new Date(a.data).getTime() : 0;
-    const db = b.data ? new Date(b.data).getTime() : 0;
-    return db - da;
-  });
-
-  return deduped;
-}
-
 // ─── Fetch news for a SINGLE asset (scope=symbol) ─────────────────────────────
 
 async function fetchSymbolNews(tickers: string[], name: string): Promise<NewsItem[]> {
@@ -385,12 +279,40 @@ export async function GET(request: Request) {
     : [];
 
   try {
-    // scope=symbol → SÓ notícias do(s) ativo(s); senão, o painel geral de mercado.
-    const articles = scope === "symbol" && tickers.length
-      ? await fetchSymbolNews(tickers, name)
-      : await fetchAllNews(tickers);
-    // Cache CDN: notícias não mudam a cada segundo — sem isto, TODA visita à
-    // Home/Notícias refazia ~20 fetches de RSS + tradução (vários segundos).
+    // scope=symbol → SÓ notícias do(s) ativo(s) — caminho antigo (Radar do Dia).
+    if (scope === "symbol" && tickers.length) {
+      const articles = await fetchSymbolNews(tickers, name);
+      return NextResponse.json(
+        { articles, count: articles.length },
+        { headers: { "Cache-Control": "s-maxage=600, stale-while-revalidate=1800" } },
+      );
+    }
+
+    // Painel geral → MOTOR ÚNICO (lib/news/engine): feeds diretos por tema COM
+    // imagem + providers gated (Marketaux/Finnhub/GNews) + anti-briga + curador
+    // LLM + ranking por interesse/impacto/recência/foto. O perfil vem por query
+    // (localStorage do cliente); sem params vale o perfil default do dono.
+    const { fetchNoticiasGerais } = await import("@/lib/news/engine");
+    const { TEMA_LABEL } = await import("@/lib/news/temas");
+    const interessesParam = searchParams.get("interesses") ?? "";
+    const interesses = interessesParam
+      ? (interessesParam.split(",").map(t => t.trim()).filter(Boolean) as import("@/lib/news/temas").Tema[])
+      : undefined;
+    const semBriga = searchParams.get("semBriga") !== "0";
+
+    const itens = await fetchNoticiasGerais({ interesses, semBriga, limit: 60 });
+    // Shape compatível com os consumidores atuais (+ imagem e tema, novos).
+    const articles = itens.map(it => ({
+      titulo: it.titulo,
+      link: it.link,
+      data: it.data,
+      fonte: it.fonte,
+      imagem: it.imagem,
+      tema: it.tema,
+      ticker: TEMA_LABEL[(it.tema ?? "outros") as keyof typeof TEMA_LABEL] ?? "Geral",
+      categoria: it.categoria,
+      impacto: it.impacto,
+    }));
     return NextResponse.json(
       { articles, count: articles.length },
       { headers: { "Cache-Control": "s-maxage=600, stale-while-revalidate=1800" } },

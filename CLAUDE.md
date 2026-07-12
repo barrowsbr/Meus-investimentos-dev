@@ -378,6 +378,24 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
 - Append preserva tipos via `appendRowsTyped` (RAW) — números entram como número.
   Dedup por `data`+`hora` evita duplicar no mesmo horário.
 
+## Motor de notícias personalizado (lib/news)
+
+- **`lib/news/engine.ts` (`fetchNoticiasGerais`) é o motor único** do feed geral
+  ("Para você" em /noticias): agrega feeds RSS diretos por tema (`fontes.ts` —
+  fonte primária, com IMAGEM nativa; Google News não fornece foto real) +
+  providers gated (Marketaux/Finnhub/GNews), deduplica, classifica tema
+  (`temas.ts`), filtra briga política (`ehBrigaPolitica` — picuinha/bastidor,
+  NUNCA geopolítica real), traduz EN→PT e ranqueia (`score.ts`: interesse do
+  perfil + impacto + recência half-life 18h + bônus de imagem + curadoria).
+- **Curador LLM** (`curador.ts`): a cascata `lib/llm` julga o topo do feed em
+  lote (relevância 0-10 + flag briga), com cache por link — best-effort.
+- **Perfil do dono** (`perfil.ts`, localStorage; card "Notícias — Perfil de
+  interesses" em Configurações): default macro, geopolítica, mercados, tech,
+  ciência; `semBriga` ligado. O NoticiasPanel envia por query.
+- `scope=symbol` (Radar do Dia) segue o caminho antigo por Google News.
+- Regra de produto: **notícia com imagem tem preferência** no ranking e o
+  hero/grid do jornal — imagem real de veículo, nunca logo do Google.
+
 ## APIs & Integrações externas (regra dura)
 
 > **Fonte única: `lib/api-registry.ts`.** É o catálogo canônico de TODA API/serviço
@@ -407,7 +425,10 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
 - **IA & LLM** (cascata em `lib/llm.ts`): Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`) ·
   OpenAI (`OPENAI_API_KEY` opc.) · DeepSeek (`DEEPSEEK_API_KEY` opc.) · Groq (`GROQ_API_KEY` opc.) ·
   xAI/Grok (`XAI_API_KEY`/`GROK_API_KEY` opc.)
-- **Notícias**: Google News RSS (livre) · Marketaux (`MARKETAUX_API_KEY` opc.) ·
+- **Notícias**: Google News RSS (livre) · feeds RSS diretos por tema (livre — fonte
+  primária do motor, COM imagem; `lib/news/fontes.ts`) · Marketaux (`MARKETAUX_API_KEY` opc.) ·
+  Finnhub (`FINNHUB_API_KEY` opc. — market news com imagem) · GNews (`GNEWS_API_KEY` opc. —
+  world/tech/science com imagem) ·
   Reddit (`REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` opc. → OAuth; sem elas, JSON público) ·
   YouTube TV ao vivo (`YOUTUBE_API_KEY` opc. → resolve o live exato via Data API v3;
   sem ela, embed keyless 24/7 por canal — `TvAoVivoPanel` + `/api/tv/live`)

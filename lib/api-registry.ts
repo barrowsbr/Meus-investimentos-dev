@@ -342,6 +342,30 @@ export const API_REGISTRY: ApiDef[] = [
     },
   },
   {
+    key: "finnhub", name: "Finnhub", category: "Notícias",
+    host: "finnhub.io", purpose: "Market news com imagem nativa (motor de notícias — feed Para você)",
+    envVars: [{ name: "FINNHUB_API_KEY", required: false }],
+    probe: async () => {
+      const k = env("FINNHUB_API_KEY");
+      if (!k) return { ok: false, detail: "sem FINNHUB_API_KEY (opcional)" };
+      const { status, json } = await getJson(`https://finnhub.io/api/v1/news?category=general&token=${k}`);
+      if (Array.isArray(json)) return { ok: true, detail: `${json.length} manchetes` };
+      return { ok: false, detail: `HTTP ${status}` };
+    },
+  },
+  {
+    key: "gnews", name: "GNews", category: "Notícias",
+    host: "gnews.io", purpose: "Top-headlines por categoria (world/tech/science) com imagem (feed Para você)",
+    envVars: [{ name: "GNEWS_API_KEY", required: false }],
+    probe: async () => {
+      const k = env("GNEWS_API_KEY");
+      if (!k) return { ok: false, detail: "sem GNEWS_API_KEY (opcional)" };
+      const { status, json } = await getJson(`https://gnews.io/api/v4/top-headlines?category=business&lang=pt&max=1&apikey=${k}`);
+      if (Array.isArray(json?.articles)) return { ok: true, detail: `${json.articles.length} manchete(s)` };
+      return { ok: false, detail: json?.errors?.[0] || `HTTP ${status}` };
+    },
+  },
+  {
     key: "reddit", name: "Reddit", category: "Notícias",
     host: "reddit.com", purpose: "Sentimento/discussão de subreddits de investimento",
     envVars: [{ name: "REDDIT_CLIENT_ID", required: false }, { name: "REDDIT_CLIENT_SECRET", required: false }],
