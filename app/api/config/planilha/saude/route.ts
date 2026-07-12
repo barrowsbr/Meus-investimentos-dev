@@ -25,6 +25,13 @@ export async function POST(req: Request) {
   let body: { action?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
   try {
+    if (body.action === "corrigir-twr-mes") {
+      const b = body as { month?: string; pct?: number };
+      if (!b.month || typeof b.pct !== "number") return NextResponse.json({ error: "month e pct obrigatórios" }, { status: 400 });
+      const { corrigirMesLock } = await import("@/lib/twr-monthly-lock");
+      const r = await corrigirMesLock(b.month, b.pct);
+      return NextResponse.json(r);
+    }
     if (body.action === "compactar-twr") {
       const { compactLockTab } = await import("@/lib/twr-monthly-lock");
       const r = await compactLockTab();

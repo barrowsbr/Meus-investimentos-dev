@@ -98,6 +98,7 @@ interface PerformanceResponse {
   rolling: RollingPoint[];
   monthlyReturns: MonthlyReturn[];
   monthlyLocked?: string[];
+  monthlyDivergencias?: Array<{ month: string; locked: number; computado: number }>;
   monthlyMTM?: MonthlyMTM[];
   flowLedger: FlowEntry[];
   attribution: AttributionEntry[];
@@ -1889,6 +1890,33 @@ export default function PerformancePage() {
                       {" · "}Negativos: <span className="text-red-400 font-semibold">{neg}</span>
                       {" · "}Hit rate: <span className="text-zinc-400 font-semibold">{all.length > 0 ? ((pos / all.length) * 100).toFixed(0) : 0}%</span>
                     </p>
+                    {(data?.monthlyDivergencias?.length ?? 0) > 0 && (
+                      <div className="mt-3 rounded-lg border border-amber-700/50 bg-amber-900/15 p-3 space-y-2">
+                        <p className="text-[11px] font-semibold text-amber-300">
+                          ⚠ {data!.monthlyDivergencias!.length} mês(es) travado(s) DIVERGEM do recalculado — fotografia tirada na era de um bug ficou imutável com valor errado (é isso que infla o total do ano):
+                        </p>
+                        {data!.monthlyDivergencias!.map(d => (
+                          <div key={d.month} className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                            <span className="text-zinc-300 font-bold">{d.month}</span>
+                            <span className="text-red-400">travado {d.locked >= 0 ? "+" : ""}{d.locked.toFixed(2)}%</span>
+                            <span className="text-zinc-500">→ recalculado</span>
+                            <span className="text-emerald-400">{d.computado >= 0 ? "+" : ""}{d.computado.toFixed(2)}%</span>
+                            <button
+                              onClick={async () => {
+                                const r = await fetch("/api/config/planilha/saude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "corrigir-twr-mes", month: d.month, pct: d.computado }) });
+                                const j = await r.json();
+                                if (j?.ok) window.location.reload();
+                                else alert(j?.error ?? "Falha ao corrigir");
+                              }}
+                              className="rounded border border-amber-600/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold text-amber-300 hover:bg-amber-900/50"
+                            >
+                              Corrigir p/ {d.computado >= 0 ? "+" : ""}{d.computado.toFixed(2)}%
+                            </button>
+                          </div>
+                        ))}
+                        <p className="text-[10px] text-zinc-600">A correção reescreve a fotografia daquele mês na aba twr_mensal (com backup automático).</p>
+                      </div>
+                    )}
                     <p className="text-[11px] text-zinc-600 mt-2">
                       {lockedCount > 0 ? (
                         <>🔒 <span className="text-zinc-400 font-semibold">{lockedCount}</span> {lockedCount === 1 ? "mês travado" : "meses travados"} (fotografados na virada do mês — imutáveis)

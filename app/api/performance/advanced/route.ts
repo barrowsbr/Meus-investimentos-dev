@@ -800,6 +800,17 @@ export async function GET(request: Request) {
     const lockedSetBrl = new Set(lockedMonths.map(l => l.month));
     const monthlyLocked = computedMonthly.filter(m => lockedSetBrl.has(m.month)).map(m => m.month);
 
+    // Reconciliação lock × recalculado: fotografia tirada na era de algum bug
+    // fica imutável MESMO errada. Divergência > 3 p.p. vira aviso no heatmap
+    // (com ação de correção) — é assim que um "ano +81%" impossível se revela.
+    const lockedVal = new Map(lockedMonths.map(l => [l.month, l.return_pct]));
+    const monthlyDivergencias = computedMonthly.flatMap(m => {
+      const lv = lockedVal.get(m.month);
+      if (lv == null) return [];
+      const diff = Math.abs(lv - m.return_pct);
+      return diff > 3 ? [{ month: m.month, locked: Math.round(lv * 100) / 100, computado: Math.round(m.return_pct * 100) / 100 }] : [];
+    });
+
     // Monthly MTM snapshots — R$ gain per month using period-end prices/FX
     // Em janelas (YTD/1A/…), o dia-âncora (prevNav) estabelece o NAV de
     // abertura — sem ele, o primeiro mês computaria gain = NAV inteiro.
@@ -1212,6 +1223,7 @@ export async function GET(request: Request) {
       rolling: rollingReturns.filter((_, i) => i % Math.max(1, Math.floor(rollingReturns.length / 400)) === 0),
       monthlyReturns,
       monthlyLocked,
+      monthlyDivergencias,
       monthlyMTM,
       flowLedger,
       attribution,
