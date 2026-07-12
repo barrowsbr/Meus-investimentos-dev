@@ -1,0 +1,72 @@
+name: Backup diário (CSVs)
+
+# Exporta TODAS as abas da planilha gdados como CSV e SOBRESCREVE os arquivos
+# na branch `backups` deste repositório (1 commit por dia — os arquivos têm
+# sempre o estado mais recente; o histórico de commits guarda as versões
+# anteriores de graça). Fora da planilha de propósito: se o Google Sheets
+# corromper/sumir, os CSVs sobrevivem aqui.
+# Restauração: Configurações → Planilha → "Restaurar CSV".
+#
+# Secrets/vars necessários (Settings → Secrets and variables → Actions):
+#   - secret CRON_SECRET : mesmo valor da env var CRON_SECRET na Vercel
+#   - var    APP_URL     : (opcional) URL de produção; default abaixo
+
+on:
+  schedule:
+    - cron: '30 9 * * *'   # 6h30 BRT, diário
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      # Liga/desliga em Configurações → Automações (chave gh_backup). Fail-open.
+      - name: Checar liga/desliga no app
+        id: gate
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}"
+          ATIVO=$(curl -sf --max-time 15 "$APP_URL/api/config/automacoes?chave=gh_backup" | grep -o '"ativo":[a-z]*' | cut -d: -f2 || echo "true")
+          echo "ativo=$ATIVO" >> "$GITHUB_OUTPUT"
+          echo "gh_backup ativo=$ATIVO"
+
+      - name: Exportar CSVs do app
+        if: steps.gate.outputs.ativo != 'false'
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}"
+          curl -sf --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$APP_URL/api/config/planilha/backup?export=all" -o export.json
+          python3 - <<'PY'
+          import json, re, os
+          d = json.load(open("export.json"))
+          os.makedirs("csvs", exist_ok=True)
+          for t in d["tabs"]:
+              nome = re.sub(r"[^A-Za-z0-9_.-]", "_", t["tab"])
+              with open(f"csvs/{nome}.csv", "w", encoding="utf-8") as f:
+                  f.write(t["csv"])
+          resumo = "\n".join(f"- `{t['tab']}.csv` — {t['linhas']} linhas" for t in d["tabs"])
+          with open("csvs/README.md", "w", encoding="utf-8") as f:
+              f.write(f"# Backup da planilha gdados\n\nGerado em **{d['geradoEm']}** pelo workflow backup.yml (sobrescrito diariamente).\n\n{resumo}\n")
+          print(f"{len(d['tabs'])} abas exportadas")
+          PY
+
+      - name: Publicar na branch backups (sobrescrevendo os arquivos)
+        if: steps.gate.outputs.ativo != 'false'
+        run: |
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          mkdir repo && cd repo
+          git init -b backups -q
+          git config user.name "backup-bot"
+          git config user.email "actions@github.com"
+          # Continua a branch se ela já existe (histórico de commits = versões
+          # antigas de graça); os ARQUIVOS são sempre sobrescritos com o estado atual.
+          git fetch --depth 1 "$REMOTE" backups && git checkout -q backups || true
+          find . -maxdepth 1 -name '*.csv' -delete; rm -f README.md
+          cp ../csvs/* .
+          git add -A
+          git diff --cached --quiet && { echo "sem mudanças desde ontem"; exit 0; }
+          git commit -q -m "backup $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push "$REMOTE" backups

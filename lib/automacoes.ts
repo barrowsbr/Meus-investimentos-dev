@@ -57,9 +57,9 @@ export const AUTOMACOES: AutomacaoDef[] = [
     descricao: "Action antiga do dashboard V1: envia relatório por e-mail (Gmail). Independente do app atual.",
   },
   {
-    chave: "app_backup_diario", tipo: "app", agenda: "1×/dia · na 1ª abertura do app",
-    nome: "Backup diário da planilha",
-    descricao: "Fotografa cada aba em bkp_diario_<aba> na primeira abertura do dia (card Planilha).",
+    chave: "gh_backup", tipo: "github", agenda: "diário · 6h30 BRT", link: `${GH_WF}/backup.yml`,
+    nome: "Backup diário da planilha (CSVs)",
+    descricao: "Exporta todas as abas como CSV e sobrescreve os arquivos na branch `backups` do repositório — cópia FORA da planilha.",
   },
 ];
 
@@ -67,7 +67,7 @@ export const AUTOMACOES: AutomacaoDef[] = [
 
 const TAB = "automacoes_config";
 const HEADERS = ["chave", "valor"];
-const CHAVES_PROPRIAS = new Set(["cron_cotacoes", "cron_ibkr", "gh_daily_report", "app_backup_diario"]);
+const CHAVES_PROPRIAS = new Set(["cron_cotacoes", "cron_ibkr", "gh_daily_report", "gh_backup"]);
 
 async function readProprias(): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
