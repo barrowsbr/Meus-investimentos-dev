@@ -16,8 +16,6 @@ import { polyToUnified } from "@/lib/polymarket";
 import type { UnifiedPrediction } from "@/lib/polymarket";
 import { openEmbed } from "@/lib/embed-link";
 
-const POLY_COLORS = ["#22d3ee", "#fb923c", "#a78bfa", "#34d399", "#f59e0b"];
-
 const CAT_META: Record<string, { color: string; icon: typeof BarChart2; desc: string }> = {
   "💲 Preço dos Ativos": { color: "#4ade80", icon: TrendingUp, desc: "Apostas sobre o PREÇO dos ativos da sua carteira (busca direcionada)" },
   "📊 Correlatos ao Portfólio": { color: "#E8A33D", icon: Briefcase, desc: "Apostas ligadas aos seus ativos" },
@@ -29,50 +27,87 @@ const CAT_META: Record<string, { color: string; icon: typeof BarChart2; desc: st
   "⭐ Outros": { color: "#34d399", icon: Star, desc: "Outros mercados relevantes" },
 };
 
-const SOURCE_BADGE: Record<string, { color: string; label: string }> = {
-  polymarket: { color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/25", label: "Polymarket" },
-  kalshi: { color: "text-violet-400 bg-violet-500/10 border-violet-500/25", label: "Kalshi" },
-  metaculus: { color: "text-amber-400 bg-amber-500/10 border-amber-500/25", label: "Metaculus" },
+const SOURCE_BADGE: Record<string, { color: string; label: string; accent: string }> = {
+  polymarket: { color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/25", label: "Polymarket", accent: "#22d3ee" },
+  kalshi: { color: "text-violet-400 bg-violet-500/10 border-violet-500/25", label: "Kalshi", accent: "#a78bfa" },
+  metaculus: { color: "text-amber-400 bg-amber-500/10 border-amber-500/25", label: "Metaculus", accent: "#f59e0b" },
 };
 
+function fmtVol(v: number | null | undefined): string | null {
+  if (!v) return null;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+function fmtPrazo(d: number | null): string {
+  if (d === null) return "sem prazo";
+  if (d <= 0) return "hoje";
+  if (d < 14) return `${d}d`;
+  if (d < 60) return `${Math.round(d / 7)}sem`;
+  return `${Math.round(d / 30)}m`;
+}
+
+// Bloco estilo terminal (inspiração: tickers de mercados preditivos) — título,
+// uma LINHA por outcome com barra horizontal + %, e rodapé FONTE | vol | fecha.
 function UnifiedCard({ pred }: { pred: UnifiedPrediction }) {
   const top = pred.odds.slice(0, 4);
+  const resto = pred.odds.length - top.length;
   const badge = SOURCE_BADGE[pred.source] ?? SOURCE_BADGE.polymarket;
-  const volFmt = pred.volume
-    ? pred.volume >= 1_000_000 ? `$${(pred.volume / 1_000_000).toFixed(1)}M` : pred.volume >= 1000 ? `$${(pred.volume / 1000).toFixed(0)}K` : `$${pred.volume.toFixed(0)}`
-    : null;
+  const volFmt = fmtVol(pred.volume);
 
   return (
-    <a href={pred.url} target="_blank" rel="noopener noreferrer"
+    <a
+      href={pred.url}
+      target="_blank"
+      rel="noopener noreferrer"
       onClick={(e) => { e.preventDefault(); openEmbed(pred.url, "Mercado preditivo", pred.title); }}
-      className="group flex flex-col gap-3 p-4 rounded-2xl border border-white/[0.07] bg-zinc-950/60 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all duration-200 no-underline">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${badge.color}`}>{badge.label}</span>
+      className="group block no-underline transition-colors hover:bg-white/[0.02]"
+      style={{ border: "1px solid var(--line)", background: "var(--panel)" }}
+    >
+      {/* Título do evento */}
+      <div className="flex items-start gap-2 px-3 pt-2.5 pb-2" style={{ borderBottom: "1px solid var(--line)" }}>
+        <span className="mt-[3px] shrink-0" style={{ width: 3, height: 12, background: badge.accent }} />
+        <span className="flex-1 min-w-0 text-[13px] font-bold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>
+          {pred.title}
+        </span>
         {pred.portfolio_impact.length > 0 && (
-          <div className="flex gap-1">
-            {pred.portfolio_impact.slice(0, 3).map(t => (
-              <span key={t} className="text-[9px] font-bold px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{t}</span>
-            ))}
-            {pred.portfolio_impact.length > 3 && <span className="text-[9px] text-zinc-600">+{pred.portfolio_impact.length - 3}</span>}
-          </div>
+          <span className="shrink-0 font-mono text-[9px] font-bold px-1.5 py-0.5" style={{ background: "rgba(232,163,61,0.10)", border: "1px solid rgba(232,163,61,0.3)", color: "var(--accent)" }}>
+            {pred.portfolio_impact[0]}{pred.portfolio_impact.length > 1 ? ` +${pred.portfolio_impact.length - 1}` : ""}
+          </span>
         )}
       </div>
-      <div className="text-sm font-semibold text-zinc-200 leading-snug line-clamp-2 group-hover:text-white">{pred.title}</div>
-      <div className="flex flex-col gap-1.5">
+
+      {/* Linhas de outcome: label ..... barra + % */}
+      <div className="px-3 py-2 space-y-1.5">
         {top.map((odd, i) => (
-          <div key={i} className="relative flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-            <div className="absolute left-0 top-0 bottom-0 rounded-lg" style={{ width: `${odd.percent}%`, background: `${POLY_COLORS[i]}18`, borderRight: `2px solid ${POLY_COLORS[i]}50` }} />
-            <span className="relative z-10 flex-1 text-xs text-zinc-300 truncate">{odd.outcome}</span>
-            <span className="relative z-10 text-xs font-bold tabular-nums" style={{ color: POLY_COLORS[i] }}>{odd.percent}%</span>
+          <div key={i} className="flex items-center gap-2.5">
+            <span className="flex-1 min-w-0 truncate font-mono text-[11.5px]" style={{ color: "var(--text-2)" }}>
+              {odd.outcome}
+            </span>
+            <span className="shrink-0 overflow-hidden" style={{ width: 96, height: 6, background: "var(--hover)", borderRadius: 2 }}>
+              <span className="block h-full" style={{ width: `${Math.max(2, Math.min(100, odd.percent))}%`, background: "var(--pos)", borderRadius: 2, opacity: 0.45 + 0.55 * (odd.percent / 100) }} />
+            </span>
+            <span className="shrink-0 w-10 text-right font-mono text-[11.5px] font-bold tabular-nums" style={{ color: "var(--pos)" }}>
+              {odd.percent}%
+            </span>
           </div>
         ))}
+        {resto > 0 && (
+          <p className="font-mono text-[10px]" style={{ color: "var(--faint)" }}>+{resto} outcomes</p>
+        )}
       </div>
-      <div className="flex items-center justify-between text-[10px] text-zinc-600">
-        <span className="flex items-center gap-1">
-          {volFmt ? <><Activity size={10} /> Vol {volFmt}</> : pred.forecasters ? <><Users size={10} /> {pred.forecasters} forecasters</> : null}
+
+      {/* Rodapé: FONTE | vol | fecha */}
+      <div className="flex items-center gap-1.5 px-3 pb-2 font-mono text-[9.5px] uppercase tracking-wider" style={{ color: "var(--faint)" }}>
+        <span className="font-bold" style={{ color: badge.accent }}>{badge.label}</span>
+        {volFmt && <><span>|</span><span>{volFmt} vol</span></>}
+        {!volFmt && pred.forecasters ? <><span>|</span><span>{pred.forecasters} forecasters</span></> : null}
+        <span>|</span>
+        <span style={pred.days_left !== null && pred.days_left <= 7 ? { color: "var(--accent)", fontWeight: 700 } : undefined}>
+          fecha: {fmtPrazo(pred.days_left)}
         </span>
-        {pred.days_left !== null ? <span className={pred.days_left <= 7 ? "text-amber-500 font-semibold" : ""}>{pred.days_left}d restantes</span> : <span>Sem prazo</span>}
-        <ExternalLink size={10} className="group-hover:text-zinc-400" />
+        <ExternalLink size={9} className="ml-auto opacity-0 transition-opacity group-hover:opacity-60" />
       </div>
     </a>
   );
@@ -89,6 +124,8 @@ export default function PreditivosPanel() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [sourceCounts, setSourceCounts] = useState({ polymarket: 0, kalshi: 0, metaculus: 0 });
+  const [busca, setBusca] = useState("");
+  const [ordem, setOrdem] = useState<"hot" | "top" | "fecha">("hot");
 
   const portfolioTickers = useMemo(() => {
     if (!portfolio?.positions) return [];
@@ -140,6 +177,13 @@ export default function PreditivosPanel() {
   const categorized = useMemo(() => {
     let items = predictions;
     if (sourceFilter !== "all") items = items.filter(p => p.source === sourceFilter);
+    const q = busca.trim().toLowerCase();
+    if (q) {
+      items = items.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        p.odds.some(o => o.outcome.toLowerCase().includes(q)) ||
+        p.portfolio_impact.some(t => t.toLowerCase().includes(q)));
+    }
 
     const cats = new Map<string, UnifiedPrediction[]>();
     const correlated = items.filter(p => p.portfolio_impact.length > 0 && p.category !== "💲 Preço dos Ativos");
@@ -153,24 +197,52 @@ export default function PreditivosPanel() {
       cats.set(cat, arr);
     }
 
-    for (const [, evs] of cats) evs.sort((a, b) => (b.volume ?? b.forecasters ?? 0) - (a.volume ?? a.forecasters ?? 0));
+    // HOT: volume/participação · TOP: probabilidade do líder · FECHA: prazo mais curto
+    const cmp = (a: UnifiedPrediction, b: UnifiedPrediction) => {
+      if (ordem === "top") return (b.odds[0]?.percent ?? 0) - (a.odds[0]?.percent ?? 0);
+      if (ordem === "fecha") return (a.days_left ?? 9999) - (b.days_left ?? 9999);
+      return (b.volume ?? b.forecasters ?? 0) - (a.volume ?? a.forecasters ?? 0);
+    };
+    for (const [, evs] of cats) evs.sort(cmp);
 
     const ORDER = ["💲 Preço dos Ativos", "📊 Correlatos ao Portfólio", "🏦 Macro & Finanças", "🏦 Macro & Economia", "🌍 Geopolítica", "🤖 Tech & IA", "⭐ Em Destaque", "⭐ Outros"];
     return [...cats.entries()]
       .sort(([a], [b]) => { const ia = ORDER.indexOf(a); const ib = ORDER.indexOf(b); return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib); })
       .filter(([, evs]) => evs.length > 0);
-  }, [predictions, sourceFilter]);
+  }, [predictions, sourceFilter, busca, ordem]);
 
   const totalMarkets = useMemo(() => categorized.reduce((s, [, evs]) => s + evs.length, 0), [categorized]);
   const filteredCategories = useMemo(() => activeFilter ? categorized.filter(([name]) => name === activeFilter) : categorized, [categorized, activeFilter]);
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs" style={{ color: "var(--muted)" }}>Polymarket, Kalshi e Metaculus — apostas e previsões com impacto econômico</p>
+      {/* Barra terminal: ordenação HOT/TOP/FECHA + busca + atualizar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
+          {([["hot", "HOT"], ["top", "TOP"], ["fecha", "FECHA"]] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setOrdem(id)}
+              className="px-3 py-1.5 font-mono text-[10px] font-bold tracking-[0.12em] transition-colors"
+              style={ordem === id
+                ? { background: "var(--pos)", color: "var(--bg)" }
+                : { color: "var(--muted)", borderLeft: id !== "hot" ? "1px solid var(--line)" : undefined }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-1 min-w-[160px] max-w-xs items-center" style={{ border: "1px solid var(--line-strong)" }}>
+          <input
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Search…"
+            className="w-full bg-transparent px-2.5 py-1.5 font-mono text-[11px] outline-none"
+            style={{ color: "var(--text)" }}
+          />
+          <span className="px-2 font-mono text-[10px] font-bold tracking-widest" style={{ color: "var(--pos)" }}>GO</span>
+        </div>
         <button onClick={() => setRefreshKey(k => k + 1)} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.07] transition-all disabled:opacity-50">
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />Atualizar
+          className="flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] font-bold tracking-wider transition-colors disabled:opacity-50"
+          style={{ border: "1px solid var(--line-strong)", color: "var(--muted)" }}>
+          <RefreshCw size={11} className={loading ? "animate-spin" : ""} />ATUALIZAR
         </button>
       </div>
 
@@ -233,7 +305,7 @@ export default function PreditivosPanel() {
                   <span className="text-[10px] text-zinc-600">{events.length} mercados</span>
                 </div>
                 {meta?.desc && <p className="text-[11px] text-zinc-600 mb-3">{meta.desc}</p>}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">{events.map(ev => <UnifiedCard key={`${ev.source}-${ev.id}`} pred={ev} />)}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">{events.map(ev => <UnifiedCard key={`${ev.source}-${ev.id}`} pred={ev} />)}</div>
               </div>
             );
           })}
