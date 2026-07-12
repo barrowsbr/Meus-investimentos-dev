@@ -45,6 +45,16 @@ export const FEEDS_DIRETOS: FonteFeed[] = [
   { url: "https://phys.org/rss-feed/", fonte: "Phys.org", tema: "ciencia", lang: "en" },
   { url: "https://agencia.fapesp.br/rss/", fonte: "Agência FAPESP", tema: "ciencia", lang: "pt" },
 
+  // ── Commodities & Energia ──
+  { url: "https://oilprice.com/rss/main", fonte: "OilPrice", tema: "commodities", lang: "en" },
+  { url: "https://www.mining.com/feed/", fonte: "Mining.com", tema: "commodities", lang: "en" },
+
+  // ── Saúde & Biotech ──
+  { url: "https://www.statnews.com/feed/", fonte: "STAT News", tema: "saude_bio", lang: "en" },
+
+  // ── Negócios & Startups ──
+  { url: "https://exame.com/feed/", fonte: "Exame", tema: "negocios", lang: "pt" },
+
   // ── Cripto ──
   { url: "https://cointelegraph.com.br/rss", fonte: "Cointelegraph", tema: "cripto", lang: "pt" },
   { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", fonte: "CoinDesk", tema: "cripto", lang: "en" },

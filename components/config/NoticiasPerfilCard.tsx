@@ -53,27 +53,15 @@ export default function NoticiasPerfilCard() {
         })}
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
-        <div className="flex items-start gap-2.5 min-w-0">
-          <ShieldOff size={15} className="text-amber-400 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-zinc-200">Filtrar briga política</p>
-            <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
-              Esconde picuinha e bastidor (&ldquo;fulano rebate sicrano&rdquo;, farpas, bate-boca). Geopolítica de verdade
-              — guerras, sanções, decisões que movem o mundo — continua passando.
-            </p>
-          </div>
-        </div>
-        <label className="flex items-center gap-2 select-none shrink-0 cursor-pointer">
-          <div
-            className={`rounded-full transition-colors relative ${perfil.semBriga ? "bg-emerald-500" : "bg-zinc-600"}`}
-            style={{ width: 40, height: 22 }}
-            onClick={() => salvar({ ...perfil, semBriga: !perfil.semBriga })}
-          >
-            <div className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-all" style={{ left: perfil.semBriga ? 20 : 2 }} />
-          </div>
-          <span className={`text-xs font-mono font-bold ${perfil.semBriga ? "text-emerald-400" : "text-zinc-500"}`}>{perfil.semBriga ? "ON" : "OFF"}</span>
-        </label>
+      {/* Filtro de ruído: regra do MOTOR, sempre ligada — aqui é só informativo */}
+      <div className="flex items-start gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+        <ShieldOff size={15} className="text-emerald-400 mt-0.5 shrink-0" />
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          <span className="font-semibold text-zinc-300">Filtro automático (sempre ativo):</span> o motor descarta sozinho
+          picuinha política (&ldquo;fulano rebate sicrano&rdquo;), listicles de consumo (&ldquo;5 melhores notebooks…&rdquo;),
+          guias de compra, ofertas/cupons, tutoriais, fofoca de celebridade e clickbait — reforçado pela curadoria de IA.
+          Geopolítica de verdade continua passando.
+        </p>
       </div>
     </div>
   );

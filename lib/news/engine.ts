@@ -9,7 +9,7 @@
 
 import type { NewsItem, NewsFilter } from "./types";
 import type { Tema } from "./temas";
-import { classificarTema, ehBrigaPolitica, DEFAULT_INTERESSES } from "./temas";
+import { classificarTema, ehRuido, DEFAULT_INTERESSES } from "./temas";
 import { rankNoticias } from "./score";
 import { fetchMarketaux } from "./providers/marketaux";
 import { fetchRssDiretos } from "./providers/rss";
@@ -90,8 +90,10 @@ export async function fetchNoticiasGerais(filtro: FiltroGerais = {}): Promise<Ne
   // Classificação de tema (para itens de providers que não classificaram).
   for (const it of all) if (!it.tema) it.tema = classificarTema(it.titulo, "outros");
 
-  // Anti-briga por keywords (barato; o curador LLM refina depois).
-  if (semBriga) all = all.filter((it) => !ehBrigaPolitica(it.titulo));
+  // Filtro de RUÍDO — sempre ligado (regra do motor): listicle de consumo,
+  // guia de compra/oferta, fofoca, clickbait E picuinha política. O curador
+  // LLM refina o que a keyword não pega.
+  all = all.filter((it) => !ehRuido(it.titulo));
 
   all = dedupeNews(all);
 
@@ -108,7 +110,14 @@ export async function fetchNoticiasGerais(filtro: FiltroGerais = {}): Promise<Ne
     try {
       const { curarLote } = await import("./curador");
       const vereditos = await curarLote(topo.slice(0, 40), interesses);
-      const filtrados = semBriga ? topo.filter((it) => !vereditos.get(it.link)?.briga) : topo;
+      // Corta o que o curador marcou como briga E o que ele julgou irrelevante
+      // (rel ≤ 2 = conteúdo de consumo/entretenimento que escapou das keywords).
+      const filtrados = topo.filter((it) => {
+        const v = vereditos.get(it.link);
+        if (!v) return true;
+        if (semBriga && v.briga) return false;
+        return v.rel > 2;
+      });
       return rankNoticias(filtrados, {
         interesses: interesseSet,
         curadoria: new Map([...vereditos].map(([k, v]) => [k, { rel: v.rel }])),
