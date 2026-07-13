@@ -50,6 +50,8 @@ export interface CommodityQuote extends CommodityMeta {
   price: number;
   change: number;
   changePct: number;
+  spark: number[];     // fechamentos do último mês (sparkline)
+  sparkPct: number | null; // variação % na janela do sparkline
 }
 
 export interface CommoditiesResponse {
