@@ -9,7 +9,7 @@ import type { IndexData } from "@/lib/world-map";
 export type { IndexData };
 
 // Camadas ativáveis do mapa.
-export type RadarLayer = "mercados" | "cambio" | "instabilidade" | "exposicao";
+export type RadarLayer = "mercados" | "cambio" | "instabilidade";
 
 export interface BolsasResponse {
   indices: IndexData[];
