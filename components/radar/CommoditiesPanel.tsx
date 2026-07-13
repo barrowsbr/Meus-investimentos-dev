@@ -11,9 +11,39 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import type { SymbolTarget } from "@/lib/radar/types";
 import { COMMODITY_CATEGORIAS, type CommoditiesResponse, type CommodityQuote } from "@/lib/radar/commodities";
+import CommodityIcon from "./CommodityIcon";
 
 function fmtPrice(v: number): string {
   return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Mini-gráfico do último mês — vai ANTES do valor, colorido pela tendência da
+// janela (não pela variação do dia, que já tem o próprio número ao lado).
+function Sparkline({ data, id }: { data: number[]; id: string }) {
+  if (data.length < 2) return <div style={{ width: 64 }} />;
+  const W = 64, H = 26;
+  const min = Math.min(...data), max = Math.max(...data);
+  const span = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W;
+    const y = H - 2 - ((v - min) / span) * (H - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const up = data[data.length - 1] >= data[0];
+  const cor = up ? "#34d399" : "#f87171";
+  const gid = `spk-${id.replace(/[^a-z0-9]/gi, "")}`;
+  return (
+    <svg width={W} height={H} className="shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={cor} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={cor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${H} ${pts.join(" ")} ${W},${H}`} fill={`url(#${gid})`} />
+      <polyline points={pts.join(" ")} fill="none" stroke={cor} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function Row({ c, onOpen }: { c: CommodityQuote; onOpen: (t: SymbolTarget) => void }) {
@@ -21,15 +51,25 @@ function Row({ c, onOpen }: { c: CommodityQuote; onOpen: (t: SymbolTarget) => vo
   return (
     <button
       onClick={() => onOpen({ symbol: c.symbol, name: c.name, kind: "index", moeda: "USD" })}
-      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
+      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
     >
-      <span className="text-lg leading-none">{c.emoji}</span>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <CommodityIcon symbol={c.symbol} emoji={c.emoji} />
+      </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-zinc-200">{c.name}</p>
-        <p className="text-[10px] text-zinc-500">{c.unidade}</p>
+        <p className="text-[10px] text-zinc-500">
+          {c.unidade}
+          {c.sparkPct != null && (
+            <span className={`ml-1.5 font-mono font-semibold ${c.sparkPct >= 0 ? "text-emerald-500/80" : "text-red-400/80"}`}>
+              {c.sparkPct >= 0 ? "+" : ""}{c.sparkPct.toFixed(1)}% no mês
+            </span>
+          )}
+        </p>
       </div>
-      <div className="text-right">
+      <Sparkline data={c.spark} id={c.symbol} />
+      <div className="w-[74px] shrink-0 text-right">
         <p className="font-mono text-xs font-semibold text-zinc-100">{fmtPrice(c.price)}</p>
         <p className={`font-mono text-[11px] font-semibold ${pos ? "text-emerald-400" : "text-red-400"}`}>
           {pos ? "+" : ""}{c.changePct.toFixed(2)}%
@@ -124,14 +164,18 @@ export default function CommoditiesPanel({
                   <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
                     <TrendingUp size={11} /> Maior alta
                   </div>
-                  <p className="mt-1 truncate text-xs text-zinc-200">{data.best.emoji} {data.best.name}</p>
+                  <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-zinc-200">
+                    <CommodityIcon symbol={data.best.symbol} emoji={data.best.emoji} size={18} /> {data.best.name}
+                  </p>
                   <p className="font-mono text-sm font-bold text-emerald-400">+{data.best.changePct.toFixed(2)}%</p>
                 </div>
                 <div className="rounded-xl p-2.5" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
                   <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-red-400">
                     <TrendingDown size={11} /> Maior queda
                   </div>
-                  <p className="mt-1 truncate text-xs text-zinc-200">{data.worst.emoji} {data.worst.name}</p>
+                  <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-zinc-200">
+                    <CommodityIcon symbol={data.worst.symbol} emoji={data.worst.emoji} size={18} /> {data.worst.name}
+                  </p>
                   <p className="font-mono text-sm font-bold text-red-400">{data.worst.changePct.toFixed(2)}%</p>
                 </div>
               </div>
