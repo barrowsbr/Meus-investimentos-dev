@@ -6,7 +6,7 @@
 // Sem abas concorrentes: tudo repinta a mesma superfície.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { BarChart3, ArrowLeftRight, Shield, Landmark, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Landmark, TrendingUp, TrendingDown, Coins } from "lucide-react";
 import { REGION_COLORS } from "@/lib/world-map";
 import type { RadarLayer, BolsasResponse } from "@/lib/radar/types";
 
@@ -24,9 +24,11 @@ interface Props {
   regionFilter: string | null;
   setRegionFilter: (r: string | null) => void;
   markets: BolsasResponse | null;
+  commoditiesOpen: boolean;
+  onToggleCommodities: () => void;
 }
 
-export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets }: Props) {
+export default function LayersRail({ layer, setLayer, regions, regionFilter, setRegionFilter, markets, commoditiesOpen, onToggleCommodities }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* Camadas */}
@@ -53,6 +55,21 @@ export default function LayersRail({ layer, setLayer, regions, regionFilter, set
               </button>
             );
           })}
+          {/* Commodities: painel sobre o mapa (não é lente de calor por país). */}
+          <button
+            onClick={onToggleCommodities}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all"
+            style={{
+              background: commoditiesOpen ? "rgba(245,158,11,0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${commoditiesOpen ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.06)"}`,
+            }}
+          >
+            <Coins size={16} className={commoditiesOpen ? "text-amber-400" : "text-zinc-500"} />
+            <div className="min-w-0">
+              <p className={`text-xs font-semibold ${commoditiesOpen ? "text-zinc-100" : "text-zinc-300"}`}>Commodities</p>
+              <p className="truncate text-[10px] text-zinc-500">Petróleo, ouro, grãos…</p>
+            </div>
+          </button>
         </div>
       </section>
 
