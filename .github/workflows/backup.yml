@@ -34,11 +34,23 @@ jobs:
 
       - name: Exportar CSVs do app
         if: steps.gate.outputs.ativo != 'false'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET não configurado no GitHub. Vá em Settings → Secrets and variables → Actions → New repository secret, nome CRON_SECRET, com o MESMO valor da env var CRON_SECRET na Vercel."
+            exit 1
+          fi
           APP_URL="${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}"
-          curl -sf --max-time 120 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$APP_URL/api/config/planilha/backup?export=all" -o export.json
+          HTTP=$(curl -sS --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -o export.json -w '%{http_code}' \
+            "$APP_URL/api/config/planilha/backup?export=all") || { echo "::error::curl falhou (rede/timeout)"; exit 1; }
+          if [ "$HTTP" != "200" ]; then
+            head -c 300 export.json; echo ""
+            [ "$HTTP" = "401" ] && echo "::error::HTTP 401 — o CRON_SECRET do GitHub não bate com o da Vercel. Atualize o secret com o valor atual da Vercel." || echo "::error::HTTP $HTTP no export da planilha."
+            exit 1
+          fi
           python3 - <<'PY'
           import json, re, os
           d = json.load(open("export.json"))

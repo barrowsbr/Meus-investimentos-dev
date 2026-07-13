@@ -23,8 +23,17 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}
         run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET não configurado no GitHub. Vá em Settings → Secrets and variables → Actions → New repository secret, nome CRON_SECRET, com o MESMO valor da env var CRON_SECRET na Vercel."
+            exit 1
+          fi
           echo "Chamando $APP_URL/api/cron/historico"
-          curl -fsS --max-time 90 \
+          HTTP=$(curl -sS --max-time 90 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/cron/historico"
-          echo ""
+            -o resposta.json -w '%{http_code}' \
+            "$APP_URL/api/cron/historico") || { echo "::error::curl falhou (rede/timeout)"; exit 1; }
+          cat resposta.json; echo ""
+          if [ "$HTTP" != "200" ]; then
+            [ "$HTTP" = "401" ] && echo "::error::HTTP 401 — o CRON_SECRET do GitHub não bate com o da Vercel. Atualize o secret com o valor atual da Vercel." || echo "::error::HTTP $HTTP na chamada do histórico."
+            exit 1
+          fi
