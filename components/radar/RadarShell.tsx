@@ -8,13 +8,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Landmark, Coins } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Coins } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import {
-  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat, buildExposureHeat,
-  buildExposureMarkers, currencyForCountry, type HeatEntry,
+  ISO_NUM_TO_COUNTRY, buildMarketHeat, buildCurrencyHeat, buildRiskHeat,
+  currencyForCountry, type HeatEntry,
 } from "@/lib/radar/geo";
 import { ISO_NUM_TO_ISO2, resolveCountryMeta } from "@/lib/radar/countries";
 import {
@@ -22,7 +22,7 @@ import {
   useInstability, useBrief, useCountryNews, useSignals,
   useTimeline, useExposure,
 } from "@/lib/radar/use-radar";
-import type { RadarLayer, SelectedCountry, SymbolTarget, ExposureResponse } from "@/lib/radar/types";
+import type { RadarLayer, SelectedCountry, SymbolTarget } from "@/lib/radar/types";
 import { RadarMap } from "./RadarMap";
 import LayersRail from "./LayersRail";
 import RadarTopBar from "./RadarTopBar";
@@ -57,14 +57,6 @@ export default function RadarShell() {
   const { data: timeline, loading: timelineLoading } = useTimeline(selected?.name ?? null);
   const { data: exposure, loading: exposureLoading } = useExposure();
 
-  // Exposição por BOLSA de listagem (onde o papel é negociado) — base da camada
-  // "Minhas bolsas". Diferente de `exposure` (país de origem, que credita ADR à
-  // origem e decompõe ETFs); aqui TSM entra nos EUA (NYSE), VWRA.L em Londres.
-  const exchangeExposure = useMemo<ExposureResponse | null>(
-    () => (exposure ? { exposure: exposure.exchanges ?? [] } : null),
-    [exposure],
-  );
-
   // ── Camada ativa → calor ────────────────────────────────────────────────────
   const heat = useMemo<Map<string, HeatEntry>>(() => {
     if (layer === "mercados") return markets ? buildMarketHeat(markets.indices) : new Map();
@@ -72,18 +64,10 @@ export default function RadarShell() {
     if (layer === "instabilidade") {
       return buildRiskHeat(markets?.indices ?? [], moedas?.currencies ?? null);
     }
-    if (layer === "exposicao") return buildExposureHeat(exchangeExposure);
     return new Map();
-  }, [layer, markets, moedas, exchangeExposure]);
-
-  // Marcadores das praças (só na camada Minhas bolsas): pino na bolsa de listagem.
-  const markers = useMemo(
-    () => (layer === "exposicao" ? buildExposureMarkers(exchangeExposure) : []),
-    [layer, exchangeExposure],
-  );
+  }, [layer, markets, moedas]);
 
   const regions = useMemo(() => {
-    if (layer === "exposicao") return []; // filtro de região não se aplica à minha carteira
     if (layer === "instabilidade") return Object.keys(REGION_COLORS).sort();
     const src = layer === "mercados" ? markets?.indices : moedas?.currencies;
     if (!src) return [];
@@ -159,7 +143,6 @@ export default function RadarShell() {
           { key: "mercados" as const, label: "Mercados", icon: BarChart3 },
           { key: "cambio" as const, label: "Câmbio", icon: ArrowLeftRight },
           { key: "instabilidade" as const, label: "Risco", icon: Shield },
-          { key: "exposicao" as const, label: "Minhas bolsas", icon: Landmark },
         ]).map(({ key, label, icon: Icon }) => {
           const active = layer === key;
           return (
@@ -228,7 +211,6 @@ export default function RadarShell() {
           <RadarMap
             layer={layer}
             heat={heat}
-            markers={markers}
             selectedIso={selected?.iso ?? null}
             regionFilter={regionFilter}
             onSelectCountry={selectByIso}
