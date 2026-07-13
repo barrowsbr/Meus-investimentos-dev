@@ -158,11 +158,18 @@ function isBrazilian(symbol: string): boolean {
   return /^[A-Z]{4}\d{1,2}$/.test(clean); // padrão B3: PETR4, VALE3, ITUB4…
 }
 
-function buildSymbolFeeds(tickers: string[], names: Record<string, string>): FeedDef[] {
+function buildSymbolFeeds(tickers: string[], names: Record<string, string>, kind?: string): FeedDef[] {
   const feeds: FeedDef[] = [];
   for (const t of tickers) {
     const clean = t.replace(/\.\w+$/, "");
     const name = (names[t] || names[clean] || "").trim();
+    // Commodity: o ticker de futuro ("GC=F") não serve de busca — o que casa é
+    // o nome PT ("Ouro preço"). O nome vem em português do catálogo do Radar.
+    if (kind === "commodity") {
+      const base = (name || clean).replace(/\s*\(.*?\)\s*/g, "").trim();
+      feeds.push({ url: newsUrl(`${base} preço commodity`, "pt"), ticker: clean, categoria: "portfolio", max: 10, lang: "pt" });
+      continue;
+    }
     const br = isBrazilian(t);
     const lang: "pt" | "en" = br ? "pt" : "en";
     const query = br
@@ -227,11 +234,11 @@ async function translateHeadlines(items: ParsedItem[]): Promise<void> {
 
 // ─── Fetch news for a SINGLE asset (scope=symbol) ─────────────────────────────
 
-async function fetchSymbolNews(tickers: string[], name: string): Promise<NewsItem[]> {
+async function fetchSymbolNews(tickers: string[], name: string, kind?: string): Promise<NewsItem[]> {
   const names: Record<string, string> = {};
   if (name) for (const t of tickers) names[t] = name;
 
-  const feeds = buildSymbolFeeds(tickers, names);
+  const feeds = buildSymbolFeeds(tickers, names, kind);
   const all: ParsedItem[] = [];
   const results = await Promise.allSettled(
     feeds.map(async f => {
@@ -303,7 +310,7 @@ export async function GET(request: Request) {
   try {
     // scope=symbol → SÓ notícias do(s) ativo(s) — caminho antigo (Radar do Dia).
     if (scope === "symbol" && tickers.length) {
-      const articles = await fetchSymbolNews(tickers, name);
+      const articles = await fetchSymbolNews(tickers, name, searchParams.get("kind") ?? undefined);
       return NextResponse.json(
         { articles, count: articles.length },
         { headers: { "Cache-Control": "s-maxage=600, stale-while-revalidate=1800" } },
