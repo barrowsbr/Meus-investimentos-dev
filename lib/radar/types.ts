@@ -176,7 +176,7 @@ export interface CurrencyDetail {
 
 // ── Fase 5: Mercados → drill-down de símbolo (índice ou ação) ────────────────
 
-export type SymbolKind = "index" | "stock";
+export type SymbolKind = "index" | "stock" | "commodity";
 
 export interface SymbolTarget {
   symbol: string;     // símbolo Yahoo (^GSPC, AAPL, PETR4.SA)

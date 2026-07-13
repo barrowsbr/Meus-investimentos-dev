@@ -90,13 +90,14 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
   // Envia o símbolo COMPLETO (com sufixo, p/ o servidor detectar o idioma) e o
   // nome da empresa (melhora muito o casamento: "Petrobras" > "PETR4").
   useEffect(() => {
-    if (target.kind !== "stock") { setNews(null); return; }
+    if (target.kind !== "stock" && target.kind !== "commodity") { setNews(null); return; }
     let cancelled = false;
     setNews(null);
     const nameParam = target.name && target.name !== target.symbol
       ? `&name=${encodeURIComponent(target.name)}`
       : "";
-    fetch(`/api/noticias?tickers=${encodeURIComponent(target.symbol)}&scope=symbol${nameParam}`)
+    const kindParam = target.kind === "commodity" ? "&kind=commodity" : "";
+    fetch(`/api/noticias?tickers=${encodeURIComponent(target.symbol)}&scope=symbol${nameParam}${kindParam}`)
       .then((r) => r.json())
       .then((d) => { if (!cancelled && Array.isArray(d.articles)) setNews(d.articles.slice(0, 6)); })
       .catch(() => {});
@@ -134,8 +135,8 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
           <div className="flex items-center gap-2">
             {target.flag && <span className="text-lg leading-none">{target.flag}</span>}
             <h2 className="truncate text-sm font-bold text-zinc-100">{info?.longName || target.name}</h2>
-            <span className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider" style={{ background: target.kind === "index" ? "rgba(59,130,246,0.15)" : "rgba(139,92,246,0.15)", color: target.kind === "index" ? "#60a5fa" : "#a78bfa" }}>
-              {target.kind === "index" ? "Índice" : "Ação"}
+            <span className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider" style={{ background: target.kind === "index" ? "rgba(59,130,246,0.15)" : target.kind === "commodity" ? "rgba(245,158,11,0.15)" : "rgba(139,92,246,0.15)", color: target.kind === "index" ? "#60a5fa" : target.kind === "commodity" ? "#fbbf24" : "#a78bfa" }}>
+              {target.kind === "index" ? "Índice" : target.kind === "commodity" ? "Commodity" : "Ação"}
             </span>
           </div>
           <p className="font-mono text-[10px] text-zinc-500">{target.symbol}</p>
@@ -188,8 +189,8 @@ export default function SymbolDetail({ target, onClose, dossierOpen = true }: { 
             </div>
           )}
 
-          {/* Notícias (ações) */}
-          {target.kind === "stock" && (
+          {/* Notícias (ações e commodities) */}
+          {(target.kind === "stock" || target.kind === "commodity") && (
             <section>
               <div className="mb-2 flex items-center gap-1.5">
                 <Newspaper size={12} className="text-amber-400" />
