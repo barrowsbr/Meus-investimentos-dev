@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, ArrowLeftRight, Shield, Landmark } from "lucide-react";
+import { BarChart3, ArrowLeftRight, Shield, Landmark, Coins } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorAlert from "@/components/ErrorAlert";
 import { REGION_COLORS, COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
@@ -29,6 +29,7 @@ import RadarTopBar from "./RadarTopBar";
 import CountryDossier from "./CountryDossier";
 import SymbolDetail from "./SymbolDetail";
 import CommandPalette from "./CommandPalette";
+import CommoditiesPanel from "./CommoditiesPanel";
 import DigestPanel from "./DigestPanel";
 
 export default function RadarShell() {
@@ -40,6 +41,7 @@ export default function RadarShell() {
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedCountry | null>(null);
   const [detailTarget, setDetailTarget] = useState<SymbolTarget | null>(null);
+  const [showCommodities, setShowCommodities] = useState(false);
 
   // Trocar de país fecha o detalhe de símbolo (que cobre o mapa).
   useEffect(() => { setDetailTarget(null); }, [selected?.iso]);
@@ -175,6 +177,17 @@ export default function RadarShell() {
             </button>
           );
         })}
+        <button
+          onClick={() => setShowCommodities(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
+          style={{
+            background: showCommodities ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.08)",
+            border: `1px solid ${showCommodities ? "rgba(245,158,11,0.5)" : "rgba(255,255,255,0.15)"}`,
+            color: showCommodities ? "#fff" : "#d4d4d8",
+          }}
+        >
+          <Coins size={13} /> Commodities
+        </button>
         <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
         {regions.map((r) => {
           const c = REGION_COLORS[r] ?? "#888";
@@ -202,6 +215,8 @@ export default function RadarShell() {
             regionFilter={regionFilter}
             setRegionFilter={setRegionFilter}
             markets={markets}
+            commoditiesOpen={showCommodities}
+            onToggleCommodities={() => setShowCommodities(v => !v)}
           />
           <div className="mt-3">
             <DigestPanel markets={markets} exposure={exposure} onPickCountry={selectByName} />
@@ -219,6 +234,13 @@ export default function RadarShell() {
             onSelectCountry={selectByIso}
           />
           <CommandPalette onPickCountry={selectByName} onSetLayer={setLayer} onOpenSymbol={setDetailTarget} />
+          {showCommodities && (
+            <CommoditiesPanel
+              onOpenSymbol={setDetailTarget}
+              onClose={() => setShowCommodities(false)}
+              dossierOpen={!!selected}
+            />
+          )}
           {detailTarget && (
             <SymbolDetail target={detailTarget} dossierOpen={!!selected} onClose={() => setDetailTarget(null)} />
           )}
