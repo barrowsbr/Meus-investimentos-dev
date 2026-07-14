@@ -145,7 +145,8 @@ export default function CommoditiesPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      {/* pb extra no mobile: o menu flutuante cobre o fim da lista (Boi gordo). */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-3">
         {loading && !data && (
           <div className="flex h-40 items-center justify-center text-zinc-500">
             <Loader2 size={20} className="animate-spin" />
