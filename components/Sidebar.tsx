@@ -28,6 +28,7 @@ import {
   Building2,
   StickyNote,
   Rocket,
+  Medal,
 } from "lucide-react";
 
 interface NavItem {
@@ -88,6 +89,7 @@ const navGroups: NavGroup[] = [
       { href: "/noticias",      label: "Inteligência",  icon: Newspaper },
       { href: "/anotacoes",     label: "Anotações",     icon: StickyNote },
       { href: "/nasa",          label: "NASA",          icon: Rocket },
+      { href: "/moedas",        label: "Moedas",        icon: Medal },
       { href: "/agente-ia",     label: "Agente IA",    icon: Bot, mobileShow: true },
       { href: "/configuracoes", label: "Configurações", icon: Settings, mobileShow: true },
     ],
