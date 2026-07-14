@@ -232,6 +232,15 @@ Dados de cartões de crédito, contas bancárias e gastos.
 
 Registro de entradas, saídas e gastos com cartão.
 
+### 12. `moedas_colecao` — Coleção numismática (página Moedas)
+
+Export do app **CoinSnap** importado em Configurações → "Coleção de moedas"
+(sobrescreve a aba com backup automático). Colunas: `pais, emissor, denominacao,
+assunto, krause, ano, marca, graduacao, valor_brl, composicao, peso_metal_g,
+derretimento_brl, foto_anverso, foto_reverso, nota, serie`. A página `/moedas`
+lê via `/api/moedas` (agrega exemplares idênticos, mapa-múndi, filtros) e
+recalcula o valor de derretimento das moedas de prata ao spot `SI=F` de hoje.
+
 ---
 
 ## Notas
