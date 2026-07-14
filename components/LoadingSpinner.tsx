@@ -1,3 +1,11 @@
+"use client";
+
+// Esqueleto de página + a animação personalizada por rota (PageLoader).
+// Os KPIs continuam como skeleton (preservam o layout); o bloco grande vira
+// o palco da cena — cofrinho na Home, radar no Radar, moeda em Moedas, etc.
+
+import PageLoader from "./PageLoader";
+
 export default function LoadingSpinner() {
   return (
     <div className="space-y-6 animate-fade-in">
@@ -14,9 +22,8 @@ export default function LoadingSpinner() {
           </div>
         ))}
       </div>
-      <div className="glass-card p-5">
-        <div className="skeleton h-4 w-32 mb-4" />
-        <div className="skeleton h-48 w-full" />
+      <div className="glass-card flex min-h-[240px] items-center justify-center p-5">
+        <PageLoader />
       </div>
     </div>
   );
