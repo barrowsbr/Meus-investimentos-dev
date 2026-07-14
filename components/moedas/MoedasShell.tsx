@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
@@ -106,9 +106,67 @@ function CoinCard({ m, onOpen }: { m: Moeda; onOpen: () => void }) {
   );
 }
 
+// ── Tela cheia: foto grande com zoom (toque amplia, arrasta para explorar) ────
+
+function CoinZoom({ m, onClose }: { m: Moeda; onClose: () => void }) {
+  const [face, setFace] = useState<"anverso" | "reverso">("anverso");
+  const [zoom, setZoom] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopImmediatePropagation(); onClose(); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  const temVerso = !!m.fotoReverso;
+  const src = face === "anverso" ? m.fotoAnverso : m.fotoReverso;
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex flex-col" style={{ background: "rgba(2,3,8,0.98)", paddingTop: "env(safe-area-inset-top)" }}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-zinc-100">{m.denominacao} · {m.ano || "—"}</p>
+          <p className="text-[10px] text-zinc-500">{face === "anverso" ? "Anverso" : "Reverso"} · toque na moeda para {zoom ? "reduzir" : "ampliar"}</p>
+        </div>
+        <button onClick={onClose} className="rounded-lg p-2 text-zinc-300 hover:bg-white/10" style={{ background: "rgba(255,255,255,0.07)" }}><X size={18} /></button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div className="flex min-h-full min-w-full items-center justify-center p-4">
+          <img
+            src={src}
+            alt={`${m.denominacao} — ${face}`}
+            referrerPolicy="no-referrer"
+            onClick={() => setZoom((z) => !z)}
+            className="cursor-zoom-in rounded-full"
+            style={{
+              width: zoom ? "185vw" : "min(92vw, 70vh, 620px)",
+              maxWidth: "none",
+              cursor: zoom ? "zoom-out" : "zoom-in",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.7)",
+              transition: "width 0.22s ease",
+            }}
+          />
+        </div>
+      </div>
+      {temVerso && (
+        <div className="flex justify-center gap-2 px-4 py-3" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+          <button
+            onClick={() => { setFace((f) => (f === "anverso" ? "reverso" : "anverso")); setZoom(false); }}
+            className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-zinc-200"
+            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}
+          >
+            <RotateCw size={13} /> Ver {face === "anverso" ? "reverso" : "anverso"}
+          </button>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 // ── Dossiê (modal) ────────────────────────────────────────────────────────────
 
 function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGrama: number | null; onClose: () => void }) {
+  const [telaCheia, setTelaCheia] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -145,9 +203,18 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
         </div>
 
         <div className="mb-1 flex justify-center">
-          <CoinFlip m={m} size={190} flipOnHover={false} />
+          <CoinFlip m={m} size={228} flipOnHover={false} />
         </div>
-        <p className="mb-4 text-center text-[10px] text-zinc-600">toque na moeda para virar</p>
+        <div className="mb-4 flex items-center justify-center gap-3">
+          <p className="text-center text-[10px] text-zinc-600">toque na moeda para virar</p>
+          <button
+            onClick={() => setTelaCheia(true)}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-amber-300"
+            style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)" }}
+          >
+            <Maximize2 size={12} /> Tela cheia
+          </button>
+        </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2">
           <div className="rounded-xl p-3" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}>
@@ -182,6 +249,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
             </div>
           ))}
         </div>
+        {telaCheia && <CoinZoom m={m} onClose={() => setTelaCheia(false)} />}
       </div>
     </div>,
     document.body,
