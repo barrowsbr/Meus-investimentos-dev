@@ -12,6 +12,7 @@ import { usePathname } from "next/navigation";
 
 export type LoaderVariant =
   | "moeda" | "pregao" | "rolo" | "cofrinho" | "radar" | "arvore"
+  | "holo"
   | "engrenagens" | "jornal" | "foguete" | "cripto" | "carimbo"
   | "cambio" | "grafico" | "balanca" | "robo";
 
@@ -20,6 +21,7 @@ const CAPTION: Record<LoaderVariant, string> = {
   pregao: "abrindo o pregão…",
   rolo: "contando os tostões…",
   cofrinho: "alimentando o cofrinho…",
+  holo: "girando o globo…",
   radar: "varrendo o mundo…",
   arvore: "regando o patrimônio…",
   engrenagens: "apertando os parafusos…",
@@ -48,8 +50,8 @@ const POR_ROTA: Array<[string, LoaderVariant]> = [
   ["/alavancagem", "balanca"], ["/caixa", "balanca"],
   ["/agente-ia", "robo"],
   ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"],
-  ["/financas", "rolo"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
-  ["/", "cofrinho"], // Home (por último: prefixo pega tudo)
+  ["/financas", "cofrinho"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
+  ["/", "holo"], // Home (por último: prefixo pega tudo)
 ];
 
 export function variantForPath(pathname: string | null): LoaderVariant {
@@ -100,6 +102,17 @@ function Cena({ v }: { v: LoaderVariant }) {
             <div className="ldr-orelha" /><div className="ldr-olho" />
             <div className="ldr-pata ldr-pa" /><div className="ldr-pata ldr-pb" />
           </div>
+        </div>
+      );
+    case "holo":
+      return (
+        <div className="ldr-holo">
+          <div className="ldr-holo-halo" />
+          <div className="ldr-holo-esfera">
+            <div className="ldr-holo-mer" /><div className="ldr-holo-mer ldr-hm2" /><div className="ldr-holo-mer ldr-hm3" />
+            <div className="ldr-holo-eq" />
+          </div>
+          <div className="ldr-holo-ping ldr-hp1" /><div className="ldr-holo-ping ldr-hp2" />
         </div>
       );
     case "radar":
@@ -249,6 +262,18 @@ const CSS = `
 @keyframes ldr-cair { 0% { transform: translateY(-6px) rotate(0) scaleX(1); opacity: 0; } 12% { opacity: 1; } 55% { transform: translateY(46px) rotate(160deg) scaleX(1); opacity: 1; } 68% { transform: translateY(56px) rotate(180deg) scaleX(.25); opacity: 1; } 76%,100% { transform: translateY(58px) rotate(180deg) scaleX(.1); opacity: 0; } }
 .ldr-plim { position: absolute; left: 50%; top: 58px; width: 28px; height: 28px; margin-left: -14px; border: 2px solid #E8A33D; border-radius: 50%; opacity: 0; animation: ldr-plim 1.5s ease-out infinite; }
 @keyframes ldr-plim { 0%,66% { transform: scale(.2); opacity: 0; } 72% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+
+/* holo-globo (Home) */
+.ldr-holo { width: 104px; height: 104px; position: relative; perspective: 620px; }
+.ldr-holo-esfera { position: absolute; inset: 0; transform-style: preserve-3d; animation: ldr-holo-rodar 5.5s linear infinite; }
+@keyframes ldr-holo-rodar { from { transform: rotateX(-14deg) rotateY(0); } to { transform: rotateX(-14deg) rotateY(360deg); } }
+.ldr-holo-mer { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(232,163,61,.55); }
+.ldr-hm2 { transform: rotateY(60deg); } .ldr-hm3 { transform: rotateY(120deg); }
+.ldr-holo-eq { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(240,184,96,.75); transform: rotateX(90deg); }
+.ldr-holo-halo { position: absolute; inset: -10px; border-radius: 50%; background: radial-gradient(circle, rgba(232,163,61,.14) 55%, transparent 72%); animation: ldr-resp 2.6s ease-in-out infinite; }
+.ldr-holo-ping { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #F0B860; box-shadow: 0 0 10px rgba(240,184,96,.9); animation: ldr-holo-ping 2.6s ease-in-out infinite; }
+.ldr-hp1 { top: 30%; left: 26%; } .ldr-hp2 { top: 58%; left: 66%; animation-delay: 1.3s; }
+@keyframes ldr-holo-ping { 0%,100% { transform: scale(.6); opacity: .4; } 50% { transform: scale(1.15); opacity: 1; } }
 
 /* radar */
 .ldr-radar { width: 96px; height: 96px; border-radius: 50%; position: relative; border: 1px solid rgba(232,163,61,.5); background: radial-gradient(circle, transparent 62%, rgba(232,163,61,.18) 63%, transparent 65%), radial-gradient(circle, transparent 30%, rgba(232,163,61,.18) 31%, transparent 33%); }
