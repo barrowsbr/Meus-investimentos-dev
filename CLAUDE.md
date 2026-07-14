@@ -244,9 +244,11 @@ Registro de entradas, saídas e gastos com cartão.
 - `/moedas` (menu Mais → nav real em `components/terminal/nav.ts`) mostra mapa-múndi
   da coleção, filtros, cards com flip anverso⇄reverso e dossiê por moeda.
 - `/api/moedas-colecao` devolve SÓ o spot da prata (SI=F × BRL=X) para o valor de
-  derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda:
-  história por IA (cascata lib/llm, sem números inventados) + catálogo **Numista**
-  (tiragem/dimensões/descrições, só com `NUMISTA_API_KEY`; cache CDN 7 dias). ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
+  derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda com o catálogo
+  **Numista** (`NUMISTA_API_KEY`): tiragem, dimensões, descrições, gravador e
+  **preços estimados por graduação em BRL** (o estado do exemplar em destaque).
+  A "história por IA" foi REMOVIDA a pedido do dono — dado real > texto gerado.
+  Cache CDN 7 dias. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
   pelo catch-all `app/api/[...path]` → `app/api/moedas/handler.ts`) — criar rota
   nesse path quebra a lente Câmbio (já aconteceu; não repetir).
 
