@@ -59,25 +59,60 @@ async function numistaGet(path: string, key: string): Promise<Record<string, unk
   } catch { return null; }
 }
 
+const normTxt = (v: string) =>
+  v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+
 async function buscarNumista(p: { krause: string; pais: string; ano: string; denominacao: string }): Promise<NumistaInfo | null> {
   const key = process.env.NUMISTA_API_KEY;
   if (!key) return null;
 
-  // Busca: KM# é o identificador mais forte; sem ele, denominação + país + ano.
+  // A busca do Numista é TEXTO LIVRE — "KM#653 Brazil" devolve qualquer coisa
+  // com "653". Então: busca ampla + VALIDAÇÃO dos candidatos pela referência
+  // de catálogo (KM# exato) e país/ano. Sem candidato validado → null (dado
+  // certo ou nada; já mostramos moeda errada uma vez, não repetir).
   const paisEn = PAIS_EN[p.pais] ?? p.pais;
-  const q = p.krause
-    ? `${p.krause.replace(/\s+/g, "")} ${paisEn}`
-    : `${p.denominacao} ${paisEn} ${p.ano}`.trim();
-  const busca = await numistaGet(`/types?q=${encodeURIComponent(q)}&count=3&lang=pt&category=coin`, key);
-  const tipos = (busca?.["types"] ?? []) as Array<{ id?: number }>;
-  const id = tipos[0]?.id;
-  if (!id) return null;
+  const kmNum = p.krause ? normTxt(p.krause.replace(/km#?/i, "")) : ""; // "KM# 29.1a" → "29.1a"
+  const anoNum = Number(p.ano.slice(0, 4)) || null;
 
-  const [det, issues] = await Promise.all([
-    numistaGet(`/types/${id}?lang=pt`, key),
-    numistaGet(`/types/${id}/issues?lang=pt`, key),
-  ]);
-  if (!det) return null;
+  const consultas = [
+    p.krause ? `${p.krause} ${paisEn}` : "",
+    `${p.denominacao} ${paisEn} ${p.ano.slice(0, 4)}`.trim(),
+  ].filter(Boolean);
+
+  const vistos = new Set<number>();
+  const candidatos: number[] = [];
+  for (const q of consultas) {
+    const busca = await numistaGet(`/types?q=${encodeURIComponent(q)}&count=6&lang=pt&category=coin`, key);
+    for (const t of (busca?.["types"] ?? []) as Array<{ id?: number }>) {
+      if (t.id && !vistos.has(t.id)) { vistos.add(t.id); candidatos.push(t.id); }
+    }
+    if (candidatos.length >= 6) break;
+  }
+  if (candidatos.length === 0) return null;
+
+  // Examina até 6 candidatos e escolhe pelo critério mais forte disponível.
+  let det: Record<string, unknown> | null = null;
+  let id: number | null = null;
+  let fallback: { det: Record<string, unknown>; id: number } | null = null;
+  for (const cand of candidatos.slice(0, 6)) {
+    const d = await numistaGet(`/types/${cand}?lang=pt`, key);
+    if (!d) continue;
+    const refs = (d["references"] ?? []) as Array<{ catalogue?: { code?: string }; number?: string }>;
+    const kmOk = !!kmNum && refs.some(
+      (r) => (r.catalogue?.code ?? "").toUpperCase() === "KM" && normTxt(String(r.number ?? "")) === kmNum,
+    );
+    const minY = Number(d["min_year"]) || null;
+    const maxY = Number(d["max_year"]) || minY;
+    const anoOk = anoNum != null && minY != null && anoNum >= minY && anoNum <= (maxY ?? minY);
+    const emissor = normTxt(String((d["issuer"] as Record<string, unknown>)?.["name"] ?? ""));
+    const paisOk = !!emissor && (emissor.includes(normTxt(p.pais)) || emissor.includes(normTxt(paisEn)));
+    if (kmOk && (paisOk || anoOk)) { det = d; id = cand; break; } // referência exata: é ela
+    if (!kmNum && paisOk && anoOk && !fallback) fallback = { det: d, id: cand }; // sem KM#: país+ano
+  }
+  if (!det && fallback) { det = fallback.det; id = fallback.id; }
+  if (!det || id == null) return null;
+
+  const issues = await numistaGet(`/types/${id}/issues?lang=pt`, key);
 
   // Tiragem do ANO da moeda (as "issues" são por ano/variedade) + a issue
   // certa para pedir os preços estimados por graduação.

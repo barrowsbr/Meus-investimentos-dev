@@ -188,6 +188,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
     const q = new URLSearchParams({
       krause: m.krause, pais: m.pais, ano: m.ano,
       denominacao: m.denominacao, assunto: m.assunto, composicao: m.composicao,
+      v: "2", // versão do matching Numista — bust do CDN/cache quando o algoritmo muda
     });
     fetchJsonCached<InfoExtra>(`/api/moedas-colecao/info?${q}`, 24 * 60 * 60 * 1000)
       .then((d) => { if (vivo && d && !(d as { error?: string } & InfoExtra).error) setExtra(d); })
