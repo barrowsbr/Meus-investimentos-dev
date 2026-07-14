@@ -16,6 +16,7 @@ import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
 import { MOEDAS_COLECAO, COLECAO_ATUALIZADA_EM } from "@/lib/moedas-data";
 import { fetchJsonCached } from "@/lib/client-cache";
+import EmbedModal, { type EmbedTarget } from "@/components/EmbedModal";
 import type { PaisStat } from "@/components/moedas/MoedasMapa";
 
 import MoedasMapa from "@/components/moedas/MoedasMapa";
@@ -179,6 +180,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
   const [telaCheia, setTelaCheia] = useState(false);
   const [extra, setExtra] = useState<InfoExtra | null>(null);
   const [extraLoading, setExtraLoading] = useState(true);
+  const [embed, setEmbed] = useState<EmbedTarget | null>(null);
 
   // Dossiê estendido: história por IA + catálogo Numista (cache 24h no cliente,
   // 7 dias no CDN — moeda é dado parado).
@@ -329,9 +331,12 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
               <p className="mt-1 text-[11px] leading-relaxed text-zinc-400"><span className="text-zinc-500">Reverso:</span> {extra.numista.reverso}</p>
             )}
             {extra.numista.url && (
-              <a href={extra.numista.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:underline">
+              <button
+                onClick={() => setEmbed({ url: extra.numista!.url!, title: "Numista", sub: `${m.denominacao} · ${m.ano}` })}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:underline"
+              >
                 Ficha completa no Numista <ExternalLink size={10} />
-              </a>
+              </button>
             )}
           </div>
         )}
@@ -345,6 +350,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
           ))}
         </div>
         {telaCheia && <CoinZoom m={m} onClose={() => setTelaCheia(false)} />}
+        <EmbedModal item={embed} onClose={() => setEmbed(null)} />
       </div>
     </div>,
     document.body,
