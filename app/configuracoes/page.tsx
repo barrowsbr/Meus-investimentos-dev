@@ -6,7 +6,7 @@ import {
   FileText, RefreshCw, Shield, Info, Check,
   ChevronDown, ChevronUp, ArrowUpDown, Database, Palette,
   Eye, EyeOff, KeyRound, ShieldCheck, Loader2, Bell,
-  Globe as GlobeIcon, Activity, Play, History, ExternalLink, Zap, Search, Newspaper, Medal,
+  Globe as GlobeIcon, Activity, Play, History, ExternalLink, Zap, Search, Newspaper,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { bumpDataVersion } from "@/lib/data-version";
@@ -15,7 +15,6 @@ import { getHoloStyle, setHoloStyle, type HoloStyle } from "@/lib/holo-style";
 import { getStreakDays, setStreakDays, STREAK_DAYS_DEFAULT, STREAK_DAYS_MIN, STREAK_DAYS_MAX } from "@/lib/home-prefs";
 import PlanilhaCard from "@/components/config/PlanilhaCard";
 import NoticiasPerfilCard from "@/components/config/NoticiasPerfilCard";
-import MoedasCard from "@/components/config/MoedasCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -2962,7 +2961,6 @@ export default function ConfiguracoesPage() {
     { id: "noticias", grupo: "aparencia", title: "Notícias — Perfil de interesses", desc: "Temas que o feed \"Para você\" prioriza e filtro de briga política", icon: <Newspaper size={16} />, keywords: "noticias interesses macro geopolitica tecnologia ciencia cripto briga politica feed personalizado", el: <NoticiasPerfilCard /> },
     { id: "planilha", grupo: "dados", title: "Planilha (gdados) — Editor", desc: "Editar abas sem abrir o Google · saúde dos dados · backup CSV e restauração", icon: <FileText size={16} />, keywords: "editor abas linhas editar apagar buscar csv backup restaurar saude teste compactar twr", el: <PlanilhaCard /> },
     { id: "cotacoes", grupo: "dados", title: "Base de Cotações (Golden Source)", desc: "db_cotacoes — preços de fechamento que alimentam a Performance/TWR", icon: <Database size={16} />, keywords: "db_cotacoes precos golden source yahoo atualizar fechamento auditoria", el: <GoldenSourceSection /> },
-    { id: "moedas", grupo: "dados", title: "Coleção de moedas (CoinSnap)", desc: "Upload do CSV da coleção — alimenta a página Moedas (fotos, mapa, valores)", icon: <Medal size={16} />, keywords: "moedas colecao numismatica coinsnap csv upload prata krause", el: <MoedasCard /> },
     { id: "historico", grupo: "dados", title: "Histórico patrimonial (GitHub Action)", desc: "Série da página Patrimônio — gravada 3×/dia em dias úteis", icon: <History size={16} />, keywords: "patrimonio evolucao serie 3x dia registrar workflow", el: <HistoricoSection /> },
     { id: "importar", grupo: "sync", title: "Importar Dados (IBKR / B3)", desc: "Upload de CSV das corretoras — importação idempotente, sem duplicatas", icon: <Upload size={16} />, keywords: "importar csv arquivo corretora b3 ibkr trades proventos upload", el: <ImportSection /> },
     { id: "flexsync", grupo: "sync", title: "Sincronizar IBKR (API · sem arquivo)", desc: "Flex Web Service — trades, proventos e câmbio direto da IBKR", icon: <RefreshCw size={16} />, keywords: "flex web service token sync trades proventos automatico", el: <FlexSyncSection /> },

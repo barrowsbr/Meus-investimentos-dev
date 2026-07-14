@@ -1,34 +1,22 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Moedas — coleção numismática (export do CoinSnap na aba `moedas_colecao`).
-// Mapa-múndi da coleção, filtros (país/metal/graduação/busca), cards com foto
-// que VIRAM no hover (anverso ⇄ reverso) e dossiê por moeda. Moedas de prata
-// ganham valor de derretimento ao preço spot de HOJE (SI=F).
-// Upload de novos CSVs: Configurações → "Coleção de moedas".
+// Moedas — coleção numismática ESTÁTICA (lib/moedas-data.ts, gerada do export
+// do CoinSnap; o dono envia o CSV no chat para atualizar). Mapa-múndi da
+// coleção, filtros (país/metal/graduação/busca), cards com foto que VIRAM no
+// hover (anverso ⇄ reverso) e dossiê por moeda. Moedas de prata ganham valor
+// de derretimento ao preço spot de HOJE (SI=F via /api/moedas-colecao).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, Upload, ArrowUpDown, Loader2 } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
+import { MOEDAS_COLECAO, COLECAO_ATUALIZADA_EM } from "@/lib/moedas-data";
 import type { PaisStat } from "@/components/moedas/MoedasMapa";
 
 import MoedasMapa from "@/components/moedas/MoedasMapa";
-
-interface Stats {
-  exemplares: number;
-  unicas: number;
-  paises: number;
-  valorTotal: number;
-  prataGramas: number;
-  meltCsv: number;
-  meltHoje: number | null;
-  prataUsdOz: number | null;
-  prataBrlPorGrama: number | null;
-}
 
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
@@ -200,9 +188,8 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
 type Ordem = "valor-desc" | "valor-asc" | "ano-asc" | "ano-desc";
 
 export default function MoedasShell() {
-  const [moedas, setMoedas] = useState<Moeda[] | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const moedas = MOEDAS_COLECAO;
+  const [spot, setSpot] = useState<{ prataBrlPorGrama: number | null }>({ prataBrlPorGrama: null });
 
   const [busca, setBusca] = useState("");
   const [pais, setPais] = useState<string | null>(null);
@@ -212,13 +199,10 @@ export default function MoedasShell() {
   const [aberta, setAberta] = useState<Moeda | null>(null);
 
   useEffect(() => {
-    fetch("/api/moedas")
+    fetch("/api/moedas-colecao")
       .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setErro(d.error);
-        else { setMoedas(d.moedas ?? []); setStats(d.stats ?? null); }
-      })
-      .catch(() => setErro("Falha ao carregar a coleção"));
+      .then((d) => setSpot({ prataBrlPorGrama: d.prataBrlPorGrama ?? null }))
+      .catch(() => {});
   }, []);
 
   const porPais = useMemo<PaisStat[]>(() => {
@@ -253,27 +237,28 @@ export default function MoedasShell() {
     return [...out].sort(cmp[ordem]);
   }, [moedas, pais, metal, grad, busca, ordem]);
 
-  if (erro) {
-    return <div className="p-6"><p className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{erro}</p></div>;
-  }
-  if (moedas == null) {
-    return <div className="flex h-[60vh] items-center justify-center text-zinc-500"><Loader2 size={22} className="animate-spin" /></div>;
-  }
-  if (moedas.length === 0) {
-    return (
-      <div className="mx-auto max-w-md p-6 pt-16 text-center">
-        <p className="text-4xl">🪙</p>
-        <h1 className="mt-3 text-lg font-bold text-zinc-100">Sua coleção começa aqui</h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          Exporte o CSV do CoinSnap e suba em{" "}
-          <Link href="/configuracoes" className="text-amber-400 underline underline-offset-2">Configurações → Coleção de moedas</Link>.
-          A página monta sozinha: fotos, valores, mapa e filtros.
-        </p>
-      </div>
-    );
-  }
-
-  const st = stats!;
+  const st = useMemo(() => {
+    let valorTotal = 0, exemplares = 0, prataGramas = 0, meltCsv = 0;
+    const paises = new Set<string>();
+    for (const m of moedas) {
+      exemplares += m.qtd;
+      valorTotal += m.valorBrl * m.qtd;
+      if (m.pais) paises.add(m.pais);
+      if (m.pesoMetalG) {
+        prataGramas += m.pesoMetalG * m.qtd;
+        meltCsv += (m.derretimentoBrl ?? 0) * m.qtd;
+      }
+    }
+    return {
+      exemplares,
+      unicas: moedas.length,
+      paises: paises.size,
+      valorTotal,
+      prataGramas: Math.round(prataGramas * 100) / 100,
+      meltCsv,
+      meltHoje: spot.prataBrlPorGrama != null ? prataGramas * spot.prataBrlPorGrama : null,
+    };
+  }, [moedas, spot]);
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -371,12 +356,11 @@ export default function MoedasShell() {
         </div>
       )}
 
-      <p className="flex items-center gap-1.5 pt-2 text-[10px] text-zinc-600">
-        <Upload size={11} /> Para atualizar a coleção, suba um novo CSV do CoinSnap em{" "}
-        <Link href="/configuracoes" className="text-zinc-400 underline underline-offset-2">Configurações</Link>.
+      <p className="pt-2 text-[10px] text-zinc-600">
+        Coleção CoinSnap · atualizada em {COLECAO_ATUALIZADA_EM}. Para atualizar, envie o novo CSV ao assistente.
       </p>
 
-      {aberta && <CoinModal m={aberta} prataBrlPorGrama={stats?.prataBrlPorGrama ?? null} onClose={() => setAberta(null)} />}
+      {aberta && <CoinModal m={aberta} prataBrlPorGrama={spot.prataBrlPorGrama} onClose={() => setAberta(null)} />}
     </div>
   );
 }
