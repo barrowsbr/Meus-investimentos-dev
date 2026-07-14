@@ -1,14 +1,11 @@
-// Dossiê estendido de UMA moeda da coleção — dois complementos:
-// 1. Numista (api.numista.com, NUMISTA_API_KEY opcional): dados duros de
-//    catálogo — tiragem, diâmetro/peso/espessura, descrições de anverso/
-//    reverso, gravador e link da ficha. Sem a chave, o bloco simplesmente
-//    não aparece na UI.
-// 2. História por IA (cascata lib/llm, chaves já existentes): parágrafo curto
-//    de contexto histórico em PT — instruída a NÃO inventar números.
-// Cache: memória do lambda + CDN 7 dias (moeda é dado parado).
+// Dossiê estendido de UMA moeda da coleção — catálogo Numista
+// (api.numista.com, NUMISTA_API_KEY): dados duros — tiragem, diâmetro/peso/
+// espessura, descrições de anverso/reverso, gravador, link da ficha e
+// PREÇOS ESTIMADOS POR GRADUAÇÃO em BRL (a régua de mercado do colecionador;
+// o dono trocou a "história por IA" por isso — dado real > texto gerado).
+// Sem a chave, o bloco não aparece na UI. Cache: lambda + CDN 7 dias.
 
 import { NextResponse } from "next/server";
-import { llmComplete } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,10 +35,10 @@ interface NumistaInfo {
   gravadores: string | null;
   tiragem: number | null;
   url: string | null;
+  precos: Array<{ grau: string; brl: number }> | null; // estimativas por graduação
 }
 
 interface InfoPayload {
-  historia: string | null;
   numista: NumistaInfo | null;
   numistaAtivo: boolean; // chave configurada?
 }
@@ -82,13 +79,27 @@ async function buscarNumista(p: { krause: string; pais: string; ano: string; den
   ]);
   if (!det) return null;
 
-  // Tiragem do ANO da moeda (as "issues" são por ano/variedade).
+  // Tiragem do ANO da moeda (as "issues" são por ano/variedade) + a issue
+  // certa para pedir os preços estimados por graduação.
   let tiragem: number | null = null;
+  let issueId: number | null = null;
   if (Array.isArray(issues)) {
-    const doAno = (issues as Array<{ year?: number; mintage?: number }>).filter(
-      (i) => String(i.year ?? "") === p.ano.slice(0, 4) && typeof i.mintage === "number",
-    );
-    if (doAno.length) tiragem = doAno.reduce((s, i) => s + (i.mintage ?? 0), 0);
+    const lista = issues as Array<{ id?: number; year?: number; mintage?: number }>;
+    const doAno = lista.filter((i) => String(i.year ?? "") === p.ano.slice(0, 4));
+    const comTiragem = doAno.filter((i) => typeof i.mintage === "number");
+    if (comTiragem.length) tiragem = comTiragem.reduce((s, i) => s + (i.mintage ?? 0), 0);
+    issueId = doAno[0]?.id ?? lista[0]?.id ?? null;
+  }
+
+  // Preços estimados por graduação, em BRL (régua de mercado do colecionador).
+  let precos: Array<{ grau: string; brl: number }> | null = null;
+  if (issueId != null) {
+    const pr = await numistaGet(`/types/${id}/issues/${issueId}/prices?currency=BRL&lang=pt`, key);
+    const lista = (pr?.["prices"] ?? []) as Array<{ grade?: string; price?: number }>;
+    const validos = lista.filter((x) => typeof x.price === "number" && x.price > 0 && x.grade);
+    if (validos.length) {
+      precos = validos.map((x) => ({ grau: String(x.grade).toUpperCase(), brl: x.price as number }));
+    }
   }
 
   const g = (o: unknown, campo: string): string | null => {
@@ -117,23 +128,8 @@ async function buscarNumista(p: { krause: string; pais: string; ano: string; den
     gravadores: engravers.length ? [...new Set(engravers)].join(", ") : null,
     tiragem,
     url: typeof det["url"] === "string" ? (det["url"] as string) : `https://pt.numista.com/catalogue/pieces${id}.html`,
+    precos,
   };
-}
-
-async function gerarHistoria(p: { pais: string; ano: string; denominacao: string; assunto: string; composicao: string }): Promise<string | null> {
-  try {
-    const system =
-      "Você é um numismata brasileiro experiente. Escreva um parágrafo CURTO (2 a 4 frases, PT-BR) " +
-      "de contexto histórico sobre a moeda descrita: o momento do país, o que a série/comemoração representa " +
-      "e alguma curiosidade relevante. NÃO invente números precisos (tiragem, valores, dimensões) nem " +
-      "afirme raridade — se não tiver certeza de um detalhe, omita. Sem markdown, só o parágrafo.";
-    const msg = `Moeda: ${p.denominacao} — ${p.pais}, ${p.ano}.` +
-      (p.assunto && p.assunto !== "Séries comuns" ? ` Emissão comemorativa: ${p.assunto}.` : " Série comum de circulação.") +
-      (p.composicao ? ` Composição: ${p.composicao}.` : "");
-    const { text } = await llmComplete(system, msg);
-    const t = text.trim();
-    return t.length > 20 ? t : null;
-  } catch { return null; }
 }
 
 export async function GET(req: Request) {
@@ -156,10 +152,10 @@ export async function GET(req: Request) {
     return NextResponse.json(hit.data, { headers: { "Cache-Control": "s-maxage=604800, stale-while-revalidate=86400" } });
   }
 
-  const [numista, historia] = await Promise.all([buscarNumista(p), gerarHistoria(p)]);
-  const payload: InfoPayload = { historia, numista, numistaAtivo: !!process.env.NUMISTA_API_KEY };
-  // Só cacheia se algo veio — falha total re-tenta na próxima.
-  if (historia || numista) cache.set(cacheKey, { t: Date.now(), data: payload });
+  const numista = await buscarNumista(p);
+  const payload: InfoPayload = { numista, numistaAtivo: !!process.env.NUMISTA_API_KEY };
+  // Só cacheia se algo veio — falha re-tenta na próxima.
+  if (numista) cache.set(cacheKey, { t: Date.now(), data: payload });
 
   return NextResponse.json(payload, {
     headers: { "Cache-Control": "s-maxage=604800, stale-while-revalidate=86400" },

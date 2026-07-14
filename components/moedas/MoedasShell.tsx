@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, BookOpen, Library, Loader2, ExternalLink } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
@@ -171,8 +171,9 @@ interface NumistaInfo {
   pesoG: number | null; diametroMm: number | null; espessuraMm: number | null;
   anverso: string | null; reverso: string | null; gravadores: string | null;
   tiragem: number | null; url: string | null;
+  precos: Array<{ grau: string; brl: number }> | null;
 }
-interface InfoExtra { historia: string | null; numista: NumistaInfo | null; numistaAtivo: boolean }
+interface InfoExtra { numista: NumistaInfo | null; numistaAtivo: boolean }
 
 function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGrama: number | null; onClose: () => void }) {
   const [telaCheia, setTelaCheia] = useState(false);
@@ -268,25 +269,38 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
           </div>
         )}
 
-        {/* História (IA) */}
-        {(extraLoading || extra?.historia) && (
-          <div className="mb-4 rounded-xl p-3" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
-            <p className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-violet-300"><BookOpen size={11} /> História</p>
-            {extra?.historia ? (
-              <>
-                <p className="text-xs leading-relaxed text-zinc-300">{extra.historia}</p>
-                <p className="mt-1.5 text-[9px] text-zinc-600">gerado por IA — confira detalhes críticos</p>
-              </>
-            ) : (
-              <p className="flex items-center gap-1.5 text-[11px] text-zinc-500"><Loader2 size={11} className="animate-spin" /> buscando contexto…</p>
-            )}
-          </div>
-        )}
-
         {/* Catálogo Numista (aparece quando NUMISTA_API_KEY está configurada) */}
+        {extraLoading && (
+          <p className="mb-4 flex items-center gap-1.5 text-[11px] text-zinc-500"><Loader2 size={11} className="animate-spin" /> consultando o catálogo…</p>
+        )}
         {extra?.numista && (
           <div className="mb-4 rounded-xl p-3" style={{ background: "rgba(56,189,248,0.05)", border: "1px solid rgba(56,189,248,0.18)" }}>
             <p className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-sky-300"><Library size={11} /> Catálogo Numista</p>
+
+            {/* Preços estimados por graduação (BRL) — o estado da SUA moeda em destaque */}
+            {extra.numista.precos && extra.numista.precos.length > 0 && (
+              <div className="mb-3">
+                <p className="mb-1.5 text-[10px] text-zinc-500">Preço de mercado estimado (por estado de conservação)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {extra.numista.precos.map((x) => {
+                    const meu = x.grau === m.graduacao || (m.graduacao === "MS" && x.grau === "UNC");
+                    return (
+                      <div
+                        key={x.grau}
+                        className="rounded-lg px-2 py-1 text-center"
+                        style={{
+                          background: meu ? "rgba(16,185,129,0.14)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${meu ? "rgba(16,185,129,0.45)" : "rgba(255,255,255,0.08)"}`,
+                        }}
+                      >
+                        <p className={`font-mono text-[9px] font-bold ${meu ? "text-emerald-300" : "text-zinc-500"}`}>{x.grau}{meu ? " · sua" : ""}</p>
+                        <p className={`font-mono text-[11px] font-semibold ${meu ? "text-emerald-300" : "text-zinc-300"}`}>{fmtBRL(x.brl)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
               {extra.numista.tiragem != null && (
                 <div><p className="text-[10px] text-zinc-500">Tiragem ({m.ano.slice(0, 4)})</p><p className="font-mono font-semibold text-zinc-200">{extra.numista.tiragem.toLocaleString("pt-BR")}</p></div>
