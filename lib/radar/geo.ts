@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { COUNTRY_TO_ISO_NUM, signedNorm } from "@/lib/world-map";
-import { ISO_NUM_TO_ISO2 } from "./countries";
+import { ISO_NUM_TO_ISO2 } from "./iso";
 import { adrOriginCountry } from "@/lib/ticker-country";
 import { INDICES, type IndexMeta } from "./indices";
 import type { CurrencyData, ExposureResponse } from "./types";
