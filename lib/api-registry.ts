@@ -435,6 +435,19 @@ export const API_REGISTRY: ApiDef[] = [
 
   // ── Observatório & Geo ─────────────────────────────────────────────────────
   {
+    key: "numista", name: "Numista", category: "Observatório & Geo",
+    host: "api.numista.com", purpose: "Catálogo numismático — tiragem, dimensões e descrições no dossiê da página Moedas",
+    envVars: [{ name: "NUMISTA_API_KEY", required: false }],
+    docs: "https://pt.numista.com/api/doc/v3/index.php",
+    probe: async () => {
+      const k = env("NUMISTA_API_KEY");
+      if (!k) return { ok: false, detail: "NUMISTA_API_KEY não configurada (bloco Numista fica oculto na página Moedas)" };
+      const { status, json } = await getJson("https://api.numista.com/api/v3/types?q=KM%23652%20Brazil&count=1&category=coin", { headers: { "Numista-API-Key": k } });
+      const n = json?.count ?? json?.types?.length;
+      return status === 200 ? { ok: true, detail: `busca ok (${n ?? "?"} resultados p/ KM#652 Brazil)` } : { ok: false, detail: json?.error_message || `HTTP ${status}` };
+    },
+  },
+  {
     key: "nasa", name: "NASA (api.nasa.gov)", category: "Observatório & Geo",
     host: "api.nasa.gov", purpose: "APOD, asteroides (NeoWs), EPIC, Mars — página NASA",
     envVars: [{ name: "NASA_API_KEY", required: false }],
