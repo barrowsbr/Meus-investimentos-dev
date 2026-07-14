@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
+import { fetchJsonCached, fetchJsonFresh } from "@/lib/client-cache";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
@@ -290,9 +291,8 @@ function RadarDoDia({ tickerItems }: { tickerItems: TickerItem[] }) {
     if (!tickerStr) return;
     let cancelled = false;
     setNewsLoading(true);
-    fetch(`/api/noticias?scope=symbol&tickers=${encodeURIComponent(tickerStr)}`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setArticles(Array.isArray(d?.articles) ? d.articles : []); })
+    fetchJsonCached<{ articles?: unknown[] }>(`/api/noticias?scope=symbol&tickers=${encodeURIComponent(tickerStr)}`, 10 * 60_000)
+      .then(d => { if (!cancelled) setArticles(Array.isArray(d?.articles) ? (d.articles as never[]) : []); })
       .catch(() => { if (!cancelled) setArticles([]); })
       .finally(() => { if (!cancelled) setNewsLoading(false); });
     return () => { cancelled = true; };
@@ -411,8 +411,8 @@ function NoticiasDestaques() {
       try {
         // Perfil do dono (localStorage) — mesmo feed do "Para você".
         const { getPerfilNoticias, perfilQuery } = await import("@/lib/news/perfil");
-        const r = await fetch(`/api/noticias?${perfilQuery(getPerfilNoticias())}`);
-        const d = await r.json();
+        const d = await fetchJsonCached<{ articles?: HomeNewsArticle[] }>(
+          `/api/noticias?${perfilQuery(getPerfilNoticias())}`, 10 * 60_000);
         const comFoto = ((d.articles ?? []) as HomeNewsArticle[]).filter(a => !!a.imagem && proxyImg(a.imagem));
         if (alive) setArticles(comFoto.slice(0, 9));
       } catch { /* sem notícias → a seção não aparece */ }
@@ -927,12 +927,17 @@ export default function HomePage() {
   const [detalhe, setDetalhe] = useState<AuditData | "loading" | "erro">("loading");
   useEffect(() => {
     let cancelled = false;
-    const tryFetch = () => fetch("/api/home").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    // Cache de sessão (TTL 5 min): voltar à Home não refaz o /api/home.
+    const tryFetch = (fresco = false) => (
+      fresco
+        ? fetchJsonFresh<Record<string, any>>(`/api/home?_t=${Date.now()}`, "/api/home")
+        : fetchJsonCached<Record<string, any>>("/api/home", 5 * 60_000)
+    ).then((d) => (d && !d.error ? d : null)).catch(() => null);
     (async () => {
       let d = await tryFetch();
       if (!cancelled && !(d && d.overview && d.overview.kpis)) {
         await new Promise((r) => setTimeout(r, 2500));
-        if (!cancelled) { const d2 = await tryFetch(); if (d2) d = d2; }
+        if (!cancelled) { const d2 = await tryFetch(true); if (d2) d = d2; }
       }
       if (cancelled) return;
       setIbkrLoaded(true);
