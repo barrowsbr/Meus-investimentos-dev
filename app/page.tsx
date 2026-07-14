@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronRight, ExternalLink, Newspaper, Clock, AlertTriangle, Wifi, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Maximize2, Loader2 } from "lucide-react";
 import { usePortfolio } from "@/lib/hooks";
 import { fetchJsonCached, fetchJsonFresh } from "@/lib/client-cache";
+import PageLoader from "@/components/PageLoader";
 import { compactBRL, pct } from "@/lib/format";
 import { isRendaFixa } from "@/lib/sectors";
 import { openEmbed, openArticle } from "@/lib/embed-link";
@@ -1218,9 +1219,11 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Skeleton do painel do dia enquanto o snapshot carrega ── */}
+        {/* ── Painel do dia carregando: cofrinho no palco (loader da Home) ── */}
         {loading && (
-          <div className="mt-4 animate-pulse" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }} />
+          <div className="mt-4 flex items-center justify-center" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }}>
+            <PageLoader />
+          </div>
         )}
 
         {/* ── Retorno do dia · por book — agora só no popup (aberto pelo Σ) ── */}
