@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
@@ -111,7 +112,10 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Trava o scroll da página enquanto o dossiê está aberto.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
   }, [onClose]);
   const tone = gradTone(m.graduacao);
   const meltHoje = m.pesoMetalG && prataBrlPorGrama ? m.pesoMetalG * prataBrlPorGrama : null;
@@ -125,11 +129,11 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
     ["Série", m.serie],
     ["Nota", m.nota],
   ];
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-6" onClick={onClose}>
       <div
         className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl p-5 md:rounded-2xl"
-        style={{ background: "radial-gradient(120% 100% at 50% 0%, #10131c 0%, #090b12 70%)", border: "1px solid rgba(255,255,255,0.1)" }}
+        style={{ background: "radial-gradient(120% 100% at 50% 0%, #10131c 0%, #090b12 70%)", border: "1px solid rgba(255,255,255,0.1)", paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -179,7 +183,8 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
