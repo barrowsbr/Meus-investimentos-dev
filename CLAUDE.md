@@ -244,7 +244,9 @@ Registro de entradas, saídas e gastos com cartão.
 - `/moedas` (menu Mais → nav real em `components/terminal/nav.ts`) mostra mapa-múndi
   da coleção, filtros, cards com flip anverso⇄reverso e dossiê por moeda.
 - `/api/moedas-colecao` devolve SÓ o spot da prata (SI=F × BRL=X) para o valor de
-  derretimento ao dia. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
+  derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda:
+  história por IA (cascata lib/llm, sem números inventados) + catálogo **Numista**
+  (tiragem/dimensões/descrições, só com `NUMISTA_API_KEY`; cache CDN 7 dias). ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
   pelo catch-all `app/api/[...path]` → `app/api/moedas/handler.ts`) — criar rota
   nesse path quebra a lente Câmbio (já aconteceu; não repetir).
 
@@ -449,7 +451,8 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   YouTube TV ao vivo (`YOUTUBE_API_KEY` opc. → resolve o live exato via Data API v3;
   sem ela, embed keyless 24/7 por canal — `TvAoVivoPanel` + `/api/tv/live`)
 - **Predições**: Polymarket (livre) · Kalshi (livre) · Metaculus (livre)
-- **Observatório & Geo**: NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
+- **Observatório & Geo**: Numista (`NUMISTA_API_KEY` opc. — catálogo numismático no dossiê da página Moedas) ·
+  NASA api.nasa.gov (`NASA_API_KEY` opc., aceita DEMO_KEY) ·
   NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
   GDELT Events 2.0 CSV (livre) · World Bank (livre)
 - **Alertas & Logos**: Telegram Bot (`TELEGRAM_BOT_TOKEN` — ou salvo em Configurações) ·

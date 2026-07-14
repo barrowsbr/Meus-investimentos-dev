@@ -10,11 +10,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, BookOpen, Library, Loader2, ExternalLink } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
 import { MOEDAS_COLECAO, COLECAO_ATUALIZADA_EM } from "@/lib/moedas-data";
+import { fetchJsonCached } from "@/lib/client-cache";
 import type { PaisStat } from "@/components/moedas/MoedasMapa";
 
 import MoedasMapa from "@/components/moedas/MoedasMapa";
@@ -165,8 +166,34 @@ function CoinZoom({ m, onClose }: { m: Moeda; onClose: () => void }) {
 
 // ── Dossiê (modal) ────────────────────────────────────────────────────────────
 
+interface NumistaInfo {
+  titulo: string; emissor: string | null; anos: string | null; composicao: string | null;
+  pesoG: number | null; diametroMm: number | null; espessuraMm: number | null;
+  anverso: string | null; reverso: string | null; gravadores: string | null;
+  tiragem: number | null; url: string | null;
+}
+interface InfoExtra { historia: string | null; numista: NumistaInfo | null; numistaAtivo: boolean }
+
 function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGrama: number | null; onClose: () => void }) {
   const [telaCheia, setTelaCheia] = useState(false);
+  const [extra, setExtra] = useState<InfoExtra | null>(null);
+  const [extraLoading, setExtraLoading] = useState(true);
+
+  // Dossiê estendido: história por IA + catálogo Numista (cache 24h no cliente,
+  // 7 dias no CDN — moeda é dado parado).
+  useEffect(() => {
+    let vivo = true;
+    setExtra(null); setExtraLoading(true);
+    const q = new URLSearchParams({
+      krause: m.krause, pais: m.pais, ano: m.ano,
+      denominacao: m.denominacao, assunto: m.assunto, composicao: m.composicao,
+    });
+    fetchJsonCached<InfoExtra>(`/api/moedas-colecao/info?${q}`, 24 * 60 * 60 * 1000)
+      .then((d) => { if (vivo && d && !(d as { error?: string } & InfoExtra).error) setExtra(d); })
+      .catch(() => {})
+      .finally(() => { if (vivo) setExtraLoading(false); });
+    return () => { vivo = false; };
+  }, [m]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -238,6 +265,59 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
               {meltHoje != null && <span className="font-mono text-sm font-bold text-sky-300">{fmtBRL(meltHoje)} <span className="text-[10px] font-normal text-zinc-500">derretimento hoje</span></span>}
               {m.derretimentoBrl != null && <span className="font-mono text-[11px] text-zinc-500">{fmtBRL(m.derretimentoBrl)} no export</span>}
             </div>
+          </div>
+        )}
+
+        {/* História (IA) */}
+        {(extraLoading || extra?.historia) && (
+          <div className="mb-4 rounded-xl p-3" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
+            <p className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-violet-300"><BookOpen size={11} /> História</p>
+            {extra?.historia ? (
+              <>
+                <p className="text-xs leading-relaxed text-zinc-300">{extra.historia}</p>
+                <p className="mt-1.5 text-[9px] text-zinc-600">gerado por IA — confira detalhes críticos</p>
+              </>
+            ) : (
+              <p className="flex items-center gap-1.5 text-[11px] text-zinc-500"><Loader2 size={11} className="animate-spin" /> buscando contexto…</p>
+            )}
+          </div>
+        )}
+
+        {/* Catálogo Numista (aparece quando NUMISTA_API_KEY está configurada) */}
+        {extra?.numista && (
+          <div className="mb-4 rounded-xl p-3" style={{ background: "rgba(56,189,248,0.05)", border: "1px solid rgba(56,189,248,0.18)" }}>
+            <p className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-sky-300"><Library size={11} /> Catálogo Numista</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+              {extra.numista.tiragem != null && (
+                <div><p className="text-[10px] text-zinc-500">Tiragem ({m.ano.slice(0, 4)})</p><p className="font-mono font-semibold text-zinc-200">{extra.numista.tiragem.toLocaleString("pt-BR")}</p></div>
+              )}
+              {extra.numista.diametroMm != null && (
+                <div><p className="text-[10px] text-zinc-500">Diâmetro</p><p className="font-mono text-zinc-200">{extra.numista.diametroMm} mm</p></div>
+              )}
+              {extra.numista.pesoG != null && (
+                <div><p className="text-[10px] text-zinc-500">Peso</p><p className="font-mono text-zinc-200">{extra.numista.pesoG} g</p></div>
+              )}
+              {extra.numista.espessuraMm != null && (
+                <div><p className="text-[10px] text-zinc-500">Espessura</p><p className="font-mono text-zinc-200">{extra.numista.espessuraMm} mm</p></div>
+              )}
+              {extra.numista.anos && (
+                <div><p className="text-[10px] text-zinc-500">Período de emissão</p><p className="text-zinc-200">{extra.numista.anos}</p></div>
+              )}
+              {extra.numista.gravadores && (
+                <div><p className="text-[10px] text-zinc-500">Gravador</p><p className="truncate text-zinc-200" title={extra.numista.gravadores}>{extra.numista.gravadores}</p></div>
+              )}
+            </div>
+            {extra.numista.anverso && (
+              <p className="mt-2 text-[11px] leading-relaxed text-zinc-400"><span className="text-zinc-500">Anverso:</span> {extra.numista.anverso}</p>
+            )}
+            {extra.numista.reverso && (
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-400"><span className="text-zinc-500">Reverso:</span> {extra.numista.reverso}</p>
+            )}
+            {extra.numista.url && (
+              <a href={extra.numista.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:underline">
+                Ficha completa no Numista <ExternalLink size={10} />
+              </a>
+            )}
           </div>
         )}
 
