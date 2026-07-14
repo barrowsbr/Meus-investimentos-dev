@@ -232,14 +232,21 @@ Dados de cartões de crédito, contas bancárias e gastos.
 
 Registro de entradas, saídas e gastos com cartão.
 
-### 12. `moedas_colecao` — Coleção numismática (página Moedas)
+---
 
-Export do app **CoinSnap** importado em Configurações → "Coleção de moedas"
-(sobrescreve a aba com backup automático). Colunas: `pais, emissor, denominacao,
-assunto, krause, ano, marca, graduacao, valor_brl, composicao, peso_metal_g,
-derretimento_brl, foto_anverso, foto_reverso, nota, serie`. A página `/moedas`
-lê via `/api/moedas` (agrega exemplares idênticos, mapa-múndi, filtros) e
-recalcula o valor de derretimento das moedas de prata ao spot `SI=F` de hoje.
+## Página Moedas (coleção numismática — dado ESTÁTICO, fora da planilha)
+
+- A coleção vive em **`lib/moedas-data.ts`** (gerado do CSV exportado pelo app
+  **CoinSnap** com o parser de `lib/moedas.ts`). **Não há aba na planilha, upload
+  nem card em Configurações — decisão do dono**: quando ele quiser atualizar,
+  envia o novo CSV no chat e o arquivo é regenerado (atualizar também
+  `COLECAO_ATUALIZADA_EM`).
+- `/moedas` (menu Mais → nav real em `components/terminal/nav.ts`) mostra mapa-múndi
+  da coleção, filtros, cards com flip anverso⇄reverso e dossiê por moeda.
+- `/api/moedas-colecao` devolve SÓ o spot da prata (SI=F × BRL=X) para o valor de
+  derretimento ao dia. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
+  pelo catch-all `app/api/[...path]` → `app/api/moedas/handler.ts`) — criar rota
+  nesse path quebra a lente Câmbio (já aconteceu; não repetir).
 
 ---
 

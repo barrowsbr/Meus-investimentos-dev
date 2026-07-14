@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper,
+  Rocket, Newspaper, Medal,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -70,6 +70,7 @@ export const NAV: NavGroup[] = [
       { href: "/radar", label: "Radar", icon: Radar, sub: "Mapa-múndi geoeconômico: índices, moedas e países", mobileShow: true },
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
+      { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa (CoinSnap)" },
     ],
   },
   // Configurações fica à parte (grupo sem rótulo), separado dos demais.
