@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { PortfolioSnapshot, Position } from "./portfolio";
 import type { FxRates } from "./cotacoes";
 import { withDataVersion } from "./data-version";
+import { fetchJsonCached, fetchJsonFresh } from "./client-cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -17,16 +18,17 @@ export function useSheetData<T = Record<string, unknown>>(tab: string) {
     setLoading(true);
     setError(null);
 
-    fetch(withDataVersion(`${API_URL}/api/sheets/${tab}`))
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok || body.error) {
-          throw new Error(body.error || `HTTP ${r.status}`);
+    // Cache de sessão (TTL 5 min): voltar à página não refaz a chamada.
+    fetchJsonCached<unknown>(withDataVersion(`${API_URL}/api/sheets/${tab}`), 5 * 60_000)
+      .then((body) => {
+        const b = body as { error?: string } | unknown[];
+        if (b && !Array.isArray(b) && (b as { error?: string }).error) {
+          throw new Error((b as { error: string }).error);
         }
-        if (!Array.isArray(body)) {
+        if (!Array.isArray(b)) {
           throw new Error("Resposta inesperada da API");
         }
-        return body;
+        return b as T[];
       })
       .then((d) => {
         if (!cancelled) {
@@ -273,12 +275,17 @@ export function usePortfolio() {
     setLoading(true);
     setError(null);
 
-    const bustCache = fetchKey > 0 ? `${API_URL}/api/cotacoes?_t=${Date.now()}` : withDataVersion(`${API_URL}/api/cotacoes`);
-    fetch(bustCache)
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok || body.error) {
-          throw new Error(body.error || `HTTP ${r.status}`);
+    // Cache de sessão (TTL 5 min): navegar entre páginas não refaz o /api/cotacoes
+    // (a chamada mais pesada do app). refetch() continua buscando fresco (?_t=)
+    // e requenta o cache; escrita de dados troca a URL via ?v= (data-version).
+    const base = withDataVersion(`${API_URL}/api/cotacoes`);
+    const promessa = fetchKey > 0
+      ? fetchJsonFresh<Record<string, unknown>>(`${API_URL}/api/cotacoes?_t=${Date.now()}`, base)
+      : fetchJsonCached<Record<string, unknown>>(base, 5 * 60_000);
+    promessa
+      .then((body) => {
+        if (!body || (body as { error?: string }).error) {
+          throw new Error((body as { error?: string })?.error || "Falha ao carregar cotações");
         }
         return body;
       })
