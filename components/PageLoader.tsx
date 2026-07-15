@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PageLoader — a animação de carregamento do app, personalizada por página.
 // 15 cenas em CSS puro (zero requisição), escolhidas pelo pathname via
-// variantForPath(); LoadingSpinner injeta a cena no esqueleto de página.
+// variantForPath(); LoadingSpinner injeta a cena no esqueleto de página (sem legenda — só a animação, decisão do dono).
 // Com "Reduzir Movimento" ativo no aparelho, a cena vira um pulso suave
 // (nunca parece travado). Vitrine aprovada pelo dono antes de implementar.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,25 +15,6 @@ export type LoaderVariant =
   | "holo"
   | "engrenagens" | "jornal" | "foguete" | "cripto" | "carimbo"
   | "cambio" | "grafico" | "balanca" | "robo";
-
-const CAPTION: Record<LoaderVariant, string> = {
-  moeda: "girando a moeda…",
-  pregao: "abrindo o pregão…",
-  rolo: "contando os tostões…",
-  cofrinho: "alimentando o cofrinho…",
-  holo: "girando o globo…",
-  radar: "varrendo o mundo…",
-  arvore: "regando o patrimônio…",
-  engrenagens: "apertando os parafusos…",
-  jornal: "rodando a impressão…",
-  foguete: "ligando os motores…",
-  cripto: "minerando os blocos…",
-  carimbo: "carimbando os papéis…",
-  cambio: "trocando os dólares…",
-  grafico: "desenhando a curva…",
-  balanca: "pesando o risco…",
-  robo: "acordando o robô…",
-};
 
 // Rota → cena. Prefixo mais específico primeiro.
 const POR_ROTA: Array<[string, LoaderVariant]> = [
@@ -203,14 +184,13 @@ function Cena({ v }: { v: LoaderVariant }) {
   }
 }
 
-export default function PageLoader({ variant, caption }: { variant?: LoaderVariant; caption?: string }) {
+export default function PageLoader({ variant }: { variant?: LoaderVariant }) {
   const pathname = usePathname();
   const v = variant ?? variantForPath(pathname);
   return (
     <div className="ldr-wrap" role="status" aria-label="Carregando">
       <style>{CSS}</style>
       <div className="ldr-stage"><Cena v={v} /></div>
-      <p className="ldr-caption">{caption ?? CAPTION[v]}</p>
     </div>
   );
 }
@@ -220,7 +200,6 @@ export default function PageLoader({ variant, caption }: { variant?: LoaderVaria
 const CSS = `
 .ldr-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px 0; }
 .ldr-stage { height: 130px; width: 180px; display: flex; align-items: center; justify-content: center; position: relative; }
-.ldr-caption { margin: 0; font-size: 12px; color: #8b8e98; letter-spacing: 0.04em; animation: ldr-resp 1.6s ease-in-out infinite; }
 @keyframes ldr-resp { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 
 /* moeda */
@@ -372,9 +351,9 @@ const CSS = `
 .ldr-antena { position: absolute; top: 34px; left: 50%; margin-left: -1.5px; width: 3px; height: 16px; background: #3f4759; }
 .ldr-antena::after { content: ""; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 9px; height: 9px; border-radius: 50%; background: #f87171; animation: ldr-resp 1.2s ease-in-out infinite; }
 
-/* Reduzir Movimento: cena estática + legenda pulsando suave */
+/* Reduzir Movimento: cena estática, só um pulso suave de opacidade */
 @media (prefers-reduced-motion: reduce) {
   .ldr-stage * { animation: none !important; }
-  .ldr-caption { animation: ldr-resp 2.6s ease-in-out infinite; }
+  .ldr-stage { animation: ldr-resp 2.6s ease-in-out infinite; }
 }
 `;
