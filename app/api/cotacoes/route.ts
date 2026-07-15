@@ -97,7 +97,13 @@ export async function GET() {
       GBP: fxCusto.GBPBRL,
       CAD: fxCusto.CADBRL,
     });
-    const alavancagem = { ...aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo), ajusteCambioMargemBRL };
+    // Dívida de margem FORA da IBKR (aba alavancagem, outras corretoras): a da
+    // IBKR já é abatida dentro do NLV do overview na Home — esta parcela é o
+    // que a Home precisa abater por fora para o "Valor disponível (net)".
+    const dividaForaIbkrBRL = marginResumo.abertas
+      .filter((e) => e.corretora.toUpperCase() !== "IBKR")
+      .reduce((s, e) => s + e.valorBRL, 0);
+    const alavancagem = { ...aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo), ajusteCambioMargemBRL, dividaForaIbkrBRL };
 
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;

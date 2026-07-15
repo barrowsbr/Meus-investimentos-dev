@@ -758,16 +758,17 @@ interface PatrimonioParte {
 // mesma fórmula canônica das parcelas.
 interface AuditData {
   usdbrl: number;
-  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; total_brl: number };
+  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl?: number; total_brl: number };
   ibkr: { ok: boolean; patrimonioTotalUSD?: number; posicoes_brl?: number; caixa_brl?: number; erro?: string };
 }
 
-function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, onOpenRetorno }: {
+function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, dividaBRL, onOpenRetorno }: {
   brl: number | null;
   pctVal: number | null;
   patrimonioBRL: number | null;
   usdbrl: number | null;
   priv: boolean;
+  dividaBRL: number; // margem total (IBKR + aba) — 0 quando não alavancado
   onOpenRetorno: () => void;
 }) {
   const [patrOpen, setPatrOpen] = useState(false);
@@ -777,14 +778,14 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, onOpenRetorn
     <div className="overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.75)" }}>
       <PatrimonioModal open={patrOpen} onClose={() => setPatrOpen(false)} />
 
-      {/* HERO — Patrimônio total (com mini-histórico) + Σ retorno do dia */}
+      {/* HERO — Valor disponível total (net = tudo − dívida de margem) + Σ retorno do dia */}
       <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr]" style={{ gap: 1, background: "var(--line)" }}>
-        {/* Patrimônio total */}
+        {/* Valor disponível total (net) */}
         <div className="px-5 py-4" style={{ background: "var(--panel)" }}>
           {patrimonioBRL != null && patrimonioBRL > 0 ? (
             <button type="button" onClick={() => setPatrOpen(true)} title="Ver histórico patrimonial" className="group block w-full text-left">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Patrimônio total</span>
+                <span className="font-mono uppercase" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Valor disponível total{dividaBRL > 0 ? " · NET" : ""}</span>
                 <Maximize2 size={9} className="opacity-40 transition-opacity group-hover:opacity-90" style={{ color: "var(--muted)" }} />
               </div>
               <div className="font-mono font-extrabold tnum truncate group-hover:underline decoration-1 underline-offset-4" style={{ color: "var(--text)", fontSize: "clamp(26px,5.4vw,38px)", lineHeight: 0.98, letterSpacing: "-.02em" }}>
@@ -794,10 +795,15 @@ function DayStripsTotal({ brl, pctVal, patrimonioBRL, usdbrl, priv, onOpenRetorn
                 {maskIf(priv, compactUSD(usdbrl && usdbrl > 0 ? patrimonioBRL / usdbrl : null))}
                 {usdbrl && usdbrl > 0 ? ` · US$/R$ ${usdbrl.toFixed(3)}` : ""}
               </div>
+              {dividaBRL > 0 && (
+                <div className="font-mono tnum truncate" style={{ color: "var(--muted)", fontSize: 10, marginTop: 3 }}>
+                  bruto {maskIf(priv, compactBRL(patrimonioBRL + dividaBRL))} <span style={{ color: "var(--neg)" }}>− margem {maskIf(priv, compactBRL(dividaBRL))}</span>
+                </div>
+              )}
             </button>
           ) : (
             <>
-              <div className="font-mono uppercase mb-2" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Patrimônio total</div>
+              <div className="font-mono uppercase mb-2" style={{ color: "var(--faint)", fontSize: 9, fontWeight: 700, letterSpacing: ".2em" }}>Valor disponível total</div>
               <div className="animate-pulse rounded" style={{ width: 150, height: 34, background: "var(--line)" }} />
             </>
           )}
@@ -957,7 +963,10 @@ export default function HomePage() {
   // (patrimonioDia agora vem do /api/home consolidado acima — SÓ é usado quando
   // ibkr_ok, senão uma falha do Flex devolveria um valor parcial só-BR+cripto.)
 
-  const totalBRLCanon = typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null;
+  // Canônico: NET (bruto − dívida de margem) — "Valor disponível total".
+  const totalBRLCanon = typeof data?.alavancagem?.netBRL === "number"
+    ? data.alavancagem.netBRL
+    : (typeof data?.totalPatrimonioBRL === "number" ? data.totalPatrimonioBRL : null);
   const usdbrl = typeof data?.usdbrl === "number" && data.usdbrl > 0 ? data.usdbrl : null;
   // Patrimônio do DIA (quadro da Home) = CONSEQUÊNCIA DIRETA do book IBKR da faixa
   // abaixo. Reusa o MESMO `ibkrOverview` que a faixa renderiza (posições + caixa,
@@ -970,10 +979,12 @@ export default function HomePage() {
   const expo = data?.exposicaoCambial ?? {};
   const brBRL = typeof expo["BRL"] === "number" ? expo["BRL"] : 0;
   const criptoBRL = typeof expo["Cripto"] === "number" ? expo["Cripto"] : 0;
-  const ibkrTotalBRL = ibkrOverview?.kpis?.patrimonioTotalBRL ?? null;
+  const ibkrTotalBRL = ibkrOverview?.kpis?.patrimonioTotalBRL ?? null; // já NET da margem IBKR (NLV)
+  // Margem fora da IBKR (aba alavancagem) — a da IBKR já está dentro do NLV.
+  const dividaForaIbkrBRL = data?.alavancagem?.dividaForaIbkrBRL ?? 0;
   // Só usa o cálculo client quando IBKR E snapshot já chegaram (evita "piscar"
   // um valor só-IBKR antes do BR/Cripto entrarem).
-  const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL : null;
+  const patrimonioDiaClient = ibkrTotalBRL != null && data ? ibkrTotalBRL + brBRL + criptoBRL - dividaForaIbkrBRL : null;
   const totalBRL = patrimonioDiaClient ?? patrimonioDia ?? totalBRLCanon;
   const dayChangeBRL = typeof data?.dayChangeTotalBRL === "number" ? data.dayChangeTotalBRL : null;
   const dayChangePct = typeof data?.dayChangeTotalPct === "number" ? data.dayChangeTotalPct : null;
@@ -1066,13 +1077,17 @@ export default function HomePage() {
   // falhou lá, usa o da faixa (client). Fallback total: parcelas do snapshot
   // client (cache CDN) enquanto o detalhe carrega.
   const patrimonioPartes = useMemo<PatrimonioParte[] | null>(() => {
+    // Margem fora da IBKR entra como parcela NEGATIVA (a da IBKR já está
+    // dentro do NLV do bloco IBKR) — assim Σ dos blocos = valor disponível.
     if (detalheData) {
       const ibkr = detalheData.ibkr.ok ? detalheData.partes.ibkr_brl : ibkrTotalBRL;
+      const dividaFora = detalheData.partes.divida_fora_ibkr_brl ?? 0;
       return [
         { label: "IBKR", color: IBKR_RED, brl: ibkr },
         { label: "Brasil", color: BR_GREEN, brl: detalheData.partes.brasil_brl },
         { label: "Cripto", color: BTC_ORANGE, brl: detalheData.partes.cripto_brl },
         { label: "RF + Caixa", color: "var(--accent)", brl: detalheData.partes.rf_caixa_brl },
+        ...(dividaFora > 0 ? [{ label: "Margem (fora IBKR)", color: "var(--neg)", brl: -dividaFora }] : []),
       ];
     }
     if (!data) return null;
@@ -1083,8 +1098,9 @@ export default function HomePage() {
       { label: "Brasil", color: BR_GREEN, brl: acoesBR },
       { label: "Cripto", color: BTC_ORANGE, brl: criptoBRL },
       { label: "RF + Caixa", color: "var(--accent)", brl: rfCaixa },
+      ...(dividaForaIbkrBRL > 0 ? [{ label: "Margem (fora IBKR)", color: "var(--neg)", brl: -dividaForaIbkrBRL }] : []),
     ];
-  }, [detalheData, data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL]);
+  }, [detalheData, data, brStats.valueBRL, brBRL, ibkrTotalBRL, criptoBRL, dividaForaIbkrBRL]);
 
   // Total exibido = soma dos marcadores quando o detalhe está disponível
   // (Σ dos blocos bate com o número grande, centavo a centavo).
@@ -1201,7 +1217,7 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Patrimônio total + gráfico — logo abaixo do painel rolante ── */}
+        {/* ── Valor disponível total (net) + gráfico — logo abaixo do painel rolante ── */}
         {!loading && (
           <ErrorBoundary fallback={null}>
             <div className="mt-4 animate-fade-in">
@@ -1210,9 +1226,11 @@ export default function HomePage() {
                 pctVal={dayPctFinal}
                 // Só valores baseados no book REAL da IBKR (detalhe do servidor →
                 // client ao vivo → patrimonio-dia). null = ainda carregando → skeleton.
+                // Todos os caminhos já são NET (IBKR via NLV; fora-IBKR abatido).
                 patrimonioBRL={totalPartes ?? patrimonioDiaClient ?? patrimonioDia}
                 usdbrl={usdbrl}
                 priv={priv}
+                dividaBRL={data?.alavancagem?.dividaBRL ?? 0}
                 onOpenRetorno={() => setRetornoOpen(true)}
               />
             </div>

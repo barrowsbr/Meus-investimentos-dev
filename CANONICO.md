@@ -61,7 +61,8 @@ Não reimplemente.
 
 | Métrica | Definição canônica | Fonte canônica (campo) |
 |---|---|---|
-| **Patrimônio total** | `rvPatrimonioBRL + rfPatrimonioBRL` (RF inclui `fixa_aberta` + RF de posições) | `snapshot.totalPatrimonioBRL` |
+| **Patrimônio total (BRUTO)** | `rvPatrimonioBRL + rfPatrimonioBRL` (RF inclui `fixa_aberta` + RF de posições) — **não** desconta dívida de margem | `snapshot.totalPatrimonioBRL` |
+| **Valor disponível total (NET)** | bruto − dívida de margem (aba `alavancagem` + IBKR Flex mergeados). É o headline da Home ("Valor disponível total") e do Resumo; na Home a parcela IBKR já vem líquida (NLV do overview) e só a margem fora-IBKR é abatida por fora (`divida_fora_ibkr_brl`) | `/api/cotacoes: alavancagem.netBRL` · Home: `patrimonio_dia_brl` |
 | **Patrimônio RV / RF** | valor atual das posições por classe | `rvPatrimonioBRL` / `rfPatrimonioBRL` |
 | **Investido (RV)** | custo **FIFO** das posições atuais (não a soma bruta de compras) | `Σ position.custoTotalBRL` |
 | **Câmbio de custo (P0)** | **pmDólar real das remessas** (`buildPmFxRates` → `fxCusto`), não a PTAX da data de compra | `position.pmFxAquisicao` |
