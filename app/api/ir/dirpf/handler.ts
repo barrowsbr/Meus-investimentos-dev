@@ -6,6 +6,7 @@ import type { RawTx, CorpEvent } from "@/lib/tax/engine";
 import { bensDireitosRV, classificarRendimentos } from "@/lib/tax/dirpf";
 import { apurarRf, rfPosicoesAbertas } from "@/lib/tax/rf";
 import { buildMultiCurrencyPtaxDetalhado } from "@/lib/ptax";
+import { loadIbkrMarginBalances } from "@/lib/margin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -96,15 +97,38 @@ export async function GET(request: Request) {
     const rfRend = apurarRf(rfRows).filter(r => r.ano === String(year));
     const rfAbertas = rfPosicoesAbertas(rfRows, fixaAberta);
 
+    // Dívidas e Ônus Reais — margem aberta na corretora (dólares EMPRESTADOS).
+    // A dívida de margem NÃO é bem negativo: vai na ficha própria da DIRPF
+    // (código 14 — empréstimo contraído no exterior). O Flex só dá o saldo
+    // ATUAL; para a declaração vale o saldo em 31/12 do ano-base (conferir no
+    // extrato anual da IBKR) — por isso o aviso em cada linha.
+    const hoje = new Date().toISOString().slice(0, 10);
+    const marginBalances = await loadIbkrMarginBalances().catch(() => []);
+    const dividasOnus = marginBalances
+      .filter(mb => mb.saldo > 0.005)
+      .map(mb => {
+        const fxMoeda = mb.moeda === "BRL" ? 1 : ptax(mb.moeda, hoje);
+        return {
+          codigo: "14",
+          descricao: `Empréstimo contraído no exterior — margem IBKR em ${mb.moeda}`,
+          moeda: mb.moeda,
+          saldo: mb.saldo,
+          saldoBRL: mb.saldo * fxMoeda,
+          aviso: `Saldo ATUAL do Flex; para a DIRPF vale o saldo em 31/12/${year} (extrato anual da IBKR)`,
+        };
+      });
+
     return NextResponse.json({
       year,
       bensDireitos: bens,
       rendimentos: rendimentos[0] ?? null,
       rfRendimentos: rfRend,
       rfPosicoes: rfAbertas,
+      dividasOnus,
       totais: {
         bensDireitosCusto: bens.reduce((s, b) => s + b.custoAno, 0),
         rfIrRetido: rfRend.reduce((s, r) => s + r.irRetido, 0),
+        dividasOnusBRL: dividasOnus.reduce((s, dv) => s + dv.saldoBRL, 0),
       },
       ptaxAvisos,
     });
