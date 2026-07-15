@@ -348,6 +348,33 @@ export interface AlavancagemPatrimonio {
   leverageRatio: number;    // bruto / net
 }
 
+/** Câmbio "FANTASMA" sobre o principal emprestado (margem).
+ *
+ *  O motor de posições custeia ativos estrangeiros pelo pmDólar das remessas
+ *  (fxCusto). Mas a fatia comprada com MARGEM não veio de remessa: deve-se a
+ *  moeda e tem-se o ativo na mesma moeda — a exposição cambial líquida dessa
+ *  fatia é ~ZERO (o câmbio move ativo e dívida juntos). Sem ajuste, o Resumo
+ *  mostra ganho/perda de câmbio nessa fatia sem o contra-lançamento na dívida.
+ *
+ *  O ajuste trata a dívida como posição VENDIDA na moeda com o MESMO
+ *  custo-base (pmDólar): ajuste = Σ dívida × (câmbio atual − pmMoeda).
+ *  Subtraído do "Efeito cambial", sobra só o câmbio do capital PRÓPRIO.
+ *  Moeda sem remessa (pm indisponível) fica de fora — as posições dela já
+ *  usam outro custo-base (PTAX por lote / câmbio atual). */
+export function calcularAjusteCambioMargem(
+  abertas: Array<{ moeda: string; valor: number }>,
+  fxAtualBRL: Record<string, number>,   // moeda → BRL (cotação atual)
+  fxCustoBRL: Record<string, number>,   // moeda → BRL (pmDólar/pmEuro das remessas)
+): number {
+  return abertas.reduce((s, e) => {
+    if (e.moeda === "BRL" || e.valor <= 0) return s;
+    const p1 = fxAtualBRL[e.moeda] ?? 0;
+    const p0 = fxCustoBRL[e.moeda] ?? 0;
+    if (p0 <= 0 || p1 <= 0) return s;
+    return s + e.valor * (p1 - p0);
+  }, 0);
+}
+
 export function aplicarAlavancagem(brutoBRL: number, resumo: Pick<MarginResumo, "dividaBRL" | "jurosAcumBRL">): AlavancagemPatrimonio {
   const dividaBRL = resumo.dividaBRL;
   const netBRL = brutoBRL - dividaBRL;

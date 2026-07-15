@@ -4,7 +4,7 @@ import { fetchFixaAbertaComIbkr } from "@/lib/ibkr-cash";
 import { fetchCotacoes, yahooTicker } from "@/lib/cotacoes";
 import { calcularSnapshot } from "@/lib/portfolio";
 import { calcularCambioMetrics, buildPmFxRates, parsePtax, parseLbHistoric, buildFxDateMap } from "@/lib/cambio";
-import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances } from "@/lib/margin";
+import { MARGIN_TAB, parseMarginRows, computeMarginResumo, aplicarAlavancagem, mergeIbkrMargin, loadIbkrMarginBalances, calcularAjusteCambioMargem } from "@/lib/margin";
 import { loadAssetMetaCache } from "@/lib/asset-meta";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +78,7 @@ export async function GET() {
     let marginEntries = parseMarginRows(marginRows);
     const ibkrMargin = await ibkrMarginPromise;
     if (ibkrMargin.length > 0) marginEntries = mergeIbkrMargin(marginEntries, ibkrMargin);
-    const marginResumo = computeMarginResumo(marginEntries, {
+    const fxAtualMap = {
       BRL: 1,
       USD: fxAtual.USDBRL,
       EUR: fxAtual.EURBRL,
@@ -86,8 +86,18 @@ export async function GET() {
       CAD: fxAtual.CADBRL,
       CHF: fxAtual.CHFBRL ?? 0,
       JPY: fxAtual.JPYBRL ?? 0,
+    };
+    const marginResumo = computeMarginResumo(marginEntries, fxAtualMap);
+    // Câmbio fantasma da fatia emprestada: dívida como posição vendida na moeda
+    // com o MESMO custo-base (pmDólar) dos ativos — o Resumo neutraliza na
+    // Decomposição de Fatores (exposição cambial líquida da margem é ~zero).
+    const ajusteCambioMargemBRL = calcularAjusteCambioMargem(marginResumo.abertas, fxAtualMap, {
+      USD: fxCusto.USDBRL,
+      EUR: fxCusto.EURBRL,
+      GBP: fxCusto.GBPBRL,
+      CAD: fxCusto.CADBRL,
     });
-    const alavancagem = aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo);
+    const alavancagem = { ...aplicarAlavancagem(snapshot.totalPatrimonioBRL, marginResumo), ajusteCambioMargemBRL };
 
     const quotesFound = Object.keys(cotacoes.quotes).length;
     const quotesTotal = tickers.length;
