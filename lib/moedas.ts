@@ -27,11 +27,14 @@ export interface Moeda {
   metal: string;        // categoria derivada da composição (filtro)
   pesoMetalG: number | null;      // gramas de metal FINO (prata) por exemplar
   derretimentoBrl: number | null; // melt do CSV (preço da prata na exportação)
-  fotoAnverso: string;
+  fotoAnverso: string;  // fotos do 1º exemplar (capa do card)
   fotoReverso: string;
   nota: string;
   serie: string;
   qtd: number;          // exemplares idênticos agrupados
+  // CADA exemplar físico tem a própria foto (retrata o estado DAQUELA moeda —
+  // nunca reaproveitar entre gêmeas; decisão do dono). fotos[0] = capa.
+  fotos: Array<{ anverso: string; reverso: string }>;
 }
 
 // ── Graduação (escala numismática) ───────────────────────────────────────────
@@ -163,7 +166,7 @@ export function parseCoinSnapCsv(text: string): string[][] {
 
 // ── Linha da aba → Moeda (com agregação de exemplares idênticos) ─────────────
 
-export function rowToMoeda(r: Record<string, unknown>): Omit<Moeda, "qtd"> | null {
+export function rowToMoeda(r: Record<string, unknown>): Omit<Moeda, "qtd" | "fotos"> | null {
   const s = (k: string) => String(r[k] ?? "").trim();
   const n = (k: string) => {
     const v = Number(String(r[k] ?? "").replace(",", "."));
@@ -196,14 +199,20 @@ export function rowToMoeda(r: Record<string, unknown>): Omit<Moeda, "qtd"> | nul
   };
 }
 
-/** Agrupa exemplares idênticos (mesma moeda comprada 2×) em 1 card com qtd. */
-export function agruparMoedas(items: Array<Omit<Moeda, "qtd">>): Moeda[] {
+/** Agrupa exemplares idênticos (mesma moeda comprada 2×) em 1 card com qtd —
+ *  preservando as fotos de CADA exemplar (fotos[i] = i-ésimo exemplar). */
+export function agruparMoedas(items: Array<Omit<Moeda, "qtd" | "fotos">>): Moeda[] {
   const map = new Map<string, Moeda>();
   for (const m of items) {
     const key = [m.krause || m.assunto, m.denominacao, m.ano, m.graduacao, m.pais].join("|");
+    const foto = { anverso: m.fotoAnverso, reverso: m.fotoReverso };
     const ex = map.get(key);
-    if (ex) ex.qtd += 1;
-    else map.set(key, { ...m, qtd: 1 });
+    if (ex) {
+      ex.qtd += 1;
+      if (foto.anverso || foto.reverso) ex.fotos.push(foto);
+    } else {
+      map.set(key, { ...m, qtd: 1, fotos: [foto] });
+    }
   }
   return [...map.values()];
 }

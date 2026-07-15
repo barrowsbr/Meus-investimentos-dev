@@ -177,6 +177,12 @@ interface InfoExtra { numista: NumistaInfo | null; numistaAtivo: boolean }
 
 function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGrama: number | null; onClose: () => void }) {
   const [telaCheia, setTelaCheia] = useState(false);
+  // Cada exemplar físico tem a própria foto (estado real DAQUELA moeda) —
+  // o seletor troca as fotos do flip e da tela cheia.
+  const [exemplar, setExemplar] = useState(0);
+  const fotos = m.fotos?.length ? m.fotos : [{ anverso: m.fotoAnverso, reverso: m.fotoReverso }];
+  const fotoAtiva = fotos[Math.min(exemplar, fotos.length - 1)];
+  const mExibida: Moeda = { ...m, fotoAnverso: fotoAtiva.anverso, fotoReverso: fotoAtiva.reverso };
   const [extra, setExtra] = useState<InfoExtra | null>(null);
   const [extraLoading, setExtraLoading] = useState(true);
 
@@ -184,6 +190,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
   // 7 dias no CDN — moeda é dado parado).
   useEffect(() => {
     let vivo = true;
+    setExemplar(0);
     setExtra(null); setExtraLoading(true);
     const q = new URLSearchParams({
       krause: m.krause, pais: m.pais, ano: m.ano,
@@ -232,8 +239,26 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
         </div>
 
         <div className="mb-1 flex justify-center">
-          <CoinFlip m={m} size={228} flipOnHover={false} />
+          <CoinFlip key={exemplar} m={mExibida} size={228} flipOnHover={false} />
         </div>
+        {fotos.length > 1 && (
+          <div className="mb-2 flex items-center justify-center gap-1.5">
+            {fotos.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setExemplar(i)}
+                className="rounded-full px-2.5 py-1 font-mono text-[10px] font-bold"
+                style={{
+                  background: i === exemplar ? "rgba(245,158,11,0.18)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${i === exemplar ? "rgba(245,158,11,0.5)" : "rgba(255,255,255,0.12)"}`,
+                  color: i === exemplar ? "#fbbf24" : "#a1a1aa",
+                }}
+              >
+                Exemplar {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mb-4 flex items-center justify-center gap-3">
           <p className="text-center text-[10px] text-zinc-600">toque na moeda para virar</p>
           <button
@@ -344,7 +369,7 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
             </div>
           ))}
         </div>
-        {telaCheia && <CoinZoom m={m} onClose={() => setTelaCheia(false)} />}
+        {telaCheia && <CoinZoom m={mExibida} onClose={() => setTelaCheia(false)} />}
       </div>
     </div>,
     document.body,
