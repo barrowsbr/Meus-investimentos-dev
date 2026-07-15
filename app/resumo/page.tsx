@@ -567,8 +567,13 @@ export default function ResumoPage() {
         // tem de ser o ganho PURO (sem cruzado) — senão o cruzado é contado 2x.
         const fxPrincipal = data.ganhoFXPrincipalTotalBRL ?? 0;
         const fxCruzado = data.ganhoCruzadoTotalBRL ?? 0;
-        const ganhoCambio = fxPrincipal + fxCruzado;
-        const ganhoAtivo = (data.ganhoAtivoPuroTotalBRL ?? 0) || (rvNaoReal - ganhoCambio);
+        // Câmbio FANTASMA da fatia comprada com MARGEM: dívida em moeda forte
+        // compensa o câmbio do ativo (exposição líquida ~zero) — separado do
+        // efeito cambial "de verdade" (capital próprio remetido).
+        const fxMargem = data.alavancagem?.ajusteCambioMargemBRL ?? 0;
+        const temFxMargem = Math.abs(fxMargem) >= 0.5;
+        const ganhoCambio = fxPrincipal + fxCruzado - fxMargem;
+        const ganhoAtivo = ((data.ganhoAtivoPuroTotalBRL ?? 0) || (rvNaoReal - fxPrincipal - fxCruzado));
 
         // Lente "por fator" do RV: junta o realizado (decomposto, câmbio da venda)
         // ao não realizado. ativoLente + cambioLente = rvGanho (reconcilia com a
@@ -730,9 +735,15 @@ export default function ResumoPage() {
                       <span className={clrSub(ativoLente)}>{fmt(ativoLente)}</span>
                     </div>
                     <div className="flex justify-between text-[10px]">
-                      <span className="text-zinc-500">Efeito câmbio</span>
+                      <span className="text-zinc-500">Efeito câmbio <span className="text-zinc-700">(capital próprio)</span></span>
                       <span className={clrSub(cambioLente)}>{fmt(cambioLente)}</span>
                     </div>
+                    {temFxMargem && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-zinc-500">Câmbio s/ margem <span className="text-zinc-700">(compensado pela dívida)</span></span>
+                        <span className="text-zinc-500">{fmt(fxMargem)}</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -793,7 +804,7 @@ export default function ResumoPage() {
                   <span className={`font-semibold ${clr(ganhoAtivo)}`}>{fmt(ganhoAtivo)}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-zinc-400">Efeito cambial (FX)</span>
+                  <span className="text-zinc-400">Efeito cambial (FX{temFxMargem ? " — capital próprio" : ""})</span>
                   <span className={`font-semibold ${clr(ganhoCambio)}`}>{fmt(ganhoCambio)}</span>
                 </div>
                 {(fxPrincipal !== 0 || fxCruzado !== 0) && (
@@ -806,9 +817,21 @@ export default function ResumoPage() {
                       <span className="text-zinc-500">Cruzado (ativo × FX)</span>
                       <span className={clrSub(fxCruzado)}>{fmt(fxCruzado)}</span>
                     </div>
+                    {temFxMargem && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-zinc-500">(−) Principal emprestado (margem)</span>
+                        <span className={clrSub(-fxMargem)}>{fmt(-fxMargem)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+              {temFxMargem && (
+                <p className="text-[9px] text-zinc-700 mt-1.5">
+                  A fatia comprada com margem tem exposição cambial ~neutra: a dívida na mesma moeda
+                  compensa o câmbio do ativo. O efeito ({fmt(fxMargem)}) fica fora do FX de capital próprio.
+                </p>
+              )}
             </div>
 
             <div className="h-px bg-zinc-800/60 mb-3" />
