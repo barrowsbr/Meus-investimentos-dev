@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Coleção de moedas — DADO ESTÁTICO gerado do export do CoinSnap.
 // Para atualizar: o dono envia o novo CSV no chat e este arquivo é regenerado
-// (parser em lib/moedas.ts). Não há upload nem aba na planilha — decisão do dono.
+// (parser em lib/moedas.ts). fotos[] guarda o par anverso/reverso de CADA
+// exemplar físico — nunca reaproveitar foto entre gêmeas (decisão do dono).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { Moeda } from "./moedas";
@@ -23,11 +24,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085896-13461699414185.webp",
-  "fotoReverso": "/colecao-moedas/1784085893-18458997399184.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085896-13461699414185.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085893-18458997399184.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085896-13461699414185.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085893-18458997399184.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -44,11 +51,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085818-6496097346177.webp",
-  "fotoReverso": "/colecao-moedas/1784085812-2437063933176.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085818-6496097346177.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085812-2437063933176.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085818-6496097346177.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085812-2437063933176.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084578-230013449119.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084576-8150325403118.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -65,11 +82,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085776-824645912173.webp",
-  "fotoReverso": "/colecao-moedas/1784085774-4861195706172.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085776-824645912173.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085774-4861195706172.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085776-824645912173.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085774-4861195706172.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -86,11 +109,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085713-893948116169.webp",
-  "fotoReverso": "/colecao-moedas/1784085710-3760661534168.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085713-893948116169.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085710-3760661534168.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085713-893948116169.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085710-3760661534168.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -107,11 +136,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085666-6530572834165.webp",
-  "fotoReverso": "/colecao-moedas/1784085660-37359719436164.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085666-6530572834165.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085660-37359719436164.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085666-6530572834165.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085660-37359719436164.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -128,11 +163,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085608-751916447161.webp",
-  "fotoReverso": "/colecao-moedas/1784085606-6073455830160.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085608-751916447161.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085606-6073455830160.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085608-751916447161.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085606-6073455830160.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -149,11 +190,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085574-4822189734157.webp",
-  "fotoReverso": "/colecao-moedas/1784085571-1798061330156.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085574-4822189734157.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085571-1798061330156.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085574-4822189734157.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085571-1798061330156.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -170,11 +217,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085287-8738642394147.webp",
-  "fotoReverso": "/colecao-moedas/1784085285-3520563880146.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085287-8738642394147.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085285-3520563880146.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085287-8738642394147.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085285-3520563880146.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -191,11 +244,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085163-3800011811139.webp",
-  "fotoReverso": "/colecao-moedas/1784085161-6626055976138.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085163-3800011811139.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085161-6626055976138.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085163-3800011811139.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085161-6626055976138.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -212,11 +271,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085049-9198733030135.webp",
-  "fotoReverso": "/colecao-moedas/1784085048-2857496591134.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085049-9198733030135.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085048-2857496591134.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784085049-9198733030135.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784085048-2857496591134.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084381-1449451782679.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084379-739455784778.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -233,11 +302,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084699-0527701897131.webp",
-  "fotoReverso": "/colecao-moedas/1784084697-6058888502130.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084699-0527701897131.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084697-6058888502130.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084699-0527701897131.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084697-6058888502130.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -254,11 +329,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084678-0175857094127.webp",
-  "fotoReverso": "/colecao-moedas/1784084676-71398787107126.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084678-0175857094127.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084676-71398787107126.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084678-0175857094127.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084676-71398787107126.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -275,11 +356,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084598-63268187744123.webp",
-  "fotoReverso": "/colecao-moedas/1784084597-3017632104122.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084598-63268187744123.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084597-3017632104122.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084598-63268187744123.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084597-3017632104122.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -296,11 +383,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084557-0739893363115.webp",
-  "fotoReverso": "/colecao-moedas/1784084555-7059466692114.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084557-0739893363115.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084555-7059466692114.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084557-0739893363115.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084555-7059466692114.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -317,11 +410,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084537-8127424627111.webp",
-  "fotoReverso": "/colecao-moedas/1784084536-502769319110.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084537-8127424627111.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084536-502769319110.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084537-8127424627111.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084536-502769319110.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -338,11 +437,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084519-27767522934107.webp",
-  "fotoReverso": "/colecao-moedas/1784084517-9078972257106.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084519-27767522934107.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084517-9078972257106.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084519-27767522934107.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084517-9078972257106.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -359,11 +464,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084499-774029185103.webp",
-  "fotoReverso": "/colecao-moedas/1784084498-4405182397102.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084499-774029185103.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084498-4405182397102.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084499-774029185103.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084498-4405182397102.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -380,11 +491,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084480-332989677299.webp",
-  "fotoReverso": "/colecao-moedas/1784084478-9126148312498.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084480-332989677299.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084478-9126148312498.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084480-332989677299.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084478-9126148312498.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -401,11 +518,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084456-9864988255495.webp",
-  "fotoReverso": "/colecao-moedas/1784084455-55056129294.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084456-9864988255495.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084455-55056129294.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084456-9864988255495.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084455-55056129294.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -422,11 +545,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084438-161425188691.webp",
-  "fotoReverso": "/colecao-moedas/1784084436-8414822877890.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084438-161425188691.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084436-8414822877890.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084438-161425188691.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084436-8414822877890.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082876-71867636773.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082874-34662172912.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -443,11 +576,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084420-674127268787.webp",
-  "fotoReverso": "/colecao-moedas/1784084419-211482935486.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084420-674127268787.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084419-211482935486.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084420-674127268787.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084419-211482935486.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082679-013927597951.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082676-3839622406450.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -464,11 +607,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084401-581279127083.webp",
-  "fotoReverso": "/colecao-moedas/1784084400-151448594882.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084401-581279127083.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084400-151448594882.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084401-581279127083.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084400-151448594882.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -485,11 +634,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084360-259225822175.webp",
-  "fotoReverso": "/colecao-moedas/1784084358-869954793974.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084360-259225822175.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084358-869954793974.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084360-259225822175.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084358-869954793974.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -506,11 +661,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084341-341765262671.webp",
-  "fotoReverso": "/colecao-moedas/1784084339-991324611970.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084341-341765262671.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084339-991324611970.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084341-341765262671.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084339-991324611970.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -527,11 +688,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084313-24152318967.webp",
-  "fotoReverso": "/colecao-moedas/1784084311-849911994366.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084313-24152318967.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084311-849911994366.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084313-24152318967.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084311-849911994366.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -548,11 +715,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084289-215798866863.webp",
-  "fotoReverso": "/colecao-moedas/1784084287-552134474262.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084289-215798866863.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084287-552134474262.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084289-215798866863.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084287-552134474262.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -569,11 +742,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084253-909667923157.webp",
-  "fotoReverso": "/colecao-moedas/1784084252-553057469856.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084253-909667923157.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084252-553057469856.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084253-909667923157.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084252-553057469856.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -590,11 +769,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084233-44942147953.webp",
-  "fotoReverso": "/colecao-moedas/1784084232-08258322252.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084233-44942147953.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084232-08258322252.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084233-44942147953.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084232-08258322252.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -611,11 +796,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084201-5576258849.webp",
-  "fotoReverso": "/colecao-moedas/1784084199-809551450948.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084201-5576258849.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084199-809551450948.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084201-5576258849.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084199-809551450948.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -632,11 +823,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084136-854332882145.webp",
-  "fotoReverso": "/colecao-moedas/1784084134-793623397644.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084136-854332882145.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084134-793623397644.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784084136-854332882145.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784084134-793623397644.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -653,11 +850,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083866-790945202039.webp",
-  "fotoReverso": "/colecao-moedas/1784083865-462418244138.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083866-790945202039.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083865-462418244138.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083866-790945202039.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083865-462418244138.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -674,11 +877,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083841-3079581734235.webp",
-  "fotoReverso": "/colecao-moedas/1784083839-872788255234.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083841-3079581734235.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083839-872788255234.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083841-3079581734235.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083839-872788255234.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -695,11 +904,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083812-602346376131.webp",
-  "fotoReverso": "/colecao-moedas/1784083811-236168960930.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083812-602346376131.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083811-236168960930.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083812-602346376131.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083811-236168960930.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -716,11 +931,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083792-753973676327.webp",
-  "fotoReverso": "/colecao-moedas/1784083791-543361201826.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083792-753973676327.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083791-543361201826.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083792-753973676327.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083791-543361201826.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -737,11 +958,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083772-957738916323.webp",
-  "fotoReverso": "/colecao-moedas/1784083771-5609078237122.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083772-957738916323.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083771-5609078237122.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083772-957738916323.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083771-5609078237122.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -758,11 +985,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083733-187197698019.webp",
-  "fotoReverso": "/colecao-moedas/1784083726-877429953518.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083733-187197698019.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083726-877429953518.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083733-187197698019.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083726-877429953518.webp"
+   }
+  ]
  },
  {
   "pais": "Alemanha",
@@ -779,11 +1012,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083468-6677551527211.webp",
-  "fotoReverso": "/colecao-moedas/1784083463-872544382110.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083468-6677551527211.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083463-872544382110.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083468-6677551527211.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083463-872544382110.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -800,11 +1039,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083207-72117180523.webp",
-  "fotoReverso": "/colecao-moedas/1784083205-18894331852.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083207-72117180523.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083205-18894331852.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083207-72117180523.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784083205-18894331852.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -821,11 +1066,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083005-474545378915.webp",
-  "fotoReverso": "/colecao-moedas/1784082999-675744840514.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083005-474545378915.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082999-675744840514.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784083005-474545378915.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082999-675744840514.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -842,11 +1093,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082955-065162997411.webp",
-  "fotoReverso": "/colecao-moedas/1784082950-583375218210.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082955-065162997411.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082950-583375218210.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082955-065162997411.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082950-583375218210.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -863,11 +1120,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082903-36944652257.webp",
-  "fotoReverso": "/colecao-moedas/1784082898-05035940726.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082903-36944652257.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082898-05035940726.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082903-36944652257.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082898-05035940726.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -884,11 +1147,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082757-847659778665.webp",
-  "fotoReverso": "/colecao-moedas/1784082756-332642969764.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082757-847659778665.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082756-332642969764.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082757-847659778665.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082756-332642969764.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -905,11 +1174,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082723-784716137159.webp",
-  "fotoReverso": "/colecao-moedas/1784082722-0838661638458.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082723-784716137159.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082722-0838661638458.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082723-784716137159.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082722-0838661638458.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -926,11 +1201,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082622-897665354147.webp",
-  "fotoReverso": "/colecao-moedas/1784082618-963503686646.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082622-897665354147.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082618-963503686646.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082622-897665354147.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082618-963503686646.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -947,11 +1228,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082580-164691359543.webp",
-  "fotoReverso": "/colecao-moedas/1784082578-8491368302242.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082580-164691359543.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082578-8491368302242.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082580-164691359543.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082578-8491368302242.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -968,11 +1255,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082558-215344706739.webp",
-  "fotoReverso": "/colecao-moedas/1784082556-6029431338.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082558-215344706739.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082556-6029431338.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082558-215344706739.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082556-6029431338.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -989,11 +1282,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Prata",
   "pesoMetalG": 4,
   "derretimentoBrl": 38.03,
-  "fotoAnverso": "/colecao-moedas/1784082527-648634894535.webp",
-  "fotoReverso": "/colecao-moedas/1784082526-330868225634.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082527-648634894535.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082526-330868225634.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784082527-648634894535.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784082526-330868225634.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1010,11 +1309,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081708-079284119823.webp",
-  "fotoReverso": "/colecao-moedas/1784081706-749721156322.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081708-079284119823.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081706-749721156322.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081708-079284119823.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081706-749721156322.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1031,11 +1336,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081686-452131597619.webp",
-  "fotoReverso": "/colecao-moedas/1784081685-156348708718.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081686-452131597619.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081685-156348708718.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081686-452131597619.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081685-156348708718.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1052,11 +1363,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081663-8785129780515.webp",
-  "fotoReverso": "/colecao-moedas/1784081662-589442397414.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081663-8785129780515.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081662-589442397414.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081663-8785129780515.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081662-589442397414.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1073,11 +1390,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081640-18465747611.webp",
-  "fotoReverso": "/colecao-moedas/1784081638-743504252310.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081640-18465747611.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081638-743504252310.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081640-18465747611.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081638-743504252310.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1094,11 +1417,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081617-271186810847.webp",
-  "fotoReverso": "/colecao-moedas/1784081615-972211824606.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081617-271186810847.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081615-972211824606.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081617-271186810847.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081615-972211824606.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1115,11 +1444,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081585-90774866673.webp",
-  "fotoReverso": "/colecao-moedas/1784081582-91209280702.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081585-90774866673.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081582-91209280702.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784081585-90774866673.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784081582-91209280702.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1136,11 +1471,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006180-316952108931.webp",
-  "fotoReverso": "/colecao-moedas/1784006178-645252851330.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006180-316952108931.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006178-645252851330.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006180-316952108931.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006178-645252851330.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004885-32882779755.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004883-856976180554.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1157,11 +1502,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006157-503532251727.webp",
-  "fotoReverso": "/colecao-moedas/1784006156-014398986526.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006157-503532251727.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006156-014398986526.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006157-503532251727.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006156-014398986526.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004838-7749257847.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004836-170474292446.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1178,11 +1533,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006136-72407331123.webp",
-  "fotoReverso": "/colecao-moedas/1784006135-21846672622.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006136-72407331123.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006135-21846672622.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006136-72407331123.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006135-21846672622.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005765-7950752087115.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005764-0393979859114.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1199,11 +1564,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006116-421068143819.webp",
-  "fotoReverso": "/colecao-moedas/1784006114-9725351523218.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006116-421068143819.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006114-9725351523218.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006116-421068143819.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006114-9725351523218.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005038-641752161079.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005037-110287649278.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1220,11 +1595,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006086-09143704215.webp",
-  "fotoReverso": "/colecao-moedas/1784006084-817064553314.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006086-09143704215.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006084-817064553314.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006086-09143704215.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006084-817064553314.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004979-721412381371.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004978-397983652570.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1241,11 +1626,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006065-4115791805511.webp",
-  "fotoReverso": "/colecao-moedas/1784006063-862379423510.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006065-4115791805511.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006063-862379423510.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006065-4115791805511.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006063-862379423510.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1262,11 +1653,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784006042-10809750877.webp",
-  "fotoReverso": "/colecao-moedas/1784006040-81070966546.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006042-10809750877.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006040-81070966546.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784006042-10809750877.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784006040-81070966546.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1283,11 +1680,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005993-883299822323.webp",
-  "fotoReverso": "/colecao-moedas/1784005991-86229622962.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005993-883299822323.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005991-86229622962.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005993-883299822323.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005991-86229622962.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1304,11 +1707,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005853-9286799763123.webp",
-  "fotoReverso": "/colecao-moedas/1784005852-1498383914122.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005853-9286799763123.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005852-1498383914122.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005853-9286799763123.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005852-1498383914122.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998890-009708767319.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998888-6895409422318.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1325,11 +1738,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005802-2264598388119.webp",
-  "fotoReverso": "/colecao-moedas/1784005800-69220113716118.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005802-2264598388119.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005800-69220113716118.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005802-2264598388119.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005800-69220113716118.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005082-0366611979987.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005080-799434644486.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1346,11 +1769,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005723-0675074931111.webp",
-  "fotoReverso": "/colecao-moedas/1784005721-66652922066110.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005723-0675074931111.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005721-66652922066110.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005723-0675074931111.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005721-66652922066110.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1367,11 +1796,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005687-0353527700107.webp",
-  "fotoReverso": "/colecao-moedas/1784005685-48296212848106.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005687-0353527700107.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005685-48296212848106.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005687-0353527700107.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005685-48296212848106.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004554-22585104423.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004552-602675331122.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1388,11 +1827,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005647-9229977368103.webp",
-  "fotoReverso": "/colecao-moedas/1784005645-90514186338102.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005647-9229977368103.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005645-90514186338102.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005647-9229977368103.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005645-90514186338102.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004955-582629837667.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004954-2331948789966.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1409,11 +1858,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005624-705667528999.webp",
-  "fotoReverso": "/colecao-moedas/1784005623-16610941398.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005624-705667528999.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005623-16610941398.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005624-705667528999.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005623-16610941398.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004577-429332215127.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004575-870981628726.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1430,11 +1889,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005604-641289752495.webp",
-  "fotoReverso": "/colecao-moedas/1784005602-507502648194.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005604-641289752495.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005602-507502648194.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005604-641289752495.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005602-507502648194.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783999006-929837922531.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783999005-4716191477730.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1451,11 +1920,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005119-3697228251791.webp",
-  "fotoReverso": "/colecao-moedas/1784005118-076129948090.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005119-3697228251791.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005118-076129948090.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005119-3697228251791.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005118-076129948090.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998827-2874079790211.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998824-304682848610.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1472,11 +1951,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005061-9242911632883.webp",
-  "fotoReverso": "/colecao-moedas/1784005060-468039724182.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005061-9242911632883.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005060-468039724182.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005061-9242911632883.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005060-468039724182.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1493,11 +1978,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784005015-847248469675.webp",
-  "fotoReverso": "/colecao-moedas/1784005014-5559778737874.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005015-847248469675.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005014-5559778737874.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784005015-847248469675.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784005014-5559778737874.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004858-9216099865351.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004857-281032746250.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1514,11 +2009,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004932-0657911284463.webp",
-  "fotoReverso": "/colecao-moedas/1784004930-714453925262.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004932-0657911284463.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004930-714453925262.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004932-0657911284463.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004930-714453925262.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004751-1466842822443.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004749-789514858942.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1535,11 +2040,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004911-9672132805659.webp",
-  "fotoReverso": "/colecao-moedas/1784004910-56169414658.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004911-9672132805659.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004910-56169414658.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004911-9672132805659.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004910-56169414658.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910445-0879369296163.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910443-5508971398562.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1556,11 +2071,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004707-4657269519039.webp",
-  "fotoReverso": "/colecao-moedas/1784004706-11669133038.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004707-4657269519039.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004706-11669133038.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004707-4657269519039.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004706-11669133038.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998969-025281995627.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998967-7064319673026.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1577,11 +2102,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004662-656972701335.webp",
-  "fotoReverso": "/colecao-moedas/1784004661-14716186234.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004662-656972701335.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004661-14716186234.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004662-656972701335.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004661-14716186234.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910470-257607617167.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910468-298984819866.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1598,11 +2133,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004619-511203348431.webp",
-  "fotoReverso": "/colecao-moedas/1784004617-9550672827930.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004619-511203348431.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004617-9550672827930.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004619-511203348431.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004617-9550672827930.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998855-989125811315.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998854-129736221614.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1619,11 +2164,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004527-83885339119.webp",
-  "fotoReverso": "/colecao-moedas/1784004526-119104880618.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004527-83885339119.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004526-119104880618.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004527-83885339119.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004526-119104880618.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998931-584382540923.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998929-835986198422.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1640,11 +2195,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004507-127118683615.webp",
-  "fotoReverso": "/colecao-moedas/1784004505-628382555814.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004507-127118683615.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004505-628382555814.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004507-127118683615.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004505-628382555814.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004482-766326576411.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004481-488322220210.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1661,11 +2226,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004449-10786673337.webp",
-  "fotoReverso": "/colecao-moedas/1784004447-7236047376.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004449-10786673337.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004447-7236047376.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004449-10786673337.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004447-7236047376.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1682,11 +2253,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784004423-85878351093.webp",
-  "fotoReverso": "/colecao-moedas/1784004421-378265995212.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004423-85878351093.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004421-378265995212.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784004423-85878351093.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784004421-378265995212.webp"
+   }
+  ]
  },
  {
   "pais": "Hungria",
@@ -1703,11 +2280,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783999117-420753114939.webp",
-  "fotoReverso": "/colecao-moedas/1783999116-087282193438.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783999117-420753114939.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783999116-087282193438.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783999117-420753114939.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783999116-087282193438.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1724,11 +2307,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783999089-695262637135.webp",
-  "fotoReverso": "/colecao-moedas/1783999087-8399448638234.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783999089-695262637135.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783999087-8399448638234.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783999089-695262637135.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783999087-8399448638234.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1745,11 +2334,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783998691-116469968997.webp",
-  "fotoReverso": "/colecao-moedas/1783998689-23933683796.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998691-116469968997.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998689-23933683796.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998691-116469968997.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998689-23933683796.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910660-495924468375.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910658-176344638474.webp"
+   }
+  ]
  },
  {
   "pais": "Alemanha",
@@ -1766,11 +2365,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Prata",
   "pesoMetalG": 5,
   "derretimentoBrl": 47.54,
-  "fotoAnverso": "/colecao-moedas/1783998661-93216096383.webp",
-  "fotoReverso": "/colecao-moedas/1783998659-82466964262.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998661-93216096383.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998659-82466964262.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783998661-93216096383.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783998659-82466964262.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1787,11 +2392,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783914054-811499482059.webp",
-  "fotoReverso": "/colecao-moedas/1783914052-351682965158.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783914054-811499482059.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783914052-351682965158.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783914054-811499482059.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783914052-351682965158.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1808,11 +2419,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783914031-221129285655.webp",
-  "fotoReverso": "/colecao-moedas/1783914029-787036745653.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783914031-221129285655.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783914029-787036745653.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783914031-221129285655.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783914029-787036745653.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1829,11 +2446,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913998-5296888970251.webp",
-  "fotoReverso": "/colecao-moedas/1783913996-7190452520050.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913998-5296888970251.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913996-7190452520050.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913998-5296888970251.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913996-7190452520050.webp"
+   }
+  ]
  },
  {
   "pais": "Rússia",
@@ -1850,11 +2473,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Banhada a prata",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913845-760171334047.webp",
-  "fotoReverso": "/colecao-moedas/1783913842-91550968946.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913845-760171334047.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913842-91550968946.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913845-760171334047.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913842-91550968946.webp"
+   }
+  ]
  },
  {
   "pais": "Cuba",
@@ -1871,11 +2500,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913780-591358786243.webp",
-  "fotoReverso": "/colecao-moedas/1783913777-957042478042.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913780-591358786243.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913777-957042478042.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913780-591358786243.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913777-957042478042.webp"
+   }
+  ]
  },
  {
   "pais": "Japão",
@@ -1892,11 +2527,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Latão",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913720-2738008352939.webp",
-  "fotoReverso": "/colecao-moedas/1783913717-164357964737.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913720-2738008352939.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913717-164357964737.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913720-2738008352939.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913717-164357964737.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1913,11 +2554,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913598-3055883935.webp",
-  "fotoReverso": "/colecao-moedas/1783913595-81531685534.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913598-3055883935.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913595-81531685534.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913598-3055883935.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913595-81531685534.webp"
+   }
+  ]
  },
  {
   "pais": "Suíça",
@@ -1934,11 +2581,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913554-80966315631.webp",
-  "fotoReverso": "/colecao-moedas/1783913552-580906568230.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913554-80966315631.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913552-580906568230.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913554-80966315631.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913552-580906568230.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -1955,11 +2608,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913529-848599935227.webp",
-  "fotoReverso": "/colecao-moedas/1783913518-916301614726.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913529-848599935227.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913518-916301614726.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913529-848599935227.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913518-916301614726.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -1976,11 +2635,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913443-152432731723.webp",
-  "fotoReverso": "/colecao-moedas/1783913441-330144986322.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913443-152432731723.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913441-330144986322.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913443-152432731723.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913441-330144986322.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -1997,11 +2662,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913420-0794802994519.webp",
-  "fotoReverso": "/colecao-moedas/1783913418-62503757818.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913420-0794802994519.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913418-62503757818.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913420-0794802994519.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913418-62503757818.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -2018,11 +2689,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913400-3048902346615.webp",
-  "fotoReverso": "/colecao-moedas/1783913398-988493470714.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913400-3048902346615.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913398-988493470714.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913400-3048902346615.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913398-988493470714.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -2039,11 +2716,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913377-97024765611.webp",
-  "fotoReverso": "/colecao-moedas/1783913375-947794100910.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913377-97024765611.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913375-947794100910.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913377-97024765611.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913375-947794100910.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2060,11 +2743,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913166-95317419817.webp",
-  "fotoReverso": "/colecao-moedas/1783913165-5554930986.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913166-95317419817.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913165-5554930986.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913166-95317419817.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913165-5554930986.webp"
+   }
+  ]
  },
  {
   "pais": "Colômbia",
@@ -2081,11 +2770,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913129-58211725643.webp",
-  "fotoReverso": "/colecao-moedas/1783913125-91824644542.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913129-58211725643.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913125-91824644542.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783913129-58211725643.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783913125-91824644542.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2102,11 +2797,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783911117-9886189765291.webp",
-  "fotoReverso": "/colecao-moedas/1783911116-495655413190.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783911117-9886189765291.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783911116-495655413190.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783911117-9886189765291.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783911116-495655413190.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2123,11 +2824,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783911077-63769613787.webp",
-  "fotoReverso": "/colecao-moedas/1783911075-993464964986.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783911077-63769613787.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783911075-993464964986.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783911077-63769613787.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783911075-993464964986.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2144,11 +2851,21 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910876-407364813783.webp",
-  "fotoReverso": "/colecao-moedas/1783910874-971029516382.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910876-407364813783.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910874-971029516382.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 2
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910876-407364813783.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910874-971029516382.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909574-71266638443.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909572-91031421182.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2165,11 +2882,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910418-583393746459.webp",
-  "fotoReverso": "/colecao-moedas/1783910415-46511683258.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910418-583393746459.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910415-46511683258.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910418-583393746459.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910415-46511683258.webp"
+   }
+  ]
  },
  {
   "pais": "França",
@@ -2186,11 +2909,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910376-0874228839055.webp",
-  "fotoReverso": "/colecao-moedas/1783910374-7148771708154.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910376-0874228839055.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910374-7148771708154.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910376-0874228839055.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910374-7148771708154.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2207,11 +2936,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910336-612389977551.webp",
-  "fotoReverso": "/colecao-moedas/1783910335-28898262350.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910336-612389977551.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910335-28898262350.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910336-612389977551.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910335-28898262350.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2228,11 +2963,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910243-799806483647.webp",
-  "fotoReverso": "/colecao-moedas/1783910242-309428549546.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910243-799806483647.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910242-309428549546.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910243-799806483647.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910242-309428549546.webp"
+   }
+  ]
  },
  {
   "pais": "Islândia",
@@ -2249,11 +2990,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910221-5767632900843.webp",
-  "fotoReverso": "/colecao-moedas/1783910215-358675806242.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910221-5767632900843.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910215-358675806242.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910221-5767632900843.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783910215-358675806242.webp"
+   }
+  ]
  },
  {
   "pais": "EUA",
@@ -2270,11 +3017,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Latão",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910001-271799796435.webp",
-  "fotoReverso": "/colecao-moedas/1783909999-743401740434.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910001-271799796435.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909999-743401740434.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783910001-271799796435.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909999-743401740434.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2291,11 +3044,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Prata",
   "pesoMetalG": 6,
   "derretimentoBrl": 57.04,
-  "fotoAnverso": "/colecao-moedas/1783909966-092592836631.webp",
-  "fotoReverso": "/colecao-moedas/1783909961-666061741430.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909966-092592836631.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909961-666061741430.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909966-092592836631.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909961-666061741430.webp"
+   }
+  ]
  },
  {
   "pais": "Alemanha",
@@ -2312,11 +3071,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Prata",
   "pesoMetalG": 5,
   "derretimentoBrl": 47.54,
-  "fotoAnverso": "/colecao-moedas/1783909927-500341531527.webp",
-  "fotoReverso": "/colecao-moedas/1783909925-726536422726.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909927-500341531527.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909925-726536422726.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909927-500341531527.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909925-726536422726.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2333,11 +3098,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Prata",
   "pesoMetalG": 5.85,
   "derretimentoBrl": 55.62,
-  "fotoAnverso": "/colecao-moedas/1783909851-3250508563323.webp",
-  "fotoReverso": "/colecao-moedas/1783909848-605973321522.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909851-3250508563323.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909848-605973321522.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909851-3250508563323.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909848-605973321522.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -2354,11 +3125,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783909784-620679297419.webp",
-  "fotoReverso": "/colecao-moedas/1783909781-745545799318.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909784-620679297419.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909781-745545799318.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909784-620679297419.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909781-745545799318.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -2375,11 +3152,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Bimetálica",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783909758-3209991476415.webp",
-  "fotoReverso": "/colecao-moedas/1783909755-05774722214.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909758-3209991476415.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909755-05774722214.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909758-3209991476415.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909755-05774722214.webp"
+   }
+  ]
  },
  {
   "pais": "Canadá",
@@ -2396,11 +3179,17 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783909715-215054732411.webp",
-  "fotoReverso": "/colecao-moedas/1783909710-773888954910.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909715-215054732411.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909710-773888954910.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909715-215054732411.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909710-773888954910.webp"
+   }
+  ]
  },
  {
   "pais": "Brasil",
@@ -2417,10 +3206,16 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "metal": "Aço",
   "pesoMetalG": null,
   "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783909623-71267879477.webp",
-  "fotoReverso": "/colecao-moedas/1783909622-32809967036.webp",
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909623-71267879477.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909622-32809967036.webp",
   "nota": "",
   "serie": "Minhas Moedas",
-  "qtd": 1
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1783909623-71267879477.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1783909622-32809967036.webp"
+   }
+  ]
  }
 ];
