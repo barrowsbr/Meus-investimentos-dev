@@ -171,8 +171,9 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
   let ibkrUSD = 0;
   let ibkrBRL = 0;
   if (overview) {
-    const usd = overview.kpis.patrimonioTotalUSD ?? 0;
+    const usd = overview.kpis.patrimonioTotalUSD ?? 0; // já LÍQUIDO da margem (NLV)
     const caixaBRL = overview.kpis.caixaBRL ?? 0;
+    const margemBRL = overview.kpis.margemBRL ?? 0;
     const posBRL = overview.kpis.patrimonioBRL ?? 0;
     ibkrUSD = usd;
     ibkrBRL = Math.round(usd * usdbrl * 100) / 100;
@@ -182,6 +183,7 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
       patrimonioTotalBRL: ibkrBRL,
       posicoes_brl: Math.round(posBRL * 100) / 100,
       caixa_brl: Math.round(caixaBRL * 100) / 100,
+      ...(margemBRL > 0 ? { margem_brl: Math.round(margemBRL * 100) / 100, nota: "dívida de margem ABATIDA do total (Net Liquidation Value)" } : {}),
     };
   } else {
     ibkrDetalhe = { ok: false, erro: overviewErro ?? "IBKR indisponível" };

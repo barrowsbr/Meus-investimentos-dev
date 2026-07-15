@@ -32,6 +32,10 @@ export interface LiquidacaoBRL {
   pmNaData: number;           // custo médio do estoque na data
   custoBRL: number;
   ganhoBRL: number;
+  // Liquidação MAIOR que o estoque rastreado: a parte excedente entrou com
+  // custo zero (ganho superestimado). Causa típica: dólar EMPRESTADO (margem
+  // da corretora) convertido, ou remessa BRL→FX que não está na aba `cambio`.
+  aviso?: string;
 }
 
 export interface AnoCambial {
@@ -135,6 +139,7 @@ export function apurarCambioIr(cambioRows: Row[]): CambioIr {
       const custoBRL = alienado * pm;
       const recebidoBRL = op.valDest;
 
+      const descoberto = op.valOrig - st.estoque; // parte sem estoque rastreado
       liquidacoes.push({
         data: op.data,
         moeda: op.orig,
@@ -144,6 +149,10 @@ export function apurarCambioIr(cambioRows: Row[]): CambioIr {
         pmNaData: pm,
         custoBRL,
         ganhoBRL: recebidoBRL - custoBRL,
+        ...(descoberto > 0.01 ? {
+          aviso: `${descoberto.toFixed(2)} ${op.orig} sem estoque rastreado (custo zero → ganho superestimado). ` +
+            `Se for moeda emprestada (margem) ou remessa fora da aba cambio, revisar antes de declarar.`,
+        } : {}),
       });
 
       st.estoque = Math.max(0, st.estoque - op.valOrig);

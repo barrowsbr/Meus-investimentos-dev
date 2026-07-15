@@ -34,6 +34,9 @@ export interface IbkrOverview {
   kpis: {
     patrimonioBRL: number; patrimonioUSD: number | null;
     caixaBRL: number; caixaUSD: number | null;
+    // Dívida de margem (empréstimo da corretora) — endingCash negativo no Flex.
+    margemBRL: number; margemUSD: number | null;
+    // Total LÍQUIDO da dívida (Net Liquidation Value, igual ao app da IBKR).
     patrimonioTotalBRL: number; patrimonioTotalUSD: number | null;
     custoBRL: number; custoUSD: number | null;
     resultadoBRL: number; resultadoUSD: number | null; resultadoPct: number | null;
@@ -44,6 +47,7 @@ export interface IbkrOverview {
     dividendosLiquidoBRL: number; dividendosLiquidoUSD: number | null;
   };
   cashByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null }>;
+  marginByCurrency: Array<{ moeda: string; valor: number; valorBRL: number | null; jurosAcruados: number }>;
   byCurrency: Array<{ moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>;
   dividendsByTicker: Array<{ ticker: string; moeda: string; dividendos: number; impostos: number; liquido: number }>;
   positions: OverviewPosition[];
@@ -58,7 +62,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
   if (!token || !queryId) throw new Error("IBKR_FLEX_TOKEN e/ou IBKR_FLEX_QUERY_ID não configurados");
 
   const xml = await getFlexXmlCached(token, queryId);
-  const { proventos, trades, cambio, positions, cashBalances } = parseFlexXml(xml);
+  const { proventos, trades, cambio, positions, cashBalances, marginBalances } = parseFlexXml(xml);
   const meta = parseFlexMeta(xml);
 
   // FX + cotações ao vivo (preço atual e variação do dia) numa só chamada.
@@ -124,7 +128,17 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     .map((c) => ({ moeda: c.moeda, valor: c.saldo, valorBRL: toBRL(c.saldo, c.moeda) }))
     .sort((a, b) => (b.valorBRL ?? b.valor) - (a.valorBRL ?? a.valor));
   const caixaBRL = cashByCurrency.reduce((s, c) => s + (c.valorBRL ?? 0), 0);
-  const patrimonioTotalBRL = patrimonioBRL + caixaBRL;
+
+  // ── Margem (dívida) por moeda — endingCash negativo vira dívida no parser ──
+  // O total da conta é LÍQUIDO da dívida (Net Liquidation Value): ativos
+  // comprados na margem contam no patrimônio, mas o empréstimo é abatido.
+  // Sem isso, entrar em margem INFLAVA o "Patrimônio do dia" da Home (e o
+  // histórico patrimonial) exatamente no valor emprestado.
+  const marginByCurrency = marginBalances
+    .map((m) => ({ moeda: m.moeda, valor: m.saldo, valorBRL: toBRL(m.saldo, m.moeda), jurosAcruados: m.jurosAcruados }))
+    .sort((a, b) => (b.valorBRL ?? b.valor) - (a.valorBRL ?? a.valor));
+  const margemBRL = marginByCurrency.reduce((s, c) => s + (c.valorBRL ?? 0), 0);
+  const patrimonioTotalBRL = patrimonioBRL + caixaBRL - margemBRL;
 
   // ── Agregado por moeda ──
   const ccyMap = new Map<string, { moeda: string; marketValue: number; cost: number; pnl: number; dayPnl: number; count: number }>();
@@ -158,6 +172,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
     kpis: {
       patrimonioBRL, patrimonioUSD: brlToUsd(patrimonioBRL),
       caixaBRL, caixaUSD: brlToUsd(caixaBRL),
+      margemBRL, margemUSD: brlToUsd(margemBRL),
       patrimonioTotalBRL, patrimonioTotalUSD: brlToUsd(patrimonioTotalBRL),
       custoBRL, custoUSD: brlToUsd(custoBRL),
       resultadoBRL, resultadoUSD: brlToUsd(resultadoBRL), resultadoPct: custoBRL !== 0 ? resultadoBRL / custoBRL : null,
@@ -168,6 +183,7 @@ export async function buildIbkrOverview(): Promise<IbkrOverview> {
       dividendosLiquidoBRL: liquidoBRL, dividendosLiquidoUSD: brlToUsd(liquidoBRL),
     },
     cashByCurrency,
+    marginByCurrency,
     byCurrency: [...ccyMap.values()].sort((a, b) => b.marketValue - a.marketValue),
     dividendsByTicker,
     positions: pos,

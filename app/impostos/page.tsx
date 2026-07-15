@@ -41,6 +41,7 @@ interface Posicao {
 interface LiquidacaoBRL {
   data: string; moeda: string; fxAlienado: number; recebidoBRL: number; taxaEfetiva: number;
   pmNaData: number; custoBRL: number; ganhoBRL: number;
+  aviso?: string; // liquidação sem estoque rastreado (ex.: moeda emprestada/margem)
   // Compat legado
   usdAlienado?: number; pmDolarNaData?: number;
 }
@@ -73,10 +74,12 @@ interface RendimentosAno {
   exclusivaJCP: number; tributavelExterior: number; irrfRetido: number;
 }
 interface RfRend { ticker: string; ano: string; rendimento: number; diasCorridos: number; aliquota: number; irRetido: number; moeda: string; }
+interface DividaOnus { codigo: string; descricao: string; moeda: string; saldo: number; saldoBRL: number; aviso: string }
 interface DirpfResponse {
   year: number; bensDireitos: BemDireito[]; rendimentos: RendimentosAno | null;
   rfRendimentos: RfRend[]; rfPosicoes: { ticker: string; investido: number; atual: number; moeda: string }[];
-  totais: { bensDireitosCusto: number; rfIrRetido: number };
+  dividasOnus?: DividaOnus[];
+  totais: { bensDireitosCusto: number; rfIrRetido: number; dividasOnusBRL?: number };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -384,7 +387,10 @@ function CambioIrSection({ cambio, year }: { cambio: CambioIr; year: number | nu
                         const ganPct = l.custoBRL > 0 ? (l.ganhoBRL / l.custoBRL) : 0;
                         return (
                           <tr key={i} className="border-b border-zinc-800/50 hover:bg-white/[0.02]">
-                            <td className="px-3 py-1.5 text-zinc-400 font-mono">{l.data.split("-").reverse().join("/")}</td>
+                            <td className="px-3 py-1.5 text-zinc-400 font-mono">
+                              {l.data.split("-").reverse().join("/")}
+                              {l.aviso && <span className="ml-1 text-amber-400 cursor-help" title={l.aviso}>⚠</span>}
+                            </td>
                             <td className="px-3 py-1.5 text-right text-zinc-300 font-mono">{fmtFx(l.fxAlienado, a.moeda)}</td>
                             <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.taxaEfetiva)}</td>
                             <td className="px-3 py-1.5 text-right text-zinc-400">{fmtTaxa(l.pmNaData)}</td>
@@ -898,6 +904,24 @@ function Declaracao({ ano }: { ano: number }) {
           </table>
         </div>
       </div>
+
+      {(d.dividasOnus?.length ?? 0) > 0 && (
+        <div className="p-4 border-b border-white/[0.04]">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wide">Dívidas e Ônus Reais (margem)</div>
+            <div className="text-[10px] text-red-400">Total {compactBRL(d.totais.dividasOnusBRL ?? 0)}</div>
+          </div>
+          {d.dividasOnus!.map(dv => (
+            <div key={dv.moeda} className="text-xs py-1.5 border-t border-white/[0.03] first:border-t-0">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-zinc-300">{dv.descricao} <span className="text-zinc-600">· cód. {dv.codigo}</span></span>
+                <span className="text-red-400 font-medium whitespace-nowrap">{dv.moeda} {dv.saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · {brl(dv.saldoBRL)}</span>
+              </div>
+              <div className="text-[10px] text-zinc-600 mt-0.5">{dv.aviso}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(d.rfRendimentos.length > 0 || d.rfPosicoes.length > 0) && (
         <div className="p-4">

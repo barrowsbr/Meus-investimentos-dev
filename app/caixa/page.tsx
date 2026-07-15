@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Wallet, Plus, Trash2, Save, Loader2, Scale, TrendingDown, TrendingUp,
-  DollarSign, Building2, AlertTriangle, Landmark,
+  DollarSign, Building2, AlertTriangle, Landmark, Percent,
 } from "lucide-react";
 import { compactBRL, brl } from "@/lib/format";
 import { bumpDataVersion } from "@/lib/data-version";
 import { usePortfolio } from "@/lib/hooks";
 import PageHeader from "@/components/PageHeader";
+// lib/margin é PURO (sem deps server-only) — ok importar VALORES no client.
+import { IBKR_SPREAD_TIERS } from "@/lib/margin";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,22 @@ interface MarginBal { moeda: string; saldo: number; jurosAcruados: number; initM
 interface FxRates { USDBRL: number; EURBRL: number; CADBRL: number; GBPBRL: number }
 interface CaixaResponse { caixa: CaixaPos[]; ibkrCash: IbkrCash[]; margin: MarginBal[]; ibkrSynced: boolean }
 
+// Payload de /api/alavancagem (motor lib/margin — benchmark vivo + tabela IBKR)
+interface MarginAberta {
+  id: string; corretora: string; moeda: string; valor: number;
+  benchmark: string; spread: number; taxaBenchmark: number;
+  taxaBenchmarkAtual: number | null; taxaTotal: number;
+  valorBRL: number; jurosAcumBRL: number; custoAnualBRL: number;
+}
+interface AlavResponse {
+  abertas: MarginAberta[];
+  dividaBRL: number; jurosAcumBRL: number; custoAnualBRL: number;
+  benchmarks: Record<string, { rate: number; source: "api" | "fallback" }>;
+  benchmarkPorMoeda: Record<string, { code: string; label: string }>;
+}
+
+const pctBR = (v: number, dec = 2) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}%`;
+
 function fxRate(fx: FxRates | undefined, moeda: string): number {
   const m: Record<string, number> = { BRL: 1, USD: fx?.USDBRL ?? 1, EUR: fx?.EURBRL ?? 1, CAD: fx?.CADBRL ?? 1, GBP: fx?.GBPBRL ?? 1 };
   return m[moeda] ?? 1;
@@ -25,7 +43,9 @@ function fxRate(fx: FxRates | undefined, moeda: string): number {
 const fmtMoeda = (v: number, moeda: string) => moeda === "BRL" ? brl(v) : `${moeda} ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function gaugeFor(ratio: number, divida: number) {
-  if (ratio <= 0 || divida <= 0) return { color: "#22c55e", label: "1.00x", risk: "Sem alavancagem" };
+  if (divida <= 0) return { color: "#22c55e", label: "1.00x", risk: "Sem alavancagem" };
+  // Dívida maior que o bruto (net ≤ 0): o pior cenário — nunca mostrar "1.00x".
+  if (ratio <= 0) return { color: "#ef4444", label: "∞", risk: "Net negativo" };
   if (ratio <= 1.2) return { color: "#22c55e", label: `${ratio.toFixed(2)}x`, risk: "Conservador" };
   if (ratio <= 1.5) return { color: "#f59e0b", label: `${ratio.toFixed(2)}x`, risk: "Moderado" };
   if (ratio <= 2.0) return { color: "#f97316", label: `${ratio.toFixed(2)}x`, risk: "Agressivo" };
@@ -222,11 +242,109 @@ function IbkrPanel({ ibkrCash, margin, fx, synced }: { ibkrCash: IbkrCash[]; mar
   );
 }
 
+// ── Custo da margem (taxa IBKR = benchmark + spread da tabela de faixas) ──────
+
+function CustoMargem({ alav }: { alav: AlavResponse | null }) {
+  const abertas = alav?.abertas ?? [];
+  const temDivida = abertas.length > 0 && (alav?.dividaBRL ?? 0) > 0;
+
+  // Custos derivados da taxa: ACT/360 (convenção IBKR) — dia → mês → ano.
+  const custoDiaBRL = abertas.reduce((s, e) => s + e.valorBRL * (e.taxaTotal / 100) / 360, 0);
+  const custoMesBRL = custoDiaBRL * 30;
+  const custoAnoBRL = custoDiaBRL * 365;
+
+  // Tabela de faixas das moedas com dívida (destaca a faixa em uso).
+  const moedasComDivida = [...new Set(abertas.map(e => e.moeda))];
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Percent size={16} className="text-amber-400" />
+        <h2 className="text-sm font-semibold text-zinc-200">Custo da margem</h2>
+        <span className="text-[9px] text-zinc-600 px-1.5 py-0.5 rounded bg-white/[0.04]">tabela IBKR Pro · benchmark ao vivo</span>
+      </div>
+
+      {!temDivida ? (
+        <p className="text-[10px] text-zinc-600">Sem margem aberta — custo zero. Quando houver dívida, a taxa (benchmark + spread IBKR), o custo diário e a projeção mensal aparecem aqui.</p>
+      ) : (
+        <>
+          {/* Por empréstimo: taxa decomposta */}
+          <div className="space-y-1.5 mb-4">
+            {abertas.map(e => {
+              const benchLabel = alav?.benchmarkPorMoeda?.[e.moeda]?.label ?? e.benchmark;
+              const benchRate = e.taxaBenchmarkAtual ?? e.taxaBenchmark;
+              const fonte = alav?.benchmarks?.[e.benchmark]?.source;
+              const dia = e.valorBRL * (e.taxaTotal / 100) / 360;
+              return (
+                <div key={e.id} className="px-3 py-2.5 rounded-lg bg-amber-500/[0.04] border border-amber-500/10">
+                  <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1">
+                    <span className="text-xs font-semibold text-zinc-300">{e.moeda} · {e.corretora} <span className="text-zinc-600 font-normal">({fmtMoeda(e.valor, e.moeda)})</span></span>
+                    <span className="text-xs font-bold text-amber-400">{pctBR(e.taxaTotal)} a.a.</span>
+                  </div>
+                  <div className="text-[9px] text-zinc-600 mt-1">
+                    {e.benchmark} {pctBR(benchRate)}{fonte === "fallback" ? " (offline)" : ""} + spread IBKR {pctBR(e.spread)} <span className="text-zinc-700">· {benchLabel}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5 text-[10px]">
+                    <span className="text-zinc-500">dia <span className="text-zinc-300 font-mono">{brl(dia)}</span></span>
+                    <span className="text-zinc-500">mês <span className="text-zinc-300 font-mono">{brl(dia * 30)}</span></span>
+                    <span className="text-zinc-500">ano <span className="text-zinc-300 font-mono">{brl(dia * 365)}</span></span>
+                    {e.jurosAcumBRL > 0.005 && <span className="text-zinc-500">acruado <span className="text-amber-400 font-mono">{brl(e.jurosAcumBRL)}</span></span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Totais */}
+          <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+            {[{ l: "custo/dia", v: custoDiaBRL }, { l: "custo/mês", v: custoMesBRL }, { l: "custo/ano", v: custoAnoBRL }].map(x => (
+              <div key={x.l} className="px-2 py-2 rounded-lg bg-white/[0.03]">
+                <div className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold">{x.l}</div>
+                <div className="text-xs font-bold text-amber-400 font-mono mt-0.5">{brl(x.v)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela de faixas IBKR das moedas em uso */}
+          {moedasComDivida.map(moeda => {
+            const tiers = IBKR_SPREAD_TIERS[moeda];
+            if (!tiers) return null;
+            const saldo = abertas.filter(e => e.moeda === moeda).reduce((s, e) => s + e.valor, 0);
+            let anterior = 0;
+            return (
+              <div key={moeda} className="mb-2">
+                <div className="text-[9px] text-zinc-600 uppercase tracking-wider font-semibold mb-1">Faixas IBKR · {moeda} (spread sobre o benchmark)</div>
+                <div className="flex flex-wrap gap-1">
+                  {tiers.map((t, i) => {
+                    const ativa = saldo > anterior;
+                    const label = t.ate === Infinity
+                      ? `acima de ${(anterior / 1e6).toLocaleString("pt-BR")} mi`
+                      : `até ${t.ate >= 1e6 ? `${(t.ate / 1e6).toLocaleString("pt-BR")} mi` : `${(t.ate / 1e3).toLocaleString("pt-BR")} mil`}`;
+                    anterior = t.ate;
+                    return (
+                      <span key={i} className={`text-[9px] px-2 py-1 rounded-md border ${ativa ? "bg-amber-500/10 border-amber-500/30 text-amber-300" : "bg-white/[0.02] border-white/[0.06] text-zinc-600"}`}>
+                        {label} · +{pctBR(t.spread, 2)}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          <p className="text-[9px] text-zinc-700 mt-2">Juros ACT/360 (convenção IBKR), calculados sobre o saldo devedor do extrato Flex. Benchmark ao vivo (NY Fed / BCE / BCB); spread pela tabela pública da IBKR Pro (blended por faixa).</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Página ─────────────────────────────────────────────────────────────────────
 
 export default function CaixaPage() {
   const { data: portfolio } = usePortfolio();
   const [resp, setResp] = useState<CaixaResponse | null>(null);
+  const [alav, setAlav] = useState<AlavResponse | null>(null);
   const [fx, setFx] = useState<FxRates | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
@@ -235,9 +353,11 @@ export default function CaixaPage() {
     Promise.all([
       fetch("/api/renda-fixa/caixa").then(r => r.json()).catch(() => null),
       fetch("/api/composicao/resumo").then(r => r.json()).catch(() => null),
-    ]).then(([c, comp]) => {
+      fetch("/api/alavancagem").then(r => r.json()).catch(() => null),
+    ]).then(([c, comp, a]) => {
       if (c && !c.error) setResp({ caixa: c.caixa ?? [], ibkrCash: c.ibkrCash ?? [], margin: c.margin ?? [], ibkrSynced: !!c.ibkrSynced });
       if (comp?.fx) setFx(comp.fx);
+      if (a && !a.error) setAlav(a);
     }).finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -270,7 +390,7 @@ export default function CaixaPage() {
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Kpi icon={Wallet} label="Liquidez total" value={compactBRL(m.liquidezBRL)} sub={`IBKR ${compactBRL(m.ibkrCashBRL)} + manual`} color="#22c55e" />
-            <Kpi icon={TrendingDown} label="Dívida margem" value={m.dividaBRL > 0 ? `-${compactBRL(m.dividaBRL)}` : "R$ 0"} sub={m.dividaBRL > 0 ? "automático IBKR" : "sem margem"} color="#ef4444" />
+            <Kpi icon={TrendingDown} label="Dívida margem" value={m.dividaBRL > 0 ? `-${compactBRL(m.dividaBRL)}` : "R$ 0"} sub={m.dividaBRL > 0 ? (alav && alav.custoAnualBRL > 0 ? `custa ~${brl(alav.custoAnualBRL / 12)}/mês` : "automático IBKR") : "sem margem"} color="#ef4444" />
             <Kpi icon={TrendingUp} label="Patrimônio net" value={compactBRL(m.net)} sub={`bruto ${compactBRL(m.bruto)} · ${m.pct.toFixed(1)}% alav.`} color="#3b82f6" />
             <Kpi icon={Scale} label="Alavancagem" value={gauge.label} sub={gauge.risk} color={gauge.color} />
           </div>
@@ -281,12 +401,15 @@ export default function CaixaPage() {
             <IbkrPanel ibkrCash={resp?.ibkrCash ?? []} margin={resp?.margin ?? []} fx={fx} synced={!!resp?.ibkrSynced} />
           </div>
 
+          {/* Custo da margem (taxa IBKR + custo dia/mês/ano) */}
+          <CustoMargem alav={alav} />
+
           {/* Composição patrimonial bruto − dívida = net */}
           <div className="glass-card p-5">
             <h2 className="text-xs font-semibold text-zinc-300 mb-3 flex items-center gap-2"><Landmark size={13} className="text-zinc-500" /> Bruto − Dívida = Net</h2>
             <div className="h-3 w-full rounded-full overflow-hidden flex bg-white/[0.04] mb-2">
-              <div style={{ width: `${m.bruto > 0 ? (m.net / m.bruto) * 100 : 100}%`, background: "#22c55e" }} title={`Net ${compactBRL(m.net)}`} />
-              <div style={{ width: `${m.bruto > 0 ? (m.dividaBRL / m.bruto) * 100 : 0}%`, background: "#ef4444" }} title={`Dívida ${compactBRL(m.dividaBRL)}`} />
+              <div style={{ width: `${m.bruto > 0 ? Math.max(0, (m.net / m.bruto) * 100) : 100}%`, background: "#22c55e" }} title={`Net ${compactBRL(m.net)}`} />
+              <div style={{ width: `${m.bruto > 0 ? Math.min(100, (m.dividaBRL / m.bruto) * 100) : 0}%`, background: "#ef4444" }} title={`Dívida ${compactBRL(m.dividaBRL)}`} />
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px]">
               <span className="text-zinc-400"><span className="text-blue-400 font-semibold">Bruto</span> {compactBRL(m.bruto)}</span>

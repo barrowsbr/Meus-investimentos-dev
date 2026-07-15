@@ -79,6 +79,36 @@ const BENCHMARK_FALLBACK: Record<string, number> = {
   EFFR: 4.33, ESTR: 2.0, SELIC: 15.0, SARON: 0.0, TONAR: 0.5, SONIA: 4.0, CORRA: 2.75,
 };
 
+// ── Tabela de spreads da IBKR Pro (juros de margem = benchmark + spread) ─────
+// Faixas na MOEDA do empréstimo, conforme a tabela publicada pela IBKR
+// (ibkr.com → Trading → Margin Rates). O juro é BLENDED: cada fatia do saldo
+// paga o spread da sua faixa. Valores podem derivar com o tempo — conferir na
+// tabela oficial se a IBKR mudar a política.
+export const IBKR_SPREAD_TIERS: Record<string, Array<{ ate: number; spread: number }>> = {
+  USD: [{ ate: 100_000, spread: 1.5 }, { ate: 1_000_000, spread: 1.0 }, { ate: 50_000_000, spread: 0.75 }, { ate: Infinity, spread: 0.5 }],
+  EUR: [{ ate: 90_000, spread: 1.5 }, { ate: 900_000, spread: 1.0 }, { ate: 45_000_000, spread: 0.75 }, { ate: Infinity, spread: 0.5 }],
+  GBP: [{ ate: 80_000, spread: 1.5 }, { ate: 800_000, spread: 1.0 }, { ate: 40_000_000, spread: 0.75 }, { ate: Infinity, spread: 0.5 }],
+  CHF: [{ ate: 90_000, spread: 1.5 }, { ate: 900_000, spread: 1.0 }, { ate: 45_000_000, spread: 0.75 }, { ate: Infinity, spread: 0.5 }],
+  CAD: [{ ate: 130_000, spread: 1.5 }, { ate: 1_300_000, spread: 1.0 }, { ate: 65_000_000, spread: 0.75 }, { ate: Infinity, spread: 0.5 }],
+  JPY: [{ ate: 11_000_000, spread: 1.5 }, { ate: 114_000_000, spread: 1.0 }, { ate: Infinity, spread: 0.75 }],
+};
+
+/** Spread IBKR efetivo (blended) para um saldo devedor na moeda do empréstimo.
+ *  Ex.: USD 60 → 1,5%; USD 500k → média ponderada das faixas 1 e 2. */
+export function ibkrSpreadFor(moeda: string, valor: number): number {
+  const tiers = IBKR_SPREAD_TIERS[moeda.toUpperCase()];
+  if (!tiers || valor <= 0) return 1.5; // default conservador (tier 1)
+  let restante = valor, anterior = 0, ponderado = 0;
+  for (const t of tiers) {
+    const fatia = Math.min(restante, t.ate - anterior);
+    if (fatia <= 0) break;
+    ponderado += fatia * t.spread;
+    restante -= fatia;
+    anterior = t.ate;
+  }
+  return ponderado / valor;
+}
+
 async function tryJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), next: { revalidate: 3600 } });
@@ -254,7 +284,7 @@ export function mergeIbkrMargin(entries: MarginEntry[], ibkrBalances: { moeda: s
         valor: mb.saldo,
         benchmark: BENCHMARK_POR_MOEDA[mb.moeda]?.code ?? "USD",
         taxaBenchmark: 0,
-        spread: 1.5,
+        spread: ibkrSpreadFor(mb.moeda, mb.saldo), // tabela de tiers IBKR Pro (blended)
         status: "aberta",
         dataFechamento: "",
         valorFechamento: 0,
