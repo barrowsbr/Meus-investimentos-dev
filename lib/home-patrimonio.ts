@@ -20,6 +20,7 @@ import { calcularCambioMetrics, buildPmFxRates, buildFxDateMap } from "./cambio"
 import { buildIbkrOverview, type IbkrOverview } from "./ibkr-overview";
 import { isRendaFixa, getMoedaExposicao } from "./sectors";
 import { toNumber } from "./format";
+import { MARGIN_TAB, parseMarginRows } from "./margin";
 
 type Row = Record<string, unknown>;
 
@@ -31,16 +32,19 @@ function getVal(row: Row, ...keys: string[]): unknown {
 }
 
 export interface PatrimonioDiaPayload {
+  // "Valor disponível total (net)": IBKR já líquido da margem (NLV) + BR +
+  // Cripto − dívida de margem fora da IBKR. É o que a Home mostra e o
+  // histórico patrimonial grava.
   patrimonio_dia_brl: number;
   patrimonio_dia_usd: number | null;
   usdbrl: number;
   ibkr_ok: boolean;
-  breakdown: { ibkr_brl: number; ibkr_usd: number; br_brl: number; cripto_brl: number };
+  breakdown: { ibkr_brl: number; ibkr_usd: number; br_brl: number; cripto_brl: number; divida_fora_ibkr_brl: number };
 }
 
 export interface DetalhePayload {
   usdbrl: number;
-  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; total_brl: number };
+  partes: { ibkr_brl: number; brasil_brl: number; cripto_brl: number; rf_caixa_brl: number; divida_fora_ibkr_brl: number; total_brl: number };
   conferencia: { expo_brl_snapshot: number; expo_brl_recalculada: number; expo_cripto_snapshot: number };
   ibkr: Row;
   brasil_itens: Row[];
@@ -60,12 +64,13 @@ export interface HomePatrimonio {
 
 export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): Promise<HomePatrimonio> {
   const store = getDataStore();
-  const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows] = await Promise.all([
+  const [transacoes, proventos, fixaAberta, cambioRows, ptaxRows, marginRows] = await Promise.all([
     store.fetchTab("meus_ativos"),
     store.fetchTab("meus_proventos"),
     fetchFixaAbertaComIbkr(store),
     store.fetchTab("cambio").catch(() => []),
     store.fetchTab("p_tax").catch(() => []),
+    store.fetchTab(MARGIN_TAB).catch(() => []),
   ]);
 
   const tickerSet = new Map<string, { moeda: string; corretora: string }>();
@@ -192,18 +197,26 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
   const brBRL = snapshot.exposicaoCambial?.["BRL"] ?? 0;
   const criptoExpoBRL = snapshot.exposicaoCambial?.["Cripto"] ?? 0;
 
-  // Patrimônio do dia = IBKR (posições + caixa) + BRL (expo) + Cripto (expo).
-  const patrimonioDiaBRL = ibkrBRL + brBRL + criptoExpoBRL;
+  // Dívida de margem FORA da IBKR (aba alavancagem, outras corretoras).
+  // A da IBKR já está abatida dentro do ibkrBRL (NLV do overview) — abater de
+  // novo aqui duplicaria; por isso o filtro por corretora.
+  const dividaForaIbkrBRL = parseMarginRows(marginRows)
+    .filter((e) => e.status === "aberta" && e.corretora.toUpperCase() !== "IBKR")
+    .reduce((s, e) => s + e.valor * fxToBRL(e.moeda, fxAtual), 0);
+
+  // "Valor disponível total (net)" = IBKR (NLV) + BRL (expo) + Cripto (expo)
+  // − margem fora da IBKR. É o número do card da Home e do histórico.
+  const patrimonioDiaBRL = ibkrBRL + brBRL + criptoExpoBRL - dividaForaIbkrBRL;
 
   const patrimonioDia: PatrimonioDiaPayload = {
     patrimonio_dia_brl: patrimonioDiaBRL,
     patrimonio_dia_usd: usdbrl > 0 ? patrimonioDiaBRL / usdbrl : null,
     usdbrl,
     ibkr_ok: ibkrUSD > 0,
-    breakdown: { ibkr_brl: ibkrBRL, ibkr_usd: ibkrUSD, br_brl: brBRL, cripto_brl: criptoExpoBRL },
+    breakdown: { ibkr_brl: ibkrBRL, ibkr_usd: ibkrUSD, br_brl: brBRL, cripto_brl: criptoExpoBRL, divida_fora_ibkr_brl: Math.round(dividaForaIbkrBRL * 100) / 100 },
   };
 
-  const totalDetalhe = ibkrBRL + brasilBRL + criptoBRL + rfCaixaBRL;
+  const totalDetalhe = ibkrBRL + brasilBRL + criptoBRL + rfCaixaBRL - dividaForaIbkrBRL;
   const detalhe: DetalhePayload = {
     usdbrl,
     partes: {
@@ -211,6 +224,7 @@ export async function computeHomePatrimonio(opts: { skipIbkr?: boolean } = {}): 
       brasil_brl: Math.round(brasilBRL * 100) / 100,
       cripto_brl: Math.round(criptoBRL * 100) / 100,
       rf_caixa_brl: Math.round(rfCaixaBRL * 100) / 100,
+      divida_fora_ibkr_brl: Math.round(dividaForaIbkrBRL * 100) / 100,
       total_brl: Math.round(totalDetalhe * 100) / 100,
     },
     conferencia: {
