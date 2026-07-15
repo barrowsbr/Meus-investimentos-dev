@@ -1,0 +1,28 @@
+name: Baixar fotos da coleção (one-shot)
+
+on:
+  push:
+    branches: [claude/baixar-moedas]
+
+permissions:
+  contents: write
+
+jobs:
+  baixar:
+    if: "!contains(github.event.head_commit.message, '[fotos-ok]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Baixar fotos e reescrever paths
+        run: node scripts/baixar-moedas.mjs
+      - name: Commitar resultado
+        run: |
+          git config user.name "coin-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git diff --cached --quiet && { echo "nada a commitar"; exit 0; }
+          git commit -m "Moedas: fotos baixadas para public/colecao-moedas [fotos-ok]"
+          git push
