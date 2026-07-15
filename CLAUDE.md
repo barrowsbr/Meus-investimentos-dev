@@ -458,9 +458,11 @@ APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
   NASA EONET (livre) · USGS Earthquakes (livre) · GDELT DOC 2.0 (livre, 1 req/5s) ·
   GDELT Events 2.0 CSV (livre) · World Bank (livre)
 - **Alertas & Logos**: Telegram Bot (`TELEGRAM_BOT_TOKEN` — ou salvo em Configurações) ·
-  Logo.dev (`LOGO_DEV_TOKEN` opc.) · Clearbit Logo (livre)
+  Logo.dev (`LOGO_DEV_TOKEN` opc.) · FMP Images (livre) · Parqet Logos (livre)
 
 Fontes auxiliares NÃO no painel (assets/scraping, sem semântica de health-check):
 CSVs de emissores de ETF (SSGA/iShares/Invesco em `lib/etf-holdings.ts`), topojson do
 mundo (jsDelivr, `lib/world-map.ts`), Trading Economics (guest/scraping em
-`app/api/bolsas/country`). **Mortas — não reintroduzir**: GDELT GEO 2.0 (404) e ACLED.
+`app/api/bolsas/country`). **Mortas — não reintroduzir**: GDELT GEO 2.0 (404), ACLED e Clearbit Logo
+(logo.clearbit.com — sunset dez/2025, o DNS nem resolve; o resolver `/api/logo`
+usa brapi/FMP/logo.dev/Parqet/favicon por domínio).

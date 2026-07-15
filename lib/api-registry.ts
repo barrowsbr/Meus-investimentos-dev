@@ -530,12 +530,25 @@ export const API_REGISTRY: ApiDef[] = [
       return res.ok && ct.startsWith("image/") ? { ok: true, detail: "logo ok" } : { ok: false, detail: `HTTP ${res.status}` };
     },
   },
+  // Clearbit Logo (logo.clearbit.com) foi REMOVIDA: sunset dez/2025, o DNS nem
+  // resolve mais. Não reintroduzir. Substitutos no resolver /api/logo: FMP
+  // images, brapi (B3), logo.dev, Parqet e favicon por domínio.
   {
-    key: "clearbit", name: "Clearbit Logo", category: "Alertas & Logos",
-    host: "logo.clearbit.com", purpose: "Logotipos (fallback, sem chave)",
+    key: "fmpimg", name: "FMP Images", category: "Alertas & Logos",
+    host: "images.financialmodelingprep.com", purpose: "Logotipos por ticker (sem chave) — fonte do /api/logo",
     envVars: [],
     probe: async () => {
-      const res = await httpGet("https://logo.clearbit.com/apple.com");
+      const res = await httpGet("https://images.financialmodelingprep.com/symbol/AAPL.png");
+      const ct = res.headers.get("content-type") || "";
+      return res.ok && ct.startsWith("image/") ? { ok: true, detail: "logo ok" } : { ok: false, detail: `HTTP ${res.status}` };
+    },
+  },
+  {
+    key: "parqet", name: "Parqet Logos", category: "Alertas & Logos",
+    host: "assets.parqet.com", purpose: "Logotipos por ticker (sem chave) — fallback do /api/logo",
+    envVars: [],
+    probe: async () => {
+      const res = await httpGet("https://assets.parqet.com/logos/symbol/AAPL?format=png&size=32");
       const ct = res.headers.get("content-type") || "";
       return res.ok && ct.startsWith("image/") ? { ok: true, detail: "logo ok" } : { ok: false, detail: `HTTP ${res.status}` };
     },
