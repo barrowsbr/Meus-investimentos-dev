@@ -4,7 +4,7 @@
 // salva em public/logos/<TICKER>.png, para virarem PERMANENTES no repositório
 // (offline, sem depender do resolver em runtime).
 //
-// Reusa a MESMA resolução do endpoint (Clearbit/FMP/logo.dev), então é a fonte
+// Reusa a MESMA resolução do endpoint (brapi/FMP/logo.dev/Parqet), então é a fonte
 // única. Rode onde a internet é aberta (sua máquina, CI) — não no sandbox.
 //
 // Uso:

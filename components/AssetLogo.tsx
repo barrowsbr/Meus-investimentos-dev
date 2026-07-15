@@ -31,8 +31,9 @@ function initials(name: string, ticker: string): string {
 /**
  * Logo do ativo com cascata de fontes:
  *  1. Arquivo commitado em /public/logos/<SLUG>.png (prioritário — permanente/offline)
- *  2. Resolver /api/logo/<TICKER> — busca por ticker (Clearbit/FMP/logo.dev) e o
- *     CDN cacheia por 1 ano. ESCALÁVEL: qualquer ativo novo resolve sozinho.
+ *  2. Resolver /api/logo/<TICKER> — busca por ticker (brapi/FMP/logo.dev/Parqet/
+ *     favicon por domínio) e o CDN cacheia por 1 ano (falha só 1h). ESCALÁVEL:
+ *     qualquer ativo novo resolve sozinho.
  *  3. Avatar de iniciais coloridas (sempre bonito, zero dependência).
  */
 export default function AssetLogo({

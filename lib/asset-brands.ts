@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // asset-brands.ts — nome amigável + domínio (p/ logo) por ticker.
 //
-// As LOGOS ficam salvas no repositório em public/logos/<TICKER_SEM_SUFIXO>.png
-// (buscadas via Clearbit pelo `domain` e commitadas). O `name` alimenta os cards
+// As LOGOS podem ser salvas no repositório em public/logos/<TICKER_SEM_SUFIXO>.png
+// (prioritárias); sem arquivo, o resolver /api/logo usa o `domain` daqui como
+// uma das fontes (logo.dev/favicon). O `name` alimenta os cards
 // e o modal. Tickers não mapeados caem em: nome = ticker, logo = avatar de
 // iniciais (AssetLogo). Para adicionar cobertura, basta acrescentar aqui e
 // commitar o PNG correspondente.
@@ -12,7 +13,7 @@
 
 export interface Brand {
   name: string;
-  domain: string; // usado para baixar a logo (Clearbit) — não exibido
+  domain: string; // usado para buscar a logo por domínio (logo.dev/favicon) — não exibido
 }
 
 export const BRANDS: Record<string, Brand> = {
