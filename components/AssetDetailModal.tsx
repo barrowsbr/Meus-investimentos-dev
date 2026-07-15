@@ -103,6 +103,19 @@ export default function AssetDetailModal({
       value: vendido ? brl(p.lucroRealizadoBRL) : (p.lucroBRL !== null ? brl(p.lucroBRL) : "—"),
       className: cor(vendido ? pos(p.lucroRealizadoBRL) : pos(p.lucroBRL)),
     },
+    // Lucro na MOEDA NATIVA (ativos não-BRL): isola o desempenho do papel do
+    // efeito cambial — MSFT pode estar −1,4% em USD e −10% em BRL ao mesmo
+    // tempo. Bruto = valorAtual − custo (ambos nativos); % sobre o custo.
+    ...(!vendido && p.moeda !== "BRL" && p.valorAtual !== null && p.custoTotal > 0
+      ? (() => {
+          const lucroNativo = p.valorAtual - p.custoTotal;
+          const cls = cor(pos(lucroNativo));
+          return [
+            { label: `Lucro (${p.moeda})`, value: currency(lucroNativo, p.moeda), className: cls },
+            { label: `Lucro % (${p.moeda})`, value: pct((lucroNativo / p.custoTotal) * 100), className: cls },
+          ] satisfies Stat[];
+        })()
+      : []),
     {
       label: "Valorização %",
       value: vendido ? "—" : (p.lucroPct !== null ? pct(p.lucroPct) : "—"),
