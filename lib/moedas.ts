@@ -140,6 +140,42 @@ export function conjuntoMonetario(m: Pick<Moeda, "pais" | "denominacao" | "anoNu
   return { nome: f ? f(d, ano) : m.pais, ordem: 50 };
 }
 
+// ── Diâmetro físico (mm) — para o Pote com física em escala real ─────────────
+// Medidas de catálogo das séries mais comuns; o que não estiver mapeado cai em
+// heurística por valor de face e num default de 23 mm. Precisão de catálogo
+// importa menos que a PROPORÇÃO entre as moedas (efeito visual do pote).
+
+const DIAMETRO_REAL: Record<string, number> = {
+  "1 centavo": 17.0, "5 centavos": 22.0, "10 centavos": 20.0,
+  "25 centavos": 25.0, "50 centavos": 23.0, "1 real": 27.0,
+};
+const DIAMETRO_POR_ERA: Record<string, Record<string, number>> = {
+  "Réis": { "100 reis": 21, "200 reis": 25, "300 reis": 22, "400 reis": 28, "500 reis": 22, "1000 reis": 26, "2000 reis": 26, "5000 reis": 25 },
+  "Cruzeiro (1942–1967)": { "1 cruzeiro": 23, "5 cruzeiros": 24, "10 cruzeiros": 26, "20 cruzeiros": 27, "50 cruzeiros": 28, "1 centavo": 17, "10 centavos": 17, "20 centavos": 19, "50 centavos": 21 },
+  "Cruzeiro Novo": { "1 centavo": 17, "2 centavos": 19, "5 centavos": 21, "10 centavos": 23, "20 centavos": 25, "50 centavos": 27 },
+  "Cruzeiro (1970–1986)": { "1 centavo": 15.5, "2 centavos": 17.5, "5 centavos": 20, "10 centavos": 21, "20 centavos": 23, "50 centavos": 25, "1 cruzeiro": 21, "5 cruzeiros": 23, "10 cruzeiros": 24.5, "20 cruzeiros": 26, "50 cruzeiros": 28 },
+  "Cruzado": { "1 centavo": 16.5, "5 centavos": 18.5, "10 centavos": 20.5, "20 centavos": 22, "50 centavos": 23.5, "1 cruzado": 20.5, "5 cruzados": 22, "10 cruzados": 23.5 },
+  "Cruzado Novo": { "1 centavo": 15, "5 centavos": 16.5, "10 centavos": 18, "50 centavos": 21.5, "1 cruzado novo": 22.5 },
+  "Cruzeiro (1990–1993)": { "1 cruzeiro": 13.5, "5 cruzeiros": 15.5, "10 cruzeiros": 17.5, "50 cruzeiros": 19.5, "100 cruzeiros": 21, "500 cruzeiros": 22.5, "1000 cruzeiros": 24 },
+  "Cruzeiro Real": { "5 cruzeiros reais": 17.5, "10 cruzeiros reais": 19, "50 cruzeiros reais": 21.5, "100 cruzeiros reais": 23 },
+  "Dólar canadense": { "1 cêntimo": 19.05, "5 cêntimos": 21.2, "10 cêntimos": 18.03, "25 cêntimos": 23.88, "50 cêntimos": 27.13, "1 dólar": 26.5, "2 dólares": 28 },
+};
+
+export function diametroMmDe(m: Pick<Moeda, "pais" | "denominacao" | "anoNum">): number {
+  const den = m.denominacao.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const era = conjuntoMonetario(m).nome;
+  const daEra = DIAMETRO_POR_ERA[era]?.[den];
+  if (daEra) return daEra;
+  if (era === "Real" && DIAMETRO_REAL[den]) return DIAMETRO_REAL[den];
+  // Heurística: valor de face maior → moeda maior (dentro de limites plausíveis)
+  const valor = parseFloat(den.replace(",", ".")) || 1;
+  if (valor >= 1000) return 26;
+  if (valor >= 100) return 24;
+  if (valor >= 20) return 24;
+  if (valor >= 5) return 22;
+  return 20;
+}
+
 // ── País → mapa/bandeira ─────────────────────────────────────────────────────
 // COUNTRY_TO_ISO_NUM (lib/world-map) usa nomes curtos PT; o CoinSnap às vezes
 // exporta o nome longo.
