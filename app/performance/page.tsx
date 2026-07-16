@@ -821,7 +821,7 @@ export default function PerformancePage() {
       .catch(e => { setError(e.message); setLoading(false); });
   };
 
-  if (loading && !data) return (<><PageHeader title="Performance" description="Carregando dados..." /><LoadingSpinner /></>);
+  if (loading && !data) return <LoadingSpinner />; // só a animação, fundo direto
   if (error) return (<><PageHeader title="Performance" description="" /><ErrorAlert message={error} /></>);
   if (!data || !activeSummary) return null;
 

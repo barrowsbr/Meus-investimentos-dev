@@ -1143,8 +1143,10 @@ export default function HomePage() {
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
       <div className="w-full space-y-0">
 
-        {/* ── Row 1: Hero (logo + saudação + olho de privacidade) ── */}
-        <div className="animate-fade-in flex items-center justify-between gap-3">
+        {/* ── Row 1: Hero (logo + saudação + olho de privacidade) ──
+            Durante o carregamento só a ANIMAÇÃO aparece (centralizada, fundo
+            direto) — logo/saudação entram junto com o conteúdo. */}
+        <div className="animate-fade-in flex items-center justify-between gap-3" style={loading ? { display: "none" } : undefined}>
           {/* Logo + greeting */}
           <div className="flex items-center gap-4 min-w-0">
             <button
@@ -1237,9 +1239,9 @@ export default function HomePage() {
           </ErrorBoundary>
         )}
 
-        {/* ── Painel do dia carregando: cofrinho no palco (loader da Home) ── */}
+        {/* ── Carregando: SÓ a animação, centralizada, fundo direto (sem card) ── */}
         {loading && (
-          <div className="mt-4 flex items-center justify-center" style={{ height: 300, border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 14 }}>
+          <div className="flex items-center justify-center" style={{ minHeight: "72vh" }}>
             <PageLoader />
           </div>
         )}
