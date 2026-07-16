@@ -19,7 +19,8 @@ app/                    Páginas (App Router) e API routes
   (Portfólio)           resumo, renda-variavel, renda-fixa, proventos, criptoativos, opcoes
   (Análise)             performance, setores, evolucao, cambio, simulacoes, trades
   (Gestão)              impostos, alavancagem, financas, fluxos
-  (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, configuracoes
+  (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
+                        etf-cem (100 maiores via VOO — P/L e distância do ATH), configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
   portfolio.ts          Motor canônico de portfólio — FIFO + calcularSnapshot
