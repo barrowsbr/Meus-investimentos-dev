@@ -30,7 +30,7 @@ const POR_ROTA: Array<[string, LoaderVariant]> = [
   ["/evolucao", "arvore"], ["/patrimonio", "arvore"],
   ["/alavancagem", "balanca"], ["/caixa", "balanca"],
   ["/agente-ia", "robo"],
-  ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"],
+  ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"], ["/etf-cem", "pregao"],
   ["/financas", "cofrinho"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
   ["/", "holo"], // Home (por último: prefixo pega tudo)
 ];

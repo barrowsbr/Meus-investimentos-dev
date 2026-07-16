@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal,
+  Rocket, Newspaper, Medal, Crown,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -71,6 +71,7 @@ export const NAV: NavGroup[] = [
       { href: "/agente-ia", label: "Agente IA", icon: Bot, sub: "Assistente de carteira" },
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa (CoinSnap)" },
+      { href: "/etf-cem", label: "ETF Cem", icon: Crown, sub: "As 100 maiores do mundo (via VOO) — preço, P/L e distância do topo" },
     ],
   },
   // Configurações fica à parte (grupo sem rótulo), separado dos demais.
