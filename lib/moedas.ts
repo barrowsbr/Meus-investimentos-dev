@@ -73,6 +73,73 @@ export function metalDaComposicao(comp: string): string {
   return "Outros";
 }
 
+// ── Conjunto monetário (padrão/sistema da moeda) ─────────────────────────────
+// Agrupa a coleção por SISTEMA monetário. No Brasil, as nove eras oficiais
+// (Réis → Cruzeiro 1942 → Cruzeiro Novo → Cruzeiro 1970 → Cruzado → Cruzado
+// Novo → Cruzeiro 1990 → Cruzeiro Real → Real) — centavos são desambiguados
+// pelo ANO, já que existiram em quase todas as eras. Fora do Brasil, a unidade
+// monetária do país (Dólar canadense, Franco suíço, …).
+
+export interface ConjuntoDef {
+  nome: string;
+  periodo?: string; // faixa de vigência (só eras BR)
+  ordem: number;    // cronológica p/ BR; 50 = estrangeiras (ordenar por nome)
+}
+
+const F_ESTRANGEIRO: Record<string, (d: string, ano: number) => string> = {
+  "Canadá": () => "Dólar canadense",
+  "EUA": () => "Dólar americano",
+  "Suíça": () => "Franco suíço",
+  "França": (d, ano) => (d.includes("euro") || ano >= 2002 ? "Euro" : "Franco francês"),
+  "Alemanha": (d, ano) =>
+    d.includes("euro") || ano >= 2002 ? "Euro"
+      : d.includes("reichsmark") || (ano > 0 && ano < 1949) ? "Reichsmark"
+      : "Marco alemão",
+  "Japão": () => "Iene japonês",
+  "Hungria": () => "Florim húngaro",
+  "Islândia": () => "Coroa islandesa",
+  "Colômbia": () => "Peso colombiano",
+  "Cuba": () => "Peso cubano",
+  "Rússia": () => "Rublo russo",
+  "Reino Unido": () => "Libra esterlina",
+  "Argentina": () => "Peso argentino",
+  "México": () => "Peso mexicano",
+  "Portugal": (d, ano) => (d.includes("euro") || ano >= 2002 ? "Euro" : "Escudo português"),
+  "Espanha": (d, ano) => (d.includes("euro") || ano >= 2002 ? "Euro" : "Peseta espanhola"),
+  "Itália": (d, ano) => (d.includes("euro") || ano >= 2002 ? "Euro" : "Lira italiana"),
+};
+
+export function conjuntoMonetario(m: Pick<Moeda, "pais" | "denominacao" | "anoNum">): ConjuntoDef {
+  const d = m.denominacao.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const ano = m.anoNum ?? 0;
+
+  if (m.pais === "Brasil") {
+    if (/\breis\b/.test(d)) return { nome: "Réis", periodo: "até 1942", ordem: 1 };
+    if (d.includes("cruzeiro real") || d.includes("cruzeiros reais")) return { nome: "Cruzeiro Real", periodo: "1993–1994", ordem: 8 };
+    if (d.includes("cruzado novo") || d.includes("cruzados novos")) return { nome: "Cruzado Novo", periodo: "1989–1990", ordem: 6 };
+    if (d.includes("cruzado")) return { nome: "Cruzado", periodo: "1986–1989", ordem: 5 };
+    if (d.includes("cruzeiro")) {
+      if (ano > 0 && ano <= 1967) return { nome: "Cruzeiro (1942–1967)", periodo: "1942–1967", ordem: 2 };
+      if (ano > 0 && ano <= 1986) return { nome: "Cruzeiro (1970–1986)", periodo: "1970–1986", ordem: 4 };
+      return { nome: "Cruzeiro (1990–1993)", periodo: "1990–1993", ordem: 7 };
+    }
+    if (/\bre(al|ais)\b/.test(d)) return { nome: "Real", periodo: "1994–", ordem: 9 };
+    if (d.includes("centavo")) {
+      // Centavo existiu em quase toda era — o ANO decide o padrão.
+      if (ano >= 1994 || ano === 0) return { nome: "Real", periodo: "1994–", ordem: 9 };
+      if (ano >= 1989) return { nome: "Cruzado Novo", periodo: "1989–1990", ordem: 6 };
+      if (ano >= 1986) return { nome: "Cruzado", periodo: "1986–1989", ordem: 5 };
+      if (ano >= 1971) return { nome: "Cruzeiro (1970–1986)", periodo: "1970–1986", ordem: 4 };
+      if (ano >= 1967) return { nome: "Cruzeiro Novo", periodo: "1967–1970", ordem: 3 };
+      return { nome: "Cruzeiro (1942–1967)", periodo: "1942–1967", ordem: 2 };
+    }
+    return { nome: "Brasil — outras", ordem: 20 };
+  }
+
+  const f = F_ESTRANGEIRO[m.pais];
+  return { nome: f ? f(d, ano) : m.pais, ordem: 50 };
+}
+
 // ── País → mapa/bandeira ─────────────────────────────────────────────────────
 // COUNTRY_TO_ISO_NUM (lib/world-map) usa nomes curtos PT; o CoinSnap às vezes
 // exporta o nome longo.

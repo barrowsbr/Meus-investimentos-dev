@@ -10,10 +10,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
-import { GRAD_LABEL, gradTone, type Moeda } from "@/lib/moedas";
+import { GRAD_LABEL, gradTone, conjuntoMonetario, type Moeda } from "@/lib/moedas";
 import { MOEDAS_COLECAO, COLECAO_ATUALIZADA_EM } from "@/lib/moedas-data";
 import { fetchJsonCached } from "@/lib/client-cache";
 import type { PaisStat } from "@/components/moedas/MoedasMapa";
@@ -388,6 +388,7 @@ export default function MoedasShell() {
   const [pais, setPais] = useState<string | null>(null);
   const [metal, setMetal] = useState<string | null>(null);
   const [grad, setGrad] = useState<string | null>(null);
+  const [conjunto, setConjunto] = useState<string | null>(null);
   const [ordem, setOrdem] = useState<Ordem>("valor-desc");
   const [aberta, setAberta] = useState<Moeda | null>(null);
 
@@ -411,11 +412,38 @@ export default function MoedasShell() {
   const metais = useMemo(() => [...new Set((moedas ?? []).map((m) => m.metal))].sort(), [moedas]);
   const grads = useMemo(() => [...new Set((moedas ?? []).map((m) => m.graduacao).filter(Boolean))].sort(), [moedas]);
 
+  // ── Conjuntos (padrões monetários) — a "alocação" da coleção ───────────────
+  // Cada era brasileira (Réis, Cruzeiro, Cruzado, Real…) e cada unidade
+  // estrangeira vira um conjunto, com contagem, valor e fatia do total.
+  const CORES_CONJUNTO = ["#fbbf24", "#34d399", "#60a5fa", "#f472b6", "#a78bfa", "#f87171", "#2dd4bf", "#fb923c", "#e879f9", "#a3e635", "#facc15", "#94a3b8", "#38bdf8", "#fda4af"];
+  const conjuntos = useMemo(() => {
+    const map = new Map<string, { nome: string; periodo?: string; ordem: number; exemplares: number; distintas: number; valor: number; anoMin: number | null; anoMax: number | null }>();
+    let valorColecao = 0;
+    for (const m of moedas ?? []) {
+      const c = conjuntoMonetario(m);
+      const e = map.get(c.nome) ?? { nome: c.nome, periodo: c.periodo, ordem: c.ordem, exemplares: 0, distintas: 0, valor: 0, anoMin: null, anoMax: null };
+      e.exemplares += m.qtd;
+      e.distintas += 1;
+      e.valor += m.valorBrl * m.qtd;
+      valorColecao += m.valorBrl * m.qtd;
+      if (m.anoNum) {
+        e.anoMin = e.anoMin === null ? m.anoNum : Math.min(e.anoMin, m.anoNum);
+        e.anoMax = e.anoMax === null ? m.anoNum : Math.max(e.anoMax, m.anoNum);
+      }
+      map.set(c.nome, e);
+    }
+    return [...map.values()]
+      .sort((a, b) => a.ordem - b.ordem || b.valor - a.valor || a.nome.localeCompare(b.nome))
+      .map((c, i) => ({ ...c, pct: valorColecao > 0 ? (c.valor / valorColecao) * 100 : 0, cor: CORES_CONJUNTO[i % CORES_CONJUNTO.length] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moedas]);
+
   const filtradas = useMemo(() => {
     let out = moedas ?? [];
     if (pais) out = out.filter((m) => m.pais === pais);
     if (metal) out = out.filter((m) => m.metal === metal);
     if (grad) out = out.filter((m) => m.graduacao === grad);
+    if (conjunto) out = out.filter((m) => conjuntoMonetario(m).nome === conjunto);
     if (busca.trim()) {
       const q = busca.trim().toLowerCase();
       out = out.filter((m) =>
@@ -428,7 +456,7 @@ export default function MoedasShell() {
       "ano-desc": (a, b) => (b.anoNum ?? 0) - (a.anoNum ?? 0),
     };
     return [...out].sort(cmp[ordem]);
-  }, [moedas, pais, metal, grad, busca, ordem]);
+  }, [moedas, pais, metal, grad, conjunto, busca, ordem]);
 
   const st = useMemo(() => {
     let valorTotal = 0, exemplares = 0, prataGramas = 0, meltCsv = 0;
@@ -481,6 +509,61 @@ export default function MoedasShell() {
 
       {/* Mapa */}
       <MoedasMapa porPais={porPais} selecionado={pais} onSelect={setPais} />
+
+      {/* Conjuntos — alocação por padrão monetário (Réis, Cruzeiro, Real, …) */}
+      <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500">
+            <Layers size={13} /> Conjuntos — alocação por padrão monetário
+          </p>
+          {conjunto && (
+            <button onClick={() => setConjunto(null)} className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fbbf24" }}>
+              {conjunto} <X size={10} />
+            </button>
+          )}
+        </div>
+
+        {/* Barra de alocação (fatia do valor de catálogo) */}
+        <div className="mt-2.5 flex h-2.5 w-full overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
+          {conjuntos.map((c) => (
+            <div
+              key={c.nome}
+              title={`${c.nome} — ${fmtBRL(c.valor)} (${c.pct.toFixed(1)}%)`}
+              style={{ width: `${c.pct}%`, background: c.cor, opacity: conjunto && conjunto !== c.nome ? 0.22 : 1, transition: "opacity .2s" }}
+            />
+          ))}
+        </div>
+
+        {/* Cards dos conjuntos (clique filtra a grade) */}
+        <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {conjuntos.map((c) => {
+            const ativo = conjunto === c.nome;
+            const anos = c.anoMin !== null ? (c.anoMin === c.anoMax ? `${c.anoMin}` : `${c.anoMin}–${c.anoMax}`) : null;
+            return (
+              <button
+                key={c.nome}
+                onClick={() => setConjunto(ativo ? null : c.nome)}
+                className="rounded-xl p-2 text-left transition-colors"
+                style={{
+                  background: ativo ? "rgba(245,158,11,0.12)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${ativo ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.08)"}`,
+                }}
+              >
+                <p className="flex items-center gap-1.5 truncate text-[11px] font-semibold" style={{ color: ativo ? "#fbbf24" : "#e4e4e7" }}>
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: c.cor }} />
+                  {c.nome}
+                </p>
+                <p className="mt-0.5 truncate text-[9px] text-zinc-500">
+                  {c.periodo ?? anos ?? "—"} · {c.exemplares} exemplar{c.exemplares !== 1 ? "es" : ""}{c.distintas !== c.exemplares ? ` (${c.distintas} distintas)` : ""}
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-zinc-200">
+                  {fmtBRL(c.valor)} <span className="text-zinc-500">· {c.pct.toFixed(1)}%</span>
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Filtros */}
       <div className="space-y-2">
