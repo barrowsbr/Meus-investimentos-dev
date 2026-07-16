@@ -7,8 +7,1686 @@
 
 import type { Moeda } from "./moedas";
 
-export const COLECAO_ATUALIZADA_EM = "2026-07-15";
+export const COLECAO_ATUALIZADA_EM = "2026-07-16";
 export const MOEDAS_COLECAO: Moeda[] = [
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "50 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 604",
+  "ano": "1987",
+  "anoNum": 1987,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.78,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171107-55093722927127.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171105-9960961301126.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171107-55093722927127.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171105-9960961301126.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzado",
+  "assunto": "Séries comuns",
+  "krause": "KM# 605",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 2.24,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171085-416632537123.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171084-1025451103122.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171085-416632537123.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171084-1025451103122.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784083005-474545378915.webp",
+    "reverso": "/colecao-moedas/1784082999-675744840514.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzados",
+  "assunto": "Séries comuns",
+  "krause": "KM# 607",
+  "ano": "1987",
+  "anoNum": 1987,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.93,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171041-6096234247119.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171040-1853949845118.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784171041-6096234247119.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784171040-1853949845118.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784081708-079284119823.webp",
+    "reverso": "/colecao-moedas/1784081706-749721156322.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "20 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 603",
+  "ano": "1987",
+  "anoNum": 1987,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.85,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170996-10849711211115.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170994-7710699753114.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170996-10849711211115.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170994-7710699753114.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084360-259225822175.webp",
+    "reverso": "/colecao-moedas/1784084358-869954793974.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 centavos",
+  "assunto": "Série FAO - Carne",
+  "krause": "KM# 587",
+  "ano": "1975",
+  "anoNum": 1975,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.2,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170976-95675522495111.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170975-424346385110.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 3,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170976-95675522495111.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170975-424346385110.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169930-85163123775159.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169929-442358850158.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084557-0739893363115.webp",
+    "reverso": "/colecao-moedas/1784084555-7059466692114.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 centavo",
+  "assunto": "Séries comuns",
+  "krause": "KM# 575.2",
+  "ano": "1969",
+  "anoNum": 1969,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.73,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170957-86214116594107.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170956-3609764108106.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170957-86214116594107.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170956-3609764108106.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170818-27557771579.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170816-8385072277078.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 602",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.37,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170938-485637878103.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170937-010576612102.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170938-485637878103.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170937-010576612102.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784082757-847659778665.webp",
+    "reverso": "/colecao-moedas/1784082756-332642969764.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "2 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 576.1",
+  "ano": "1967",
+  "anoNum": 1967,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.73,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170919-311131938799.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170917-810828229698.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170919-311131938799.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170917-810828229698.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 577.2",
+  "ano": "1969",
+  "anoNum": 1969,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.22,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170899-288271952295.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170898-058847806794.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170899-288271952295.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170898-058847806794.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzados",
+  "assunto": "Séries comuns",
+  "krause": "KM# 607",
+  "ano": "1988",
+  "anoNum": 1988,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170880-9947572788291.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170879-6594281772290.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 4,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170880-9947572788291.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170879-6594281772290.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170562-786766390435.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170561-420865704934.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084420-674127268787.webp",
+    "reverso": "/colecao-moedas/1784084419-211482935486.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784082679-013927597951.webp",
+    "reverso": "/colecao-moedas/1784082676-3839622406450.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 cruzados",
+  "assunto": "Séries comuns",
+  "krause": "KM# 606",
+  "ano": "1987",
+  "anoNum": 1987,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.26,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170837-51759235283.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170836-234776567882.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170837-51759235283.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170836-234776567882.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 cruzeiros reais",
+  "assunto": "Séries comuns",
+  "krause": "KM# 627",
+  "ano": "1993",
+  "anoNum": 1993,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 2.85,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170798-116339384975.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170796-797015193474.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170798-116339384975.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170796-797015193474.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 578.1a",
+  "ano": "1978",
+  "anoNum": 1978,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.27,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170777-01789746071.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170775-68156196370.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170777-01789746071.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170775-68156196370.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170777-01789746071.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170775-68156196370.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 590",
+  "ano": "1980",
+  "anoNum": 1980,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.48,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170758-566561347367.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170757-281846717566.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170758-566561347367.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170757-281846717566.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084401-581279127083.webp",
+    "reverso": "/colecao-moedas/1784084400-151448594882.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "2 centavos",
+  "assunto": "Série FAO - Soja",
+  "krause": "KM# 586",
+  "ano": "1975",
+  "anoNum": 1975,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.2,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170733-8679528880663.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170732-4660568720362.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170733-8679528880663.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170732-4660568720362.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084678-0175857094127.webp",
+    "reverso": "/colecao-moedas/1784084676-71398787107126.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 590",
+  "ano": "1979",
+  "anoNum": 1979,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.32,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170700-014351321859.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170698-555740892758.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170700-014351321859.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170698-555740892758.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168534-543188426011.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168533-040632714010.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "100 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 595",
+  "ano": "1985",
+  "anoNum": 1985,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.7,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170680-901489138455.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170679-4169621912954.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170680-901489138455.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170679-4169621912954.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169863-85600513151.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169862-396223796150.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 592.1",
+  "ano": "1981",
+  "anoNum": 1981,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.07,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170655-537837663151.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170654-296002794150.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 3,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170655-537837663151.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170654-296002794150.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084438-161425188691.webp",
+    "reverso": "/colecao-moedas/1784084436-8414822877890.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784082876-71867636773.webp",
+    "reverso": "/colecao-moedas/1784082874-34662172912.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 591",
+  "ano": "1980",
+  "anoNum": 1980,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 1.17,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170637-248528547347.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170635-895042593346.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170637-248528547347.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170635-895042593346.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzado",
+  "assunto": "Séries comuns",
+  "krause": "KM# 605",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.24,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170618-2278694843.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170616-851244807242.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170618-2278694843.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170616-851244807242.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "500 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 597",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.05,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170597-988833635839.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170596-705309484738.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170597-988833635839.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170596-705309484738.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168614-009544735919.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168612-447319174318.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzeiros reais",
+  "assunto": "Séries comuns",
+  "krause": "KM# 628",
+  "ano": "1993",
+  "anoNum": 1993,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170449-9735951258027.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170448-6804249426.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170449-9735951258027.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170448-6804249426.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 617",
+  "ano": "1990",
+  "anoNum": 1990,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "MS",
+  "valorBrl": 3.2,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170412-537222931323.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170411-084753863722.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170412-537222931323.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170411-084753863722.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "500 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 624",
+  "ano": "1992",
+  "anoNum": 1992,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170375-5619411552919.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170374-27653406618.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170375-5619411552919.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170374-27653406618.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169890-469199152155.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169889-1168136627154.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 619",
+  "ano": "1991",
+  "anoNum": 1991,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.73,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170331-604307227015.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170328-128646405714.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170331-604307227015.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170328-128646405714.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 618",
+  "ano": "1990",
+  "anoNum": 1990,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 1.58,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170303-1252751762711.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170301-6572762853110.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170303-1252751762711.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170301-6572762853110.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5 cruzados",
+  "assunto": "Séries comuns",
+  "krause": "KM# 606",
+  "ano": "1988",
+  "anoNum": 1988,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.2,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170237-92190863237.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170236-61148176786.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170237-92190863237.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170236-61148176786.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "50 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 574",
+  "ano": "1965",
+  "anoNum": 1965,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.61,
+  "composicao": "Níquel",
+  "metal": "Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170214-054083873813.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170211-65577869842.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170214-054083873813.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170211-65577869842.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784083866-790945202039.webp",
+    "reverso": "/colecao-moedas/1784083865-462418244138.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 centavo",
+  "assunto": "Série FAO - Cana de açúcar",
+  "krause": "KM# 585",
+  "ano": "1975",
+  "anoNum": 1975,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.1,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170015-1336021393167.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170013-81026324522166.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784170015-1336021393167.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784170013-81026324522166.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "100 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 623",
+  "ano": "1992",
+  "anoNum": 1992,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.19,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169969-5720223509163.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169968-31293587780162.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169969-5720223509163.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169968-31293587780162.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "100 cruzeiros reais",
+  "assunto": "Séries comuns",
+  "krause": "KM# 630",
+  "ano": "1993",
+  "anoNum": 1993,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 5.34,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169817-1291098070147.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169815-7932741867146.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169817-1291098070147.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169815-7932741867146.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "200 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 596",
+  "ano": "1985",
+  "anoNum": 1985,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.1,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169741-291098221143.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169739-9133471842142.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169741-291098221143.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169739-9133471842142.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzado",
+  "assunto": "Séries comuns",
+  "krause": "KM# 605",
+  "ano": "1988",
+  "anoNum": 1988,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "MS",
+  "valorBrl": 1.68,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169698-9294782901139.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169697-59195331138.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169698-9294782901139.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169697-59195331138.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 centavo",
+  "assunto": "Séries comuns",
+  "krause": "KM# 600",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.03,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169672-1528689330135.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169670-7915388852134.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169672-1528689330135.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169670-7915388852134.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084341-341765262671.webp",
+    "reverso": "/colecao-moedas/1784084339-991324611970.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 581",
+  "ano": "1970",
+  "anoNum": 1970,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 3.2,
+  "composicao": "Níquel",
+  "metal": "Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169635-4566479174131.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169634-0722016556130.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169635-4566479174131.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169634-0722016556130.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 581a",
+  "ano": "1976",
+  "anoNum": 1976,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 2.75,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169563-0060898570123.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169561-65013896585122.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169563-0060898570123.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169561-65013896585122.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "50 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 580b",
+  "ano": "1979",
+  "anoNum": 1979,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 3.66,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169527-9880759805119.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169526-72867018310118.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169527-9880759805119.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169526-72867018310118.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "5000 cruzeiros",
+  "assunto": "200 anos da morte de Tiradentes",
+  "krause": "KM# 625",
+  "ano": "1992",
+  "anoNum": 1992,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 15.31,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169480-4980862460115.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169479-2127097130114.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169480-4980862460115.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169479-2127097130114.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 581a",
+  "ano": "1975",
+  "anoNum": 1975,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 4.02,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169442-68139319110111.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169441-3015385742110.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169442-68139319110111.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169441-3015385742110.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784084537-8127424627111.webp",
+    "reverso": "/colecao-moedas/1784084536-502769319110.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1000 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 550",
+  "ano": "1939",
+  "anoNum": 1939,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 4.17,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169404-35216714679107.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169402-78868487219106.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169404-35216714679107.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169402-78868487219106.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1000 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 550",
+  "ano": "1939",
+  "anoNum": 1939,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 4.17,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169348-3877228079103.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169346-9583521690102.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169348-3877228079103.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169346-9583521690102.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "500 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 524",
+  "ano": "1927",
+  "anoNum": 1927,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 7.94,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169307-287724235299.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169305-723573385298.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169307-287724235299.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169305-723573385298.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "200 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 504",
+  "ano": "1901",
+  "anoNum": 1901,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 6.56,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169267-631093260895.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169266-294601957194.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169267-631093260895.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169266-294601957194.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 centavos",
+  "assunto": "Séries comuns",
+  "krause": "KM# 555",
+  "ano": "1943",
+  "anoNum": 1943,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 14.19,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169238-4611712415991.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169236-958794809990.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169238-4611712415991.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169236-958794809990.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "20 centavos",
+  "assunto": "Getúlio Vargas",
+  "krause": "",
+  "ano": "1945",
+  "anoNum": 1945,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 4.53,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169199-655264766387.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169198-1269479630986.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169199-655264766387.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169198-1269479630986.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "400 reis",
+  "assunto": "Getúlio Vargas",
+  "krause": "KM# 547",
+  "ano": "1940",
+  "anoNum": 1940,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 7.02,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169173-84579866283.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169172-526245615982.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169173-84579866283.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169172-526245615982.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168457-675372112893.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168455-46423399342.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "2 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 559",
+  "ano": "1946",
+  "anoNum": 1946,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 8.75,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169122-511701113177.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169121-196058631776.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169122-511701113177.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169121-196058631776.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1000 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 541",
+  "ano": "1937",
+  "anoNum": 1937,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 11.65,
+  "composicao": "Alumínio-Bronze",
+  "metal": "Alumínio-Bronze",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169096-131634968473.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169094-851139462572.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169096-131634968473.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169094-851139462572.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "100 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 503",
+  "ano": "1901",
+  "anoNum": 1901,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "F",
+  "valorBrl": 6.36,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169064-333435207169.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169062-88523136668.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169064-333435207169.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169062-88523136668.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "400 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 505",
+  "ano": "1901",
+  "anoNum": 1901,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "F",
+  "valorBrl": 10.63,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169019-17590170565.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169017-7723541492564.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 3,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784169019-17590170565.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784169017-7723541492564.webp"
+   },
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168671-249465493627.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168669-822617535526.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1783913998-5296888970251.webp",
+    "reverso": "/colecao-moedas/1783913996-7190452520050.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "200 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 519",
+  "ano": "1931",
+  "anoNum": 1931,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "VF",
+  "valorBrl": 11.75,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168982-275192195061.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168980-807428602760.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168982-275192195061.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168980-807428602760.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "300 reis",
+  "assunto": "Séries comuns",
+  "krause": "KM# 538",
+  "ano": "1936",
+  "anoNum": 1936,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 7.83,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168943-4669771811657.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168942-230376427356.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168943-4669771811657.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168942-230376427356.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784085287-8738642394147.webp",
+    "reverso": "/colecao-moedas/1784085285-3520563880146.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Sesquicentenário da Declaração de Independência",
+  "krause": "KM# 582",
+  "ano": "1972",
+  "anoNum": 1972,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 10.53,
+  "composicao": "Níquel",
+  "metal": "Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168880-885246944551.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168879-417484664750.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168880-885246944551.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168879-417484664750.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1783910336-612389977551.webp",
+    "reverso": "/colecao-moedas/1783910335-28898262350.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "2 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 571",
+  "ano": "1961",
+  "anoNum": 1961,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 3.15,
+  "composicao": "Alumínio",
+  "metal": "Alumínio",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168839-5675669979247.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168838-301034413246.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168839-5675669979247.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168838-301034413246.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Sesquicentenário da Declaração de Independência",
+  "krause": "KM# 582",
+  "ano": "1972",
+  "anoNum": 1972,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 10.53,
+  "composicao": "Níquel",
+  "metal": "Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168807-882288411043.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168806-466804838842.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168807-882288411043.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168806-466804838842.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "50 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 594.1",
+  "ano": "1982",
+  "anoNum": 1982,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "XF",
+  "valorBrl": 2.39,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168709-627551277331.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168708-060004643930.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 2,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168709-627551277331.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168708-060004643930.webp"
+   },
+   {
+    "anverso": "/colecao-moedas/1784081585-90774866673.webp",
+    "reverso": "/colecao-moedas/1784081582-91209280702.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "10 cruzeiros",
+  "assunto": "Séries comuns",
+  "krause": "KM# 592.2",
+  "ano": "1986",
+  "anoNum": 1986,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 4.53,
+  "composicao": "Aço inoxidável",
+  "metal": "Aço",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168567-7120008814215.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168566-264904283114.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168567-7120008814215.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168566-264904283114.webp"
+   }
+  ]
+ },
+ {
+  "pais": "Brasil",
+  "emissor": "Brasil",
+  "denominacao": "1 cruzeiro",
+  "assunto": "Séries comuns",
+  "krause": "KM# 581a",
+  "ano": "1975",
+  "anoNum": 1975,
+  "marca": "Sem marca da casa da moeda",
+  "graduacao": "AU",
+  "valorBrl": 4.02,
+  "composicao": "Cupro-Níquel",
+  "metal": "Cupro-Níquel",
+  "pesoMetalG": null,
+  "derretimentoBrl": null,
+  "fotoAnverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168498-8852744997.webp",
+  "fotoReverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168497-09456987436.webp",
+  "nota": "",
+  "serie": "Minhas Moedas",
+  "qtd": 1,
+  "fotos": [
+   {
+    "anverso": "https://static.coinidentifierai.com/app/prod/recognize/subject_side/514027894/1784168498-8852744997.webp",
+    "reverso": "https://static.coinidentifierai.com/app/prod/recognize/denomination_side/514027894/1784168497-09456987436.webp"
+   }
+  ]
+ },
  {
   "pais": "Brasil",
   "emissor": "Brasil",
@@ -19,7 +1697,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1976,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 2.76,
+  "valorBrl": 2.75,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -46,7 +1724,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1989,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.18,
+  "valorBrl": 1.17,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -77,7 +1755,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1938,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 8.59,
+  "valorBrl": 8.55,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -104,7 +1782,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 5.26,
+  "valorBrl": 5.24,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -131,7 +1809,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1922,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 10.27,
+  "valorBrl": 10.22,
   "composicao": "Alumínio-Bronze",
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
@@ -158,7 +1836,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1931,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 12.06,
+  "valorBrl": 12,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -185,7 +1863,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1938,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 4.29,
+  "valorBrl": 4.27,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -205,33 +1883,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "300 reis",
-  "assunto": "Séries comuns",
-  "krause": "KM# 538",
-  "ano": "1936",
-  "anoNum": 1936,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "XF",
-  "valorBrl": 7.87,
-  "composicao": "Cupro-Níquel",
-  "metal": "Cupro-Níquel",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784085287-8738642394147.webp",
-  "fotoReverso": "/colecao-moedas/1784085285-3520563880146.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784085287-8738642394147.webp",
-    "reverso": "/colecao-moedas/1784085285-3520563880146.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "400 reis",
   "assunto": "Séries comuns",
   "krause": "KM# 539",
@@ -239,7 +1890,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 22.03,
+  "valorBrl": 21.92,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -266,7 +1917,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1989,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.23,
+  "valorBrl": 1.22,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -297,7 +1948,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1989,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 2.96,
+  "valorBrl": 2.95,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -317,33 +1968,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "2 centavos",
-  "assunto": "Série FAO - Soja",
-  "krause": "KM# 586",
-  "ano": "1975",
-  "anoNum": 1975,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 3.22,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084678-0175857094127.webp",
-  "fotoReverso": "/colecao-moedas/1784084676-71398787107126.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084678-0175857094127.webp",
-    "reverso": "/colecao-moedas/1784084676-71398787107126.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "1 centavo",
   "assunto": "Séries comuns",
   "krause": "KM# 589",
@@ -351,7 +1975,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1979,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 49.63,
+  "valorBrl": 49.39,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -371,60 +1995,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "5 centavos",
-  "assunto": "Série FAO - Carne",
-  "krause": "KM# 587",
-  "ano": "1975",
-  "anoNum": 1975,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 3.22,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084557-0739893363115.webp",
-  "fotoReverso": "/colecao-moedas/1784084555-7059466692114.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084557-0739893363115.webp",
-    "reverso": "/colecao-moedas/1784084555-7059466692114.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "1 cruzeiro",
-  "assunto": "Séries comuns",
-  "krause": "KM# 581a",
-  "ano": "1975",
-  "anoNum": 1975,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "XF",
-  "valorBrl": 4.04,
-  "composicao": "Cupro-Níquel",
-  "metal": "Cupro-Níquel",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084537-8127424627111.webp",
-  "fotoReverso": "/colecao-moedas/1784084536-502769319110.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084537-8127424627111.webp",
-    "reverso": "/colecao-moedas/1784084536-502769319110.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "5 cruzeiros",
   "assunto": "Séries comuns",
   "krause": "KM# 591",
@@ -432,7 +2002,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1984,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 2.35,
+  "valorBrl": 2.34,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -486,7 +2056,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1987,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.79,
+  "valorBrl": 1.78,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -513,7 +2083,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1985,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 1.99,
+  "valorBrl": 1.98,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -527,149 +2097,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
    {
     "anverso": "/colecao-moedas/1784084456-9864988255495.webp",
     "reverso": "/colecao-moedas/1784084455-55056129294.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "10 cruzeiros",
-  "assunto": "Séries comuns",
-  "krause": "KM# 592.1",
-  "ano": "1981",
-  "anoNum": 1981,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "XF",
-  "valorBrl": 1.07,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084438-161425188691.webp",
-  "fotoReverso": "/colecao-moedas/1784084436-8414822877890.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 2,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084438-161425188691.webp",
-    "reverso": "/colecao-moedas/1784084436-8414822877890.webp"
-   },
-   {
-    "anverso": "/colecao-moedas/1784082876-71867636773.webp",
-    "reverso": "/colecao-moedas/1784082874-34662172912.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "10 cruzados",
-  "assunto": "Séries comuns",
-  "krause": "KM# 607",
-  "ano": "1988",
-  "anoNum": 1988,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 3.02,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084420-674127268787.webp",
-  "fotoReverso": "/colecao-moedas/1784084419-211482935486.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 2,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084420-674127268787.webp",
-    "reverso": "/colecao-moedas/1784084419-211482935486.webp"
-   },
-   {
-    "anverso": "/colecao-moedas/1784082679-013927597951.webp",
-    "reverso": "/colecao-moedas/1784082676-3839622406450.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "1 cruzeiro",
-  "assunto": "Séries comuns",
-  "krause": "KM# 590",
-  "ano": "1980",
-  "anoNum": 1980,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 1.48,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084401-581279127083.webp",
-  "fotoReverso": "/colecao-moedas/1784084400-151448594882.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084401-581279127083.webp",
-    "reverso": "/colecao-moedas/1784084400-151448594882.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "20 centavos",
-  "assunto": "Séries comuns",
-  "krause": "KM# 603",
-  "ano": "1987",
-  "anoNum": 1987,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 2.86,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084360-259225822175.webp",
-  "fotoReverso": "/colecao-moedas/1784084358-869954793974.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084360-259225822175.webp",
-    "reverso": "/colecao-moedas/1784084358-869954793974.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "1 centavo",
-  "assunto": "Séries comuns",
-  "krause": "KM# 600",
-  "ano": "1986",
-  "anoNum": 1986,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 2.04,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784084341-341765262671.webp",
-  "fotoReverso": "/colecao-moedas/1784084339-991324611970.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784084341-341765262671.webp",
-    "reverso": "/colecao-moedas/1784084339-991324611970.webp"
    }
   ]
  },
@@ -710,7 +2137,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2010,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.18,
+  "valorBrl": 1.17,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -838,33 +2265,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "50 cruzeiros",
-  "assunto": "Séries comuns",
-  "krause": "KM# 574",
-  "ano": "1965",
-  "anoNum": 1965,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 3.63,
-  "composicao": "Níquel",
-  "metal": "Níquel",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083866-790945202039.webp",
-  "fotoReverso": "/colecao-moedas/1784083865-462418244138.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784083866-790945202039.webp",
-    "reverso": "/colecao-moedas/1784083865-462418244138.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "25 centavos",
   "assunto": "Séries comuns",
   "krause": "KM# 634",
@@ -872,7 +2272,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1995,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 1.89,
+  "valorBrl": 1.88,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -899,7 +2299,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1991,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.74,
+  "valorBrl": 1.73,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -926,7 +2326,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1990,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 1.84,
+  "valorBrl": 1.83,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -953,7 +2353,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1946,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 4.04,
+  "valorBrl": 4.02,
   "composicao": "Alumínio-Bronze",
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
@@ -980,7 +2380,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1938,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 8.38,
+  "valorBrl": 8.34,
   "composicao": "Alumínio-Bronze",
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
@@ -1007,7 +2407,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1876,
   "marca": "C",
   "graduacao": "VF",
-  "valorBrl": 5.47,
+  "valorBrl": 5.44,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -1034,7 +2434,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1994,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 2.15,
+  "valorBrl": 2.14,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1054,33 +2454,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "1 cruzado",
-  "assunto": "Séries comuns",
-  "krause": "KM# 605",
-  "ano": "1986",
-  "anoNum": 1986,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "VF",
-  "valorBrl": 2.25,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784083005-474545378915.webp",
-  "fotoReverso": "/colecao-moedas/1784082999-675744840514.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784083005-474545378915.webp",
-    "reverso": "/colecao-moedas/1784082999-675744840514.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "1 centavo",
   "assunto": "Séries comuns",
   "krause": "KM# 631",
@@ -1088,7 +2461,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1995,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 0.82,
+  "valorBrl": 0.81,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1115,7 +2488,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1994,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 2.76,
+  "valorBrl": 2.75,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1135,33 +2508,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "10 centavos",
-  "assunto": "Séries comuns",
-  "krause": "KM# 602",
-  "ano": "1986",
-  "anoNum": 1986,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 1.38,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784082757-847659778665.webp",
-  "fotoReverso": "/colecao-moedas/1784082756-332642969764.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784082757-847659778665.webp",
-    "reverso": "/colecao-moedas/1784082756-332642969764.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "20 cruzeiros",
   "assunto": "Séries comuns",
   "krause": "",
@@ -1169,7 +2515,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1983,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 2.1,
+  "valorBrl": 2.09,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1196,7 +2542,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1972,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AG",
-  "valorBrl": 10.58,
+  "valorBrl": 10.53,
   "composicao": "Níquel",
   "metal": "Níquel",
   "pesoMetalG": null,
@@ -1223,7 +2569,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1940,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 8.74,
+  "valorBrl": 8.7,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -1250,7 +2596,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1901,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 10.73,
+  "valorBrl": 10.68,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -1277,11 +2623,11 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1924,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 38.54,
+  "valorBrl": 38.35,
   "composicao": "Prata 0.500",
   "metal": "Prata",
   "pesoMetalG": 4,
-  "derretimentoBrl": 38.03,
+  "derretimentoBrl": 38.25,
   "fotoAnverso": "/colecao-moedas/1784082527-648634894535.webp",
   "fotoReverso": "/colecao-moedas/1784082526-330868225634.webp",
   "nota": "",
@@ -1297,33 +2643,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "10 cruzados",
-  "assunto": "Séries comuns",
-  "krause": "KM# 607",
-  "ano": "1987",
-  "anoNum": 1987,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 1.94,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081708-079284119823.webp",
-  "fotoReverso": "/colecao-moedas/1784081706-749721156322.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784081708-079284119823.webp",
-    "reverso": "/colecao-moedas/1784081706-749721156322.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "20 cruzeiros",
   "assunto": "Séries comuns",
   "krause": "KM# 573",
@@ -1331,7 +2650,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1965,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "MS",
-  "valorBrl": 3.88,
+  "valorBrl": 3.87,
   "composicao": "Alumínio",
   "metal": "Alumínio",
   "pesoMetalG": null,
@@ -1358,7 +2677,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1984,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.64,
+  "valorBrl": 1.63,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1412,7 +2731,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1982,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 1.33,
+  "valorBrl": 1.32,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1432,33 +2751,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "50 cruzeiros",
-  "assunto": "Séries comuns",
-  "krause": "KM# 594.1",
-  "ano": "1982",
-  "anoNum": 1982,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "XF",
-  "valorBrl": 2.4,
-  "composicao": "Aço inoxidável",
-  "metal": "Aço",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1784081585-90774866673.webp",
-  "fotoReverso": "/colecao-moedas/1784081582-91209280702.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1784081585-90774866673.webp",
-    "reverso": "/colecao-moedas/1784081582-91209280702.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "1 real",
   "assunto": "XXXI Jogos Olímpicos de Verão, Rio de Janeiro 2016 - Boxe",
   "krause": "KM# 724",
@@ -1466,7 +2758,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2016,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.8,
+  "valorBrl": 6.77,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1497,7 +2789,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.05,
+  "valorBrl": 7.02,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1528,7 +2820,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.03,
+  "valorBrl": 6,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1559,7 +2851,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2016,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.05,
+  "valorBrl": 7.02,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1590,7 +2882,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.67,
+  "valorBrl": 7.63,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1621,7 +2913,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.99,
+  "valorBrl": 1.98,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1648,7 +2940,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1994,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.28,
+  "valorBrl": 1.27,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1675,7 +2967,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1995,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 134.58,
+  "valorBrl": 133.94,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -1702,7 +2994,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1998,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.24,
+  "valorBrl": 6.21,
   "composicao": "Bimetálica: centro de Cupro-Níquel, anel de Latão",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1733,7 +3025,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.46,
+  "valorBrl": 7.43,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1791,7 +3083,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.87,
+  "valorBrl": 7.83,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1822,7 +3114,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2014,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.13,
+  "valorBrl": 6.1,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1853,7 +3145,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.31,
+  "valorBrl": 7.27,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1884,7 +3176,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2005,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 17.07,
+  "valorBrl": 16.99,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1915,7 +3207,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.56,
+  "valorBrl": 7.53,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1946,7 +3238,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2016,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.1,
+  "valorBrl": 7.07,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -1973,7 +3265,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2002,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 18.45,
+  "valorBrl": 18.36,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2004,7 +3296,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.49,
+  "valorBrl": 6.46,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2035,7 +3327,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2019,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.64,
+  "valorBrl": 6.61,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2066,7 +3358,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2014,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7,
+  "valorBrl": 6.97,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2097,7 +3389,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2016,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.34,
+  "valorBrl": 6.31,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2128,7 +3420,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2014,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.44,
+  "valorBrl": 6.41,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2159,7 +3451,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2014,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.16,
+  "valorBrl": 7.12,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2190,7 +3482,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2015,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 6.34,
+  "valorBrl": 6.31,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2221,7 +3513,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1993,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 4.04,
+  "valorBrl": 4.02,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -2248,7 +3540,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1965,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 5.52,
+  "valorBrl": 5.49,
   "composicao": "Alumínio",
   "metal": "Alumínio",
   "pesoMetalG": null,
@@ -2275,7 +3567,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1996,
   "marca": "BP",
   "graduacao": "XF",
-  "valorBrl": 2.15,
+  "valorBrl": 2.14,
   "composicao": "Bimetálica: centro de Aço com revestimento de Latão, anel de Aço inoxidável",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2302,7 +3594,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1889,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 10.94,
+  "valorBrl": 10.89,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2329,7 +3621,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1998,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 240.24,
+  "valorBrl": 239.08,
   "composicao": "Bimetálica: centro de Cupro-Níquel, anel de Latão",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2360,11 +3652,11 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "A",
   "graduacao": "XF",
-  "valorBrl": 58.42,
+  "valorBrl": 58.14,
   "composicao": "Prata 0.625",
   "metal": "Prata",
   "pesoMetalG": 5,
-  "derretimentoBrl": 47.54,
+  "derretimentoBrl": 47.82,
   "fotoAnverso": "/colecao-moedas/1783998661-93216096383.webp",
   "fotoReverso": "/colecao-moedas/1783998659-82466964262.webp",
   "nota": "",
@@ -2387,7 +3679,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1920,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 6.39,
+  "valorBrl": 6.36,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2414,7 +3706,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 5.78,
+  "valorBrl": 5.75,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2432,33 +3724,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
   ]
  },
  {
-  "pais": "Brasil",
-  "emissor": "Brasil",
-  "denominacao": "400 reis",
-  "assunto": "Séries comuns",
-  "krause": "KM# 505",
-  "ano": "1901",
-  "anoNum": 1901,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "F",
-  "valorBrl": 10.68,
-  "composicao": "Cupro-Níquel",
-  "metal": "Cupro-Níquel",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783913998-5296888970251.webp",
-  "fotoReverso": "/colecao-moedas/1783913996-7190452520050.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1783913998-5296888970251.webp",
-    "reverso": "/colecao-moedas/1783913996-7190452520050.webp"
-   }
-  ]
- },
- {
   "pais": "Rússia",
   "emissor": "Rússia",
   "denominacao": "1 Rublo da Sorte",
@@ -2468,7 +3733,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": null,
   "marca": "Felicidade e Saúde",
   "graduacao": "UNC",
-  "valorBrl": 17.89,
+  "valorBrl": 17.8,
   "composicao": "Metal de base banhado a prata",
   "metal": "Banhada a prata",
   "pesoMetalG": null,
@@ -2495,7 +3760,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1968,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 2.25,
+  "valorBrl": 2.24,
   "composicao": "Alumínio",
   "metal": "Alumínio",
   "pesoMetalG": null,
@@ -2522,7 +3787,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1972,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 1.28,
+  "valorBrl": 1.27,
   "composicao": "Latão",
   "metal": "Latão",
   "pesoMetalG": null,
@@ -2549,7 +3814,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1901,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VG",
-  "valorBrl": 10.68,
+  "valorBrl": 10.63,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2576,7 +3841,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1994,
   "marca": "B",
   "graduacao": "AU",
-  "valorBrl": 13.14,
+  "valorBrl": 13.07,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2603,7 +3868,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1995,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 57.25,
+  "valorBrl": 56.97,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -2630,7 +3895,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "folha",
   "graduacao": "AU",
-  "valorBrl": 1.89,
+  "valorBrl": 1.88,
   "composicao": "Aço com revestimento de Níquel",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -2684,7 +3949,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.62,
+  "valorBrl": 7.58,
   "composicao": "Níquel com revestimento de Bronze",
   "metal": "Níquel",
   "pesoMetalG": null,
@@ -2711,7 +3976,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "Folha Copper plated Steel",
   "graduacao": "XF",
-  "valorBrl": 0.82,
+  "valorBrl": 0.81,
   "composicao": "Aço com revestimento de Cobre",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -2738,7 +4003,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1994,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 2.76,
+  "valorBrl": 2.75,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -2765,7 +4030,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2008,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 2.4,
+  "valorBrl": 2.39,
   "composicao": "Bimetálica: centro de Alumínio-Bronze, anel de Cupro-Níquel",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2792,7 +4057,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AG",
-  "valorBrl": 18.86,
+  "valorBrl": 18.77,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2819,7 +4084,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1927,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "P",
-  "valorBrl": 7.77,
+  "valorBrl": 7.73,
   "composicao": "Alumínio-Bronze",
   "metal": "Alumínio-Bronze",
   "pesoMetalG": null,
@@ -2846,7 +4111,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2012,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 124.67,
+  "valorBrl": 124.07,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2877,7 +4142,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2016,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 7.1,
+  "valorBrl": 7.07,
   "composicao": "Bimetálica: centro de Aço inoxidável, anel de Aço com revestimento de Bronze",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -2904,7 +4169,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1924,
   "marca": "Cornucopia",
   "graduacao": "AU",
-  "valorBrl": 2.35,
+  "valorBrl": 2.34,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2924,33 +4189,6 @@ export const MOEDAS_COLECAO: Moeda[] = [
  {
   "pais": "Brasil",
   "emissor": "Brasil",
-  "denominacao": "1 cruzeiro",
-  "assunto": "Sesquicentenário da Declaração de Independência",
-  "krause": "KM# 582",
-  "ano": "1972",
-  "anoNum": 1972,
-  "marca": "Sem marca da casa da moeda",
-  "graduacao": "AU",
-  "valorBrl": 10.58,
-  "composicao": "Níquel",
-  "metal": "Níquel",
-  "pesoMetalG": null,
-  "derretimentoBrl": null,
-  "fotoAnverso": "/colecao-moedas/1783910336-612389977551.webp",
-  "fotoReverso": "/colecao-moedas/1783910335-28898262350.webp",
-  "nota": "",
-  "serie": "Minhas Moedas",
-  "qtd": 1,
-  "fotos": [
-   {
-    "anverso": "/colecao-moedas/1783910336-612389977551.webp",
-    "reverso": "/colecao-moedas/1783910335-28898262350.webp"
-   }
-  ]
- },
- {
-  "pais": "Brasil",
-  "emissor": "Brasil",
   "denominacao": "200 reis",
   "assunto": "Séries comuns",
   "krause": "KM# 493",
@@ -2958,7 +4196,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1898,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "VF",
-  "valorBrl": 21.72,
+  "valorBrl": 21.62,
   "composicao": "Cupro-Níquel",
   "metal": "Cupro-Níquel",
   "pesoMetalG": null,
@@ -2985,7 +4223,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2008,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 2.86,
+  "valorBrl": 2.85,
   "composicao": "Aço com revestimento de Níquel",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -3012,7 +4250,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1995,
   "marca": "Cinco Pontas (Buraco Pentagonal)",
   "graduacao": "XF",
-  "valorBrl": 11.5,
+  "valorBrl": 11.45,
   "composicao": "Latão",
   "metal": "Latão",
   "pesoMetalG": null,
@@ -3039,11 +4277,11 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1936,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 67.21,
+  "valorBrl": 66.89,
   "composicao": "Prata 0.600",
   "metal": "Prata",
   "pesoMetalG": 6,
-  "derretimentoBrl": 57.04,
+  "derretimentoBrl": 57.38,
   "fotoAnverso": "/colecao-moedas/1783909966-092592836631.webp",
   "fotoReverso": "/colecao-moedas/1783909961-666061741430.webp",
   "nota": "",
@@ -3066,11 +4304,11 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1937,
   "marca": "A",
   "graduacao": "VF",
-  "valorBrl": 47.79,
+  "valorBrl": 47.82,
   "composicao": "Prata 0.625",
   "metal": "Prata",
   "pesoMetalG": 5,
-  "derretimentoBrl": 47.54,
+  "derretimentoBrl": 47.82,
   "fotoAnverso": "/colecao-moedas/1783909927-500341531527.webp",
   "fotoReverso": "/colecao-moedas/1783909925-726536422726.webp",
   "nota": "",
@@ -3093,11 +4331,11 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1860,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "XF",
-  "valorBrl": 55.92,
+  "valorBrl": 55.95,
   "composicao": "Prata 0.917",
   "metal": "Prata",
   "pesoMetalG": 5.85,
-  "derretimentoBrl": 55.62,
+  "derretimentoBrl": 55.95,
   "fotoAnverso": "/colecao-moedas/1783909851-3250508563323.webp",
   "fotoReverso": "/colecao-moedas/1783909848-605973321522.webp",
   "nota": "",
@@ -3120,7 +4358,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "folha",
   "graduacao": "AU",
-  "valorBrl": 8.43,
+  "valorBrl": 8.39,
   "composicao": "Aço com revestimento de Níquel",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -3147,7 +4385,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "folha",
   "graduacao": "AU",
-  "valorBrl": 10.73,
+  "valorBrl": 10.68,
   "composicao": "Bimetálica: centro de Alumínio-Bronze, anel de Níquel",
   "metal": "Bimetálica",
   "pesoMetalG": null,
@@ -3174,7 +4412,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 2007,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "MS",
-  "valorBrl": 59.19,
+  "valorBrl": 58.91,
   "composicao": "Aço com revestimento de Níquel",
   "metal": "Aço",
   "pesoMetalG": null,
@@ -3201,7 +4439,7 @@ export const MOEDAS_COLECAO: Moeda[] = [
   "anoNum": 1989,
   "marca": "Sem marca da casa da moeda",
   "graduacao": "AU",
-  "valorBrl": 7.92,
+  "valorBrl": 7.88,
   "composicao": "Aço inoxidável",
   "metal": "Aço",
   "pesoMetalG": null,
