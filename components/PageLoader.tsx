@@ -87,25 +87,56 @@ function Cena({ v }: { v: LoaderVariant }) {
         </div>
       );
     case "raizes":
-      // H6 — a árvore Barroots se desenhando (tronco/galhos roxo→azul→verde,
-      // raízes roxas e folhas brotando), substituiu o holo-globo (escolha do dono).
+      // H6 evoluída (Home) — a árvore Barroots no centro de um CIRCUITO: as
+      // raízes viram trilhas de placa que correm para as bordas, com pulsos de
+      // luz viajando por elas + anéis de energia na base. Cena GRANDE (a Home
+      // usa o palco XL). Tronco roxo→azul→verde como o logo; escolha do dono.
       return (
-        <svg className="ldr-raizes" viewBox="0 0 190 230" aria-hidden>
+        <svg className="ldr-raizes" viewBox="0 0 460 300" aria-hidden>
           <defs>
             <linearGradient id="ldrGradTronco" x1="0" y1="1" x2="0" y2="0">
               <stop offset="0" stopColor="#6d5bd0" /><stop offset=".55" stopColor="#4f8ef7" /><stop offset="1" stopColor="#3fb950" />
             </linearGradient>
           </defs>
-          <path className="ldr-rz-raiz" d="M95 150 Q70 175 42 182 M95 150 Q100 185 88 205 M95 150 Q124 178 152 184" />
-          <path className="ldr-rz-galho" d="M95 152 L95 96 Q95 70 72 54 M95 96 Q97 66 122 50 M95 118 Q76 106 62 82" />
-          <path className="ldr-rz-galho ldr-rz-fino" d="M95 108 Q116 96 130 78 M72 54 Q60 44 56 30 M122 50 Q134 40 138 26" />
-          <circle className="ldr-rz-folha" cx="56" cy="28" r="7" />
-          <circle className="ldr-rz-folha ldr-rz-v" cx="72" cy="52" r="6" />
-          <circle className="ldr-rz-folha ldr-rz-s" cx="62" cy="80" r="5" />
-          <circle className="ldr-rz-folha ldr-rz-v" cx="122" cy="48" r="6" />
-          <circle className="ldr-rz-folha" cx="138" cy="24" r="7" />
-          <circle className="ldr-rz-folha ldr-rz-s" cx="131" cy="76" r="5" />
-          <circle className="ldr-rz-folha" cx="95" cy="92" r="5" />
+
+          {/* trilhas de circuito (fundo) + pulsos viajando + nós nas pontas */}
+          {[
+            "M218 190 H150 L120 160 H28",
+            "M218 205 H130 L100 235 H28",
+            "M223 242 V272 H150",
+            "M242 190 H310 L340 160 H432",
+            "M242 205 H330 L360 235 H432",
+            "M237 242 V272 H310",
+          ].map((d, i) => (
+            <g key={i}>
+              <path className="ldr-rzt-trilha" d={d} />
+              <path className={`ldr-rzt-pulso ldr-rzt-p${i + 1}`} d={d} />
+            </g>
+          ))}
+          <circle className="ldr-rzt-no ldr-rzt-n1" cx="28" cy="160" r="3.5" />
+          <circle className="ldr-rzt-no ldr-rzt-n2" cx="28" cy="235" r="3.5" />
+          <circle className="ldr-rzt-no ldr-rzt-n3" cx="150" cy="272" r="3.5" />
+          <circle className="ldr-rzt-no ldr-rzt-n4" cx="432" cy="160" r="3.5" />
+          <circle className="ldr-rzt-no ldr-rzt-n5" cx="432" cy="235" r="3.5" />
+          <circle className="ldr-rzt-no ldr-rzt-n6" cx="310" cy="272" r="3.5" />
+
+          {/* anéis de energia subindo da base do tronco */}
+          <circle className="ldr-rzt-anel" cx="230" cy="188" r="26" />
+          <circle className="ldr-rzt-anel ldr-rzt-a2" cx="230" cy="188" r="26" />
+
+          {/* a árvore Barroots (mesma cena H6, agora maior e no centro) */}
+          <g transform="translate(135 22)">
+            <path className="ldr-rz-raiz" d="M95 150 Q70 175 42 182 M95 150 Q100 185 88 205 M95 150 Q124 178 152 184" />
+            <path className="ldr-rz-galho" d="M95 152 L95 96 Q95 70 72 54 M95 96 Q97 66 122 50 M95 118 Q76 106 62 82" />
+            <path className="ldr-rz-galho ldr-rz-fino" d="M95 108 Q116 96 130 78 M72 54 Q60 44 56 30 M122 50 Q134 40 138 26" />
+            <circle className="ldr-rz-folha" cx="56" cy="28" r="7" />
+            <circle className="ldr-rz-folha ldr-rz-v" cx="72" cy="52" r="6" />
+            <circle className="ldr-rz-folha ldr-rz-s" cx="62" cy="80" r="5" />
+            <circle className="ldr-rz-folha ldr-rz-v" cx="122" cy="48" r="6" />
+            <circle className="ldr-rz-folha" cx="138" cy="24" r="7" />
+            <circle className="ldr-rz-folha ldr-rz-s" cx="131" cy="76" r="5" />
+            <circle className="ldr-rz-folha" cx="95" cy="92" r="5" />
+          </g>
         </svg>
       );
     case "radar":
@@ -202,7 +233,8 @@ export default function PageLoader({ variant }: { variant?: LoaderVariant }) {
   return (
     <div className="ldr-wrap" role="status" aria-label="Carregando">
       <style>{CSS}</style>
-      <div className="ldr-stage"><Cena v={v} /></div>
+      {/* Home (raizes): palco XL — a cena ocupa boa parte da tela */}
+      <div className={v === "raizes" ? "ldr-stage ldr-stage-xl" : "ldr-stage"}><Cena v={v} /></div>
     </div>
   );
 }
@@ -254,8 +286,22 @@ const CSS = `
 .ldr-plim { position: absolute; left: 50%; top: 58px; width: 28px; height: 28px; margin-left: -14px; border: 2px solid #E8A33D; border-radius: 50%; opacity: 0; animation: ldr-plim 1.5s ease-out infinite; }
 @keyframes ldr-plim { 0%,66% { transform: scale(.2); opacity: 0; } 72% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 
-/* raízes — árvore Barroots (Home, H6) */
-.ldr-raizes { width: 106px; height: 128px; }
+/* raízes — árvore Barroots num circuito (Home, H6 evoluída) */
+.ldr-stage-xl { width: min(94vw, 520px); height: min(52vh, 340px); }
+.ldr-raizes { width: 100%; height: 100%; }
+.ldr-rzt-trilha { fill: none; stroke: rgba(79,142,247,.20); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* pulso: um traço curto de luz percorrendo a trilha (dasharray > comprimento) */
+.ldr-rzt-pulso { fill: none; stroke: #22d3ee; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 18 420; stroke-dashoffset: 18; filter: drop-shadow(0 0 5px rgba(34,211,238,.9)); animation: ldr-rzt-viajar 2.4s linear infinite; }
+.ldr-rzt-p2 { animation-delay: .5s; stroke: #4f8ef7; } .ldr-rzt-p3 { animation-delay: 1s; }
+.ldr-rzt-p4 { animation-delay: .25s; } .ldr-rzt-p5 { animation-delay: .75s; stroke: #4f8ef7; } .ldr-rzt-p6 { animation-delay: 1.25s; }
+@keyframes ldr-rzt-viajar { from { stroke-dashoffset: 18; } to { stroke-dashoffset: -420; } }
+.ldr-rzt-no { fill: #4f8ef7; opacity: .3; animation: ldr-rzt-acender 2.4s ease-in-out infinite; }
+.ldr-rzt-n1 { animation-delay: .9s } .ldr-rzt-n2 { animation-delay: 1.4s } .ldr-rzt-n3 { animation-delay: 1.9s }
+.ldr-rzt-n4 { animation-delay: 1.15s } .ldr-rzt-n5 { animation-delay: 1.65s } .ldr-rzt-n6 { animation-delay: 2.15s }
+@keyframes ldr-rzt-acender { 0%,100% { opacity: .3; r: 3.5px; } 12% { opacity: 1; r: 5px; } 30% { opacity: .3; } }
+.ldr-rzt-anel { fill: none; stroke: rgba(34,211,238,.5); stroke-width: 1.2; transform-origin: 230px 188px; animation: ldr-rzt-anel 2.6s ease-out infinite; }
+.ldr-rzt-a2 { animation-delay: 1.3s; }
+@keyframes ldr-rzt-anel { 0% { transform: scale(.4); opacity: 0; } 15% { opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
 .ldr-raizes path { fill: none; stroke-linecap: round; }
 .ldr-rz-galho { stroke: url(#ldrGradTronco); stroke-width: 5; stroke-dasharray: 420; stroke-dashoffset: 420; animation: ldr-rz-desenhar 2.6s ease-out infinite; }
 .ldr-rz-fino { stroke-width: 2.6; stroke-dasharray: 200; stroke-dashoffset: 200; animation-delay: .5s; }
