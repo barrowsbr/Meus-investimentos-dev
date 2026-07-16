@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
@@ -484,9 +485,18 @@ export default function MoedasShell() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       {/* Header + stats */}
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Coins size={18} className="text-amber-400" /> Coleção de Moedas</h1>
-        <p className="text-xs text-zinc-500">Catálogo CoinSnap · {st.exemplares} exemplares</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Coins size={18} className="text-amber-400" /> Coleção de Moedas</h1>
+          <p className="text-xs text-zinc-500">Catálogo CoinSnap · {st.exemplares} exemplares</p>
+        </div>
+        <Link
+          href="/moedas/pote"
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors hover:bg-amber-500/20"
+          style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.35)", color: "#fbbf24" }}
+        >
+          🫙 Pote físico <span className="text-[9px] font-normal text-amber-500/70">gravidade real</span>
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

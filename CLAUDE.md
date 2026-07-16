@@ -244,6 +244,10 @@ Registro de entradas, saídas e gastos com cartão.
   `COLECAO_ATUALIZADA_EM`).
 - `/moedas` (menu Mais → nav real em `components/terminal/nav.ts`) mostra mapa-múndi
   da coleção, filtros, cards com flip anverso⇄reverso e dossiê por moeda.
+- `/moedas/pote` — "Pote físico": a coleção em canvas com física (matter-js),
+  cada exemplar com foto real e DIÂMETRO em escala (`diametroMmDe` em
+  `lib/moedas.ts`); gravidade segue o acelerômetro (iOS exige botão de
+  permissão), com arraste por toque e sacudida. Inspirado no CoinSnap.
 - `/api/moedas-colecao` devolve SÓ o spot da prata (SI=F × BRL=X) para o valor de
   derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda com o catálogo
   **Numista** (`NUMISTA_API_KEY`): tiragem, dimensões, descrições, gravador e
