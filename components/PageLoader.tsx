@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 
 export type LoaderVariant =
   | "moeda" | "pregao" | "rolo" | "cofrinho" | "radar" | "arvore"
-  | "holo"
+  | "raizes"
   | "engrenagens" | "jornal" | "foguete" | "cripto" | "carimbo"
   | "cambio" | "grafico" | "balanca" | "robo";
 
@@ -32,7 +32,8 @@ const POR_ROTA: Array<[string, LoaderVariant]> = [
   ["/agente-ia", "robo"],
   ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"], ["/etf-cem", "pregao"],
   ["/financas", "cofrinho"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
-  ["/", "holo"], // Home (por último: prefixo pega tudo)
+  ["/", "raizes"], // Home (por último: prefixo pega tudo) — H6 aprovada pelo dono
+
 ];
 
 export function variantForPath(pathname: string | null): LoaderVariant {
@@ -85,16 +86,27 @@ function Cena({ v }: { v: LoaderVariant }) {
           </div>
         </div>
       );
-    case "holo":
+    case "raizes":
+      // H6 — a árvore Barroots se desenhando (tronco/galhos roxo→azul→verde,
+      // raízes roxas e folhas brotando), substituiu o holo-globo (escolha do dono).
       return (
-        <div className="ldr-holo">
-          <div className="ldr-holo-halo" />
-          <div className="ldr-holo-esfera">
-            <div className="ldr-holo-mer" /><div className="ldr-holo-mer ldr-hm2" /><div className="ldr-holo-mer ldr-hm3" />
-            <div className="ldr-holo-eq" />
-          </div>
-          <div className="ldr-holo-ping ldr-hp1" /><div className="ldr-holo-ping ldr-hp2" />
-        </div>
+        <svg className="ldr-raizes" viewBox="0 0 190 230" aria-hidden>
+          <defs>
+            <linearGradient id="ldrGradTronco" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0" stopColor="#6d5bd0" /><stop offset=".55" stopColor="#4f8ef7" /><stop offset="1" stopColor="#3fb950" />
+            </linearGradient>
+          </defs>
+          <path className="ldr-rz-raiz" d="M95 150 Q70 175 42 182 M95 150 Q100 185 88 205 M95 150 Q124 178 152 184" />
+          <path className="ldr-rz-galho" d="M95 152 L95 96 Q95 70 72 54 M95 96 Q97 66 122 50 M95 118 Q76 106 62 82" />
+          <path className="ldr-rz-galho ldr-rz-fino" d="M95 108 Q116 96 130 78 M72 54 Q60 44 56 30 M122 50 Q134 40 138 26" />
+          <circle className="ldr-rz-folha" cx="56" cy="28" r="7" />
+          <circle className="ldr-rz-folha ldr-rz-v" cx="72" cy="52" r="6" />
+          <circle className="ldr-rz-folha ldr-rz-s" cx="62" cy="80" r="5" />
+          <circle className="ldr-rz-folha ldr-rz-v" cx="122" cy="48" r="6" />
+          <circle className="ldr-rz-folha" cx="138" cy="24" r="7" />
+          <circle className="ldr-rz-folha ldr-rz-s" cx="131" cy="76" r="5" />
+          <circle className="ldr-rz-folha" cx="95" cy="92" r="5" />
+        </svg>
       );
     case "radar":
       return (
@@ -242,17 +254,19 @@ const CSS = `
 .ldr-plim { position: absolute; left: 50%; top: 58px; width: 28px; height: 28px; margin-left: -14px; border: 2px solid #E8A33D; border-radius: 50%; opacity: 0; animation: ldr-plim 1.5s ease-out infinite; }
 @keyframes ldr-plim { 0%,66% { transform: scale(.2); opacity: 0; } 72% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 
-/* holo-globo (Home) */
-.ldr-holo { width: 104px; height: 104px; position: relative; perspective: 620px; }
-.ldr-holo-esfera { position: absolute; inset: 0; transform-style: preserve-3d; animation: ldr-holo-rodar 5.5s linear infinite; }
-@keyframes ldr-holo-rodar { from { transform: rotateX(-14deg) rotateY(0); } to { transform: rotateX(-14deg) rotateY(360deg); } }
-.ldr-holo-mer { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(232,163,61,.55); }
-.ldr-hm2 { transform: rotateY(60deg); } .ldr-hm3 { transform: rotateY(120deg); }
-.ldr-holo-eq { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(240,184,96,.75); transform: rotateX(90deg); }
-.ldr-holo-halo { position: absolute; inset: -10px; border-radius: 50%; background: radial-gradient(circle, rgba(232,163,61,.14) 55%, transparent 72%); animation: ldr-resp 2.6s ease-in-out infinite; }
-.ldr-holo-ping { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #F0B860; box-shadow: 0 0 10px rgba(240,184,96,.9); animation: ldr-holo-ping 2.6s ease-in-out infinite; }
-.ldr-hp1 { top: 30%; left: 26%; } .ldr-hp2 { top: 58%; left: 66%; animation-delay: 1.3s; }
-@keyframes ldr-holo-ping { 0%,100% { transform: scale(.6); opacity: .4; } 50% { transform: scale(1.15); opacity: 1; } }
+/* raízes — árvore Barroots (Home, H6) */
+.ldr-raizes { width: 106px; height: 128px; }
+.ldr-raizes path { fill: none; stroke-linecap: round; }
+.ldr-rz-galho { stroke: url(#ldrGradTronco); stroke-width: 5; stroke-dasharray: 420; stroke-dashoffset: 420; animation: ldr-rz-desenhar 2.6s ease-out infinite; }
+.ldr-rz-fino { stroke-width: 2.6; stroke-dasharray: 200; stroke-dashoffset: 200; animation-delay: .5s; }
+.ldr-rz-raiz { stroke: #6d5bd0; opacity: .8; stroke-width: 3; stroke-dasharray: 220; stroke-dashoffset: 220; animation: ldr-rz-desenhar 2.6s ease-out infinite .25s; }
+@keyframes ldr-rz-desenhar { 0% { stroke-dashoffset: 420; opacity: 0; } 12% { opacity: 1; } 55% { stroke-dashoffset: 0; opacity: 1; } 82% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.ldr-rz-folha { fill: #3fb950; opacity: 0; transform-origin: center; transform-box: fill-box; animation: ldr-rz-brotar 2.6s ease-out infinite; }
+.ldr-rz-v { fill: #a78bfa; } .ldr-rz-s { fill: #60a5fa; }
+.ldr-rz-folha:nth-of-type(2) { animation-delay: .15s; } .ldr-rz-folha:nth-of-type(3) { animation-delay: .3s; }
+.ldr-rz-folha:nth-of-type(4) { animation-delay: .45s; } .ldr-rz-folha:nth-of-type(5) { animation-delay: .6s; }
+.ldr-rz-folha:nth-of-type(6) { animation-delay: .72s; } .ldr-rz-folha:nth-of-type(7) { animation-delay: .84s; }
+@keyframes ldr-rz-brotar { 0%,45% { opacity: 0; transform: scale(.3); } 60% { opacity: 1; transform: scale(1.25); } 70% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 
 /* radar */
 .ldr-radar { width: 96px; height: 96px; border-radius: 50%; position: relative; border: 1px solid rgba(232,163,61,.5); background: radial-gradient(circle, transparent 62%, rgba(232,163,61,.18) 63%, transparent 65%), radial-gradient(circle, transparent 30%, rgba(232,163,61,.18) 31%, transparent 33%); }
