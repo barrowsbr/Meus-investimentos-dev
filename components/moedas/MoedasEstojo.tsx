@@ -3,19 +3,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ESTOJO de moedas — a vitrine de colecionador de cada CONJUNTO monetário.
 //
-// • Prateleira: um estojo por conjunto (Réis, Cruzeiros, Real, estrangeiras…),
-//   capa de "couro" com moedas reais espiando. NÃO existe estojo "todas" —
-//   estojo é do conjunto (decisão do dono).
-// • Abrir = vitrine FULLSCREEN (portal sobre o app, pensada para tela DEITADA;
-//   em pé aparece dica de girar). Fundo de veludo, cada moeda no seu BERÇO
-//   (recesso circular no diâmetro real em escala, ordem cronológica).
-// • Física (matter-js): segurar TIRA a moeda do berço (mola no dedo); soltar
-//   perto do berço reencaixa; soltar longe, ela CAI com a gravidade — que segue
-//   o acelerômetro (mesmo padrão do Pote, iOS pede permissão). Moeda solta que
-//   passa devagar perto do próprio berço é "imantada" de volta.
-// • BANDEJA DE COMPARAÇÃO: arraste até 2 moedas para os círculos da bandeja —
-//   elas são exibidas AMPLIADAS com o MESMO zoom (a proporção real entre elas
-//   se mantém) e um painel compara denominação, ano, Ø, graduação e valor.
+// • Prateleira: um estojo por conjunto (Réis, Cruzeiros, Real, estrangeiras…);
+//   NÃO existe estojo "todas" (decisão do dono).
+// • Vitrine FULLSCREEN (portal, pensada para tela DEITADA): veludo, moldura,
+//   cada moeda no BERÇO em escala real, ordem cronológica.
+// • Interações (modelo do dono, 17/07):
+//   – 1 TOQUE  → a moeda VIRA (anverso ⇄ reverso, animação de flip);
+//   – 2 TOQUES → vai para a ÁREA DE OBSERVAÇÃO (bandeja) — SEM zoom: o máximo
+//     é o tamanho real dela; 2 toques numa moeda da bandeja soltam ela (cai);
+//   – ARRASTAR → carrega com mola no dedo; soltar no ar, ela CAI (gravidade
+//     segue o acelerômetro, iOS pede permissão);
+//   – SEGURAR ~1s sobre QUALQUER berço vazio em que ela caiba → ENCAIXA lá
+//     (anel de progresso mostra o encaixe chegando). Não há mais encaixe
+//     automático no soltar — devolver é gesto deliberado.
+// ⚠️ matter-js: corpo criado isStatic:true explode em NaN ao ser liberado —
+//   criar dinâmico e assentar com Body.setStatic(true) depois.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +28,7 @@ import { ArrowLeft, X, Smartphone, RotateCcw, Scale } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
 import { diametroMmDe, conjuntoMonetario, gradTone, type Moeda } from "@/lib/moedas";
 
-interface Spec { m: Moeda; foto: string; mm: number }
+interface Spec { m: Moeda; fotoA: string; fotoR: string; mm: number }
 interface Estojo { nome: string; periodo?: string; ordem: number; specs: Spec[]; valor: number }
 
 const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,8 +40,8 @@ function montarEstojos(): Estojo[] {
     const e = map.get(c.nome) ?? { nome: c.nome, periodo: c.periodo, ordem: c.ordem, specs: [], valor: 0 };
     const mm = diametroMmDe(m);
     for (const f of m.fotos) {
-      const foto = f.anverso || f.reverso;
-      if (foto) { e.specs.push({ m, foto, mm }); e.valor += m.valorBrl; }
+      const fotoA = f.anverso || f.reverso;
+      if (fotoA) { e.specs.push({ m, fotoA, fotoR: f.reverso && f.anverso ? f.reverso : "", mm }); e.valor += m.valorBrl; }
     }
     map.set(c.nome, e);
   }
@@ -50,7 +52,7 @@ function montarEstojos(): Estojo[] {
 }
 
 function prerender(img: HTMLImageElement, raioPx: number, dpr: number): HTMLCanvasElement {
-  const d = Math.ceil(raioPx * 2 * dpr * 1.6); // folga p/ ampliação na bandeja
+  const d = Math.ceil(raioPx * 2 * dpr * 1.2); // folga só p/ a leve ampliação na mão
   const c = document.createElement("canvas");
   c.width = d; c.height = d;
   const ctx = c.getContext("2d")!;
@@ -90,7 +92,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Rebuild ao girar/redimensionar (layout dos berços depende do formato).
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
     const onR = () => { clearTimeout(t); t = setTimeout(() => setReinicio((v) => v + 1), 350); };
@@ -112,20 +113,16 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     const specs = estojo.specs;
     const paisagem = W >= H;
 
-    // ── Bandeja de comparação: coluna à direita (deitado) ou faixa no rodapé ──
+    // ── Área de observação: coluna à direita (deitado) ou faixa no rodapé ─────
     const trayW = paisagem ? Math.max(170, Math.min(W * 0.26, 250)) : W;
     const trayH = paisagem ? H : Math.max(150, Math.min(H * 0.26, 220));
     const areaW = paisagem ? W - trayW : W;
     const areaH = paisagem ? H : H - trayH;
-    const trayR = paisagem
-      ? Math.min(trayW * 0.36, H * 0.2)
-      : Math.min(trayH * 0.38, W * 0.2);
     const traySlots: Array<{ x: number; y: number }> = paisagem
       ? [{ x: areaW + trayW / 2, y: H * 0.3 }, { x: areaW + trayW / 2, y: H * 0.72 }]
       : [{ x: W * 0.28, y: areaH + trayH / 2 }, { x: W * 0.72, y: areaH + trayH / 2 }];
-    const dentroDaBandeja = (x: number, y: number) => (paisagem ? x > areaW : y > areaH);
 
-    // ── Layout dos berços: linhas cronológicas que cabem na área ──────────────
+    // ── Berços: linhas cronológicas que cabem na área ─────────────────────────
     const layout = (pxPorMm: number) => {
       const gap = 10, mLeft = 18, mTop = 22;
       const pos: Array<{ x: number; y: number; r: number }> = [];
@@ -145,7 +142,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       pxPorMm *= Math.sqrt((areaH / slots.altura) * 0.97);
       slots = layout(pxPorMm);
     }
-    // centraliza verticalmente
     const dy = Math.max(0, (areaH - slots.altura) / 2);
     slots.pos.forEach((p) => { p.y += dy; });
 
@@ -162,9 +158,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     ]);
 
     const raio = (i: number) => (specs[i].mm / 2) * pxPorMm;
-    // IMPORTANTE: criar DINÂMICO e assentar com setStatic(true) depois — corpo
-    // criado já-estático não guarda massa/inércia originais e explode em NaN
-    // quando liberado (gotcha conhecido do matter-js).
+    // criar DINÂMICO e assentar depois — ver aviso no cabeçalho (NaN do matter)
     const corpos: Matter.Body[] = specs.map((_, i) => {
       const b = Bodies.circle(slots.pos[i].x, slots.pos[i].y, raio(i), {
         restitution: 0.2, friction: 0.35, frictionAir: 0.015, density: 0.0012,
@@ -175,108 +169,154 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     const idxPorBody = new Map(corpos.map((b, i) => [b.id, i]));
     Composite.add(engine.world, corpos);
 
-    const seated = specs.map(() => true);      // no berço
-    const parked: Array<number | null> = [null, null]; // índices na bandeja
+    // Ocupação dos berços (moeda pode encaixar em QUALQUER berço em que caiba).
+    const slotDe: Array<number | null> = specs.map((_, i) => i);   // moeda → berço
+    const ocupante: Array<number | null> = specs.map((_, i) => i); // berço → moeda
+    const parked: Array<number | null> = [null, null];             // observação
     let heldIdx: number | null = null;
     let mola: Matter.Constraint | null = null;
+    let pendente: { i: number; x: number; y: number } | null = null; // down sem drag ainda
+    let tapTimer: ReturnType<typeof setTimeout> | null = null;
+    let ultimoTap = { i: -1, t: 0 };
+    let encaixe: { slot: number; desde: number } | null = null;      // segurar p/ encaixar
 
-    const sprites: Array<HTMLCanvasElement | null> = specs.map(() => null);
+    // Faces: 0 = anverso, 1 = reverso; flipStart > 0 = animando (300 ms).
+    const face: Array<0 | 1> = specs.map(() => 0);
+    const flipStart: number[] = specs.map(() => 0);
+
+    const spritesA: Array<HTMLCanvasElement | null> = specs.map(() => null);
+    const spritesR: Array<HTMLCanvasElement | null> = specs.map(() => null);
     let vivas = true;
     specs.forEach((e, i) => {
-      const img = new Image();
-      img.onload = () => { if (vivas) sprites[i] = prerender(img, raio(i), dpr); };
-      img.src = e.foto;
+      const a = new Image();
+      a.onload = () => { if (vivas) spritesA[i] = prerender(a, raio(i), dpr); };
+      a.src = e.fotoA;
+      if (e.fotoR) {
+        const r = new Image();
+        r.onload = () => { if (vivas) spritesR[i] = prerender(r, raio(i), dpr); };
+        r.src = e.fotoR;
+      }
     });
 
-    const sentar = (i: number) => {
+    const atualizarBandeja = () =>
+      setBandeja(parked.filter((p): p is number => p !== null).map((p) => specs[p]));
+
+    const vagarBerco = (i: number) => {
+      const s = slotDe[i];
+      if (s !== null) { ocupante[s] = null; slotDe[i] = null; }
+    };
+    const sentarEm = (i: number, s: number) => {
       Body.setStatic(corpos[i], true);
-      Body.setPosition(corpos[i], { x: slots.pos[i].x, y: slots.pos[i].y });
+      Body.setPosition(corpos[i], { x: slots.pos[s].x, y: slots.pos[s].y });
       Body.setAngle(corpos[i], 0);
       Body.setVelocity(corpos[i], { x: 0, y: 0 });
-      seated[i] = true;
+      slotDe[i] = s; ocupante[s] = i;
     };
-    const desestacionar = (i: number) => {
-      const s = parked.indexOf(i);
-      if (s >= 0) parked[s] = null;
-      setBandeja(parked.filter((p): p is number => p !== null).map((p) => specs[p]));
+    const cabe = (i: number, s: number) => raio(i) <= slots.pos[s].r + 1.5;
+
+    const soltarDaBandeja = (i: number) => {
+      const k = parked.indexOf(i);
+      if (k >= 0) parked[k] = null;
+      Body.setStatic(corpos[i], false);
+      Sleeping.set(corpos[i], false);
+      atualizarBandeja();
     };
-    const estacionar = (i: number) => {
-      const livre = parked[0] === null ? 0 : parked[1] === null ? 1 : -1;
-      if (livre < 0) return false;
+    const paraObservacao = (i: number) => {
+      vagarBerco(i);
+      let livre = parked[0] === null ? 0 : parked[1] === null ? 1 : -1;
+      if (livre < 0) { // cheia: a mais antiga sai (cai) e abre a vaga
+        const antiga = parked[0]!;
+        parked[0] = null;
+        Body.setStatic(corpos[antiga], false);
+        Sleeping.set(corpos[antiga], false);
+        livre = 0;
+      }
       parked[livre] = i;
       Body.setStatic(corpos[i], true);
       Body.setPosition(corpos[i], traySlots[livre]);
       Body.setAngle(corpos[i], 0);
-      setBandeja(parked.filter((p): p is number => p !== null).map((p) => specs[p]));
-      return true;
+      atualizarBandeja();
+    };
+
+    const flipar = (i: number) => {
+      if (!specs[i].fotoR) return; // sem foto do reverso — nada a virar
+      face[i] = face[i] === 0 ? 1 : 0;
+      flipStart[i] = performance.now();
     };
 
     recolherRef.current = () => {
-      for (let i = 0; i < corpos.length; i++) { desestacionar(i); sentar(i); }
+      for (let s = 0; s < ocupante.length; s++) ocupante[s] = null;
+      for (let k = 0; k < parked.length; k++) parked[k] = null;
+      for (let i = 0; i < corpos.length; i++) { slotDe[i] = null; sentarEm(i, i); }
+      atualizarBandeja();
     };
 
     const paraMundo = (cx: number, cy: number) => {
       const r = canvas.getBoundingClientRect();
       return { x: cx - r.left, y: cy - r.top };
     };
-    // Hit também nas moedas AMPLIADAS da bandeja (raio desenhado > raio físico).
-    const zoomBandeja = () => {
-      const ativos = parked.filter((p): p is number => p !== null);
-      if (ativos.length === 0) return 1;
-      const maxR = Math.max(...ativos.map((i) => raio(i)));
-      return Math.min(2.6, (trayR * 0.92) / maxR);
-    };
     const acharCorpo = (p: { x: number; y: number }): number | null => {
-      const z = zoomBandeja();
-      for (const i of parked) {
-        if (i === null) continue;
-        const b = corpos[i];
-        if (Math.hypot(p.x - b.position.x, p.y - b.position.y) <= raio(i) * z) return i;
-      }
       const hit = Query.point(corpos, p)[0];
       return hit ? (idxPorBody.get(hit.id) ?? null) : null;
+    };
+
+    const erguer = (i: number, p: { x: number; y: number }) => {
+      vagarBerco(i);
+      const k = parked.indexOf(i);
+      if (k >= 0) { parked[k] = null; atualizarBandeja(); }
+      Body.setStatic(corpos[i], false);
+      Sleeping.set(corpos[i], false);
+      heldIdx = i;
+      encaixe = null;
+      setSegurando(specs[i]);
+      mola = Constraint.create({ pointA: p, bodyB: corpos[i], pointB: { x: 0, y: 0 }, length: 0, stiffness: 0.2, damping: 0.12 });
+      Composite.add(engine.world, mola);
     };
 
     const onDown = (ev: PointerEvent) => {
       const p = paraMundo(ev.clientX, ev.clientY);
       const i = acharCorpo(p);
       if (i === null) return;
-      desestacionar(i);
-      seated[i] = false;
-      Body.setStatic(corpos[i], false);
-      Sleeping.set(corpos[i], false);
-      heldIdx = i;
-      setSegurando(specs[i]);
-      mola = Constraint.create({ pointA: p, bodyB: corpos[i], pointB: { x: 0, y: 0 }, stiffness: 0.2, damping: 0.12 });
-      Composite.add(engine.world, mola);
+      pendente = { i, x: ev.clientX, y: ev.clientY };
     };
     const onMove = (ev: PointerEvent) => {
+      if (pendente && Math.hypot(ev.clientX - pendente.x, ev.clientY - pendente.y) > 8) {
+        const i = pendente.i;
+        pendente = null;
+        erguer(i, paraMundo(ev.clientX, ev.clientY));
+      }
       if (mola) mola.pointA = paraMundo(ev.clientX, ev.clientY);
     };
     const onUp = () => {
       if (mola) { Composite.remove(engine.world, mola); mola = null; }
-      if (heldIdx !== null) {
-        const i = heldIdx;
-        const b = corpos[i];
-        if (dentroDaBandeja(b.position.x, b.position.y) && estacionar(i)) { /* pousou na bandeja */ }
-        else if (Math.hypot(b.position.x - slots.pos[i].x, b.position.y - slots.pos[i].y) < Math.max(raio(i), 22)) sentar(i);
-        // senão: fica livre, cai com a gravidade
+      if (heldIdx !== null) { heldIdx = null; encaixe = null; setSegurando(null); return; }
+      if (!pendente) return;
+      // TAP: 1 toque vira; 2 toques (≤350 ms) vão para a observação.
+      const i = pendente.i;
+      pendente = null;
+      const agora = performance.now();
+      if (ultimoTap.i === i && agora - ultimoTap.t < 350) {
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+        ultimoTap = { i: -1, t: 0 };
+        if (parked.includes(i)) soltarDaBandeja(i);
+        else paraObservacao(i);
+      } else {
+        ultimoTap = { i, t: agora };
+        if (tapTimer) clearTimeout(tapTimer);
+        tapTimer = setTimeout(() => { if (vivas) flipar(i); tapTimer = null; }, 300);
       }
-      heldIdx = null;
-      setSegurando(null);
     };
     box.addEventListener("pointerdown", onDown);
     box.addEventListener("pointermove", onMove);
     box.addEventListener("pointerup", onUp);
     box.addEventListener("pointercancel", onUp);
 
-    // Acelerômetro → gravidade (mesmo padrão do Pote).
+    // Acelerômetro → gravidade (eixos ajustados para tela deitada).
     const ios = precisaPermissao || /iPhone|iPad/.test(navigator.userAgent);
     let gAnt = { x: 0, y: 1 };
     const onMotion = (ev: DeviceMotionEvent) => {
       const a = ev.accelerationIncludingGravity;
       if (!a || a.x === null || a.y === null) return;
-      // tela DEITADA: troca os eixos conforme a orientação atual
       const horizontal = window.innerWidth > window.innerHeight;
       const ax = ios ? a.x : -a.x, ay = ios ? -a.y : a.y;
       const or = (screen.orientation?.angle ?? 0);
@@ -291,7 +331,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       engine.gravity.y = gy * lim;
       if (Math.hypot(engine.gravity.x - gAnt.x, engine.gravity.y - gAnt.y) > 0.05) {
         gAnt = { x: engine.gravity.x, y: engine.gravity.y };
-        corpos.forEach((b, i) => { if (!seated[i] && !parked.includes(i)) Sleeping.set(b, false); });
+        corpos.forEach((b, i) => { if (slotDe[i] === null && !parked.includes(i)) Sleeping.set(b, false); });
       }
     };
     window.addEventListener("devicemotion", onMotion);
@@ -304,18 +344,29 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       antes = agora;
       Matter.Engine.update(engine, dt);
 
-      // moeda livre passando devagar sobre o próprio berço → imanta de volta
-      for (let i = 0; i < corpos.length; i++) {
-        if (seated[i] || parked.includes(i) || i === heldIdx) continue;
+      // Segurar ~1s sobre um berço vazio em que a moeda caiba → encaixa lá.
+      if (heldIdx !== null) {
+        const i = heldIdx;
         const b = corpos[i];
-        const d = Math.hypot(b.position.x - slots.pos[i].x, b.position.y - slots.pos[i].y);
-        if (d < raio(i) * 0.8 && Math.hypot(b.velocity.x, b.velocity.y) < 2.2) sentar(i);
+        let alvo: number | null = null;
+        for (let s = 0; s < slots.pos.length; s++) {
+          if (ocupante[s] !== null || !cabe(i, s)) continue;
+          if (Math.hypot(b.position.x - slots.pos[s].x, b.position.y - slots.pos[s].y) < slots.pos[s].r * 0.75) { alvo = s; break; }
+        }
+        if (alvo === null) encaixe = null;
+        else if (!encaixe || encaixe.slot !== alvo) encaixe = { slot: alvo, desde: agora };
+        else if (agora - encaixe.desde >= 1000) {
+          if (mola) { Composite.remove(engine.world, mola); mola = null; }
+          sentarEm(i, alvo);
+          heldIdx = null; encaixe = null;
+          setSegurando(null);
+        }
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
 
-      // divisor + círculos da bandeja
+      // divisor + círculos da observação
       ctx.strokeStyle = "rgba(240,184,96,0.25)";
       ctx.lineWidth = 1;
       ctx.setLineDash([5, 6]);
@@ -324,41 +375,59 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       else { ctx.moveTo(14, areaH); ctx.lineTo(W - 14, areaH); }
       ctx.stroke();
       ctx.setLineDash([]);
-      for (const t of traySlots) {
+      traySlots.forEach((t, k) => {
+        const occ = parked[k];
+        const rr = occ !== null ? raio(occ) + 9 : 26;
         ctx.beginPath();
-        ctx.arc(t.x, t.y, trayR, 0, Math.PI * 2);
+        ctx.arc(t.x, t.y, rr, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(240,184,96,0.3)";
         ctx.stroke();
-      }
+      });
 
-      // berços (recessos no veludo)
-      for (let i = 0; i < slots.pos.length; i++) {
-        const s = slots.pos[i];
+      // berços (recessos) + anel de progresso do encaixe
+      for (let s = 0; s < slots.pos.length; s++) {
+        const sp = slots.pos[s];
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r + 2, 0, Math.PI * 2);
+        ctx.arc(sp.x, sp.y, sp.r + 2, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(0,0,0,0.34)";
         ctx.fill();
         ctx.strokeStyle = "rgba(255,255,255,0.06)";
         ctx.stroke();
+        if (encaixe && encaixe.slot === s) {
+          const frac = Math.min(1, (agora - encaixe.desde) / 1000);
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, sp.r + 5, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+          ctx.strokeStyle = "rgba(52,211,153,0.9)";
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.lineWidth = 1;
+        }
       }
 
-      // moedas
-      const z = zoomBandeja();
+      // moedas (flip = escala X em cosseno; troca de face no meio)
       for (let i = 0; i < corpos.length; i++) {
         const b = corpos[i];
-        const base = raio(i);
-        const naBandeja = parked.includes(i);
-        const fator = i === heldIdx ? 1.12 : naBandeja ? z : 1;
-        const r = base * fator;
+        const r = raio(i) * (i === heldIdx ? 1.12 : 1);
+        let sx = 1;
+        let mostraFace = face[i];
+        if (flipStart[i] > 0) {
+          const t = (agora - flipStart[i]) / 300;
+          if (t >= 1) flipStart[i] = 0;
+          else {
+            sx = Math.abs(Math.cos(t * Math.PI));
+            if (t < 0.5) mostraFace = face[i] === 0 ? 1 : 0; // 1ª metade: face antiga
+          }
+        }
         ctx.save();
         ctx.translate(b.position.x, b.position.y);
         ctx.rotate(b.angle);
-        if (i === heldIdx || naBandeja) {
+        ctx.scale(Math.max(0.04, sx), 1);
+        if (i === heldIdx || parked.includes(i)) {
           ctx.shadowColor = "rgba(0,0,0,0.6)";
           ctx.shadowBlur = 16;
           ctx.shadowOffsetY = 6;
         }
-        const sp = sprites[i];
+        const sp = mostraFace === 1 && spritesR[i] ? spritesR[i] : spritesA[i];
         if (sp) ctx.drawImage(sp, -r, -r, r * 2, r * 2);
         else {
           ctx.beginPath();
@@ -377,6 +446,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     return () => {
       vivas = false;
       cancelAnimationFrame(raf);
+      if (tapTimer) clearTimeout(tapTimer);
       window.removeEventListener("devicemotion", onMotion);
       box.removeEventListener("pointerdown", onDown);
       box.removeEventListener("pointermove", onMove);
@@ -402,10 +472,8 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
 
   return createPortal(
     <div className="fixed inset-0 z-[230] flex flex-col" style={{ background: "radial-gradient(120% 100% at 50% 0%, #241016 0%, #150a10 45%, #0b0509 100%)", touchAction: "none" }}>
-      {/* moldura do estojo */}
       <div className="pointer-events-none absolute inset-0" style={{ border: "10px solid transparent", borderImage: "linear-gradient(140deg, #3a2413, #6b4a24 30%, #2a1a0d 60%, #57391b) 1", boxShadow: "inset 0 0 60px rgba(0,0,0,0.75), inset 0 0 6px rgba(240,184,96,0.25)" }} />
 
-      {/* topo: título gravado + ações */}
       <div className="relative z-10 flex items-center justify-between gap-2 px-5 pt-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
         <div className="min-w-0">
           <p className="truncate font-mono text-sm font-bold uppercase tracking-[0.25em] text-amber-300/90" style={{ textShadow: "0 1px 0 rgba(0,0,0,0.8), 0 0 14px rgba(240,184,96,0.35)" }}>
@@ -428,23 +496,19 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
         </div>
       </div>
 
-      {/* vitrine */}
       <div ref={boxRef} className="relative z-0 min-h-0 flex-1">
         <canvas ref={canvasRef} className="absolute inset-0" />
-        {/* rótulo da bandeja */}
         <span className="pointer-events-none absolute font-mono text-[9px] uppercase tracking-[0.3em] text-amber-200/35" style={{ right: 12, top: 10 }}>
-          <Scale size={10} className="mr-1 inline" />Comparar
+          <Scale size={10} className="mr-1 inline" />Observação
         </span>
       </div>
 
-      {/* moeda na mão */}
       {segurando && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-1.5 text-[11px] font-semibold text-amber-100" style={{ background: "rgba(20,10,14,0.85)", border: "1px solid rgba(240,184,96,0.35)", marginBottom: "env(safe-area-inset-bottom)" }}>
-          {segurando.m.denominacao} · {segurando.m.ano} · Ø {segurando.mm.toLocaleString("pt-BR")} mm
+          {segurando.m.denominacao} · {segurando.m.ano} · Ø {segurando.mm.toLocaleString("pt-BR")} mm — segure sobre um berço vazio para encaixar
         </div>
       )}
 
-      {/* painel de comparação (2 moedas na bandeja) */}
       {bandeja.length === 2 && !segurando && (
         <div className="absolute bottom-3 left-1/2 z-20 w-[min(94vw,560px)] -translate-x-1/2 rounded-2xl px-4 py-3" style={{ background: "rgba(16,8,12,0.92)", border: "1px solid rgba(240,184,96,0.35)", backdropFilter: "blur(6px)", marginBottom: "env(safe-area-inset-bottom)" }}>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
@@ -470,6 +534,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           </p>
         </div>
       )}
+
       {retrato && (
         <button onClick={() => setRetrato(false)} className="absolute inset-x-0 top-16 z-30 mx-auto w-fit rounded-full px-4 py-2 text-[11px] font-semibold text-amber-100" style={{ background: "rgba(20,10,14,0.9)", border: "1px solid rgba(240,184,96,0.4)" }}>
           📱↻ Deite o celular para a experiência completa — toque para dispensar
@@ -517,7 +582,7 @@ export default function MoedasEstojo() {
               {e.specs.slice(0, 6).map((s, i) => (
                 <img
                   key={i}
-                  src={s.foto}
+                  src={s.fotoA}
                   alt=""
                   loading="lazy"
                   className="rounded-full object-cover"
@@ -531,8 +596,9 @@ export default function MoedasEstojo() {
       </div>
 
       <p className="text-[10px] text-zinc-600">
-        Dentro do estojo: cada moeda no seu berço em escala real · segure para tirar e carregar · solte longe e ela cai
-        com a gravidade do celular · arraste duas para a bandeja &quot;Comparar&quot; e veja o duelo de specs.
+        Dentro do estojo: 1 toque VIRA a moeda (anverso ⇄ reverso) · 2 toques mandam para a área de observação
+        (tamanho real, sem zoom) · arraste para carregar · segure ~1s sobre um berço vazio para encaixar ·
+        solte no ar e ela cai com a gravidade do celular.
       </p>
 
       {montado && aberto && <CaseView estojo={aberto} onClose={() => setAberto(null)} />}
