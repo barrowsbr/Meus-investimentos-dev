@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ExternalLink, Landmark } from "lucide-react";
+import { Search, ArrowUpDown, Crown, Gem, TrendingDown, Percent, ExternalLink, Landmark, Star } from "lucide-react";
 import { fetchJsonCached } from "@/lib/client-cache";
 import AssetLogo from "@/components/AssetLogo";
 
@@ -63,6 +63,26 @@ export default function EtfCemShell() {
   const [peMax, setPeMax] = useState<number | null>(null);
   const [soBarganhas, setSoBarganhas] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>("desconto");
+
+  // Observando (watchlist) — persiste no aparelho (localStorage), para marcar
+  // empresas e reencontrá-las com um toque ao voltar no app.
+  const [watch, setWatch] = useState<Set<string>>(new Set());
+  const [soObservando, setSoObservando] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("etfcem_watch");
+      if (raw) setWatch(new Set(JSON.parse(raw) as string[]));
+    } catch { /* primeiro uso */ }
+  }, []);
+  const alternarWatch = (sym: string) => {
+    setWatch((prev) => {
+      const s = new Set(prev);
+      if (s.has(sym)) s.delete(sym); else s.add(sym);
+      try { localStorage.setItem("etfcem_watch", JSON.stringify([...s])); } catch { /* sem storage */ }
+      if (s.size === 0) setSoObservando(false);
+      return s;
+    });
+  };
 
   useEffect(() => {
     fetchJsonCached<Payload>("/api/etf-cem", 10 * 60_000)
@@ -126,6 +146,7 @@ export default function EtfCemShell() {
     if (distMin > 0) out = out.filter((l) => l.distAth !== null && l.distAth <= -distMin);
     if (peMax !== null) out = out.filter((l) => l.pe !== null && l.pe > 0 && l.pe <= peMax);
     if (soBarganhas) out = out.filter(ehBarganha);
+    if (soObservando) out = out.filter((l) => watch.has(l.sym));
     const cmp: Record<Ordem, (a: typeof out[number], b: typeof out[number]) => number> = {
       desconto: (a, b) => (a.distAth ?? 0) - (b.distAth ?? 0),
       topo: (a, b) => (b.distAth ?? -999) - (a.distAth ?? -999),
@@ -135,7 +156,7 @@ export default function EtfCemShell() {
     };
     return [...out].sort(cmp[ordem]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linhas, busca, distMin, peMax, soBarganhas, ordem, medianaPE]);
+  }, [linhas, busca, distMin, peMax, soBarganhas, soObservando, watch, ordem, medianaPE]);
 
   if (erro) return <p className="p-6 text-center text-xs text-red-400">ETF Cem indisponível: {erro}</p>;
 
@@ -188,6 +209,19 @@ export default function EtfCemShell() {
           <option value={30}>P/L ≤ 30</option>
         </select>
         <button
+          onClick={() => setSoObservando((v) => !v)}
+          disabled={watch.size === 0}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors disabled:opacity-40"
+          style={{
+            background: soObservando ? "rgba(245,158,11,0.16)" : "rgba(255,255,255,0.05)",
+            border: `1px solid ${soObservando ? "rgba(245,158,11,0.5)" : "rgba(255,255,255,0.1)"}`,
+            color: soObservando ? "#fbbf24" : "#a1a1aa",
+          }}
+          title={watch.size === 0 ? "Toque na estrela de uma empresa para observá-la" : "Mostrar só as que estou observando"}
+        >
+          <Star size={12} fill={soObservando ? "currentColor" : "none"} /> Observando ({watch.size})
+        </button>
+        <button
           onClick={() => setSoBarganhas((v) => !v)}
           className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors"
           style={{
@@ -214,15 +248,25 @@ export default function EtfCemShell() {
         {filtradas.map((l) => {
           const tone = descontoTone(l.distAth);
           const barganha = ehBarganha(l);
+          const observada = watch.has(l.sym);
           return (
             <a
               key={l.sym}
               href={`https://finance.yahoo.com/quote/${encodeURIComponent(l.sym)}`}
               target="_blank" rel="noopener noreferrer"
               className="block rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
-              style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${barganha ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}` }}
+              style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${observada ? "rgba(245,158,11,0.35)" : barganha ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}` }}
             >
               <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); alternarWatch(l.sym); }}
+                  className="shrink-0 rounded-lg p-1 transition-colors hover:bg-white/10"
+                  style={{ color: observada ? "#fbbf24" : "#52525b" }}
+                  aria-label={observada ? `Deixar de observar ${l.sym}` : `Observar ${l.sym}`}
+                  title={observada ? "Observando — toque para remover" : "Marcar como observando"}
+                >
+                  <Star size={15} fill={observada ? "currentColor" : "none"} />
+                </button>
                 <AssetLogo ticker={l.sym} size={34} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-zinc-100">
