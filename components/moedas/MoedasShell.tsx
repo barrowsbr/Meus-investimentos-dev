@@ -503,13 +503,17 @@ export default function MoedasShell() {
     return [...out].sort(cmp[ordem]);
   }, [moedas, pais, metal, grad, conjunto, busca, ordem]);
 
-  const st = useMemo(() => {
+  // Métricas: `st` = coleção INTEIRA (header, chip "Todos"); `stCards` = o que
+  // os FILTROS deixaram visível — os cards principais acompanham o filtro
+  // (card IA 14/07: filtrar deve mudar as métricas do topo). Sem filtro ativo,
+  // os dois são idênticos.
+  const calcularStats = (lista: Moeda[]) => {
     let valorTotal = 0, exemplares = 0, prataGramas = 0, meltCsv = 0;
-    const paises = new Set<string>();
-    for (const m of moedas) {
+    const paisesSet = new Set<string>();
+    for (const m of lista) {
       exemplares += m.qtd;
       valorTotal += m.valorBrl * m.qtd;
-      if (m.pais) paises.add(m.pais);
+      if (m.pais) paisesSet.add(m.pais);
       if (m.pesoMetalG) {
         prataGramas += m.pesoMetalG * m.qtd;
         meltCsv += (m.derretimentoBrl ?? 0) * m.qtd;
@@ -517,14 +521,20 @@ export default function MoedasShell() {
     }
     return {
       exemplares,
-      unicas: moedas.length,
-      paises: paises.size,
+      unicas: lista.length,
+      paises: paisesSet.size,
+      paisesLista: [...paisesSet],
       valorTotal,
       prataGramas: Math.round(prataGramas * 100) / 100,
       meltCsv,
       meltHoje: spot.prataBrlPorGrama != null ? prataGramas * spot.prataBrlPorGrama : null,
     };
-  }, [moedas, spot]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const st = useMemo(() => calcularStats(moedas ?? []), [moedas, spot]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stCards = useMemo(() => calcularStats(filtradas), [filtradas, spot]);
+  const filtroAtivo = stCards.exemplares !== st.exemplares;
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -539,12 +549,15 @@ export default function MoedasShell() {
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {[
-          { icon: <Coins size={13} />, label: "Exemplares", valor: `${st.exemplares}`, sub: `${st.unicas} moedas distintas` },
-          { icon: <BadgeDollarSign size={13} />, label: "Valor de catálogo", valor: fmtBRL(st.valorTotal), sub: "CoinSnap" },
-          { icon: <Globe2 size={13} />, label: "Países", valor: `${st.paises}`, sub: porPais.slice(0, 4).map((p) => bandeira(p.pais)).join(" ") },
           {
-            icon: <Gem size={13} />, label: "Prata na coleção", valor: st.prataGramas > 0 ? `${st.prataGramas.toLocaleString("pt-BR")} g` : "—",
-            sub: st.meltHoje != null && st.prataGramas > 0 ? `${fmtBRL(st.meltHoje)} ao spot de hoje` : (st.prataGramas > 0 ? `${fmtBRL(st.meltCsv)} no export` : "sem moedas de prata"),
+            icon: <Coins size={13} />, label: filtroAtivo ? "Exemplares (filtro)" : "Exemplares", valor: `${stCards.exemplares}`,
+            sub: filtroAtivo ? `${stCards.unicas} distintas · de ${st.exemplares} no total` : `${stCards.unicas} moedas distintas`,
+          },
+          { icon: <BadgeDollarSign size={13} />, label: "Valor de catálogo", valor: fmtBRL(stCards.valorTotal), sub: filtroAtivo ? `seleção · coleção ${fmtBRL(st.valorTotal)}` : "CoinSnap" },
+          { icon: <Globe2 size={13} />, label: "Países", valor: `${stCards.paises}`, sub: stCards.paisesLista.slice(0, 4).map((p) => bandeira(p)).join(" ") },
+          {
+            icon: <Gem size={13} />, label: "Prata", valor: stCards.prataGramas > 0 ? `${stCards.prataGramas.toLocaleString("pt-BR")} g` : "—",
+            sub: stCards.meltHoje != null && stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltHoje)} ao spot de hoje` : (stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltCsv)} no export` : "sem prata na seleção"),
           },
         ].map((c) => (
           <div key={c.label} className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
