@@ -4,9 +4,12 @@ name: Histórico patrimonial (3x/dia)
 # 3x por dia em dias úteis. NÃO usa cron da Vercel (plano Hobby só permite 1x/dia).
 # O liga/desliga fica em Configurações → Histórico patrimonial.
 #
-# Secrets/vars necessários no repositório (Settings → Secrets and variables → Actions):
-#   - secret CRON_SECRET : mesmo valor da env var CRON_SECRET na Vercel
-#   - var    APP_URL     : (opcional) URL de produção; default abaixo se ausente
+# Configuração no repositório (Settings → Secrets and variables → Actions):
+#   - CRON_SECRET : mesmo valor da env var CRON_SECRET na Vercel. Aceito tanto
+#     na aba SECRETS (recomendado) quanto na aba VARIABLES — o dono criou uma
+#     vez na aba errada e o job chegava com o valor vazio; agora qualquer uma
+#     das duas funciona.
+#   - var APP_URL : (opcional) URL de produção; default abaixo se ausente
 
 on:
   schedule:
@@ -20,11 +23,13 @@ jobs:
     steps:
       - name: Registrar patrimônio no histórico
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || vars.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}
         run: |
+          # tira espaços/quebras acidentais de um copia-e-cola
+          CRON_SECRET=$(printf %s "$CRON_SECRET" | tr -d '\r\n\t ' )
           if [ -z "$CRON_SECRET" ]; then
-            echo "::error::Secret CRON_SECRET não configurado no GitHub. Vá em Settings → Secrets and variables → Actions → New repository secret, nome CRON_SECRET, com o MESMO valor da env var CRON_SECRET na Vercel."
+            echo "::error::CRON_SECRET não chegou ao job. Crie em Settings → Secrets and variables → Actions, na aba SECRETS (Repository secrets) OU na aba VARIABLES, com o nome exato CRON_SECRET e o MESMO valor da env var CRON_SECRET na Vercel. Atenção: NÃO vale secret de Environment, Codespaces ou Dependabot."
             exit 1
           fi
           echo "Chamando $APP_URL/api/cron/historico"

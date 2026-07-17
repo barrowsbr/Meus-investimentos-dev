@@ -8,7 +8,7 @@ name: Backup diário (CSVs)
 # Restauração: Configurações → Planilha → "Restaurar CSV".
 #
 # Secrets/vars necessários (Settings → Secrets and variables → Actions):
-#   - secret CRON_SECRET : mesmo valor da env var CRON_SECRET na Vercel
+#   - CRON_SECRET : mesmo valor da Vercel — aceito na aba SECRETS ou VARIABLES
 #   - var    APP_URL     : (opcional) URL de produção; default abaixo
 
 on:
@@ -35,10 +35,11 @@ jobs:
       - name: Exportar CSVs do app
         if: steps.gate.outputs.ativo != 'false'
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || vars.CRON_SECRET }}
         run: |
+          CRON_SECRET=$(printf %s "$CRON_SECRET" | tr -d '\r\n\t ' )
           if [ -z "$CRON_SECRET" ]; then
-            echo "::error::Secret CRON_SECRET não configurado no GitHub. Vá em Settings → Secrets and variables → Actions → New repository secret, nome CRON_SECRET, com o MESMO valor da env var CRON_SECRET na Vercel."
+            echo "::error::CRON_SECRET não chegou ao job. Crie em Settings → Secrets and variables → Actions, na aba SECRETS (Repository secrets) OU na aba VARIABLES, nome exato CRON_SECRET, mesmo valor da Vercel. NÃO vale secret de Environment, Codespaces ou Dependabot."
             exit 1
           fi
           APP_URL="${{ vars.APP_URL || 'https://meus-investimentos-dev.vercel.app' }}"
