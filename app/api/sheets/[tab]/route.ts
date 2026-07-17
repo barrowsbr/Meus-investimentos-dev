@@ -18,7 +18,7 @@ export async function GET(
     "p_tax",
     "lb_historic",
     "historico_patrimonio",
-    "financas",
+    // "financas" (órfã) saiu da allowlist — aba pode ser apagada da planilha
     "financas_pessoal",
   ];
 

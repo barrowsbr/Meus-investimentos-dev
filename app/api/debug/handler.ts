@@ -12,7 +12,6 @@ const TABS = [
   "cambio",
   "p_tax",
   "lb_historic",
-  "financas",
   "financas_pessoal",
 ];
 
