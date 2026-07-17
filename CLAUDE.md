@@ -244,6 +244,13 @@ Registro de entradas, saídas e gastos com cartão.
   `COLECAO_ATUALIZADA_EM`).
 - `/moedas` (menu Mais → nav real em `components/terminal/nav.ts`) mostra mapa-múndi
   da coleção, filtros, cards com flip anverso⇄reverso e dossiê por moeda.
+- `/moedas/estojo` — "Estojos": vitrine fullscreen POR CONJUNTO monetário (não
+  existe estojo "todas" — decisão do dono), pensada para tela deitada: veludo,
+  berços em escala real, segurar tira a moeda (mola no dedo; soltar perto
+  reencaixa, longe cai com o acelerômetro) e bandeja "Comparar" (2 moedas
+  ampliadas na MESMA escala + painel de deltas). ⚠️ matter-js: corpo criado
+  `isStatic: true` explode em NaN ao ser liberado — criar dinâmico e assentar
+  com `Body.setStatic(true)` depois.
 - `/moedas/pote` — "Pote físico": a coleção em canvas com física (matter-js),
   cada exemplar com foto real e DIÂMETRO em escala (`diametroMmDe` em
   `lib/moedas.ts`); gravidade segue o acelerômetro (iOS exige botão de

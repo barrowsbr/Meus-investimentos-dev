@@ -24,6 +24,48 @@ import MoedasMapa from "@/components/moedas/MoedasMapa";
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
 
+// ── Botão-estojo: a caixinha de colecionador aberta, com moedas nos berços ────
+// (leva para /moedas/estojo — vitrines por conjunto com física e comparação)
+
+function EstojoButton() {
+  const fotos = MOEDAS_COLECAO.filter((m) => m.fotoAnverso).slice(3, 6).map((m) => m.fotoAnverso);
+  return (
+    <Link href="/moedas/estojo" title="Estojos — vitrines por conjunto, com física e comparação" className="estojo-btn group flex flex-col items-center">
+      <style>{`
+        .estojo-btn svg { transition: transform .25s ease; }
+        .estojo-btn:hover svg, .estojo-btn:active svg { transform: rotate(3deg) scale(1.06); }
+        .estojo-btn .eb-moeda { transform-origin: center; animation: eb-brilhar 3.4s ease-in-out infinite; }
+        .estojo-btn .eb-m2 { animation-delay: .6s; } .estojo-btn .eb-m3 { animation-delay: 1.2s; }
+        @keyframes eb-brilhar { 0%,100% { opacity: .92; } 50% { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .estojo-btn .eb-moeda, .estojo-btn svg { animation: none !important; transition: none; } }
+      `}</style>
+      <svg width="66" height="58" viewBox="0 0 74 66" aria-hidden>
+        <defs>
+          <clipPath id="ebC1"><circle cx="24" cy="38" r="8.5" /></clipPath>
+          <clipPath id="ebC2"><circle cx="43" cy="38" r="7.5" /></clipPath>
+          <clipPath id="ebC3"><circle cx="59" cy="38" r="6.5" /></clipPath>
+        </defs>
+        {/* tampa aberta (atrás) */}
+        <rect x="10" y="8" width="56" height="14" rx="4" fill="rgba(58,36,19,0.9)" stroke="rgba(240,184,96,0.5)" strokeWidth="1.3" />
+        <rect x="14" y="11" width="48" height="8" rx="2.5" fill="rgba(20,10,14,0.85)" />
+        {/* base do estojo com veludo */}
+        <rect x="8" y="24" width="60" height="28" rx="5" fill="#2a1710" stroke="rgba(240,184,96,0.55)" strokeWidth="1.5" />
+        <rect x="12" y="27" width="52" height="22" rx="3.5" fill="rgba(90,20,35,0.55)" />
+        {/* berços com moedas reais */}
+        <circle cx="24" cy="38" r="9.5" fill="rgba(0,0,0,0.4)" />
+        <circle cx="43" cy="38" r="8.5" fill="rgba(0,0,0,0.4)" />
+        <circle cx="59" cy="38" r="7.5" fill="rgba(0,0,0,0.4)" />
+        {fotos[0] && <image className="eb-moeda" href={fotos[0]} x="15.5" y="29.5" width="17" height="17" clipPath="url(#ebC1)" preserveAspectRatio="xMidYMid slice" />}
+        {fotos[1] && <image className="eb-moeda eb-m2" href={fotos[1]} x="35.5" y="30.5" width="15" height="15" clipPath="url(#ebC2)" preserveAspectRatio="xMidYMid slice" />}
+        {fotos[2] && <image className="eb-moeda eb-m3" href={fotos[2]} x="52.5" y="31.5" width="13" height="13" clipPath="url(#ebC3)" preserveAspectRatio="xMidYMid slice" />}
+        {/* fecho */}
+        <rect x="35" y="51" width="6" height="4" rx="1.5" fill="rgba(240,184,96,0.6)" />
+      </svg>
+      <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-400/90 transition-colors group-hover:text-amber-300">Estojo</span>
+    </Link>
+  );
+}
+
 // ── Botão-pote: um pote de vidro DE VERDADE, com moedas da coleção dentro ─────
 // (o botão para entrar no /moedas/pote É um pote — pedido do dono). As três
 // moedinhas são fotos reais; no hover elas dão uma chacoalhada.
@@ -544,7 +586,10 @@ export default function MoedasShell() {
           <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Coins size={18} className="text-amber-400" /> Coleção de Moedas</h1>
           <p className="text-xs text-zinc-500">Catálogo CoinSnap · {st.exemplares} exemplares</p>
         </div>
-        <PoteButton />
+        <div className="flex items-start gap-3">
+          <EstojoButton />
+          <PoteButton />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
