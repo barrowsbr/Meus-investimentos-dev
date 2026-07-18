@@ -1,0 +1,53 @@
+# Rebalanceia o tom de UMA remessa de fotos da coleção (refaz do original do
+# CDN com balanço de branco + realce). Dispara pelo push do manifesto
+# scripts/.remessa-wb.json na branch; ao final o manifesto é removido e o
+# resultado commitado (one-shot). Roda no runner porque a rede do dev bloqueia
+# o CDN do CoinSnap.
+name: moedas-wb
+
+on:
+  push:
+    paths:
+      - "scripts/.remessa-wb.json"
+
+permissions:
+  contents: write
+
+jobs:
+  rebalancear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Checar manifesto
+        id: manifesto
+        run: |
+          if [ -f scripts/.remessa-wb.json ]; then echo "existe=1" >> "$GITHUB_OUTPUT"; else echo "existe=0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Baixar originais + balanço de branco
+        if: steps.manifesto.outputs.existe == '1'
+        run: |
+          pip install --quiet opencv-python-headless numpy
+          python3 scripts/wb-remessa.py scripts/.remessa-wb.json
+          python3 - <<'EOF'
+          import json
+          itens = json.load(open("scripts/.remessa-wb.json"))
+          open("/tmp/remessa.txt", "w").write("\n".join(i["arquivo"] for i in itens))
+          EOF
+
+      - name: Realce padrão em cima
+        if: steps.manifesto.outputs.existe == '1'
+        run: python3 scripts/realce-moedas.py --files-list /tmp/remessa.txt
+
+      - name: Commitar e limpar manifesto
+        if: steps.manifesto.outputs.existe == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -q scripts/.remessa-wb.json
+          git add public/colecao-moedas
+          git commit -m "Moedas: remessa rebalanceada (WB + realce a partir dos originais — workflow moedas-wb)"
+          git push origin "HEAD:${{ github.ref_name }}"
