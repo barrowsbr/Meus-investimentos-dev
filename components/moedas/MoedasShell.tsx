@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers, Camera } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, conjuntoMonetario, type Moeda } from "@/lib/moedas";
@@ -355,6 +355,17 @@ function CoinModal({ m, prataBrlPorGrama, onClose }: { m: Moeda; prataBrlPorGram
           >
             <Maximize2 size={12} /> Tela cheia
           </button>
+          <Link
+            href={`/moedas/foto?${new URLSearchParams({
+              ...(fotoAtiva.anverso ? { a: fotoAtiva.anverso } : {}),
+              ...(fotoAtiva.reverso ? { r: fotoAtiva.reverso } : {}),
+              nome: `${m.denominacao} · ${m.ano || "—"}${fotos.length > 1 ? ` (exemplar ${exemplar + 1})` : ""}`,
+            }).toString()}`}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-zinc-300"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }}
+          >
+            <Camera size={12} /> Refazer foto
+          </Link>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2">
