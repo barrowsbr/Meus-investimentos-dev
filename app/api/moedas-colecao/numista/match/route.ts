@@ -17,7 +17,7 @@ const NUMISTA_ENVIO_TAB = "numista_envio";
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
 
-  if (!sp.has("offset")) {
+  if (!sp.has("offset") && !sp.has("idxs")) {
     // status
     let enviadas = 0;
     try {

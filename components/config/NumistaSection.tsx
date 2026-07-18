@@ -50,9 +50,11 @@ export default function NumistaSection() {
       fila = fila.slice(8);
       const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}`);
       if (!r.ok) throw new Error(`lote: HTTP ${r.status}`);
-      const d = (await r.json()) as { resultados: Casamento[]; pendentes?: number[]; rateLimit?: boolean };
-      aoReceber(d.resultados);
-      feitos += d.resultados.length;
+      const d = (await r.json()) as { resultados?: Casamento[]; pendentes?: number[]; rateLimit?: boolean };
+      const cs = d.resultados ?? [];
+      if (cs.length === 0 && !d.pendentes?.length) throw new Error("resposta sem resultados — atualize a página (deploy novo?)");
+      aoReceber(cs);
+      feitos += cs.length;
       if (d.pendentes?.length) fila = [...d.pendentes, ...fila];
       setProgresso(Math.min(1, feitos / Math.max(1, totalAlvo)));
       if (d.rateLimit) return "cota";
