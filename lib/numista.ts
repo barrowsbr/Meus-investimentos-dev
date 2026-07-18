@@ -22,22 +22,32 @@ async function chamada(
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> | null }> {
   const k = key();
   if (!k) return { ok: false, status: 0, data: null };
-  try {
-    const r = await fetch(`${BASE}${path}`, {
-      method: opts.method ?? "GET",
-      headers: {
-        "Numista-API-Key": k,
-        ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
-        ...(opts.body ? { "Content-Type": "application/json" } : {}),
-      },
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-      signal: AbortSignal.timeout(12000),
-      cache: "no-store",
-    });
-    const data = r.status === 204 ? {} : ((await r.json().catch(() => null)) as Record<string, unknown> | null);
-    return { ok: r.ok, status: r.status, data };
-  } catch {
-    return { ok: false, status: 0, data: null };
+  // 429 (rate-limit) derrubou ~30% do primeiro dry-run em massa: as buscas
+  // voltavam vazias e o motor lia como "não achou". Backoff + retry aqui.
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      const r = await fetch(`${BASE}${path}`, {
+        method: opts.method ?? "GET",
+        headers: {
+          "Numista-API-Key": k,
+          ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+          ...(opts.body ? { "Content-Type": "application/json" } : {}),
+        },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: AbortSignal.timeout(12000),
+        cache: "no-store",
+      });
+      if (r.status === 429 && tentativa < 2) {
+        const espera = Number(r.headers.get("Retry-After")) * 1000 || (tentativa + 1) * 1500;
+        await new Promise((res) => setTimeout(res, Math.min(espera, 5000)));
+        continue;
+      }
+      const data = r.status === 204 ? {} : ((await r.json().catch(() => null)) as Record<string, unknown> | null);
+      return { ok: r.ok, status: r.status, data };
+    } catch {
+      if (tentativa < 1) { await new Promise((res) => setTimeout(res, 1000)); continue; }
+      return { ok: false, status: 0, data: null };
+    }
   }
 }
 
@@ -88,16 +98,21 @@ export interface Casamento {
   confianca: "km" | "pais-ano" | "nenhuma";
 }
 
-/** Casa UMA moeda com o catálogo. Sequencial e best-effort — quem chama controla o lote. */
+/** Casa UMA moeda com o catálogo. Sequencial e best-effort — quem chama controla o lote.
+ *  A issue do ano NÃO é resolvida aqui (economia de chamadas no dry-run em
+ *  massa) — o envio resolve com resolverIssue() só para as aprovadas. */
 export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
   const nulo: Casamento = { ...m, typeId: null, issueId: null, titulo: null, url: null, confianca: "nenhuma" };
   const paisEn = PAIS_EN[m.pais] ?? m.pais;
   const kmNum = m.krause ? norm(m.krause.replace(/km#?/i, "")) : "";
   const anoNum = Number(m.ano.slice(0, 4)) || null;
 
+  // Denominação com símbolo (¼ dólar) rende pouco na busca — versão por extenso ajuda.
+  const denomBusca = m.denominacao.replace("¼", "quarter").replace("½", "half");
   const consultas = [
     m.krause ? `${m.krause} ${paisEn}` : "",
-    `${m.denominacao} ${paisEn} ${m.ano.slice(0, 4)}`.trim(),
+    kmNum ? `${kmNum} ${paisEn} ${denomBusca}` : "", // sem o prefixo "KM#" — o índice do Numista prefere
+    `${denomBusca} ${paisEn} ${m.ano.slice(0, 4)}`.trim(),
   ].filter(Boolean);
 
   const vistos = new Set<number>();
@@ -115,7 +130,7 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
   let id: number | null = null;
   let confianca: Casamento["confianca"] = "nenhuma";
   let fallback: { det: Record<string, unknown>; id: number } | null = null;
-  for (const cand of candidatos.slice(0, 6)) {
+  for (const cand of candidatos.slice(0, 4)) {
     const d = (await chamada(`/types/${cand}?lang=pt`)).data;
     if (!d) continue;
     const refs = (d["references"] ?? []) as Array<{ catalogue?: { code?: string }; number?: string }>;
@@ -133,24 +148,24 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
   if (!det && fallback) { det = fallback.det; id = fallback.id; confianca = "pais-ano"; }
   if (!det || id == null) return nulo;
 
-  // Issue do ano exato (o item na coleção fica amarrado ao ano certo).
-  let issueId: number | null = null;
-  const issues = (await chamada(`/types/${id}/issues?lang=pt`)).data;
-  if (Array.isArray(issues)) {
-    const doAno = (issues as Array<{ id?: number; year?: number }>).filter(
-      (i) => String(i.year ?? "") === m.ano.slice(0, 4),
-    );
-    issueId = doAno[0]?.id ?? null;
-  }
-
   return {
     ...m,
     typeId: id,
-    issueId,
+    issueId: null, // resolvida no envio (resolverIssue) — dry-run mais leve
     titulo: typeof det["title"] === "string" ? (det["title"] as string) : null,
     url: typeof det["url"] === "string" ? (det["url"] as string) : `https://pt.numista.com/catalogue/pieces${id}.html`,
     confianca,
   };
+}
+
+/** Issue (emissão) do ANO exato de um tipo — amarra o item ao ano certo no envio. */
+export async function resolverIssue(typeId: number, ano: string): Promise<number | null> {
+  const issues = (await chamada(`/types/${typeId}/issues?lang=pt`)).data;
+  if (!Array.isArray(issues)) return null;
+  const doAno = (issues as Array<{ id?: number; year?: number }>).filter(
+    (i) => String(i.year ?? "") === ano.slice(0, 4),
+  );
+  return doAno[0]?.id ?? null;
 }
 
 // ── OAuth (client_credentials — conta do dono da chave) ──────────────────────

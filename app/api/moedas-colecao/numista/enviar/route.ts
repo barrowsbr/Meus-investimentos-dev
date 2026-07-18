@@ -5,7 +5,7 @@
 // Só o card de Configurações chama, e só após o dry-run.
 
 import { NextRequest, NextResponse } from "next/server";
-import { tokenColecao, adicionarItem, numistaAtivo } from "@/lib/numista";
+import { tokenColecao, adicionarItem, resolverIssue, numistaAtivo } from "@/lib/numista";
 import { ensureTab, appendRowsTyped } from "@/lib/gsheets";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
   let criados = 0;
 
   for (const it of itens) {
+    // O dry-run não resolve a issue (economia de chamadas) — amarra o ano aqui.
+    if (it.issueId == null) it.issueId = await resolverIssue(it.typeId, it.ano);
     const comentarioBase = `Meus Investimentos · ${it.krause || "sem KM#"} · ${it.graduacao || "s/ grad."}`;
     // 1 exemplar guardado…
     const guarda = await adicionarItem(auth.token, auth.userId, {
