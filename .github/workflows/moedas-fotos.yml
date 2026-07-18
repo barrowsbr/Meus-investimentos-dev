@@ -1,0 +1,62 @@
+# Baixa e realça as fotos NOVAS da coleção de moedas — parte do processo de
+# atualização por CSV do CoinSnap. Roda no runner do GitHub porque a rede do
+# ambiente de desenvolvimento bloqueia o CDN (static.coinidentifierai.com).
+#
+# Fluxo: regenerar lib/moedas-data.ts do CSV (na sessão) → push na branch →
+# disparar esta workflow (workflow_dispatch, informando a branch) → ela roda
+# scripts/baixar-moedas.mjs (baixa só o que falta e troca as URLs por paths
+# locais), realça SOMENTE os arquivos novos (scripts/realce-moedas.py — as
+# fotos antigas já estão realçadas) e commita na própria branch.
+name: moedas-fotos
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch com o moedas-data.ts regenerado"
+        required: true
+        default: "claude/oi-44yimr"
+
+permissions:
+  contents: write
+
+jobs:
+  baixar-e-realcar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Baixar fotos que faltam (CDN CoinSnap)
+        run: node scripts/baixar-moedas.mjs
+
+      - name: Listar fotos novas (só elas passam pelo realce)
+        id: novas
+        run: |
+          git status --porcelain public/colecao-moedas | awk '$1 == "??" {print $2}' > /tmp/novas.txt
+          echo "qtd=$(wc -l < /tmp/novas.txt)" >> "$GITHUB_OUTPUT"
+          echo "$(wc -l < /tmp/novas.txt) fotos novas"
+
+      - name: Realçar fotos novas
+        if: steps.novas.outputs.qtd != '0'
+        run: |
+          pip install --quiet opencv-python-headless numpy
+          python3 scripts/realce-moedas.py --files-list /tmp/novas.txt
+
+      - name: Commitar na branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/colecao-moedas lib/moedas-data.ts
+          if git diff --cached --quiet; then
+            echo "nada a commitar"
+          else
+            git commit -m "Moedas: fotos novas baixadas e realçadas (workflow moedas-fotos)"
+            git push origin "HEAD:${{ github.event.inputs.branch }}"
+          fi
