@@ -247,15 +247,17 @@ Registro de entradas, saídas e gastos com cartão.
 - `/moedas/estojo` — "Estojos": vitrine fullscreen POR CONJUNTO monetário (não
   existe estojo "todas" — decisão do dono), pensada para tela deitada: veludo,
   berços em escala real e ordem cronológica. Gestos: 1 toque VIRA (flip 3D com
-  espessura de metal), 2 toques → área de observação (sem zoom), arrastar
-  carrega (mola no dedo; soltar no ar cai com o acelerômetro), segurar ~1s
-  sobre um berço vazio encaixa. **Modo 1:1**: moedas no TAMANHO FÍSICO real
-  (px/mm calibrável pela régua — moeda de 1 real na tela; `moedas_pxmm` no
-  localStorage); pinça dá zoom e arrastar o veludo navega. Luz especular +
-  bevel seguem o acelerômetro, sombras seguem a gravidade, parallax no veludo.
-  Bandeja "Comparar" (2 moedas na MESMA escala + painel de deltas). ⚠️
-  matter-js: corpo criado `isStatic: true` explode em NaN ao ser liberado —
-  criar dinâmico e assentar com `Body.setStatic(true)` depois.
+  espessura de metal), 2 toques → CARD-RESUMO com link p/ o dossiê da coleção
+  (`/moedas?m=<índice>` — deep-link no MoedasShell; a antiga área de observação
+  com divisória foi REMOVIDA, decisão do dono 18/07), arrastar carrega (mola no
+  dedo; soltar no ar cai com o acelerômetro), segurar ~1s sobre um berço vazio
+  encaixa. **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
+  régua — moeda de 1 real na tela; `moedas_pxmm` no localStorage); com 1:1
+  ATIVO o zoom fica TRAVADO (pinça/roda desligadas — só pan); fora dele pinça
+  dá zoom e arrastar o veludo navega. Luz especular + bevel seguem o
+  acelerômetro, sombras seguem a gravidade, parallax no veludo. ⚠️ matter-js:
+  corpo criado `isStatic: true` explode em NaN ao ser liberado — criar dinâmico
+  e assentar com `Body.setStatic(true)` depois.
 - `/moedas/foto` — "Estúdio de foto": refaz a foto de um exemplar no formato
   EXATO da coleção (512×512, fundo preto, moeda preenchendo o quadro — padrão
   CoinSnap; os arquivos são JPEG com extensão .webp). Abre pelo dossiê

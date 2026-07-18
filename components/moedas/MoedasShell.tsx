@@ -497,6 +497,12 @@ export default function MoedasShell() {
       .catch(() => {});
   }, []);
 
+  // Deep-link do estojo: /moedas?m=<índice em MOEDAS_COLECAO> abre o dossiê.
+  useEffect(() => {
+    const idx = Number(new URLSearchParams(window.location.search).get("m"));
+    if (Number.isInteger(idx) && idx >= 0 && idx < MOEDAS_COLECAO.length) setAberta(MOEDAS_COLECAO[idx]);
+  }, []);
+
   const porPais = useMemo<PaisStat[]>(() => {
     const map = new Map<string, PaisStat>();
     for (const m of moedas ?? []) {
