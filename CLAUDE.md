@@ -273,6 +273,14 @@ Registro de entradas, saídas e gastos com cartão.
   derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda com o catálogo
   **Numista** (`NUMISTA_API_KEY`): tiragem, dimensões, descrições, gravador e
   **preços estimados por graduação em BRL** (o estado do exemplar em destaque).
+- **Exportar para o Numista** (Configurações → card "Exportar coleção para o
+  Numista"): casamento com o catálogo em dry-run (`lib/numista.ts` — KM# exato =
+  confiável; só país+ano = dúvida, fica de fora), envio via OAuth
+  client_credentials para a conta do DONO da chave com **repetidas marcadas
+  "disponível para troca"** (1 guardada + qtd−1 para troca — decisão do dono),
+  registro de cada item criado na aba `numista_envio` e **desfazer em lote**.
+  Rotas fatiadas (`/api/moedas-colecao/numista/{match,enviar,desfazer}`) — o
+  card pagina as chamadas. NUNCA enviar sem dry-run aprovado no card.
   A "história por IA" foi REMOVIDA a pedido do dono — dado real > texto gerado.
   Cache CDN 7 dias. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar**
   (`app/api/moedas/route.ts` → `handler.ts`) — não confundir com a coleção

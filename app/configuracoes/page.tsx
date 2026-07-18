@@ -19,6 +19,7 @@ import FlexSyncSection from "@/components/config/FlexSyncSection";
 import ImportSection from "@/components/config/ImportSection";
 import GoldenSourceSection from "@/components/config/GoldenSourceSection";
 import TickerAuditSection from "@/components/config/TickerAuditSection";
+import NumistaSection from "@/components/config/NumistaSection";
 import ThemeSection from "@/components/config/ThemeSection";
 import AutomacoesSection from "@/components/config/AutomacoesSection";
 import HistoricoSection from "@/components/config/HistoricoSection";
@@ -124,6 +125,7 @@ export default function ConfiguracoesPage() {
     { id: "importar", grupo: "sync", title: "Importar Dados (IBKR / B3)", desc: "Upload de CSV das corretoras — importação idempotente, sem duplicatas", icon: <Upload size={16} />, keywords: "importar csv arquivo corretora b3 ibkr trades proventos upload", el: <ImportSection /> },
     { id: "flexsync", grupo: "sync", title: "Sincronizar IBKR (API · sem arquivo)", desc: "Flex Web Service — trades, proventos e câmbio direto da IBKR", icon: <RefreshCw size={16} />, keywords: "flex web service token sync trades proventos automatico", el: <FlexSyncSection /> },
     { id: "tickers", grupo: "sync", title: "Tickers × Yahoo (Verificador)", desc: "Valida a grafia dos símbolos contra o Yahoo e unifica variações", icon: <ShieldCheck size={16} />, keywords: "ticker grafia sufixo .sa validar unificar simbolo", el: <TickerAuditSection /> },
+    { id: "numista", grupo: "sync", title: "Exportar coleção para o Numista", desc: "Dry-run de casamento com o catálogo, envio (repetidas para troca) e desfazer", icon: <Upload size={16} />, keywords: "numista moedas colecao exportar troca swap catalogo km enviar desfazer", el: <NumistaSection /> },
     { id: "automacoes", grupo: "automacoes", title: "Automações (Cron & GitHub Actions)", desc: "Tudo que roda sozinho — com liga/desliga individual", icon: <Zap size={16} />, keywords: "cron vercel github actions ligar desligar backup cotacoes ibkr relatorio", el: <AutomacoesSection /> },
     { id: "alertas", grupo: "automacoes", title: "Alertas (Telegram)", desc: "DARF, DIRPF, alavancagem e o resumo do dia em imagem", icon: <Bell size={16} />, keywords: "telegram bot darf dirpf alavancagem resumo do dia chat_id notificacao", el: <AlertasSection /> },
     { id: "senha", grupo: "sistema", title: "Segurança — Senha de Acesso", desc: "Senha do app e quais páginas exigem login", icon: <Lock size={16} />, keywords: "senha password login protecao paginas bloquear", el: <PasswordSection /> },
