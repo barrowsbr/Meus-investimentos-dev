@@ -11,7 +11,7 @@
 //  3. DESFAZER — apaga no Numista tudo que NÓS criamos (pela aba), em lotes.
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, Loader2, Send, Trash2, SearchCheck } from "lucide-react";
+import { ExternalLink, Loader2, Send, Trash2, SearchCheck, RotateCcw } from "lucide-react";
 
 interface Status { ativo: boolean; totalDistintas: number; totalExemplares: number; enviadas: number }
 interface Casamento {
@@ -27,6 +27,7 @@ export default function NumistaSection() {
   const [casamentos, setCasamentos] = useState<Casamento[] | null>(null);
   const [erros, setErros] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [incluirDuvida, setIncluirDuvida] = useState(false);
 
   const carregarStatus = useCallback(async () => {
     try {
@@ -59,20 +60,48 @@ export default function NumistaSection() {
   const confiaveis = (casamentos ?? []).filter((c) => c.confianca === "km");
   const duvidosas = (casamentos ?? []).filter((c) => c.confianca === "pais-ano");
   const semMatch = (casamentos ?? []).filter((c) => c.confianca === "nenhuma");
-  const repetidas = confiaveis.reduce((s, c) => s + Math.max(0, c.qtd - 1), 0);
+  const paraEnvio = incluirDuvida ? [...confiaveis, ...duvidosas] : confiaveis;
+  const repetidas = paraEnvio.reduce((s, c) => s + Math.max(0, c.qtd - 1), 0);
+
+  // Refaz SÓ as que não casaram (falhas costumam ser rate-limit do Numista —
+  // com o backoff, a segunda passada recupera a maioria).
+  const recasarFalhas = async () => {
+    if (semMatch.length === 0 || !casamentos) return;
+    setRodando("match"); setProgresso(0); setErros([]); setMsg(null);
+    const mapa = new Map(casamentos.map((c) => [c.idx, c]));
+    const idxs = semMatch.map((c) => c.idx);
+    try {
+      for (let i = 0; i < idxs.length; i += 8) {
+        const lote = idxs.slice(i, i + 8);
+        const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}`);
+        if (!r.ok) throw new Error(`lote ${i}: HTTP ${r.status}`);
+        const d = (await r.json()) as { resultados: Casamento[] };
+        for (const c of d.resultados) mapa.set(c.idx, c);
+        setProgresso(Math.min(1, (i + 8) / idxs.length));
+        await new Promise((res) => setTimeout(res, 400)); // respiro anti rate-limit
+      }
+      const novo = [...mapa.values()].sort((a, b) => a.idx - b.idx);
+      const recuperadas = novo.filter((c) => c.confianca !== "nenhuma").length - (casamentos.length - semMatch.length);
+      setCasamentos(novo);
+      setMsg(`${recuperadas} recuperadas no recasamento.`);
+    } catch (e) {
+      setErros([e instanceof Error ? e.message : "falha no recasamento"]);
+    } finally { setRodando(null); }
+  };
 
   const enviar = async () => {
-    if (confiaveis.length === 0) return;
+    if (paraEnvio.length === 0) return;
     if (!window.confirm(
-      `Enviar ${confiaveis.length} moedas para a SUA coleção no Numista?\n` +
-      `(${repetidas} repetidas serão marcadas "disponível para troca")\n\nDá para desfazer em lote depois.`,
+      `Enviar ${paraEnvio.length} moedas para a SUA coleção no Numista?\n` +
+      `(${confiaveis.length} confiáveis${incluirDuvida ? ` + ${duvidosas.length} em dúvida` : ""} · ` +
+      `${repetidas} repetidas marcadas "disponível para troca")\n\nDá para desfazer em lote depois.`,
     )) return;
     setRodando("enviar"); setProgresso(0); setErros([]); setMsg(null);
     let criados = 0;
     const falhas: string[] = [];
     try {
-      for (let i = 0; i < confiaveis.length; i += 6) {
-        const lote = confiaveis.slice(i, i + 6);
+      for (let i = 0; i < paraEnvio.length; i += 6) {
+        const lote = paraEnvio.slice(i, i + 6);
         const r = await fetch("/api/moedas-colecao/numista/enviar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -82,7 +111,7 @@ export default function NumistaSection() {
         if (!r.ok) { falhas.push(d.error ?? `lote ${i}: HTTP ${r.status}`); break; }
         criados += d.criados ?? 0;
         if (d.erros?.length) falhas.push(...d.erros);
-        setProgresso(Math.min(1, (i + 6) / confiaveis.length));
+        setProgresso(Math.min(1, (i + 6) / paraEnvio.length));
       }
       setMsg(`${criados} itens criados no Numista.`);
       setErros(falhas);
@@ -157,14 +186,25 @@ export default function NumistaSection() {
           {rodando === "match" ? <Loader2 size={13} className="animate-spin" /> : <SearchCheck size={13} />}
           1. Conferir casamento (dry-run)
         </button>
+        {semMatch.length > 0 && (
+          <button
+            onClick={recasarFalhas}
+            disabled={rodando !== null}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40"
+            style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24" }}
+          >
+            {rodando === "match" ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+            Recasar {semMatch.length} falhas
+          </button>
+        )}
         <button
           onClick={enviar}
-          disabled={rodando !== null || confiaveis.length === 0}
+          disabled={rodando !== null || paraEnvio.length === 0}
           className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40"
           style={{ background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.4)", color: "#34d399" }}
         >
           {rodando === "enviar" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-          2. Enviar {confiaveis.length > 0 ? `${confiaveis.length} confiáveis` : ""}
+          2. Enviar {paraEnvio.length > 0 ? `${paraEnvio.length} moedas` : ""}
         </button>
         {(status?.enviadas ?? 0) > 0 && (
           <button
@@ -195,9 +235,15 @@ export default function NumistaSection() {
 
       {casamentos && (
         <div className="space-y-1.5">
+          {duvidosas.length > 0 && (
+            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-zinc-400">
+              <input type="checkbox" checked={incluirDuvida} onChange={(e) => setIncluirDuvida(e.target.checked)} className="accent-amber-400" />
+              Incluir as {duvidosas.length} "em dúvida" no envio (confira algumas pelos links antes)
+            </label>
+          )}
           <Lista titulo="✓ Confiáveis (KM# exato) — vão no envio" itens={confiaveis} tom="#34d399" />
-          <Lista titulo="? Em dúvida (só país+ano) — ficam de fora, conferir na mão" itens={duvidosas} tom="#fbbf24" />
-          <Lista titulo="✗ Sem casamento — não existem no envio" itens={semMatch} tom="#f87171" />
+          <Lista titulo={incluirDuvida ? "? Em dúvida (só país+ano) — INCLUÍDAS no envio" : "? Em dúvida (só país+ano) — ficam de fora, conferir na mão"} itens={duvidosas} tom="#fbbf24" />
+          <Lista titulo="✗ Sem casamento — ficam de fora (use o Recasar)" itens={semMatch} tom="#f87171" />
         </div>
       )}
     </div>
