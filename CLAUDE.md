@@ -274,9 +274,9 @@ Registro de entradas, saídas e gastos com cartão.
   **Numista** (`NUMISTA_API_KEY`): tiragem, dimensões, descrições, gravador e
   **preços estimados por graduação em BRL** (o estado do exemplar em destaque).
   A "história por IA" foi REMOVIDA a pedido do dono — dado real > texto gerado.
-  Cache CDN 7 dias. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar** (servido
-  pelo catch-all `app/api/[...path]` → `app/api/moedas/handler.ts`) — criar rota
-  nesse path quebra a lente Câmbio (já aconteceu; não repetir).
+  Cache CDN 7 dias. ⚠️ **`/api/moedas` é o endpoint de CÂMBIO do Radar**
+  (`app/api/moedas/route.ts` → `handler.ts`) — não confundir com a coleção
+  (`/api/moedas-colecao`) nem reutilizar o path.
 
 ---
 
@@ -457,7 +457,7 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   `{ok, ms, detail}`. O card de Configurações usa os dois (botão por API + "Testar
   todas"). As probes rodam **no servidor** (Vercel) — a network policy do dev bloqueia
   vários hosts, então o resultado real aparece em produção.
-- `/api/health` (via catch-all) é o health legado só do Google Sheets — não confundir
+- `/api/health` é o health legado só do Google Sheets — não confundir
   com `/api/diag/apis` (o painel completo).
 
 APIs registradas hoje, por categoria (env var → OBRIG. / opc.):
