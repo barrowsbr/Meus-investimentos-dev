@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 
 export type LoaderVariant =
   | "moeda" | "pregao" | "rolo" | "cofrinho" | "radar" | "arvore"
-  | "raizes"
+  | "nucleo"
   | "engrenagens" | "jornal" | "foguete" | "cripto" | "carimbo"
   | "cambio" | "grafico" | "balanca" | "robo";
 
@@ -32,7 +32,7 @@ const POR_ROTA: Array<[string, LoaderVariant]> = [
   ["/agente-ia", "robo"],
   ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"], ["/etf-cem", "pregao"],
   ["/financas", "cofrinho"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
-  ["/", "raizes"], // Home (por último: prefixo pega tudo) — H6 aprovada pelo dono
+  ["/", "nucleo"], // Home (por último: prefixo pega tudo) — HUD "Núcleo" (substituiu a árvore H6)
 
 ];
 
@@ -86,57 +86,76 @@ function Cena({ v }: { v: LoaderVariant }) {
           </div>
         </div>
       );
-    case "raizes":
-      // H6 evoluída (Home) — a árvore Barroots no centro de um CIRCUITO: as
-      // raízes viram trilhas de placa que correm para as bordas, com pulsos de
-      // luz viajando por elas + anéis de energia na base. Cena GRANDE (a Home
-      // usa o palco XL). Tronco roxo→azul→verde como o logo; escolha do dono.
+    case "nucleo":
+      // "Núcleo" (Home) — HUD holográfico de terminal: aro de ticks como
+      // instrumento, arcos concêntricos girando em sentidos opostos, varredura
+      // de radar, satélites orbitando com rastro, anéis de energia expandindo e
+      // um core âmbar pulsante com cruz de mira; glifos de "dado" piscam ao
+      // redor. Palco XL (a Home esconde o header durante o load).
       return (
-        <svg className="ldr-raizes" viewBox="0 0 460 300" aria-hidden>
+        <svg className="ldr-nucleo" viewBox="0 0 400 400" aria-hidden>
           <defs>
-            <linearGradient id="ldrGradTronco" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0" stopColor="#6d5bd0" /><stop offset=".55" stopColor="#4f8ef7" /><stop offset="1" stopColor="#3fb950" />
+            <radialGradient id="ldrNucCore" cx=".5" cy=".42" r=".62">
+              <stop offset="0" stopColor="#fff7e0" />
+              <stop offset=".35" stopColor="#F5CE85" />
+              <stop offset=".75" stopColor="#C9852E" />
+              <stop offset="1" stopColor="#8a5a1a" />
+            </radialGradient>
+            <linearGradient id="ldrNucArco" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#F0B860" />
+              <stop offset="1" stopColor="rgba(240,184,96,0)" />
+            </linearGradient>
+            <linearGradient id="ldrNucArco2" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#22d3ee" />
+              <stop offset="1" stopColor="rgba(34,211,238,0)" />
             </linearGradient>
           </defs>
 
-          {/* trilhas de circuito (fundo) + pulsos viajando + nós nas pontas */}
-          {[
-            "M218 190 H150 L120 160 H28",
-            "M218 205 H130 L100 235 H28",
-            "M223 242 V272 H150",
-            "M242 190 H310 L340 160 H432",
-            "M242 205 H330 L360 235 H432",
-            "M237 242 V272 H310",
-          ].map((d, i) => (
-            <g key={i}>
-              <path className="ldr-rzt-trilha" d={d} />
-              <path className={`ldr-rzt-pulso ldr-rzt-p${i + 1}`} d={d} />
-            </g>
-          ))}
-          <circle className="ldr-rzt-no ldr-rzt-n1" cx="28" cy="160" r="3.5" />
-          <circle className="ldr-rzt-no ldr-rzt-n2" cx="28" cy="235" r="3.5" />
-          <circle className="ldr-rzt-no ldr-rzt-n3" cx="150" cy="272" r="3.5" />
-          <circle className="ldr-rzt-no ldr-rzt-n4" cx="432" cy="160" r="3.5" />
-          <circle className="ldr-rzt-no ldr-rzt-n5" cx="432" cy="235" r="3.5" />
-          <circle className="ldr-rzt-no ldr-rzt-n6" cx="310" cy="272" r="3.5" />
+          {/* aro externo de ticks (instrumento) */}
+          <circle className="ldr-nuc-ticks" cx="200" cy="200" r="182" />
+          <circle className="ldr-nuc-ticks ldr-nuc-ticks2" cx="200" cy="200" r="172" />
 
-          {/* anéis de energia subindo da base do tronco */}
-          <circle className="ldr-rzt-anel" cx="230" cy="188" r="26" />
-          <circle className="ldr-rzt-anel ldr-rzt-a2" cx="230" cy="188" r="26" />
-
-          {/* a árvore Barroots (mesma cena H6, agora maior e no centro) */}
-          <g transform="translate(135 22)">
-            <path className="ldr-rz-raiz" d="M95 150 Q70 175 42 182 M95 150 Q100 185 88 205 M95 150 Q124 178 152 184" />
-            <path className="ldr-rz-galho" d="M95 152 L95 96 Q95 70 72 54 M95 96 Q97 66 122 50 M95 118 Q76 106 62 82" />
-            <path className="ldr-rz-galho ldr-rz-fino" d="M95 108 Q116 96 130 78 M72 54 Q60 44 56 30 M122 50 Q134 40 138 26" />
-            <circle className="ldr-rz-folha" cx="56" cy="28" r="7" />
-            <circle className="ldr-rz-folha ldr-rz-v" cx="72" cy="52" r="6" />
-            <circle className="ldr-rz-folha ldr-rz-s" cx="62" cy="80" r="5" />
-            <circle className="ldr-rz-folha ldr-rz-v" cx="122" cy="48" r="6" />
-            <circle className="ldr-rz-folha" cx="138" cy="24" r="7" />
-            <circle className="ldr-rz-folha ldr-rz-s" cx="131" cy="76" r="5" />
-            <circle className="ldr-rz-folha" cx="95" cy="92" r="5" />
+          {/* varredura de radar (gomo cônico girando) */}
+          <g className="ldr-nuc-sweep">
+            <path d="M200 200 L200 34 A166 166 0 0 1 283 56 Z" />
           </g>
+
+          {/* arcos concêntricos girando em sentidos opostos */}
+          <g className="ldr-nuc-g ldr-nuc-cw">
+            <circle className="ldr-nuc-arco ldr-nuc-a1" cx="200" cy="200" r="150" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-ccw">
+            <circle className="ldr-nuc-arco ldr-nuc-a2" cx="200" cy="200" r="122" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-cw2">
+            <circle className="ldr-nuc-arco ldr-nuc-a3" cx="200" cy="200" r="94" />
+          </g>
+
+          {/* satélites orbitando (com rastro) */}
+          <g className="ldr-nuc-g ldr-nuc-orb1">
+            <circle className="ldr-nuc-sat" cx="200" cy="50" r="4" />
+            <circle className="ldr-nuc-rastro" cx="200" cy="50" r="8" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-orb2">
+            <circle className="ldr-nuc-sat ldr-nuc-sat2" cx="200" cy="78" r="3" />
+          </g>
+
+          {/* anéis de energia expandindo do core */}
+          <circle className="ldr-nuc-onda" cx="200" cy="200" r="46" />
+          <circle className="ldr-nuc-onda ldr-nuc-onda2" cx="200" cy="200" r="46" />
+
+          {/* core pulsante + cruz de mira */}
+          <circle className="ldr-nuc-halo" cx="200" cy="200" r="58" />
+          <circle className="ldr-nuc-core" cx="200" cy="200" r="42" />
+          <g className="ldr-nuc-mira">
+            <path d="M200 128 V148 M200 252 V272 M128 200 H148 M252 200 H272" />
+          </g>
+
+          {/* glifos de dado piscando (textura, não legenda) */}
+          <text className="ldr-nuc-glifo ldr-nuc-gl1" x="66" y="90">010</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl2" x="304" y="104">▲</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl3" x="318" y="312">R$</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl4" x="58" y="322">110</text>
         </svg>
       );
     case "radar":
@@ -233,8 +252,8 @@ export default function PageLoader({ variant }: { variant?: LoaderVariant }) {
   return (
     <div className="ldr-wrap" role="status" aria-label="Carregando">
       <style>{CSS}</style>
-      {/* Home (raizes): palco XL — a cena ocupa boa parte da tela */}
-      <div className={v === "raizes" ? "ldr-stage ldr-stage-xl" : "ldr-stage"}><Cena v={v} /></div>
+      {/* Home (nucleo): palco XL — a cena ocupa boa parte da tela */}
+      <div className={v === "nucleo" ? "ldr-stage ldr-stage-xl" : "ldr-stage"}><Cena v={v} /></div>
     </div>
   );
 }
@@ -286,33 +305,47 @@ const CSS = `
 .ldr-plim { position: absolute; left: 50%; top: 58px; width: 28px; height: 28px; margin-left: -14px; border: 2px solid #E8A33D; border-radius: 50%; opacity: 0; animation: ldr-plim 1.5s ease-out infinite; }
 @keyframes ldr-plim { 0%,66% { transform: scale(.2); opacity: 0; } 72% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 
-/* raízes — árvore Barroots num circuito (Home, H6 evoluída) */
-.ldr-stage-xl { width: min(94vw, 520px); height: min(52vh, 340px); }
-.ldr-raizes { width: 100%; height: 100%; }
-.ldr-rzt-trilha { fill: none; stroke: rgba(79,142,247,.20); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-/* pulso: um traço curto de luz percorrendo a trilha (dasharray > comprimento) */
-.ldr-rzt-pulso { fill: none; stroke: #22d3ee; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 18 420; stroke-dashoffset: 18; filter: drop-shadow(0 0 5px rgba(34,211,238,.9)); animation: ldr-rzt-viajar 2.4s linear infinite; }
-.ldr-rzt-p2 { animation-delay: .5s; stroke: #4f8ef7; } .ldr-rzt-p3 { animation-delay: 1s; }
-.ldr-rzt-p4 { animation-delay: .25s; } .ldr-rzt-p5 { animation-delay: .75s; stroke: #4f8ef7; } .ldr-rzt-p6 { animation-delay: 1.25s; }
-@keyframes ldr-rzt-viajar { from { stroke-dashoffset: 18; } to { stroke-dashoffset: -420; } }
-.ldr-rzt-no { fill: #4f8ef7; opacity: .3; animation: ldr-rzt-acender 2.4s ease-in-out infinite; }
-.ldr-rzt-n1 { animation-delay: .9s } .ldr-rzt-n2 { animation-delay: 1.4s } .ldr-rzt-n3 { animation-delay: 1.9s }
-.ldr-rzt-n4 { animation-delay: 1.15s } .ldr-rzt-n5 { animation-delay: 1.65s } .ldr-rzt-n6 { animation-delay: 2.15s }
-@keyframes ldr-rzt-acender { 0%,100% { opacity: .3; r: 3.5px; } 12% { opacity: 1; r: 5px; } 30% { opacity: .3; } }
-.ldr-rzt-anel { fill: none; stroke: rgba(34,211,238,.5); stroke-width: 1.2; transform-origin: 230px 188px; animation: ldr-rzt-anel 2.6s ease-out infinite; }
-.ldr-rzt-a2 { animation-delay: 1.3s; }
-@keyframes ldr-rzt-anel { 0% { transform: scale(.4); opacity: 0; } 15% { opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
-.ldr-raizes path { fill: none; stroke-linecap: round; }
-.ldr-rz-galho { stroke: url(#ldrGradTronco); stroke-width: 5; stroke-dasharray: 420; stroke-dashoffset: 420; animation: ldr-rz-desenhar 2.6s ease-out infinite; }
-.ldr-rz-fino { stroke-width: 2.6; stroke-dasharray: 200; stroke-dashoffset: 200; animation-delay: .5s; }
-.ldr-rz-raiz { stroke: #6d5bd0; opacity: .8; stroke-width: 3; stroke-dasharray: 220; stroke-dashoffset: 220; animation: ldr-rz-desenhar 2.6s ease-out infinite .25s; }
-@keyframes ldr-rz-desenhar { 0% { stroke-dashoffset: 420; opacity: 0; } 12% { opacity: 1; } 55% { stroke-dashoffset: 0; opacity: 1; } 82% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
-.ldr-rz-folha { fill: #3fb950; opacity: 0; transform-origin: center; transform-box: fill-box; animation: ldr-rz-brotar 2.6s ease-out infinite; }
-.ldr-rz-v { fill: #a78bfa; } .ldr-rz-s { fill: #60a5fa; }
-.ldr-rz-folha:nth-of-type(2) { animation-delay: .15s; } .ldr-rz-folha:nth-of-type(3) { animation-delay: .3s; }
-.ldr-rz-folha:nth-of-type(4) { animation-delay: .45s; } .ldr-rz-folha:nth-of-type(5) { animation-delay: .6s; }
-.ldr-rz-folha:nth-of-type(6) { animation-delay: .72s; } .ldr-rz-folha:nth-of-type(7) { animation-delay: .84s; }
-@keyframes ldr-rz-brotar { 0%,45% { opacity: 0; transform: scale(.3); } 60% { opacity: 1; transform: scale(1.25); } 70% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
+/* núcleo — HUD holográfico (Home) */
+.ldr-stage-xl { width: min(94vw, 520px); height: min(52vh, 380px); }
+.ldr-nucleo { width: 100%; height: 100%; max-width: 380px; max-height: 380px; }
+.ldr-nuc-g { transform-origin: 200px 200px; }
+.ldr-nuc-cw   { animation: ldr-girar 9s linear infinite; }
+.ldr-nuc-ccw  { animation: ldr-girar-rev 6s linear infinite; }
+.ldr-nuc-cw2  { animation: ldr-girar 3.6s linear infinite; }
+/* aro de ticks: tracinhos curtos, giro bem lento */
+.ldr-nuc-ticks { fill: none; stroke: rgba(240,184,96,.35); stroke-width: 7; stroke-dasharray: 1.5 8.029; transform-origin: 200px 200px; animation: ldr-girar 60s linear infinite; }
+.ldr-nuc-ticks2 { fill: none; stroke: rgba(240,184,96,.14); stroke-width: 3; stroke-dasharray: 1 4.629; transform-origin: 200px 200px; animation: ldr-girar-rev 45s linear infinite; }
+/* varredura de radar */
+.ldr-nuc-sweep { transform-origin: 200px 200px; animation: ldr-girar 4.5s linear infinite; }
+.ldr-nuc-sweep path { fill: rgba(240,184,96,.10); }
+/* arcos com gradiente que somem na cauda */
+.ldr-nuc-arco { fill: none; stroke-linecap: round; }
+.ldr-nuc-a1 { stroke: url(#ldrNucArco); stroke-width: 2.6; stroke-dasharray: 500 443; filter: drop-shadow(0 0 6px rgba(240,184,96,.5)); }
+.ldr-nuc-a2 { stroke: url(#ldrNucArco2); stroke-width: 2; stroke-dasharray: 380 387; opacity: .85; filter: drop-shadow(0 0 6px rgba(34,211,238,.5)); }
+.ldr-nuc-a3 { stroke: rgba(240,184,96,.75); stroke-width: 1.6; stroke-dasharray: 8 16; }
+/* satélites */
+.ldr-nuc-orb1 { animation: ldr-girar 7s linear infinite; }
+.ldr-nuc-orb2 { animation: ldr-girar-rev 4.8s linear infinite; }
+.ldr-nuc-sat { fill: #22d3ee; filter: drop-shadow(0 0 6px rgba(34,211,238,.9)); }
+.ldr-nuc-sat2 { fill: #F0B860; filter: drop-shadow(0 0 6px rgba(240,184,96,.9)); }
+.ldr-nuc-rastro { fill: none; stroke: rgba(34,211,238,.35); stroke-width: 1; animation: ldr-resp 1.4s ease-in-out infinite; }
+/* ondas de energia */
+.ldr-nuc-onda { fill: none; stroke: rgba(240,184,96,.55); stroke-width: 1.4; transform-origin: 200px 200px; animation: ldr-nuc-onda 3s ease-out infinite; }
+.ldr-nuc-onda2 { stroke: rgba(34,211,238,.4); animation-delay: 1.5s; }
+@keyframes ldr-nuc-onda { 0% { transform: scale(.6); opacity: 0; } 12% { opacity: .9; } 100% { transform: scale(3.4); opacity: 0; } }
+/* core */
+.ldr-nuc-halo { fill: rgba(240,184,96,.12); filter: blur(6px); transform-origin: 200px 200px; animation: ldr-nuc-respirar 2.2s ease-in-out infinite; }
+.ldr-nuc-core { fill: url(#ldrNucCore); transform-origin: 200px 200px; filter: drop-shadow(0 0 18px rgba(240,184,96,.55)); animation: ldr-nuc-respirar 2.2s ease-in-out infinite; }
+@keyframes ldr-nuc-respirar { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.ldr-nuc-mira path { fill: none; stroke: rgba(240,184,96,.5); stroke-width: 1.6; stroke-linecap: round; }
+.ldr-nuc-mira { transform-origin: 200px 200px; animation: ldr-nuc-mira 5s ease-in-out infinite; }
+@keyframes ldr-nuc-mira { 0%,100% { transform: rotate(0deg); opacity: .5; } 50% { transform: rotate(90deg); opacity: 1; } }
+/* glifos de dado */
+.ldr-nuc-glifo { font-family: ui-monospace, monospace; font-size: 13px; fill: rgba(240,184,96,.55); opacity: 0; animation: ldr-nuc-glifo 3.2s ease-in-out infinite; }
+.ldr-nuc-gl2 { fill: rgba(52,211,153,.65); animation-delay: .9s; }
+.ldr-nuc-gl3 { animation-delay: 1.7s; }
+.ldr-nuc-gl4 { fill: rgba(34,211,238,.5); animation-delay: 2.4s; }
+@keyframes ldr-nuc-glifo { 0%,100% { opacity: 0; } 12%,34% { opacity: 1; } 48% { opacity: 0; } }
 
 /* radar */
 .ldr-radar { width: 96px; height: 96px; border-radius: 50%; position: relative; border: 1px solid rgba(232,163,61,.5); background: radial-gradient(circle, transparent 62%, rgba(232,163,61,.18) 63%, transparent 65%), radial-gradient(circle, transparent 30%, rgba(232,163,61,.18) 31%, transparent 33%); }
