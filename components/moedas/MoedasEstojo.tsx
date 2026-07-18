@@ -106,7 +106,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
   const [sensor, setSensor] = useState<"inativo" | "ativo" | "negado">("inativo");
   const [segurando, setSegurando] = useState<Spec | null>(null);
   const [resumo, setResumo] = useState<Spec | null>(null);
-  const [retrato, setRetrato] = useState(false);
   const [reinicio, setReinicio] = useState(0);
   const [fisico, setFisico] = useState(false);
   const [pxmm, setPxmm] = useState(() => (typeof window === "undefined" ? 4 : pxPorMmFisico()));
@@ -115,13 +114,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
 
   const precisaPermissao = typeof window !== "undefined"
     && typeof (DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> })?.requestPermission === "function";
-
-  useEffect(() => {
-    const check = () => setRetrato(window.innerHeight > window.innerWidth);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
@@ -702,12 +694,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           </div>
         );
       })()}
-
-      {retrato && !calibrando && (
-        <button onClick={() => setRetrato(false)} className="absolute inset-x-0 top-16 z-30 mx-auto w-fit rounded-full px-4 py-2 text-[11px] font-semibold text-amber-100" style={{ background: "rgba(20,10,14,0.9)", border: "1px solid rgba(240,184,96,0.4)" }}>
-          📱↻ Deite o celular para a experiência completa — toque para dispensar
-        </button>
-      )}
 
       {calibrando && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 px-6" style={{ background: "rgba(8,4,6,0.94)" }}>
