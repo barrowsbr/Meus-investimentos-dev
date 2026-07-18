@@ -7,18 +7,20 @@
 //   NÃO existe estojo "todas" (decisão do dono).
 // • Vitrine FULLSCREEN (portal, pensada para tela DEITADA): veludo, moldura,
 //   cada moeda no BERÇO em escala real, ordem cronológica.
-// • Interações (modelo do dono, 17/07):
+// • Interações (modelo do dono, 17-18/07):
 //   – 1 TOQUE  → a moeda VIRA (flip 3D com espessura de metal);
-//   – 2 TOQUES → vai para a ÁREA DE OBSERVAÇÃO (bandeja) — SEM zoom: o máximo
-//     é o tamanho real dela; 2 toques numa moeda da bandeja soltam ela (cai);
+//   – 2 TOQUES → abre o CARD-RESUMO da moeda (com link para o card principal
+//     na página /moedas via ?m=<índice>) — a antiga "área de observação" com
+//     divisória foi REMOVIDA a pedido do dono;
 //   – ARRASTAR → carrega com mola no dedo; soltar no ar, ela CAI (gravidade
 //     segue o acelerômetro, iOS pede permissão);
 //   – SEGURAR ~1s sobre QUALQUER berço vazio em que ela caiba → ENCAIXA lá
 //     (anel de progresso mostra o encaixe chegando).
 // • v3 (18/07 — "outro nível", foco no mobile):
 //   – MODO 1:1: as moedas no TAMANHO FÍSICO REAL na tela (px/mm calibrável
-//     pela régua — encostar uma moeda de 1 real na tela; salvo por aparelho);
-//   – PINÇA dá zoom, arrastar o veludo navega (o estojo vira uma superfície);
+//     pela régua — encostar uma moeda de 1 real na tela; salvo por aparelho).
+//     Com 1:1 ATIVO o zoom fica TRAVADO (pinça/roda desligadas — só pan);
+//   – fora do 1:1, PINÇA dá zoom e arrastar o veludo navega;
 //   – Luz 3D: brilho especular + bevel de borda que SEGUEM o acelerômetro
 //     (o reflexo corre pelo metal ao inclinar o celular), sombras puxadas
 //     pela gravidade e parallax de profundidade no veludo.
@@ -30,7 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import Matter from "matter-js";
-import { ArrowLeft, X, Smartphone, RotateCcw, Scale, Ruler } from "lucide-react";
+import { ArrowLeft, X, Smartphone, RotateCcw, Ruler } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
 import { diametroMmDe, conjuntoMonetario, gradTone, type Moeda } from "@/lib/moedas";
 
@@ -103,7 +105,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
   const pxmmRef = useRef(4);
   const [sensor, setSensor] = useState<"inativo" | "ativo" | "negado">("inativo");
   const [segurando, setSegurando] = useState<Spec | null>(null);
-  const [bandeja, setBandeja] = useState<Spec[]>([]);
+  const [resumo, setResumo] = useState<Spec | null>(null);
   const [retrato, setRetrato] = useState(false);
   const [reinicio, setReinicio] = useState(0);
   const [fisico, setFisico] = useState(false);
@@ -146,16 +148,10 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     const ctx = canvas.getContext("2d")!;
 
     const specs = estojo.specs;
-    const paisagem = W >= H;
 
-    // ── Área de observação: coluna à direita (deitado) ou faixa no rodapé ─────
-    const trayW = paisagem ? Math.max(170, Math.min(W * 0.26, 250)) : W;
-    const trayH = paisagem ? H : Math.max(150, Math.min(H * 0.26, 220));
-    const areaW = paisagem ? W - trayW : W;
-    const areaH = paisagem ? H : H - trayH;
-    const traySlots: Array<{ x: number; y: number }> = paisagem
-      ? [{ x: areaW + trayW / 2, y: H * 0.3 }, { x: areaW + trayW / 2, y: H * 0.72 }]
-      : [{ x: W * 0.28, y: areaH + trayH / 2 }, { x: W * 0.72, y: areaH + trayH / 2 }];
+    // Sem área de observação — os berços usam o estojo INTEIRO (decisão 18/07).
+    const areaW = W;
+    const areaH = H;
 
     // ── Berços: linhas cronológicas que cabem na área ─────────────────────────
     const layout = (pxPorMm: number) => {
@@ -224,7 +220,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     // Ocupação dos berços (moeda pode encaixar em QUALQUER berço em que caiba).
     const slotDe: Array<number | null> = specs.map((_, i) => i);   // moeda → berço
     const ocupante: Array<number | null> = specs.map((_, i) => i); // berço → moeda
-    const parked: Array<number | null> = [null, null];             // observação
     let heldIdx: number | null = null;
     let mola: Matter.Constraint | null = null;
     let pendente: { i: number; x: number; y: number } | null = null; // down sem drag ainda
@@ -257,9 +252,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       }
     });
 
-    const atualizarBandeja = () =>
-      setBandeja(parked.filter((p): p is number => p !== null).map((p) => specs[p]));
-
     const vagarBerco = (i: number) => {
       const s = slotDe[i];
       if (s !== null) { ocupante[s] = null; slotDe[i] = null; }
@@ -273,30 +265,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     };
     const cabe = (i: number, s: number) => raio(i) <= slots.pos[s].r + 1.5;
 
-    const soltarDaBandeja = (i: number) => {
-      const k = parked.indexOf(i);
-      if (k >= 0) parked[k] = null;
-      Body.setStatic(corpos[i], false);
-      Sleeping.set(corpos[i], false);
-      atualizarBandeja();
-    };
-    const paraObservacao = (i: number) => {
-      vagarBerco(i);
-      let livre = parked[0] === null ? 0 : parked[1] === null ? 1 : -1;
-      if (livre < 0) { // cheia: a mais antiga sai (cai) e abre a vaga
-        const antiga = parked[0]!;
-        parked[0] = null;
-        Body.setStatic(corpos[antiga], false);
-        Sleeping.set(corpos[antiga], false);
-        livre = 0;
-      }
-      parked[livre] = i;
-      Body.setStatic(corpos[i], true);
-      Body.setPosition(corpos[i], traySlots[livre]);
-      Body.setAngle(corpos[i], 0);
-      atualizarBandeja();
-    };
-
     const flipar = (i: number) => {
       if (!specs[i].fotoR) return; // sem foto do reverso — nada a virar
       face[i] = face[i] === 0 ? 1 : 0;
@@ -305,9 +273,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
 
     recolherRef.current = () => {
       for (let s = 0; s < ocupante.length; s++) ocupante[s] = null;
-      for (let k = 0; k < parked.length; k++) parked[k] = null;
       for (let i = 0; i < corpos.length; i++) { slotDe[i] = null; sentarEm(i, i); }
-      atualizarBandeja();
     };
 
     const paraMundo = (cx: number, cy: number) => {
@@ -321,8 +287,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
 
     const erguer = (i: number, p: { x: number; y: number }) => {
       vagarBerco(i);
-      const k = parked.indexOf(i);
-      if (k >= 0) { parked[k] = null; atualizarBandeja(); }
       Body.setStatic(corpos[i], false);
       Sleeping.set(corpos[i], false);
       heldIdx = i;
@@ -335,7 +299,8 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     const onDown = (ev: PointerEvent) => {
       dedos.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       alvoVista = null;
-      if (dedos.size === 2 && heldIdx === null) {
+      // Com 1:1 ATIVO o zoom fica travado na escala física — pinça desligada.
+      if (dedos.size === 2 && heldIdx === null && !fisicoRef.current) {
         // pinça: zoom ancorado no ponto médio dos dedos
         pendente = null; pan = null;
         if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
@@ -392,8 +357,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       if (ultimoTap.i === i && agora - ultimoTap.t < 350) {
         if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
         ultimoTap = { i: -1, t: 0 };
-        if (parked.includes(i)) soltarDaBandeja(i);
-        else paraObservacao(i);
+        setResumo(specs[i]); // card-resumo com link para o dossiê da coleção
       } else {
         ultimoTap = { i, t: agora };
         if (tapTimer) clearTimeout(tapTimer);
@@ -402,6 +366,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     };
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
+      if (fisicoRef.current) return; // 1:1 ativo = zoom travado
       alvoVista = null;
       const rect = canvas.getBoundingClientRect();
       const w = paraMundo(ev.clientX, ev.clientY);
@@ -436,7 +401,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       engine.gravity.y = gy * lim;
       if (Math.hypot(engine.gravity.x - gAnt.x, engine.gravity.y - gAnt.y) > 0.05) {
         gAnt = { x: engine.gravity.x, y: engine.gravity.y };
-        corpos.forEach((b, i) => { if (slotDe[i] === null && !parked.includes(i)) Sleeping.set(b, false); });
+        corpos.forEach((b, i) => { if (slotDe[i] === null) Sleeping.set(b, false); });
       }
     };
     window.addEventListener("devicemotion", onMotion);
@@ -497,24 +462,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       const lm = Math.hypot(engine.gravity.x, engine.gravity.y) || 1;
       const lx = -engine.gravity.x / lm, ly = -engine.gravity.y / lm;
 
-      // divisor + círculos da observação
-      ctx.strokeStyle = "rgba(240,184,96,0.25)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5, 6]);
-      ctx.beginPath();
-      if (paisagem) { ctx.moveTo(areaW, 14); ctx.lineTo(areaW, H - 14); }
-      else { ctx.moveTo(14, areaH); ctx.lineTo(W - 14, areaH); }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      traySlots.forEach((t, k) => {
-        const occ = parked[k];
-        const rr = occ !== null ? raio(occ) + 9 : 26;
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, rr, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(240,184,96,0.3)";
-        ctx.stroke();
-      });
-
       // berços (recessos com sombra interna deslocada pela luz) + anel de encaixe
       for (let s = 0; s < slots.pos.length; s++) {
         const sp = slots.pos[s];
@@ -559,7 +506,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
         ctx.save();
         ctx.translate(b.position.x, b.position.y);
         ctx.rotate(b.angle);
-        if (i === heldIdx || parked.includes(i)) {
+        if (i === heldIdx) {
           ctx.shadowColor = "rgba(0,0,0,0.6)";
           ctx.shadowBlur = 16;
           ctx.shadowOffsetX = engine.gravity.x * 9;
@@ -659,9 +606,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     if (!fisico) toggleFisico(); // calibrou → já mostra em 1:1
   };
 
-  const g0 = bandeja[0] ? gradTone(bandeja[0].m.graduacao) : null;
-  const g1 = bandeja[1] ? gradTone(bandeja[1].m.graduacao) : null;
-
   return createPortal(
     <div className="fixed inset-0 z-[230] flex flex-col overflow-hidden" style={{ background: "radial-gradient(120% 100% at 50% 0%, #241016 0%, #150a10 45%, #0b0509 100%)", touchAction: "none" }}>
       {/* camada de parallax: brilho do veludo que desliza com a inclinação */}
@@ -706,9 +650,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
 
       <div ref={boxRef} className="relative z-0 min-h-0 flex-1">
         <canvas ref={canvasRef} className="absolute inset-0" />
-        <span className="pointer-events-none absolute font-mono text-[9px] uppercase tracking-[0.3em] text-amber-200/35" style={{ right: 12, top: 10 }}>
-          <Scale size={10} className="mr-1 inline" />Observação
-        </span>
       </div>
 
       {segurando && (
@@ -717,31 +658,50 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
         </div>
       )}
 
-      {bandeja.length === 2 && !segurando && (
-        <div className="absolute bottom-3 left-1/2 z-20 w-[min(94vw,560px)] -translate-x-1/2 rounded-2xl px-4 py-3" style={{ background: "rgba(16,8,12,0.92)", border: "1px solid rgba(240,184,96,0.35)", backdropFilter: "blur(6px)", marginBottom: "env(safe-area-inset-bottom)" }}>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
-            {[0, 1].map((k) => {
-              const s = bandeja[k]; const g = k === 0 ? g0 : g1;
-              return (
-                <div key={k} className="min-w-0">
-                  <p className="truncate text-xs font-bold text-amber-100">{s.m.denominacao} · {s.m.ano}</p>
-                  <p className="truncate text-[10px] text-amber-200/50">{s.m.pais}{s.m.krause ? ` · ${s.m.krause}` : ""}</p>
-                  <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5 text-[10px]">
-                    <span className="font-mono text-emerald-400">{fmtBRL(s.m.valorBrl)}</span>
-                    {s.m.graduacao && g && <span className="rounded px-1.5 py-0.5 font-mono font-bold" style={{ background: g.bg, border: `1px solid ${g.border}`, color: g.color }}>{s.m.graduacao}</span>}
-                    <span className="text-amber-200/60">Ø {s.mm.toLocaleString("pt-BR")} mm</span>
+      {resumo && (() => {
+        const g = gradTone(resumo.m.graduacao);
+        const idx = MOEDAS_COLECAO.indexOf(resumo.m);
+        return (
+          <div className="absolute inset-0 z-40 flex items-center justify-center p-4" style={{ background: "rgba(6,3,5,0.78)", backdropFilter: "blur(4px)" }} onClick={() => setResumo(null)}>
+            <div
+              className="w-[min(92vw,380px)] rounded-2xl p-4"
+              style={{ background: "radial-gradient(120% 100% at 50% 0%, #241016 0%, #140a10 70%)", border: "1px solid rgba(240,184,96,0.4)", boxShadow: "0 24px 60px -20px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.07)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resumo.fotoA} alt="" className="h-20 w-20 shrink-0 rounded-full object-cover" style={{ boxShadow: "0 6px 18px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.18)" }} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-amber-100">{resumo.m.denominacao} · {resumo.m.ano || "—"}</p>
+                  <p className="truncate text-[11px] text-amber-200/50">{resumo.m.pais}{resumo.m.krause ? ` · ${resumo.m.krause}` : ""}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                    <span className="font-mono font-bold text-emerald-400">{fmtBRL(resumo.m.valorBrl)}</span>
+                    {resumo.m.graduacao && <span className="rounded px-1.5 py-0.5 font-mono font-bold" style={{ background: g.bg, border: `1px solid ${g.border}`, color: g.color }}>{resumo.m.graduacao}</span>}
+                    <span className="text-amber-200/60">Ø {resumo.mm.toLocaleString("pt-BR")} mm</span>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+              {(resumo.m.composicao || resumo.m.assunto) && (
+                <p className="mt-3 border-t border-white/10 pt-2 text-[11px] leading-relaxed text-amber-200/55">
+                  {[resumo.m.assunto, resumo.m.composicao].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <Link
+                  href={idx >= 0 ? `/moedas?m=${idx}` : "/moedas"}
+                  className="flex-1 rounded-xl px-3 py-2.5 text-center text-xs font-bold text-black"
+                  style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b)" }}
+                >
+                  Ver card completo na coleção
+                </Link>
+                <button onClick={() => setResumo(null)} className="rounded-xl px-4 py-2.5 text-xs font-semibold text-zinc-300" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  Fechar
+                </button>
+              </div>
+            </div>
           </div>
-          <p className="mt-2 border-t border-white/10 pt-1.5 text-center text-[10px] text-amber-200/55">
-            Ø {Math.abs(bandeja[0].mm - bandeja[1].mm).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mm de diferença
-            {bandeja[0].m.anoNum && bandeja[1].m.anoNum ? ` · ${Math.abs(bandeja[0].m.anoNum - bandeja[1].m.anoNum)} anos entre elas` : ""}
-            {" · "}{fmtBRL(Math.abs(bandeja[0].m.valorBrl - bandeja[1].m.valorBrl))} de diferença de catálogo
-          </p>
-        </div>
-      )}
+        );
+      })()}
 
       {retrato && !calibrando && (
         <button onClick={() => setRetrato(false)} className="absolute inset-x-0 top-16 z-30 mx-auto w-fit rounded-full px-4 py-2 text-[11px] font-semibold text-amber-100" style={{ background: "rgba(20,10,14,0.9)", border: "1px solid rgba(240,184,96,0.4)" }}>
@@ -836,10 +796,10 @@ export default function MoedasEstojo() {
       </div>
 
       <p className="text-[10px] text-zinc-600">
-        Dentro do estojo: 1 toque VIRA a moeda (flip 3D) · 2 toques mandam para a área de observação (tamanho
-        real, sem zoom) · arraste para carregar · segure ~1s sobre um berço vazio para encaixar · solte no ar e
-        ela cai com a gravidade do celular · botão 1:1 mostra as moedas no TAMANHO FÍSICO real (pinça dá zoom,
-        arrastar o veludo navega; calibre com a régua usando uma moeda de 1 real).
+        Dentro do estojo: 1 toque VIRA a moeda (flip 3D) · 2 toques abrem o card-resumo (com atalho para o
+        dossiê na coleção) · arraste para carregar · segure ~1s sobre um berço vazio para encaixar · solte no
+        ar e ela cai com a gravidade do celular · botão 1:1 mostra as moedas no TAMANHO FÍSICO real (zoom
+        travado; arrastar o veludo navega; calibre com a régua usando uma moeda de 1 real).
       </p>
 
       {montado && aberto && <CaseView estojo={aberto} onClose={() => setAberto(null)} />}
