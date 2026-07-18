@@ -251,6 +251,13 @@ Registro de entradas, saídas e gastos com cartão.
   ampliadas na MESMA escala + painel de deltas). ⚠️ matter-js: corpo criado
   `isStatic: true` explode em NaN ao ser liberado — criar dinâmico e assentar
   com `Body.setStatic(true)` depois.
+- `/moedas/foto` — "Estúdio de foto": refaz a foto de um exemplar no formato
+  EXATO da coleção (512×512, fundo preto, moeda preenchendo o quadro — padrão
+  CoinSnap; os arquivos são JPEG com extensão .webp). Abre pelo dossiê
+  ("Refazer foto" passa `a`/`r` = paths atuais), câmera ou galeria, ajustes de
+  zoom/pan/rotação/brilho/contraste com máscara circular, e baixa com o MESMO
+  nome do arquivo atual — o dono manda o arquivo no chat e ele é trocado em
+  `public/colecao-moedas` (sem tocar em `lib/moedas-data.ts`).
 - `/moedas/pote` — "Pote físico": a coleção em canvas com física (matter-js),
   cada exemplar com foto real e DIÂMETRO em escala (`diametroMmDe` em
   `lib/moedas.ts`); gravidade segue o acelerômetro (iOS exige botão de
