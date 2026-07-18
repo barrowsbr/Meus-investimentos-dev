@@ -38,23 +38,43 @@ export default function NumistaSection() {
   }, []);
   useEffect(() => { carregarStatus(); }, [carregarStatus]);
 
+  // Roda uma lista de índices em lotes, honrando `pendentes` (parciais por
+  // orçamento de tempo do servidor) e parando com aviso se a cota da API
+  // do Numista estourar (429) — melhor parar claro do que "não carregar".
+  const rodarIndices = async (idxs: number[], aoReceber: (c: Casamento[]) => void): Promise<"ok" | "cota"> => {
+    let fila = [...idxs];
+    let feitos = 0;
+    const totalAlvo = fila.length;
+    while (fila.length > 0) {
+      const lote = fila.slice(0, 8);
+      fila = fila.slice(8);
+      const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}`);
+      if (!r.ok) throw new Error(`lote: HTTP ${r.status}`);
+      const d = (await r.json()) as { resultados: Casamento[]; pendentes?: number[]; rateLimit?: boolean };
+      aoReceber(d.resultados);
+      feitos += d.resultados.length;
+      if (d.pendentes?.length) fila = [...d.pendentes, ...fila];
+      setProgresso(Math.min(1, feitos / Math.max(1, totalAlvo)));
+      if (d.rateLimit) return "cota";
+      await new Promise((res) => setTimeout(res, 350)); // respiro anti rate-limit
+    }
+    return "ok";
+  };
+
   const dryRun = async () => {
     if (!status) return;
     setRodando("match"); setProgresso(0); setCasamentos(null); setErros([]); setMsg(null);
-    const todos: Casamento[] = [];
+    const todos = new Map<number, Casamento>();
     try {
-      for (let offset = 0; offset < status.totalDistintas; offset += 8) {
-        const r = await fetch(`/api/moedas-colecao/numista/match?offset=${offset}&count=8`);
-        if (!r.ok) throw new Error(`lote ${offset}: HTTP ${r.status}`);
-        const d = (await r.json()) as { resultados: Casamento[] };
-        todos.push(...d.resultados);
-        setProgresso(Math.min(1, (offset + 8) / status.totalDistintas));
+      const idxs = Array.from({ length: status.totalDistintas }, (_, i) => i);
+      const fim = await rodarIndices(idxs, (cs) => { for (const c of cs) todos.set(c.idx, c); });
+      setCasamentos([...todos.values()].sort((a, b) => a.idx - b.idx));
+      if (fim === "cota") {
+        setErros(["Cota diária da API do Numista atingida — o resultado é PARCIAL. Volte mais tarde e use \"Recasar falhas\" para completar sem repetir os acertos."]);
       }
-      setCasamentos(todos);
-      setMsg(null);
     } catch (e) {
       setErros([e instanceof Error ? e.message : "falha no dry-run"]);
-      if (todos.length > 0) setCasamentos(todos); // parcial ainda informa
+      if (todos.size > 0) setCasamentos([...todos.values()].sort((a, b) => a.idx - b.idx));
     } finally { setRodando(null); }
   };
 
@@ -70,21 +90,13 @@ export default function NumistaSection() {
     if (semMatch.length === 0 || !casamentos) return;
     setRodando("match"); setProgresso(0); setErros([]); setMsg(null);
     const mapa = new Map(casamentos.map((c) => [c.idx, c]));
-    const idxs = semMatch.map((c) => c.idx);
+    const antes = casamentos.filter((c) => c.confianca !== "nenhuma").length;
     try {
-      for (let i = 0; i < idxs.length; i += 8) {
-        const lote = idxs.slice(i, i + 8);
-        const r = await fetch(`/api/moedas-colecao/numista/match?idxs=${lote.join(",")}`);
-        if (!r.ok) throw new Error(`lote ${i}: HTTP ${r.status}`);
-        const d = (await r.json()) as { resultados: Casamento[] };
-        for (const c of d.resultados) mapa.set(c.idx, c);
-        setProgresso(Math.min(1, (i + 8) / idxs.length));
-        await new Promise((res) => setTimeout(res, 400)); // respiro anti rate-limit
-      }
+      const fim = await rodarIndices(semMatch.map((c) => c.idx), (cs) => { for (const c of cs) mapa.set(c.idx, c); });
       const novo = [...mapa.values()].sort((a, b) => a.idx - b.idx);
-      const recuperadas = novo.filter((c) => c.confianca !== "nenhuma").length - (casamentos.length - semMatch.length);
       setCasamentos(novo);
-      setMsg(`${recuperadas} recuperadas no recasamento.`);
+      setMsg(`${novo.filter((c) => c.confianca !== "nenhuma").length - antes} recuperadas no recasamento.`);
+      if (fim === "cota") setErros(["Cota da API do Numista atingida no meio — recasamento parcial; tente de novo mais tarde."]);
     } catch (e) {
       setErros([e instanceof Error ? e.message : "falha no recasamento"]);
     } finally { setRodando(null); }
