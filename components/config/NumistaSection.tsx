@@ -18,6 +18,7 @@ interface Casamento {
   idx: number; denominacao: string; pais: string; ano: string; krause: string;
   graduacao: string; qtd: number; typeId: number | null; issueId: number | null;
   titulo: string | null; url: string | null; confianca: "km" | "pais-ano" | "nenhuma";
+  anoSuspeito?: boolean; faixaAnos?: string | null;
 }
 
 export default function NumistaSection() {
@@ -242,6 +243,30 @@ export default function NumistaSection() {
             </label>
           )}
           <Lista titulo="✓ Confiáveis (KM# exato) — vão no envio" itens={confiaveis} tom="#34d399" />
+          {(() => {
+            const suspeitas = confiaveis.filter((c) => c.anoSuspeito);
+            return suspeitas.length === 0 ? null : (
+              <details className="rounded-xl px-3 py-2" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                <summary className="cursor-pointer text-[11px] font-semibold text-amber-300">
+                  ⚠ Ano suspeito ({suspeitas.length}) — a moeda é essa, mas a DATA da ficha não existe no catálogo (provável erro de leitura do CoinSnap)
+                </summary>
+                <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto text-[11px] text-zinc-400">
+                  {suspeitas.map((c) => (
+                    <li key={c.idx} className="flex items-center gap-1.5">
+                      <span className="truncate">
+                        {c.denominacao} · {c.pais}{c.krause ? ` · ${c.krause}` : ""} — sua ficha diz <span className="text-amber-300">{c.ano}</span>, o tipo existe em <span className="text-zinc-200">{c.faixaAnos}</span>
+                      </span>
+                      {c.url && <a href={c.url} target="_blank" rel="noreferrer" className="shrink-0 text-amber-400/80"><ExternalLink size={11} /></a>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[10px] text-zinc-500">
+                  Elas vão no envio mesmo assim (o TIPO está certo — só sem amarrar o ano). Para corrigir de vez:
+                  ajuste a data no CoinSnap e me mande o CSV novo — a atualização regenera tudo.
+                </p>
+              </details>
+            );
+          })()}
           <Lista titulo={incluirDuvida ? "? Em dúvida (só país+ano) — INCLUÍDAS no envio" : "? Em dúvida (só país+ano) — ficam de fora, conferir na mão"} itens={duvidosas} tom="#fbbf24" />
           <Lista titulo="✗ Sem casamento — ficam de fora (use o Recasar)" itens={semMatch} tom="#f87171" />
         </div>

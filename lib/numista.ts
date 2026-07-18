@@ -96,6 +96,10 @@ export interface Casamento {
   titulo: string | null;
   url: string | null;
   confianca: "km" | "pais-ano" | "nenhuma";
+  // Detector de data errada (o CoinSnap às vezes lê o ano errado na foto):
+  // casou pelo KM# mas o ano da ficha está FORA da faixa de emissão do tipo.
+  anoSuspeito?: boolean;
+  faixaAnos?: string | null;
 }
 
 /** Casa UMA moeda com o catálogo. Sequencial e best-effort — quem chama controla o lote.
@@ -148,6 +152,11 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
   if (!det && fallback) { det = fallback.det; id = fallback.id; confianca = "pais-ano"; }
   if (!det || id == null) return nulo;
 
+  const minY = Number(det["min_year"]) || null;
+  const maxY = Number(det["max_year"]) || minY;
+  const anoSuspeito = confianca === "km" && anoNum != null && minY != null &&
+    (anoNum < minY || anoNum > (maxY ?? minY));
+
   return {
     ...m,
     typeId: id,
@@ -155,6 +164,8 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
     titulo: typeof det["title"] === "string" ? (det["title"] as string) : null,
     url: typeof det["url"] === "string" ? (det["url"] as string) : `https://pt.numista.com/catalogue/pieces${id}.html`,
     confianca,
+    anoSuspeito,
+    faixaAnos: minY != null ? `${minY}${maxY && maxY !== minY ? `–${maxY}` : ""}` : null,
   };
 }
 
