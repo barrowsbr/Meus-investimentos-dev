@@ -45,10 +45,17 @@ export async function GET(req: NextRequest) {
         return MOEDAS_COLECAO.slice(offset, offset + count).map((_, i) => offset + i);
       })();
 
+  // Orçamento de tempo: com a API lenta/limitada, devolve o PARCIAL antes do
+  // timeout do serverless — os `pendentes` voltam na próxima chamada do card.
+  const inicio = Date.now();
+  const ORCAMENTO_MS = 35_000;
   const resultados: Casamento[] = [];
+  const pendentes: number[] = [];
+  let cotaEstourada = false;
   for (const idx of indices) {
+    if (Date.now() - inicio > ORCAMENTO_MS || cotaEstourada) { pendentes.push(idx); continue; }
     const m = MOEDAS_COLECAO[idx];
-    resultados.push(await casarMoeda({
+    const c = await casarMoeda({
       idx,
       denominacao: m.denominacao,
       pais: m.pais,
@@ -56,8 +63,13 @@ export async function GET(req: NextRequest) {
       krause: m.krause,
       graduacao: m.graduacao,
       qtd: m.qtd,
-    }));
+    });
+    if (c.rateLimit) cotaEstourada = true;
+    resultados.push(c);
   }
 
-  return NextResponse.json({ count: resultados.length, total: MOEDAS_COLECAO.length, resultados });
+  return NextResponse.json({
+    count: resultados.length, total: MOEDAS_COLECAO.length, resultados, pendentes,
+    ...(cotaEstourada ? { rateLimit: true } : {}),
+  });
 }

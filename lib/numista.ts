@@ -22,8 +22,9 @@ async function chamada(
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> | null }> {
   const k = key();
   if (!k) return { ok: false, status: 0, data: null };
-  // 429 (rate-limit) derrubou ~30% do primeiro dry-run em massa: as buscas
-  // voltavam vazias e o motor lia como "não achou". Backoff + retry aqui.
+  // 429 (rate-limit): 1 retry CURTO. Backoff longo aqui já derrubou o dry-run
+  // inteiro por timeout do serverless — quando a cota do dia acaba, o certo é
+  // falhar rápido e AVISAR (rateLimitAtingido), não esperar.
   for (let tentativa = 0; ; tentativa++) {
     try {
       const r = await fetch(`${BASE}${path}`, {
@@ -34,22 +35,25 @@ async function chamada(
           ...(opts.body ? { "Content-Type": "application/json" } : {}),
         },
         body: opts.body ? JSON.stringify(opts.body) : undefined,
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(10000),
         cache: "no-store",
       });
-      if (r.status === 429 && tentativa < 2) {
-        const espera = Number(r.headers.get("Retry-After")) * 1000 || (tentativa + 1) * 1500;
-        await new Promise((res) => setTimeout(res, Math.min(espera, 5000)));
+      if (r.status === 429 && tentativa < 1) {
+        await new Promise((res) => setTimeout(res, 1200));
         continue;
       }
+      if (r.status === 429) flag429 = true;
       const data = r.status === 204 ? {} : ((await r.json().catch(() => null)) as Record<string, unknown> | null);
       return { ok: r.ok, status: r.status, data };
     } catch {
-      if (tentativa < 1) { await new Promise((res) => setTimeout(res, 1000)); continue; }
+      if (tentativa < 1) { await new Promise((res) => setTimeout(res, 800)); continue; }
       return { ok: false, status: 0, data: null };
     }
   }
 }
+
+// Sinaliza cota estourada no ciclo corrente (lido/zerado por casarMoeda).
+let flag429 = false;
 
 const norm = (v: string) =>
   v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
@@ -100,12 +104,15 @@ export interface Casamento {
   // casou pelo KM# mas o ano da ficha está FORA da faixa de emissão do tipo.
   anoSuspeito?: boolean;
   faixaAnos?: string | null;
+  // Cota da API estourada durante ESTA moeda — "nenhuma" não é veredito.
+  rateLimit?: boolean;
 }
 
 /** Casa UMA moeda com o catálogo. Sequencial e best-effort — quem chama controla o lote.
  *  A issue do ano NÃO é resolvida aqui (economia de chamadas no dry-run em
  *  massa) — o envio resolve com resolverIssue() só para as aprovadas. */
 export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
+  flag429 = false;
   const nulo: Casamento = { ...m, typeId: null, issueId: null, titulo: null, url: null, confianca: "nenhuma" };
   const paisEn = PAIS_EN[m.pais] ?? m.pais;
   const kmNum = m.krause ? norm(m.krause.replace(/km#?/i, "")) : "";
@@ -128,7 +135,7 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
     }
     if (candidatos.length >= 6) break;
   }
-  if (candidatos.length === 0) return nulo;
+  if (candidatos.length === 0) return { ...nulo, rateLimit: flag429 };
 
   let det: Record<string, unknown> | null = null;
   let id: number | null = null;
@@ -150,7 +157,7 @@ export async function casarMoeda(m: MoedaParaCasar): Promise<Casamento> {
     if (!kmNum && paisOk && anoOk && !fallback) fallback = { det: d, id: cand };
   }
   if (!det && fallback) { det = fallback.det; id = fallback.id; confianca = "pais-ano"; }
-  if (!det || id == null) return nulo;
+  if (!det || id == null) return { ...nulo, rateLimit: flag429 };
 
   const minY = Number(det["min_year"]) || null;
   const maxY = Number(det["max_year"]) || minY;
