@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers, Camera } from "lucide-react";
+import { Search, X, Coins, Globe2, Gem, BadgeDollarSign, ArrowUpDown, Maximize2, RotateCw, Library, Loader2, ExternalLink, Layers, Camera, ChevronDown } from "lucide-react";
 import { COUNTRY_TO_ISO_NUM } from "@/lib/world-map";
 import { ISO_NUM_TO_ISO2, flagEmoji } from "@/lib/radar/countries";
 import { GRAD_LABEL, gradTone, conjuntoMonetario, type Moeda } from "@/lib/moedas";
@@ -489,6 +489,18 @@ export default function MoedasShell() {
   const [conjunto, setConjunto] = useState<string | null>(null);
   const [ordem, setOrdem] = useState<Ordem>("valor-desc");
   const [aberta, setAberta] = useState<Moeda | null>(null);
+  // Mapa colapsável (repaginação 18/07): aberto por padrão só no desktop.
+  const [mapaAberto, setMapaAberto] = useState(false);
+  useEffect(() => {
+    const salvo = localStorage.getItem("moedas_mapa_aberto");
+    setMapaAberto(salvo !== null ? salvo === "1" : window.innerWidth >= 768);
+  }, []);
+  const toggleMapa = () => {
+    setMapaAberto((v) => {
+      localStorage.setItem("moedas_mapa_aberto", v ? "0" : "1");
+      return !v;
+    });
+  };
 
   useEffect(() => {
     fetch("/api/moedas-colecao")
@@ -612,29 +624,43 @@ export default function MoedasShell() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      {/* Faixa de stats — uma linha compacta (rolável no celular) */}
+      <div className="flex items-stretch gap-0 overflow-x-auto rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", WebkitOverflowScrolling: "touch" }}>
         {[
           {
-            icon: <Coins size={13} />, label: filtroAtivo ? "Exemplares (filtro)" : "Exemplares", valor: `${stCards.exemplares}`,
-            sub: filtroAtivo ? `${stCards.unicas} distintas · de ${st.exemplares} no total` : `${stCards.unicas} moedas distintas`,
+            icon: <Coins size={12} />, label: filtroAtivo ? "Exemplares (filtro)" : "Exemplares", valor: `${stCards.exemplares}`,
+            sub: filtroAtivo ? `de ${st.exemplares}` : `${stCards.unicas} distintas`,
           },
-          { icon: <BadgeDollarSign size={13} />, label: "Valor de catálogo", valor: fmtBRL(stCards.valorTotal), sub: filtroAtivo ? `seleção · coleção ${fmtBRL(st.valorTotal)}` : "CoinSnap" },
-          { icon: <Globe2 size={13} />, label: "Países", valor: `${stCards.paises}`, sub: stCards.paisesLista.slice(0, 4).map((p) => bandeira(p)).join(" ") },
+          { icon: <BadgeDollarSign size={12} />, label: "Catálogo", valor: fmtBRL(stCards.valorTotal), sub: filtroAtivo ? `coleção ${fmtBRL(st.valorTotal)}` : "CoinSnap" },
+          { icon: <Globe2 size={12} />, label: "Países", valor: `${stCards.paises}`, sub: stCards.paisesLista.slice(0, 4).map((p) => bandeira(p)).join(" ") },
           {
-            icon: <Gem size={13} />, label: "Prata", valor: stCards.prataGramas > 0 ? `${stCards.prataGramas.toLocaleString("pt-BR")} g` : "—",
-            sub: stCards.meltHoje != null && stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltHoje)} ao spot de hoje` : (stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltCsv)} no export` : "sem prata na seleção"),
+            icon: <Gem size={12} />, label: "Prata", valor: stCards.prataGramas > 0 ? `${stCards.prataGramas.toLocaleString("pt-BR")} g` : "—",
+            sub: stCards.meltHoje != null && stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltHoje)} hoje` : (stCards.prataGramas > 0 ? `${fmtBRL(stCards.meltCsv)} no export` : "—"),
           },
-        ].map((c) => (
-          <div key={c.label} className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500">{c.icon} {c.label}</p>
-            <p className="mt-1 font-mono text-base font-bold text-zinc-100">{c.valor}</p>
-            <p className="truncate text-[10px] text-zinc-500">{c.sub}</p>
+        ].map((c, i) => (
+          <div key={c.label} className="min-w-[118px] flex-1 px-3 py-2.5" style={{ borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+            <p className="flex items-center gap-1 whitespace-nowrap text-[9px] uppercase tracking-wider text-zinc-500">{c.icon} {c.label}</p>
+            <p className="mt-0.5 whitespace-nowrap font-mono text-sm font-bold text-zinc-100">{c.valor}</p>
+            <p className="truncate text-[9px] text-zinc-500">{c.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Mapa */}
-      <MoedasMapa porPais={porPais} selecionado={pais} onSelect={setPais} />
+      {/* Mapa — colapsável (aberto por padrão só no desktop) */}
+      <div className="rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <button onClick={toggleMapa} className="flex w-full items-center justify-between px-3 py-2.5 text-left">
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-500">
+            <Globe2 size={13} /> Mapa da coleção
+            {pais && <span className="ml-1 rounded-full px-2 py-0.5 font-medium normal-case tracking-normal" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fbbf24" }}>{bandeira(pais)} {pais}</span>}
+          </span>
+          <ChevronDown size={14} className="text-zinc-500 transition-transform" style={{ transform: mapaAberto ? "rotate(180deg)" : "none" }} />
+        </button>
+        {mapaAberto && (
+          <div className="px-2 pb-2">
+            <MoedasMapa porPais={porPais} selecionado={pais} onSelect={setPais} />
+          </div>
+        )}
+      </div>
 
       {/* Conjuntos — alocação por padrão monetário (Réis, Cruzeiro, Real, …) */}
       <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -660,39 +686,51 @@ export default function MoedasShell() {
           ))}
         </div>
 
-        {/* Cards dos conjuntos (clique filtra a grade) */}
-        <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {/* Chips dos conjuntos (uma linha rolável — clique filtra a grade).
+            A grade antiga de ~35 cards ocupava 3 telas no celular; o detalhe do
+            conjunto agora aparece numa linha só quando ele está selecionado. */}
+        <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
           {conjuntos.map((c) => {
             const ativo = conjunto === c.nome;
-            const anos = c.anoMin !== null ? (c.anoMin === c.anoMax ? `${c.anoMin}` : `${c.anoMin}–${c.anoMax}`) : null;
             return (
               <button
                 key={c.nome}
                 onClick={() => setConjunto(ativo ? null : c.nome)}
-                className="rounded-xl p-2 text-left transition-colors"
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium"
                 style={{
-                  background: ativo ? "rgba(245,158,11,0.12)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${ativo ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.08)"}`,
+                  background: ativo ? "rgba(245,158,11,0.18)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${ativo ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.1)"}`,
+                  color: ativo ? "#fbbf24" : "#a1a1aa",
                 }}
               >
-                <p className="flex items-center gap-1.5 truncate text-[11px] font-semibold" style={{ color: ativo ? "#fbbf24" : "#e4e4e7" }}>
-                  <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: c.cor }} />
-                  {c.nome}
-                </p>
-                <p className="mt-0.5 truncate text-[9px] text-zinc-500">
-                  {c.periodo ?? anos ?? "—"} · {c.exemplares} exemplar{c.exemplares !== 1 ? "es" : ""}{c.distintas !== c.exemplares ? ` (${c.distintas} distintas)` : ""}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-zinc-200">
-                  {fmtBRL(c.valor)} <span className="text-zinc-500">· {c.pct.toFixed(1)}%</span>
-                </p>
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: c.cor }} />
+                {c.nome}
+                <span className="font-mono text-[10px] opacity-70">{c.pct.toFixed(c.pct < 1 ? 1 : 0)}%</span>
               </button>
             );
           })}
         </div>
+
+        {(() => {
+          const c = conjunto ? conjuntos.find((x) => x.nome === conjunto) : null;
+          if (!c) return null;
+          const anos = c.anoMin !== null ? (c.anoMin === c.anoMax ? `${c.anoMin}` : `${c.anoMin}–${c.anoMax}`) : null;
+          return (
+            <p className="mt-1.5 text-[11px] text-zinc-400">
+              <span className="font-semibold text-amber-300">{c.nome}</span>
+              {" · "}{c.periodo ?? anos ?? "—"} · {c.exemplares} exemplar{c.exemplares !== 1 ? "es" : ""}
+              {c.distintas !== c.exemplares ? ` (${c.distintas} distintas)` : ""} ·{" "}
+              <span className="font-mono text-zinc-200">{fmtBRL(c.valor)}</span> · {c.pct.toFixed(1)}% da coleção
+            </p>
+          );
+        })()}
       </div>
 
-      {/* Filtros */}
-      <div className="space-y-2">
+      {/* Filtros — barra sticky: continua à mão enquanto a grade rola */}
+      <div
+        className="sticky top-0 z-30 -mx-4 space-y-2 px-4 py-2 md:-mx-6 md:px-6"
+        style={{ background: "rgba(11,9,13,0.97)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[180px] flex-1">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -720,6 +758,18 @@ export default function MoedasShell() {
             <ArrowUpDown size={12} />
             {ordem === "valor-desc" ? "Maior valor" : ordem === "valor-asc" ? "Menor valor" : ordem === "ano-asc" ? "Mais antiga" : "Mais recente"}
           </button>
+          <span className="ml-auto hidden font-mono text-[10px] text-zinc-600 sm:inline">
+            {filtradas.length} moeda{filtradas.length !== 1 ? "s" : ""}
+          </span>
+          {(pais || metal || grad || conjunto || busca.trim()) && (
+            <button
+              onClick={() => { setPais(null); setMetal(null); setGrad(null); setConjunto(null); setBusca(""); }}
+              className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold"
+              style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fbbf24" }}
+            >
+              <X size={11} /> Limpar filtros
+            </button>
+          )}
         </div>
 
         {/* Chips de país */}
