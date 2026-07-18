@@ -68,14 +68,18 @@ describe("camada ETF do Radar — look-through canônico", () => {
     expect(alloc[0].value_brl).toBeCloseTo(50_000, 0);
   });
 
-  it("buildExposureHeat mapeia ISO-2 → ISO-numérico e aplica gamma (pinta exposição pequena)", () => {
+  // Contrato ATUAL (decisão do dono — card dos ADRs): a camada Alocação pinta
+  // SOMENTE países com posição DIRETA; look-through de ETF não pinta o mapa.
+  it("buildExposureHeat pinta só alocação DIRETA (look-through de ETF fica de fora)", () => {
     const resp: ExposureResponse = {
       exposure: [
-        { countryPT: "EUA", iso2: "US", totalBRL: 60_000, pct: 60, tickers: ["VWRA"], directBRL: 0, etfBRL: 60_000, etfSources: ["VWRA"] },
-        { countryPT: "Japão", iso2: "JP", totalBRL: 5_000, pct: 5, tickers: ["VWRA"], directBRL: 0, etfBRL: 5_000, etfSources: ["VWRA"] },
+        { countryPT: "EUA", iso2: "US", totalBRL: 60_000, pct: 60, tickers: ["VOO"], directBRL: 60_000, etfBRL: 0, etfSources: [] },
+        { countryPT: "Japão", iso2: "JP", totalBRL: 5_000, pct: 5, tickers: ["7203.T"], directBRL: 5_000, etfBRL: 0, etfSources: [] },
         { countryPT: "Brasil", iso2: "BR", totalBRL: 1_000, pct: 1, tickers: ["PETR4"], directBRL: 1_000, etfBRL: 0, etfSources: [] },
+        // País que só existe via look-through de ETF: NÃO pode pintar o mapa.
+        { countryPT: "França", iso2: "FR", totalBRL: 3_000, pct: 3, tickers: ["VWRA"], directBRL: 0, etfBRL: 3_000, etfSources: ["VWRA"] },
       ],
-      totalBRL: 66_000,
+      totalBRL: 69_000,
     };
     const heat = buildExposureHeat(resp);
 
@@ -83,15 +87,16 @@ describe("camada ETF do Radar — look-through canônico", () => {
     expect(heat.has("840")).toBe(true);
     expect(heat.has("392")).toBe(true);
     expect(heat.has("076")).toBe(true);
+    expect(heat.has("250")).toBe(false); // França (só ETF) fica de fora
 
     // País mais exposto fica com intensidade 1 (azul mais forte).
     expect(heat.get("840")!.intensity).toBeCloseTo(1, 5);
 
-    // Piso de visibilidade (0.32): TODO país com exposição fica claramente azul,
-    // mesmo o menor (Brasil 1%) — não some no fundo.
+    // Piso de visibilidade (0.32): TODO país com alocação direta fica azul,
+    // mesmo o menor (Brasil) — não some no fundo.
     expect(heat.get("076")!.intensity).toBeGreaterThanOrEqual(0.32);
 
-    // Japão (5%) fica nitidamente mais forte que o piso e abaixo do topo.
+    // Japão fica nitidamente acima do piso e abaixo do topo.
     const jp = heat.get("392")!.intensity;
     expect(jp).toBeGreaterThan(0.45);
     expect(jp).toBeLessThan(0.65);
@@ -104,9 +109,9 @@ describe("camada ETF do Radar — look-through canônico", () => {
     expect(heat.get("840")!.country).toBe(ISO_NUM_TO_COUNTRY["840"]); // "EUA"
     expect(heat.get("840")!.country).toBe("EUA");
 
-    // valueText traz a origem (direta / ETFs).
-    expect(heat.get("840")!.valueText).toContain("ETFs");
-    expect(heat.get("076")!.valueText).toContain("direta");
+    // Rótulos: % sobre o total DIRETO e valor formatado.
+    expect(heat.get("840")!.label).toContain("nesta bolsa");
+    expect(heat.get("840")!.valueText).toContain("R$");
   });
 
   it("exposição vazia não quebra (mapa vazio)", () => {
