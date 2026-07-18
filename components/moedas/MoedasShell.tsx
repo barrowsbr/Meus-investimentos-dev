@@ -498,8 +498,11 @@ export default function MoedasShell() {
   }, []);
 
   // Deep-link do estojo: /moedas?m=<índice em MOEDAS_COLECAO> abre o dossiê.
+  // Cuidado: Number(null) === 0 — sem o param, NÃO abrir nada.
   useEffect(() => {
-    const idx = Number(new URLSearchParams(window.location.search).get("m"));
+    const raw = new URLSearchParams(window.location.search).get("m");
+    if (raw === null || raw === "") return;
+    const idx = Number(raw);
     if (Number.isInteger(idx) && idx >= 0 && idx < MOEDAS_COLECAO.length) setAberta(MOEDAS_COLECAO[idx]);
   }, []);
 
