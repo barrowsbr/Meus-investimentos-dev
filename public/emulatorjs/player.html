@@ -15,29 +15,11 @@
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   #erro{color:#fca5a5;font:14px system-ui;padding:80px 24px;text-align:center}
   /* Celular EM PÉ: o EmulatorJS cola o jogo no topo, embaixo da ilha/relógio
-     do iPhone — desce o canvas para baixo da safe-area + botão voltar. */
+     do iPhone — SÓ desce o canvas (margin), sem mexer em tamanho/posição.
+     Deitado e desktop ficam com o layout padrão do player. */
   @media (orientation: portrait) and (pointer: coarse) {
     #game canvas{
-      position: absolute !important;
-      top: calc(env(safe-area-inset-top, 0px) + 52px) !important;
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-      max-width: 100vw !important;
-      height: auto !important;
-    }
-  }
-  /* Celular DEITADO: o jogo encolhe para o centro e sobram CALHAS laterais —
-     o D-pad e os botões do gamepad virtual caem nelas, fora da imagem.
-     Só vale para tela de toque (pointer: coarse); desktop fica intacto. */
-  @media (orientation: landscape) and (pointer: coarse) {
-    #game canvas{
-      position: absolute !important;
-      left: 50% !important;
-      top: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      max-width: calc(100vw - 380px) !important;
-      max-height: 96vh !important;
-      height: auto !important;
+      margin-top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
     }
   }
 </style>
