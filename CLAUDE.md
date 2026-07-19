@@ -268,7 +268,14 @@ fundo) **NÃO participa** da fusão e não deve ser tocada.
   mascotes, Direitos Humanos/BC 50/BC 40/JK/Beija-Flor e as 2 famílias),
   berços preenchidos com as fotos DA COLEÇÃO casadas por KM#
   (`components/moedas/QuadroReais.tsx`); berço sem moeda fica vazio; toque
-  vira a moeda. **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
+  vira a moeda. **Livrinho do Canadá** (botão "Livro", SÓ no estojo "Dólar
+  canadense"): o Commemorative Coin Set 2007 da RCM recriado vetorialmente
+  "como novo" (`components/moedas/LivroCanada.tsx`) — capa com furo mostrando
+  a 25¢ colorida + brilho varrendo, miolo com os 7 painéis EN/FR transcritos
+  do card físico (toque = leitor ampliado) | página dos berços com rótulos em
+  arco, contracapa com barcode/créditos; páginas viram em 3D (setas), moedas
+  Canadá-2007 da coleção casadas por denominação, lado do DESENHO para cima
+  (reverso das fotos CoinSnap), toque vira. **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
   régua — moeda de 1 real na tela; `moedas_pxmm` no localStorage); com 1:1
   ATIVO o zoom fica TRAVADO (pinça/roda desligadas — só pan); fora dele pinça
   dá zoom e arrastar o veludo navega. Luz especular + bevel seguem o
