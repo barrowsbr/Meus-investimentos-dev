@@ -17,12 +17,13 @@ import { urlRomPokemon } from "./rom-store";
 
 interface Jogo { id: string; nome: string; sub: string; url?: string }
 
+// Jogos prontos: homebrew livre commitado pelo workflow + a ROM do Pokémon do
+// aparelho. Para AMPLIAR a lista: colocar o .gb/.gbc em public/roms/homebrew
+// (pelo workflow ou direto no repo) e adicionar a entrada aqui — jogos cujo
+// arquivo não existe são escondidos automaticamente.
 const JOGOS: Jogo[] = [
   { id: "pokemon", nome: "Pokémon Gold Spaceworld ’97", sub: "a sua ROM — deste aparelho ou do repo" },
   { id: "ucity", nome: "µCity", sub: "cidade estilo SimCity — homebrew livre (GPLv3)", url: "/roms/homebrew/ucity.gbc" },
-  { id: "tobu", nome: "Tobu Tobu Girl", sub: "plataforma frenética — homebrew livre (MIT)", url: "/roms/homebrew/tobutobugirl.gb" },
-  { id: "2048", nome: "2048", sub: "o quebra-cabeça dos blocos — homebrew livre (zlib)", url: "/roms/homebrew/2048.gb" },
-  { id: "petris", nome: "Petris", sub: "puzzle de blocos com bichinhos — homebrew livre", url: "/roms/homebrew/petris.gb" },
 ];
 
 async function existe(url: string): Promise<boolean> {
