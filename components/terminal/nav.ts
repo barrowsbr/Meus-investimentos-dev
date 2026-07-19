@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal, Crown,
+  Rocket, Newspaper, Medal, Crown, Gamepad2,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -72,6 +72,7 @@ export const NAV: NavGroup[] = [
       { href: "/anotacoes", label: "Anotações", icon: StickyNote, sub: "Comentários e lembretes — permanentes na planilha" },
       { href: "/moedas", label: "Moedas", icon: Medal, sub: "Coleção numismática — fotos, valores e mapa (CoinSnap)" },
       { href: "/etf-cem", label: "ETF Cem", icon: Crown, sub: "As 100 maiores do mundo (via VOO) — preço, P/L e distância do topo" },
+      { href: "/gameboy", label: "Game Boy", icon: Gamepad2, sub: "Pokémon Gold Spaceworld '97 — emulador embutido" },
     ],
   },
   // Configurações fica à parte (grupo sem rótulo), separado dos demais.
