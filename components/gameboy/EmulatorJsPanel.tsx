@@ -12,10 +12,11 @@
 // virtual no toque, fullscreen e save states próprios (menu do player).
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, TriangleAlert } from "lucide-react";
-import { urlRomPokemon } from "./rom-store";
+import { FolderOpen, Play, TriangleAlert } from "lucide-react";
+import { CHAVE_ARQUIVO_EJS, blobUrlDe, coreDoArquivo, idbGravarRom, idbLerRom, urlRomPokemon } from "./rom-store";
 
 interface Jogo { id: string; nome: string; sub: string; url?: string }
+interface Ativo { nome: string; url: string; core: "gambatte" | "mgba" }
 
 // Jogos prontos: homebrew livre commitado pelo workflow + a ROM do Pokémon do
 // aparelho. Para AMPLIAR a lista: colocar o .gb/.gbc em public/roms/homebrew
@@ -36,7 +37,8 @@ async function existe(url: string): Promise<boolean> {
 export default function EmulatorJsPanel() {
   const [temBundle, setTemBundle] = useState<boolean | null>(null);
   const [disponiveis, setDisponiveis] = useState<Record<string, string>>({});
-  const [ativo, setAtivo] = useState<{ nome: string; url: string } | null>(null);
+  const [ultimoArquivo, setUltimoArquivo] = useState<string | null>(null);
+  const [ativo, setAtivo] = useState<Ativo | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -50,10 +52,29 @@ export default function EmulatorJsPanel() {
         const url = await urlRomPokemon();
         if (url) disp[j.id] = url;
       }));
-      if (vivo) setDisponiveis(disp);
+      const salvo = await idbLerRom(CHAVE_ARQUIVO_EJS);
+      if (!vivo) return;
+      setDisponiveis(disp);
+      if (salvo?.nome) setUltimoArquivo(salvo.nome);
     })();
     return () => { vivo = false; };
   }, []);
+
+  // "Abrir arquivo" (.gb/.gbc/.gba) — salva no aparelho e escolhe o core pela
+  // extensão (mGBA para Game Boy Advance; gambatte para GB/GBC).
+  const abrirArquivo = async (f: File | null) => {
+    if (!f) return;
+    const dados = new Uint8Array(await f.arrayBuffer());
+    if (dados.length < 0x4000) return;
+    await idbGravarRom(f.name, dados, CHAVE_ARQUIVO_EJS);
+    setUltimoArquivo(f.name);
+    setAtivo({ nome: f.name, url: blobUrlDe(dados), core: coreDoArquivo(f.name) });
+  };
+
+  const abrirUltimo = async () => {
+    const salvo = await idbLerRom(CHAVE_ARQUIVO_EJS);
+    if (salvo?.dados?.length) setAtivo({ nome: salvo.nome, url: blobUrlDe(salvo.dados), core: coreDoArquivo(salvo.nome) });
+  };
 
   const srcdoc = useMemo(() => {
     if (!ativo) return "";
@@ -62,7 +83,7 @@ export default function EmulatorJsPanel() {
 <div id="game"></div>
 <script>
 window.EJS_player = "#game";
-window.EJS_core = "gambatte";
+window.EJS_core = ${JSON.stringify(ativo.core)};
 window.EJS_gameName = ${JSON.stringify(ativo.nome)};
 window.EJS_gameUrl = ${JSON.stringify(ativo.url)};
 window.EJS_pathtodata = "/emulatorjs/data/";
@@ -120,7 +141,7 @@ window.EJS_backgroundColor = "#0b090d";
               <button
                 key={j.id}
                 disabled={!url}
-                onClick={() => url && setAtivo({ nome: j.nome, url })}
+                onClick={() => url && setAtivo({ nome: j.nome, url, core: "gambatte" })}
                 className="group flex items-center gap-3 rounded-xl p-3 text-left transition-transform enabled:hover:-translate-y-0.5 disabled:opacity-45"
                 style={{ background: "linear-gradient(150deg, #221826 0%, #151019 100%)", border: "1px solid rgba(240,184,96,0.22)" }}
               >
@@ -134,6 +155,36 @@ window.EJS_backgroundColor = "#0b090d";
               </button>
             );
           })}
+
+          {ultimoArquivo && (
+            <button
+              onClick={abrirUltimo}
+              className="group flex items-center gap-3 rounded-xl p-3 text-left transition-transform hover:-translate-y-0.5"
+              style={{ background: "linear-gradient(150deg, #221826 0%, #151019 100%)", border: "1px solid rgba(240,184,96,0.22)" }}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                <Play size={14} className="text-amber-300" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold text-zinc-100">{ultimoArquivo}</span>
+                <span className="block truncate text-[11px] text-zinc-500">último arquivo aberto — salvo neste aparelho</span>
+              </span>
+            </button>
+          )}
+
+          <label
+            className="group flex cursor-pointer items-center gap-3 rounded-xl p-3 text-left transition-transform hover:-translate-y-0.5"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(240,184,96,0.35)" }}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" }}>
+              <FolderOpen size={14} className="text-amber-300" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-bold text-zinc-100">Abrir arquivo…</span>
+              <span className="block truncate text-[11px] text-zinc-500">.gb / .gbc / .gba (Game Boy Advance) — fica salvo no aparelho</span>
+            </span>
+            <input type="file" accept=".gb,.gbc,.gba,.bin" className="hidden" onChange={(e) => abrirArquivo(e.target.files?.[0] ?? null)} />
+          </label>
         </div>
       )}
     </div>

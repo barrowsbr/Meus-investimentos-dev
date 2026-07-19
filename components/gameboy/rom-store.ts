@@ -14,27 +14,41 @@ function idbAbrir(): Promise<IDBDatabase> {
   });
 }
 
-export async function idbLerRom(): Promise<{ nome: string; dados: Uint8Array } | null> {
+export async function idbLerRom(chave: string = IDB.chave): Promise<{ nome: string; dados: Uint8Array } | null> {
   try {
     const db = await idbAbrir();
     return await new Promise((res) => {
-      const req = db.transaction(IDB.store).objectStore(IDB.store).get(IDB.chave);
+      const req = db.transaction(IDB.store).objectStore(IDB.store).get(chave);
       req.onsuccess = () => res(req.result ?? null);
       req.onerror = () => res(null);
     });
   } catch { return null; }
 }
 
-export async function idbGravarRom(nome: string, dados: Uint8Array): Promise<void> {
+export async function idbGravarRom(nome: string, dados: Uint8Array, chave: string = IDB.chave): Promise<void> {
   try {
     const db = await idbAbrir();
     await new Promise<void>((res) => {
       const tx = db.transaction(IDB.store, "readwrite");
-      tx.objectStore(IDB.store).put({ nome, dados }, IDB.chave);
+      tx.objectStore(IDB.store).put({ nome, dados }, chave);
       tx.oncomplete = () => res();
       tx.onerror = () => res();
     });
   } catch { /* sem IndexedDB → só não persiste */ }
+}
+
+// Slot separado para o "Abrir arquivo" do modo EmulatorJS (.gb/.gbc/.gba) —
+// não conflita com a ROM do Pokémon do console clássico.
+export const CHAVE_ARQUIVO_EJS = "rom_ejs";
+
+export function blobUrlDe(dados: Uint8Array): string {
+  const copia = new Uint8Array(dados).slice().buffer as ArrayBuffer;
+  return URL.createObjectURL(new Blob([copia]));
+}
+
+/** Core do EmulatorJS pela extensão do arquivo. */
+export function coreDoArquivo(nome: string): "gambatte" | "mgba" {
+  return /\.gba$/i.test(nome) ? "mgba" : "gambatte";
 }
 
 /** URL tocável da ROM do Pokémon: repo (se commitada) ou blob da salva no aparelho. */
@@ -47,9 +61,6 @@ export async function urlRomPokemon(): Promise<string | null> {
     }
   } catch { /* não existe no repo */ }
   const salvo = await idbLerRom();
-  if (salvo?.dados?.length) {
-    const copia = new Uint8Array(salvo.dados).slice().buffer as ArrayBuffer;
-    return URL.createObjectURL(new Blob([copia]));
-  }
+  if (salvo?.dados?.length) return blobUrlDe(salvo.dados);
   return null;
 }
