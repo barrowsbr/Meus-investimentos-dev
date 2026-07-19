@@ -273,9 +273,13 @@ fundo) **NÃO participa** da fusão e não deve ser tocada.
   "como novo" (`components/moedas/LivroCanada.tsx`) — capa com furo mostrando
   a 25¢ colorida + brilho varrendo, miolo com os 7 painéis EN/FR transcritos
   do card físico (toque = leitor ampliado) | página dos berços com rótulos em
-  arco, contracapa com barcode/créditos; páginas viram em 3D (setas), moedas
-  Canadá-2007 da coleção casadas por denominação, lado do DESENHO para cima
-  (reverso das fotos CoinSnap), toque vira. **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
+  arco, contracapa VAZADA (pelos furos aparece a parte de TRÁS das moedas — a
+  efígie — também virável) com barcode/créditos; páginas viram em 3D (setas),
+  moedas Canadá-2007 da coleção casadas por denominação, lado do DESENHO para
+  cima (reverso das fotos CoinSnap), toque vira; PINÇA dá zoom (roda no
+  desktop, arrastar quando ampliado; zoom zera ao virar página). ⚠️ face
+  oculta da folha 3D precisa de pointerEvents none (backface some do desenho,
+  não do hit-testing). **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
   régua — moeda de 1 real na tela; `moedas_pxmm` no localStorage); com 1:1
   ATIVO o zoom fica TRAVADO (pinça/roda desligadas — só pan); fora dele pinça
   dá zoom e arrastar o veludo navega. Luz especular + bevel seguem o

@@ -18,7 +18,7 @@
 // Aberto pelo botão "Livro" na toolbar do estojo, SÓ no conjunto
 // "Dólar canadense" (mesmo padrão do Quadro do Plano Real).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
@@ -109,12 +109,15 @@ function RotuloArco({ texto, r, u, cor }: { texto: string; r: number; u: number;
   );
 }
 
-// Moeda com flip 3D no toque — ou o furo vazio (recorte no cartão). No card o
-// lado visível é o do DESENHO (reverso das fotos); o flip mostra a efígie.
-function MoedaSlot({ moeda, d }: { moeda: Moeda | null; d: number }) {
+// Moeda com flip 3D no toque — ou o furo vazio (recorte no cartão). Pela
+// FRENTE do card o lado visível é o do DESENHO (reverso das fotos CoinSnap);
+// pela CONTRACAPA (livro vazado) aparece a parte de TRÁS da moeda — a efígie.
+function MoedaSlot({ moeda, d, frente = "desenho" }: { moeda: Moeda | null; d: number; frente?: "desenho" | "efigie" }) {
   const [verso, setVerso] = useState(false);
-  const anv = moeda?.fotos[0]?.reverso || moeda?.fotoReverso || moeda?.fotoAnverso || "";
-  const rev = moeda?.fotos[0]?.anverso || moeda?.fotoAnverso || "";
+  const desenho = moeda?.fotos[0]?.reverso || moeda?.fotoReverso || moeda?.fotoAnverso || "";
+  const efigie = moeda?.fotos[0]?.anverso || moeda?.fotoAnverso || "";
+  const anv = frente === "desenho" ? desenho : efigie;
+  const rev = frente === "desenho" ? efigie : desenho;
   if (!moeda || !anv) {
     return (
       <div
@@ -307,20 +310,27 @@ function Contracapa({ u }: { u: number }) {
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: "linear-gradient(200deg, #6e97bd 0%, #3f6a97 50%, #2a4c74 100%)" }}>
       <div className="absolute inset-0" style={{ background: "radial-gradient(60% 40% at 35% 40%, rgba(255,255,255,0.10), transparent 65%)" }} />
-      {/* furos vazados — mostram o "papel" do miolo por trás */}
+      {/* furos vazados — pela contracapa se vê a parte de TRÁS das moedas */}
       {SLOTS.map((s) => {
         const d = s.mm * u * ESCALA_MOEDA;
+        const m = moedaCA(s.re);
         return (
           <div key={s.rotulo} className="absolute" style={{ left: `${100 - s.cx}%`, top: `${s.cy}%`, transform: "translate(-50%,-50%)" }}>
             <RotuloArco texto={s.rotulo} r={d / 2} u={u} cor="#ffffff" />
-            <div
-              className="rounded-full"
-              style={{
-                width: d, height: d,
-                background: "repeating-linear-gradient(0deg, #f6f8f9 0, #f6f8f9 3px, #dfe6ea 3px, #dfe6ea 4px)",
-                boxShadow: "inset 0 3px 7px rgba(15,35,60,0.5)",
-              }}
-            />
+            {m ? (
+              <div className="rounded-full" style={{ padding: u * 0.9, background: "#31547b", boxShadow: "inset 0 3px 7px rgba(10,25,45,0.6), 0 1px 0 rgba(255,255,255,0.15)" }}>
+                <MoedaSlot moeda={m} d={d} frente="efigie" />
+              </div>
+            ) : (
+              <div
+                className="rounded-full"
+                style={{
+                  width: d, height: d,
+                  background: "repeating-linear-gradient(0deg, #f6f8f9 0, #f6f8f9 3px, #dfe6ea 3px, #dfe6ea 4px)",
+                  boxShadow: "inset 0 3px 7px rgba(15,35,60,0.5)",
+                }}
+              />
+            )}
           </div>
         );
       })}
@@ -350,6 +360,11 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
   const [passo, setPasso] = useState(0);
   const [leitor, setLeitor] = useState<Painel | null>(null);
   const [dims, setDims] = useState({ w: 800, h: 600 });
+  // Zoom: pinça (mobile) / roda (desktop) + arrastar quando ampliado.
+  const [vista, setVista] = useState({ s: 1, x: 0, y: 0, animar: true });
+  const gestoRef = useRef<{ modo: "pan" | "pinch" | null; d0: number; s0: number; x0: number; y0: number; px: number; py: number }>(
+    { modo: null, d0: 0, s0: 1, x0: 0, y0: 0, px: 0, py: 0 },
+  );
 
   useEffect(() => {
     const medir = () => setDims({ w: window.innerWidth, h: window.innerHeight });
@@ -357,6 +372,9 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
     window.addEventListener("resize", medir);
     return () => window.removeEventListener("resize", medir);
   }, []);
+
+  // Virar página zera o zoom (senão a página nova nasce cortada).
+  useEffect(() => { setVista({ s: 1, x: 0, y: 0, animar: true }); }, [passo]);
 
   const pageW = Math.min((dims.w - 28) / 2, dims.h * 0.72, 540);
   const pageH = pageW * 1.04;
@@ -366,6 +384,38 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
   // Centraliza a página visível: fechado, só a metade DIREITA existe (capa) →
   // desloca o miolo para a esquerda; na contracapa é a metade ESQUERDA.
   const shift = passo === 0 ? -pageW / 2 : passo === 2 ? pageW / 2 : 0;
+
+  const clampVista = (s: number, x: number, y: number) => {
+    const cs = Math.min(4, Math.max(1, s));
+    const mx = pageW * cs * 0.9, my = pageH * cs * 0.6;
+    return { s: cs, x: Math.max(-mx, Math.min(mx, x)), y: Math.max(-my, Math.min(my, y)), animar: false };
+  };
+  const distToques = (t: React.TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      gestoRef.current = { modo: "pinch", d0: distToques(e.touches), s0: vista.s, x0: vista.x, y0: vista.y, px: 0, py: 0 };
+    } else if (e.touches.length === 1 && vista.s > 1.02) {
+      gestoRef.current = { modo: "pan", d0: 0, s0: vista.s, x0: vista.x, y0: vista.y, px: e.touches[0].clientX, py: e.touches[0].clientY };
+    }
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const g = gestoRef.current;
+    if (g.modo === "pinch" && e.touches.length === 2) {
+      const f = distToques(e.touches) / g.d0;
+      setVista(clampVista(g.s0 * f, g.x0 * f, g.y0 * f));
+    } else if (g.modo === "pan" && e.touches.length === 1) {
+      setVista(clampVista(g.s0, g.x0 + e.touches[0].clientX - g.px, g.y0 + e.touches[0].clientY - g.py));
+    }
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length === 0) {
+      gestoRef.current.modo = null;
+      setVista((v) => (v.s < 1.05 ? { s: 1, x: 0, y: 0, animar: true } : { ...v, animar: true }));
+    } else if (e.touches.length === 1 && gestoRef.current.modo === "pinch") {
+      // sobrou 1 dedo da pinça → vira arrasto contínuo
+      gestoRef.current = { modo: "pan", d0: 0, s0: vista.s, x0: vista.x, y0: vista.y, px: e.touches[0].clientX, py: e.touches[0].clientY };
+    }
+  };
   const folha = (rot: number, z: number, frente: JSX.Element, verso: JSX.Element) => (
     <div
       className="absolute top-0 h-full"
@@ -376,8 +426,10 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
         transform: `rotateY(${rot}deg)`,
       }}
     >
-      <div className="absolute inset-0 overflow-hidden" style={{ backfaceVisibility: "hidden", borderRadius: u * 1.6, boxShadow: "0 10px 30px -12px rgba(0,0,0,0.7)" }}>{frente}</div>
-      <div className="absolute inset-0 overflow-hidden" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: u * 1.6, boxShadow: "0 10px 30px -12px rgba(0,0,0,0.7)" }}>{verso}</div>
+      {/* a face virada para trás não pode capturar toques (backface só some do
+          desenho, não do hit-testing) — senão a contracapa fica "bloqueada" */}
+      <div className="absolute inset-0 overflow-hidden" style={{ backfaceVisibility: "hidden", borderRadius: u * 1.6, boxShadow: "0 10px 30px -12px rgba(0,0,0,0.7)", pointerEvents: rot === 0 ? "auto" : "none" }}>{frente}</div>
+      <div className="absolute inset-0 overflow-hidden" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: u * 1.6, boxShadow: "0 10px 30px -12px rgba(0,0,0,0.7)", pointerEvents: rot === 0 ? "none" : "auto" }}>{verso}</div>
     </div>
   );
 
@@ -397,14 +449,25 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
         <X size={16} />
       </button>
 
-      <div style={{ perspective: 2400 }}>
-        <div
-          className="relative"
-          style={{ width: pageW * 2, height: pageH, transition: "transform 1s cubic-bezier(0.35, 0.05, 0.2, 1)", transform: `translateX(${shift}px)` }}
-        >
-          {/* folha 1: capa / textos · folha 2: moedas / contracapa */}
-          {folha(passo >= 2 ? -180 : 0, passo >= 2 ? 5 : 3, <PaginaMoedas u={u} />, <Contracapa u={u} />)}
-          {folha(passo >= 1 ? -180 : 0, passo === 0 ? 4 : 2, <Capa u={u} moeda25={moeda25} />, <PaginaTextos u={u} aoLer={setLeitor} />)}
+      <div
+        className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+        style={{ touchAction: "none" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onWheel={(e) => setVista((v) => clampVista(v.s * Math.exp(-e.deltaY * 0.0015), v.x, v.y))}
+      >
+        <div style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.s})`, transition: vista.animar ? "transform 0.25s ease-out" : "none" }}>
+          <div style={{ perspective: 2400 }}>
+            <div
+              className="relative"
+              style={{ width: pageW * 2, height: pageH, transition: "transform 1s cubic-bezier(0.35, 0.05, 0.2, 1)", transform: `translateX(${shift}px)` }}
+            >
+              {/* folha 1: capa / textos · folha 2: moedas / contracapa */}
+              {folha(passo >= 2 ? -180 : 0, passo >= 2 ? 5 : 3, <PaginaMoedas u={u} />, <Contracapa u={u} />)}
+              {folha(passo >= 1 ? -180 : 0, passo === 0 ? 4 : 2, <Capa u={u} moeda25={moeda25} />, <PaginaTextos u={u} aoLer={setLeitor} />)}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -419,7 +482,7 @@ export default function LivroCanada({ onClose }: { onClose: () => void }) {
           <ChevronLeft size={16} />
         </button>
         <p className="text-[11px] text-amber-200/60">
-          {passo === 0 ? "Toque na seta para abrir o livrinho" : passo === 1 ? "toque numa moeda para virar · num painel para ler" : "contracapa"}
+          {passo === 0 ? "Toque na seta para abrir o livrinho" : passo === 1 ? "toque: moeda vira · painel amplia — pinça dá zoom" : "contracapa — o verso das moedas pelos furos"}
         </p>
         <button
           onClick={() => setPasso((p) => Math.min(2, p + 1))}
