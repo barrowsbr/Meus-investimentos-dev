@@ -7,15 +7,15 @@
 //   NÃO existe estojo "todas" (decisão do dono).
 // • Vitrine FULLSCREEN (portal, pensada para tela DEITADA): veludo, moldura,
 //   cada moeda no BERÇO em escala real, ordem cronológica.
-// • Interações (modelo do dono, 17-18/07):
+// • Interações (modelo do dono, 17-19/07):
 //   – 1 TOQUE  → a moeda VIRA (flip 3D com espessura de metal);
-//   – 2 TOQUES → abre o CARD-RESUMO da moeda (com link para o card principal
-//     na página /moedas via ?m=<índice>) — a antiga "área de observação" com
-//     divisória foi REMOVIDA a pedido do dono;
-//   – ARRASTAR → carrega com mola no dedo; soltar no ar, ela CAI (gravidade
-//     segue o acelerômetro, iOS pede permissão);
-//   – SEGURAR ~1s sobre QUALQUER berço vazio em que ela caiba → ENCAIXA lá
-//     (anel de progresso mostra o encaixe chegando).
+//   – 2 TOQUES → abre o CARD-RESUMO da moeda (link p/ o dossiê via ?m=<índice>);
+//   – Botão GRAVIDADE é um INTERRUPTOR (decisão 19/07): ligar SOLTA todas as
+//     moedas (caem com o acelerômetro; arrastar/carregar/encaixar liberados);
+//     desligar RECOLOCA todas nos berços ORIGINAIS. Fora do modo gravidade as
+//     moedas são fixas — só viram cara/coroa (e 2 toques abrem o resumo).
+//   – No modo gravidade: arrastar carrega com mola; segurar ~1s sobre um berço
+//     vazio em que caiba encaixa (anel de progresso).
 // • v3 (18/07 — "outro nível", foco no mobile):
 //   – MODO 1:1: as moedas no TAMANHO FÍSICO REAL na tela (px/mm calibrável
 //     pela régua — encostar uma moeda de 1 real na tela; salvo por aparelho).
@@ -32,7 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import Matter from "matter-js";
-import { ArrowLeft, X, Smartphone, RotateCcw, Ruler } from "lucide-react";
+import { ArrowLeft, X, Smartphone, Ruler } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
 import { diametroMmDe, conjuntoMonetario, gradTone, type Moeda } from "@/lib/moedas";
 
@@ -100,9 +100,12 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const parallaxRef = useRef<HTMLDivElement>(null);
   const recolherRef = useRef<() => void>(() => {});
+  const soltarTodasRef = useRef<() => void>(() => {});
   const aplicarVistaRef = useRef<(fisico: boolean) => void>(() => {});
   const fisicoRef = useRef(false);
+  const gravidadeRef = useRef(false);
   const pxmmRef = useRef(4);
+  const [gravidade, setGravidade] = useState(false);
   const [sensor, setSensor] = useState<"inativo" | "ativo" | "negado">("inativo");
   const [segurando, setSegurando] = useState<Spec | null>(null);
   const [resumo, setResumo] = useState<Spec | null>(null);
@@ -267,6 +270,16 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       for (let s = 0; s < ocupante.length; s++) ocupante[s] = null;
       for (let i = 0; i < corpos.length; i++) { slotDe[i] = null; sentarEm(i, i); }
     };
+    // Interruptor de gravidade LIGADO: todas as moedas se soltam e caem.
+    soltarTodasRef.current = () => {
+      for (let i = 0; i < corpos.length; i++) {
+        vagarBerco(i);
+        Body.setStatic(corpos[i], false);
+        Sleeping.set(corpos[i], false);
+      }
+    };
+    // Rebuild (resize) com a gravidade ligada: volta soltas, como estavam.
+    if (gravidadeRef.current) setTimeout(() => soltarTodasRef.current(), 60);
 
     const paraMundo = (cx: number, cy: number) => {
       const r = canvas.getBoundingClientRect();
@@ -331,7 +344,8 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       if (pendente && Math.hypot(ev.clientX - pendente.x, ev.clientY - pendente.y) > 8) {
         const i = pendente.i;
         pendente = null;
-        erguer(i, paraMundo(ev.clientX, ev.clientY));
+        // Fora do modo gravidade a moeda é FIXA — arrastar não a ergue.
+        if (gravidadeRef.current) erguer(i, paraMundo(ev.clientX, ev.clientY));
       }
       if (mola) mola.pointA = paraMundo(ev.clientX, ev.clientY);
     };
@@ -591,6 +605,20 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
     fisicoRef.current = nv;
     aplicarVistaRef.current(nv);
   };
+  // Interruptor: LIGA = pede o sensor (iOS) e solta TODAS as moedas;
+  // DESLIGA = recoloca todas nos berços originais.
+  const toggleGravidade = async () => {
+    if (!gravidade) {
+      await ativarSensor(); // negado? tudo bem — cai com a gravidade padrão (para baixo)
+      soltarTodasRef.current();
+      gravidadeRef.current = true;
+      setGravidade(true);
+    } else {
+      recolherRef.current();
+      gravidadeRef.current = false;
+      setGravidade(false);
+    }
+  };
   const salvarCalibracao = () => {
     try { localStorage.setItem("moedas_pxmm", String(pxmmTmp)); } catch { /* sem storage */ }
     setPxmm(pxmmTmp);
@@ -612,11 +640,19 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           <p className="text-[10px] tracking-wider text-amber-200/40">{estojo.periodo ?? ""} · {estojo.specs.length} moeda{estojo.specs.length !== 1 ? "s" : ""} · {fmtBRL(estojo.valor)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {sensor !== "ativo" && (
-            <button onClick={ativarSensor} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fbbf24" }}>
-              <Smartphone size={12} /> {sensor === "negado" ? "Tentar de novo" : "Gravidade"}
-            </button>
-          )}
+          <button
+            onClick={toggleGravidade}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold"
+            style={gravidade
+              ? { background: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.55)", color: "#34d399" }
+              : { background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fbbf24" }}
+            title={gravidade
+              ? "Desligar: todas voltam aos berços originais"
+              : sensor === "negado" ? "Sensor negado — as moedas caem para baixo mesmo assim" : "Ligar: todas as moedas se soltam e caem"}
+            aria-label="Alternar modo gravidade"
+          >
+            <Smartphone size={12} /> {gravidade ? "Gravidade ON" : "Gravidade"}
+          </button>
           <button
             onClick={toggleFisico}
             className="rounded-lg px-2.5 py-2 font-mono text-[11px] font-bold"
@@ -630,9 +666,6 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           </button>
           <button onClick={() => { setPxmmTmp(pxmm); setCalibrando(true); }} className="rounded-lg p-2 text-amber-200/80" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }} aria-label="Calibrar tamanho real" title="Calibrar tamanho real (régua)">
             <Ruler size={14} />
-          </button>
-          <button onClick={() => recolherRef.current()} className="rounded-lg p-2 text-amber-200/80" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }} aria-label="Recolher todas para os berços" title="Recolher todas para os berços">
-            <RotateCcw size={14} />
           </button>
           <button onClick={onClose} className="rounded-lg p-2 text-amber-200/90" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }} aria-label="Fechar estojo">
             <X size={16} />
@@ -783,9 +816,10 @@ export default function MoedasEstojo() {
 
       <p className="text-[10px] text-zinc-600">
         Dentro do estojo: 1 toque VIRA a moeda (flip 3D) · 2 toques abrem o card-resumo (com atalho para o
-        dossiê na coleção) · arraste para carregar · segure ~1s sobre um berço vazio para encaixar · solte no
-        ar e ela cai com a gravidade do celular · botão 1:1 mostra as moedas no TAMANHO FÍSICO real (zoom
-        travado; arrastar o veludo navega; calibre com a régua usando uma moeda de 1 real).
+        dossiê na coleção) · botão GRAVIDADE solta todas as moedas de uma vez (aí dá para arrastar, carregar e
+        segurar ~1s num berço vazio para encaixar; desligando, todas voltam ao lugar original) · botão 1:1
+        mostra as moedas no TAMANHO FÍSICO real (zoom travado; arrastar o veludo navega; calibre com a régua
+        usando uma moeda de 1 real).
       </p>
 
       {montado && aberto && <CaseView estojo={aberto} onClose={() => setAberto(null)} />}

@@ -66,50 +66,6 @@ function EstojoButton() {
   );
 }
 
-// ── Botão-pote: um pote de vidro DE VERDADE, com moedas da coleção dentro ─────
-// (o botão para entrar no /moedas/pote É um pote — pedido do dono). As três
-// moedinhas são fotos reais; no hover elas dão uma chacoalhada.
-
-function PoteButton() {
-  const fotos = MOEDAS_COLECAO.filter((m) => m.fotoAnverso).slice(0, 3).map((m) => m.fotoAnverso);
-  return (
-    <Link href="/moedas/pote" title="Pote físico — a coleção com gravidade real" className="pote-btn group flex flex-col items-center">
-      <style>{`
-        .pote-btn svg { transition: transform .25s ease; }
-        .pote-btn:hover svg, .pote-btn:active svg { transform: rotate(-4deg) scale(1.06); }
-        .pote-btn .pb-moeda { transform-origin: center; animation: pb-flutuar 3.2s ease-in-out infinite; }
-        .pote-btn .pb-m2 { animation-delay: .5s; } .pote-btn .pb-m3 { animation-delay: 1.1s; }
-        .pote-btn:hover .pb-moeda { animation: pb-chacoalhar .45s ease-in-out infinite; }
-        @keyframes pb-flutuar { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
-        @keyframes pb-chacoalhar { 0%,100% { transform: translate(0,0) rotate(0); } 25% { transform: translate(-1.5px,-2px) rotate(-7deg); } 75% { transform: translate(1.5px,-1px) rotate(6deg); } }
-        @media (prefers-reduced-motion: reduce) { .pote-btn .pb-moeda, .pote-btn svg { animation: none !important; transition: none; } }
-      `}</style>
-      <svg width="66" height="58" viewBox="0 0 74 66" aria-hidden>
-        <defs>
-          <clipPath id="pbVidro"><path d="M17 20 h40 v28 a8 8 0 0 1 -8 8 h-24 a8 8 0 0 1 -8 -8 z" /></clipPath>
-          <clipPath id="pbC1"><circle cx="28" cy="46" r="9" /></clipPath>
-          <clipPath id="pbC2"><circle cx="45" cy="47" r="8" /></clipPath>
-          <clipPath id="pbC3"><circle cx="37" cy="34" r="8.5" /></clipPath>
-        </defs>
-        {/* vidro do pote */}
-        <path d="M17 20 h40 v28 a8 8 0 0 1 -8 8 h-24 a8 8 0 0 1 -8 -8 z" fill="rgba(232,163,61,0.07)" stroke="rgba(245,158,11,0.55)" strokeWidth="1.6" />
-        {/* moedas reais dentro */}
-        <g clipPath="url(#pbVidro)">
-          {fotos[0] && <g className="pb-moeda"><image href={fotos[0]} x="19" y="37" width="18" height="18" clipPath="url(#pbC1)" preserveAspectRatio="xMidYMid slice" /></g>}
-          {fotos[1] && <g className="pb-moeda pb-m2"><image href={fotos[1]} x="37" y="39" width="16" height="16" clipPath="url(#pbC2)" preserveAspectRatio="xMidYMid slice" /></g>}
-          {fotos[2] && <g className="pb-moeda pb-m3"><image href={fotos[2]} x="28.5" y="25.5" width="17" height="17" clipPath="url(#pbC3)" preserveAspectRatio="xMidYMid slice" /></g>}
-        </g>
-        {/* reflexo do vidro */}
-        <path d="M21 24 q-1 14 3 27" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.6" strokeLinecap="round" />
-        {/* tampa */}
-        <rect x="13" y="11" width="48" height="8" rx="3.5" fill="rgba(245,158,11,0.30)" stroke="rgba(245,158,11,0.65)" strokeWidth="1.3" />
-        <rect x="20" y="7" width="34" height="5" rx="2.5" fill="rgba(245,158,11,0.18)" stroke="rgba(245,158,11,0.45)" strokeWidth="1" />
-      </svg>
-      <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-400/90 transition-colors group-hover:text-amber-300">Pote</span>
-    </Link>
-  );
-}
-
 function bandeira(pais: string): string {
   const iso = COUNTRY_TO_ISO_NUM[pais];
   return flagEmoji(iso ? ISO_NUM_TO_ISO2[iso] : null) || "🏳️";
@@ -620,7 +576,6 @@ export default function MoedasShell() {
         </div>
         <div className="flex items-start gap-3">
           <EstojoButton />
-          <PoteButton />
         </div>
       </div>
 
