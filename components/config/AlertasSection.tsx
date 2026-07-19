@@ -320,7 +320,7 @@ export default function AlertasSection() {
       <p className="text-[11px] text-zinc-600 flex items-start gap-1.5">
         <Shield size={12} className="mt-0.5 flex-shrink-0" />
         O token do bot fica só na Vercel (env var, nunca na planilha). O chat_id é salvo na aba{" "}
-        <code className="bg-zinc-800 px-1 rounded text-zinc-300">alertas_config</code>.
+        <code className="bg-zinc-800 px-1 rounded text-zinc-300">app_config</code>.
       </p>
     </div>
   );

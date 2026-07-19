@@ -79,7 +79,7 @@ Isso roda o frontend e o backend juntos no mesmo domínio (geralmente `http://lo
      pessoal não dá acesso à API),
      `TELEGRAM_BOT_TOKEN` (alertas determinísticos — DARF/DIRPF/alavancagem — e o
      resumo do dia em imagem via cron; a env var tem prioridade, mas o token
-     também pode ser salvo em Configurações — aba `alertas_config`, nunca reenviado
+     também pode ser salvo em Configurações — aba `app_config` (escopo `alertas`), nunca reenviado
      ao cliente; o chat_id igualmente vai em Configurações)
 4. A planilha deve estar compartilhada com "Qualquer pessoa com o link" (Leitor)
 
@@ -232,6 +232,15 @@ Dados de cartões de crédito, contas bancárias e gastos.
 ### 11. `financas_pessoal` — Controle financeiro pessoal
 
 Registro de entradas, saídas e gastos com cartão.
+
+### 12. `app_config` — Configurações do app (aba única: escopo/chave/valor)
+
+Fusão das antigas abas de configuração `historico_config`, `alertas_config`,
+`alertas_estado` e `automacoes_config` (`lib/app-config.ts`). Migração
+preguiçosa: leitura cai para a aba legada enquanto o escopo não foi gravado na
+`app_config`; a primeira gravação migra o escopo (marcador `__migrado`) e as
+abas velhas podem então ser apagadas pelo dono. A aba `config` (login/senha/
+fundo) **NÃO participa** da fusão e não deve ser tocada.
 
 ---
 
@@ -427,7 +436,7 @@ Quando o dono pedir "analise gaps", "faça auditoria", "mapeie problemas" ou equ
   BRT, dias úteis) — **NÃO** é cron da Vercel (Hobby só permite 1×/dia; sub-diário
   quebra o build de produção). Requer o secret `CRON_SECRET` no GitHub (mesmo valor
   da Vercel) e, opcional, a var `APP_URL`.
-- **Liga/desliga em Configurações** (aba `historico_config`, chave/valor; default
+- **Liga/desliga em Configurações** (aba `app_config`, escopo `historico`; default
   ligado). Botão "Registrar agora" (`POST /api/config/historico {registrar:true}`).
 - Append preserva tipos via `appendRowsTyped` (RAW) — números entram como número.
   Dedup por `data`+`hora` evita duplicar no mesmo horário.

@@ -4,15 +4,16 @@
 // em TS, disparada pelo GitHub Action `historico.yml` (3×/dia) — NÃO é cron da
 // Vercel (o plano Hobby só permite 1×/dia).
 //
-// Liga/desliga fica em `historico_config` (chave/valor), controlado por
-// Configurações. Cálculo pela FONTE ÚNICA (`calcularSnapshot`).
+// Liga/desliga fica no escopo `historico` da aba app_config (lib/app-config —
+// a antiga `historico_config` vale como fallback de leitura até a primeira
+// gravação). Cálculo pela FONTE ÚNICA (`calcularSnapshot`).
 
 import { getDataStore } from "@/lib/data-store";
-import { ensureTab, writeTab, appendRowsTyped } from "@/lib/gsheets";
+import { ensureTab, appendRowsTyped } from "@/lib/gsheets";
+import { lerEscopo, gravarEscopo } from "@/lib/app-config";
 import { computeHomePatrimonio } from "@/lib/home-patrimonio";
 
 export const HISTORICO_TAB = "historico_patrimonio";
-export const HISTORICO_CONFIG_TAB = "historico_config";
 
 // Ordem EXATA das colunas da aba (não reordenar — o append é posicional).
 const COLUNAS = ["timestamp", "data", "hora", "patrimonio_total", "rv", "rf", "variacao_dia_pct", "n_ativos"] as const;
@@ -30,17 +31,13 @@ export interface RecordResult {
 // ── Config (liga/desliga) ────────────────────────────────────────────────────
 
 export async function readHistoricoConfig(): Promise<HistoricoConfig> {
-  const store = getDataStore();
-  let rows: Record<string, unknown>[] = [];
-  try { rows = await store.fetchTab(HISTORICO_CONFIG_TAB); } catch { /* aba ainda não existe → default */ }
-  const map = new Map(rows.map((r) => [String(r["chave"] ?? "").trim(), String(r["valor"] ?? "").trim()]));
+  const map = await lerEscopo("historico");
   // Default LIGADO — só desliga quando salvo explicitamente como "false".
   return { ativo: map.get("ativo") !== "false" };
 }
 
 export async function writeHistoricoConfig(cfg: HistoricoConfig): Promise<void> {
-  await ensureTab(HISTORICO_CONFIG_TAB, ["chave", "valor"]);
-  await writeTab(HISTORICO_CONFIG_TAB, ["chave", "valor"], [["ativo", cfg.ativo ? "true" : "false"]]);
+  await gravarEscopo("historico", [["ativo", cfg.ativo ? "true" : "false"]]);
 }
 
 // ── Data/hora no fuso de Brasília + serial do Excel ──────────────────────────
