@@ -32,9 +32,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import Matter from "matter-js";
-import { ArrowLeft, X, Smartphone, Ruler } from "lucide-react";
+import { ArrowLeft, X, Smartphone, Ruler, Frame } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
 import { diametroMmDe, conjuntoMonetario, gradTone, type Moeda } from "@/lib/moedas";
+import QuadroReais from "./QuadroReais";
 
 interface Spec { m: Moeda; fotoA: string; fotoR: string; mm: number }
 interface Estojo { nome: string; periodo?: string; ordem: number; specs: Spec[]; valor: number }
@@ -114,6 +115,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
   const [pxmm, setPxmm] = useState(() => (typeof window === "undefined" ? 4 : pxPorMmFisico()));
   const [calibrando, setCalibrando] = useState(false);
   const [pxmmTmp, setPxmmTmp] = useState(4);
+  const [quadro, setQuadro] = useState(false); // quadro do Plano Real (só no estojo "Real")
 
   const precisaPermissao = typeof window !== "undefined"
     && typeof (DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> })?.requestPermission === "function";
@@ -640,6 +642,17 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           <p className="text-[10px] tracking-wider text-amber-200/40">{estojo.periodo ?? ""} · {estojo.specs.length} moeda{estojo.specs.length !== 1 ? "s" : ""} · {fmtBRL(estojo.valor)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {estojo.nome === "Real" && (
+            <button
+              onClick={() => setQuadro(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fcd9a0" }}
+              title="Quadro do Plano Real — comemorativas e famílias, preenchido com as moedas da sua coleção"
+              aria-label="Abrir quadro do Plano Real"
+            >
+              <Frame size={12} /> Quadro
+            </button>
+          )}
           <button
             onClick={toggleGravidade}
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold"
@@ -759,6 +772,8 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
           </div>
         </div>
       )}
+
+      {quadro && <QuadroReais onClose={() => setQuadro(false)} />}
     </div>,
     document.body,
   );
