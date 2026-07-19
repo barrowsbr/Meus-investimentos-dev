@@ -15,7 +15,9 @@
 // Save states ficam no IndexedDB do WasmBoy (Salvar / Continuar).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Gamepad2, Save, RotateCcw, History, Upload } from "lucide-react";
+import { Gamepad2, Save, RotateCcw, History, Upload, Joystick } from "lucide-react";
+import EmulatorJsPanel from "./EmulatorJsPanel";
+import { ROM_DO_REPO, idbLerRom, idbGravarRom } from "./rom-store";
 
 // WasmBoy não tem tipos publicados — superfície mínima usada aqui.
 interface WasmBoyApi {
@@ -33,43 +35,6 @@ interface WasmBoyApi {
   saveLoadedCartridge(): Promise<unknown>;
 }
 
-// ── ROM persistida no aparelho (IndexedDB) ───────────────────────────────────
-
-const IDB = { db: "mi_gameboy", store: "roms", chave: "rom" };
-
-function idbAbrir(): Promise<IDBDatabase> {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(IDB.db, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(IDB.store);
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
-async function idbLerRom(): Promise<{ nome: string; dados: Uint8Array } | null> {
-  try {
-    const db = await idbAbrir();
-    return await new Promise((res) => {
-      const req = db.transaction(IDB.store).objectStore(IDB.store).get(IDB.chave);
-      req.onsuccess = () => res(req.result ?? null);
-      req.onerror = () => res(null);
-    });
-  } catch { return null; }
-}
-async function idbGravarRom(nome: string, dados: Uint8Array): Promise<void> {
-  try {
-    const db = await idbAbrir();
-    await new Promise<void>((res) => {
-      const tx = db.transaction(IDB.store, "readwrite");
-      tx.objectStore(IDB.store).put({ nome, dados }, IDB.chave);
-      tx.oncomplete = () => res();
-      tx.onerror = () => res();
-    });
-  } catch { /* sem IndexedDB → só não persiste */ }
-}
-
-// ROM pré-carregada no repo (opcional — ver cabeçalho).
-const ROM_DO_REPO = "/roms/pokegold-spaceworld-en.gb";
-
 type Estado = "carregando" | "sem-rom" | "pronto" | "rodando";
 
 const JOYPAD_ZERADO = { UP: false, RIGHT: false, DOWN: false, LEFT: false, A: false, B: false, SELECT: false, START: false };
@@ -81,6 +46,17 @@ export default function GameBoyShell() {
   const [estado, setEstado] = useState<Estado>("carregando");
   const [nomeRom, setNomeRom] = useState("");
   const [msg, setMsg] = useState("");
+  const [modo, setModo] = useState<"classico" | "emulatorjs">("classico");
+
+  const trocarModo = (m: "classico" | "emulatorjs") => {
+    if (m === "emulatorjs" && estado === "rodando") {
+      // pausa o console clássico para os dois não disputarem áudio/CPU
+      wbRef.current?.saveLoadedCartridge().catch(() => {});
+      wbRef.current?.pause().catch(() => {});
+      setEstado("pronto");
+    }
+    setModo(m);
+  };
 
   const configurar = useCallback(async (): Promise<WasmBoyApi> => {
     if (wbRef.current) return wbRef.current;
@@ -203,21 +179,48 @@ export default function GameBoyShell() {
           <h1 className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Gamepad2 size={18} className="text-amber-400" /> Game Boy</h1>
           <p className="text-xs text-zinc-500">Pokémon Gold Spaceworld ’97 — emulador embutido (roda no seu aparelho; toque e teclado)</p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <label className={`${btnBase} cursor-pointer gap-1.5 px-2.5 py-2`} style={estiloAcao}>
-            <Upload size={12} /> ROM
-            <input type="file" accept=".gb,.gbc,.bin" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
-          </label>
-          <button onClick={salvar} disabled={estado !== "rodando"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><Save size={12} /> Salvar</button>
-          <button onClick={continuar} disabled={estado === "carregando" || estado === "sem-rom"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><History size={12} /> Continuar</button>
-          <button onClick={reiniciar} disabled={estado === "carregando" || estado === "sem-rom"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><RotateCcw size={12} /> Reiniciar</button>
-        </div>
+        {modo === "classico" && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <label className={`${btnBase} cursor-pointer gap-1.5 px-2.5 py-2`} style={estiloAcao}>
+              <Upload size={12} /> ROM
+              <input type="file" accept=".gb,.gbc,.bin" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
+            </label>
+            <button onClick={salvar} disabled={estado !== "rodando"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><Save size={12} /> Salvar</button>
+            <button onClick={continuar} disabled={estado === "carregando" || estado === "sem-rom"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><History size={12} /> Continuar</button>
+            <button onClick={reiniciar} disabled={estado === "carregando" || estado === "sem-rom"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><RotateCcw size={12} /> Reiniciar</button>
+          </div>
+        )}
       </div>
 
-      {msg && <p className="text-xs text-amber-300">{msg}</p>}
+      {/* seletor de emulador */}
+      <div className="grid grid-cols-2 gap-2">
+        {([
+          { m: "classico" as const, icone: <Gamepad2 size={14} />, titulo: "Console clássico", sub: "WasmBoy — shell de Game Boy do app" },
+          { m: "emulatorjs" as const, icone: <Joystick size={14} />, titulo: "EmulatorJS", sub: "RetroArch em wasm + jogos prontos" },
+        ]).map(({ m, icone, titulo, sub }) => (
+          <button
+            key={m}
+            onClick={() => trocarModo(m)}
+            className="flex items-center gap-2.5 rounded-xl p-3 text-left"
+            style={modo === m
+              ? { background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.5)" }
+              : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}
+          >
+            <span className={modo === m ? "text-amber-300" : "text-zinc-500"}>{icone}</span>
+            <span className="min-w-0">
+              <span className={`block truncate text-xs font-bold ${modo === m ? "text-amber-100" : "text-zinc-300"}`}>{titulo}</span>
+              <span className="block truncate text-[10px] text-zinc-500">{sub}</span>
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {/* ── o console ── */}
-      <div className="mx-auto w-full max-w-[430px]">
+      {modo === "emulatorjs" && <EmulatorJsPanel />}
+
+      {msg && modo === "classico" && <p className="text-xs text-amber-300">{msg}</p>}
+
+      {/* ── o console clássico ── */}
+      <div className="mx-auto w-full max-w-[430px]" style={{ display: modo === "classico" ? undefined : "none" }}>
         <div
           className="rounded-3xl p-4 pb-6"
           style={{
@@ -302,12 +305,14 @@ export default function GameBoyShell() {
         </div>
       </div>
 
-      <p className="text-[10px] leading-relaxed text-zinc-600">
-        No desktop: setas movem, <span className="font-mono">X</span>=A, <span className="font-mono">Z</span>=B,{" "}
-        <span className="font-mono">Enter</span>=Start, <span className="font-mono">Shift</span>=Select.
-        "Salvar" grava um save state neste aparelho (IndexedDB) e "Continuar" restaura o mais recente —
-        além do save da bateria do próprio jogo. A ROM não sai do seu aparelho.
-      </p>
+      {modo === "classico" && (
+        <p className="text-[10px] leading-relaxed text-zinc-600">
+          No desktop: setas movem, <span className="font-mono">X</span>=A, <span className="font-mono">Z</span>=B,{" "}
+          <span className="font-mono">Enter</span>=Start, <span className="font-mono">Shift</span>=Select.
+          "Salvar" grava um save state neste aparelho (IndexedDB) e "Continuar" restaura o mais recente —
+          além do save da bateria do próprio jogo. A ROM não sai do seu aparelho.
+        </p>
+      )}
     </div>
   );
 }

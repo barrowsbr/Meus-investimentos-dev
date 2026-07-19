@@ -113,7 +113,7 @@ window.EJS_backgroundColor = "#0b090d";
         </>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {JOGOS.map((j) => {
+          {JOGOS.filter((j) => !j.url || disponiveis[j.id]).map((j) => {
             const url = disponiveis[j.id];
             return (
               <button

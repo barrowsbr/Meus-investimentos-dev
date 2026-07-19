@@ -55,10 +55,18 @@ jobs:
       - name: Baixar jogos homebrew (licenças livres)
         run: |
           mkdir -p public/roms/homebrew
-          baixar_asset() { # repo, sufixo, destino — varre TODAS as releases (nem todo repo tem "latest")
-            URL=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/$1/releases?per_page=15" \
-              | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('$2')]; print(urls[0] if urls else '')" 2>/dev/null || true)
-            if [ -n "$URL" ]; then curl -fsSL "$URL" -o "$3" && echo "OK $3 <- $URL"; else echo "SEM ASSET: $1 ($2)"; fi
+          baixar_asset() { # repo, sufixo, destino — varre TODAS as releases; se só houver .zip, extrai a ROM de dentro
+            JSON=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/$1/releases?per_page=15" || echo "[]")
+            URL=$(echo "$JSON" | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('$2')]; print(urls[0] if urls else '')" 2>/dev/null || true)
+            if [ -n "$URL" ]; then curl -fsSL "$URL" -o "$3" && echo "OK $3 <- $URL" && return; fi
+            ZIP=$(echo "$JSON" | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('.zip')]; print(urls[0] if urls else '')" 2>/dev/null || true)
+            if [ -n "$ZIP" ]; then
+              rm -rf /tmp/unz && mkdir -p /tmp/unz
+              curl -fsSL "$ZIP" -o /tmp/asset.zip && unzip -o -q /tmp/asset.zip -d /tmp/unz || true
+              ACHADO=$(find /tmp/unz -iname "*$2" | head -1)
+              if [ -n "$ACHADO" ]; then cp "$ACHADO" "$3" && echo "OK(zip) $3 <- $ZIP" && return; fi
+            fi
+            echo "SEM ASSET: $1 ($2)"
           }
           baixar_asset "AntonioND/ucity" ".gbc" "public/roms/homebrew/ucity.gbc"
           baixar_asset "SimonLarsen/tobutobugirl" ".gb" "public/roms/homebrew/tobutobugirl.gb"
