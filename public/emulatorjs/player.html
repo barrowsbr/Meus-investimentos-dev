@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Modo jogo · Meus Investimentos</title>
+<!-- Página CRUA de propósito: no iPhone, o emulador (wasm + ROM) dentro da
+     página completa do app estourava a memória do Safari e a aba recarregava.
+     Aqui só existe o EmulatorJS — o app é liberado da memória ao navegar. -->
+<style>
+  html,body{margin:0;height:100%;background:#0b090d}
+  #game{width:100%;height:100%}
+  #voltar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;z-index:9;
+    color:#fcd9a0;text-decoration:none;font:600 12px system-ui;background:rgba(0,0,0,.55);
+    padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
+  #erro{color:#fca5a5;font:14px system-ui;padding:80px 24px;text-align:center}
+</style>
+</head>
+<body>
+<a id="voltar" href="/gameboy">&#8249; voltar</a>
+<div id="game"></div>
+<script>
+(async function(){
+  const q = new URLSearchParams(location.search);
+  const jogo = q.get("jogo") || "arquivo";
+
+  function idb(chave){
+    return new Promise(function(res){
+      try{
+        const req = indexedDB.open("mi_gameboy", 1);
+        req.onupgradeneeded = function(){ req.result.createObjectStore("roms"); };
+        req.onsuccess = function(){
+          try{
+            const g = req.result.transaction("roms").objectStore("roms").get(chave);
+            g.onsuccess = function(){ res(g.result || null); };
+            g.onerror = function(){ res(null); };
+          }catch(e){ res(null); }
+        };
+        req.onerror = function(){ res(null); };
+      }catch(e){ res(null); }
+    });
+  }
+  function coreDe(nome){
+    if(/\.gba$/i.test(nome)) return "mgba";
+    if(/\.(sfc|smc)$/i.test(nome)) return "snes9x";
+    if(/\.(md|gen|smd|bin)$/i.test(nome)) return "genesis_plus_gx";
+    return "gambatte";
+  }
+
+  let nome = "", url = "", core = "gambatte";
+  if(jogo === "ucity"){
+    nome = "µCity"; url = "/roms/homebrew/ucity.gbc";
+  } else if(jogo === "pokemon"){
+    nome = "Pokémon Gold Spaceworld ’97";
+    try{
+      const r = await fetch("/roms/pokegold-spaceworld-en.gb");
+      if(r.ok && (r.headers.get("content-type")||"").indexOf("octet") >= 0){
+        const b = await r.arrayBuffer();
+        if(b.byteLength > 0x8000) url = URL.createObjectURL(new Blob([b]));
+      }
+    }catch(e){ /* sem ROM no repo — tenta o aparelho */ }
+    if(!url){
+      const salvo = await idb("rom");
+      if(salvo && salvo.dados && salvo.dados.length) url = URL.createObjectURL(new Blob([new Uint8Array(salvo.dados)]));
+    }
+  } else { // "arquivo" — o último aberto no card do EmulatorJS
+    const salvo = await idb("rom_ejs");
+    if(salvo && salvo.dados && salvo.dados.length){
+      nome = salvo.nome || "ROM";
+      core = coreDe(nome);
+      url = URL.createObjectURL(new Blob([new Uint8Array(salvo.dados)]));
+    }
+  }
+
+  if(!url){
+    document.getElementById("game").innerHTML =
+      '<p id="erro">ROM não encontrada neste aparelho — volte e abra o arquivo de novo.</p>';
+    return;
+  }
+
+  window.EJS_player = "#game";
+  window.EJS_core = core;
+  window.EJS_gameName = nome;
+  window.EJS_gameUrl = url;
+  window.EJS_pathtodata = "/emulatorjs/data/";
+  window.EJS_backgroundColor = "#0b090d";
+  window.EJS_startOnLoaded = true; // sem isso a tela de play some no preto
+  const s = document.createElement("script");
+  s.src = "/emulatorjs/data/loader.js";
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>
