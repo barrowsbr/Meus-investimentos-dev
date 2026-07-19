@@ -7,7 +7,7 @@ export const maxDuration = 60;
 // ── Gravação do histórico patrimonial ────────────────────────────────────────
 // NÃO é um cron da Vercel (o plano Hobby só permite 1×/dia). É chamado pelo
 // GitHub Action `historico.yml` (3×/dia) com `Authorization: Bearer CRON_SECRET`.
-// Respeita o liga/desliga de Configurações (aba historico_config).
+// Respeita o liga/desliga de Configurações (escopo `historico` da app_config).
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret) {

@@ -2,15 +2,15 @@
 // rotinas do app) com liga/desliga. Fonte única para o card "Automações" em
 // Configurações. Regras:
 //
-// - Toggles PRÓPRIOS vivem na aba `automacoes_config` (chave/valor).
+// - Toggles PRÓPRIOS vivem no escopo `automacoes` da aba app_config
+//   (lib/app-config — a antiga `automacoes_config` vale como fallback de
+//   leitura até a primeira gravação).
 // - Toggles que JÁ EXISTEM em outros stores são proxy (fonte única preservada):
-//   alertas/digest → alertas_config (lib/alertas-store); histórico patrimonial
-//   → historico_config (lib/historico-store).
+//   alertas/digest → lib/alertas-store; histórico patrimonial → lib/historico-store.
 // - Desligar NÃO remove o agendamento (cron da Vercel/Action continua
 //   disparando) — o ENDPOINT é quem pula quando desligado.
 
-import { getDataStore } from "./data-store";
-import { ensureTab, writeTab } from "./gsheets";
+import { lerEscopo, gravarEscopo } from "./app-config";
 
 export type AutomacaoTipo = "vercel" | "github" | "app";
 
@@ -63,19 +63,15 @@ export const AUTOMACOES: AutomacaoDef[] = [
   },
 ];
 
-// ── Toggles próprios (aba automacoes_config) ─────────────────────────────────
+// ── Toggles próprios (escopo `automacoes` da app_config) ─────────────────────
 
-const TAB = "automacoes_config";
-const HEADERS = ["chave", "valor"];
 const CHAVES_PROPRIAS = new Set(["cron_cotacoes", "cron_ibkr", "gh_daily_report", "gh_backup"]);
 
 async function readProprias(): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
   try {
-    const rows = await getDataStore().fetchTab(TAB);
-    for (const r of rows) {
-      const k = String(r["chave"] ?? "").trim();
-      if (k) map.set(k, String(r["valor"] ?? "").trim() !== "false"); // default LIGADO
+    for (const [k, v] of await lerEscopo("automacoes")) {
+      map.set(k, v !== "false"); // default LIGADO
     }
   } catch { /* aba ainda não existe → tudo ligado */ }
   return map;
@@ -93,8 +89,7 @@ export async function isAutomacaoAtiva(chave: string): Promise<boolean> {
 async function writePropria(chave: string, ativo: boolean): Promise<void> {
   const map = await readProprias();
   map.set(chave, ativo);
-  await ensureTab(TAB, HEADERS);
-  await writeTab(TAB, HEADERS, [...map.entries()].map(([k, v]) => [k, v ? "true" : "false"]), { raw: true });
+  await gravarEscopo("automacoes", [...map.entries()].map(([k, v]) => [k, v ? "true" : "false"]));
 }
 
 // ── Estado agregado (próprios + proxies) e escrita roteada ───────────────────
