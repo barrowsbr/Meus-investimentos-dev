@@ -248,10 +248,12 @@ Registro de entradas, saídas e gastos com cartão.
   existe estojo "todas" — decisão do dono), pensada para tela deitada: veludo,
   berços em escala real e ordem cronológica. Gestos: 1 toque VIRA (flip 3D com
   espessura de metal), 2 toques → CARD-RESUMO com link p/ o dossiê da coleção
-  (`/moedas?m=<índice>` — deep-link no MoedasShell; a antiga área de observação
-  com divisória foi REMOVIDA, decisão do dono 18/07), arrastar carrega (mola no
-  dedo; soltar no ar cai com o acelerômetro), segurar ~1s sobre um berço vazio
-  encaixa. **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
+  (`/moedas?m=<índice>` — deep-link no MoedasShell). Botão GRAVIDADE é um
+  INTERRUPTOR (decisão 19/07): ligar SOLTA todas as moedas (caem; arrastar com
+  mola, carregar e segurar ~1s num berço vazio para encaixar só funcionam
+  ligado); desligar recoloca todas nos berços ORIGINAIS. Fora do modo
+  gravidade as moedas são FIXAS — só flip/resumo. O pote (`/moedas/pote`)
+  foi REMOVIDO (decisão do dono 19/07 — ficou só o estojo). **Modo 1:1**: moedas no TAMANHO FÍSICO real (px/mm calibrável pela
   régua — moeda de 1 real na tela; `moedas_pxmm` no localStorage); com 1:1
   ATIVO o zoom fica TRAVADO (pinça/roda desligadas — só pan); fora dele pinça
   dá zoom e arrastar o veludo navega. Luz especular + bevel seguem o
@@ -265,10 +267,6 @@ Registro de entradas, saídas e gastos com cartão.
   zoom/pan/rotação/brilho/contraste com máscara circular, e baixa com o MESMO
   nome do arquivo atual — o dono manda o arquivo no chat e ele é trocado em
   `public/colecao-moedas` (sem tocar em `lib/moedas-data.ts`).
-- `/moedas/pote` — "Pote físico": a coleção em canvas com física (matter-js),
-  cada exemplar com foto real e DIÂMETRO em escala (`diametroMmDe` em
-  `lib/moedas.ts`); gravidade segue o acelerômetro (iOS exige botão de
-  permissão), com arraste por toque e sacudida. Inspirado no CoinSnap.
 - `/api/moedas-colecao` devolve SÓ o spot da prata (SI=F × BRL=X) para o valor de
   derretimento ao dia. `/api/moedas-colecao/info` enriquece o dossiê de UMA moeda com o catálogo
   **Numista** (`NUMISTA_API_KEY`): tiragem, dimensões, descrições, gravador e
