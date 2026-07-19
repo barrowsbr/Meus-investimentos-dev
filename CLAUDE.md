@@ -21,9 +21,13 @@ app/                    Páginas (App Router) e API routes
   (Gestão)              impostos, alavancagem, financas, fluxos
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
                         etf-cem (100 maiores via VOO — P/L e distância do ATH),
-                        gameboy (emulador WasmBoy embutido — Pokémon Gold Spaceworld;
-                        ROM NÃO versionada: picker → IndexedDB do aparelho, ou
-                        public/roms/pokegold-spaceworld-en.gb se o dono adicionar),
+                        gameboy (2 emuladores: console clássico WasmBoy + EmulatorJS
+                        self-hosted em public/emulatorjs/data — bundle/core gambatte e
+                        homebrew livres baixados pela workflow emulatorjs-data, trigger
+                        por push de scripts/.emulatorjs-run; ROM do Pokémon NÃO
+                        versionada: picker → IndexedDB do aparelho, compartilhada
+                        entre os 2 modos, ou public/roms/pokegold-spaceworld-en.gb
+                        se o dono adicionar),
                         configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/

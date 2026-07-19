@@ -1,0 +1,88 @@
+# Monta o modo EmulatorJS da página /gameboy — roda no runner do GitHub porque
+# a rede do ambiente de desenvolvimento bloqueia o CDN do EmulatorJS e os
+# releases de terceiros no GitHub.
+#
+# O que faz: baixa o bundle ESTÁVEL do EmulatorJS (loader, emulator.min,
+# compressão) + o core de Game Boy (gambatte, variantes wasm) para
+# public/emulatorjs/data/, e ROMs HOMEBREW com licença livre (µCity GPLv3,
+# Tobu Tobu Girl MIT/CC-BY, 2048-gb zlib) para public/roms/homebrew/ — jogos
+# legalmente redistribuíveis, prontos para rodar. Nenhuma ROM comercial.
+#
+# Dispara por PUSH do arquivo-marcador scripts/.emulatorjs-run (o token da
+# sessão não tem permissão de workflow_dispatch).
+name: emulatorjs-data
+
+on:
+  push:
+    paths:
+      - "scripts/.emulatorjs-run"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch de destino"
+        required: true
+        default: "claude/oi-44yimr"
+
+permissions:
+  contents: write
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
+
+      - name: Baixar EmulatorJS estável (bundle + core gambatte)
+        run: |
+          CDN="https://cdn.emulatorjs.org/stable/data"
+          D="public/emulatorjs/data"
+          mkdir -p "$D/cores/reports" "$D/compression"
+          for f in loader.js emulator.min.js emulator.min.css version.json; do
+            curl -fsSL "$CDN/$f" -o "$D/$f"
+          done
+          for f in extract7z.js extractzip.js libunrar.js libunrar.wasm; do
+            curl -fsSL "$CDN/compression/$f" -o "$D/compression/$f" || true
+          done
+          curl -fsSL "$CDN/cores/reports/gambatte.json" -o "$D/cores/reports/gambatte.json"
+          for v in gambatte-wasm gambatte-legacy-wasm gambatte-thread-wasm gambatte-thread-legacy-wasm; do
+            curl -fsSL "$CDN/cores/$v.data" -o "$D/cores/$v.data" || true
+          done
+          ls -la "$D" "$D/cores"
+
+      - name: Baixar jogos homebrew (licenças livres)
+        run: |
+          mkdir -p public/roms/homebrew
+          baixar_asset() { # repo, sufixo, destino — varre TODAS as releases; se só houver .zip, extrai a ROM de dentro
+            JSON=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/$1/releases?per_page=15" || echo "[]")
+            URL=$(echo "$JSON" | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('$2')]; print(urls[0] if urls else '')" 2>/dev/null || true)
+            if [ -n "$URL" ]; then curl -fsSL "$URL" -o "$3" && echo "OK $3 <- $URL" && return; fi
+            ZIP=$(echo "$JSON" | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('.zip')]; print(urls[0] if urls else '')" 2>/dev/null || true)
+            if [ -n "$ZIP" ]; then
+              rm -rf /tmp/unz && mkdir -p /tmp/unz
+              curl -fsSL "$ZIP" -o /tmp/asset.zip && unzip -o -q /tmp/asset.zip -d /tmp/unz || true
+              ACHADO=$(find /tmp/unz -iname "*$2" | head -1)
+              if [ -n "$ACHADO" ]; then cp "$ACHADO" "$3" && echo "OK(zip) $3 <- $ZIP" && return; fi
+            fi
+            echo "SEM ASSET: $1 ($2)"
+          }
+          baixar_asset "AntonioND/ucity" ".gbc" "public/roms/homebrew/ucity.gbc"
+          baixar_asset "SimonLarsen/tobutobugirl" ".gb" "public/roms/homebrew/tobutobugirl.gb"
+          baixar_asset "Sanqui/2048-gb" ".gb" "public/roms/homebrew/2048.gb"
+          baixar_asset "bbbbbr/petris" ".gb" "public/roms/homebrew/petris.gb"
+          ls -la public/roms/homebrew || true
+
+      - name: Commitar na branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -q --ignore-unmatch scripts/.emulatorjs-run
+          git add public/emulatorjs public/roms/homebrew
+          if git diff --cached --quiet; then
+            echo "nada a commitar"
+          else
+            git commit -m "Game Boy: bundle EmulatorJS + core gambatte + jogos homebrew (workflow emulatorjs-data)"
+            git push origin "HEAD:${{ github.event.inputs.branch || github.ref_name }}"
+          fi
