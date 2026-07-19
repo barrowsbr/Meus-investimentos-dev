@@ -46,9 +46,12 @@ jobs:
           for f in extract7z.js extractzip.js libunrar.js libunrar.wasm; do
             curl -fsSL "$CDN/compression/$f" -o "$D/compression/$f" || true
           done
-          curl -fsSL "$CDN/cores/reports/gambatte.json" -o "$D/cores/reports/gambatte.json"
-          for v in gambatte-wasm gambatte-legacy-wasm gambatte-thread-wasm gambatte-thread-legacy-wasm; do
-            curl -fsSL "$CDN/cores/$v.data" -o "$D/cores/$v.data" || true
+          # gambatte = Game Boy/Color · mgba = Game Boy Advance
+          for core in gambatte mgba; do
+            curl -fsSL "$CDN/cores/reports/$core.json" -o "$D/cores/reports/$core.json"
+            for v in "$core-wasm" "$core-legacy-wasm" "$core-thread-wasm" "$core-thread-legacy-wasm"; do
+              curl -fsSL "$CDN/cores/$v.data" -o "$D/cores/$v.data" || true
+            done
           done
           ls -la "$D" "$D/cores"
 
