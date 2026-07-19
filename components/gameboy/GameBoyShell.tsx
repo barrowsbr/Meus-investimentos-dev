@@ -107,8 +107,16 @@ export default function GameBoyShell() {
     };
   }, [carregarRom]);
 
+  // ⚠️ SEM `accept` nos inputs: o iOS não conhece extensões de ROM e
+  // acinzentaria os arquivos no seletor — a validação acontece aqui.
   const escolherArquivo = async (f: File | null) => {
     if (!f) return;
+    if (!/\.(gb|gbc|bin)$/i.test(f.name)) {
+      setMsg(/\.(gba|md|gen|smd|sfc|smc)$/i.test(f.name)
+        ? `"${f.name}" é de outro console — use o modo EmulatorJS (Abrir arquivo…).`
+        : `"${f.name}" não parece uma ROM de Game Boy (.gb/.gbc).`);
+      return;
+    }
     const dados = new Uint8Array(await f.arrayBuffer());
     if (dados.length < 0x8000) { setMsg("Arquivo pequeno demais para ser uma ROM de Game Boy."); return; }
     await idbGravarRom(f.name, dados);
@@ -183,7 +191,7 @@ export default function GameBoyShell() {
           <div className="flex flex-wrap items-center gap-1.5">
             <label className={`${btnBase} cursor-pointer gap-1.5 px-2.5 py-2`} style={estiloAcao}>
               <Upload size={12} /> ROM
-              <input type="file" accept=".gb,.gbc,.bin" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
+              <input type="file" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
             </label>
             <button onClick={salvar} disabled={estado !== "rodando"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><Save size={12} /> Salvar</button>
             <button onClick={continuar} disabled={estado === "carregando" || estado === "sem-rom"} className={`${btnBase} gap-1.5 px-2.5 py-2 disabled:opacity-40`} style={estiloAcao}><History size={12} /> Continuar</button>
@@ -252,7 +260,7 @@ export default function GameBoyShell() {
                       </p>
                       <label className="cursor-pointer rounded-xl px-4 py-2.5 text-xs font-bold text-black" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b)" }}>
                         Escolher ROM
-                        <input type="file" accept=".gb,.gbc,.bin" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
+                        <input type="file" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
                       </label>
                     </>
                   )}

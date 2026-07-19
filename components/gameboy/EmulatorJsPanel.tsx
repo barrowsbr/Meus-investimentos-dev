@@ -60,12 +60,23 @@ export default function EmulatorJsPanel() {
     return () => { vivo = false; };
   }, []);
 
-  // "Abrir arquivo" (.gb/.gbc/.gba) — salva no aparelho e escolhe o core pela
-  // extensão (mGBA para Game Boy Advance; gambatte para GB/GBC).
+  // "Abrir arquivo" — salva no aparelho e escolhe o core pela extensão.
+  // ⚠️ SEM `accept` no input: o iOS não registra extensões de ROM como tipos
+  // conhecidos e ACINZENTA os arquivos no seletor; validamos aqui depois.
+  const [msgArquivo, setMsgArquivo] = useState("");
   const abrirArquivo = async (f: File | null) => {
     if (!f) return;
+    setMsgArquivo("");
+    if (/\.zip$/i.test(f.name)) {
+      setMsgArquivo("Descompacte o .zip no app Arquivos (toque nele) e abra o arquivo do jogo que sai de dentro.");
+      return;
+    }
+    if (!/\.(gb|gbc|gba|md|gen|smd|bin|sfc|smc)$/i.test(f.name)) {
+      setMsgArquivo(`"${f.name}" não parece uma ROM suportada (.gb/.gbc/.gba/.md/.gen/.smd/.bin/.sfc/.smc).`);
+      return;
+    }
     const dados = new Uint8Array(await f.arrayBuffer());
-    if (dados.length < 0x4000) return;
+    if (dados.length < 0x4000) { setMsgArquivo("Arquivo pequeno demais para ser uma ROM."); return; }
     await idbGravarRom(f.name, dados, CHAVE_ARQUIVO_EJS);
     setUltimoArquivo(f.name);
     setAtivo({ nome: f.name, url: blobUrlDe(dados), core: coreDoArquivo(f.name) });
@@ -183,8 +194,12 @@ window.EJS_backgroundColor = "#0b090d";
               <span className="block truncate text-sm font-bold text-zinc-100">Abrir arquivo…</span>
               <span className="block truncate text-[11px] text-zinc-500">Game Boy (.gb/.gbc) · GBA (.gba) · Mega Drive (.md/.gen/.smd/.bin) · SNES (.sfc/.smc)</span>
             </span>
-            <input type="file" accept=".gb,.gbc,.gba,.md,.gen,.smd,.bin,.sfc,.smc" className="hidden" onChange={(e) => abrirArquivo(e.target.files?.[0] ?? null)} />
+            <input type="file" className="hidden" onChange={(e) => abrirArquivo(e.target.files?.[0] ?? null)} />
           </label>
+
+          {msgArquivo && (
+            <p className="text-xs leading-relaxed text-amber-300 sm:col-span-2">{msgArquivo}</p>
+          )}
         </div>
       )}
     </div>
