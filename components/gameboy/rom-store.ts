@@ -47,8 +47,13 @@ export function blobUrlDe(dados: Uint8Array): string {
 }
 
 /** Core do EmulatorJS pela extensão do arquivo. */
-export function coreDoArquivo(nome: string): "gambatte" | "mgba" {
-  return /\.gba$/i.test(nome) ? "mgba" : "gambatte";
+export type CoreEjs = "gambatte" | "mgba" | "genesis_plus_gx" | "snes9x";
+
+export function coreDoArquivo(nome: string): CoreEjs {
+  if (/\.gba$/i.test(nome)) return "mgba";                     // Game Boy Advance
+  if (/\.(sfc|smc)$/i.test(nome)) return "snes9x";             // Super Nintendo
+  if (/\.(md|gen|smd|bin)$/i.test(nome)) return "genesis_plus_gx"; // Mega Drive
+  return "gambatte";                                           // Game Boy/Color
 }
 
 /** URL tocável da ROM do Pokémon: repo (se commitada) ou blob da salva no aparelho. */
