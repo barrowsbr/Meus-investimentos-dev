@@ -32,10 +32,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import Matter from "matter-js";
-import { ArrowLeft, X, Smartphone, Ruler, Frame } from "lucide-react";
+import { ArrowLeft, X, Smartphone, Ruler, Frame, BookOpen } from "lucide-react";
 import { MOEDAS_COLECAO } from "@/lib/moedas-data";
 import { diametroMmDe, conjuntoMonetario, gradTone, type Moeda } from "@/lib/moedas";
 import QuadroReais from "./QuadroReais";
+import LivroCanada from "./LivroCanada";
 
 interface Spec { m: Moeda; fotoA: string; fotoR: string; mm: number }
 interface Estojo { nome: string; periodo?: string; ordem: number; specs: Spec[]; valor: number }
@@ -116,6 +117,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
   const [calibrando, setCalibrando] = useState(false);
   const [pxmmTmp, setPxmmTmp] = useState(4);
   const [quadro, setQuadro] = useState(false); // quadro do Plano Real (só no estojo "Real")
+  const [livro, setLivro] = useState(false);   // livrinho RCM 2007 (só no estojo "Dólar canadense")
 
   const precisaPermissao = typeof window !== "undefined"
     && typeof (DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> })?.requestPermission === "function";
@@ -653,6 +655,17 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
               <Frame size={12} /> Quadro
             </button>
           )}
+          {estojo.nome === "Dólar canadense" && (
+            <button
+              onClick={() => setLivro(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fcd9a0" }}
+              title="Livrinho RCM 2007 — o Commemorative Coin Set recriado como novo, com as suas moedas"
+              aria-label="Abrir livrinho do set canadense de 2007"
+            >
+              <BookOpen size={12} /> Livro
+            </button>
+          )}
           <button
             onClick={toggleGravidade}
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold"
@@ -774,6 +787,7 @@ function CaseView({ estojo, onClose }: { estojo: Estojo; onClose: () => void }) 
       )}
 
       {quadro && <QuadroReais onClose={() => setQuadro(false)} />}
+      {livro && <LivroCanada onClose={() => setLivro(false)} />}
     </div>,
     document.body,
   );
