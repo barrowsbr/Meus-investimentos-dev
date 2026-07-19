@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Gamepad2, Save, RotateCcw, History, Upload, Joystick } from "lucide-react";
 import EmulatorJsPanel from "./EmulatorJsPanel";
-import { ROM_DO_REPO, idbLerRom, idbGravarRom } from "./rom-store";
+import { ROM_DO_REPO, idbLerRom, idbGravarRom, lerCatalogo, type ItemCatalogo } from "./rom-store";
 
 // WasmBoy não tem tipos publicados — superfície mínima usada aqui.
 interface WasmBoyApi {
@@ -47,6 +47,13 @@ export default function GameBoyShell() {
   const [nomeRom, setNomeRom] = useState("");
   const [msg, setMsg] = useState("");
   const [modo, setModo] = useState<"classico" | "emulatorjs">("classico");
+  // Catálogo (public/roms/catalogo.json) — só os jogos de GB/GBC tocam aqui.
+  const [catalogoGb, setCatalogoGb] = useState<ItemCatalogo[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    lerCatalogo().then((itens) => { if (vivo) setCatalogoGb(itens.filter((i) => i.sistema === "gb" || i.sistema === "gbc")); });
+    return () => { vivo = false; };
+  }, []);
 
   const trocarModo = (m: "classico" | "emulatorjs") => {
     if (m === "emulatorjs" && estado === "rodando") {
@@ -121,6 +128,15 @@ export default function GameBoyShell() {
     if (dados.length < 0x8000) { setMsg("Arquivo pequeno demais para ser uma ROM de Game Boy."); return; }
     await idbGravarRom(f.name, dados);
     await carregarRom(f.name, dados);
+  };
+
+  const jogarDoCatalogo = async (item: ItemCatalogo) => {
+    try {
+      const r = await fetch(item.arquivo);
+      if (!r.ok) { setMsg(`Não achei o arquivo de ${item.nome} no site.`); return; }
+      const dados = new Uint8Array(await r.arrayBuffer());
+      await carregarRom(item.nome, dados);
+    } catch { setMsg(`Falha ao baixar ${item.nome}.`); }
   };
 
   const ligar = async () => {
@@ -228,7 +244,7 @@ export default function GameBoyShell() {
       {msg && modo === "classico" && <p className="text-xs text-amber-300">{msg}</p>}
 
       {/* ── o console clássico ── */}
-      <div className="mx-auto w-full max-w-[430px]" style={{ display: modo === "classico" ? undefined : "none" }}>
+      <div className="mx-auto w-full max-w-[560px]" style={{ display: modo === "classico" ? undefined : "none" }}>
         <div
           className="rounded-3xl p-4 pb-6"
           style={{
@@ -313,13 +329,20 @@ export default function GameBoyShell() {
         </div>
       </div>
 
-      {modo === "classico" && (
-        <p className="text-[10px] leading-relaxed text-zinc-600">
-          No desktop: setas movem, <span className="font-mono">X</span>=A, <span className="font-mono">Z</span>=B,{" "}
-          <span className="font-mono">Enter</span>=Start, <span className="font-mono">Shift</span>=Select.
-          "Salvar" grava um save state neste aparelho (IndexedDB) e "Continuar" restaura o mais recente —
-          além do save da bateria do próprio jogo. A ROM não sai do seu aparelho.
-        </p>
+      {modo === "classico" && catalogoGb.length > 0 && (
+        <div className="mx-auto flex w-full max-w-[560px] flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Catálogo:</span>
+          {catalogoGb.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => jogarDoCatalogo(item)}
+              className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-amber-100"
+              style={{ background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.3)" }}
+            >
+              ▸ {item.nome}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

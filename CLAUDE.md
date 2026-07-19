@@ -22,12 +22,16 @@ app/                    Páginas (App Router) e API routes
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
                         etf-cem (100 maiores via VOO — P/L e distância do ATH),
                         gameboy (2 emuladores: console clássico WasmBoy + EmulatorJS
-                        self-hosted em public/emulatorjs/data — bundle/core gambatte e
-                        homebrew livres baixados pela workflow emulatorjs-data, trigger
-                        por push de scripts/.emulatorjs-run; ROM do Pokémon NÃO
-                        versionada: picker → IndexedDB do aparelho, compartilhada
-                        entre os 2 modos, ou public/roms/pokegold-spaceworld-en.gb
-                        se o dono adicionar),
+                        self-hosted em public/emulatorjs/data — bundle + cores
+                        gambatte/mgba/genesis_plus_gx/snes9x baixados pela workflow
+                        emulatorjs-data, trigger por push de scripts/.emulatorjs-run;
+                        jogos abrem no "modo jogo" public/emulatorjs/player.html —
+                        página crua, senão o Safari iOS estoura memória; CATÁLOGO em
+                        public/roms/catalogo.json (arquivo em public/roms/ + entrada
+                        no JSON → card no EmulatorJS e chip gb/gbc no clássico);
+                        ROM do Pokémon NÃO versionada: picker → IndexedDB do
+                        aparelho, compartilhada entre os 2 modos, ou
+                        public/roms/pokegold-spaceworld-en.gb se o dono adicionar),
                         configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
