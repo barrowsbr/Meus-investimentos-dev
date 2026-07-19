@@ -13,10 +13,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FolderOpen, Play, TriangleAlert } from "lucide-react";
-import { CHAVE_ARQUIVO_EJS, blobUrlDe, coreDoArquivo, idbGravarRom, idbLerRom, urlRomPokemon } from "./rom-store";
+import { CHAVE_ARQUIVO_EJS, blobUrlDe, coreDoArquivo, idbGravarRom, idbLerRom, urlRomPokemon, type CoreEjs } from "./rom-store";
 
 interface Jogo { id: string; nome: string; sub: string; url?: string }
-interface Ativo { nome: string; url: string; core: "gambatte" | "mgba" }
+interface Ativo { nome: string; url: string; core: CoreEjs }
 
 // Jogos prontos: homebrew livre commitado pelo workflow + a ROM do Pokémon do
 // aparelho. Para AMPLIAR a lista: colocar o .gb/.gbc em public/roms/homebrew
@@ -181,9 +181,9 @@ window.EJS_backgroundColor = "#0b090d";
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-bold text-zinc-100">Abrir arquivo…</span>
-              <span className="block truncate text-[11px] text-zinc-500">.gb / .gbc / .gba (Game Boy Advance) — fica salvo no aparelho</span>
+              <span className="block truncate text-[11px] text-zinc-500">Game Boy (.gb/.gbc) · GBA (.gba) · Mega Drive (.md/.gen/.smd/.bin) · SNES (.sfc/.smc)</span>
             </span>
-            <input type="file" accept=".gb,.gbc,.gba,.bin" className="hidden" onChange={(e) => abrirArquivo(e.target.files?.[0] ?? null)} />
+            <input type="file" accept=".gb,.gbc,.gba,.md,.gen,.smd,.bin,.sfc,.smc" className="hidden" onChange={(e) => abrirArquivo(e.target.files?.[0] ?? null)} />
           </label>
         </div>
       )}
