@@ -20,7 +20,11 @@ app/                    Páginas (App Router) e API routes
   (Análise)             performance, setores, evolucao, cambio, simulacoes, trades
   (Gestão)              impostos, alavancagem, financas, fluxos
   (Mais)                bolsas (Radar), noticias, polymarket, agente-ia, moedas,
-                        etf-cem (100 maiores via VOO — P/L e distância do ATH), configuracoes
+                        etf-cem (100 maiores via VOO — P/L e distância do ATH),
+                        gameboy (emulador WasmBoy embutido — Pokémon Gold Spaceworld;
+                        ROM NÃO versionada: picker → IndexedDB do aparelho, ou
+                        public/roms/pokegold-spaceworld-en.gb se o dono adicionar),
+                        configuracoes
 components/             Componentes reutilizáveis (Sidebar, AuthGate, gráficos, globo)
 lib/
   portfolio.ts          Motor canônico de portfólio — FIFO + calcularSnapshot

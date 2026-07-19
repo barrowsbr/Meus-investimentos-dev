@@ -28,6 +28,7 @@
     "recharts": "^2.12.7",
     "remark-gfm": "^4.0.1",
     "three": "^0.170.0",
+    "wasmboy": "^0.7.1",
     "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.14.1"
   },
