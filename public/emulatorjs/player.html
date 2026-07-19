@@ -14,6 +14,20 @@
     color:#fcd9a0;text-decoration:none;font:600 12px system-ui;background:rgba(0,0,0,.55);
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   #erro{color:#fca5a5;font:14px system-ui;padding:80px 24px;text-align:center}
+  /* Celular DEITADO: o jogo encolhe para o centro e sobram CALHAS laterais —
+     o D-pad e os botões do gamepad virtual caem nelas, fora da imagem.
+     Só vale para tela de toque (pointer: coarse); desktop fica intacto. */
+  @media (orientation: landscape) and (pointer: coarse) {
+    #game canvas{
+      position: absolute !important;
+      left: 50% !important;
+      top: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      max-width: calc(100vw - 380px) !important;
+      max-height: 96vh !important;
+      height: auto !important;
+    }
+  }
 </style>
 </head>
 <body>
