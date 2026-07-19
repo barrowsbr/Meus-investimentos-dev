@@ -55,23 +55,23 @@ jobs:
       - name: Baixar jogos homebrew (licenças livres)
         run: |
           mkdir -p public/roms/homebrew
-          api() { curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/$1/releases/latest"; }
-          baixar_asset() { # repo, filtro, destino
-            URL=$(api "$1" | python3 -c "import json,sys; assets=json.load(sys.stdin)['assets']; print(next(a['browser_download_url'] for a in assets if '$2' in a['name'].lower()))" 2>/dev/null || true)
+          baixar_asset() { # repo, sufixo, destino — varre TODAS as releases (nem todo repo tem "latest")
+            URL=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/$1/releases?per_page=15" \
+              | python3 -c "import json,sys; urls=[a['browser_download_url'] for rel in json.load(sys.stdin) for a in rel.get('assets',[]) if a['name'].lower().endswith('$2')]; print(urls[0] if urls else '')" 2>/dev/null || true)
             if [ -n "$URL" ]; then curl -fsSL "$URL" -o "$3" && echo "OK $3 <- $URL"; else echo "SEM ASSET: $1 ($2)"; fi
           }
           baixar_asset "AntonioND/ucity" ".gbc" "public/roms/homebrew/ucity.gbc"
           baixar_asset "SimonLarsen/tobutobugirl" ".gb" "public/roms/homebrew/tobutobugirl.gb"
           baixar_asset "Sanqui/2048-gb" ".gb" "public/roms/homebrew/2048.gb"
+          baixar_asset "bbbbbr/petris" ".gb" "public/roms/homebrew/petris.gb"
           ls -la public/roms/homebrew || true
 
       - name: Commitar na branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm --cached scripts/.emulatorjs-run --ignore-unmatch -q
-          rm -f scripts/.emulatorjs-run
-          git add public/emulatorjs public/roms/homebrew scripts/.emulatorjs-run
+          git rm -q --ignore-unmatch scripts/.emulatorjs-run
+          git add public/emulatorjs public/roms/homebrew
           if git diff --cached --quiet; then
             echo "nada a commitar"
           else
