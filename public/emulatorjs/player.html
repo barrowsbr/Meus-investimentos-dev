@@ -78,6 +78,21 @@
     return;
   }
 
+  // ── Regime de memória para o Safari do iPhone ────────────────────────────
+  // A aba recarregava sozinha (OOM) mesmo com ROM pequena → consumo cresce
+  // por quadro. Três freios:
+  // 1) canvas em 1x — a tela Retina (3x) multiplica por 9 a memória de vídeo
+  //    de CADA frame; travar o devicePixelRatio corta isso na raiz;
+  // 2) shader desligado (framebuffers extras);
+  // 3) sem threads e sem cache de ROM do EJS no IndexedDB (escrita de MB em
+  //    segundo plano enquanto o jogo roda).
+  if(q.get("dpr1") === "1"){
+    try{ Object.defineProperty(window, "devicePixelRatio", { get: function(){ return 1; }, configurable: true }); }catch(e){}
+  }
+  window.EJS_threads = false;
+  window.EJS_CacheLimit = 1;
+  window.EJS_defaultOptions = { shader: "disabled" };
+
   window.EJS_player = "#game";
   window.EJS_core = core;
   window.EJS_gameName = nome;
