@@ -56,7 +56,14 @@
   }
 
   let nome = "", url = "", core = "gambatte";
-  if(jogo === "ucity"){
+  // Jogo do CATÁLOGO (public/roms/catalogo.json): ?rom=/roms/...&nome=...
+  // Só aceita paths dentro de /roms/ (same-origin, nada externo).
+  const romParam = q.get("rom");
+  if(romParam && romParam.indexOf("/roms/") === 0 && romParam.indexOf("..") < 0){
+    nome = q.get("nome") || romParam.split("/").pop();
+    url = romParam;
+    core = coreDe(romParam);
+  } else if(jogo === "ucity"){
     nome = "µCity"; url = "/roms/homebrew/ucity.gbc";
   } else if(jogo === "pokemon"){
     nome = "Pokémon Gold Spaceworld ’97";
