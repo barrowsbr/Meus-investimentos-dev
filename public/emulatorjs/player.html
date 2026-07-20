@@ -77,9 +77,20 @@
   #ctrl #sys{ position:absolute; left:50%; bottom:5vh; transform:translateX(-50%);
     display:flex; gap:clamp(14px,5vw,30px) }
   #ctrl #sys .cap{ position:relative; top:auto; left:auto; right:auto; bottom:auto } /* fluem no flex */
-  /* FAST (acelerar) — toggle no topo-centro; longe do "voltar" (esq.) e do menu ☰ (dir.) */
-  #ctrl #Fc{ top:calc(env(safe-area-inset-top,0px) + 8px); left:50%; transform:translateX(-50%);
+  /* Topo-centro: Fast (acelerar) + interruptor discreto de visibilidade.
+     Fica na faixa preta acima do jogo (retrato) — longe do "voltar" (esq.),
+     do menu ☰ (dir.) e dos polegares durante a partida. */
+  #ctrl #topc{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 8px); left:50%;
+    transform:translateX(-50%); display:flex; align-items:center; gap:8px; pointer-events:none }
+  #ctrl #topc > *{ pointer-events:auto }
+  #ctrl #Fc{ position:relative; top:auto; left:auto; transform:none;
     height:clamp(28px,7vw,36px); padding:0 clamp(12px,3.4vw,18px); font-size:clamp(10px,2.8vw,13px) }
+  /* interruptor BEM discreto — mostra/oculta Fast, Start e Select */
+  #ctrl #visTgl{ width:clamp(20px,5.4vw,26px); height:clamp(20px,5.4vw,26px); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:clamp(10px,2.8vw,13px);
+    color:#e8dcc4; background:rgba(24,18,28,.5); border:1px solid rgba(255,255,255,.12);
+    opacity:.28; -webkit-tap-highlight-color:transparent; touch-action:none; transition:opacity .15s }
+  #ctrl #visTgl:active{ opacity:.7 }
   #ctrl .lr{ height:clamp(34px,8vw,46px); width:clamp(64px,18vw,92px) }
   #ctrl #Lc{ left:max(16px,4.5vw); bottom:calc(13vh + clamp(148px,42vw,208px) + 14px) }
   #ctrl #Rc{ right:max(16px,4.5vw); bottom:calc(12.5vh + clamp(158px,44vw,214px) + 14px) }
@@ -124,7 +135,10 @@ document.addEventListener("touchend", function(e){
   <div id="sys"></div>
   <div class="cap lr btn-cap" id="Lc" hidden>L</div>
   <div class="cap lr btn-cap" id="Rc" hidden>R</div>
-  <div class="cap" id="Fc" hidden>FAST ⏩</div>
+  <div id="topc">
+    <div class="cap" id="Fc" hidden>FAST ⏩</div>
+    <div id="visTgl" role="button" aria-label="Mostrar ou ocultar Fast, Start e Select">◉</div>
+  </div>
 </div>
 
 <script>
@@ -188,6 +202,28 @@ document.addEventListener("touchend", function(e){
     }
     f.addEventListener("pointerdown", function(e){
       e.preventDefault(); lig = !lig; f.classList.toggle("on", lig); ff(lig);
+    });
+  })();
+  // Interruptor DISCRETO de visibilidade — mostra/oculta Fast, Start e Select
+  // (alguns jogos não usam esses botões e o dono prefere a tela mais limpa).
+  // A escolha fica salva no aparelho. O próprio interruptor nunca some.
+  (function(){
+    var t = document.getElementById("visTgl"); if(!t) return;
+    var KEY = "mi_ctrl_extras";
+    var vis = true;
+    try{ vis = localStorage.getItem(KEY) !== "0"; }catch(_){}
+    function aplica(){
+      ["Fc","sys"].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.style.display = vis ? "" : "none";
+      });
+      t.textContent = vis ? "◉" : "◎";
+    }
+    aplica();
+    t.addEventListener("pointerdown", function(e){
+      e.preventDefault(); vis = !vis;
+      try{ localStorage.setItem(KEY, vis ? "1" : "0"); }catch(_){}
+      aplica();
     });
   })();
 
