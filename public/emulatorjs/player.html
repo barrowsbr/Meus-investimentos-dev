@@ -286,7 +286,10 @@
   }
   window.EJS_threads = false;
   window.EJS_CacheLimit = 1;
-  window.EJS_defaultOptions = { shader: "disabled" };
+  window.EJS_disableDatabases = true;   // não escreve ROM/estado no IndexedDB durante o jogo
+  // rewindEnabled: o buffer de rewind do RetroArch CRESCE por quadro — é a
+  // causa mais provável do "demora e reseta" (OOM gradual no Safari). Off.
+  window.EJS_defaultOptions = { shader: "disabled", rewindEnabled: "disabled" };
 
   window.EJS_player = "#game";
   window.EJS_core = core;
