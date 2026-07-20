@@ -2,15 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Modo jogo · Meus Investimentos</title>
 <!-- Página CRUA de propósito: no iPhone, o emulador (wasm + ROM) dentro da
      página completa do app estourava a memória do Safari e a aba recarregava.
      Aqui só existe o EmulatorJS — o app é liberado da memória ao navegar. -->
 <style>
-  html,body{margin:0;height:100%;background:#0b090d;overflow:hidden;
+  /* touch-action:manipulation mata o DOUBLE-TAP-ZOOM do Safari (o bug: toques
+     rápidos nos botões davam zoom e travavam a tela). */
+  html,body{margin:0;height:100%;background:#0b090d;overflow:hidden;touch-action:manipulation;
     font-family:-apple-system,system-ui,sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-  #game{width:100%;height:100%}
+  #game{width:100%;height:100%;touch-action:none}
+  #game canvas{touch-action:none !important}
   #voltar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;z-index:30;
     color:#fcd9a0;text-decoration:none;font:600 12px system-ui;background:rgba(0,0,0,.55);
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
@@ -93,6 +96,20 @@
 </style>
 </head>
 <body>
+<script>
+// Trava QUALQUER zoom da página (double-tap e pinça) — é um jogo, não deve dar
+// zoom. touch-action:manipulation cobre o double-tap; estes cobrem a pinça e o
+// double-tap residual do Safari iOS, que travava a tela sem voltar.
+["gesturestart","gesturechange","gestureend"].forEach(function(ev){
+  document.addEventListener(ev, function(e){ e.preventDefault(); }, { passive:false });
+});
+var _ultToque = 0;
+document.addEventListener("touchend", function(e){
+  var agora = Date.now();
+  if(agora - _ultToque <= 350) e.preventDefault(); // 2º toque rápido = zoom → bloqueia
+  _ultToque = agora;
+}, { passive:false });
+</script>
 <a id="voltar" href="/gameboy">&#8249; voltar</a>
 <div id="game"></div>
 
