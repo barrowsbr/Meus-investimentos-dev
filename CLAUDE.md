@@ -26,9 +26,12 @@ app/                    Páginas (App Router) e API routes
                         gambatte/mgba/genesis_plus_gx/snes9x baixados pela workflow
                         emulatorjs-data, trigger por push de scripts/.emulatorjs-run;
                         jogos abrem no "modo jogo" public/emulatorjs/player.html —
-                        página crua, senão o Safari iOS estoura memória; CATÁLOGO em
-                        public/roms/catalogo.json (arquivo em public/roms/ + entrada
-                        no JSON → card no EmulatorJS e chip gb/gbc no clássico);
+                        página crua, senão o Safari iOS estoura memória; CATÁLOGO
+                        lido AO VIVO da pasta do Drive do dono por console
+                        (lib/gameboy-catalog.ts + /api/gameboy/catalogo via
+                        GOOGLE_API_KEY; ROM baixa pelo proxy /api/gameboy/rom;
+                        subpasta = console, novos jogos aparecem sozinhos; env
+                        GAMEBOY_DRIVE_FOLDER; precisa Drive API habilitada na chave);
                         ROM do Pokémon NÃO versionada: picker → IndexedDB do
                         aparelho, compartilhada entre os 2 modos, ou
                         public/roms/pokegold-spaceworld-en.gb se o dono adicionar),

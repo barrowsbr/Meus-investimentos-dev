@@ -56,10 +56,15 @@
   }
 
   let nome = "", url = "", core = "gambatte";
-  // Jogo do CATÁLOGO (public/roms/catalogo.json): ?rom=/roms/...&nome=...
-  // Só aceita paths dentro de /roms/ (same-origin, nada externo).
+  // Jogo do CATÁLOGO do Drive: ?drive=<fileId>&nome=...&core=... — baixa pelo
+  // proxy same-origin /api/gameboy/rom (esconde a chave e valida no catálogo).
+  const driveId = q.get("drive");
   const romParam = q.get("rom");
-  if(romParam && romParam.indexOf("/roms/") === 0 && romParam.indexOf("..") < 0){
+  if(driveId && /^[a-zA-Z0-9_-]{10,}$/.test(driveId)){
+    nome = q.get("nome") || "ROM";
+    core = q.get("core") || coreDe(nome);
+    url = "/api/gameboy/rom?id=" + encodeURIComponent(driveId);
+  } else if(romParam && romParam.indexOf("/roms/") === 0 && romParam.indexOf("..") < 0){
     nome = q.get("nome") || romParam.split("/").pop();
     url = romParam;
     core = coreDe(romParam);
