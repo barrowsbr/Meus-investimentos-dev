@@ -122,7 +122,7 @@ export default function EmulatorJsPanel() {
         <div className="rounded-xl p-4 text-xs leading-relaxed text-zinc-400" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)" }}>
           Nenhum jogo no catálogo ainda. Ele é lido direto da sua pasta do Google Drive — é só jogar as ROMs lá
           (em subpastas por console) que aparecem aqui.
-          {erroCat && <span className="mt-2 block text-amber-300/80">Detalhe técnico: {erroCat}. Se persistir, a Drive API pode precisar estar habilitada para a chave na Vercel.</span>}
+          {erroCat && <span className="mt-2 block text-amber-300/80">Detalhe técnico: {erroCat}. A leitura usa o service account (o mesmo do backup) — a pasta precisa estar compartilhada por link e a Drive API habilitada no projeto.</span>}
         </div>
       )}
 

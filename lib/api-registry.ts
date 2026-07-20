@@ -242,15 +242,17 @@ export const API_REGISTRY: ApiDef[] = [
   },
   {
     key: "drive_gameboy", name: "Google Drive (catálogo Game Boy)", category: "Dados & Planilha",
-    host: "www.googleapis.com", purpose: "Lê a pasta de ROMs do dono (por console) para o fliperama da página Game Boy",
-    envVars: [{ name: "GOOGLE_API_KEY", required: true }, { name: "GAMEBOY_DRIVE_FOLDER", required: false }],
+    host: "www.googleapis.com", purpose: "Lê a pasta de ROMs do dono (por console) para o fliperama da página Game Boy — via service account",
+    envVars: [{ name: "GOOGLE_SERVICE_ACCOUNT_JSON", required: false }, { name: "GAMEBOY_DRIVE_FOLDER", required: false }],
     probe: async () => {
-      const k = env("GOOGLE_API_KEY");
-      if (!k) return { ok: false, detail: "GOOGLE_API_KEY não configurado" };
-      const folder = env("GAMEBOY_DRIVE_FOLDER") || "1qCpEyf_tdQ-AymStSHJ8lrOBoIQR82wR";
-      const { status, json } = await getJson(`https://www.googleapis.com/drive/v3/files?q='${folder}'+in+parents+and+trashed=false&key=${k}&fields=files(id)&pageSize=1`);
-      if (Array.isArray(json?.files)) return { ok: true, detail: "pasta acessível" };
-      return { ok: false, detail: json?.error?.message || `HTTP ${status} (Drive API habilitada na chave?)` };
+      try {
+        const { lerCatalogoDrive } = await import("./gameboy-catalog");
+        const consoles = await lerCatalogoDrive(true);
+        const n = consoles.reduce((s, c) => s + c.jogos.length, 0);
+        return { ok: n > 0, detail: n > 0 ? `${consoles.length} consoles, ${n} jogos` : "pasta acessível, sem ROMs" };
+      } catch (e) {
+        return { ok: false, detail: e instanceof Error ? e.message : "falha ao ler o Drive" };
+      }
     },
   },
   {
