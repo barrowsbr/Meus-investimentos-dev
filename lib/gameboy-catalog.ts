@@ -7,9 +7,40 @@
 // console é a 1ª subpasta com jogos; ROMs podem estar direto nela ou numa
 // subpasta ("jogos"). Download vai pelo proxy /api/gameboy/rom (same-origin).
 
+import { JWT } from "google-auth-library";
+
 const API = "https://www.googleapis.com/drive/v3/files";
 // Raiz compartilhada pelo dono (env sobrepõe se ele mudar de pasta).
 export const DRIVE_ROOT = process.env.GAMEBOY_DRIVE_FOLDER || "1qCpEyf_tdQ-AymStSHJ8lrOBoIQR82wR";
+
+// Auth do Drive: preferimos o SERVICE ACCOUNT (token Bearer) — a GOOGLE_API_KEY
+// costuma vir RESTRITA a Sheets/Gemini e o Drive volta 403 "are blocked". O SA
+// (o mesmo do backup da planilha) não sofre essa restrição e lê a pasta pública.
+let tokenCache: { token: string; exp: number } | null = null;
+
+async function driveToken(): Promise<string | null> {
+  if (tokenCache && Date.now() < tokenCache.exp) return tokenCache.token;
+  const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    const sa = JSON.parse(saJson);
+    const jwt = new JWT({ email: sa.client_email, key: sa.private_key, scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
+    const { access_token } = await jwt.authorize();
+    if (!access_token) return null;
+    tokenCache = { token: access_token, exp: Date.now() + 50 * 60 * 1000 };
+    return access_token;
+  } catch { return null; }
+}
+
+/** {url, headers} para uma chamada ao Drive — Bearer do SA, ou ?key= como fallback. */
+async function driveReq(path: string, params: URLSearchParams): Promise<{ url: string; headers: HeadersInit }> {
+  const token = await driveToken();
+  if (token) return { url: `${API}${path}?${params}`, headers: { Authorization: `Bearer ${token}` } };
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) throw new Error("sem GOOGLE_SERVICE_ACCOUNT_JSON nem GOOGLE_API_KEY");
+  params.set("key", key);
+  return { url: `${API}${path}?${params}`, headers: {} };
+}
 
 export type Sistema = "gb" | "gbc" | "gba" | "snes" | "md";
 export type Core = "gambatte" | "mgba" | "snes9x" | "genesis_plus_gx";
@@ -63,20 +94,21 @@ function limpaNome(titulo: string): string {
 interface DriveFile { id: string; name: string; mimeType: string; size?: string; fileExtension?: string }
 
 async function listar(folderId: string): Promise<DriveFile[]> {
-  const key = process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error("GOOGLE_API_KEY ausente");
   const out: DriveFile[] = [];
   let pageToken: string | undefined;
   do {
     const params = new URLSearchParams({
       q: `'${folderId}' in parents and trashed=false`,
-      key,
       fields: "nextPageToken,files(id,name,mimeType,size,fileExtension)",
       pageSize: "1000",
       orderBy: "name",
+      // arquivos públicos "qualquer um com o link" também aparecem para o SA
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
     });
     if (pageToken) params.set("pageToken", pageToken);
-    const r = await fetch(`${API}?${params}`, { next: { revalidate: 300 } });
+    const { url, headers } = await driveReq("", params);
+    const r = await fetch(url, { headers, next: { revalidate: 300 } });
     if (!r.ok) {
       const txt = await r.text().catch(() => "");
       throw new Error(`Drive ${r.status}: ${txt.slice(0, 200)}`);
@@ -144,8 +176,17 @@ export async function lerCatalogoDrive(force = false): Promise<ConsoleCatalogo[]
   return dados;
 }
 
-/** URL de download direto de um arquivo público do Drive (usada pelo proxy). */
-export function driveMediaUrl(id: string): string {
-  const key = process.env.GOOGLE_API_KEY;
-  return `${API}/${id}?alt=media&key=${key}`;
+/** Baixa os bytes de um arquivo do Drive (usado pelo proxy /api/gameboy/rom).
+ *  SA via Bearer quando disponível; senão o endpoint público keyless. */
+export async function baixarRom(id: string): Promise<ArrayBuffer> {
+  const token = await driveToken();
+  if (token) {
+    const r = await fetch(`${API}/${id}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) return r.arrayBuffer();
+  }
+  // Fallback keyless (arquivo público "qualquer um com o link"; ROMs pequenas
+  // baixam direto, sem interstício de vírus).
+  const r2 = await fetch(`https://drive.google.com/uc?export=download&id=${id}&confirm=t`);
+  if (!r2.ok) throw new Error(`download ${r2.status}`);
+  return r2.arrayBuffer();
 }

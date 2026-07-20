@@ -28,10 +28,12 @@ app/                    Páginas (App Router) e API routes
                         jogos abrem no "modo jogo" public/emulatorjs/player.html —
                         página crua, senão o Safari iOS estoura memória; CATÁLOGO
                         lido AO VIVO da pasta do Drive do dono por console
-                        (lib/gameboy-catalog.ts + /api/gameboy/catalogo via
-                        GOOGLE_API_KEY; ROM baixa pelo proxy /api/gameboy/rom;
-                        subpasta = console, novos jogos aparecem sozinhos; env
-                        GAMEBOY_DRIVE_FOLDER; precisa Drive API habilitada na chave);
+                        (lib/gameboy-catalog.ts + /api/gameboy/catalogo — auth via
+                        SERVICE ACCOUNT, token Bearer escopo drive.readonly, pois a
+                        GOOGLE_API_KEY costuma vir restrita e o Drive dá 403; ROM
+                        baixa pelo proxy /api/gameboy/rom; subpasta = console, novos
+                        jogos aparecem sozinhos; env GAMEBOY_DRIVE_FOLDER; precisa
+                        Drive API habilitada no projeto);
                         ROM do Pokémon NÃO versionada: picker → IndexedDB do
                         aparelho, compartilhada entre os 2 modos, ou
                         public/roms/pokegold-spaceworld-en.gb se o dono adicionar),

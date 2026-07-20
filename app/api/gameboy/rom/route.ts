@@ -3,7 +3,7 @@
 // Só serve arquivos que estão no catálogo do Drive do dono.
 
 import { NextRequest, NextResponse } from "next/server";
-import { driveMediaUrl, lerCatalogoDrive } from "@/lib/gameboy-catalog";
+import { baixarRom, lerCatalogoDrive } from "@/lib/gameboy-catalog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "catálogo indisponível" }, { status: 502 });
   }
 
-  const r = await fetch(driveMediaUrl(id));
-  if (!r.ok) return NextResponse.json({ error: `Drive ${r.status}` }, { status: 502 });
-  const buf = await r.arrayBuffer();
+  let buf: ArrayBuffer;
+  try { buf = await baixarRom(id); }
+  catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "download falhou" }, { status: 502 }); }
   return new NextResponse(buf, {
     headers: {
       "Content-Type": "application/octet-stream",
