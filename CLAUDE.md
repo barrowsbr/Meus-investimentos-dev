@@ -26,7 +26,11 @@ app/                    Páginas (App Router) e API routes
                         gambatte/mgba/genesis_plus_gx/snes9x baixados pela workflow
                         emulatorjs-data, trigger por push de scripts/.emulatorjs-run;
                         jogos abrem no "modo jogo" public/emulatorjs/player.html —
-                        página crua, senão o Safari iOS estoura memória; CATÁLOGO
+                        página crua, senão o Safari iOS estoura memória; controles
+                        PRÓPRIOS grandes no player (D-pad analógico + faces + Start/
+                        Select + L/R por core via gameManager.simulateInput; gamepad
+                        embutido do EJS escondido; layouts translúcidos distintos
+                        retrato/paisagem tunados p/ iPhone Pro Max); CATÁLOGO
                         lido AO VIVO da pasta do Drive do dono por console
                         (lib/gameboy-catalog.ts + /api/gameboy/catalogo — auth via
                         SERVICE ACCOUNT, token Bearer escopo drive.readonly, pois a
