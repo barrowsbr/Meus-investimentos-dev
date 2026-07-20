@@ -46,26 +46,8 @@ export function blobUrlDe(dados: Uint8Array): string {
   return URL.createObjectURL(new Blob([copia]));
 }
 
-// ── Catálogo de jogos (public/roms/catalogo.json) ────────────────────────────
-// Para adicionar um jogo: arquivo em public/roms/ + entrada no JSON. Os cards
-// aparecem no modo EmulatorJS e (gb/gbc) também no console clássico.
-
-export interface ItemCatalogo {
-  id: string;
-  nome: string;
-  sub?: string;
-  arquivo: string; // path em /roms/...
-  sistema: "gb" | "gbc" | "gba" | "md" | "snes";
-}
-
-export async function lerCatalogo(): Promise<ItemCatalogo[]> {
-  try {
-    const r = await fetch("/roms/catalogo.json");
-    if (!r.ok) return [];
-    const j = await r.json();
-    return Array.isArray(j?.jogos) ? j.jogos.filter((x: ItemCatalogo) => x?.id && x?.nome && typeof x?.arquivo === "string" && x.arquivo.startsWith("/roms/")) : [];
-  } catch { return []; }
-}
+// O catálogo agora vem AO VIVO do Drive do dono (/api/gameboy/catalogo,
+// lib/gameboy-catalog.ts) — não há mais catálogo versionado no repo.
 
 /** Core do EmulatorJS pela extensão do arquivo. */
 export type CoreEjs = "gambatte" | "mgba" | "genesis_plus_gx" | "snes9x";

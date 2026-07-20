@@ -17,7 +17,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Gamepad2, Save, RotateCcw, History, Upload, Joystick } from "lucide-react";
 import EmulatorJsPanel from "./EmulatorJsPanel";
-import { ROM_DO_REPO, idbLerRom, idbGravarRom, lerCatalogo, type ItemCatalogo } from "./rom-store";
+import { ROM_DO_REPO, idbLerRom, idbGravarRom } from "./rom-store";
+
+interface JogoGb { id: string; nome: string; sistema: string }
 
 // WasmBoy não tem tipos publicados — superfície mínima usada aqui.
 interface WasmBoyApi {
@@ -47,11 +49,19 @@ export default function GameBoyShell() {
   const [nomeRom, setNomeRom] = useState("");
   const [msg, setMsg] = useState("");
   const [modo, setModo] = useState<"classico" | "emulatorjs">("classico");
-  // Catálogo (public/roms/catalogo.json) — só os jogos de GB/GBC tocam aqui.
-  const [catalogoGb, setCatalogoGb] = useState<ItemCatalogo[]>([]);
+  // Catálogo do Drive — o WasmBoy só toca GB/GBC, então filtra esses.
+  const [catalogoGb, setCatalogoGb] = useState<JogoGb[]>([]);
   useEffect(() => {
     let vivo = true;
-    lerCatalogo().then((itens) => { if (vivo) setCatalogoGb(itens.filter((i) => i.sistema === "gb" || i.sistema === "gbc")); });
+    fetch("/api/gameboy/catalogo")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        const gb: JogoGb[] = [];
+        for (const c of j.consoles ?? []) for (const g of c.jogos) if (g.sistema === "gb" || g.sistema === "gbc") gb.push(g);
+        setCatalogoGb(gb.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+      })
+      .catch(() => {});
     return () => { vivo = false; };
   }, []);
 
@@ -130,10 +140,11 @@ export default function GameBoyShell() {
     await carregarRom(f.name, dados);
   };
 
-  const jogarDoCatalogo = async (item: ItemCatalogo) => {
+  const jogarDoCatalogo = async (item: JogoGb) => {
     try {
-      const r = await fetch(item.arquivo);
-      if (!r.ok) { setMsg(`Não achei o arquivo de ${item.nome} no site.`); return; }
+      setMsg(`Baixando ${item.nome}…`);
+      const r = await fetch(`/api/gameboy/rom?id=${encodeURIComponent(item.id)}`);
+      if (!r.ok) { setMsg(`Não consegui baixar ${item.nome}.`); return; }
       const dados = new Uint8Array(await r.arrayBuffer());
       await carregarRom(item.nome, dados);
     } catch { setMsg(`Falha ao baixar ${item.nome}.`); }
@@ -330,18 +341,22 @@ export default function GameBoyShell() {
       </div>
 
       {modo === "classico" && catalogoGb.length > 0 && (
-        <div className="mx-auto flex w-full max-w-[560px] flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Catálogo:</span>
-          {catalogoGb.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => jogarDoCatalogo(item)}
-              className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-amber-100"
-              style={{ background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.3)" }}
-            >
-              ▸ {item.nome}
-            </button>
-          ))}
+        <div className="mx-auto w-full max-w-[560px]">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+            Catálogo Game Boy · {catalogoGb.length} jogos
+          </p>
+          <div className="flex max-h-[168px] flex-wrap items-start gap-1.5 overflow-y-auto rounded-xl p-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            {catalogoGb.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => jogarDoCatalogo(item)}
+                className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-amber-100"
+                style={{ background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.3)" }}
+              >
+                ▸ {item.nome}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
