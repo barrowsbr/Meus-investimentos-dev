@@ -13,7 +13,10 @@
   html,body{margin:0;height:100%;background:#0b090d;overflow:hidden;touch-action:manipulation;
     font-family:-apple-system,system-ui,sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   #game{width:100%;height:100%;touch-action:none}
-  #game canvas{touch-action:none !important}
+  /* 1x + pixelated: emulador roda em devicePixelRatio 1 (ver JS) para não
+     estourar a memória do Safari; o pixelated mantém o pixel-art nítido. */
+  #game canvas{touch-action:none !important;
+    image-rendering:pixelated; image-rendering:crisp-edges}
   #voltar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;z-index:30;
     color:#fcd9a0;text-decoration:none;font:600 12px system-ui;background:rgba(0,0,0,.55);
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
@@ -349,13 +352,18 @@ document.addEventListener("touchend", function(e){
 
   // ── Regime de memória para o Safari do iPhone ────────────────────────────
   // A aba recarregava sozinha (OOM) mesmo com ROM pequena → consumo cresce
-  // por quadro. Três freios:
-  // 1) canvas em 1x — a tela Retina (3x) multiplica por 9 a memória de vídeo
-  //    de CADA frame; travar o devicePixelRatio corta isso na raiz;
+  // por quadro. Quatro freios:
+  // 1) canvas em 1x POR PADRÃO — a tela Retina do iPhone (3x) multiplica por 9
+  //    a memória de vídeo de CADA frame. Esse é o custo dominante: NÃO depende
+  //    do tamanho da ROM, por isso um jogo LEVE (Pac-Man) quebrava igual a um
+  //    pesado. Travar o devicePixelRatio em 1x corta isso na raiz; o pixel-art
+  //    fica nítido com image-rendering:pixelated no canvas. ?retina=1 restaura
+  //    a nitidez cheia (para o desktop, onde memória não é gargalo).
   // 2) shader desligado (framebuffers extras);
   // 3) sem threads e sem cache de ROM do EJS no IndexedDB (escrita de MB em
-  //    segundo plano enquanto o jogo roda).
-  if(q.get("dpr1") === "1"){
+  //    segundo plano enquanto o jogo roda);
+  // 4) rewind desligado (buffer cresce por quadro).
+  if(q.get("retina") !== "1"){
     try{ Object.defineProperty(window, "devicePixelRatio", { get: function(){ return 1; }, configurable: true }); }catch(e){}
   }
   window.EJS_threads = false;
