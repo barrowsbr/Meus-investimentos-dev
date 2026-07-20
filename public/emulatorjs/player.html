@@ -8,25 +8,200 @@
      página completa do app estourava a memória do Safari e a aba recarregava.
      Aqui só existe o EmulatorJS — o app é liberado da memória ao navegar. -->
 <style>
-  html,body{margin:0;height:100%;background:#0b090d}
+  html,body{margin:0;height:100%;background:#0b090d;overflow:hidden;
+    font-family:-apple-system,system-ui,sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   #game{width:100%;height:100%}
-  #voltar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;z-index:9;
+  #voltar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;z-index:30;
     color:#fcd9a0;text-decoration:none;font:600 12px system-ui;background:rgba(0,0,0,.55);
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   #erro{color:#fca5a5;font:14px system-ui;padding:80px 24px;text-align:center}
-  /* Celular EM PÉ: o EmulatorJS cola o jogo no topo, embaixo da ilha/relógio
-     do iPhone — SÓ desce o canvas (margin), sem mexer em tamanho/posição.
-     Deitado e desktop ficam com o layout padrão do player. */
-  @media (orientation: portrait) and (pointer: coarse) {
-    #game canvas{
-      margin-top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
-    }
+
+  /* Some com o gamepad virtual embutido do EmulatorJS — usamos o nosso. */
+  .ejs_virtualGamepad_parent{display:none !important}
+
+  /* Celular EM PÉ: desce o jogo para baixo da ilha/relógio do iPhone. */
+  @media (orientation: portrait) and (pointer: coarse){
+    #game canvas{ margin-top: calc(env(safe-area-inset-top,0px) + 44px) !important; }
+  }
+
+  /* ── Controles próprios (só em telas de toque) ──────────────────────────── */
+  #ctrl{ display:none }
+  @media (pointer: coarse){ #ctrl{ display:block } }
+  #ctrl{ position:fixed; inset:0; z-index:20; pointer-events:none; touch-action:none }
+  #ctrl [hidden]{ display:none !important } /* .cap/.btn forçam display; respeita o hidden */
+  #ctrl .btn,#ctrl .pad{ pointer-events:auto; touch-action:none; position:absolute;
+    -webkit-tap-highlight-color:transparent }
+
+  /* botões redondos (A/B/X/Y/C) */
+  #ctrl .btn{ display:flex; align-items:center; justify-content:center;
+    border-radius:50%; font-weight:800; color:#fdf0d8;
+    background:radial-gradient(circle at 38% 32%, rgba(60,48,70,.72), rgba(18,14,22,.66));
+    border:1.5px solid rgba(240,184,96,.55);
+    box-shadow:0 4px 14px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14), 0 0 14px rgba(240,184,96,.12);
+    backdrop-filter:blur(2px) }
+  #ctrl .btn.on{ background:radial-gradient(circle at 38% 32%, rgba(251,191,36,.95), rgba(217,119,6,.9));
+    color:#1a1206; border-color:#fde68a; box-shadow:0 0 18px rgba(251,191,36,.6) }
+
+  /* botões-cápsula (Start/Select/L/R) */
+  #ctrl .cap{ display:flex; align-items:center; justify-content:center; pointer-events:auto;
+    touch-action:none; position:absolute; border-radius:999px; font-weight:700; letter-spacing:.08em;
+    color:#e8dcc4; background:rgba(24,18,28,.6); border:1.5px solid rgba(255,255,255,.16);
+    box-shadow:0 3px 10px rgba(0,0,0,.5); backdrop-filter:blur(2px) }
+  #ctrl .cap.on{ background:rgba(251,191,36,.9); color:#1a1206; border-color:#fde68a }
+
+  /* D-pad */
+  #ctrl .pad{ border-radius:22%;
+    background:radial-gradient(circle at 50% 42%, rgba(52,42,62,.6), rgba(14,11,18,.6));
+    border:1.5px solid rgba(240,184,96,.4);
+    box-shadow:0 5px 16px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.1); backdrop-filter:blur(2px) }
+  #ctrl .pad::before,#ctrl .pad::after{ content:""; position:absolute; background:rgba(255,255,255,.08); border-radius:6px }
+  #ctrl .pad::before{ left:33%; right:33%; top:8%; bottom:8% }
+  #ctrl .pad::after{ top:33%; bottom:33%; left:8%; right:8% }
+  #ctrl .pad i{ position:absolute; color:#fcd9a0; font-style:normal; font-size:min(6vw,26px); opacity:.7;
+    transition:color .06s,opacity .06s }
+  #ctrl .pad i.u{ top:3%; left:50%; transform:translateX(-50%) }
+  #ctrl .pad i.d{ bottom:3%; left:50%; transform:translateX(-50%) }
+  #ctrl .pad i.l{ left:5%; top:50%; transform:translateY(-50%) }
+  #ctrl .pad i.r{ right:5%; top:50%; transform:translateY(-50%) }
+  #ctrl .pad i.act{ color:#fbbf24; opacity:1; text-shadow:0 0 10px #fbbf24 }
+
+  /* ─ Tamanhos e posições — RETRATO (padrão) ─ */
+  #ctrl .pad{ width:clamp(148px,42vw,208px); aspect-ratio:1; left:max(16px,4.5vw); bottom:13vh }
+  #ctrl #faces{ position:absolute; pointer-events:none;
+    width:clamp(158px,44vw,214px); aspect-ratio:1; right:max(10px,3vw); bottom:12.5vh }
+  #ctrl .btn{ width:clamp(60px,16vw,80px); height:clamp(60px,16vw,80px); font-size:clamp(18px,4.6vw,24px) }
+  #ctrl .cap{ height:clamp(30px,7.6vw,40px); padding:0 clamp(16px,4.6vw,26px); font-size:clamp(11px,3vw,14px) }
+  #ctrl #sys{ position:absolute; left:50%; bottom:5vh; transform:translateX(-50%);
+    display:flex; gap:clamp(14px,5vw,30px) }
+  #ctrl #sys .cap{ position:relative; top:auto; left:auto; right:auto; bottom:auto } /* fluem no flex */
+  #ctrl .lr{ height:clamp(34px,8vw,46px); width:clamp(64px,18vw,92px) }
+  #ctrl #Lc{ left:max(16px,4.5vw); bottom:calc(13vh + clamp(148px,42vw,208px) + 14px) }
+  #ctrl #Rc{ right:max(16px,4.5vw); bottom:calc(12.5vh + clamp(158px,44vw,214px) + 14px) }
+
+  /* ─ PAISAGEM: controles nas laterais, jogo grande ao centro ─ */
+  @media (orientation: landscape) and (pointer: coarse){
+    #ctrl .pad{ width:clamp(130px,30vh,180px); left:max(12px,2.5vw); bottom:9vh }
+    #ctrl #faces{ width:clamp(140px,32vh,190px); right:max(10px,2vw); bottom:8vh }
+    #ctrl .btn{ width:clamp(56px,13vh,74px); height:clamp(56px,13vh,74px); font-size:clamp(17px,3.6vh,23px) }
+    #ctrl #sys{ bottom:6vh; gap:clamp(16px,4vw,36px) }
+    #ctrl .cap{ height:clamp(30px,6.4vh,40px); padding:0 clamp(16px,3.4vh,26px) }
+    #ctrl .lr{ width:clamp(66px,15vh,96px); height:clamp(34px,7vh,46px) }
+    /* abaixo do "voltar" (esq.) e do menu ☰ (dir.) para não sobrepor */
+    #ctrl #Lc{ left:max(12px,2.5vw); top:calc(env(safe-area-inset-top,0px) + 54px); bottom:auto }
+    #ctrl #Rc{ right:max(12px,2.5vw); top:calc(env(safe-area-inset-top,0px) + 54px); bottom:auto }
   }
 </style>
 </head>
 <body>
 <a id="voltar" href="/gameboy">&#8249; voltar</a>
 <div id="game"></div>
+
+<!-- Controles próprios (grandes, translúcidos) — dirigem o core pela API do
+     EmulatorJS (gameManager.simulateInput). Layouts distintos por orientação. -->
+<div id="ctrl" hidden>
+  <div class="pad" id="dpad"><i class="u">▲</i><i class="d">▼</i><i class="l">◀</i><i class="r">▶</i></div>
+  <div id="faces"></div>
+  <div id="sys"></div>
+  <div class="cap lr btn-cap" id="Lc" hidden>L</div>
+  <div class="cap lr btn-cap" id="Rc" hidden>R</div>
+</div>
+
+<script>
+// ── Fiação dos controles → core (RetroPad ids) ─────────────────────────────
+(function(){
+  var B=0,Y=1,SELECT=2,START=3,UP=4,DOWN=5,LEFT=6,RIGHT=7,A=8,X=9,L=10,R=11;
+  // Conjunto de botões por core (face em diamante; posição em % da caixa).
+  var SETS = {
+    gambatte:{ face:[{l:"B",i:B,x:26,y:62},{l:"A",i:A,x:74,y:40}], lr:false, sys:[["SELECT",SELECT],["START",START]] },
+    mgba:{ face:[{l:"B",i:B,x:26,y:62},{l:"A",i:A,x:74,y:40}], lr:true, sys:[["SELECT",SELECT],["START",START]] },
+    snes9x:{ face:[{l:"Y",i:Y,x:12,y:50},{l:"X",i:X,x:50,y:12},{l:"B",i:B,x:50,y:88},{l:"A",i:A,x:88,y:50}], lr:true, sys:[["SELECT",SELECT],["START",START]] },
+    genesis_plus_gx:{ face:[{l:"B",i:B,x:16,y:58},{l:"C",i:Y,x:50,y:44},{l:"A",i:A,x:84,y:58}], lr:false, sys:[["START",START]] }
+  };
+  var core = new URLSearchParams(location.search).get("core") || "gambatte";
+  var set = SETS[core] || SETS.gambatte;
+
+  function press(index, on){
+    var e = window.EJS_emulator;
+    if(e && e.gameManager && e.gameManager.simulateInput){
+      try{ e.gameManager.simulateInput(0, index, on ? 1 : 0); }catch(_){}
+    }
+  }
+
+  // botões de face
+  var faces = document.getElementById("faces");
+  set.face.forEach(function(f){
+    var b = document.createElement("div");
+    b.className = "btn"; b.textContent = f.l;
+    b.style.left = f.x + "%"; b.style.top = f.y + "%";
+    b.style.transform = "translate(-50%,-50%)";
+    liga(b, f.i);
+    faces.appendChild(b);
+  });
+  // Start/Select
+  var sys = document.getElementById("sys");
+  set.sys.forEach(function(s){
+    var b = document.createElement("div");
+    b.className = "cap"; b.textContent = s[0];
+    liga(b, s[1]);
+    sys.appendChild(b);
+  });
+  // L/R
+  if(set.lr){
+    ["Lc","Rc"].forEach(function(id,k){
+      var b = document.getElementById(id); b.hidden = false;
+      liga(b, k===0 ? L : R);
+    });
+  }
+
+  // botão simples (press/release), multi-toque
+  function liga(el, index){
+    var ativo = false;
+    function on(e){ e.preventDefault(); if(ativo) return; ativo = true; el.classList.add("on"); press(index, true); }
+    function off(){ if(!ativo) return; ativo = false; el.classList.remove("on"); press(index, false); }
+    el.addEventListener("pointerdown", on);
+    el.addEventListener("pointerup", off);
+    el.addEventListener("pointercancel", off);
+    el.addEventListener("pointerleave", off);
+  }
+
+  // D-pad analógico (com diagonais)
+  (function(){
+    var pad = document.getElementById("dpad");
+    var setas = { u:pad.querySelector(".u"), d:pad.querySelector(".d"), l:pad.querySelector(".l"), r:pad.querySelector(".r") };
+    var estado = { u:false, d:false, l:false, r:false };
+    function aplica(nx, ny){
+      var dz = 0.30;
+      var novo = { l: nx < -dz, r: nx > dz, u: ny < -dz, d: ny > dz };
+      [["u",UP],["d",DOWN],["l",LEFT],["r",RIGHT]].forEach(function(p){
+        var k = p[0];
+        if(novo[k] !== estado[k]){ estado[k] = novo[k]; press(p[1], novo[k]); setas[k].classList.toggle("act", novo[k]); }
+      });
+    }
+    function solta(){ aplica(0,0); }
+    function mede(e){
+      var r = pad.getBoundingClientRect();
+      var nx = (e.clientX - (r.left + r.width/2)) / (r.width/2);
+      var ny = (e.clientY - (r.top + r.height/2)) / (r.height/2);
+      aplica(Math.max(-1.5,Math.min(1.5,nx)), Math.max(-1.5,Math.min(1.5,ny)));
+    }
+    pad.addEventListener("pointerdown", function(e){ e.preventDefault(); pad.setPointerCapture(e.pointerId); mede(e); });
+    pad.addEventListener("pointermove", function(e){ if(e.pressure>0 || e.buttons) mede(e); });
+    pad.addEventListener("pointerup", solta);
+    pad.addEventListener("pointercancel", solta);
+  })();
+
+  // Revela os controles quando o jogo começar (emulador pronto).
+  function revela(){ var c = document.getElementById("ctrl"); if(c) c.hidden = false; }
+  var ant = window.EJS_onGameStart;
+  window.EJS_onGameStart = function(){ if(typeof ant === "function") try{ ant(); }catch(_){}; revela(); };
+  // fallback: mostra assim que o gameManager existir
+  var t = setInterval(function(){
+    if(window.EJS_emulator && window.EJS_emulator.gameManager){ revela(); clearInterval(t); }
+  }, 500);
+  setTimeout(function(){ clearInterval(t); }, 30000);
+})();
+</script>
+
 <script>
 (async function(){
   const q = new URLSearchParams(location.search);
