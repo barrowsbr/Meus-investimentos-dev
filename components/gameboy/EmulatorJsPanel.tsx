@@ -12,7 +12,7 @@
 // ⚠️ SEM `accept` no input: o iOS acinzenta extensões de ROM desconhecidas.
 
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, Gamepad2, Search, TriangleAlert } from "lucide-react";
+import { FolderOpen, Gamepad2, Search, Share, TriangleAlert, X } from "lucide-react";
 import { CHAVE_ARQUIVO_EJS, idbGravarRom, idbLerRom } from "./rom-store";
 
 interface JogoDrive { id: string; nome: string; sistema: string; core: string; tamanho: number }
@@ -48,6 +48,7 @@ export default function EmulatorJsPanel() {
   const [busca, setBusca] = useState("");
   const [ultimoArquivo, setUltimoArquivo] = useState<string | null>(null);
   const [msgArquivo, setMsgArquivo] = useState("");
+  const [mostrarInstalar, setMostrarInstalar] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -69,6 +70,25 @@ export default function EmulatorJsPanel() {
     })();
     return () => { vivo = false; };
   }, []);
+
+  // Aviso discreto: rodar como APP instalado (standalone) dá mais memória e tira
+  // a barra do Safari — jogo mais fluido e que trava menos no iPhone. Some quando
+  // já está em modo app ou quando o dono dispensa (guardado no aparelho).
+  useEffect(() => {
+    try {
+      const standalone =
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        window.matchMedia?.("(display-mode: standalone)").matches === true;
+      const dispensado = localStorage.getItem("mi_gb_instalar") === "1";
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      if (ios && !standalone && !dispensado) setMostrarInstalar(true);
+    } catch { /* ignora */ }
+  }, []);
+
+  const dispensarInstalar = () => {
+    try { localStorage.setItem("mi_gb_instalar", "1"); } catch { /* ignora */ }
+    setMostrarInstalar(false);
+  };
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -102,6 +122,20 @@ export default function EmulatorJsPanel() {
 
   return (
     <div className="space-y-4">
+      {/* dica: instalar como app (mais memória, menos travadas no iPhone) */}
+      {mostrarInstalar && (
+        <div className="flex items-start gap-2.5 rounded-xl p-3 text-xs leading-relaxed" style={{ background: "linear-gradient(150deg, rgba(96,165,250,0.12), rgba(167,139,250,0.1))", border: "1px solid rgba(96,165,250,0.3)" }}>
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(96,165,250,0.16)" }}>🕹️</span>
+          <div className="min-w-0 flex-1 text-blue-100/90">
+            <span className="font-semibold text-blue-200">Jogue como app — mais fluido e trava menos.</span>{" "}
+            No Safari, toque em <Share size={12} className="inline -translate-y-px" /> <span className="font-medium">Compartilhar</span> → <span className="font-medium">Adicionar à Tela de Início</span>. Abre em tela cheia e o iPhone libera mais memória pro emulador.
+          </div>
+          <button onClick={dispensarInstalar} aria-label="Dispensar" className="shrink-0 rounded-md p-1 text-blue-200/60 transition-colors hover:text-blue-100">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* busca */}
       {totalJogos > 6 && (
         <div className="relative">

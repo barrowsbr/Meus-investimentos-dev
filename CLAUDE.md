@@ -26,7 +26,16 @@ app/                    Páginas (App Router) e API routes
                         gambatte/mgba/genesis_plus_gx/snes9x baixados pela workflow
                         emulatorjs-data, trigger por push de scripts/.emulatorjs-run;
                         jogos abrem no "modo jogo" public/emulatorjs/player.html —
-                        página crua, senão o Safari iOS estoura memória; controles
+                        página crua, senão o Safari iOS estoura memória (canvas
+                        TRAVADO em devicePixelRatio 1 por padrão + image-rendering
+                        pixelated — a tela Retina 3x multiplicava por 9 a memória
+                        de vídeo e quebrava até jogos leves; ?retina=1 restaura no
+                        desktop; core WASM SIMD single-thread, threads OFF; Screen
+                        Wake Lock mantém a tela acesa; Gamepad API dirige o mesmo
+                        core dos botões da tela — controle Bluetooth pareado no
+                        iPhone, ícone 🎮 discreto; metas apple-mobile-web-app p/
+                        rodar em modo app standalone com mais memória, dica de
+                        "Adicionar à Tela de Início" no catálogo); controles
                         PRÓPRIOS grandes no player (D-pad analógico + faces + Start/
                         Select + L/R por core via gameManager.simulateInput; gamepad
                         embutido do EJS escondido; layouts translúcidos distintos

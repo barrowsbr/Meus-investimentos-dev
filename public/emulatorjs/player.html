@@ -4,6 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Modo jogo · Meus Investimentos</title>
+<!-- Modo APP (standalone): quando o site é aberto pela versão instalada na Tela
+     de Início, o iOS dá MAIS orçamento de memória e tira a barra do Safari (que
+     descarrega a aba). Estas metas mantêm o modo jogo imersivo também aqui na
+     página crua. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fliperama">
+<meta name="theme-color" content="#0b090d">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- Página CRUA de propósito: no iPhone, o emulador (wasm + ROM) dentro da
      página completa do app estourava a memória do Safari e a aba recarregava.
      Aqui só existe o EmulatorJS — o app é liberado da memória ao navegar. -->
@@ -94,6 +105,10 @@
     color:#e8dcc4; background:rgba(24,18,28,.5); border:1px solid rgba(255,255,255,.12);
     opacity:.28; -webkit-tap-highlight-color:transparent; touch-action:none; transition:opacity .15s }
   #ctrl #visTgl:active{ opacity:.7 }
+  /* indicador de controle físico conectado (Gamepad API) */
+  #ctrl #gpInd{ display:flex; align-items:center; justify-content:center;
+    width:clamp(20px,5.4vw,26px); height:clamp(20px,5.4vw,26px); font-size:clamp(11px,3vw,14px);
+    opacity:.7; filter:drop-shadow(0 0 6px rgba(96,165,250,.8)) }
   #ctrl .lr{ height:clamp(34px,8vw,46px); width:clamp(64px,18vw,92px) }
   #ctrl #Lc{ left:max(16px,4.5vw); bottom:calc(13vh + clamp(148px,42vw,208px) + 14px) }
   #ctrl #Rc{ right:max(16px,4.5vw); bottom:calc(12.5vh + clamp(158px,44vw,214px) + 14px) }
@@ -126,6 +141,24 @@ document.addEventListener("touchend", function(e){
   if(agora - _ultToque <= 350) e.preventDefault(); // 2º toque rápido = zoom → bloqueia
   _ultToque = agora;
 }, { passive:false });
+
+// Tela sempre acesa durante o jogo (Screen Wake Lock — iOS 16.4+). O iOS solta
+// o lock ao ir pro background, então reobtemos ao voltar; e liberamos ao sair.
+(function(){
+  var lock = null;
+  async function pega(){
+    try{
+      if("wakeLock" in navigator && document.visibilityState === "visible"){
+        lock = await navigator.wakeLock.request("screen");
+      }
+    }catch(_){ /* negado/sem suporte — segue sem */ }
+  }
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible") pega();
+  });
+  window.addEventListener("pagehide", function(){ try{ if(lock) lock.release(); }catch(_){}; lock = null; });
+  pega();
+})();
 </script>
 <a id="voltar" href="/gameboy">&#8249; voltar</a>
 <div id="game"></div>
@@ -141,6 +174,7 @@ document.addEventListener("touchend", function(e){
   <div id="topc">
     <div class="cap" id="Fc" hidden>FAST ⏩</div>
     <div id="visTgl" role="button" aria-label="Mostrar ou ocultar Fast, Start e Select">◉</div>
+    <div id="gpInd" title="Controle conectado" hidden>🎮</div>
   </div>
 </div>
 
@@ -267,6 +301,39 @@ document.addEventListener("touchend", function(e){
     pad.addEventListener("pointercancel", solta);
   })();
 
+  // ── Controle físico Bluetooth/USB (Gamepad API) ──────────────────────────
+  // Pareie o controle nos Ajustes do iPhone; os botões físicos dirigem o MESMO
+  // core que os botões da tela (mapa padrão → ids do RetroPad). Convive com o
+  // toque. Um ícone 🎮 discreto acende quando um controle está conectado.
+  (function(){
+    var ind = document.getElementById("gpInd");
+    var MAP = { 0:B, 1:A, 2:Y, 3:X, 4:L, 5:R, 6:L, 7:R, 8:SELECT, 9:START, 12:UP, 13:DOWN, 14:LEFT, 15:RIGHT };
+    var prev = {}, rodando = false;
+    function pads(){ return navigator.getGamepads ? navigator.getGamepads() : []; }
+    function algum(){ var p = pads(); for(var i=0;i<p.length;i++) if(p[i]) return p[i]; return null; }
+    function tick(){
+      var gp = algum();
+      if(gp){
+        for(var b in MAP){
+          var on = !!(gp.buttons[b] && gp.buttons[b].pressed);
+          if(on !== prev["b"+b]){ prev["b"+b] = on; press(MAP[b], on); }
+        }
+        var ax = gp.axes[0]||0, ay = gp.axes[1]||0, dz = 0.4;
+        [["axl",LEFT,ax<-dz],["axr",RIGHT,ax>dz],["axu",UP,ay<-dz],["axd",DOWN,ay>dz]].forEach(function(p){
+          if(p[2] !== prev[p[0]]){ prev[p[0]] = p[2]; press(p[1], p[2]); }
+        });
+        if(ind && ind.hidden) ind.hidden = false;
+        requestAnimationFrame(tick);
+      } else {
+        for(var k in prev){ if(prev[k]){ prev[k] = false; } } // solta pendências
+        rodando = false; if(ind) ind.hidden = true;
+      }
+    }
+    function liga(){ if(rodando) return; rodando = true; requestAnimationFrame(tick); }
+    window.addEventListener("gamepadconnected", liga);
+    if(algum()) liga(); // já pareado antes de abrir
+  })();
+
   // Revela os controles quando o jogo começar (emulador pronto).
   function revela(){ var c = document.getElementById("ctrl"); if(c) c.hidden = false; }
   var ant = window.EJS_onGameStart;
@@ -366,6 +433,10 @@ document.addEventListener("touchend", function(e){
   if(q.get("retina") !== "1"){
     try{ Object.defineProperty(window, "devicePixelRatio", { get: function(){ return 1; }, configurable: true }); }catch(e){}
   }
+  // threads OFF de propósito: além de exigir isolamento cross-origin (que o iOS
+  // trata mal), o EmulatorJS já usa o core WASM com SIMD single-thread — que
+  // aproveita as unidades vetoriais da CPU do iPhone e é o mais EFICIENTE aqui,
+  // sem o custo de memória de vários workers. Threads no iOS só pioram.
   window.EJS_threads = false;
   window.EJS_CacheLimit = 1;
   window.EJS_disableDatabases = true;   // não escreve ROM/estado no IndexedDB durante o jogo
