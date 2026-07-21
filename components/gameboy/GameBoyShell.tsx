@@ -17,8 +17,8 @@ export default function GameBoyShell() {
           <Gamepad2 size={18} className="text-amber-400" /> Fliperama
         </h1>
         <p className="text-xs text-zinc-500">
-          Seus jogos do Drive por console + qualquer ROM do aparelho — Game Boy, GBA, Mega Drive e Super Nintendo,
-          rodando no seu iPhone. Toque num jogo para jogar.
+          Escolha um console — Game Boy, GBA, Mega Drive e Super Nintendo — para ver seus jogos do Drive,
+          ou abra qualquer ROM do aparelho. Tudo rodando no seu iPhone.
         </p>
       </div>
       <EmulatorJsPanel />

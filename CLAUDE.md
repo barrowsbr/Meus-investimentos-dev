@@ -39,7 +39,14 @@ app/                    Páginas (App Router) e API routes
                         PRÓPRIOS grandes no player (D-pad analógico + faces + Start/
                         Select + L/R por core via gameManager.simulateInput; gamepad
                         embutido do EJS escondido; layouts translúcidos distintos
-                        retrato/paisagem tunados p/ iPhone Pro Max); CATÁLOGO
+                        retrato/paisagem tunados p/ iPhone Pro Max); a tela do
+                        fliperama é uma GRADE de consoles (retratos vetoriais
+                        grandes com brilho néon — components/gameboy/ConsoleArt.tsx;
+                        efeito float+glow+shine); tocar num console abre um POPUP
+                        (bottom-sheet) com os jogos, tocar no jogo segue igual
+                        (navega pro player); tile "Do aparelho" abre ROM local;
+                        watchdog de auto-reset recarrega UMA vez (sessionStorage)
+                        se o 1º load não engatar em ~7s; CATÁLOGO
                         lido AO VIVO da pasta do Drive do dono por console
                         (lib/gameboy-catalog.ts + /api/gameboy/catalogo — auth via
                         SERVICE ACCOUNT, token Bearer escopo drive.readonly, pois a
