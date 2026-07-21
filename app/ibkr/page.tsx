@@ -29,6 +29,28 @@ function compact(v: number | null | undefined, sym: string): string {
   return `${s}${sym} ${nf(a, 2)}`;
 }
 const signed = (v: number | null | undefined, sym: string) => (v != null && v >= 0 ? "+" : "") + compact(v, sym);
+
+// ── Moeda NATIVA (sem converter para R$) ─────────────────────────────────────
+// currency() do format só conhece USD/BRL (tudo mais cai em R$). Para as listas
+// de ativos o dono quer ver na moeda de origem — EUR, CAD, GBP com o símbolo
+// certo. simMoeda dá o prefixo curto (compact/dia); fmtMoeda usa Intl (preço).
+const SIM_MOEDA: Record<string, string> = { USD: "US$", BRL: "R$", EUR: "€", CAD: "CA$", GBP: "£", CHF: "CHF", JPY: "¥" };
+const simMoeda = (m: string) => SIM_MOEDA[m] ?? `${m} `;
+const locMoeda = (m: string) => (m === "BRL" ? "pt-BR" : "en-US");
+function fmtMoeda(v: number, moeda: string): string {
+  const cur = moeda || "BRL";
+  try {
+    return v.toLocaleString(locMoeda(cur), { style: "currency", currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch { return `${simMoeda(cur)} ${nf(v, 2)}`; }
+}
+function compactNat(v: number | null | undefined, moeda: string): string {
+  if (v == null) return "—";
+  const sym = simMoeda(moeda); const a = Math.abs(v); const s = v < 0 ? "-" : "";
+  if (a >= 1e6) return `${s}${sym} ${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1e4) return `${s}${sym} ${(a / 1e3).toFixed(1)}k`;
+  return `${s}${sym} ${a.toLocaleString(locMoeda(moeda), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+const signedNat = (v: number | null | undefined, moeda: string) => (v != null && v >= 0 ? "+" : "") + compactNat(v, moeda);
 // buildIbkrOverview entrega PROPORÇÕES (ex.: 0,0182 = 1,82%); pct() espera o
 // número já em pontos percentuais (1,82). Por isso escalamos por 100 aqui —
 // igual a Home faz (pct(lucroDiaPct * 100)). Sem isso, a variação do dia e o
@@ -165,12 +187,12 @@ function PositionModal({ data, p, onClose }: { data: IbkrOverview; p: OverviewPo
   const txs = data.trades.filter((t) => t.ticker === p.ticker).slice(0, 12);
   const stats: Array<{ label: string; value: string; color?: string }> = [
     { label: "Quantidade", value: nf(p.quantidade, 4) },
-    { label: "Preço médio", value: currency(p.custoPreco, p.moeda) },
-    { label: "Preço atual", value: currency(p.markPrice, p.moeda) },
+    { label: "Preço médio", value: fmtMoeda(p.custoPreco, p.moeda) },
+    { label: "Preço atual", value: fmtMoeda(p.markPrice, p.moeda) },
     { label: "Variação do dia", value: p.dayChangePct !== null ? pctR(p.dayChangePct) : "—", color: p.dayChangePct !== null ? cor(p.dayChange) : undefined },
-    { label: "Valor (US$)", value: compact(p.marketValueUSD, "US$") },
+    { label: `Valor (${p.moeda})`, value: compactNat(p.marketValue, p.moeda) },
     { label: "Valor (R$)", value: compact(p.marketValueBRL, "R$") },
-    { label: "Custo", value: compact(p.cost, p.moeda === "USD" ? "US$" : "R$") },
+    { label: "Custo", value: compactNat(p.cost, p.moeda) },
     { label: "Resultado", value: `${p.pnl >= 0 ? "+" : ""}${nf(p.pnl)} ${p.moeda}`, color: cor(p.pnl) },
   ];
 
@@ -198,12 +220,12 @@ function PositionModal({ data, p, onClose }: { data: IbkrOverview; p: OverviewPo
           <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
             <div>
               <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>Valor atual</div>
-              <div className="text-2xl font-extrabold" style={{ color: "var(--text)" }}>{compact(p.marketValueBRL, "R$")}</div>
+              <div className="text-2xl font-extrabold" style={{ color: "var(--text)" }}>{compactNat(p.marketValue, p.moeda)}</div>
               <div className="text-xs font-semibold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? `${pctR(p.pnlPct)} resultado` : "—"}</div>
             </div>
             <div className="inline-flex items-center gap-1 font-mono text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: p.dayChange >= 0 ? "rgba(63,185,80,0.12)" : "rgba(240,80,74,0.12)", color: cor(p.dayChange) }}>
               {p.dayChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-              dia {p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"} · {signed(p.dayPnlBRL, "R$")}
+              dia {p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"} · {signedNat(p.dayPnl, p.moeda)}
             </div>
           </div>
 
@@ -388,7 +410,7 @@ function Dashboard({ data }: { data: IbkrOverview }) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr style={{ borderBottom: "1px solid var(--line)" }}>
-              {["Ativo", "Qtd", "Preço", "Dia", "Valor R$", "Result."].map((h, i) => (
+              {["Ativo", "Qtd", "Preço", "Dia", "Valor", "Result."].map((h, i) => (
                 <th key={h} className={`px-3 py-2 text-[10px] font-bold uppercase ${i >= 1 ? "text-right" : "text-left"}`} style={{ color: "var(--muted)" }}>{h}</th>
               ))}
               <th className="w-6" />
@@ -403,12 +425,12 @@ function Dashboard({ data }: { data: IbkrOverview }) {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text)" }}>{nf(p.quantidade, p.quantidade < 1 ? 4 : 0)}</td>
-                  <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--muted)" }}>{currency(p.markPrice, p.moeda)}</td>
+                  <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--muted)" }}>{fmtMoeda(p.markPrice, p.moeda)}</td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: cor(p.dayChange) }}>
                     <div className="font-medium">{p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"}</div>
-                    {p.dayPnlBRL != null && <div style={{ fontSize: 9, opacity: 0.7 }}>{signed(p.dayPnlBRL, "R$")}</div>}
+                    <div style={{ fontSize: 9, opacity: 0.7 }}>{signedNat(p.dayPnl, p.moeda)}</div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{compact(p.marketValueBRL, "R$")}</td>
+                  <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{compactNat(p.marketValue, p.moeda)}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? pctR(p.pnlPct) : "—"}</td>
                   <td className="px-2 text-right"><ChevronRight size={13} style={{ color: "var(--faint)" }} /></td>
                 </tr>
