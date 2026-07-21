@@ -29,7 +29,12 @@ function compact(v: number | null | undefined, sym: string): string {
   return `${s}${sym} ${nf(a, 2)}`;
 }
 const signed = (v: number | null | undefined, sym: string) => (v != null && v >= 0 ? "+" : "") + compact(v, sym);
-const pctOr = (v: number | null | undefined) => (v == null ? "—" : pct(v));
+// buildIbkrOverview entrega PROPORÇÕES (ex.: 0,0182 = 1,82%); pct() espera o
+// número já em pontos percentuais (1,82). Por isso escalamos por 100 aqui —
+// igual a Home faz (pct(lucroDiaPct * 100)). Sem isso, a variação do dia e o
+// resultado saíam 100× menores (1,8% virava "0,0%").
+const pctOr = (v: number | null | undefined) => (v == null ? "—" : pct(v * 100));
+const pctR = (v: number) => pct(v * 100);
 
 function fmtDate(s: string): string {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -162,7 +167,7 @@ function PositionModal({ data, p, onClose }: { data: IbkrOverview; p: OverviewPo
     { label: "Quantidade", value: nf(p.quantidade, 4) },
     { label: "Preço médio", value: currency(p.custoPreco, p.moeda) },
     { label: "Preço atual", value: currency(p.markPrice, p.moeda) },
-    { label: "Variação do dia", value: p.dayChangePct !== null ? pct(p.dayChangePct) : "—", color: p.dayChangePct !== null ? cor(p.dayChange) : undefined },
+    { label: "Variação do dia", value: p.dayChangePct !== null ? pctR(p.dayChangePct) : "—", color: p.dayChangePct !== null ? cor(p.dayChange) : undefined },
     { label: "Valor (US$)", value: compact(p.marketValueUSD, "US$") },
     { label: "Valor (R$)", value: compact(p.marketValueBRL, "R$") },
     { label: "Custo", value: compact(p.cost, p.moeda === "USD" ? "US$" : "R$") },
@@ -194,11 +199,11 @@ function PositionModal({ data, p, onClose }: { data: IbkrOverview; p: OverviewPo
             <div>
               <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>Valor atual</div>
               <div className="text-2xl font-extrabold" style={{ color: "var(--text)" }}>{compact(p.marketValueBRL, "R$")}</div>
-              <div className="text-xs font-semibold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? `${pct(p.pnlPct)} resultado` : "—"}</div>
+              <div className="text-xs font-semibold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? `${pctR(p.pnlPct)} resultado` : "—"}</div>
             </div>
             <div className="inline-flex items-center gap-1 font-mono text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: p.dayChange >= 0 ? "rgba(63,185,80,0.12)" : "rgba(240,80,74,0.12)", color: cor(p.dayChange) }}>
               {p.dayChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-              dia {p.dayChangePct !== null ? pct(p.dayChangePct) : "—"} · {signed(p.dayPnlBRL, "R$")}
+              dia {p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"} · {signed(p.dayPnlBRL, "R$")}
             </div>
           </div>
 
@@ -399,9 +404,9 @@ function Dashboard({ data }: { data: IbkrOverview }) {
                   </td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text)" }}>{nf(p.quantidade, p.quantidade < 1 ? 4 : 0)}</td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--muted)" }}>{currency(p.markPrice, p.moeda)}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: cor(p.dayChange) }}>{p.dayChangePct !== null ? pct(p.dayChangePct) : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: cor(p.dayChange) }}>{p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{compact(p.marketValueBRL, "R$")}</td>
-                  <td className="px-3 py-2 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? pct(p.pnlPct) : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? pctR(p.pnlPct) : "—"}</td>
                   <td className="px-2 text-right"><ChevronRight size={13} style={{ color: "var(--faint)" }} /></td>
                 </tr>
               ))}
