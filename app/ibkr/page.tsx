@@ -404,7 +404,10 @@ function Dashboard({ data }: { data: IbkrOverview }) {
                   </td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text)" }}>{nf(p.quantidade, p.quantidade < 1 ? 4 : 0)}</td>
                   <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--muted)" }}>{currency(p.markPrice, p.moeda)}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: cor(p.dayChange) }}>{p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono" style={{ color: cor(p.dayChange) }}>
+                    <div className="font-medium">{p.dayChangePct !== null ? pctR(p.dayChangePct) : "—"}</div>
+                    {p.dayPnlBRL != null && <div style={{ fontSize: 9, opacity: 0.7 }}>{signed(p.dayPnlBRL, "R$")}</div>}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: "var(--text)" }}>{compact(p.marketValueBRL, "R$")}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold" style={{ color: cor(p.pnl) }}>{p.pnlPct !== null ? pctR(p.pnlPct) : "—"}</td>
                   <td className="px-2 text-right"><ChevronRight size={13} style={{ color: "var(--faint)" }} /></td>
