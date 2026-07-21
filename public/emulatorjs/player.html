@@ -335,7 +335,13 @@ document.addEventListener("touchend", function(e){
   })();
 
   // Revela os controles quando o jogo começar (emulador pronto).
-  function revela(){ var c = document.getElementById("ctrl"); if(c) c.hidden = false; }
+  var comecou = false;
+  var chaveRetry = "mi_retry_" + location.search; // por jogo
+  function revela(){
+    comecou = true;
+    var c = document.getElementById("ctrl"); if(c) c.hidden = false;
+    try{ sessionStorage.removeItem(chaveRetry); }catch(_){} // liberou o "1 retry" p/ a próxima vez
+  }
   var ant = window.EJS_onGameStart;
   window.EJS_onGameStart = function(){ if(typeof ant === "function") try{ ant(); }catch(_){}; revela(); };
   // fallback: mostra assim que o gameManager existir
@@ -343,6 +349,21 @@ document.addEventListener("touchend", function(e){
     if(window.EJS_emulator && window.EJS_emulator.gameManager){ revela(); clearInterval(t); }
   }, 500);
   setTimeout(function(){ clearInterval(t); }, 30000);
+
+  // ── Auto-reset do 1º load ─────────────────────────────────────────────────
+  // Bug relatado: às vezes o jogo não engata no 1º load (precisa "voltar e abrir
+  // de novo"). Se em ~7s o emulador não começou, recarregamos a página UMA vez
+  // sozinhos — o core e a ROM já estão em cache, então o 2º load engata, igual
+  // ao retry manual. sessionStorage garante no MÁXIMO 1 reload (sem loop).
+  setTimeout(function(){
+    if(comecou) return;
+    try{
+      if(!sessionStorage.getItem(chaveRetry)){
+        sessionStorage.setItem(chaveRetry, "1");
+        location.reload();
+      }
+    }catch(_){}
+  }, 7000);
 })();
 </script>
 
