@@ -20,11 +20,12 @@ const TEMA: Record<string, string> = {
 };
 const corDe = (chave: string) => TEMA[chave] ?? "#fbbf24";
 
-// Modo nuvem (opcional): se NEXT_PUBLIC_CLOUD_GAMING_URL estiver setado, o
-// emulador roda num CONTÊINER no servidor (CloudRetro) e transmite o vídeo — o
-// iPhone só recebe o stream, então acaba o teto de memória do Safari (fim dos
-// crashes). Sem a env, o modo nuvem simplesmente não aparece.
-const CLOUD_URL = (process.env.NEXT_PUBLIC_CLOUD_GAMING_URL || "").trim();
+// Modo nuvem: o emulador roda num CONTÊINER no servidor (CloudRetro, na VM do
+// dono no Google Cloud) e transmite o vídeo — o iPhone só recebe o stream, então
+// acaba o teto de memória do Safari (fim dos crashes). O endereço padrão é a VM
+// do dono (IP estático reservado); NEXT_PUBLIC_CLOUD_GAMING_URL sobrepõe se um
+// dia mudar (ex.: um domínio com HTTPS). Vazio → o cartão não aparece.
+const CLOUD_URL = (process.env.NEXT_PUBLIC_CLOUD_GAMING_URL || "http://34.95.147.99:8000").trim();
 
 async function existe(url: string): Promise<boolean> {
   try {
