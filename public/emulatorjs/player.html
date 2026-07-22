@@ -33,6 +33,20 @@
     padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   #erro{color:#fca5a5;font:14px system-ui;padding:80px 24px;text-align:center}
 
+  /* Aviso de crash (ROM incompatível): em vez de a aba morrer/recarregar
+     sozinha num loop, mostra opções. */
+  #crashMsg{ position:fixed; left:50%; top:calc(env(safe-area-inset-top,0px) + 46px);
+    transform:translateX(-50%); z-index:40; display:none; max-width:min(92vw,380px);
+    padding:12px 14px; border-radius:12px; background:rgba(20,15,24,.96);
+    border:1px solid rgba(240,120,110,.5); color:#fca5a5; font:600 12px/1.4 system-ui;
+    text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.6); backdrop-filter:blur(4px) }
+  #crashMsg b{ color:#fecaca }
+  #crashMsg .row{ margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap }
+  #crashMsg button,#crashMsg a{ font:700 12px system-ui; padding:7px 13px; border-radius:8px;
+    border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:#fcd9a0;
+    text-decoration:none; cursor:pointer }
+  #crashMsg button.primary{ background:#f0b860; color:#1a1206; border-color:#fde68a }
+
   /* Some com o gamepad virtual embutido do EmulatorJS — usamos o nosso. */
   .ejs_virtualGamepad_parent{display:none !important}
 
@@ -159,9 +173,35 @@ document.addEventListener("touchend", function(e){
   window.addEventListener("pagehide", function(){ try{ if(lock) lock.release(); }catch(_){}; lock = null; });
   pega();
 })();
+
+// Rede de segurança para ROM incompatível: se o WASM do core ABORTAR (erro
+// fatal), em vez de a aba congelar/recarregar sozinha, mostramos um aviso com
+// "Tentar de novo / Voltar / Ignorar". Só dispara em erros claramente fatais
+// (aborts do wasm), nunca nos avisos benignos que o EmulatorJS às vezes emite.
+(function(){
+  var mostrado = false;
+  var FATAL = /abort(ed)?|out of memory|memory access|RuntimeError|unreachable|table index|null function|call stack/i;
+  function crash(msg){
+    if(mostrado || (msg && !FATAL.test(String(msg)))) return;
+    mostrado = true;
+    var el = document.getElementById("crashMsg");
+    if(el) el.style.display = "block";
+  }
+  window.addEventListener("error", function(e){ crash(e && (e.message || (e.error && e.error.message))); });
+  window.addEventListener("unhandledrejection", function(e){ crash(e && e.reason && (e.reason.message || e.reason)); });
+})();
 </script>
 <a id="voltar" href="/gameboy">&#8249; voltar</a>
 <div id="game"></div>
+
+<div id="crashMsg" role="alert">
+  <div>😵 <b>O jogo travou.</b> Pode ser um ROM incompatível com o emulador.</div>
+  <div class="row">
+    <button class="primary" onclick="location.reload()">Tentar de novo</button>
+    <a href="/gameboy">Voltar</a>
+    <button onclick="document.getElementById('crashMsg').style.display='none'">Ignorar</button>
+  </div>
+</div>
 
 <!-- Controles próprios (grandes, translúcidos) — dirigem o core pela API do
      EmulatorJS (gameManager.simulateInput). Layouts distintos por orientação. -->
