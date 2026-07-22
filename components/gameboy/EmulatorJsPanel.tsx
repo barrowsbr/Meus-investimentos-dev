@@ -7,7 +7,7 @@
 // aparelho" para abrir qualquer ROM do próprio iPhone.
 
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, Search, Share, TriangleAlert, X } from "lucide-react";
+import { Cloud, FolderOpen, Search, Share, TriangleAlert, X } from "lucide-react";
 import ConsoleArt from "./ConsoleArt";
 import { CHAVE_ARQUIVO_EJS, idbGravarRom, idbLerRom } from "./rom-store";
 
@@ -19,6 +19,12 @@ const TEMA: Record<string, string> = {
   gameboy: "#9ae66e", gbc: "#a78bfa", gba: "#818cf8", snes: "#f472b6", megadrive: "#60a5fa",
 };
 const corDe = (chave: string) => TEMA[chave] ?? "#fbbf24";
+
+// Modo nuvem (opcional): se NEXT_PUBLIC_CLOUD_GAMING_URL estiver setado, o
+// emulador roda num CONTÊINER no servidor (CloudRetro) e transmite o vídeo — o
+// iPhone só recebe o stream, então acaba o teto de memória do Safari (fim dos
+// crashes). Sem a env, o modo nuvem simplesmente não aparece.
+const CLOUD_URL = (process.env.NEXT_PUBLIC_CLOUD_GAMING_URL || "").trim();
 
 async function existe(url: string): Promise<boolean> {
   try {
@@ -141,6 +147,28 @@ export default function EmulatorJsPanel() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* Modo nuvem — roda no servidor, não trava o iPhone */}
+      {CLOUD_URL && (
+        <a
+          href={CLOUD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-2xl p-3.5 transition-transform hover:-translate-y-0.5"
+          style={{ background: "linear-gradient(135deg, rgba(56,189,248,0.16), rgba(129,140,248,0.14))", border: "1px solid rgba(56,189,248,0.4)", boxShadow: "0 0 24px rgba(56,189,248,0.12)" }}
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(56,189,248,0.18)" }}>
+            <Cloud size={22} className="text-sky-300" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-bold text-sky-200">Modo nuvem</span>
+              <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-100" style={{ background: "rgba(56,189,248,0.25)" }}>beta</span>
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-sky-100/80">Roda no servidor e transmite o vídeo — não trava o iPhone. Abre em nova aba.</span>
+          </span>
+        </a>
       )}
 
       {carregando && <p className="text-center text-xs text-zinc-500">Carregando os consoles…</p>}
