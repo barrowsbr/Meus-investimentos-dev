@@ -32,7 +32,7 @@ const POR_ROTA: Array<[string, LoaderVariant]> = [
   ["/agente-ia", "robo"],
   ["/renda-variavel", "pregao"], ["/trades", "pregao"], ["/opcoes", "pregao"], ["/resumo", "pregao"], ["/etf-cem", "pregao"],
   ["/financas", "cofrinho"], ["/proventos", "rolo"], ["/renda-fixa", "rolo"], ["/fluxos", "rolo"], ["/ibkr", "rolo"],
-  ["/", "nucleo"], // Home (por último: prefixo pega tudo) — cena "Fluxo" (arcos de luz)
+  ["/", "nucleo"], // Home (por último: prefixo pega tudo) — HUD "Núcleo" (substituiu a árvore H6)
 
 ];
 
@@ -87,16 +87,76 @@ function Cena({ v }: { v: LoaderVariant }) {
         </div>
       );
     case "nucleo":
-      // "Fluxo" (Home) — dois arcos de luz (âmbar + ciano) varrendo em sentidos
-      // opostos sobre um aro de ticks, com um núcleo de plasma pulsante. Limpo,
-      // moderno, sem números. Palco XL (a Home esconde o header no load).
+      // "Núcleo" (Home) — HUD holográfico de terminal: aro de ticks como
+      // instrumento, arcos concêntricos girando em sentidos opostos, varredura
+      // de radar, satélites orbitando com rastro, anéis de energia expandindo e
+      // um core âmbar pulsante com cruz de mira; glifos de "dado" piscam ao
+      // redor. Palco XL (a Home esconde o header durante o load).
       return (
-        <div className="ldr-flow">
-          <span className="ldr-flow-ticks" />
-          <span className="ldr-flow-ring" />
-          <span className="ldr-flow-ring2" />
-          <span className="ldr-flow-core" />
-        </div>
+        <svg className="ldr-nucleo" viewBox="0 0 400 400" aria-hidden>
+          <defs>
+            <radialGradient id="ldrNucCore" cx=".5" cy=".42" r=".62">
+              <stop offset="0" stopColor="#fff7e0" />
+              <stop offset=".35" stopColor="#F5CE85" />
+              <stop offset=".75" stopColor="#C9852E" />
+              <stop offset="1" stopColor="#8a5a1a" />
+            </radialGradient>
+            <linearGradient id="ldrNucArco" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#F0B860" />
+              <stop offset="1" stopColor="rgba(240,184,96,0)" />
+            </linearGradient>
+            <linearGradient id="ldrNucArco2" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#22d3ee" />
+              <stop offset="1" stopColor="rgba(34,211,238,0)" />
+            </linearGradient>
+          </defs>
+
+          {/* aro externo de ticks (instrumento) */}
+          <circle className="ldr-nuc-ticks" cx="200" cy="200" r="182" />
+          <circle className="ldr-nuc-ticks ldr-nuc-ticks2" cx="200" cy="200" r="172" />
+
+          {/* varredura de radar (gomo cônico girando) */}
+          <g className="ldr-nuc-sweep">
+            <path d="M200 200 L200 34 A166 166 0 0 1 283 56 Z" />
+          </g>
+
+          {/* arcos concêntricos girando em sentidos opostos */}
+          <g className="ldr-nuc-g ldr-nuc-cw">
+            <circle className="ldr-nuc-arco ldr-nuc-a1" cx="200" cy="200" r="150" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-ccw">
+            <circle className="ldr-nuc-arco ldr-nuc-a2" cx="200" cy="200" r="122" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-cw2">
+            <circle className="ldr-nuc-arco ldr-nuc-a3" cx="200" cy="200" r="94" />
+          </g>
+
+          {/* satélites orbitando (com rastro) */}
+          <g className="ldr-nuc-g ldr-nuc-orb1">
+            <circle className="ldr-nuc-sat" cx="200" cy="50" r="4" />
+            <circle className="ldr-nuc-rastro" cx="200" cy="50" r="8" />
+          </g>
+          <g className="ldr-nuc-g ldr-nuc-orb2">
+            <circle className="ldr-nuc-sat ldr-nuc-sat2" cx="200" cy="78" r="3" />
+          </g>
+
+          {/* anéis de energia expandindo do core */}
+          <circle className="ldr-nuc-onda" cx="200" cy="200" r="46" />
+          <circle className="ldr-nuc-onda ldr-nuc-onda2" cx="200" cy="200" r="46" />
+
+          {/* core pulsante + cruz de mira */}
+          <circle className="ldr-nuc-halo" cx="200" cy="200" r="58" />
+          <circle className="ldr-nuc-core" cx="200" cy="200" r="42" />
+          <g className="ldr-nuc-mira">
+            <path d="M200 128 V148 M200 252 V272 M128 200 H148 M252 200 H272" />
+          </g>
+
+          {/* glifos de dado piscando (textura, não legenda) */}
+          <text className="ldr-nuc-glifo ldr-nuc-gl1" x="66" y="90">010</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl2" x="304" y="104">▲</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl3" x="318" y="312">R$</text>
+          <text className="ldr-nuc-glifo ldr-nuc-gl4" x="58" y="322">110</text>
+        </svg>
       );
     case "radar":
       return (
@@ -245,30 +305,47 @@ const CSS = `
 .ldr-plim { position: absolute; left: 50%; top: 58px; width: 28px; height: 28px; margin-left: -14px; border: 2px solid #E8A33D; border-radius: 50%; opacity: 0; animation: ldr-plim 1.5s ease-out infinite; }
 @keyframes ldr-plim { 0%,66% { transform: scale(.2); opacity: 0; } 72% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 
-/* fluxo — arcos de luz (Home), sem números */
+/* núcleo — HUD holográfico (Home) */
 .ldr-stage-xl { width: min(94vw, 520px); height: min(52vh, 380px); }
-.ldr-flow { position: relative; width: min(300px, 70vw); height: min(300px, 70vw); display: flex; align-items: center; justify-content: center; }
-.ldr-flow-ticks, .ldr-flow-ring, .ldr-flow-ring2 { position: absolute; border-radius: 50%; }
-/* aro externo de ticks (instrumento), giro bem lento */
-.ldr-flow-ticks { inset: 0; background: repeating-conic-gradient(from 0deg, rgba(240,184,96,.35) 0 .5deg, transparent .5deg 5deg);
-  -webkit-mask: radial-gradient(circle, transparent 44%, #000 45% 47%, transparent 48%);
-          mask: radial-gradient(circle, transparent 44%, #000 45% 47%, transparent 48%);
-  animation: ldr-girar-rev 38s linear infinite; }
-/* arco âmbar varrendo (rápido) */
-.ldr-flow-ring { inset: 11%; background: conic-gradient(from 0deg, transparent 0 38%, rgba(240,184,96,.05) 55%, #F0B860 90%, #fff7e0 99%, transparent);
-  -webkit-mask: radial-gradient(farthest-side, transparent 70%, #000 72%);
-          mask: radial-gradient(farthest-side, transparent 70%, #000 72%);
-  filter: drop-shadow(0 0 8px rgba(240,184,96,.45)); animation: ldr-girar 1.5s cubic-bezier(.6,.1,.4,.9) infinite; }
-/* arco ciano varrendo ao contrário */
-.ldr-flow-ring2 { inset: 24%; background: conic-gradient(from 180deg, transparent 0 55%, #22d3ee 92%, #dff9ff 99%, transparent);
-  -webkit-mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
-          mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
-  filter: drop-shadow(0 0 7px rgba(34,211,238,.45)); animation: ldr-girar-rev 2.1s linear infinite; }
-/* núcleo de plasma pulsante */
-.ldr-flow-core { width: 13.5%; height: 13.5%; border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #fff7e0, #F5CE85 40%, #C9852E 82%);
-  box-shadow: 0 0 22px rgba(240,184,96,.55); animation: ldr-flow-pulse 2.2s ease-in-out infinite; }
-@keyframes ldr-flow-pulse { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.14); opacity: 1; } }
+.ldr-nucleo { width: 100%; height: 100%; max-width: 380px; max-height: 380px; }
+.ldr-nuc-g { transform-origin: 200px 200px; }
+.ldr-nuc-cw   { animation: ldr-girar 9s linear infinite; }
+.ldr-nuc-ccw  { animation: ldr-girar-rev 6s linear infinite; }
+.ldr-nuc-cw2  { animation: ldr-girar 3.6s linear infinite; }
+/* aro de ticks: tracinhos curtos, giro bem lento */
+.ldr-nuc-ticks { fill: none; stroke: rgba(240,184,96,.35); stroke-width: 7; stroke-dasharray: 1.5 8.029; transform-origin: 200px 200px; animation: ldr-girar 60s linear infinite; }
+.ldr-nuc-ticks2 { fill: none; stroke: rgba(240,184,96,.14); stroke-width: 3; stroke-dasharray: 1 4.629; transform-origin: 200px 200px; animation: ldr-girar-rev 45s linear infinite; }
+/* varredura de radar */
+.ldr-nuc-sweep { transform-origin: 200px 200px; animation: ldr-girar 4.5s linear infinite; }
+.ldr-nuc-sweep path { fill: rgba(240,184,96,.10); }
+/* arcos com gradiente que somem na cauda */
+.ldr-nuc-arco { fill: none; stroke-linecap: round; }
+.ldr-nuc-a1 { stroke: url(#ldrNucArco); stroke-width: 2.6; stroke-dasharray: 500 443; filter: drop-shadow(0 0 6px rgba(240,184,96,.5)); }
+.ldr-nuc-a2 { stroke: url(#ldrNucArco2); stroke-width: 2; stroke-dasharray: 380 387; opacity: .85; filter: drop-shadow(0 0 6px rgba(34,211,238,.5)); }
+.ldr-nuc-a3 { stroke: rgba(240,184,96,.75); stroke-width: 1.6; stroke-dasharray: 8 16; }
+/* satélites */
+.ldr-nuc-orb1 { animation: ldr-girar 7s linear infinite; }
+.ldr-nuc-orb2 { animation: ldr-girar-rev 4.8s linear infinite; }
+.ldr-nuc-sat { fill: #22d3ee; filter: drop-shadow(0 0 6px rgba(34,211,238,.9)); }
+.ldr-nuc-sat2 { fill: #F0B860; filter: drop-shadow(0 0 6px rgba(240,184,96,.9)); }
+.ldr-nuc-rastro { fill: none; stroke: rgba(34,211,238,.35); stroke-width: 1; animation: ldr-resp 1.4s ease-in-out infinite; }
+/* ondas de energia */
+.ldr-nuc-onda { fill: none; stroke: rgba(240,184,96,.55); stroke-width: 1.4; transform-origin: 200px 200px; animation: ldr-nuc-onda 3s ease-out infinite; }
+.ldr-nuc-onda2 { stroke: rgba(34,211,238,.4); animation-delay: 1.5s; }
+@keyframes ldr-nuc-onda { 0% { transform: scale(.6); opacity: 0; } 12% { opacity: .9; } 100% { transform: scale(3.4); opacity: 0; } }
+/* core */
+.ldr-nuc-halo { fill: rgba(240,184,96,.12); filter: blur(6px); transform-origin: 200px 200px; animation: ldr-nuc-respirar 2.2s ease-in-out infinite; }
+.ldr-nuc-core { fill: url(#ldrNucCore); transform-origin: 200px 200px; filter: drop-shadow(0 0 18px rgba(240,184,96,.55)); animation: ldr-nuc-respirar 2.2s ease-in-out infinite; }
+@keyframes ldr-nuc-respirar { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.ldr-nuc-mira path { fill: none; stroke: rgba(240,184,96,.5); stroke-width: 1.6; stroke-linecap: round; }
+.ldr-nuc-mira { transform-origin: 200px 200px; animation: ldr-nuc-mira 5s ease-in-out infinite; }
+@keyframes ldr-nuc-mira { 0%,100% { transform: rotate(0deg); opacity: .5; } 50% { transform: rotate(90deg); opacity: 1; } }
+/* glifos de dado */
+.ldr-nuc-glifo { font-family: ui-monospace, monospace; font-size: 13px; fill: rgba(240,184,96,.55); opacity: 0; animation: ldr-nuc-glifo 3.2s ease-in-out infinite; }
+.ldr-nuc-gl2 { fill: rgba(52,211,153,.65); animation-delay: .9s; }
+.ldr-nuc-gl3 { animation-delay: 1.7s; }
+.ldr-nuc-gl4 { fill: rgba(34,211,238,.5); animation-delay: 2.4s; }
+@keyframes ldr-nuc-glifo { 0%,100% { opacity: 0; } 12%,34% { opacity: 1; } 48% { opacity: 0; } }
 
 /* radar */
 .ldr-radar { width: 96px; height: 96px; border-radius: 50%; position: relative; border: 1px solid rgba(232,163,61,.5); background: radial-gradient(circle, transparent 62%, rgba(232,163,61,.18) 63%, transparent 65%), radial-gradient(circle, transparent 30%, rgba(232,163,61,.18) 31%, transparent 33%); }
