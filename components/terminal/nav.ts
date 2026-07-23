@@ -3,7 +3,7 @@ import {
   Bitcoin, ArrowLeftRight, Receipt, Activity, Wallet, Settings, Bot,
   Scale, Crosshair, Layers,
   Radar, ArrowUpDown, ArrowDownUp, FlaskConical, Building2, StickyNote,
-  Rocket, Newspaper, Medal, Crown, Gamepad2,
+  Rocket, Newspaper, Medal, Crown, Gamepad2, CalendarDays,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -31,6 +31,7 @@ export const NAV: NavGroup[] = [
       { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2, sub: "Ações, ETFs, BDRs e FIIs" },
       { href: "/renda-fixa", label: "Renda Fixa", icon: Landmark, sub: "Tesouro, CDBs, LCI/LCA e debêntures" },
       { href: "/proventos", label: "Proventos", icon: Coins, sub: "Dividendos, JCP e rendimentos" },
+      { href: "/agenda", label: "Agenda", icon: CalendarDays, sub: "Calendário de proventos — datas-ex, pagamentos e anúncios" },
       { href: "/criptoativos", label: "Criptoativos", icon: Bitcoin, sub: "Bitcoin e demais criptoativos" },
       { href: "/opcoes", label: "Opções", icon: Crosshair, sub: "Posições em opções e estruturas" },
     ],

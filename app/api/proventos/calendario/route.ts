@@ -18,7 +18,7 @@ export const maxDuration = 45;
 
 interface EventoDividendo {
   ticker: string;
-  tipo: "ex" | "pagamento";
+  tipo: "ex" | "pagamento" | "anuncio";  // anuncio = próxima data de RESULTADOS (proxy p/ possível divulgação de proventos)
   date: string;          // YYYY-MM-DD
   moeda: string;
   dividendRate: number | null;   // dividendo anual (moeda nativa)
@@ -100,8 +100,14 @@ export async function GET(): Promise<NextResponse> {
           const payDate = toISODate(s?.calendarEvents?.dividendDate);
           const rate = typeof s?.summaryDetail?.dividendRate === "number" ? s.summaryDetail.dividendRate : null;
           const yld = typeof s?.summaryDetail?.dividendYield === "number" ? s.summaryDetail.dividendYield * 100 : null;
+          // Próxima data de RESULTADOS: proxy do "quando vai divulgar" (empresas
+          // costumam anunciar proventos junto/perto dos resultados). É um array
+          // (às vezes um intervalo estimado) — pegamos a 1ª data futura.
+          const earnDates: unknown[] = Array.isArray(s?.calendarEvents?.earnings?.earningsDate) ? s.calendarEvents.earnings.earningsDate : [];
+          const anuncioDate = earnDates.map(toISODate).filter((d): d is string => !!d && d >= piso).sort()[0] ?? null;
           if (exDate && exDate >= piso) eventos.push({ ticker, tipo: "ex", date: exDate, moeda, dividendRate: rate, dividendYield: yld });
           if (payDate && payDate >= piso && payDate !== exDate) eventos.push({ ticker, tipo: "pagamento", date: payDate, moeda, dividendRate: rate, dividendYield: yld });
+          if (anuncioDate) eventos.push({ ticker, tipo: "anuncio", date: anuncioDate, moeda, dividendRate: rate, dividendYield: yld });
         } catch {
           // ticker sem calendário/dividendo → ignora
         }
