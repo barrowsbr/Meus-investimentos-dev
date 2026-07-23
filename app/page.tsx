@@ -187,8 +187,11 @@ function TickerTape({ items }: { items: TickerItem[] }) {
   const onItemClick = (e: React.MouseEvent) => { if (moved.current) e.preventDefault(); };
 
   if (items.length === 0) return null;
-  const best5 = items.slice(0, 5);
-  const worst5 = [...items].reverse().slice(0, 5);
+  // Só ativos que REALMENTE subiram entram no Top Altas (e que caíram, no Baixas).
+  // Num dia negativo com só 2 em alta, mostramos 2 — nunca completamos 5 com quedas
+  // (o que gerava o "+-0,14%" sem sentido). `items` vem ordenado desc por variação.
+  const best5 = items.filter((p) => p.changePct > 0).slice(0, 5);
+  const worst5 = items.filter((p) => p.changePct < 0).reverse().slice(0, 5);
 
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
@@ -251,6 +254,9 @@ function TickerTape({ items }: { items: TickerItem[] }) {
                 </span>
               </Link>
             ))}
+            {best5.length === 0 && (
+              <div className="px-3 py-2 font-mono text-[10px] italic" style={{ color: "var(--muted)" }}>Nenhuma alta hoje</div>
+            )}
           </div>
           <div>
             <div className="px-3 py-1.5" style={{ borderBottom: "1px solid var(--line)", background: "rgba(240,80,74,0.06)" }}>
@@ -265,6 +271,9 @@ function TickerTape({ items }: { items: TickerItem[] }) {
                 </span>
               </Link>
             ))}
+            {worst5.length === 0 && (
+              <div className="px-3 py-2 font-mono text-[10px] italic" style={{ color: "var(--muted)" }}>Nenhuma baixa hoje</div>
+            )}
           </div>
         </div>
       )}
