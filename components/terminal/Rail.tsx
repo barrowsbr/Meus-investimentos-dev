@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { NAV } from "./nav";
+import { CONFIG_ITEM, INICIO_HREF, INICIO_ICON, spaceForPath, type IconType } from "./nav";
 
 interface Props {
   /** Aberto como slide-over no mobile (< 1100px). */
@@ -16,6 +16,38 @@ interface Props {
 
 export default function Rail({ open = false, collapsed = false, onToggleCollapse, onNavigate }: Props) {
   const pathname = usePathname();
+  const space = spaceForPath(pathname);
+  const items = space ? space.items : [];
+
+  // Um link da sidebar (reutilizado por Início, itens do espaço e Configurações).
+  const railLink = (href: string, label: string, Icon: IconType) => {
+    const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={onNavigate}
+        data-active={active}
+        title={collapsed ? label : undefined}
+        className={`t-rail-item relative flex items-center gap-2.5 w-full px-2.5 py-[7px] text-left ${
+          collapsed ? "min-[1100px]:justify-center min-[1100px]:gap-0 min-[1100px]:px-0 min-[1100px]:py-[9px]" : ""
+        }`}
+        style={{
+          background: active ? "var(--accent-wash)" : "transparent",
+          color: active ? "var(--accent)" : "var(--muted)",
+          fontSize: 12.5,
+          fontWeight: active ? 600 : 500,
+          borderRadius: collapsed ? 6 : 0,
+        }}
+      >
+        {active && (
+          <span aria-hidden className={`absolute left-0 top-1.5 bottom-1.5 ${collapsed ? "min-[1100px]:hidden" : ""}`} style={{ width: 2, background: "var(--accent)" }} />
+        )}
+        <Icon size={15} strokeWidth={active ? 2 : 1.6} className={collapsed ? "min-[1100px]:!w-[18px] min-[1100px]:!h-[18px]" : ""} />
+        <span className={collapsed ? "min-[1100px]:hidden" : ""}>{label}</span>
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -74,67 +106,35 @@ export default function Rail({ open = false, collapsed = false, onToggleCollapse
           </span>
         </div>
 
-        {/* Navegação */}
+        {/* Navegação POR ESPAÇO — só as páginas da categoria atual */}
         <nav className={`flex-1 px-2 ${collapsed ? "min-[1100px]:px-1" : ""} py-2.5`}>
-          {NAV.map((sec, si) => (
-            <div key={si} className="mb-2.5">
-              {sec.label && (
-                <div
-                  className={`px-2.5 pt-1.5 pb-1 font-mono ${collapsed ? "min-[1100px]:hidden" : ""}`}
-                  style={{
-                    fontSize: 8.5,
-                    fontWeight: 600,
-                    letterSpacing: ".18em",
-                    textTransform: "uppercase",
-                    color: "var(--faint)",
-                  }}
-                >
-                  {sec.label}
-                </div>
-              )}
-              {collapsed && sec.label && (
-                <div className="my-1 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
-              )}
-              {sec.items.map(({ href, label, icon: Icon }) => {
-                const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={onNavigate}
-                    data-active={active}
-                    title={collapsed ? label : undefined}
-                    className={`t-rail-item relative flex items-center gap-2.5 w-full px-2.5 py-[7px] text-left ${
-                      collapsed ? "min-[1100px]:justify-center min-[1100px]:gap-0 min-[1100px]:px-0 min-[1100px]:py-[9px]" : ""
-                    }`}
-                    style={{
-                      background: active ? "var(--accent-wash)" : "transparent",
-                      color: active ? "var(--accent)" : "var(--muted)",
-                      fontSize: 12.5,
-                      fontWeight: active ? 600 : 500,
-                      borderRadius: collapsed ? 6 : 0,
-                    }}
-                  >
-                    {active && (
-                      <span
-                        aria-hidden
-                        className={`absolute left-0 top-1.5 bottom-1.5 ${collapsed ? "min-[1100px]:hidden" : ""}`}
-                        style={{ width: 2, background: "var(--accent)" }}
-                      />
-                    )}
-                    <Icon size={15} strokeWidth={active ? 2 : 1.6} className={collapsed ? "min-[1100px]:!w-[18px] min-[1100px]:!h-[18px]" : ""} />
-                    <span className={collapsed ? "min-[1100px]:hidden" : ""}>{label}</span>
-                  </Link>
-                );
-              })}
+          {/* Voltar à tela inicial (hub de categorias) */}
+          {railLink(INICIO_HREF, "Início", INICIO_ICON)}
+
+          {/* Rótulo do espaço ativo */}
+          {space && !collapsed && (
+            <div
+              className="px-2.5 pt-3 pb-1 font-mono"
+              style={{ fontSize: 8.5, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--faint)" }}
+            >
+              {space.label}
             </div>
-          ))}
+          )}
+          {space && collapsed && (
+            <div className="my-2 mx-auto hidden min-[1100px]:block" style={{ width: 20, height: 1, background: "var(--line)" }} />
+          )}
+
+          {/* Itens do espaço */}
+          {items.map((it) => railLink(it.href, it.label, it.icon))}
         </nav>
 
+        {/* Configurações — página única, sempre acessível */}
+        <div style={{ borderTop: "1px solid var(--line)" }} className={`px-2 ${collapsed ? "min-[1100px]:px-1" : ""} py-2`}>
+          {railLink(CONFIG_ITEM.href, CONFIG_ITEM.label, CONFIG_ITEM.icon)}
+        </div>
         <div
-          className={`px-3.5 py-2.5 font-mono ${collapsed ? "min-[1100px]:hidden" : ""}`}
+          className={`px-3.5 pb-2.5 font-mono ${collapsed ? "min-[1100px]:hidden" : ""}`}
           style={{
-            borderTop: "1px solid var(--line)",
             fontSize: 9,
             color: "var(--faint)",
             letterSpacing: ".1em",
