@@ -14,6 +14,7 @@ export interface NewsArticle {
   local?: boolean;      // veículo regional/nativo
   idioma?: string;      // idioma original (quando traduzida)
   original?: string;    // título no idioma original
+  escopo?: "regulacao" | "mercado";  // aba Trabalho: normas/Bacen × mercado/inovação
 }
 
 export function timeAgo(dateStr: string): string {

@@ -69,6 +69,7 @@ export const FEEDS_DIRETOS: FonteFeed[] = [
   // aba Trabalho — o classificador ainda refina por keyword.
   { url: "https://www.mobiletime.com.br/feed/", fonte: "Mobile Time", tema: "pagamentos", lang: "pt", max: 12 },
   { url: "https://finsidersbrasil.com.br/feed/", fonte: "Finsiders Brasil", tema: "pagamentos", lang: "pt", max: 12 },
+  { url: "https://panoramaabecs.com.br/feed/", fonte: "Panorama ABECS", tema: "pagamentos", lang: "pt", max: 12 },
   { url: "https://www.pymnts.com/feed/", fonte: "PYMNTS", tema: "pagamentos", lang: "en", max: 12 },
   { url: "https://www.finextra.com/rss/headlines.aspx", fonte: "Finextra", tema: "pagamentos", lang: "en", max: 12 },
   { url: "https://thepaypers.com/rss", fonte: "The Paypers", tema: "pagamentos", lang: "en", max: 10 },

@@ -81,6 +81,9 @@ export default function NoticiasPanel() {
   const [buscaQ, setBuscaQ] = useState("");
   const [buscaRes, setBuscaRes] = useState<NewsArticle[] | null>(null);
 
+  // Filtro de escopo da aba Trabalho (segmenta normas × mercado).
+  const [escopoTrab, setEscopoTrab] = useState<"tudo" | "regulacao" | "mercado">("tudo");
+
   // Perfil mudou (card em Configurações) → refaz o "Para você" na próxima visita.
   useEffect(() => {
     const onPerfil = () => setForyou(null);
@@ -187,18 +190,43 @@ export default function NoticiasPanel() {
       {loading ? <Loading /> : (
         <>
           {sub === "mercado" && <Jornal articles={mercado ?? []} />}
-          {sub === "trabalho" && (
-            <div>
-              <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                {["Pix & Bacen", "Bandeiras", "Adquirentes", "Emissores", "Open Finance", "DREX", "Software de gestão"].map(t => (
-                  <span key={t} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.28)", color: "#6ee7b7" }}>
-                    {t}
-                  </span>
-                ))}
+          {sub === "trabalho" && (() => {
+            const todos = trabalho ?? [];
+            const filtrados = escopoTrab === "tudo" ? todos : todos.filter(a => (a.escopo ?? "mercado") === escopoTrab);
+            const nReg = todos.filter(a => a.escopo === "regulacao").length;
+            const nMer = todos.length - nReg;
+            const filtros: { id: typeof escopoTrab; label: string; n: number }[] = [
+              { id: "tudo", label: "Tudo", n: todos.length },
+              { id: "regulacao", label: "Regulação & normas", n: nReg },
+              { id: "mercado", label: "Mercado & inovação", n: nMer },
+            ];
+            return (
+              <div>
+                <p className="mb-2 text-xs" style={{ color: "var(--faint)" }}>
+                  Pagamentos (Pix, Bacen, bandeiras, adquirentes, emissores, open finance, DREX) e software de gestão — só o setor, sem cotação de ação.
+                </p>
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  {filtros.map(({ id, label, n }) => {
+                    const active = escopoTrab === id;
+                    return (
+                      <button key={id} onClick={() => setEscopoTrab(id)}
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
+                        style={{
+                          background: active ? "rgba(52,211,153,0.16)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${active ? "rgba(52,211,153,0.42)" : "rgba(255,255,255,0.08)"}`,
+                          color: active ? "#6ee7b7" : "var(--muted)",
+                        }}>
+                        {label}<span style={{ opacity: 0.6 }}>{n}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {filtrados.length === 0
+                  ? <Empty msg="Sem notícias neste recorte agora." />
+                  : <Jornal articles={filtrados} />}
               </div>
-              <Jornal articles={trabalho ?? []} />
-            </div>
-          )}
+            );
+          })()}
           {sub === "cripto" && <Jornal articles={cripto ?? []} />}
           {sub === "mundo" && <Jornal articles={mundo[pais] ?? []} />}
           {sub === "foryou" && (

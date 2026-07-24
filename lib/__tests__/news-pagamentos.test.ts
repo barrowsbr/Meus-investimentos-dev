@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { classificarTema, ehPagamentos, ehRuido } from "@/lib/news/temas";
+import { ehLenteInvestidorPura, escopoDe } from "@/lib/news/trabalho";
+import type { NewsItem } from "@/lib/news/types";
+
+function item(titulo: string, fonte = "Google News"): NewsItem {
+  return { titulo, link: "https://x/" + titulo, data: "", fonte, imagem: null, categoria: "pagamentos", impacto: "baixo", tema: "pagamentos" };
+}
 
 // Cobre o núcleo da aba "Trabalho" (mercado de meios de pagamento + software de
 // gestão): o classificador de tema e o filtro de relevância que decide o que
@@ -53,5 +59,31 @@ describe("ruído continua barrado na aba Trabalho", () => {
   it("listicle/oferta some mesmo citando pagamento", () => {
     // O motor combina ehPagamentos && !ehRuido — listicle não entra.
     expect(ehRuido("5 melhores maquininhas de cartão para comprar barato")).toBe(true);
+  });
+});
+
+describe("segmentação investimento × trabalho (lente de investidor)", () => {
+  it("barra matéria de PAPEL/cotação pura (vai pras abas de investimento)", () => {
+    expect(ehLenteInvestidorPura("Ações da Cielo sobem 4% na bolsa após balanço")).toBe(true);
+    expect(ehLenteInvestidorPura("PagSeguro: analistas elevam preço-alvo")).toBe(true);
+    expect(ehLenteInvestidorPura("Stone shares jump 6% on earnings beat")).toBe(true);
+  });
+
+  it("mantém matéria com SUBSTÂNCIA setorial, mesmo citando a bolsa", () => {
+    // Tem regra/produto/Bacen → é trabalho, fica na aba mesmo mencionando ação.
+    expect(ehLenteInvestidorPura("Ações da Cielo sobem após Bacen cortar MDR do setor")).toBe(false);
+    expect(ehLenteInvestidorPura("Stone lança maquininha e ação reage na bolsa")).toBe(false);
+  });
+});
+
+describe("escopo: regulação × mercado", () => {
+  it("normativa/Bacen/institucional → regulacao", () => {
+    expect(escopoDe(item("Banco Central publica resolução do Pix automático"))).toBe("regulacao");
+    expect(escopoDe(item("Open Finance ganha nova fase"))).toBe("regulacao");
+    expect(escopoDe(item("Setor cresce 12% no trimestre", "ABECS"))).toBe("regulacao"); // fonte institucional
+  });
+  it("bandeira/adquirente/produto → mercado", () => {
+    expect(escopoDe(item("Stone lança nova maquininha para PMEs"))).toBe("mercado");
+    expect(escopoDe(item("Adyen expande operação de adquirência no Brasil"))).toBe("mercado");
   });
 });
