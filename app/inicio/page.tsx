@@ -1,9 +1,9 @@
 "use client";
 
 // Tela inicial — hub pós-login (ativável em Configurações). Minimalista: só o
-// fundo 3D (quarto wireframe, perspectiva off-axis) + os 4 cartuchos DENTRO do
-// cubo (reprojetados pela mesma projeção → paralaxe junto com a sala). Sem
-// textos de topo/rodapé. Reage a mouse e giroscópio (ativado automaticamente).
+// fundo 3D (quarto wireframe, perspectiva off-axis) + os 4 cartuchos, agora como
+// OBJETOS 3D DE VERDADE (preserve-3d, 6 faces com espessura), reprojetados pela
+// mesma projeção da sala → giram com a perspectiva. Sem textos. Mouse + giroscópio.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -49,6 +49,9 @@ const CARTS: Cart[] = [
     ),
   },
 ];
+
+// Rotação de repouso por cartucho (mostra a espessura já parado): [rotX, rotY].
+const BASE_ROT: [number, number][] = [[9, 15], [9, -15], [-9, 15], [-9, -15]];
 
 export default function InicioPage() {
   const router = useRouter();
@@ -116,12 +119,13 @@ export default function InicioPage() {
         ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      const rotY = eye.x * 13, rotX = -eye.y * 13;
+      const rotY = eye.x * 18, rotX = -eye.y * 18;
       for (let i = 0; i < 4; i++) {
         const slot = slotRefs.current[i]; if (!slot) continue;
         const [ax, ay, az] = anchor(i);
         const [X, Y] = project(ax, ay, az);
-        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+        const [bx, by] = BASE_ROT[i];
+        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%) rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
       }
       raf = requestAnimationFrame(frame);
     }
@@ -183,7 +187,6 @@ export default function InicioPage() {
     const precisaPermissao = (DMc && DMc.requestPermission) || (DOc && DOc.requestPermission);
     let kick: (() => void) | null = null;
     if (precisaPermissao) {
-      // iOS: permissão exige gesto do usuário → ativa no PRIMEIRO toque, sem botão.
       kick = () => {
         enableGyro();
         window.removeEventListener("pointerdown", kick!, true);
@@ -192,7 +195,7 @@ export default function InicioPage() {
       window.addEventListener("pointerdown", kick, true);
       window.addEventListener("touchstart", kick, true);
     } else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) {
-      addGyro(); // Android/desktop com sensores: liga direto
+      addGyro();
     }
 
     window.addEventListener("resize", resize);
@@ -222,11 +225,17 @@ export default function InicioPage() {
           <button
             key={c.href}
             ref={(el) => { slotRefs.current[i] = el; }}
-            className="mih-slot"
+            className={`mih-slot ${c.cls}`}
             onClick={() => router.push(c.href)}
             aria-label={c.name}
           >
-            <div className={`mih-cart ${c.cls}`}>
+            {/* Objeto 3D — 6 faces com espessura */}
+            <div className="mih-face mih-side-l" />
+            <div className="mih-face mih-side-r" />
+            <div className="mih-face mih-side-t" />
+            <div className="mih-face mih-side-b" />
+            <div className="mih-face mih-back" />
+            <div className="mih-face mih-front">
               <div className="mih-ridges" />
               <div className="mih-label">
                 <span className="mih-screen" aria-hidden="true">{c.icon}</span>
@@ -250,25 +259,39 @@ const CSS = `
 .mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
-.mih-space{position:absolute;inset:0;z-index:3;perspective:820px;pointer-events:none;}
-.mih-slot{position:absolute;top:0;left:0;padding:0;border:0;background:none;cursor:pointer;pointer-events:auto;transform-style:preserve-3d;will-change:transform;}
+.mih-space{position:absolute;inset:0;z-index:3;perspective:900px;pointer-events:none;}
+.mih-slot{--hue:var(--gold);--w:clamp(108px,27vw,164px);--h:clamp(138px,35vw,200px);--t:clamp(14px,4.5vw,22px);
+  position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
+  pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;
+  filter:drop-shadow(0 20px 22px rgba(0,0,0,0.55));animation:mih-pop .45s ease both;}
+.mih-slot:nth-child(1){animation-delay:.02s;}.mih-slot:nth-child(2){animation-delay:.10s;}.mih-slot:nth-child(3){animation-delay:.18s;}.mih-slot:nth-child(4){animation-delay:.26s;}
 .mih-slot:focus-visible{outline:none;}
-.mih-cart{--hue:var(--gold);position:relative;display:block;width:clamp(104px,27vw,168px);text-align:left;padding:11px 11px 13px;background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;border-radius:8px 8px 10px 10px;clip-path:polygon(0 0,74% 0,86% 12%,100% 12%,100% 100%,0 100%);box-shadow:0 22px 34px -14px rgba(0,0,0,0.9),inset 0 1px 0 rgba(255,255,255,0.05);transition:transform .16s ease,filter .2s;animation:mih-pop .45s ease both;}
-.mih-slot:nth-child(1) .mih-cart{animation-delay:.02s;}.mih-slot:nth-child(2) .mih-cart{animation-delay:.10s;}.mih-slot:nth-child(3) .mih-cart{animation-delay:.18s;}.mih-slot:nth-child(4) .mih-cart{animation-delay:.26s;}
-.mih-slot:hover .mih-cart{transform:translateY(-6px);filter:brightness(1.1);}
-.mih-slot:focus-visible .mih-cart{filter:brightness(1.12);box-shadow:0 0 0 3px var(--hue),0 22px 34px -14px rgba(0,0,0,0.9);}
-.mih-slot:active .mih-cart{transform:translateY(-2px);}
 @keyframes mih-pop{from{opacity:0;}to{opacity:1;}}
-.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:11px;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0 3px,rgba(255,255,255,0.04) 3px 6px);}
-.mih-label{background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
+
+.mih-face{position:absolute;top:50%;left:50%;backface-visibility:hidden;}
+.mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
+.mih-side-l,.mih-side-r{width:var(--t);height:var(--h);}
+.mih-side-t,.mih-side-b{width:var(--w);height:var(--t);}
+.mih-front{transform:translate(-50%,-50%) translateZ(calc(var(--t)/2));background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);padding:11px;display:flex;flex-direction:column;}
+.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));background:linear-gradient(165deg,#26291f,#131610);border:1px solid #3a3d31;}
+.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#2e3126,#171a12);}
+.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#2e3126,#171a12);}
+.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#3f4335,#4a4e3e);}
+.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#0f1209;}
+
+.mih-slot:hover .mih-front{filter:brightness(1.12);}
+.mih-slot:focus-visible .mih-front{box-shadow:inset 0 0 0 2px var(--hue),inset 0 1px 0 rgba(255,255,255,0.06);}
+
+.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:11px;flex:none;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0 3px,rgba(255,255,255,0.04) 3px 6px);}
+.mih-label{flex:1;background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
 .mih-screen{width:clamp(44px,12vw,58px);height:clamp(44px,12vw,58px);display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
 .mih-screen svg{width:64%;height:64%;color:var(--hue);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 70%,transparent));}
 .mih-screen svg rect{fill:currentColor;}
 .mih-screen svg rect.k{fill:#0c0f08;}
 .mih-name{font-size:clamp(10px,2.6vw,12px);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
 .mih-fases{font-size:8.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
-.mih-slot:hover .mih-fases,.mih-slot:focus-visible .mih-fases{color:var(--hue);}
+.mih-slot:hover .mih-fases{color:var(--hue);}
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
-@media (prefers-reduced-motion:reduce){.mih-cart{animation:none;transition:none;}.mih-slot:hover .mih-cart{transform:none;}}
+@media (prefers-reduced-motion:reduce){.mih-slot{animation:none;}}
 `;
