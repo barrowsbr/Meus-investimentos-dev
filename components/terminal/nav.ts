@@ -42,7 +42,7 @@ export const SPACES: Space[] = [
     id: "investimentos", label: "Investimentos", icon: TrendingUp, home: "/",
     items: [
       { href: "/", label: "Home", icon: Home, sub: "Visão do dia", mobileShow: true },
-      { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos investimentos", mobileShow: true },
+      { href: "/resumo", label: "Resumo", icon: LayoutDashboard, sub: "Visão geral dos investimentos" },
       { href: "/renda-variavel", label: "Renda Variável", icon: BarChart2, sub: "Ações, ETFs, BDRs e FIIs" },
       { href: "/renda-fixa", label: "Renda Fixa", icon: Landmark, sub: "Tesouro, CDBs, LCI/LCA e debêntures" },
       { href: "/proventos", label: "Proventos", icon: Coins, sub: "Dividendos, JCP e rendimentos" },
