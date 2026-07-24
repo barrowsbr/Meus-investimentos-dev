@@ -333,6 +333,7 @@ export async function GET(request: Request) {
         ticker: "Trabalho",
         categoria: it.categoria,
         impacto: it.impacto,
+        escopo: it.escopo,
       }));
       return NextResponse.json(
         { articles, count: articles.length },
