@@ -1,9 +1,9 @@
 "use client";
 
-// Tela inicial — hub pós-login (ativável em Configurações). Minimalista: só o
-// fundo 3D (quarto wireframe, perspectiva off-axis) + os 4 cartuchos, agora como
-// OBJETOS 3D DE VERDADE (preserve-3d, 6 faces com espessura), reprojetados pela
-// mesma projeção da sala → giram com a perspectiva. Sem textos. Mouse + giroscópio.
+// Tela inicial — hub pós-login (ativável em Configurações). Só o fundo 3D
+// (quarto wireframe, perspectiva off-axis) + os 4 cartuchos como OBJETOS 3D
+// (preserve-3d, 6 faces com espessura), reprojetados pela mesma projeção da
+// sala → giram com a perspectiva. Mouse, arrastar o dedo e giroscópio.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -51,13 +51,15 @@ const CARTS: Cart[] = [
 ];
 
 // Rotação de repouso por cartucho (mostra a espessura já parado): [rotX, rotY].
-const BASE_ROT: [number, number][] = [[9, 15], [9, -15], [-9, 15], [-9, -15]];
+const BASE_ROT: [number, number][] = [[13, 22], [13, -22], [-13, 22], [-13, -22]];
 
 export default function InicioPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const enableGyroRef = useRef<() => void>(() => {});
   const [mounted, setMounted] = useState(false);
+  const [showGyroBtn, setShowGyroBtn] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -119,7 +121,7 @@ export default function InicioPage() {
         ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      const rotY = eye.x * 18, rotX = -eye.y * 18;
+      const rotY = eye.x * 24, rotX = -eye.y * 24;
       for (let i = 0; i < 4; i++) {
         const slot = slotRefs.current[i]; if (!slot) continue;
         const [ax, ay, az] = anchor(i);
@@ -130,21 +132,20 @@ export default function InicioPage() {
       raf = requestAnimationFrame(frame);
     }
 
-    // ── Entradas — mouse ──
+    // ── Entradas — mouse + dedo (sem permissão) ──
     const maxX = 0.7, maxY = 0.45;
     const clampU = (v: number) => (v < -1.25 ? -1.25 : v > 1.25 ? 1.25 : v);
     const onPointer = (e: PointerEvent) => {
       target.x = ((e.clientX / cw) - 0.5) * 1.1 * W; target.y = -((e.clientY / ch) - 0.5) * 0.75 * H;
     };
     document.addEventListener("pointermove", onPointer);
-    // Arrastar o dedo move a cena — funciona no celular SEM permissão nenhuma.
     const onTouchMove = (e: TouchEvent) => {
       const t = e.touches[0]; if (!t) return;
       target.x = ((t.clientX / cw) - 0.5) * 1.1 * W; target.y = -((t.clientY / ch) - 0.5) * 0.75 * H;
     };
     document.addEventListener("touchmove", onTouchMove, { passive: true });
 
-    // ── Giroscópio — inclinar (gravidade) + girar (bússola), auto ──
+    // ── Giroscópio — inclinar (gravidade) + girar (bússola) ──
     let base: { lr: number; fb: number } | null = null, gxs = 0, gys = 0, yaw = 0, baseA: number | null = null, gyroOn = false;
     const orientAngle = () => {
       if (window.screen && screen.orientation && screen.orientation.angle != null) return screen.orientation.angle;
@@ -176,7 +177,7 @@ export default function InicioPage() {
     };
     const recalibrate = () => { base = null; baseA = null; };
     const addGyro = () => { if (gyroOn) return; gyroOn = true; base = null; baseA = null;
-      window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientation", onOrient); };
+      window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientation", onOrient); setShowGyroBtn(false); };
     const enableGyro = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const DM = window.DeviceMotionEvent as any, DO = window.DeviceOrientationEvent as any, ps: Promise<string>[] = [];
@@ -185,21 +186,15 @@ export default function InicioPage() {
       if (ps.length) Promise.all(ps.map((p) => p.catch(() => "denied"))).then((rs) => { if (rs.indexOf("granted") >= 0) addGyro(); });
       else addGyro();
     };
+    enableGyroRef.current = enableGyro;
     window.addEventListener("dblclick", recalibrate);
     window.addEventListener("orientationchange", recalibrate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const DMc = window.DeviceMotionEvent as any, DOc = window.DeviceOrientationEvent as any;
     const precisaPermissao = (DMc && DMc.requestPermission) || (DOc && DOc.requestPermission);
-    const KICK_EVENTS = ["pointerdown", "touchend", "click"];
-    let kick: (() => void) | null = null;
-    if (precisaPermissao) {
-      // iOS exige gesto p/ pedir a permissão do sensor → ativa na 1ª interação.
-      kick = () => { enableGyro(); KICK_EVENTS.forEach((ev) => window.removeEventListener(ev, kick!, true)); };
-      KICK_EVENTS.forEach((ev) => window.addEventListener(ev, kick!, true));
-    } else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) {
-      addGyro();
-    }
+    if (precisaPermissao) setShowGyroBtn(true);         // iOS: botão pra liberar o sensor
+    else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) addGyro();
 
     window.addEventListener("resize", resize);
     resize(); raf = requestAnimationFrame(frame);
@@ -212,7 +207,6 @@ export default function InicioPage() {
       window.removeEventListener("deviceorientation", onOrient);
       window.removeEventListener("dblclick", recalibrate);
       window.removeEventListener("orientationchange", recalibrate);
-      if (kick) KICK_EVENTS.forEach((ev) => window.removeEventListener(ev, kick!, true));
       window.removeEventListener("resize", resize);
       document.body.style.overflow = "";
     };
@@ -233,7 +227,6 @@ export default function InicioPage() {
             onClick={() => router.push(c.href)}
             aria-label={c.name}
           >
-            {/* Objeto 3D — 6 faces com espessura */}
             <div className="mih-face mih-side-l" />
             <div className="mih-face mih-side-r" />
             <div className="mih-face mih-side-t" />
@@ -251,6 +244,10 @@ export default function InicioPage() {
         ))}
       </div>
 
+      {showGyroBtn && (
+        <button className="mih-gyro" onClick={() => enableGyroRef.current()}>Ativar movimento</button>
+      )}
+
       <style>{CSS}</style>
     </div>,
     document.body,
@@ -263,10 +260,9 @@ const CSS = `
 .mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
-/* IMPORTANTE: nada de filter/opacity/clip/overflow no .mih-slot — qualquer um
-   deles ACHATA o preserve-3d (força "flat") e mata o efeito 3D das faces. */
-.mih-space{position:absolute;inset:0;z-index:3;perspective:900px;pointer-events:none;}
-.mih-slot{--hue:var(--gold);--w:clamp(108px,27vw,164px);--h:clamp(138px,35vw,200px);--t:clamp(14px,4.5vw,22px);
+/* IMPORTANTE: nada de filter/opacity/clip/overflow no .mih-slot — achata o preserve-3d. */
+.mih-space{position:absolute;inset:0;z-index:3;perspective:680px;pointer-events:none;}
+.mih-slot{--hue:var(--gold);--w:clamp(98px,25vw,150px);--h:clamp(124px,32vw,186px);--t:clamp(26px,8vw,38px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
   pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
@@ -275,25 +271,28 @@ const CSS = `
 .mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
 .mih-side-l,.mih-side-r{width:var(--t);height:var(--h);}
 .mih-side-t,.mih-side-b{width:var(--w);height:var(--t);}
-.mih-front{transform:translate(-50%,-50%) translateZ(calc(var(--t)/2));background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);padding:11px;display:flex;flex-direction:column;}
-.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));background:linear-gradient(165deg,#26291f,#131610);border:1px solid #3a3d31;}
-.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#2e3126,#171a12);}
-.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#2e3126,#171a12);}
-.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#3f4335,#4a4e3e);}
-.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#0f1209;}
+.mih-front{transform:translate(-50%,-50%) translateZ(calc(var(--t)/2));background:linear-gradient(160deg,#42463781,#20231800),linear-gradient(160deg,#43473a,#23271c);border:1px solid #565a49;box-shadow:0 34px 40px -20px rgba(0,0,0,0.85),inset 0 1px 0 rgba(255,255,255,0.09);padding:11px;display:flex;flex-direction:column;}
+.mih-back{transform:translate(-50%,-50%) rotateY(180deg) translateZ(calc(var(--t)/2));background:linear-gradient(160deg,#22251b,#101309);border:1px solid #34382c;}
+/* laterais: gradiente que simula luz vindo de cima → topo mais claro */
+.mih-side-r{transform:translate(-50%,-50%) rotateY(90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#3a3e30,#14170e);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.3);}
+.mih-side-l{transform:translate(-50%,-50%) rotateY(-90deg) translateZ(calc(var(--w)/2));background:linear-gradient(180deg,#3a3e30,#14170e);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.3);}
+.mih-side-t{transform:translate(-50%,-50%) rotateX(90deg) translateZ(calc(var(--h)/2));background:linear-gradient(90deg,#4c5040,#565b48);}
+.mih-side-b{transform:translate(-50%,-50%) rotateX(-90deg) translateZ(calc(var(--h)/2));background:#0d1007;}
 
 .mih-slot:hover .mih-front{filter:brightness(1.12);}
-.mih-slot:focus-visible .mih-front{box-shadow:inset 0 0 0 2px var(--hue),inset 0 1px 0 rgba(255,255,255,0.06);}
+.mih-slot:focus-visible .mih-front{box-shadow:0 34px 40px -20px rgba(0,0,0,0.85),inset 0 0 0 2px var(--hue);}
 
-.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:11px;flex:none;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0 3px,rgba(255,255,255,0.04) 3px 6px);}
-.mih-label{flex:1;background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
-.mih-screen{width:clamp(44px,12vw,58px);height:clamp(44px,12vw,58px);display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
+.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:10px;flex:none;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.4) 0 3px,rgba(255,255,255,0.06) 3px 6px);}
+.mih-label{flex:1;background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:11px 9px 9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
+.mih-screen{width:clamp(40px,11vw,54px);height:clamp(40px,11vw,54px);display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
 .mih-screen svg{width:64%;height:64%;color:var(--hue);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 70%,transparent));}
 .mih-screen svg rect{fill:currentColor;}
 .mih-screen svg rect.k{fill:#0c0f08;}
-.mih-name{font-size:clamp(10px,2.6vw,12px);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
-.mih-fases{font-size:8.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
+.mih-name{font-size:clamp(9.5px,2.5vw,11.5px);font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
+.mih-fases{font-size:8px;letter-spacing:0.13em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
 .mih-slot:hover .mih-fases{color:var(--hue);}
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
+
+.mih-gyro{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;font:inherit;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#06110a;background:linear-gradient(180deg,var(--dmg),#7fa00c);border:none;padding:10px 16px;border-radius:999px;cursor:pointer;box-shadow:0 8px 22px -8px rgba(155,188,15,0.7);}
 `;
