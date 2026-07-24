@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useHubEstilo } from "@/lib/use-hub";
 
 type Widget = "chart" | "bars" | "nodes" | "telemetry";
 interface Cart { cls: string; name: string; fases: string; href: string; eyebrow: string; widget: Widget; sub: string; icon: ReactNode }
@@ -100,7 +101,16 @@ function CardWidget({ type }: { type: Widget }) {
 // fundo (de frente). O topo/laterais só aparecem quando o celular é movido.
 const BASE_ROT: [number, number][] = [[0, 0], [0, 0], [0, 0], [0, 0]];
 
+// Seletor de estilo (Configurações): "vivo" (glass HUD 3D animado) ou "sobrio"
+// (estático, sóbrio e elegante). Espera montar + ler a preferência antes de
+// escolher, pra não piscar o modo animado por engano.
 export default function InicioPage() {
+  const estilo = useHubEstilo();
+  if (estilo === null) return null;
+  return estilo === "sobrio" ? <SobrioHub /> : <VivoHub />;
+}
+
+function VivoHub() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -502,4 +512,139 @@ const CSS = `
 .mih-ctl{font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--faint);background:rgba(12,15,10,0.72);border:1px solid rgba(255,255,255,0.12);padding:10px 15px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
 .mih-ctl-cam{color:#06110a;background:linear-gradient(180deg,#5cf0ff,#35c9dd);border:none;font-weight:700;box-shadow:0 8px 22px -8px rgba(92,240,255,0.7);}
 .mih-ctl-cam[data-on="true"]{background:linear-gradient(180deg,#f0b23c,#c9852e);box-shadow:0 8px 22px -8px rgba(240,178,60,0.7);}
+`;
+
+// ── Versão SÓBRIA e elegante — estática, sem canvas/3D/animações ─────────────
+// Glifo de dados apenas ilustrativo (traçado fixo, tom discreto da cor do card).
+function SobrioGlyph({ type }: { type: Widget }) {
+  if (type === "chart") {
+    const AREA = "M0 27 L12 20 L24 28 L36 13 L48 22 L60 9 L72 18 L84 12 L96 25 L108 12 L120 27 L120 40 L0 40 Z";
+    const LINE = "M0 27 L12 20 L24 28 L36 13 L48 22 L60 9 L72 18 L84 12 L96 25 L108 12 L120 27";
+    return (
+      <svg className="sob-g sob-g-chart" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
+        <path className="area" d={AREA} /><path className="line" d={LINE} fill="none" />
+      </svg>
+    );
+  }
+  if (type === "bars") {
+    const H = [42, 68, 30, 82, 54, 36, 74, 60, 46];
+    return (
+      <div className="sob-g sob-g-bars">
+        {H.map((h, i) => <span key={i} className={i % 3 === 2 ? "neg" : "pos"} style={{ height: `${h}%` }} />)}
+      </div>
+    );
+  }
+  if (type === "nodes") {
+    const N: [number, number][] = [[60, 8], [34, 24], [86, 24], [20, 40], [46, 40], [74, 40], [100, 40]];
+    const L: [number, number][] = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+    return (
+      <svg className="sob-g sob-g-nodes" viewBox="0 0 120 46" aria-hidden="true">
+        {L.map(([a, b], i) => <line key={i} x1={N[a][0]} y1={N[a][1]} x2={N[b][0]} y2={N[b][1]} />)}
+        {N.map(([x, y], i) => <circle key={i} className={i >= 3 ? "lock" : ""} cx={x} cy={y} r={i === 0 ? 4.5 : 3.2} />)}
+      </svg>
+    );
+  }
+  const rows: [string, number][] = [["CPU", 62], ["MEM", 41], ["NET", 78]];
+  return (
+    <div className="sob-g sob-g-tel">
+      {rows.map(([k, v]) => (
+        <div className="sob-tel-row" key={k}><span className="lbl">{k}</span><span className="bar"><i style={{ width: `${v}%` }} /></span></div>
+      ))}
+    </div>
+  );
+}
+
+function SobrioHub() {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+  if (!mounted) return null;
+  return createPortal(
+    <div className="sob-root">
+      <div className="sob-inner">
+        <div className="sob-brand">Barroots<span>· início</span></div>
+        <div className="sob-grid">
+          {CARTS.map((c) => (
+            <button key={c.href} className={`sob-card ${c.cls}`} onClick={() => router.push(c.href)} aria-label={c.name}>
+              <div className="sob-head">
+                <span className="sob-chip" aria-hidden="true">{c.icon}</span>
+                <span className="sob-eyebrow">{c.eyebrow}</span>
+              </div>
+              <div className="sob-name">{c.name}</div>
+              <div className="sob-glyph"><SobrioGlyph type={c.widget} /></div>
+              <div className="sob-foot">
+                <span className="sob-sub">{c.sub}</span>
+                <span className="sob-go">{c.fases} <span className="arw">→</span></span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <style>{SOBRIO_CSS}</style>
+    </div>,
+    document.body,
+  );
+}
+
+const SOBRIO_CSS = `
+.sob-root{position:fixed;inset:0;z-index:60;overflow:auto;display:grid;place-items:center;padding:32px 20px;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e7ecee;
+  background:radial-gradient(120% 90% at 50% 0%,#12171b,#0a0d0f 62%,#070809);
+  --gold:#e0b155;--emerald:#5bb98a;--violet:#a693e6;--dmg:#a9c05a;--faint:#7c878c;}
+.sob-inner{width:100%;max-width:720px;display:flex;flex-direction:column;gap:22px;}
+.sob-brand{text-align:center;font-size:12px;letter-spacing:0.34em;text-transform:uppercase;color:#aeb8bc;font-weight:600;}
+.sob-brand span{color:var(--faint);margin-left:8px;font-weight:400;}
+.sob-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+@media(min-width:560px){.sob-grid{grid-template-columns:1fr 1fr;}}
+
+.sob-card{--hue:var(--gold);position:relative;text-align:left;display:flex;flex-direction:column;gap:11px;
+  padding:18px 18px 15px;border-radius:14px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012));
+  border:1px solid rgba(255,255,255,0.09);
+  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset;
+  transition:border-color .18s ease,background .18s ease,transform .18s ease;}
+.sob-card::before{content:"";position:absolute;left:18px;right:18px;top:0;height:1px;border-radius:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--hue) 60%,transparent),transparent);opacity:.55;}
+.sob-card:hover{border-color:color-mix(in srgb,var(--hue) 42%,rgba(255,255,255,0.12));background:linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));transform:translateY(-2px);}
+.sob-card:focus-visible{outline:2px solid color-mix(in srgb,var(--hue) 60%,transparent);outline-offset:2px;}
+
+.sob-head{display:flex;align-items:center;gap:10px;}
+.sob-chip{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;color:var(--hue);
+  background:color-mix(in srgb,var(--hue) 12%,rgba(255,255,255,0.02));border:1px solid color-mix(in srgb,var(--hue) 32%,transparent);}
+.sob-chip svg{width:16px;height:16px;color:var(--hue);}
+.sob-chip svg rect{fill:currentColor;} .sob-chip svg rect.k{fill:#0a0d0f;}
+.sob-eyebrow{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faint);}
+.sob-name{font-size:19px;font-weight:600;letter-spacing:-0.01em;color:#f1f5f6;line-height:1.05;}
+
+.sob-glyph{height:44px;display:flex;align-items:center;}
+.sob-g{opacity:.9;}
+.sob-g-chart{width:100%;height:40px;display:block;}
+.sob-g-chart .area{fill:color-mix(in srgb,var(--hue) 12%,transparent);}
+.sob-g-chart .line{stroke:color-mix(in srgb,var(--hue) 72%,transparent);stroke-width:1.4;vector-effect:non-scaling-stroke;}
+.sob-g-bars{width:100%;height:40px;display:flex;align-items:flex-end;gap:4px;}
+.sob-g-bars span{flex:1;border-radius:2px;min-height:4px;}
+.sob-g-bars .pos{background:color-mix(in srgb,var(--emerald) 55%,transparent);}
+.sob-g-bars .neg{background:color-mix(in srgb,#d98a8a 55%,transparent);}
+.sob-g-nodes{width:100%;height:44px;display:block;}
+.sob-g-nodes line{stroke:color-mix(in srgb,var(--hue) 42%,transparent);stroke-width:1.1;}
+.sob-g-nodes circle{fill:color-mix(in srgb,var(--hue) 20%,#0a0d0f);stroke:color-mix(in srgb,var(--hue) 65%,transparent);stroke-width:1.2;}
+.sob-g-nodes circle.lock{stroke-dasharray:2.2 2.2;opacity:.4;}
+.sob-g-tel{width:100%;display:flex;flex-direction:column;gap:6px;}
+.sob-tel-row{display:flex;align-items:center;gap:8px;}
+.sob-tel-row .lbl{font-size:8.5px;letter-spacing:0.08em;color:var(--faint);width:26px;flex:none;}
+.sob-tel-row .bar{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
+.sob-tel-row .bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--hue) 55%,transparent);}
+
+.sob-foot{margin-top:2px;display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.sob-sub{font-size:12px;font-weight:500;color:color-mix(in srgb,var(--hue) 70%,#aeb8bc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sob-go{font-size:11px;letter-spacing:0.04em;color:var(--faint);white-space:nowrap;flex:none;}
+.sob-go .arw{transition:transform .18s ease;display:inline-block;}
+.sob-card:hover .sob-go{color:color-mix(in srgb,var(--hue) 70%,var(--faint));}
+.sob-card:hover .sob-go .arw{transform:translateX(3px);}
+
+.sob-card.c-invest{--hue:var(--gold);} .sob-card.c-fin{--hue:var(--emerald);} .sob-card.c-barroots{--hue:var(--violet);} .sob-card.c-config{--hue:var(--dmg);}
 `;

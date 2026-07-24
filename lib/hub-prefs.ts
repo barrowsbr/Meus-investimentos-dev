@@ -16,3 +16,21 @@ export function setHubAtivo(on: boolean): void {
     window.dispatchEvent(new CustomEvent(HUB_EVENT, { detail: on }));
   } catch { /* ignore */ }
 }
+
+// Estilo da tela inicial: "vivo" (glass HUD 3D animado, default) ou "sobrio"
+// (versão estática, sóbria e elegante — sem canvas, sem 3D, sem animações).
+export const HUB_ESTILO_KEY = "mi_hub_estilo";
+export const HUB_ESTILO_EVENT = "mi-hub-estilo-change";
+export type HubEstilo = "vivo" | "sobrio";
+
+export function getHubEstilo(): HubEstilo {
+  if (typeof window === "undefined") return "vivo";
+  try { return localStorage.getItem(HUB_ESTILO_KEY) === "sobrio" ? "sobrio" : "vivo"; } catch { return "vivo"; }
+}
+
+export function setHubEstilo(estilo: HubEstilo): void {
+  try {
+    localStorage.setItem(HUB_ESTILO_KEY, estilo);
+    window.dispatchEvent(new CustomEvent(HUB_ESTILO_EVENT, { detail: estilo }));
+  } catch { /* ignore */ }
+}
