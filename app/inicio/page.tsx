@@ -1,10 +1,10 @@
 "use client";
 
 // Tela inicial "GAME SELECT" — hub pós-login (ativável em Configurações).
-// 4 cartuchos (Investimentos / Finanças / Barroots / Config) sobre um fundo 3D
-// de profundidade (perspectiva off-axis) que reage ao mouse e ao giroscópio.
-// Renderiza como overlay fullscreen por cima do shell; cada cartucho navega
-// para a categoria e a tela some. Visual = mockup aprovado pelo dono.
+// Os 4 cartuchos (Investimentos / Finanças / Barroots / Config) ficam DENTRO do
+// cubo 3D: cada um tem uma âncora no espaço da sala e é reprojetado a cada frame
+// pela MESMA projeção off-axis do wireframe — então fazem paralaxe junto com o
+// quarto (parecem objetos flutuando no meio da sala). Reage a mouse e giroscópio.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -53,12 +53,11 @@ const CARTS: Cart[] = [
 export default function InicioPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const shelfRef = useRef<HTMLDivElement>(null);
+  const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const enableGyroRef = useRef<() => void>(() => {});
   const [showGyroBtn, setShowGyroBtn] = useState(false);
   const [clock, setClock] = useState("—");
 
-  // Relógio
   useEffect(() => {
     const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
     const tick = () => {
@@ -70,10 +69,8 @@ export default function InicioPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Fundo 3D + entradas (mouse / giroscópio)
   useEffect(() => {
     const cv = canvasRef.current;
-    const shelf = shelfRef.current;
     if (!cv) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
@@ -82,6 +79,7 @@ export default function InicioPage() {
 
     let W = 1, H = 1;
     const D = 3.9, EYE_D = 1.3, NX = 8, NY = 5, NZ = 10;
+    const Z_CART = 0.95;         // profundidade das cartelas dentro da sala
     let segs: number[][] = [];
     function buildRoom() {
       segs = [];
@@ -95,11 +93,13 @@ export default function InicioPage() {
       for (let sw = 0; sw < 2; sw++) { const x = sw ? W : -W;
         for (i = 0; i <= NY; i++) { b = -H + 2 * H * i / NY; L(x, b, 0, x, b, D); }
         for (i = 0; i <= NZ; i++) { const z2 = D * i / NZ; L(x, -H, z2, x, H, z2); } }
-      const cx = 0, cy = -H * 0.1, cz = D * 0.52, r = 0.22;
-      const P = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
-      const E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
-      for (i = 0; i < E.length; i++) { const p = P[E[i][0]], q = P[E[i][1]];
-        L(cx + p[0] * r, cy + p[1] * r, cz + p[2] * r, cx + q[0] * r, cy + q[1] * r, cz + q[2] * r, 1); }
+    }
+
+    // Âncora 3D de cada cartela (grade 2×2 no meio da sala).
+    function anchor(i: number): [number, number, number] {
+      const col = (i % 2) === 0 ? -1 : 1;
+      const row = i < 2 ? 1 : -1;
+      return [col * 0.6 * W, row * 0.62 * H, Z_CART];
     }
 
     let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
@@ -122,19 +122,26 @@ export default function InicioPage() {
       ctx!.clearRect(0, 0, cw, ch);
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i], A = project(s[0], s[1], s[2]), B = project(s[3], s[4], s[5]);
-        const depth = (A[2] + B[2]) / 2, al = 0.06 + 0.5 * Math.pow(depth, 1.4), cube = s[6];
-        ctx!.lineWidth = cube ? 2.4 : 1.8;
-        ctx!.strokeStyle = cube ? `rgba(232,163,61,${al * 0.3})` : `rgba(92,240,255,${al * 0.16})`;
+        const depth = (A[2] + B[2]) / 2, al = 0.05 + 0.45 * Math.pow(depth, 1.4);
+        ctx!.lineWidth = 1.7;
+        ctx!.strokeStyle = `rgba(92,240,255,${al * 0.15})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
-        ctx!.lineWidth = cube ? 1.2 : 0.9;
-        ctx!.strokeStyle = cube ? `rgba(255,214,140,${al * 0.9})` : `rgba(170,235,245,${al * 0.8})`;
+        ctx!.lineWidth = 0.9;
+        ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      if (shelf) shelf.style.transform = `translate(${-eye.x * scale * 0.08}px,${-eye.y * scale * 0.08}px)`;
+      // Reprojeta cada cartela na sua âncora 3D → paralaxe junto com a sala.
+      const rotY = eye.x * 13, rotX = -eye.y * 13;
+      for (let i = 0; i < 4; i++) {
+        const slot = slotRefs.current[i]; if (!slot) continue;
+        const [ax, ay, az] = anchor(i);
+        const [X, Y] = project(ax, ay, az);
+        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      }
       raf = requestAnimationFrame(frame);
     }
 
-    // Entradas — mouse
+    // ── Entradas — mouse ──
     const maxX = 0.95, maxY = 0.62;
     const clampU = (v: number) => (v < -1.25 ? -1.25 : v > 1.25 ? 1.25 : v);
     const onPointer = (e: PointerEvent) => {
@@ -142,7 +149,7 @@ export default function InicioPage() {
     };
     document.addEventListener("pointermove", onPointer);
 
-    // Giroscópio — inclinar (gravidade, estável) + girar (bússola/orientação)
+    // ── Giroscópio — inclinar (gravidade) + girar (bússola) ──
     let base: { lr: number; fb: number } | null = null, gxs = 0, gys = 0, yaw = 0, baseA: number | null = null, gyroOn = false;
     const orientAngle = () => {
       if (window.screen && screen.orientation && screen.orientation.angle != null) return screen.orientation.angle;
@@ -212,7 +219,30 @@ export default function InicioPage() {
       <canvas ref={canvasRef} className="mih-bg" />
       <div className="mih-scrim" />
 
-      <div className="mih-stage">
+      {/* Cartelas 3D dentro do cubo */}
+      <div className="mih-space">
+        {CARTS.map((c, i) => (
+          <button
+            key={c.href}
+            ref={(el) => { slotRefs.current[i] = el; }}
+            className="mih-slot"
+            onClick={() => router.push(c.href)}
+            aria-label={c.name}
+          >
+            <div className={`mih-cart ${c.cls}`}>
+              <div className="mih-ridges" />
+              <div className="mih-label">
+                <span className="mih-screen" aria-hidden="true">{c.icon}</span>
+                <span className="mih-name">{c.name}</span>
+                <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* HUD (chrome plano) */}
+      <div className="mih-hud">
         <header className="mih-header">
           <div className="mih-brand">
             <span className="mih-dpad" aria-hidden="true"><i className="h" /><i className="v" /></span>
@@ -220,28 +250,13 @@ export default function InicioPage() {
           </div>
           <span className="mih-clock">{clock}</span>
         </header>
-
-        <section className="mih-intro">
+        <div className="mih-title">
           <p className="mih-eyebrow">Insira um cartucho</p>
-          <h1 className="mih-h1">Game Select <span className="mih-blink">_</span></h1>
-        </section>
-
-        <main className="mih-shelf" ref={shelfRef}>
-          {CARTS.map((c) => (
-            <button key={c.href} className={`mih-cart ${c.cls}`} onClick={() => router.push(c.href)}>
-              <div className="mih-ridges" />
-              <div className="mih-label">
-                <span className="mih-screen" aria-hidden="true">{c.icon}</span>
-                <span className="mih-name">{c.name}</span>
-                <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
-              </div>
-            </button>
-          ))}
-        </main>
-
+          <p className="mih-h1">Game Select <span className="mih-blink">_</span></p>
+        </div>
         <footer className="mih-footer">
           <span>© Barroots System</span>
-          <span>Pressione <span className="mih-cursor">▶</span> para jogar</span>
+          <span>Escolha um cartucho <span className="mih-cursor">▶</span></span>
         </footer>
       </div>
 
@@ -257,10 +272,34 @@ export default function InicioPage() {
 const CSS = `
 .mih-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:ui-monospace,"SF Mono","Cascadia Code","Courier New",monospace;color:#e9ecd8;background:linear-gradient(180deg,#0f130c,#0c0f0a);--gold:#f0b23c;--emerald:#3ddc84;--violet:#b18bff;--dmg:#9bbc0f;--faint:#6a6f52;--muted:#9aa07f;}
 .mih-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block;touch-action:none;}
-.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 42%,transparent 30%,rgba(8,10,7,0.62) 78%,rgba(8,10,7,0.9) 100%);}
-.mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.20) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 60%,rgba(0,0,0,0.45) 100%);mix-blend-mode:multiply;}
-.mih-stage{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;max-width:940px;margin:0 auto;padding:clamp(18px,4vw,40px);overflow-y:auto;}
-.mih-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:2px dashed rgba(155,188,15,0.22);}
+.mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 34%,rgba(8,10,7,0.5) 82%,rgba(8,10,7,0.85) 100%);}
+.mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
+
+/* Camada 3D das cartelas */
+.mih-space{position:absolute;inset:0;z-index:3;perspective:820px;pointer-events:none;}
+.mih-slot{position:absolute;top:0;left:0;padding:0;border:0;background:none;cursor:pointer;pointer-events:auto;transform-style:preserve-3d;will-change:transform;}
+.mih-slot:focus-visible{outline:none;}
+.mih-cart{--hue:var(--gold);position:relative;display:block;width:clamp(104px,27vw,168px);text-align:left;padding:11px 11px 13px;background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;border-radius:8px 8px 10px 10px;clip-path:polygon(0 0,74% 0,86% 12%,100% 12%,100% 100%,0 100%);box-shadow:0 22px 34px -14px rgba(0,0,0,0.9),inset 0 1px 0 rgba(255,255,255,0.05);transition:transform .16s ease,filter .2s;animation:mih-pop .45s ease both;}
+.mih-slot:nth-child(1) .mih-cart{animation-delay:.02s;} .mih-slot:nth-child(2) .mih-cart{animation-delay:.10s;} .mih-slot:nth-child(3) .mih-cart{animation-delay:.18s;} .mih-slot:nth-child(4) .mih-cart{animation-delay:.26s;}
+.mih-slot:hover .mih-cart{transform:translateY(-6px);filter:brightness(1.1);}
+.mih-slot:focus-visible .mih-cart{filter:brightness(1.12);box-shadow:0 0 0 3px var(--hue),0 22px 34px -14px rgba(0,0,0,0.9);}
+.mih-slot:active .mih-cart{transform:translateY(-2px);}
+@keyframes mih-pop{from{opacity:0;}to{opacity:1;}}
+.mih-ridges{height:11px;width:58%;border-radius:3px;margin-bottom:11px;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0 3px,rgba(255,255,255,0.04) 3px 6px);}
+.mih-label{background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
+.mih-screen{width:clamp(44px,12vw,58px);height:clamp(44px,12vw,58px);display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
+.mih-screen svg{width:64%;height:64%;color:var(--hue);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 70%,transparent));}
+.mih-screen svg rect{fill:currentColor;}
+.mih-screen svg rect.k{fill:#0c0f08;}
+.mih-name{font-size:clamp(10px,2.6vw,12px);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
+.mih-fases{font-size:8.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px;}
+.mih-slot:hover .mih-fases,.mih-slot:focus-visible .mih-fases{color:var(--hue);}
+.mih-fases .play{color:var(--hue);}
+.c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
+
+/* HUD */
+.mih-hud{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(16px,4vw,34px);pointer-events:none;}
+.mih-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
 .mih-brand{display:flex;align-items:center;gap:12px;}
 .mih-dpad{width:26px;height:26px;position:relative;flex:none;}
 .mih-dpad i{position:absolute;background:var(--dmg);border-radius:2px;box-shadow:0 0 6px rgba(155,188,15,0.5);}
@@ -268,32 +307,13 @@ const CSS = `
 .mih-dpad .v{top:2px;left:10px;width:6px;height:22px;}
 .mih-wordmark{font-weight:700;font-size:15px;letter-spacing:0.26em;text-shadow:2px 2px 0 rgba(0,0,0,0.6);}
 .mih-clock{font-size:11px;letter-spacing:0.14em;color:var(--dmg);text-transform:uppercase;text-shadow:0 0 8px rgba(155,188,15,0.4);}
-.mih-intro{margin:clamp(20px,5vh,44px) 0 clamp(16px,3vh,28px);text-align:center;}
+.mih-title{text-align:center;}
 .mih-eyebrow{font-size:11px;letter-spacing:0.34em;text-transform:uppercase;color:var(--muted);margin:0;}
-.mih-h1{margin:10px 0 0;font-size:clamp(22px,5vw,34px);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;text-shadow:3px 3px 0 rgba(0,0,0,0.6);}
+.mih-h1{margin:8px 0 0;font-size:clamp(20px,4.5vw,32px);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;text-shadow:3px 3px 0 rgba(0,0,0,0.6);}
 .mih-blink{color:var(--dmg);animation:mih-blink 1.1s steps(1) infinite;}
 @keyframes mih-blink{50%{opacity:0;}}
-.mih-shelf{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(14px,2.4vw,22px);will-change:transform;}
-.mih-cart{--hue:var(--gold);position:relative;display:block;text-align:left;text-decoration:none;color:inherit;padding:12px 12px 14px;background:linear-gradient(165deg,#3a3d31,#202318);border:1px solid #4c4f40;border-radius:8px 8px 10px 10px;clip-path:polygon(0 0,74% 0,86% 12%,100% 12%,100% 100%,0 100%);box-shadow:0 14px 30px -12px rgba(0,0,0,0.85),inset 0 1px 0 rgba(255,255,255,0.05);cursor:pointer;transition:transform .18s steps(3),filter .2s;animation:mih-pop .4s steps(4) both;}
-.mih-cart:hover,.mih-cart:focus-visible{transform:translateY(-8px);filter:brightness(1.08);outline:none;}
-.mih-cart:focus-visible{box-shadow:0 0 0 3px var(--hue),0 14px 30px -12px rgba(0,0,0,0.85);}
-.mih-cart:active{transform:translateY(-2px);}
-.mih-ridges{height:12px;width:58%;border-radius:3px;margin-bottom:12px;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0 3px,rgba(255,255,255,0.04) 3px 6px);}
-.mih-label{background:linear-gradient(180deg,#16190f,#10130b);border:1px solid color-mix(in srgb,var(--hue) 45%,transparent);border-radius:5px;padding:14px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:inset 0 0 22px -8px color-mix(in srgb,var(--hue) 60%,transparent);}
-.mih-screen{width:62px;height:62px;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--hue) 22%,#0c0f08),#0c0f08 75%);border:2px solid color-mix(in srgb,var(--hue) 55%,transparent);border-radius:6px;box-shadow:0 0 16px -4px color-mix(in srgb,var(--hue) 70%,transparent),inset 0 0 10px rgba(0,0,0,0.6);}
-.mih-screen svg{width:40px;height:40px;color:var(--hue);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 70%,transparent));}
-.mih-screen svg rect{fill:currentColor;}
-.mih-screen svg rect.k{fill:#0c0f08;}
-.mih-name{font-size:clamp(11px,1.7vw,13px);font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--hue);text-shadow:1px 1px 0 rgba(0,0,0,0.5);text-align:center;}
-.mih-fases{font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:6px;}
-.mih-cart:hover .mih-fases,.mih-cart:focus-visible .mih-fases{color:var(--hue);}
-.mih-fases .play{color:var(--hue);}
-.c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
-.mih-cart:nth-child(1){animation-delay:.02s;} .mih-cart:nth-child(2){animation-delay:.10s;} .mih-cart:nth-child(3){animation-delay:.18s;} .mih-cart:nth-child(4){animation-delay:.26s;}
-@keyframes mih-pop{from{opacity:0;transform:translateY(14px) scale(.96);}to{opacity:1;transform:translateY(0) scale(1);}}
-.mih-footer{margin-top:auto;padding-top:22px;display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);}
+.mih-footer{display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);}
 .mih-cursor{color:var(--dmg);animation:mih-blink 1s steps(1) infinite;}
-.mih-gyro{position:fixed;right:14px;bottom:14px;z-index:5;font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#06110a;background:linear-gradient(180deg,var(--dmg),#7fa00c);border:none;padding:9px 13px;border-radius:8px;cursor:pointer;box-shadow:0 8px 20px -8px rgba(155,188,15,0.6);}
-@media (max-width:560px){.mih-h1{font-size:clamp(19px,7vw,26px);} .mih-shelf{gap:12px;}}
-@media (prefers-reduced-motion:reduce){.mih-cart{animation:none;transition:none;} .mih-cart:hover,.mih-cart:focus-visible{transform:none;} .mih-blink,.mih-cursor{animation:none;}}
+.mih-gyro{position:fixed;right:14px;bottom:52px;z-index:5;font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#06110a;background:linear-gradient(180deg,var(--dmg),#7fa00c);border:none;padding:9px 13px;border-radius:8px;cursor:pointer;box-shadow:0 8px 20px -8px rgba(155,188,15,0.6);}
+@media (prefers-reduced-motion:reduce){.mih-cart{animation:none;transition:none;} .mih-slot:hover .mih-cart{transform:none;} .mih-blink,.mih-cursor{animation:none;}}
 `;
