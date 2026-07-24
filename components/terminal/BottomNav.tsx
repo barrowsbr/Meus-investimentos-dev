@@ -2,23 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MOBILE_ITEMS } from "./nav";
+import { spaceForPath, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, type NavItem } from "./nav";
 
 const SHORT: Record<string, string> = {
+  "/inicio": "Início",
   "/": "Home",
   "/resumo": "Resumo",
   "/performance": "Perf.",
+  "/financas": "Finanças",
+  "/fluxos": "Fluxos",
+  "/barroots": "Barroots",
+  "/noticias": "Notícias",
   "/radar": "Radar",
   "/configuracoes": "Config",
 };
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const space = spaceForPath(pathname);
+  // Barra por ESPAÇO: Início (hub) + páginas-chave da categoria + Configurações.
+  const items: NavItem[] = [
+    { href: INICIO_HREF, label: "Início", icon: INICIO_ICON },
+    ...(space ? space.items.filter((i) => i.mobileShow) : []),
+    { href: CONFIG_ITEM.href, label: CONFIG_ITEM.label, icon: CONFIG_ITEM.icon },
+  ];
+
   return (
-    <nav
-      className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around"
-    >
-      {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
+    <nav className="bottom-nav min-[1100px]:hidden fixed z-40 left-3 right-3 flex items-center justify-around">
+      {items.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
           <Link
@@ -57,7 +68,6 @@ export default function BottomNav() {
             >
               {SHORT[href] ?? label}
             </span>
-
           </Link>
         );
       })}

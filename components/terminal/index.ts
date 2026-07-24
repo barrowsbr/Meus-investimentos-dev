@@ -12,5 +12,5 @@ export type { BlotterColumn } from "./Blotter";
 export { default as MiniBars } from "./MiniBars";
 export type { MiniBarItem } from "./MiniBars";
 export { default as Spark } from "./Spark";
-export { NAV, MOBILE_ITEMS, navItemForPath } from "./nav";
-export type { NavItem, NavGroup } from "./nav";
+export { SPACES, CONFIG_ITEM, INICIO_HREF, INICIO_ICON, MOBILE_ITEMS, navItemForPath, spaceForPath } from "./nav";
+export type { NavItem, Space } from "./nav";

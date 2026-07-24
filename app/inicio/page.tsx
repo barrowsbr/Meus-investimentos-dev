@@ -32,7 +32,7 @@ const CARTS: Cart[] = [
     ),
   },
   {
-    cls: "c-barroots", name: "Barroots", fases: "7 fases", href: "/noticias",
+    cls: "c-barroots", name: "Barroots", fases: "8 fases", href: "/barroots",
     icon: (
       <svg viewBox="0 0 16 16" shapeRendering="crispEdges">
         <rect x="3" y="3" width="10" height="1" /><rect x="2" y="4" width="12" height="2" /><rect x="2" y="6" width="12" height="7" />
