@@ -12,6 +12,7 @@ export type Tema =
   | "cripto"         // bitcoin, ethereum, regulação cripto
   | "empresas"       // resultados/fatos relevantes de empresas específicas
   | "negocios"       // negócios, M&A, startups, venture
+  | "pagamentos"     // TRABALHO do dono: meios de pagamento, Pix/Bacen, bandeiras, adquirentes, emissores, open finance, DREX + software houses/ERP (integração)
   | "politica_local" // política de bastidor/briga — o que o dono NÃO quer
   | "outros";
 
@@ -26,6 +27,7 @@ export const TEMA_LABEL: Record<Tema, string> = {
   cripto: "Cripto",
   empresas: "Empresas",
   negocios: "Negócios",
+  pagamentos: "Pagamentos",
   politica_local: "Política local",
   outros: "Geral",
 };
@@ -46,9 +48,27 @@ export const TEMAS_PERFIL: Array<{ id: Tema; label: string; desc: string }> = [
 
 export const DEFAULT_INTERESSES: Tema[] = ["macro", "geopolitica", "mercados", "tech", "ciencia"];
 
+// ── Trabalho do dono: meios de pagamento + software de gestão (BR) ──────────
+// Regex ampla e curada — cobre arranjo de pagamentos, Pix/Bacen/normativas,
+// bandeiras, adquirentes/subadquirentes, emissores, open finance, DREX, e o
+// ecossistema de software houses/ERP com que ele integra. Usada tanto para
+// CLASSIFICAR (tema "pagamentos") quanto para FILTRAR a aba Trabalho.
+export const PAGAMENTOS_RX =
+  /\b(pix\b|meios? de pagamento|mercado de pagamento|arranjo de pagamento|indústria de (pagamento|cart(ão|ões))|meio[- ]de[- ]pagamento|adquirente|subadquirente|credenciador|maquininha|maquineta|point of sale|\bpos\b|\bpin ?pad\b|bandeira[s]? de cart|cart(ão|ões) de (crédito|débito|múltiplo|benefício|refeição|alimentação)|vale[- ](refeição|alimentação)|emissor(a|es)? de cart|open finance|open banking|\bdrex\b|real digital|\bcbdc\b|moeda digital|carteira[s]? digita(l|is)|\bwallet\b|tokeniz|contactless|\bnfc\b|\bqr ?code\b|chargeback|\bmdr\b|interchange|taxas? de intercâmbio|intercâmbio de cart|recebíveis|registradora de recebíveis|antecipação de recebíveis|\bsplit\b de pagamento|gateway de pagamento|subcredenciad|\bpsp\b|\biso ?8583\b|\bemv\b|\bpci[- ]?dss\b|liquidação financeira|câmara de (compensação|pagamento)|\bspb\b|\bspi\b|ted\/doc|transferência bancária|boleto|iniciador de pagamento|\bitp\b|conta digital|banking as a service|\bbaas\b|pagamento instantâneo|pagamento por aproximação|nova plataforma de cobrança|débito automático|débito recorrente|assinatura recorrente|split de recebíveis)\b/i;
+
+// Empresas e marcas do ecossistema (bandeiras, adquirentes, fintechs, ERPs).
+export const PAGAMENTOS_MARCAS_RX =
+  /\b(visa\b|mastercard|master ?card|\belo\b|american express|\bamex\b|hipercard|\bdiners\b|discover\b|unionpay|\bcielo\b|\brede\b|getnet|\bstone\b|pagseguro|pagbank|mercado pago|\bpagar\.?me\b|\bebanx\b|\badyen\b|\bstripe\b|\bpaypal\b|\bsafrapay\b|\bpicpay\b|\bnubank\b|\binter\b|c6 bank|\bwill bank\b|\bneon\b|banco central|bacen|\bbcb\b|\bfebraban\b|\babecs\b|\bpci\b|totvs|\bsap\b|\bomie\b|conta azul|contaazul|\bbling\b|\bsenior\b|\blinx\b|\btiny\b|\bsankhya\b|nomus|\berp\b|nota fiscal eletrônic|\bnf-?e\b|\bnfc-?e\b|\bsped\b|software de gestão|sistema de gestão|software house)\b/i;
+
+/** true se o título é sobre meios de pagamento OU o ecossistema de software de gestão. */
+export function ehPagamentos(titulo: string): boolean {
+  return PAGAMENTOS_RX.test(titulo) || PAGAMENTOS_MARCAS_RX.test(titulo);
+}
+
 // ── Classificador por keywords (fallback: o tema do feed de origem) ─────────
 
 const RX: Array<[Tema, RegExp]> = [
+  ["pagamentos", PAGAMENTOS_RX],
   ["macro", /\b(selic|copom|fomc|fed\b|bce|boj|jerome powell|galípolo|juro[s]?|inflaç|ipca|cpi\b|pce\b|pib\b|gdp\b|recess|payroll|desemprego|unemployment|fiscal|arcabouço|treasury|yield|títulos públicos|banco central|central bank)/i],
   ["geopolitica", /\b(guerra|war\b|ucrânia|ukraine|rússia|russia|china|taiwan|otan|nato|sanç|sanction|irã|iran|israel|gaza|oriente médio|middle east|tarifa|tariff|acordo comercial|trade deal|brics|g7\b|g20\b|onu\b|eleiç(ão|ões) (americana|presidencial|na )|coreia do norte)/i],
   ["cripto", /\b(bitcoin|btc\b|ethereum|eth\b|cripto|crypto|blockchain|stablecoin|binance|coinbase|etf de bitcoin|halving)/i],

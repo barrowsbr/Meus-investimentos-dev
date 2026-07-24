@@ -62,6 +62,16 @@ export const FEEDS_DIRETOS: FonteFeed[] = [
   // ── Empresas (BR) ──
   { url: "https://braziljournal.com/feed/", fonte: "Brazil Journal", tema: "empresas", lang: "pt" },
   { url: "https://neofeed.com.br/feed/", fonte: "NeoFeed", tema: "empresas", lang: "pt" },
+
+  // ── Pagamentos & fintech (TRABALHO do dono) ──
+  // Veículos especializados em meios de pagamento, fintechs, adquirência,
+  // regulação Bacen e o ecossistema de software de gestão. Fonte primária da
+  // aba Trabalho — o classificador ainda refina por keyword.
+  { url: "https://www.mobiletime.com.br/feed/", fonte: "Mobile Time", tema: "pagamentos", lang: "pt", max: 12 },
+  { url: "https://finsidersbrasil.com.br/feed/", fonte: "Finsiders Brasil", tema: "pagamentos", lang: "pt", max: 12 },
+  { url: "https://www.pymnts.com/feed/", fonte: "PYMNTS", tema: "pagamentos", lang: "en", max: 12 },
+  { url: "https://www.finextra.com/rss/headlines.aspx", fonte: "Finextra", tema: "pagamentos", lang: "en", max: 12 },
+  { url: "https://thepaypers.com/rss", fonte: "The Paypers", tema: "pagamentos", lang: "en", max: 10 },
 ];
 
 export function feedsPorTemas(temas: Tema[]): FonteFeed[] {
