@@ -137,6 +137,12 @@ export default function InicioPage() {
       target.x = ((e.clientX / cw) - 0.5) * 1.1 * W; target.y = -((e.clientY / ch) - 0.5) * 0.75 * H;
     };
     document.addEventListener("pointermove", onPointer);
+    // Arrastar o dedo move a cena — funciona no celular SEM permissão nenhuma.
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0]; if (!t) return;
+      target.x = ((t.clientX / cw) - 0.5) * 1.1 * W; target.y = -((t.clientY / ch) - 0.5) * 0.75 * H;
+    };
+    document.addEventListener("touchmove", onTouchMove, { passive: true });
 
     // ── Giroscópio — inclinar (gravidade) + girar (bússola), auto ──
     let base: { lr: number; fb: number } | null = null, gxs = 0, gys = 0, yaw = 0, baseA: number | null = null, gyroOn = false;
@@ -185,15 +191,12 @@ export default function InicioPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const DMc = window.DeviceMotionEvent as any, DOc = window.DeviceOrientationEvent as any;
     const precisaPermissao = (DMc && DMc.requestPermission) || (DOc && DOc.requestPermission);
+    const KICK_EVENTS = ["pointerdown", "touchend", "click"];
     let kick: (() => void) | null = null;
     if (precisaPermissao) {
-      kick = () => {
-        enableGyro();
-        window.removeEventListener("pointerdown", kick!, true);
-        window.removeEventListener("touchstart", kick!, true);
-      };
-      window.addEventListener("pointerdown", kick, true);
-      window.addEventListener("touchstart", kick, true);
+      // iOS exige gesto p/ pedir a permissão do sensor → ativa na 1ª interação.
+      kick = () => { enableGyro(); KICK_EVENTS.forEach((ev) => window.removeEventListener(ev, kick!, true)); };
+      KICK_EVENTS.forEach((ev) => window.addEventListener(ev, kick!, true));
     } else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) {
       addGyro();
     }
@@ -204,11 +207,12 @@ export default function InicioPage() {
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("pointermove", onPointer);
+      document.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("devicemotion", onMotion);
       window.removeEventListener("deviceorientation", onOrient);
       window.removeEventListener("dblclick", recalibrate);
       window.removeEventListener("orientationchange", recalibrate);
-      if (kick) { window.removeEventListener("pointerdown", kick, true); window.removeEventListener("touchstart", kick, true); }
+      if (kick) KICK_EVENTS.forEach((ev) => window.removeEventListener(ev, kick!, true));
       window.removeEventListener("resize", resize);
       document.body.style.overflow = "";
     };
@@ -259,14 +263,13 @@ const CSS = `
 .mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
+/* IMPORTANTE: nada de filter/opacity/clip/overflow no .mih-slot — qualquer um
+   deles ACHATA o preserve-3d (força "flat") e mata o efeito 3D das faces. */
 .mih-space{position:absolute;inset:0;z-index:3;perspective:900px;pointer-events:none;}
 .mih-slot{--hue:var(--gold);--w:clamp(108px,27vw,164px);--h:clamp(138px,35vw,200px);--t:clamp(14px,4.5vw,22px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
-  pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;
-  filter:drop-shadow(0 20px 22px rgba(0,0,0,0.55));animation:mih-pop .45s ease both;}
-.mih-slot:nth-child(1){animation-delay:.02s;}.mih-slot:nth-child(2){animation-delay:.10s;}.mih-slot:nth-child(3){animation-delay:.18s;}.mih-slot:nth-child(4){animation-delay:.26s;}
+  pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
-@keyframes mih-pop{from{opacity:0;}to{opacity:1;}}
 
 .mih-face{position:absolute;top:50%;left:50%;backface-visibility:hidden;}
 .mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
@@ -293,5 +296,4 @@ const CSS = `
 .mih-slot:hover .mih-fases{color:var(--hue);}
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
-@media (prefers-reduced-motion:reduce){.mih-slot{animation:none;}}
 `;
