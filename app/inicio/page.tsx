@@ -50,16 +50,21 @@ const CARTS: Cart[] = [
   },
 ];
 
-// Rotação de repouso por cartucho (mostra a espessura já parado): [rotX, rotY].
-const BASE_ROT: [number, number][] = [[13, 22], [13, -22], [-13, 22], [-13, -22]];
+// Sem rotação de repouso: em repouso os cartuchos ficam RETOS, alinhados com o
+// fundo (de frente). O topo/laterais só aparecem quando o celular é movido.
+const BASE_ROT: [number, number][] = [[0, 0], [0, 0], [0, 0], [0, 0]];
 
 export default function InicioPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const objRefs = useRef<Array<HTMLDivElement | null>>([]);
   const enableGyroRef = useRef<() => void>(() => {});
+  const startCamRef = useRef<() => void>(() => {});
+  const stopCamRef = useRef<() => void>(() => {});
   const [mounted, setMounted] = useState(false);
   const [showGyroBtn, setShowGyroBtn] = useState(false);
+  const [camState, setCamState] = useState<"off" | "loading" | "on" | "error">("off");
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -72,7 +77,8 @@ export default function InicioPage() {
     document.body.style.overflow = "hidden";
 
     let W = 1, H = 1;
-    const D = 3.9, EYE_D = 1.3, NX = 8, NY = 5, NZ = 10;
+    const D = 3.9, NX = 8, NY = 5, NZ = 10;
+    const EYE_D0 = 1.3; let EYE_D = EYE_D0;   // dolly: cabeça mais perto → EYE_D menor
     const Z_CART = 0.95;
     let segs: number[][] = [];
     function buildRoom() {
@@ -96,7 +102,7 @@ export default function InicioPage() {
 
     let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
     const eye = { x: 0, y: 0 }, target = { x: 0, y: 0 };
-    let raf = 0;
+    let raf = 0, headActive = false;   // head tracking tem precedência sobre mouse/gyro
 
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -121,13 +127,17 @@ export default function InicioPage() {
         ctx!.strokeStyle = `rgba(170,235,245,${al * 0.75})`;
         ctx!.beginPath(); ctx!.moveTo(A[0], A[1]); ctx!.lineTo(B[0], B[1]); ctx!.stroke();
       }
-      const rotY = eye.x * 24, rotX = -eye.y * 24;
+      const rotY = eye.x * 16, rotX = -eye.y * 16;
       for (let i = 0; i < 4; i++) {
-        const slot = slotRefs.current[i]; if (!slot) continue;
+        const slot = slotRefs.current[i], obj = objRefs.current[i]; if (!slot || !obj) continue;
         const [ax, ay, az] = anchor(i);
         const [X, Y] = project(ax, ay, az);
         const [bx, by] = BASE_ROT[i];
-        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%) rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
+        // Posição (paralaxe) no slot; ROTAÇÃO no obj — que tem perspectiva PRÓPRIA
+        // centrada nele. Assim cada card fica reto (sem distorção off-axis do
+        // ponto de fuga único) e só mostra topo/lado quando gira.
+        slot.style.transform = `translate(${X}px,${Y}px) translate(-50%,-50%)`;
+        obj.style.transform = `rotateX(${bx + rotX}deg) rotateY(${by + rotY}deg)`;
       }
       raf = requestAnimationFrame(frame);
     }
@@ -136,10 +146,12 @@ export default function InicioPage() {
     const maxX = 0.7, maxY = 0.45;
     const clampU = (v: number) => (v < -1.25 ? -1.25 : v > 1.25 ? 1.25 : v);
     const onPointer = (e: PointerEvent) => {
+      if (headActive) return;
       target.x = ((e.clientX / cw) - 0.5) * 1.1 * W; target.y = -((e.clientY / ch) - 0.5) * 0.75 * H;
     };
     document.addEventListener("pointermove", onPointer);
     const onTouchMove = (e: TouchEvent) => {
+      if (headActive) return;
       const t = e.touches[0]; if (!t) return;
       target.x = ((t.clientX / cw) - 0.5) * 1.1 * W; target.y = -((t.clientY / ch) - 0.5) * 0.75 * H;
     };
@@ -152,7 +164,7 @@ export default function InicioPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (window as any).orientation || 0;
     };
-    const apply = () => { target.x = clampU(gxs + yaw * 0.4) * maxX * W; target.y = -gys * maxY * H; };
+    const apply = () => { if (headActive) return; target.x = clampU(gxs + yaw * 0.4) * maxX * W; target.y = -gys * maxY * H; };
     const onMotion = (e: DeviceMotionEvent) => {
       const g = e.accelerationIncludingGravity; if (!g || g.x == null) return;
       const mag = Math.hypot(g.x!, g.y!, g.z!) || 9.8, nx = g.x! / mag, ny = g.y! / mag;
@@ -196,6 +208,33 @@ export default function InicioPage() {
     if (precisaPermissao) setShowGyroBtn(true);         // iOS: botão pra liberar o sensor
     else if (window.DeviceMotionEvent || window.DeviceOrientationEvent) addGyro();
 
+    // ── Head tracking (webcam, on-device) — o efeito "janela" que segue a cabeça ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let tracker: any = null;
+    const startCam = async () => {
+      if (tracker) return;
+      setCamState("loading");
+      try {
+        const { HeadTracker } = await import("@/lib/head-tracker");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tracker = new HeadTracker((h: { x: number; y: number; z: number; ok: boolean }) => {
+          if (!h.ok) return;
+          headActive = true;
+          target.x = clampU(h.x * 6) * W;            // ganho de cabeça → paralaxe
+          target.y = clampU(-h.y * 6) * 0.72 * H;
+          EYE_D = Math.max(0.95, Math.min(1.7, EYE_D0 * (1 - h.z * 0.5)));   // dolly
+        });
+        await tracker.start();
+        setCamState("on");
+      } catch { tracker = null; headActive = false; setCamState("error"); }
+    };
+    const stopCam = () => {
+      if (tracker) { tracker.stop(); tracker = null; }
+      headActive = false; EYE_D = EYE_D0; target.x = 0; target.y = 0; setCamState("off");
+    };
+    startCamRef.current = () => { void startCam(); };
+    stopCamRef.current = stopCam;
+
     window.addEventListener("resize", resize);
     resize(); raf = requestAnimationFrame(frame);
 
@@ -208,6 +247,7 @@ export default function InicioPage() {
       window.removeEventListener("dblclick", recalibrate);
       window.removeEventListener("orientationchange", recalibrate);
       window.removeEventListener("resize", resize);
+      if (tracker) { try { tracker.stop(); } catch { /* ignore */ } tracker = null; }
       document.body.style.overflow = "";
     };
   }, [mounted]);
@@ -227,26 +267,42 @@ export default function InicioPage() {
             onClick={() => router.push(c.href)}
             aria-label={c.name}
           >
-            <div className="mih-face mih-side-l" />
-            <div className="mih-face mih-side-r" />
-            <div className="mih-face mih-side-t" />
-            <div className="mih-face mih-side-b" />
-            <div className="mih-face mih-back" />
-            <div className="mih-face mih-front">
-              <div className="mih-ridges" />
-              <div className="mih-label">
-                <span className="mih-screen" aria-hidden="true">{c.icon}</span>
-                <span className="mih-name">{c.name}</span>
-                <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
+            <div className="mih-persp">
+              <div className="mih-obj" ref={(el) => { objRefs.current[i] = el; }}>
+                <div className="mih-face mih-side-l" />
+                <div className="mih-face mih-side-r" />
+                <div className="mih-face mih-side-t" />
+                <div className="mih-face mih-side-b" />
+                <div className="mih-face mih-back" />
+                <div className="mih-face mih-front">
+                  <div className="mih-ridges" />
+                  <div className="mih-label">
+                    <span className="mih-screen" aria-hidden="true">{c.icon}</span>
+                    <span className="mih-name">{c.name}</span>
+                    <span className="mih-fases"><span className="play">▶</span> {c.fases}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </button>
         ))}
       </div>
 
-      {showGyroBtn && (
-        <button className="mih-gyro" onClick={() => enableGyroRef.current()}>Ativar movimento</button>
-      )}
+      <div className="mih-controls">
+        <button
+          className="mih-ctl mih-ctl-cam"
+          data-on={camState === "on"}
+          onClick={() => (camState === "on" ? stopCamRef.current() : startCamRef.current())}
+        >
+          {camState === "on" ? "⏹ Parar câmera"
+            : camState === "loading" ? "Ativando câmera…"
+              : camState === "error" ? "Câmera indisponível — arraste o dedo"
+                : "🎥 Head tracking"}
+        </button>
+        {showGyroBtn && camState !== "on" && (
+          <button className="mih-ctl" onClick={() => enableGyroRef.current()}>Giroscópio</button>
+        )}
+      </div>
 
       <style>{CSS}</style>
     </div>,
@@ -260,12 +316,16 @@ const CSS = `
 .mih-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 100% at 50% 46%,transparent 36%,rgba(8,10,7,0.45) 84%,rgba(8,10,7,0.8) 100%);}
 .mih-root::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.18) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,0.4) 100%);mix-blend-mode:multiply;}
 
-/* IMPORTANTE: nada de filter/opacity/clip/overflow no .mih-slot — achata o preserve-3d. */
-.mih-space{position:absolute;inset:0;z-index:3;perspective:680px;pointer-events:none;}
+/* Cada card tem PERSPECTIVA PRÓPRIA (centrada nele) → fica reto, sem a distorção
+   off-axis do ponto de fuga único. IMPORTANTE: nada de filter/opacity/clip no
+   .mih-obj — achata o preserve-3d. */
+.mih-space{position:absolute;inset:0;z-index:3;pointer-events:none;}
 .mih-slot{--hue:var(--gold);--w:clamp(98px,25vw,150px);--h:clamp(124px,32vw,186px);--t:clamp(26px,8vw,38px);
   position:absolute;top:0;left:0;width:var(--w);height:var(--h);padding:0;border:0;background:none;cursor:pointer;
-  pointer-events:auto;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
+  pointer-events:auto;will-change:transform;}
 .mih-slot:focus-visible{outline:none;}
+.mih-persp{width:100%;height:100%;perspective:640px;}
+.mih-obj{position:relative;width:100%;height:100%;transform-style:preserve-3d;transform-origin:center center;will-change:transform;}
 
 .mih-face{position:absolute;top:50%;left:50%;backface-visibility:hidden;}
 .mih-front,.mih-back{width:var(--w);height:var(--h);border-radius:9px;}
@@ -294,5 +354,8 @@ const CSS = `
 .mih-fases .play{color:var(--hue);}
 .c-invest{--hue:var(--gold);} .c-fin{--hue:var(--emerald);} .c-barroots{--hue:var(--violet);} .c-config{--hue:var(--dmg);}
 
-.mih-gyro{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;font:inherit;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#06110a;background:linear-gradient(180deg,var(--dmg),#7fa00c);border:none;padding:10px 16px;border-radius:999px;cursor:pointer;box-shadow:0 8px 22px -8px rgba(155,188,15,0.7);}
+.mih-controls{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:0 12px;}
+.mih-ctl{font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--faint);background:rgba(12,15,10,0.72);border:1px solid rgba(255,255,255,0.12);padding:10px 15px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.mih-ctl-cam{color:#06110a;background:linear-gradient(180deg,#5cf0ff,#35c9dd);border:none;font-weight:700;box-shadow:0 8px 22px -8px rgba(92,240,255,0.7);}
+.mih-ctl-cam[data-on="true"]{background:linear-gradient(180deg,#f0b23c,#c9852e);box-shadow:0 8px 22px -8px rgba(240,178,60,0.7);}
 `;

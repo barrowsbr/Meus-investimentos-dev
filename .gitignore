@@ -35,3 +35,6 @@ backups/
 # Arquivo temporário de mensagem de commit
 .commitmsg.tmp
 .claude/worktrees/
+
+# MediaPipe WASM (copiado do node_modules no prebuild — não versionar)
+public/mediapipe/wasm/
